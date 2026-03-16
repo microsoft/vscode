@@ -1685,6 +1685,21 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.parent,				// in that case the workbench will span the entire site
 				this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? DEFAULT_EMPTY_WINDOW_DIMENSIONS : DEFAULT_WORKSPACE_WINDOW_DIMENSIONS // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 			);
+
+			// Issue Reporter mode: reduce dimensions to account for header/footer siblings
+			if (this.parent.classList.contains('issue-reporter-active')) {
+				let siblingHeight = 0;
+				for (const child of Array.from(this.parent.children)) {
+					if (child !== this.mainContainer && child instanceof HTMLElement) {
+						siblingHeight += child.offsetHeight;
+					}
+				}
+				this._mainContainerDimension = new Dimension(
+					this._mainContainerDimension.width,
+					Math.max(100, this._mainContainerDimension.height - siblingHeight)
+				);
+			}
+
 			this.logService.trace(`Layout#layout, height: ${this._mainContainerDimension.height}, width: ${this._mainContainerDimension.width}`);
 
 			size(this.mainContainer, this._mainContainerDimension.width, this._mainContainerDimension.height);

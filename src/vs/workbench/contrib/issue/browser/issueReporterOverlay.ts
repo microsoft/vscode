@@ -62,17 +62,24 @@ export class IssueReporterOverlay {
 		this.createOverlay();
 	}
 
+	private headerElement!: HTMLElement;
+	private footerElement!: HTMLElement;
+
 	private createOverlay(): void {
-		// Bottom sheet design — all UI at bottom, workbench stays 100% unblocked
-		this.overlayContainer = $('div.issue-reporter-overlay');
-		this.overlayContainer.setAttribute('role', 'dialog');
-		this.overlayContainer.setAttribute('aria-label', localize('issueReporter', "Issue Reporter"));
+		// We use a "flex sibling" approach:
+		// - body becomes display:flex, flex-direction:column
+		// - headerElement is inserted BEFORE the workbench
+		// - footerElement is inserted AFTER the workbench
+		// - workbench mainContainer gets flex:1, height:auto!important
+		// This makes the workbench genuinely shrink, like resizing the window.
+		// Context menus, dropdowns, everything works because there's no transform.
 
-		// Bottom sheet panel
-		const sheet = append(this.overlayContainer, $('div.issue-reporter-sheet'));
+		// We still create an overlayContainer for state tracking but it's not visible
+		this.overlayContainer = $('div.issue-reporter-state');
 
-		// Row 1: type, source, title, close
-		const topRow = append(sheet, $('div.issue-reporter-row'));
+		// Header bar
+		this.headerElement = $('div.issue-reporter-header');
+		const topRow = append(this.headerElement, $('div.issue-reporter-row'));
 
 		const titleLabel = append(topRow, $('span.issue-reporter-label'));
 		titleLabel.textContent = localize('reportIssue', "Report Issue");
@@ -104,23 +111,23 @@ export class IssueReporterOverlay {
 		closeBtn.setAttribute('tabindex', '0');
 		closeBtn.appendChild(renderIcon(Codicon.close));
 
-		// Row 2: description
-		this.descriptionTextarea = append(sheet, $('textarea.description-input')) as HTMLTextAreaElement;
+		// Footer bar
+		this.footerElement = $('div.issue-reporter-footer');
+
+		this.descriptionTextarea = append(this.footerElement, $('textarea.description-input')) as HTMLTextAreaElement;
 		this.descriptionTextarea.placeholder = localize('descriptionPlaceholder', "Describe the issue. What did you expect, and what happened instead?");
-		this.descriptionTextarea.rows = 3;
+		this.descriptionTextarea.rows = 2;
 		if (this.data.issueBody) {
 			this.descriptionTextarea.value = this.data.issueBody;
 		}
 
-		// Row 3: screenshots + actions
-		const bottomRow = append(sheet, $('div.issue-reporter-row'));
+		const bottomRow = append(this.footerElement, $('div.issue-reporter-row'));
 
 		this.screenshotContainer = append(bottomRow, $('div.screenshot-thumbnails'));
 
 		this.screenshotButton = this.disposables.add(new Button(bottomRow, unthemedButtonStyles));
 		this.screenshotButton.label = localize('takeScreenshot', "Screenshot");
 
-		// spacer
 		append(bottomRow, $('div.spacer'));
 
 		this.cancelButton = this.disposables.add(new Button(bottomRow, unthemedButtonStyles));
@@ -221,20 +228,27 @@ export class IssueReporterOverlay {
 
 		const workbenchContainer = this.layoutService.mainContainer;
 		const targetWindow = getWindow(workbenchContainer);
-		// Append overlay to body — it's position:fixed so location doesn't matter
-		targetWindow.document.body.appendChild(this.overlayContainer);
+		const body = targetWindow.document.body;
 
-		// Trigger fade-in
-		targetWindow.requestAnimationFrame(() => {
-			this.overlayContainer.classList.add('visible');
-		});
+		// Mark body so layout.ts knows to subtract sibling heights
+		body.classList.add('issue-reporter-active');
+
+		// Insert header before workbench, footer after
+		body.insertBefore(this.headerElement, workbenchContainer);
+		body.appendChild(this.footerElement);
+
+		// Tell VS Code to re-layout — layout.ts will now see the
+		// 'issue-reporter-active' class and subtract sibling heights
+		this.layoutService.layout();
 
 		this.titleInput.focus();
 
 		// Cleanup on dispose
 		this.disposables.add(toDisposable(() => {
-			this.overlayContainer.classList.remove('visible');
-			this.overlayContainer.remove();
+			this.headerElement.remove();
+			this.footerElement.remove();
+			body.classList.remove('issue-reporter-active');
+			this.layoutService.layout();
 			this.visible = false;
 		}));
 	}
@@ -244,20 +258,14 @@ export class IssueReporterOverlay {
 			return;
 		}
 
-		// Animate out
-		this.overlayContainer.classList.remove('visible');
+		this.headerElement.remove();
+		this.footerElement.remove();
+		const targetWindow = getWindow(this.layoutService.mainContainer);
+		targetWindow.document.body.classList.remove('issue-reporter-active');
+		this.layoutService.layout();
 
-		// Wait for transition to complete before removing
-		const onTransitionEnd = () => {
-			this.overlayContainer.removeEventListener('transitionend', onTransitionEnd);
-			this.overlayContainer.remove();
-			this.visible = false;
-			this._onDidClose.fire();
-		};
-		this.overlayContainer.addEventListener('transitionend', onTransitionEnd);
-
-		// Fallback in case transitionend doesn't fire
-		setTimeout(onTransitionEnd, 400);
+		this.visible = false;
+		this._onDidClose.fire();
 	}
 
 	addScreenshot(screenshot: IScreenshot): void {
@@ -352,14 +360,18 @@ export class IssueReporterOverlay {
 		return this.visible;
 	}
 
-	/** Hide the overlay temporarily so screenshots only capture the workbench */
+	/** Hide the UI temporarily so screenshots only capture the workbench */
 	hideForCapture(): void {
-		this.overlayContainer.style.display = 'none';
+		this.headerElement.style.display = 'none';
+		this.footerElement.style.display = 'none';
+		this.layoutService.layout();
 	}
 
-	/** Restore the overlay after screenshot capture */
+	/** Restore the UI after screenshot capture */
 	showAfterCapture(): void {
-		this.overlayContainer.style.display = '';
+		this.headerElement.style.display = '';
+		this.footerElement.style.display = '';
+		this.layoutService.layout();
 	}
 
 	dispose(): void {
