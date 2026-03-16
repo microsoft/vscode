@@ -8,7 +8,7 @@ import * as nls from '../../../../nls.js';
 import * as types from '../../../../base/common/types.js';
 import * as resources from '../../../../base/common/resources.js';
 import { ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
-import { ExtensionData, IThemeExtensionPoint } from './workbenchThemeService.js';
+import { ExtensionData, IThemeExtensionPoint, migrateThemeSettingsId } from './workbenchThemeService.js';
 
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -267,13 +267,14 @@ export class ThemeRegistry<T extends IThemeData> implements IDisposable {
 	}
 
 	public findThemeBySettingsId(settingsId: string | null, defaultSettingsId?: string): T | undefined {
-		if (this.builtInTheme && this.builtInTheme.settingsId === settingsId) {
+		const migratedId = settingsId ? migrateThemeSettingsId(settingsId) : settingsId;
+		if (this.builtInTheme && this.builtInTheme.settingsId === migratedId) {
 			return this.builtInTheme;
 		}
 		const allThemes = this.getThemes();
 		let defaultTheme: T | undefined = undefined;
 		for (const t of allThemes) {
-			if (t.settingsId === settingsId) {
+			if (t.settingsId === migratedId) {
 				return t;
 			}
 			if (t.settingsId === defaultSettingsId) {

@@ -6,8 +6,8 @@
 import * as nls from '../../../../nls.js';
 import * as types from '../../../../base/common/types.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
-import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget, ThemeSettingDefaults, COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS } from '../common/workbenchThemeService.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget, ThemeSettingDefaults, COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS, migrateThemeSettingsId } from '../common/workbenchThemeService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import * as errors from '../../../../base/common/errors.js';
@@ -43,6 +43,8 @@ import { getColorRegistry } from '../../../../platform/theme/common/colorRegistr
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { generateColorThemeCSS } from './colorThemeCss.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 // implementation
 
@@ -110,7 +112,9 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		@ILogService private readonly logService: ILogService,
 		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
 		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
-		@ILanguageService private readonly languageService: ILanguageService
+		@ILanguageService private readonly languageService: ILanguageService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 		this.container = layoutService.mainContainer;
@@ -190,7 +194,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		delayer.schedule();
 	}
 
-	private initialize(): Promise<[IWorkbenchColorTheme | null, IWorkbenchFileIconTheme | null, IWorkbenchProductIconTheme | null]> {
+	private async initialize(): Promise<[IWorkbenchColorTheme | null, IWorkbenchFileIconTheme | null, IWorkbenchProductIconTheme | null]> {
 		const extDevLocs = this.environmentService.extensionDevelopmentLocationURI;
 		const extDevLoc = extDevLocs && extDevLocs.length === 1 ? extDevLocs[0] : undefined; // in dev mode, switch to a theme provided by the extension under dev.
 
@@ -240,7 +244,63 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		};
 
 
-		return Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]);
+		this.migrateColorThemeSettings();
+		const result = await Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]);
+		this.showNewDefaultThemeNotification();
+		return result;
+	}
+
+	private static readonly NEW_THEME_NOTIFICATION_KEY = 'workbench.newDefaultThemeNotification';
+
+	private showNewDefaultThemeNotification(): void {
+		const newDefaultThemes = new Set([ThemeSettingDefaults.COLOR_THEME_DARK, ThemeSettingDefaults.COLOR_THEME_LIGHT]);
+		if (newDefaultThemes.has(this.currentColorTheme.settingsId)) {
+			return; // already using a new default theme
+		}
+		if (this.storageService.getBoolean(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, StorageScope.APPLICATION)) {
+			return; // already shown
+		}
+
+		const handle = this.notificationService.prompt(
+			Severity.Info,
+			nls.localize('newDefaultTheme', "New default themes are available for VS Code."),
+			[{
+				label: nls.localize('tryNewTheme', "Try Them Out"),
+				run: () => this.commandService.executeCommand('workbench.action.tryNewDefaultThemes')
+			}]
+		);
+		this._register(Event.once(handle.onDidClose)(() => {
+			this.storageService.store(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+		}));
+	}
+
+	/**
+	 * Migrates legacy theme setting values to their current equivalents,
+	 * writing back the migrated value so settings sync distributes the correct ID.
+	 */
+	private migrateColorThemeSettings(): void {
+		const themeSettings = [
+			ThemeSettings.COLOR_THEME,
+			ThemeSettings.PREFERRED_DARK_THEME,
+			ThemeSettings.PREFERRED_LIGHT_THEME,
+			ThemeSettings.PREFERRED_HC_DARK_THEME,
+			ThemeSettings.PREFERRED_HC_LIGHT_THEME,
+		];
+		for (const key of themeSettings) {
+			const inspection = this.configurationService.inspect<string>(key);
+			for (const [target, value] of [
+				[ConfigurationTarget.USER, inspection.userValue],
+				[ConfigurationTarget.USER_REMOTE, inspection.userRemoteValue],
+				[ConfigurationTarget.WORKSPACE, inspection.workspaceValue],
+			] as const) {
+				if (value) {
+					const migrated = migrateThemeSettingsId(value);
+					if (migrated !== value) {
+						this.configurationService.updateValue(key, migrated, target);
+					}
+				}
+			}
+		}
 	}
 
 	private installConfigurationListener() {

@@ -213,7 +213,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			const isLocal = target === AgentSessionProviders.Background;
 			this._updateIsolationPickerVisibility();
 			this._permissionPicker.setVisible(isLocal);
-			this._permissionPicker.setWorktreeIsolated(isLocal && this._isolationModePicker.isolationMode === 'worktree');
 			this._branchPicker.setVisible(isLocal);
 			this._syncIndicator.setVisible(isLocal);
 			this._updateDraftState();
@@ -245,7 +244,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._newSession.value?.setIsolationMode(mode);
 			this._branchPicker.setVisible(mode === 'worktree');
 			this._syncIndicator.setVisible(mode === 'worktree');
-			this._permissionPicker.setWorktreeIsolated(mode === 'worktree');
 			this._updateDraftState();
 			this._focusEditor();
 		}));
@@ -352,9 +350,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const isWorktree = this._isolationModePicker.isolationMode === 'worktree';
 		this._branchPicker.setVisible(isLocal && isWorktree);
 		this._syncIndicator.setVisible(isLocal && isWorktree);
-		if (isLocal) {
-			this._permissionPicker.setWorktreeIsolated(isWorktree);
-		}
 
 		// Render target buttons & extension pickers
 		this._renderOptionGroupPickers();

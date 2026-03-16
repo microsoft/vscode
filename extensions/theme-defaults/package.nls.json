@@ -1,6 +1,8 @@
 {
 	"displayName": "Default Themes",
 	"description": "The default Visual Studio light and dark themes",
+	"vsCodeLightThemeLabel": "VS Code Light",
+	"vsCodeDarkThemeLabel": "VS Code Dark",
 	"darkPlusColorThemeLabel": "Dark+",
 	"darkModernThemeLabel": "Dark Modern",
 	"lightPlusColorThemeLabel": "Light+",

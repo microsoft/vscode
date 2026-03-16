@@ -130,6 +130,7 @@ suite('GrowthSessionOpenerParticipant', () => {
 			isArchived: () => false,
 			setArchived: () => { },
 			isRead: () => true,
+			isMarkedUnread: () => false,
 			setRead: () => { },
 		};
 

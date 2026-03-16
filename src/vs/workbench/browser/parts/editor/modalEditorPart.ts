@@ -437,31 +437,66 @@ export class ModalEditorPart {
 		}));
 
 		disposables.add(resizableElement.onDidResize(e => {
-			const deltaWidth = e.dimension.width - resizeStartSize.width;
-			const deltaHeight = e.dimension.height - resizeStartSize.height;
 
-			// Adjust position to keep the opposite edge fixed
-			if (e.west) {
-				resizableElement.domNode.style.left = `${resizeStartLeft - deltaWidth}px`;
-			}
-			if (e.north) {
-				resizableElement.domNode.style.top = `${resizeStartTop - deltaHeight}px`;
+			// Clamp position and size to window bounds during active resize
+			// (skip on `done` — values are already correct from prior events,
+			//  and directional flags are not set on the done event)
+			if (!e.done) {
+				const containerDimension = this.layoutService.mainContainerDimension;
+				const titleBarOffset = this.layoutService.mainContainerOffset.top;
+
+				const deltaWidth = e.dimension.width - resizeStartSize.width;
+				const deltaHeight = e.dimension.height - resizeStartSize.height;
+
+				let newLeft = e.west ? resizeStartLeft - deltaWidth : resizeStartLeft;
+				let newTop = e.north ? resizeStartTop - deltaHeight : resizeStartTop;
+				let newWidth = e.dimension.width;
+				let newHeight = e.dimension.height;
+
+				if (newLeft < 0) {
+					newWidth += newLeft;
+					newLeft = 0;
+				}
+				if (newTop < titleBarOffset) {
+					newHeight += newTop - titleBarOffset;
+					newTop = titleBarOffset;
+				}
+				if (newLeft + newWidth > containerDimension.width) {
+					newWidth = containerDimension.width - newLeft;
+				}
+				if (newTop + newHeight > containerDimension.height) {
+					newHeight = containerDimension.height - newTop;
+				}
+
+				// Apply corrected size if it was clamped
+				if (newWidth !== e.dimension.width || newHeight !== e.dimension.height) {
+					resizableElement.layout(newHeight, newWidth);
+				}
+
+				// Adjust position to keep the opposite edge fixed
+				if (e.west) {
+					resizableElement.domNode.style.left = `${newLeft}px`;
+				}
+				if (e.north) {
+					resizableElement.domNode.style.top = `${newTop}px`;
+				}
 			}
 
 			// Update editor part layout during resize
-			editorPart.layout(e.dimension.width - MODAL_BORDER_SIZE, e.dimension.height - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT, 0, 0);
+			const size = resizableElement.size;
+			editorPart.layout(size.width - MODAL_BORDER_SIZE, size.height - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT, 0, 0);
 
 			if (e.done) {
 				isResizing = false;
 
 				// Check if size matches the default (from sash double-click reset)
 				const defaultSize = getDefaultSize();
-				if (e.dimension.width === defaultSize.width && e.dimension.height === defaultSize.height) {
+				if (size.width === defaultSize.width && size.height === defaultSize.height) {
 					editorPart.size = undefined;
 					editorPart.position = undefined;
 					layoutModal();
 				} else {
-					editorPart.size = new Dimension(e.dimension.width, e.dimension.height);
+					editorPart.size = new Dimension(size.width, size.height);
 					editorPart.position = {
 						left: parseFloat(resizableElement.domNode.style.left) || 0,
 						top: parseFloat(resizableElement.domNode.style.top) || 0,

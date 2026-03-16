@@ -28,6 +28,7 @@ import { ChatViewPaneTarget, IChatWidgetService } from '../browser/chat.js';
 import { AgentSessionProviders } from '../browser/agentSessions/agentSessions.js';
 import { isSessionInProgressStatus } from '../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsService.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../common/constants.js';
 import { IChatService } from '../common/chatService/chatService.js';
@@ -138,6 +139,7 @@ class ChatLifecycleHandler extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 
@@ -151,6 +153,10 @@ class ChatLifecycleHandler extends Disposable {
 	}
 
 	private hasNonCloudSessionInProgress(): boolean {
+		if (this.chatEntitlementService.sentiment.hidden) {
+			return false; // AI features are disabled
+		}
+
 		return this.agentSessionsService.model.sessions.some(session =>
 			isSessionInProgressStatus(session.status) &&
 			session.providerType !== AgentSessionProviders.Cloud &&
