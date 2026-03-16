@@ -180,7 +180,7 @@ suite('Workbench - TextModelResolverService', () => {
 			}
 		}));
 
-		const resource = URI.from({ scheme: 'test', authority: null!, path: 'thePath' });
+		const resource = URI.from({ scheme: 'test', authority: undefined!, path: 'thePath' });
 
 		// Acquire first reference
 		const ref1 = await accessor.textModelResolverService.createModelReference(resource);

@@ -29,7 +29,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 	// during the async disposal window, we reuse the pending model instead
 	// of creating a new wrapper that would orphan the old one and leak its
 	// onWillDispose listener on the shared ITextModel.
-	private readonly pendingDisposals = new Map<string, Promise<IResolvedTextEditorModel>>();
+	private readonly pendingDisposals = new Map<string, Promise<ITextEditorModel>>();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -128,7 +128,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 
 		// Store the model for potential reuse so that rapid
 		// release/re-acquire cycles don't orphan wrappers
-		this.pendingDisposals.set(key, modelPromise as Promise<IResolvedTextEditorModel>);
+		this.pendingDisposals.set(key, modelPromise);
 
 		// inMemory is bound to a different lifecycle: the wrapper
 		// is kept in pendingDisposals for reuse and its listener
