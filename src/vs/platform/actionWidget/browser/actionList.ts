@@ -115,6 +115,7 @@ interface IActionMenuTemplateData {
 	readonly text: HTMLElement;
 	readonly badge: HTMLElement;
 	readonly description?: HTMLElement;
+	readonly descriptionText?: HTMLElement;
 	readonly keybinding: KeybindingLabel;
 	readonly toolbar: HTMLElement;
 	readonly submenuIndicator: HTMLElement;
@@ -212,19 +213,24 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		description.className = 'description';
 		container.append(description);
 
+		const descriptionText = document.createElement('span');
+		descriptionText.className = 'description-text';
+		description.append(descriptionText);
+
+		// Submenu indicator is inside description to form a single interactive unit
+		const submenuIndicator = document.createElement('span');
+		submenuIndicator.className = 'action-list-submenu-indicator';
+		description.append(submenuIndicator);
+
 		const keybinding = new KeybindingLabel(container, OS);
 
 		const toolbar = document.createElement('div');
 		toolbar.className = 'action-list-item-toolbar';
 		container.append(toolbar);
 
-		const submenuIndicator = document.createElement('span');
-		submenuIndicator.className = 'action-list-submenu-indicator';
-		container.append(submenuIndicator);
-
 		const elementDisposables = new DisposableStore();
 
-		return { container, icon, text, badge, description, keybinding, toolbar, submenuIndicator, elementDisposables };
+		return { container, icon, text, badge, description, descriptionText, keybinding, toolbar, submenuIndicator, elementDisposables };
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, data: IActionMenuTemplateData): void {
@@ -270,13 +276,13 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		}
 
 		if (element.keybinding) {
-			data.description!.textContent = element.keybinding.getLabel();
-			data.description!.style.display = 'inline';
-			data.description!.style.letterSpacing = '0.5px';
+			data.descriptionText!.textContent = element.keybinding.getLabel();
+			data.description!.style.display = 'inline-flex';
+			data.descriptionText!.style.letterSpacing = '0.5px';
 		} else if (element.description) {
-			dom.clearNode(data.description!);
+			dom.clearNode(data.descriptionText!);
 			if (typeof element.description === 'string') {
-				data.description!.textContent = stripNewlines(element.description);
+				data.descriptionText!.textContent = stripNewlines(element.description);
 			} else {
 				const rendered = renderMarkdown(element.description, {
 					actionHandler: (content: string) => {
@@ -284,11 +290,11 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 					}
 				});
 				data.elementDisposables.add(rendered);
-				data.description!.appendChild(rendered.element);
+				data.descriptionText!.appendChild(rendered.element);
 			}
-			data.description!.style.display = 'inline';
+			data.description!.style.display = 'inline-flex';
 		} else {
-			data.description!.textContent = '';
+			data.descriptionText!.textContent = '';
 			data.description!.style.display = 'none';
 		}
 
@@ -336,10 +342,9 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		// Render submenu indicator
 		dom.clearNode(data.submenuIndicator);
 		data.container.classList.toggle('has-submenu', !!element.submenuActions?.length);
-		// Always render the icon so the element has consistent width for alignment
-		const submenuIndicatorIcon = dom.append(data.submenuIndicator, dom.$(ThemeIcon.asCSSSelector(Codicon.menuSubmenu)));
-		submenuIndicatorIcon.setAttribute('aria-hidden', 'true');
 		if (element.submenuActions && element.submenuActions.length > 0) {
+			const submenuIndicatorIcon = dom.append(data.submenuIndicator, dom.$(ThemeIcon.asCSSSelector(Codicon.menuSubmenu)));
+			submenuIndicatorIcon.setAttribute('aria-hidden', 'true');
 			data.container.setAttribute('aria-haspopup', 'true');
 		}
 	}
@@ -556,10 +561,6 @@ export class ActionList<T> extends Disposable {
 		this._register({ dispose: () => this._cleanupSubmenu() });
 
 		this._allMenuItems = [...items];
-
-		// If any item has submenu actions, mark the container so CSS can reserve space
-		const hasAnySubmenu = items.some(item => item.submenuActions?.length);
-		this.domNode.classList.toggle('has-submenu-items', hasAnySubmenu);
 
 		// Create filter input
 		if (this._options?.showFilter) {
