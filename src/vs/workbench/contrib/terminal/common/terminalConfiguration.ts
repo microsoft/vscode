@@ -124,6 +124,11 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		default: 'view',
 		description: localize('terminal.integrated.defaultLocation', "Controls where newly created terminals will appear.")
 	},
+	[TerminalSettingId.EditorUseEditorBackground]: {
+		type: 'boolean',
+		default: true,
+		description: localize('terminal.integrated.editorUseEditorBackground', "Controls whether terminals in the editor area use the editor background color instead of the terminal background color.")
+	},
 	[TerminalSettingId.TabsFocusMode]: {
 		type: 'string',
 		enum: ['singleClick', 'doubleClick'],
