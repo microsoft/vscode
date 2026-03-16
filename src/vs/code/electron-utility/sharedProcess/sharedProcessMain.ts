@@ -80,7 +80,7 @@ import { ipcSharedProcessTunnelChannelName, ISharedProcessTunnelService } from '
 import { SharedProcessTunnelService } from '../../../platform/tunnel/node/sharedProcessTunnelService.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../platform/uriIdentity/common/uriIdentityService.js';
-import { isLinux } from '../../../base/common/platform.js';
+import { INodeProcess, isLinux } from '../../../base/common/platform.js';
 import { FileUserDataProvider } from '../../../platform/userData/common/fileUserDataProvider.js';
 import { DiskFileSystemProviderClient, LOCAL_FILE_SYSTEM_CHANNEL_NAME } from '../../../platform/files/common/diskFileSystemProviderClient.js';
 import { InspectProfilingService as V8InspectProfilingService } from '../../../platform/profiling/node/profilingService.js';
@@ -325,7 +325,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 			telemetryService = new TelemetryService({
 				appenders,
-				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, this.configuration.sqmId, this.configuration.devDeviceId, internalTelemetry, productService.date),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, this.configuration.sqmId, this.configuration.devDeviceId, internalTelemetry, productService.date, (process as INodeProcess).isEmbeddedApp ? 'sessions-desktop' : undefined),
 				sendErrorTelemetry: true,
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
 				meteredConnectionService,
