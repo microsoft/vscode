@@ -189,9 +189,21 @@ declare module 'vscode' {
 		readonly modelId?: string;
 
 		/**
+		 * The identifier of the chat mode used for this request, if known.
+		 */
+		readonly modeId?: string;
+
+		/**
+		 * The permission level for tool auto-approval in this request.
+		 * - `'autoApprove'`: Auto-approve all tool calls and retry on errors.
+		 * - `'autopilot'`: Everything autoApprove does plus continues until the task is done.
+		 */
+		readonly permissionLevel?: string;
+
+		/**
 		 * @hidden
 		 */
-		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined, modelId: string | undefined);
+		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined, modelId: string | undefined, modeId: string | undefined, permissionLevel: string | undefined);
 	}
 
 	export class ChatResponseTurn2 {

@@ -36,7 +36,7 @@ import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from '../chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
 import { chatEditingSessionIsReady } from '../editing/chatEditingService.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from '../model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestModeInfo, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from '../model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
@@ -48,7 +48,7 @@ import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentLocation, ChatModeKind } from '../constants.js';
+import { ChatAgentLocation, ChatModeKind, validateChatPermissionLevel } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
 import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
@@ -56,6 +56,7 @@ import { IPromptsService } from '../promptSyntax/service/promptsService.js';
 import { AGENT_DEBUG_LOG_ENABLED_SETTING, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
 import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { IChatModeService, isBuiltinChatMode, getModeNameForTelemetry } from '../chatModes.js';
 
 const serializedChatKey = 'interactive.sessions';
 
@@ -170,6 +171,8 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 	) {
 		super();
 
@@ -641,6 +644,32 @@ export class ChatService extends Disposable implements IChatService {
 
 				const requestText = message.prompt;
 
+				// Resolve mode from modeId if provided
+				let modeInfo: IChatRequestModeInfo | undefined;
+				if (message.modeId) {
+					const mode = this.chatModeService.findModeById(message.modeId) ?? this.chatModeService.findModeByName(message.modeId);
+					if (mode) {
+						const modeIsBuiltin = isBuiltinChatMode(mode);
+						const rawModeInstructions = mode.modeInstructions?.get();
+						modeInfo = {
+							kind: mode.kind,
+							isBuiltin: modeIsBuiltin,
+							modeId: modeIsBuiltin ? mode.kind as 'ask' | 'agent' | 'edit' : 'custom',
+							modeName: getModeNameForTelemetry(mode),
+							modeInstructions: rawModeInstructions ? {
+								uri: mode.uri?.get(),
+								name: mode.name.get(),
+								content: rawModeInstructions.content,
+								toolReferences: this.toolsService.toToolReferences(rawModeInstructions.toolReferences),
+								metadata: rawModeInstructions.metadata,
+								isBuiltin: modeIsBuiltin,
+							} : undefined,
+							applyCodeBlockSuggestionId: undefined,
+							permissionLevel: validateChatPermissionLevel(message.permissionLevel),
+						};
+					}
+				}
+
 				const parsedRequest: IParsedChatRequest = {
 					text: requestText,
 					parts: [new ChatRequestTextPart(
@@ -656,7 +685,7 @@ export class ChatService extends Disposable implements IChatService {
 				lastRequest = model.addRequest(parsedRequest,
 					message.variableData ?? { variables: [] },
 					0, // attempt
-					undefined,
+					modeInfo,
 					agent,
 					undefined, // slashCommand
 					undefined, // confirmation

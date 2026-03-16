@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../base/common/network.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { IChatSessionsService } from './chatSessionsService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -88,6 +89,30 @@ export enum ChatPermissionLevel {
 	AutoApprove = 'autoApprove',
 	/** Everything AutoApprove does plus an internal stop hook that continues until the task is done */
 	Autopilot = 'autopilot'
+}
+
+/**
+ * Returns true if the permission level enables auto-approval of all tool calls.
+ * Both {@link ChatPermissionLevel.AutoApprove} and {@link ChatPermissionLevel.Autopilot} enable auto-approval.
+ */
+// Maps every ChatPermissionLevel value to itself. If a new enum member is added
+// but not listed here, TypeScript will report a compile error because the object
+// won't satisfy Record<ChatPermissionLevel, ChatPermissionLevel>.
+const chatPermissionLevelValues: Record<ChatPermissionLevel, ChatPermissionLevel> = {
+	[ChatPermissionLevel.Default]: ChatPermissionLevel.Default,
+	[ChatPermissionLevel.AutoApprove]: ChatPermissionLevel.AutoApprove,
+	[ChatPermissionLevel.Autopilot]: ChatPermissionLevel.Autopilot,
+};
+
+export function validateChatPermissionLevel(value: unknown): ChatPermissionLevel | undefined {
+	if (typeof value !== 'string') {
+		return undefined;
+	}
+
+	const permissionLevel = value as ChatPermissionLevel;
+	return hasKey(chatPermissionLevelValues, { [permissionLevel]: true })
+		? chatPermissionLevelValues[permissionLevel]
+		: undefined;
 }
 
 /**
