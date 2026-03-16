@@ -193,6 +193,13 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 				this.renderLabel(this.element);
 			}
 		}));
+
+		// Re-render label when model configuration changes
+		this._register(this._languageModelsService.onDidChangeLanguageModelVendors(() => {
+			if (this.element) {
+				this.renderLabel(this.element);
+			}
+		}));
 	}
 
 	protected override getHoverContents(): IManagedHoverContent | undefined {
