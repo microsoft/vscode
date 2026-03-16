@@ -256,7 +256,7 @@ export class AgentFeedbackAttachmentContribution extends Disposable {
 
 		const selectionStart = range.startLineNumber;
 		const selectionEndExclusive = range.endLineNumber + 1;
-		return selectionStart < lineRange.endLineNumberExclusive && lineRange.startLineNumber < selectionEndExclusive;
+		return selectionStart <= lineRange.startLineNumber && lineRange.endLineNumberExclusive <= selectionEndExclusive;
 	}
 
 	private _renderHunkGroup(
