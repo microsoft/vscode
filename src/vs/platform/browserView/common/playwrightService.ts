@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
-import { VSBuffer } from '../../../base/common/buffer.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IPlaywrightService = createDecorator<IPlaywrightService>('playwrightService');
@@ -63,7 +62,17 @@ export interface IPlaywrightService {
 	getSummary(pageId: string): Promise<string>;
 
 	/**
-	 * Run a function with access to a Playwright page.
+	 * Run a function with access to a Playwright page and return its raw result, or throw an error.
+	 * The first function argument is always the Playwright `page` object, and additional arguments can be passed after.
+	 * @param pageId The browser view ID identifying the page to operate on.
+	 * @param fnDef The function code to execute. Should contain the function definition but not its invocation, e.g. `async (page, arg1, arg2) => { ... }`.
+	 * @param args Additional arguments to pass to the function after the `page` object.
+	 * @returns The result of the function execution.
+	 */
+	invokeFunctionRaw<T>(pageId: string, fnDef: string, ...args: unknown[]): Promise<T>;
+
+	/**
+	 * Run a function with access to a Playwright page and return a result for tool output, including error handling.
 	 * The first function argument is always the Playwright `page` object, and additional arguments can be passed after.
 	 * @param pageId The browser view ID identifying the page to operate on.
 	 * @param fnDef The function code to execute. Should contain the function definition but not its invocation, e.g. `async (page, arg1, arg2) => { ... }`.
@@ -71,15 +80,6 @@ export interface IPlaywrightService {
 	 * @returns The result of the function execution, including a page summary.
 	 */
 	invokeFunction(pageId: string, fnDef: string, ...args: unknown[]): Promise<{ result: unknown; summary: string }>;
-
-	/**
-	 * Takes a screenshot of the current page viewport and returns it as a VSBuffer.
-	 * @param pageId The browser view ID identifying the page to capture.
-	 * @param selector Optional Playwright selector to capture a specific element instead of the viewport.
-	 * @param fullPage Whether to capture the full scrollable page instead of just the viewport.
-	 * @returns The screenshot image data.
-	 */
-	captureScreenshot(pageId: string, selector?: string, fullPage?: boolean): Promise<VSBuffer>;
 
 	/**
 	 * Responds to a file chooser dialog on the given page.

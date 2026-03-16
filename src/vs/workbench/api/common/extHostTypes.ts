@@ -30,7 +30,7 @@ import { SnippetString } from './extHostTypes/snippetString.js';
 import { SymbolKind, SymbolTag } from './extHostTypes/symbolInformation.js';
 import { TextEdit } from './extHostTypes/textEdit.js';
 import { WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
-import { HookTypeValue } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
+import { HookTypeValue } from '../../contrib/chat/common/promptSyntax/hookTypes.js';
 
 export { CodeActionKind } from './extHostTypes/codeActionKind.js';
 export {
@@ -1273,6 +1273,12 @@ export enum ShellQuoting {
 export enum TaskScope {
 	Global = 1,
 	Workspace = 2
+}
+
+export enum TaskRunOn {
+	Default = 1,
+	FolderOpen = 2,
+	WorktreeCreated = 3,
 }
 
 export class CustomExecution implements vscode.CustomExecution {

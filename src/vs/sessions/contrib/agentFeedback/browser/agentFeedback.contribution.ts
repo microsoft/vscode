@@ -5,7 +5,6 @@
 
 import './agentFeedbackEditorInputContribution.js';
 import './agentFeedbackEditorWidgetContribution.js';
-import './agentFeedbackLineDecorationContribution.js';
 import './agentFeedbackOverviewRulerContribution.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';

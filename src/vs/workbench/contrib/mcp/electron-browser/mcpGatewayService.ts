@@ -6,6 +6,7 @@
 import { URI } from '../../../../base/common/uri.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMcpGatewayService, McpGatewayChannelName } from '../../../../platform/mcp/common/mcpGateway.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IMcpGatewayResult, IWorkbenchMcpGatewayService } from '../common/mcpGatewayService.js';
@@ -24,6 +25,7 @@ export class WorkbenchMcpGatewayService implements IWorkbenchMcpGatewayService {
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._localPlatformService = ProxyChannel.toService<IMcpGatewayService>(
 			mainProcessService.getChannel(McpGatewayChannelName)
@@ -31,6 +33,7 @@ export class WorkbenchMcpGatewayService implements IWorkbenchMcpGatewayService {
 	}
 
 	async createGateway(inRemote: boolean): Promise<IMcpGatewayResult | undefined> {
+		this._logService.debug(`[McpGateway][Workbench] createGateway requested (inRemote=${inRemote})`);
 		if (inRemote) {
 			return this._createRemoteGateway();
 		} else {
@@ -39,11 +42,15 @@ export class WorkbenchMcpGatewayService implements IWorkbenchMcpGatewayService {
 	}
 
 	private async _createLocalGateway(): Promise<IMcpGatewayResult> {
+		this._logService.info('[McpGateway][Workbench] Creating local gateway via main process');
 		const info = await this._localPlatformService.createGateway(undefined);
+		const address = URI.revive(info.address);
+		this._logService.info(`[McpGateway][Workbench] Local gateway created: ${address}`);
 
 		return {
-			address: URI.revive(info.address),
+			address,
 			dispose: () => {
+				this._logService.info(`[McpGateway][Workbench] Disposing local gateway: ${info.gatewayId}`);
 				this._localPlatformService.disposeGateway(info.gatewayId);
 			}
 		};
@@ -52,17 +59,21 @@ export class WorkbenchMcpGatewayService implements IWorkbenchMcpGatewayService {
 	private async _createRemoteGateway(): Promise<IMcpGatewayResult | undefined> {
 		const connection = this._remoteAgentService.getConnection();
 		if (!connection) {
-			// No remote connection - cannot create remote gateway
+			this._logService.info('[McpGateway][Workbench] No remote connection available for remote gateway');
 			return undefined;
 		}
 
+		this._logService.info('[McpGateway][Workbench] Creating remote gateway via remote server');
 		return connection.withChannel(McpGatewayChannelName, async channel => {
 			const service = ProxyChannel.toService<IMcpGatewayService>(channel);
 			const info = await service.createGateway(undefined);
+			const address = URI.revive(info.address);
+			this._logService.info(`[McpGateway][Workbench] Remote gateway created: ${address}`);
 
 			return {
-				address: URI.revive(info.address),
+				address,
 				dispose: () => {
+					this._logService.info(`[McpGateway][Workbench] Disposing remote gateway: ${info.gatewayId}`);
 					service.disposeGateway(info.gatewayId);
 				}
 			};

@@ -648,9 +648,19 @@
 			}
 		},
 		{
-			"name": "Component Explorer",
+			"name": "Component Explorer (Edge)",
 			"type": "msedge",
-			"port": 9230,
+			"request": "launch",
+			"url": "http://localhost:5337/___explorer",
+			"preLaunchTask": "Launch Component Explorer",
+			"presentation": {
+				"group": "1_component_explorer",
+				"order": 4
+			}
+		},
+		{
+			"name": "Component Explorer (Chrome)",
+			"type": "chrome",
 			"request": "launch",
 			"url": "http://localhost:5337/___explorer",
 			"preLaunchTask": "Launch Component Explorer",

@@ -81,6 +81,7 @@ enum LayoutClasses {
 	PANEL_HIDDEN = 'nopanel',
 	AUXILIARYBAR_HIDDEN = 'noauxiliarybar',
 	CHATBAR_HIDDEN = 'nochatbar',
+	STATUSBAR_HIDDEN = 'nostatusbar',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized'
 }
@@ -398,15 +399,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		// Wrap up
 		instantiationService.invokeFunction(accessor => {
 			const lifecycleService = accessor.get(ILifecycleService);
-
-			// TODO@Sandeep debt around cyclic dependencies
-			const configurationService = accessor.get(IConfigurationService);
-			// eslint-disable-next-line local/code-no-in-operator
-			if (configurationService && 'acquireInstantiationService' in configurationService) {
-				(configurationService as { acquireInstantiationService: (instantiationService: unknown) => void }).acquireInstantiationService(instantiationService);
-			}
-
-			// Signal to lifecycle that services are set
 			lifecycleService.phase = LifecyclePhase.Ready;
 		});
 
@@ -599,6 +591,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.getPart(Parts.EDITOR_PART).create(editorPartContainer, { restorePreviousState: false });
 		mark('code/didCreatePart/workbench.parts.editor');
 
+		this.getPart(Parts.EDITOR_PART).layout(0, 0, 0, 0); // needed to make some view methods work
+
 		this.mainContainer.appendChild(editorPartContainer);
 	}
 
@@ -789,7 +783,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Default sizes
 		const sideBarSize = 300;
-		const auxiliaryBarSize = 300;
+		const auxiliaryBarSize = 340;
 		const panelSize = 300;
 		const titleBarHeight = this.titleBarPartView?.minimumHeight ?? 30;
 
@@ -902,6 +896,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			!this.partVisibility.panel ? LayoutClasses.PANEL_HIDDEN : undefined,
 			!this.partVisibility.auxiliaryBar ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.partVisibility.chatBar ? LayoutClasses.CHATBAR_HIDDEN : undefined,
+			LayoutClasses.STATUSBAR_HIDDEN, // sessions window never has a status bar
 			this.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined
 		]);
 	}

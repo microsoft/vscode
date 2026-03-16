@@ -249,12 +249,13 @@ export function setup(context: TestContext) {
 
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
 		const app = await _electron.launch({ executablePath: entryPoint, args });
-		const window = await context.getPage(app.firstWindow());
-
-		await test.run(window);
-
-		context.log('Closing the application');
-		await app.close();
+		try {
+			const window = await context.getPage(app.firstWindow());
+			await test.run(window);
+		} finally {
+			context.log('Closing the application');
+			await app.close();
+		}
 
 		test.validate();
 	}

@@ -14,7 +14,6 @@ import { DetailedLineRangeMapping, LineRangeMapping } from '../../../../../edito
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import * as nls from '../../../../../nls.js';
 
 /**
@@ -284,7 +283,7 @@ Example response format:
 
 			const response = await this._languageModelsService.sendChatRequest(
 				models[0],
-				new ExtensionIdentifier('core'),
+				undefined,
 				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
 				{},
 				cancellationToken

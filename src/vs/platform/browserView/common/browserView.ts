@@ -6,6 +6,30 @@
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+
+const commandPrefix = 'workbench.action.browser';
+export enum BrowserViewCommandId {
+	Open = `${commandPrefix}.open`,
+	NewTab = `${commandPrefix}.newTab`,
+	GoBack = `${commandPrefix}.goBack`,
+	GoForward = `${commandPrefix}.goForward`,
+	Reload = `${commandPrefix}.reload`,
+	HardReload = `${commandPrefix}.hardReload`,
+	FocusUrlInput = `${commandPrefix}.focusUrlInput`,
+	AddElementToChat = `${commandPrefix}.addElementToChat`,
+	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
+	ToggleDevTools = `${commandPrefix}.toggleDevTools`,
+	OpenExternal = `${commandPrefix}.openExternal`,
+	ClearGlobalStorage = `${commandPrefix}.clearGlobalStorage`,
+	ClearWorkspaceStorage = `${commandPrefix}.clearWorkspaceStorage`,
+	ClearEphemeralStorage = `${commandPrefix}.clearEphemeralStorage`,
+	OpenSettings = `${commandPrefix}.openSettings`,
+	ShowFind = `${commandPrefix}.showFind`,
+	HideFind = `${commandPrefix}.hideFind`,
+	FindNext = `${commandPrefix}.findNext`,
+	FindPrevious = `${commandPrefix}.findPrevious`,
+}
 
 export interface IBrowserViewBounds {
 	windowId: number;
@@ -14,6 +38,7 @@ export interface IBrowserViewBounds {
 	width: number;
 	height: number;
 	zoomFactor: number;
+	cornerRadius: number;
 }
 
 export interface IBrowserViewCaptureScreenshotOptions {
@@ -34,6 +59,7 @@ export interface IBrowserViewState {
 	lastFavicon: string | undefined;
 	lastError: IBrowserViewLoadError | undefined;
 	storageScope: BrowserViewStorageScope;
+	browserZoomIndex: number;
 }
 
 export interface IBrowserViewNavigationEvent {
@@ -119,6 +145,19 @@ export enum BrowserViewStorageScope {
 export const ipcBrowserViewChannelName = 'browserView';
 
 /**
+ * Discrete zoom levels matching Edge/Chrome.
+ * Note: When those browsers say "33%" and "67%" zoom, they really mean 33.33...% and 66.66...%
+ */
+export const browserZoomFactors = [0.25, 1 / 3, 0.5, 2 / 3, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5] as const;
+export const browserZoomDefaultIndex = browserZoomFactors.indexOf(1);
+export function browserZoomLabel(zoomFactor: number): string {
+	return localize('browserZoomPercent', "{0}%", Math.round(zoomFactor * 100));
+}
+export function browserZoomAccessibilityLabel(zoomFactor: number): string {
+	return localize('browserZoomAccessibilityLabel', "Page Zoom: {0}%", Math.round(zoomFactor * 100));
+}
+
+/**
  * This should match the isolated world ID defined in `preload-browserView.ts`.
  */
 export const browserViewIsolatedWorldId = 999;
@@ -152,6 +191,14 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	destroyBrowserView(id: string): Promise<void>;
+
+	/**
+	 * Get the state of an existing browser view by ID, or throw if it doesn't exist
+	 * @param id The browser view identifier
+	 * @return The state of the browser view for the given ID
+	 * @throws If no browser view exists for the given ID
+	 */
+	getState(id: string): Promise<IBrowserViewState>;
 
 	/**
 	 * Update the bounds of a browser view
@@ -195,8 +242,9 @@ export interface IBrowserViewService {
 	/**
 	 * Reload the current page
 	 * @param id The browser view identifier
+	 * @param hard Whether to do a hard reload (bypassing cache)
 	 */
-	reload(id: string): Promise<void>;
+	reload(id: string, hard?: boolean): Promise<void>;
 
 	/**
 	 * Toggle developer tools for the browser view.
@@ -276,4 +324,13 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	clearStorage(id: string): Promise<void>;
+
+	/** Set the browser zoom index (independent from VS Code zoom). */
+	setBrowserZoomIndex(id: string, zoomIndex: number): Promise<void>;
+
+	/**
+	 * Update the keybinding accelerators used in browser view context menus.
+	 * @param keybindings A map of command ID to accelerator label
+	 */
+	updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void>;
 }

@@ -41,7 +41,6 @@ import { ipcBrowserViewChannelName } from '../../platform/browserView/common/bro
 import { ipcBrowserViewGroupChannelName } from '../../platform/browserView/common/browserViewGroup.js';
 import { BrowserViewMainService, IBrowserViewMainService } from '../../platform/browserView/electron-main/browserViewMainService.js';
 import { BrowserViewGroupMainService, IBrowserViewGroupMainService } from '../../platform/browserView/electron-main/browserViewGroupMainService.js';
-import { BrowserViewCDPProxyServer, IBrowserViewCDPProxyServer } from '../../platform/browserView/electron-main/browserViewCDPProxyServer.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
 import { isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
@@ -133,6 +132,9 @@ import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeM
 import { IMcpGatewayService, McpGatewayChannelName } from '../../platform/mcp/common/mcpGateway.js';
 import { McpGatewayService } from '../../platform/mcp/node/mcpGatewayService.js';
 import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js';
+import { SandboxHelperChannelName } from '../../platform/sandbox/common/sandboxHelperIpc.js';
+import { ISandboxHelperService } from '../../platform/sandbox/common/sandboxHelperService.js';
+import { SandboxHelperService } from '../../platform/sandbox/node/sandboxHelperService.js';
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
@@ -408,7 +410,11 @@ export class CodeApplication extends Disposable {
 
 			// Mac only event: open new window when we get activated
 			if (!hasVisibleWindows) {
-				await this.windowsMainService?.openEmptyWindow({ context: OpenContext.DOCK });
+				if ((process as INodeProcess).isEmbeddedApp || (this.environmentMainService.args['sessions'] && this.productService.quality !== 'stable')) {
+					await this.windowsMainService?.openSessionsWindow({ context: OpenContext.DOCK });
+				} else {
+					await this.windowsMainService?.openEmptyWindow({ context: OpenContext.DOCK });
+				}
 			}
 		});
 
@@ -1059,7 +1065,6 @@ export class CodeApplication extends Disposable {
 		services.set(INativeBrowserElementsMainService, new SyncDescriptor(NativeBrowserElementsMainService, undefined, false /* proxied to other processes */));
 
 		// Browser View
-		services.set(IBrowserViewCDPProxyServer, new SyncDescriptor(BrowserViewCDPProxyServer, undefined, true));
 		services.set(IBrowserViewMainService, new SyncDescriptor(BrowserViewMainService, undefined, false /* proxied to other processes */));
 		services.set(IBrowserViewGroupMainService, new SyncDescriptor(BrowserViewGroupMainService, undefined, false /* proxied to other processes */));
 
@@ -1148,6 +1153,9 @@ export class CodeApplication extends Disposable {
 
 		// Proxy Auth
 		services.set(IProxyAuthService, new SyncDescriptor(ProxyAuthService));
+
+		// Sandbox
+		services.set(ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
 
 		// MCP
 		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
@@ -1281,10 +1289,14 @@ export class CodeApplication extends Disposable {
 		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService), disposables);
 		mainProcessElectronServer.registerChannel('externalTerminal', externalTerminalChannel);
 
+		// Sandbox
+		const sandboxHelperChannel = ProxyChannel.fromService(accessor.get(ISandboxHelperService), disposables);
+		mainProcessElectronServer.registerChannel(SandboxHelperChannelName, sandboxHelperChannel);
+
 		// MCP
 		const mcpDiscoveryChannel = ProxyChannel.fromService(accessor.get(INativeMcpDiscoveryHelperService), disposables);
 		mainProcessElectronServer.registerChannel(NativeMcpDiscoveryHelperChannelName, mcpDiscoveryChannel);
-		const mcpGatewayChannel = this._register(new McpGatewayChannel(mainProcessElectronServer, accessor.get(IMcpGatewayService)));
+		const mcpGatewayChannel = this._register(new McpGatewayChannel(mainProcessElectronServer, accessor.get(IMcpGatewayService), accessor.get(ILoggerMainService)));
 		mainProcessElectronServer.registerChannel(McpGatewayChannelName, mcpGatewayChannel);
 
 		// Logger

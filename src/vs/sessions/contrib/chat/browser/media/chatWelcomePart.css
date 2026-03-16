@@ -12,7 +12,7 @@
 	height: 100%;
 	box-sizing: border-box;
 	overflow: hidden;
-	padding: 0 12px 10% 12px;
+	padding: 0 12px 48px 12px;
 	container-type: size;
 }
 
@@ -35,7 +35,7 @@
 	width: 100%;
 	max-width: 200px;
 	aspect-ratio: 1/1;
-	background-image: url('../../../../../workbench/browser/parts/editor/media/letterpress-dark.svg');
+	background-image: url('./letterpress-sessions-dark.svg');
 	background-size: contain;
 	background-position: center;
 	background-repeat: no-repeat;
@@ -43,16 +43,9 @@
 	margin-bottom: 20px;
 }
 
-.vs .chat-full-welcome-letterpress {
-	background-image: url('../../../../../workbench/browser/parts/editor/media/letterpress-light.svg');
-}
-
+.vs .chat-full-welcome-letterpress,
 .hc-light .chat-full-welcome-letterpress {
-	background-image: url('../../../../../workbench/browser/parts/editor/media/letterpress-hcLight.svg');
-}
-
-.hc-black .chat-full-welcome-letterpress {
-	background-image: url('../../../../../workbench/browser/parts/editor/media/letterpress-hcDark.svg');
+	background-image: url('./letterpress-sessions-light.svg');
 }
 
 @container (max-height: 350px) {
@@ -116,6 +109,7 @@
 	display: none;
 	flex-direction: row;
 	align-items: center;
+	gap: 4px;
 	min-height: 28px;
 }
 
@@ -360,4 +354,13 @@
 
 .sessions-chat-picker-slot .action-label span + .chat-session-option-label {
 	margin-left: 2px;
+}
+
+/* Sync indicator: a slim non-interactive-looking separator before the button */
+.sessions-chat-sync-indicator {
+	margin-left: 4px;
+}
+
+.sessions-chat-sync-indicator .action-label .sessions-chat-dropdown-label {
+	margin-left: 3px;
 }

@@ -13,7 +13,7 @@ import { setup as setupServerWebTests } from './serverWeb.test.js';
 import { setup as setupWSLTests } from './wsl.test.js';
 
 const options = minimist(process.argv.slice(2), {
-	string: ['commit', 'quality'],
+	string: ['commit', 'quality', 'screenshots-dir'],
 	boolean: ['cleanup', 'verbose', 'signing-check', 'headless', 'detection'],
 	alias: { commit: 'c', quality: 'q', verbose: 'v' },
 	default: { cleanup: true, verbose: false, 'signing-check': true, headless: true, 'detection': true },
@@ -35,6 +35,7 @@ const context = new TestContext({
 	checkSigning: options['signing-check'],
 	headlessBrowser: options.headless,
 	downloadOnly: !options['detection'],
+	screenshotsDir: options['screenshots-dir'],
 });
 
 context.log(`Arguments: ${process.argv.slice(2).join(' ')}`);

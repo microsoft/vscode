@@ -8,6 +8,7 @@ import { SandboxedCommandLinePresenter } from '../../browser/tools/commandLinePr
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import type { ISandboxRuntimeConfig } from '../../../../../../platform/sandbox/common/sandboxHelperIpc.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
 
@@ -15,16 +16,31 @@ suite('SandboxedCommandLinePresenter', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
+	class TestTerminalSandboxService implements ITerminalSandboxService {
+		readonly _serviceBrand: undefined;
+
+		constructor(private readonly _enabled: boolean) { }
+
+		async isEnabled(): Promise<boolean> {
+			return this._enabled;
+		}
+
+		async promptToAllowWritePath(_path: string): Promise<boolean> {
+			return false;
+		}
+
+		async wrapCommand(command: string): Promise<string> {
+			return command;
+		}
+
+		async wrapWithSandbox(_runtimeConfig: ISandboxRuntimeConfig, command: string): Promise<string> {
+			return command;
+		}
+	}
+
 	const createPresenter = (enabled: boolean = true) => {
 		instantiationService = workbenchInstantiationService({}, store);
-		instantiationService.stub(ITerminalSandboxService, {
-			_serviceBrand: undefined,
-			isEnabled: async () => enabled,
-			wrapCommand: command => command,
-			getSandboxConfigPath: async () => '/tmp/sandbox.json',
-			getTempDir: () => undefined,
-			setNeedsForceUpdateConfigFile: () => { },
-		});
+		instantiationService.stub(ITerminalSandboxService, new TestTerminalSandboxService(enabled));
 		return instantiationService.createInstance(SandboxedCommandLinePresenter);
 	};
 
@@ -40,6 +56,17 @@ suite('SandboxedCommandLinePresenter', () => {
 		strictEqual(result.commandLine, commandLine);
 		strictEqual(result.language, undefined);
 		strictEqual(result.languageDisplayName, undefined);
+	});
+
+	test('should prefer the original command line when provided', async () => {
+		const presenter = createPresenter();
+		const result = await presenter.present({
+			commandLine: { forDisplay: 'wrapped', original: 'echo hello' },
+			shell: 'bash',
+			os: OperatingSystem.Linux
+		});
+		ok(result);
+		strictEqual(result.commandLine, 'echo hello');
 	});
 
 	test('should return command line for non-sandboxed command when enabled', async () => {

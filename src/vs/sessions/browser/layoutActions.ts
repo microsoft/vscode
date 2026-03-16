@@ -9,12 +9,14 @@ import { KeyCode, KeyMod } from '../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../nls.js';
 import { Categories } from '../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
 import { Menus } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
+import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
 
 // Register Icons
 const panelLeftIcon = registerIcon('agent-panel-left', Codicon.layoutSidebarLeft, localize('panelLeft', "Represents a side bar in the left position"));
@@ -50,10 +52,10 @@ class ToggleSidebarVisibilityAction extends Action2 {
 			},
 			menu: [
 				{
-					id: Menus.TitleBarLeft,
+					id: Menus.TitleBarLeftLayout,
 					group: 'navigation',
 					order: 0,
-					when: IsAuxiliaryWindowContext.toNegated()
+					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
 				},
 				{
 					id: Menus.TitleBarContext,
@@ -102,10 +104,10 @@ class ToggleSecondarySidebarVisibilityAction extends Action2 {
 			f1: true,
 			menu: [
 				{
-					id: Menus.TitleBarRight,
+					id: Menus.TitleBarRightLayout,
 					group: 'navigation',
 					order: 10,
-					when: IsAuxiliaryWindowContext.toNegated()
+					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
 				},
 				{
 					id: Menus.TitleBarContext,
@@ -163,7 +165,7 @@ registerAction2(ToggleSecondarySidebarVisibilityAction);
 registerAction2(TogglePanelVisibilityAction);
 
 // Floating window controls: always-on-top
-MenuRegistry.appendMenuItem(Menus.TitleBarRight, {
+MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {
 	command: {
 		id: 'workbench.action.toggleWindowAlwaysOnTop',
 		title: localize('toggleWindowAlwaysOnTop', "Toggle Always on Top"),

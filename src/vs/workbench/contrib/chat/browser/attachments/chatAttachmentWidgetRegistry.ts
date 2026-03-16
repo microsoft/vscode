@@ -15,6 +15,8 @@ export interface IChatAttachmentWidgetInstance extends IDisposable {
 	readonly element: HTMLElement;
 	readonly onDidDelete: event.Event<Event>;
 	readonly onDidOpen: event.Event<void>;
+	/** Optional label element, used for applying warning styles on omitted attachments. */
+	readonly label?: { readonly element: HTMLElement };
 }
 
 /**

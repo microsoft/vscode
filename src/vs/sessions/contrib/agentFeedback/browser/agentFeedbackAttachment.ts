@@ -74,6 +74,7 @@ export class AgentFeedbackAttachmentContribution extends Disposable {
 				text: f.text,
 				resourceUri: f.resourceUri,
 				range: f.range,
+				codeSelection: this._snippetCache.get(f.id),
 			})),
 			value,
 		};

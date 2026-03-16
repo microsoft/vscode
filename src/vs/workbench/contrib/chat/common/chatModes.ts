@@ -19,12 +19,14 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IChatAgentService } from './participants/chatAgents.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from './constants.js';
-import { IHandOff, isTarget } from './promptSyntax/promptFileParser.js';
-import { ExtensionAgentSourceType, IAgentSource, ICustomAgent, ICustomAgentVisibility, IPromptsService, isCustomAgentVisibility, PromptsStorage, Target } from './promptSyntax/service/promptsService.js';
+import { IHandOff } from './promptSyntax/promptFileParser.js';
+import { ExtensionAgentSourceType, IAgentSource, ICustomAgent, ICustomAgentVisibility, IPromptsService, isCustomAgentVisibility, PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { Target } from './promptSyntax/promptTypes.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { hash } from '../../../../base/common/hash.js';
 import { isString } from '../../../../base/common/types.js';
+import { isTarget } from './promptSyntax/languageProviders/promptFileAttributes.js';
 
 export const IChatModeService = createDecorator<IChatModeService>('chatModeService');
 export interface IChatModeService {
@@ -450,7 +452,7 @@ export class CustomChatMode implements IChatMode {
 
 type IChatModeSourceData =
 	| { readonly storage: PromptsStorage.extension; readonly extensionId: string; type?: ExtensionAgentSourceType }
-	| { readonly storage: PromptsStorage.local | PromptsStorage.user }
+	| { readonly storage: PromptsStorage.local | PromptsStorage.user | PromptsStorage.internal }
 	| { readonly storage: PromptsStorage.plugin; readonly pluginUri: URI };
 
 function isChatModeSourceData(value: unknown): value is IChatModeSourceData {
@@ -464,7 +466,7 @@ function isChatModeSourceData(value: unknown): value is IChatModeSourceData {
 	if (data.storage === PromptsStorage.plugin) {
 		return isUriComponents(data.pluginUri);
 	}
-	return data.storage === PromptsStorage.local || data.storage === PromptsStorage.user;
+	return data.storage === PromptsStorage.local || data.storage === PromptsStorage.user || data.storage === PromptsStorage.internal;
 }
 
 function serializeChatModeSource(source: IAgentSource | undefined): IChatModeSourceData | undefined {
@@ -489,6 +491,9 @@ function reviveChatModeSource(data: IChatModeSourceData | undefined): IAgentSour
 	}
 	if (data.storage === PromptsStorage.plugin) {
 		return { storage: PromptsStorage.plugin, pluginUri: URI.revive(data.pluginUri) };
+	}
+	if (data.storage === PromptsStorage.internal) {
+		return { storage: PromptsStorage.internal };
 	}
 	return { storage: data.storage };
 }
@@ -538,7 +543,7 @@ export class BuiltinChatMode implements IChatMode {
 export namespace ChatMode {
 	export const Ask = new BuiltinChatMode(ChatModeKind.Ask, 'Ask', localize('chatDescription', "Explore and understand your code"), Codicon.question);
 	export const Edit = new BuiltinChatMode(ChatModeKind.Edit, 'Edit', localize('editsDescription', "Edit or refactor selected code"), Codicon.edit);
-	export const Agent = new BuiltinChatMode(ChatModeKind.Agent, 'Agent', localize('agentDescription', "Describe what to build next"), Codicon.agent);
+	export const Agent = new BuiltinChatMode(ChatModeKind.Agent, 'Agent', localize('agentDescription', "Describe what to build"), Codicon.agent);
 }
 
 export function isBuiltinChatMode(mode: IChatMode): boolean {

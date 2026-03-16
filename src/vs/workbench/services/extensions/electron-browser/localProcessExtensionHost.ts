@@ -268,7 +268,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 			const inspectorUrlMatch = output.data && output.data.match(/ws:\/\/([^\s]+):(\d+)\/([^\s]+)/);
 			if (inspectorUrlMatch) {
 				const [, host, port, auth] = inspectorUrlMatch;
-				const devtoolsUrl = `devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${host}:${port}/${auth}`;
+				const devtoolsUrl = `devtools://devtools/bundled/js_app.html?v8only=true&ws=${host}:${port}/${auth}`;
 				if (!this._environmentService.isBuilt && !this._isExtensionDevTestFromCli) {
 					console.debug(`%c[Extension Host] %cdebugger inspector at ${devtoolsUrl}`, 'color: blue', 'color:');
 				}

@@ -91,18 +91,20 @@ export function setup(context: TestContext) {
 
 				const url = context.getWebServerUrl(port, token, test.workspaceDir).toString();
 				const browser = await context.launchBrowser();
-				const page = await context.getPage(browser.newPage());
+				try {
+					const page = await context.getPage(browser.newPage());
 
-				context.log(`Navigating to ${url}`);
-				await page.goto(url, { waitUntil: 'networkidle' });
+					context.log(`Navigating to ${url}`);
+					await page.goto(url, { waitUntil: 'networkidle' });
 
-				context.log('Waiting for the workbench to load');
-				await page.waitForSelector('.monaco-workbench');
+					context.log('Waiting for the workbench to load');
+					await page.waitForSelector('.monaco-workbench');
 
-				await test.run(page);
-
-				context.log('Closing browser');
-				await browser.close();
+					await test.run(page);
+				} finally {
+					context.log('Closing browser');
+					await browser.close();
+				}
 
 				test.validate();
 				return true;
