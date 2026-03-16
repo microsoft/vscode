@@ -121,13 +121,22 @@ export function readSavedState(): PostinstallState | undefined {
 	}
 }
 
+/**
+ * Returns the major.minor portion of a semver string (e.g. '22.22.1' → '22.22').
+ * Patch-level differences in Node.js do not affect native module ABI compatibility.
+ */
+export function nodeMajorMinor(version: string): string {
+	const parts = version.split('.');
+	return parts.length >= 2 ? `${parts[0]}.${parts[1]}` : version;
+}
+
 export function isUpToDate(): boolean {
 	const saved = readSavedState();
 	if (!saved) {
 		return false;
 	}
 	const current = computeState();
-	return saved.nodeVersion === current.nodeVersion
+	return nodeMajorMinor(saved.nodeVersion) === nodeMajorMinor(current.nodeVersion)
 		&& JSON.stringify(saved.fileHashes) === JSON.stringify(current.fileHashes);
 }
 

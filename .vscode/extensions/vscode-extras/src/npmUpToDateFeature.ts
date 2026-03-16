@@ -213,7 +213,8 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 			return [{ label: '(no postinstall state found)', isFile: false }];
 		}
 		const changed: { readonly label: string; readonly isFile: boolean }[] = [];
-		if (state.saved.nodeVersion !== state.current.nodeVersion) {
+		const majorMinor = (v: string) => { const p = v.split('.'); return p.length >= 2 ? `${p[0]}.${p[1]}` : v; };
+		if (majorMinor(state.saved.nodeVersion) !== majorMinor(state.current.nodeVersion)) {
 			changed.push({ label: `Node.js version (${state.saved.nodeVersion} → ${state.current.nodeVersion})`, isFile: false });
 		}
 		const allKeys = new Set([...Object.keys(state.current.fileHashes), ...Object.keys(state.saved.fileHashes)]);
