@@ -118,7 +118,6 @@ interface IActionMenuTemplateData {
 	readonly descriptionText?: HTMLElement;
 	readonly keybinding: KeybindingLabel;
 	readonly toolbar: HTMLElement;
-	readonly submenuIndicator: HTMLElement;
 	readonly elementDisposables: DisposableStore;
 	previousClassName?: string;
 }
@@ -215,26 +214,18 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		toolbar.className = 'action-list-item-toolbar';
 		container.append(toolbar);
 
-		// Description group is last to stay at the far right
-		const descriptionGroup = document.createElement('span');
-		descriptionGroup.className = 'description-group';
-		container.append(descriptionGroup);
-
+		// Description element at the far right
 		const description = document.createElement('span');
 		description.className = 'description';
-		descriptionGroup.append(description);
+		container.append(description);
 
 		const descriptionText = document.createElement('span');
 		descriptionText.className = 'description-text';
 		description.append(descriptionText);
 
-		const submenuIndicator = document.createElement('span');
-		submenuIndicator.className = 'action-list-submenu-indicator';
-		descriptionGroup.append(submenuIndicator);
-
 		const elementDisposables = new DisposableStore();
 
-		return { container, icon, text, badge, description, descriptionText, keybinding, toolbar, submenuIndicator, elementDisposables };
+		return { container, icon, text, badge, description, descriptionText, keybinding, toolbar, elementDisposables };
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, data: IActionMenuTemplateData): void {
@@ -341,15 +332,6 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			const actionBar = new ActionBar(data.toolbar);
 			data.elementDisposables.add(actionBar);
 			actionBar.push(toolbarActions, { icon: true, label: false });
-		}
-
-		// Render submenu indicator
-		dom.clearNode(data.submenuIndicator);
-		data.container.classList.toggle('has-submenu', !!element.submenuActions?.length);
-		if (element.submenuActions && element.submenuActions.length > 0) {
-			const submenuIndicatorIcon = dom.append(data.submenuIndicator, dom.$(ThemeIcon.asCSSSelector(Codicon.menuSubmenu)));
-			submenuIndicatorIcon.setAttribute('aria-hidden', 'true');
-			data.container.setAttribute('aria-haspopup', 'true');
 		}
 	}
 
@@ -1094,7 +1076,7 @@ export class ActionList<T> extends Disposable {
 		// Don't select when clicking on toolbar actions, submenu indicator, or submenu
 		if (e.browserEvent && dom.isHTMLElement((e.browserEvent as MouseEvent).target)) {
 			const target = (e.browserEvent as MouseEvent).target as HTMLElement;
-			if (target.closest('.action-list-item-toolbar') || target.closest('.action-list-submenu-indicator') || target.closest('.action-list-submenu')) {
+			if (target.closest('.action-list-item-toolbar') || target.closest('.action-list-submenu')) {
 				this._list.setSelection([]);
 				return;
 			}
@@ -1217,15 +1199,12 @@ export class ActionList<T> extends Disposable {
 			this._showHoverForElement(element, e.index);
 		}
 
-		// Handle submenu show/hide on hover — only when hovering on the description group
-		const isHoveringDescriptionGroup = element?.submenuActions?.length && dom.isHTMLElement(e.browserEvent.target) &&
-			e.browserEvent.target.closest('.description-group') !== null;
-		if (isHoveringDescriptionGroup && typeof e.index === 'number') {
+		// Handle submenu show/hide on hover — show when hovering anywhere on the row
+		const hasSubmenu = element?.submenuActions?.length;
+		if (hasSubmenu && typeof e.index === 'number') {
 			this._submenuHoverIndex = e.index;
 			this._submenuHideScheduler.cancel();
 			this._submenuShowScheduler.schedule();
-			// Hide hover widget to avoid conflict with submenu
-			this._hover.clear();
 		} else {
 			// Don't hide submenu if mouse moved into the submenu itself
 			const isHoveringSubmenu = this._submenu && dom.isHTMLElement(e.browserEvent.target) &&
@@ -1233,7 +1212,7 @@ export class ActionList<T> extends Disposable {
 			if (!isHoveringSubmenu) {
 				this._submenuShowScheduler.cancel();
 				if (this._submenu) {
-					// Use delay to allow crossing scrollbar gap between description and submenu
+					// Use delay to allow crossing scrollbar gap between list and submenu
 					this._submenuHideScheduler.schedule();
 				} else {
 					this._submenuHoverIndex = undefined;
@@ -1281,7 +1260,6 @@ export class ActionList<T> extends Disposable {
 		}
 
 		// Render submenu items as simple DOM elements — no Menu widget, no focus management
-		let isFirstGroup = true;
 		for (const action of element.submenuActions) {
 			if (action instanceof SubmenuAction) {
 				const children = action.actions;
@@ -1291,7 +1269,6 @@ export class ActionList<T> extends Disposable {
 				const headerLabel = dom.append(headerRow, dom.$('span.action-list-submenu-group-label'));
 				headerLabel.textContent = action.label;
 				dom.append(headerRow, dom.$('.action-list-submenu-group-line'));
-				isFirstGroup = false;
 
 				for (const child of children) {
 					const item = dom.append(submenuContainer, dom.$('.action-list-submenu-item'));
