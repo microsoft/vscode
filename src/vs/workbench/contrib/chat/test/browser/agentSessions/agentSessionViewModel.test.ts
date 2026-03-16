@@ -215,10 +215,9 @@ suite('AgentSessions', () => {
 				await viewModel.resolve(undefined);
 				assert.strictEqual(viewModel.sessions.length, 2);
 
-				// Now resolve only type-1
+				// Now resolve only type-1 - sessions from type-2 are preserved
 				await viewModel.resolve('type-1');
-				// Only type-1 sessions remain since non-resolved providers are cleared
-				assert.strictEqual(viewModel.sessions.length, 1);
+				assert.strictEqual(viewModel.sessions.length, 2);
 			});
 		});
 
@@ -459,7 +458,7 @@ suite('AgentSessions', () => {
 			});
 		});
 
-		test('should not preserve sessions from non-resolved controllers', async () => {
+		test('should preserve sessions from non-resolved controllers', async () => {
 			return runWithFakedTimers({}, async () => {
 				let controller1CallCount = 0;
 				let controller2CallCount = 0;
@@ -503,11 +502,11 @@ suite('AgentSessions', () => {
 				assert.strictEqual(controller1CallCount, 2); // One from registration and one from resolve
 				assert.strictEqual(controller2CallCount, 2); // One from registration and one from resolve
 
-				// Now resolve only type-2
+				// Now resolve only type-2 - sessions from type-1 are preserved
 				await viewModel.resolve('type-2');
 
-				// Should still have only one session
-				assert.strictEqual(viewModel.sessions.length, 1);
+				// Should still have both sessions
+				assert.strictEqual(viewModel.sessions.length, 2);
 				// Controller 1 should not be called again
 				assert.strictEqual(controller1CallCount, 2);
 				// Controller 2 should be called again

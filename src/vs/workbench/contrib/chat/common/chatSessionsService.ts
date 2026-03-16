@@ -248,6 +248,11 @@ export interface IChatSessionsService {
 	activateChatSessionItemProvider(chatSessionType: string): Promise<void>;
 
 	/**
+	 * Returns the session types for all currently registered item controllers.
+	 */
+	getRegisteredSessionTypes(): readonly string[];
+
+	/**
 	 * Get the list of current chat session items grouped by session type.
 	 *
 	 * @param providerTypeFilter If specified, only returns items from the given providers. If undefined, returns items from all providers.

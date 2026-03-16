@@ -77,6 +77,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return this.contributions.map(contribution => this.resolveContribution(contribution));
 	}
 
+	getRegisteredSessionTypes(): readonly string[] {
+		return Array.from(this.sessionItemControllers.keys());
+	}
+
 	getChatSessionContribution(chatSessionType: string): ResolvedChatSessionsExtensionPoint | undefined {
 		const contribution = this.contributions.find(c => c.type === chatSessionType);
 		if (!contribution) {

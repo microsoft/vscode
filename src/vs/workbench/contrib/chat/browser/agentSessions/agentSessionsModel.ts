@@ -492,8 +492,33 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 		const providerFilter = providersToResolve.includes(undefined) ? undefined : coalesce(providersToResolve);
 
-		await this.chatSessionsService.refreshChatSessionItems(providerFilter, token);
-		await this.updateItems(providerFilter, token);
+		if (providerFilter) {
+			await this.chatSessionsService.refreshChatSessionItems(providerFilter, token);
+			await this.updateItems(providerFilter, token);
+		} else {
+			// When resolving all session types, determine individual types and
+			// resolve each one separately. This ensures that if one provider
+			// hangs (e.g. cloud sessions), the others still show their results
+			// immediately in the UI.
+			const allTypes = new Set<string>();
+			for (const type of this.chatSessionsService.getRegisteredSessionTypes()) {
+				allTypes.add(type);
+			}
+			for (const contrib of this.chatSessionsService.getAllChatSessionContributions()) {
+				allTypes.add(contrib.type);
+			}
+			for (const session of this._sessions.values()) {
+				allTypes.add(session.providerType);
+			}
+
+			for (const type of allTypes) {
+				if (token.isCancellationRequested) {
+					return;
+				}
+				await this.chatSessionsService.refreshChatSessionItems([type], token);
+				await this.updateItems([type], token);
+			}
+		}
 	}
 
 	/**
@@ -508,7 +533,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		const providerResults = this.chatSessionsService.getChatSessionItems(providerFilter, token);
 
 		const resolvedProviders = new Set<string>();
-		const sessions = new ResourceMap<IInternalAgentSession>();
+		const resolvedSessions = new ResourceMap<IInternalAgentSession>();
 
 		for await (const { chatSessionType, items: providerSessions } of providerResults) {
 			resolvedProviders.add(chatSessionType);
@@ -534,7 +559,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					? { files: changes.files, insertions: changes.insertions, deletions: changes.deletions }
 					: changes;
 
-				sessions.set(session.resource, this.toAgentSession({
+				resolvedSessions.set(session.resource, this.toAgentSession({
 					providerType: chatSessionType,
 					providerLabel,
 					resource: session.resource,
@@ -552,10 +577,23 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			}
 		}
 
+		// Build final sessions map: first preserve existing sessions from
+		// unresolved providers (maintaining their order), then add newly resolved ones.
+		const sessions = new ResourceMap<IInternalAgentSession>();
+
 		for (const [, session] of this._sessions) {
-			if (!resolvedProviders.has(session.providerType) && (isBuiltInAgentSessionProvider(session.providerType) || mapSessionContributionToType.has(session.providerType))) {
-				sessions.set(session.resource, session); // fill in existing sessions for providers that did not resolve if they are known or built-in
+			if (!resolvedProviders.has(session.providerType)) {
+				// When resolving specific providers, always preserve sessions from
+				// unresolved providers since we intentionally didn't ask for them.
+				// When resolving all providers, only preserve known or built-in providers.
+				if (providerFilter || isBuiltInAgentSessionProvider(session.providerType) || mapSessionContributionToType.has(session.providerType)) {
+					sessions.set(session.resource, session);
+				}
 			}
+		}
+
+		for (const [resource, session] of resolvedSessions) {
+			sessions.set(resource, session);
 		}
 
 		this._sessions = sessions;

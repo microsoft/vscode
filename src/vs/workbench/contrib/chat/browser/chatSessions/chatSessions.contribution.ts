@@ -728,6 +728,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			.map(entry => this.resolveChatSessionContribution(entry.extension, entry.contribution));
 	}
 
+	getRegisteredSessionTypes(): readonly string[] {
+		return Array.from(this._itemControllers.keys());
+	}
+
 	private _updateHasCanDelegateProvidersContextKey(): void {
 		const hasCanDelegate = this.getAllChatSessionContributions().filter(c => c.canDelegate);
 		const canDelegateEnabled = hasCanDelegate.length > 0;
@@ -874,6 +878,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		await this.tryActivateControllers(providersToResolve);
 
 		await Promise.all(Array.from(this._itemControllers).map(async ([chatSessionType, controllerEntry]) => {
+			const resolvedType = this._resolveToPrimaryType(chatSessionType) ?? chatSessionType;
+			if (providersToResolve && !providersToResolve.includes(resolvedType)) {
+				return; // skip: not considered for resolving
+			}
+
 			try {
 				await controllerEntry.controller.refresh(token);
 			} catch (err) {
