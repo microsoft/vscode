@@ -35,7 +35,7 @@ export class SandboxHelperChannel implements IServerChannel<RemoteAgentConnectio
 				return this.sandboxHelperService.resolveSandboxPermissionRequest(argsArray[0] as string, argsArray[1] as boolean) as T;
 			}
 			case 'wrapWithSandbox': {
-				return this.sandboxHelperService.wrapWithSandbox(argsArray[0] as ISandboxRuntimeConfig, argsArray[1] as string) as T;
+				return this.sandboxHelperService.wrapWithSandbox(argsArray[0] as ISandboxRuntimeConfig, argsArray[1] as string, argsArray[2] as string) as T;
 			}
 		}
 

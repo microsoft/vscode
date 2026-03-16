@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { FileAccess } from '../../../../../base/common/network.js';
+import { dirname, posix, win32 } from '../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { SandboxHelperChannelName, type ISandboxPermissionRequest, type ISandboxRuntimeConfig } from '../../../../../platform/sandbox/common/sandboxHelperIpc.js';
 import { ISandboxHelperService } from '../../../../../platform/sandbox/common/sandboxHelperService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ITerminalSandboxNetworkSettings } from './terminalSandbox.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { TerminalChatAgentToolsSettingId } from './terminalChatAgentToolsConfiguration.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { ITrustedDomainService } from '../../../url/common/trustedDomainService.js';
 import { localize } from '../../../../../nls.js';
-
-type ISandboxHelperChannel = {
-	readonly onDidRequestSandboxPermission: Event<ISandboxPermissionRequest>;
-	resetSandbox(): Promise<void>;
-	resolveSandboxPermissionRequest(requestId: string, allowed: boolean): Promise<void>;
-	wrapWithSandbox(runtimeConfig: ISandboxRuntimeConfig, command: string): Promise<string>;
-};
 
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
@@ -36,18 +36,24 @@ export interface ITerminalSandboxService {
 	promptToAllowWritePath(path: string): Promise<boolean>;
 	wrapWithSandbox(runtimeConfig: ISandboxRuntimeConfig, command: string): Promise<string>;
 	wrapCommand(command: string): Promise<string>;
+	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
+	getTempDir(): URI | undefined;
+	setNeedsForceUpdateConfigFile(): void;
 }
-
-type ITerminalSandboxFilesystemSettings = {
-	denyRead?: string[];
-	allowWrite?: string[];
-	denyWrite?: string[];
-};
 
 export class TerminalSandboxService extends Disposable implements ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
+	private _srtPath: string | undefined;
+	private _rgPath: string | undefined;
+	private _srtPathResolved = false;
+	private _execPath?: string;
+	private _sandboxConfigPath: string | undefined;
+	private _needsForceUpdateConfigFile = true;
+	private _tempDir: URI | undefined;
+	private _sandboxSettingsId: string | undefined;
 	private _remoteEnvDetailsPromise: Promise<IRemoteAgentEnvironment | null>;
 	private _remoteEnvDetails: IRemoteAgentEnvironment | null = null;
+	private _appRoot: string;
 	private _os: OperatingSystem = OS;
 	private _defaultWritePaths: string[] = ['~/.npm'];
 	private readonly _sandboxPermissionRequestListener = this._register(new MutableDisposable());
@@ -56,6 +62,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@IFileService private readonly _fileService: IFileService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -63,8 +71,22 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
 	) {
 		super();
+		this._appRoot = dirname(FileAccess.asFileUri('').path);
+		// Get the node executable path from native environment service if available (Electron's execPath with ELECTRON_RUN_AS_NODE)
+		const nativeEnv = this._environmentService as IEnvironmentService & { execPath?: string };
+		this._execPath = nativeEnv.execPath;
+		this._sandboxSettingsId = generateUuid();
 		this._remoteEnvDetailsPromise = this._remoteAgentService.getEnvironment();
-		this._register(this._configurationService.onDidChangeConfiguration(e => this._handleSandboxConfigurationChange(e)));
+
+		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, (e: IConfigurationChangeEvent | undefined) => {
+			if (e && this._affectsSandboxConfiguration(e)) {
+				this._handleSandboxConfigurationChange();
+			}
+		}));
+
+		this._register(this._trustedDomainService.onDidChangeTrustedDomains(() => {
+			this._handleSandboxConfigurationChange();
+		}));
 	}
 
 	public async isEnabled(): Promise<boolean> {
@@ -74,16 +96,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			return false;
 		}
 		return this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled);
-	}
-
-	public async wrapWithSandbox(runtimeConfig: ISandboxRuntimeConfig, command: string): Promise<string> {
-		try {
-			const service = this._getSandboxHelperService();
-			return service.wrapWithSandbox(runtimeConfig, command);
-		} catch (error) {
-			this._logService.error('TerminalSandboxService: Failed to wrap command with sandbox', error);
-			return command;
-		}
 	}
 
 	public async promptToAllowWritePath(path: string): Promise<boolean> {
@@ -98,7 +110,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}
 
 		const target = this._getSandboxConfigurationTarget();
-		const inspectedValue = this._configurationService.inspect<ITerminalSandboxFilesystemSettings>(settingsKey);
+		const inspectedValue = this._configurationService.inspect<{ denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }>(settingsKey);
 		const currentSettings = target === ConfigurationTarget.USER_REMOTE ? inspectedValue.userRemoteValue : inspectedValue.userValue;
 		const allowWrite = new Set(currentSettings?.allowWrite ?? []);
 		const denyWrite = currentSettings?.denyWrite ?? [];
@@ -128,6 +140,16 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return true;
 	}
 
+	public async wrapWithSandbox(runtimeConfig: ISandboxRuntimeConfig, command: string): Promise<string> {
+		try {
+			const service = this._getSandboxHelperService();
+			return await service.wrapWithSandbox(runtimeConfig, command);
+		} catch (error) {
+			this._logService.error('TerminalSandboxService: Failed to wrap command with sandbox', error);
+			return command;
+		}
+	}
+
 	public async promptForSandboxPermission(request: ISandboxPermissionRequest): Promise<boolean> {
 		const target = request.port === undefined ? request.host : `${request.host}:${request.port}`;
 		const { confirmed } = await this._dialogService.confirm({
@@ -147,7 +169,91 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			throw new Error('Sandbox settings not initialized');
 		}
 
-		return this.wrapWithSandbox(sandboxSettings, command);
+		await this.getSandboxConfigPath();
+		if (!this._sandboxConfigPath || !this._tempDir) {
+			throw new Error('Sandbox config path or temp dir not initialized');
+		}
+		if (!this._execPath) {
+			throw new Error('Executable path not set to run sandbox commands');
+		}
+		if (!this._srtPath) {
+			throw new Error('Sandbox runtime path not resolved');
+		}
+		if (!this._rgPath) {
+			throw new Error('Ripgrep path not resolved');
+		}
+		// Quote shell arguments so the wrapped command cannot break out of the outer shell.
+		let envDetails = `PATH="$PATH:${dirname(this._rgPath)}" TMPDIR="${this._tempDir.path}"}`;
+		if (!this._remoteEnvDetails) {
+			envDetails = `ELECTRON_RUN_AS_NODE=1 ${envDetails}`;
+		}
+
+		// Use ELECTRON_RUN_AS_NODE=1 to make Electron executable behave as Node.js
+		// TMPDIR must be set as environment variable before the command
+		// Initialize the sandbox manager before returning the wrapped command so permission prompts are wired up.
+		try {
+			return await this._getSandboxHelperService().wrapWithSandbox(sandboxSettings, command, envDetails);
+		} catch (error) {
+			this._logService.error('TerminalSandboxService: Failed to initialize sandbox', error);
+			return command;
+		}
+	}
+
+	public getTempDir(): URI | undefined {
+		return this._tempDir;
+	}
+
+	public setNeedsForceUpdateConfigFile(): void {
+		this._needsForceUpdateConfigFile = true;
+	}
+
+	public async getSandboxConfigPath(forceRefresh: boolean = false): Promise<string | undefined> {
+		await this._resolveSrtPath();
+		if (!this._sandboxConfigPath || forceRefresh || this._needsForceUpdateConfigFile) {
+			this._sandboxConfigPath = await this._createSandboxConfig();
+			this._needsForceUpdateConfigFile = false;
+		}
+		return this._sandboxConfigPath;
+	}
+
+	private async _resolveSrtPath(): Promise<void> {
+		if (this._srtPathResolved) {
+			return;
+		}
+		this._srtPathResolved = true;
+		const remoteEnv = this._remoteEnvDetails || await this._remoteEnvDetailsPromise;
+		if (remoteEnv) {
+
+			this._appRoot = remoteEnv.appRoot.path;
+			this._execPath = this._pathJoin(this._appRoot, 'node');
+		}
+		this._srtPath = this._pathJoin(this._appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
+		this._rgPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg');
+	}
+
+	private async _createSandboxConfig(): Promise<string | undefined> {
+		if (await this.isEnabled() && !this._tempDir) {
+			await this._initTempDir();
+		}
+		const runtimeConfig = await this._getSandboxSettings();
+		if (this._tempDir && runtimeConfig) {
+			const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
+			const persistedSettings = {
+				network: {
+					allowedDomains: runtimeConfig.network?.allowedDomains ?? [],
+					deniedDomains: runtimeConfig.network?.deniedDomains ?? []
+				},
+				filesystem: {
+					denyRead: runtimeConfig.filesystem?.denyRead ?? [],
+					allowWrite: runtimeConfig.filesystem?.allowWrite ?? [],
+					denyWrite: runtimeConfig.filesystem?.denyWrite ?? [],
+				}
+			};
+			this._sandboxConfigPath = configFileUri.path;
+			await this._fileService.createFile(configFileUri, VSBuffer.fromString(JSON.stringify(persistedSettings, null, '\t')), { overwrite: true });
+			return this._sandboxConfigPath;
+		}
+		return undefined;
 	}
 
 	private async _resetSandbox(): Promise<void> {
@@ -155,11 +261,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		await service.resetSandbox();
 	}
 
-	private _handleSandboxConfigurationChange(e: IConfigurationChangeEvent): void {
-		if (!this._affectsSandboxConfiguration(e)) {
-			return;
-		}
-
+	private _handleSandboxConfigurationChange(): void {
+		this.setNeedsForceUpdateConfigFile();
 		this._resetSandbox().catch(error => {
 			this._logService.error('TerminalSandboxService: Failed to reset sandbox after configuration change', error);
 		});
@@ -168,10 +271,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private async _getSandboxSettings(): Promise<ISandboxRuntimeConfig | undefined> {
 		const networkSetting = this._configurationService.getValue<ITerminalSandboxNetworkSettings>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
 		const linuxFileSystemSetting = this._os === OperatingSystem.Linux
-			? this._configurationService.getValue<ITerminalSandboxFilesystemSettings>(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ?? {}
+			? this._configurationService.getValue<{ denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }>(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ?? {}
 			: {};
 		const macFileSystemSetting = this._os === OperatingSystem.Macintosh
-			? this._configurationService.getValue<ITerminalSandboxFilesystemSettings>(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem) ?? {}
+			? this._configurationService.getValue<{ denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }>(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem) ?? {}
 			: {};
 		const linuxAllowWrite = this._resolveAllowWritePaths(linuxFileSystemSetting.allowWrite);
 		const macAllowWrite = this._resolveAllowWritePaths(macFileSystemSetting.allowWrite);
@@ -187,16 +290,41 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				deniedDomains: networkSetting.deniedDomains ?? []
 			},
 			filesystem: {
-				denyRead: (this._os === OperatingSystem.Macintosh ? macFileSystemSetting.denyRead : linuxFileSystemSetting.denyRead) || [],
-				allowWrite: (this._os === OperatingSystem.Macintosh ? macAllowWrite : linuxAllowWrite) || [],
-				denyWrite: (this._os === OperatingSystem.Macintosh ? macFileSystemSetting.denyWrite : linuxFileSystemSetting.denyWrite) || [],
+				denyRead: this._os === OperatingSystem.Macintosh ? (macFileSystemSetting.denyRead ?? []) : (linuxFileSystemSetting.denyRead ?? []),
+				allowWrite: this._os === OperatingSystem.Macintosh ? macAllowWrite : linuxAllowWrite,
+				denyWrite: this._os === OperatingSystem.Macintosh ? (macFileSystemSetting.denyWrite ?? []) : (linuxFileSystemSetting.denyWrite ?? []),
 			}
 		};
 	}
 
+	// Joins path segments according to the current OS.
+	private _pathJoin = (...segments: string[]) => {
+		const path = this._os === OperatingSystem.Windows ? win32 : posix;
+		return path.join(...segments);
+	};
+
 	private _resolveAllowWritePaths(configuredAllowWrite: string[] | undefined): string[] {
 		const workspaceFolderPaths = this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri.path);
 		return [...new Set([...workspaceFolderPaths, ...this._defaultWritePaths, ...(configuredAllowWrite ?? [])])];
+	}
+
+	private async _initTempDir(): Promise<void> {
+		if (await this.isEnabled()) {
+			this._needsForceUpdateConfigFile = true;
+			const remoteEnv = this._remoteEnvDetails || await this._remoteEnvDetailsPromise;
+			if (remoteEnv) {
+				this._tempDir = remoteEnv.tmpDir;
+			} else {
+				const environmentService = this._environmentService as IEnvironmentService & { tmpDir?: URI };
+				this._tempDir = environmentService.tmpDir;
+			}
+			if (this._tempDir) {
+				this._defaultWritePaths.push(this._tempDir.path);
+			}
+			if (!this._tempDir) {
+				this._logService.warn('TerminalSandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');
+			}
+		}
 	}
 
 	private _addTrustedDomainsToAllowedDomains(allowedDomains: string[]): string[] {
@@ -237,10 +365,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return undefined;
 	}
 
-	private _getSandboxHelperService(): ISandboxHelperChannel {
+	private _getSandboxHelperService(): ISandboxHelperService {
 		const connection = this._remoteAgentService.getConnection();
 		const service = connection
-			? ProxyChannel.toService<ISandboxHelperChannel>(connection.getChannel(SandboxHelperChannelName))
+			? ProxyChannel.toService<ISandboxHelperService>(connection.getChannel(SandboxHelperChannelName))
 			: this._localSandboxHelperService;
 		const source = connection ? `remote:${connection.remoteAuthority}` : 'local';
 
@@ -254,7 +382,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return service;
 	}
 
-	private async _handleSandboxPermissionRequest(service: ISandboxHelperChannel, request: ISandboxPermissionRequest): Promise<void> {
+	private async _handleSandboxPermissionRequest(service: ISandboxHelperService, request: ISandboxPermissionRequest): Promise<void> {
 		let allowed = false;
 
 		try {

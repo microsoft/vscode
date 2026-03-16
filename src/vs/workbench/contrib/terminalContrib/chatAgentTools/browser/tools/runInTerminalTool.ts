@@ -781,6 +781,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolSpecificData.commandLine.toolEdited !== undefined &&
 			toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original
 		);
+		const didSandboxEditCommand = didToolEditCommand && toolSpecificData.commandLine.forDisplay === toolSpecificData.commandLine.original;
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
@@ -928,8 +929,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				let resultText = (
 					didUserEditCommand
 						? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
-						: didToolEditCommand
-							? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
+						: didToolEditCommand && !didSandboxEditCommand
+							? `sandbox testing`
 							: `Command is running in terminal with ID=${termId}`
 				);
 				if (pollingResult && pollingResult.modelOutputEvalResponse) {
@@ -1102,8 +1103,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const resultText: string[] = [];
 		if (didUserEditCommand) {
 			resultText.push(`Note: The user manually edited the command to \`${command}\`, and this is the output of running that command instead:\n`);
-		} else if (didToolEditCommand) {
-			resultText.push(`Note: The tool simplified the command to \`${command}\`, and this is the output of running that command instead:\n`);
+		} else if (didToolEditCommand && !didSandboxEditCommand) {
+			resultText.push(`sandbox testing\n`);
 		}
 		if (didMoveToBackground && !args.isBackground) {
 			resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
