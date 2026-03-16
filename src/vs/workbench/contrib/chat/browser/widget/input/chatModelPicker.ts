@@ -545,6 +545,11 @@ export class ModelPickerWidget extends Disposable {
 
 		this._renderLabel();
 
+		// Re-render label when model configuration changes
+		this._register(this._languageModelsService.onDidChangeLanguageModelVendors(() => {
+			this._renderLabel();
+		}));
+
 		// Open picker on click
 		this._register(dom.addDisposableListener(this._domNode, dom.EventType.MOUSE_DOWN, (e) => {
 			if (e.button !== 0) {
@@ -675,7 +680,10 @@ export class ModelPickerWidget extends Disposable {
 			domChildren.push(iconElement);
 		}
 
-		domChildren.push(dom.$('span.chat-input-picker-label', undefined, name ?? localize('chat.modelPicker.auto', "Auto")));
+		const modelLabel = name ?? localize('chat.modelPicker.auto', "Auto");
+		const configDescription = this._selectedModel ? this._languageModelsService.getModelConfigurationDescription(this._selectedModel.identifier) : undefined;
+		const fullLabel = configDescription ? `${modelLabel} · ${configDescription}` : modelLabel;
+		domChildren.push(dom.$('span.chat-input-picker-label', undefined, fullLabel));
 
 		// Badge icon between label and chevron
 		if (this._badgeIcon) {
