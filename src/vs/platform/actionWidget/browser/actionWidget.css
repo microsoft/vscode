@@ -273,7 +273,7 @@
 .action-widget .monaco-list-row.action .action-list-submenu-indicator {
 	display: flex;
 	align-items: center;
-	padding: 0 8px 0 4px;
+	padding: 0 4px 0 4px;
 	visibility: hidden;
 }
 
