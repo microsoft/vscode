@@ -1182,7 +1182,7 @@ export class ActionList<T> extends Disposable {
 				}
 			}
 
-			newHover = this._hoverService.showDelayedHover({
+			newHover = this._hoverService.showInstantHover({
 				content: container,
 				target: rowElement,
 				additionalClasses: ['action-widget-hover'],
@@ -1197,7 +1197,7 @@ export class ActionList<T> extends Disposable {
 				persistence: {
 					hideOnHover: false,
 				},
-			}, { groupId: `actionListHover` });
+			});
 		} else if (hasHoverContent) {
 			// Show hover if the element has hover content only
 			const markdown = typeof element.hover!.content === 'string' ? new MarkdownString(element.hover!.content) : element.hover!.content;
