@@ -55,6 +55,7 @@ import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../../s
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { NotebookRendererMessagingService } from './services/notebookRendererMessagingServiceImpl.js';
 import { INotebookRendererMessagingService } from '../common/notebookRendererMessagingService.js';
 import { INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFactory } from './viewModel/notebookOutlineDataSourceFactory.js';
@@ -764,6 +765,7 @@ class NotebookEditorManager implements IWorkbenchContribution {
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
 		@INotebookEditorModelResolverService private readonly _notebookEditorModelService: INotebookEditorModelResolverService,
+		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService,
 		@IEditorGroupsService editorGroups: IEditorGroupsService
 	) {
 		// OPEN notebook editor for models that have turned dirty without being visible in an editor
@@ -791,7 +793,7 @@ class NotebookEditorManager implements IWorkbenchContribution {
 	private _openMissingDirtyNotebookEditors(models: IResolvedNotebookEditorModel[]): void {
 		const result: IResourceEditorInput[] = [];
 		for (const model of models) {
-			if (model.isDirty() && !this._editorService.isOpened({ resource: model.resource, typeId: NotebookEditorInput.ID, editorId: model.viewType }) && extname(model.resource) !== '.interactive') {
+			if (model.isDirty() && !this._filesConfigurationService.isOpenEditorWhenDirtyDisabled(model.resource) && !this._editorService.isOpened({ resource: model.resource, typeId: NotebookEditorInput.ID, editorId: model.viewType }) && extname(model.resource) !== '.interactive') {
 				result.push({
 					resource: model.resource,
 					options: { inactive: true, preserveFocus: true, pinned: true, override: model.viewType }

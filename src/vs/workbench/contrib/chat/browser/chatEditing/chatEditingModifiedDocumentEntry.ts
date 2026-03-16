@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../../base/common/event.js';
 import { IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ITransaction, autorun, transaction } from '../../../../../base/common/observable.js';
@@ -180,35 +181,16 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			}
 		}));
 
-		const openEditorWhenDirtyOff = this._register(new MutableDisposable());
-		let keepOpenEditorWhenDirtyDisabledUntilClean = false;
-		const updateOpenEditorWhenDirtyDisabled = () => {
-			if (this._stateObs.get() === ModifiedFileEntryState.Modified) {
-				keepOpenEditorWhenDirtyDisabledUntilClean = true;
-			} else if (!this._textFileService.isDirty(this.modifiedURI)) {
-				keepOpenEditorWhenDirtyDisabledUntilClean = false;
-			}
-
-			if (keepOpenEditorWhenDirtyDisabledUntilClean) {
-				openEditorWhenDirtyOff.value = fileConfigService.disableOpenEditorWhenDirty(this.modifiedURI);
-			} else {
-				openEditorWhenDirtyOff.clear();
-			}
-		};
-		this._register(autorun(r => {
-			this._stateObs.read(r);
-			updateOpenEditorWhenDirtyDisabled();
-		}));
-		this._register(this._textFileService.files.onDidChangeDirty(model => {
-			if (isEqual(model.resource, this.modifiedURI)) {
-				updateOpenEditorWhenDirtyDisabled();
-			}
-		}));
-		this._register(this._textFileService.untitled.onDidChangeDirty(model => {
-			if (isEqual(model.resource, this.modifiedURI)) {
-				updateOpenEditorWhenDirtyDisabled();
-			}
-		}));
+		this._registerOpenEditorWhenDirtySuppression(
+			() => this._textFileService.isDirty(this.modifiedURI),
+			Event.filter(
+				Event.any(
+					Event.map(this._textFileService.files.onDidChangeDirty, model => model.resource),
+					Event.map(this._textFileService.untitled.onDidChangeDirty, model => model.resource)
+				),
+				resource => isEqual(resource, this.modifiedURI)
+			)
+		);
 	}
 
 	getDiffInfo(): Promise<IDocumentDiff> {
