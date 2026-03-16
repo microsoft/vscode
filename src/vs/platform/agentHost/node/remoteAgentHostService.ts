@@ -92,13 +92,13 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 		this._logService.info(`[RemoteAgentHost] Reconciling: desired=[${[...desired].join(', ')}], current=[${[...this._entries.keys()].map(a => `${a}(${this._entries.get(a)!.connected ? 'connected' : 'pending'})`).join(', ')}]`);
 
-		// Update name map and detect name changes
+		// Update name map and detect name changes for existing connections
 		let namesChanged = false;
 		const oldNames = new Map(this._names);
 		this._names.clear();
 		for (const entry of entries) {
 			this._names.set(entry.address, entry.name);
-			if (oldNames.get(entry.address) !== entry.name) {
+			if (this._entries.has(entry.address) && oldNames.get(entry.address) !== entry.name) {
 				namesChanged = true;
 			}
 		}

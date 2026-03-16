@@ -90,6 +90,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 				resource,
 				state: {
 					agents: this.agents.map(a => ({ provider: a.provider, displayName: a.displayName, description: a.description, models: [] })),
+					activeSessions: 0
 				},
 				fromSeq: 0,
 			};

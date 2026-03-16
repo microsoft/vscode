@@ -79,10 +79,10 @@ async function main(): Promise<void> {
 		const logger = loggerService.createLogger('agenthost-server', { name: localize('agentHostServer', "Agent Host Server") });
 		logService = disposables.add(new LogService(logger));
 		services.set(ILogService, logService);
+		log('Starting standalone agent host server');
 	}
 
 	logService.info('[AgentHostServer] Starting standalone agent host server');
-	log('Starting standalone agent host server');
 
 	// Create state manager
 	const stateManager = disposables.add(new SessionStateManager(logService));

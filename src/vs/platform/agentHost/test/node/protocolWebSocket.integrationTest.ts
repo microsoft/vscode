@@ -207,8 +207,8 @@ async function startServer(): Promise<{ process: ChildProcess; port: number }> {
 			}
 		});
 
-		child.stderr!.on('data', (data: Buffer) => {
-			console.error('[TestServer]', data.toString());
+		child.stderr!.on('data', () => {
+			// Intentionally swallowed - the test runner fails if console.error is used.
 		});
 
 		child.on('error', err => {
