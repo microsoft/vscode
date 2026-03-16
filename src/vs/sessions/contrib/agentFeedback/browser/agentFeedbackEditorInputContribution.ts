@@ -17,7 +17,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { getSessionForResource } from './agentFeedbackEditorUtils.js';
+import { createAgentFeedbackContext, getSessionForResource } from './agentFeedbackEditorUtils.js';
 import { localize } from '../../../../nls.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action } from '../../../../base/common/actions.js';
@@ -474,7 +474,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return false;
 		}
 
-		this._agentFeedbackService.addFeedback(this._sessionResource, model.uri, selection, text);
+		this._agentFeedbackService.addFeedback(this._sessionResource, model.uri, selection, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, selection));
 		this._hideAndRefocusEditor();
 		return true;
 	}
@@ -497,7 +497,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 		const sessionResource = this._sessionResource;
 		this._hideAndRefocusEditor();
-		this._agentFeedbackService.addFeedbackAndSubmit(sessionResource, model.uri, selection, text);
+		this._agentFeedbackService.addFeedbackAndSubmit(sessionResource, model.uri, selection, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, selection));
 	}
 
 	private _getContainingDiffEditor(): IDiffEditor | undefined {
