@@ -437,8 +437,33 @@ export class ModalEditorPart {
 		}));
 
 		disposables.add(resizableElement.onDidResize(e => {
-			const deltaWidth = e.dimension.width - resizeStartSize.width;
-			const deltaHeight = e.dimension.height - resizeStartSize.height;
+			let { width, height } = e.dimension;
+
+			// Clamp size to prevent resizing out of the window
+			const containerDimension = this.layoutService.mainContainerDimension;
+			const titleBarOffset = this.layoutService.mainContainerOffset.top;
+
+			if (e.east) {
+				width = Math.min(width, containerDimension.width - resizeStartLeft);
+			}
+			if (e.south) {
+				height = Math.min(height, containerDimension.height - resizeStartTop);
+			}
+			if (e.west) {
+				width = Math.min(width, resizeStartSize.width + resizeStartLeft);
+			}
+			if (e.north) {
+				height = Math.min(height, resizeStartSize.height + (resizeStartTop - titleBarOffset));
+			}
+
+			// Re-layout with clamped size if needed
+			if (width !== e.dimension.width || height !== e.dimension.height) {
+				resizableElement.layout(height, width);
+			}
+
+			const currentSize = resizableElement.size;
+			const deltaWidth = currentSize.width - resizeStartSize.width;
+			const deltaHeight = currentSize.height - resizeStartSize.height;
 
 			// Adjust position to keep the opposite edge fixed
 			if (e.west) {
@@ -449,19 +474,19 @@ export class ModalEditorPart {
 			}
 
 			// Update editor part layout during resize
-			editorPart.layout(e.dimension.width - MODAL_BORDER_SIZE, e.dimension.height - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT, 0, 0);
+			editorPart.layout(currentSize.width - MODAL_BORDER_SIZE, currentSize.height - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT, 0, 0);
 
 			if (e.done) {
 				isResizing = false;
 
 				// Check if size matches the default (from sash double-click reset)
 				const defaultSize = getDefaultSize();
-				if (e.dimension.width === defaultSize.width && e.dimension.height === defaultSize.height) {
+				if (currentSize.width === defaultSize.width && currentSize.height === defaultSize.height) {
 					editorPart.size = undefined;
 					editorPart.position = undefined;
 					layoutModal();
 				} else {
-					editorPart.size = new Dimension(e.dimension.width, e.dimension.height);
+					editorPart.size = new Dimension(currentSize.width, currentSize.height);
 					editorPart.position = {
 						left: parseFloat(resizableElement.domNode.style.left) || 0,
 						top: parseFloat(resizableElement.domNode.style.top) || 0,
