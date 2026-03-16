@@ -209,7 +209,13 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		badge.className = 'action-item-badge';
 		container.append(badge);
 
-		// Description and submenu indicator wrapped together for hover feedback
+		const keybinding = new KeybindingLabel(container, OS);
+
+		const toolbar = document.createElement('div');
+		toolbar.className = 'action-list-item-toolbar';
+		container.append(toolbar);
+
+		// Description group is last to stay at the far right
 		const descriptionGroup = document.createElement('span');
 		descriptionGroup.className = 'description-group';
 		container.append(descriptionGroup);
@@ -225,12 +231,6 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		const submenuIndicator = document.createElement('span');
 		submenuIndicator.className = 'action-list-submenu-indicator';
 		descriptionGroup.append(submenuIndicator);
-
-		const keybinding = new KeybindingLabel(container, OS);
-
-		const toolbar = document.createElement('div');
-		toolbar.className = 'action-list-item-toolbar';
-		container.append(toolbar);
 
 		const elementDisposables = new DisposableStore();
 
