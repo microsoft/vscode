@@ -6,9 +6,10 @@
 import { SandboxManager, type NetworkHostPattern } from '@anthropic-ai/sandbox-runtime';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { posix, win32 } from '../../../base/common/path.js';
+import { dirname, posix, win32 } from '../../../base/common/path.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../environment/common/environment.js';
+import { ILogService } from '../../log/common/log.js';
 import { type ISandboxPermissionRequest, type ISandboxRuntimeConfig } from '../common/sandboxHelperIpc.js';
 import { ISandboxHelperService } from '../common/sandboxHelperService.js';
 
@@ -22,6 +23,7 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
+		@ILogService logService: ILogService,
 	) {
 		super();
 		const nativeEnvironmentService = environmentService as IEnvironmentService & Partial<INativeEnvironmentService>;
@@ -29,6 +31,7 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 			? this._pathJoin(nativeEnvironmentService.appRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg')
 			: undefined;
 		this._tempDir = nativeEnvironmentService.tmpDir?.path;
+		logService.debug('SandboxHelperService#constructor ripgrep path configured', !!this._rgPath);
 	}
 
 	async resolveSandboxPermissionRequest(requestId: string, allowed: boolean): Promise<void> {
@@ -67,8 +70,8 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 			},
 			ignoreViolations: runtimeConfig.ignoreViolations,
 			enableWeakerNestedSandbox: runtimeConfig.enableWeakerNestedSandbox,
-			ripgrep: (this._rgPath || runtimeConfig.ripgrep) ? {
-				command: this._rgPath ?? runtimeConfig.ripgrep?.command ?? 'rg',
+			ripgrep: runtimeConfig.ripgrep ? {
+				command: runtimeConfig.ripgrep.command,
 				args: runtimeConfig.ripgrep?.args ? [...runtimeConfig.ripgrep.args] : undefined,
 			} : undefined,
 			mandatoryDenySearchDepth: runtimeConfig.mandatoryDenySearchDepth,
@@ -85,7 +88,23 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 			env.push(this._toEnvironmentAssignment('TMPDIR', this._tempDir));
 		}
 
+		const pathWithRipgrep = this._getPathWithRipgrepDir();
+		if (pathWithRipgrep) {
+			env.push(this._toEnvironmentAssignment('PATH', pathWithRipgrep));
+		}
+
 		return env.join(' ');
+	}
+
+	private _getPathWithRipgrepDir(): string | undefined {
+		if (!this._rgPath) {
+			return undefined;
+		}
+
+		const rgDir = dirname(this._rgPath);
+		const currentPath = process.env['PATH'];
+		const path = process.platform === 'win32' ? win32 : posix;
+		return currentPath ? `${currentPath}${path.delimiter}${rgDir}` : rgDir;
 	}
 
 	private _toEnvironmentAssignment(name: string, value: string): string {
