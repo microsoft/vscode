@@ -257,17 +257,9 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-/* Description group wraps description + twistie for hover feedback */
 .action-list-submenu {
-	background-color: var(--vscode-menu-background);
-	color: var(--vscode-menu-foreground);
-	border: 1px solid var(--vscode-menu-border);
-	border-radius: 4px;
-	padding: 4px 0;
-	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	min-width: 200px;
 	width: max-content;
-	overflow: hidden;
 }
 
 .action-list-submenu-hover {
