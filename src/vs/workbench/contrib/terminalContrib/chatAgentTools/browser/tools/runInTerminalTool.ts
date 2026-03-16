@@ -499,7 +499,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (rewriteResult) {
 				rewrittenCommand = rewriteResult.rewritten;
 				forDisplayCommand = rewriteResult.forDisplay;
-				isSandboxWrapped = rewriteResult.isSandboxWrapped === true;
+				if (rewriteResult.isSandboxWrapped === true) {
+					isSandboxWrapped = true;
+				}
 				this._logService.info(`RunInTerminalTool: Command rewritten by ${rewriter.constructor.name}: ${rewriteResult.reasoning}`);
 			}
 		}
