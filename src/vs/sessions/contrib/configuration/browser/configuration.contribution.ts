@@ -44,6 +44,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'github.copilot.chat.cli.branchSupport.enabled': true,
 		'github.copilot.chat.languageContext.typescript.enabled': true,
 		'github.copilot.chat.cli.mcp.enabled': true,
+		'github.copilot.chat.cli.isolationOption.enabled': false,
 
 		'inlineChat.affordance': 'editor',
 		'inlineChat.renderMode': 'hover',
