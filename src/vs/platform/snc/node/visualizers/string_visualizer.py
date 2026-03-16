@@ -117,6 +117,10 @@ class DropdownSelect:
     option_value: str
 
 @dataclass(frozen=True, slots=True)
+class MouseOut:
+    pass
+
+@dataclass(frozen=True, slots=True)
 class HandleMouseDown:
     segment_index: int
     side: str  # 'left' or 'right'
@@ -169,9 +173,12 @@ class RepetitionInput:
 STRING = "#ce9178"
 GRAY = "#808080"
 
-# Search magnifying glass SVG
-with open(os.path.join(os.path.dirname(__file__), 'search.svg'), 'r') as f:
-    SEARCH_SVG = f.read().replace('<?xml version="1.0" encoding="utf-8"?>\n', '')
+# A buncha icons
+ICONS = {}
+
+for icon in ["bin", "caps", "exists", "filter", "match-first", "regex-group", "split", "loop", "replace"]:
+    with open(os.path.join(os.path.dirname(__file__), f'icons/{icon}.svg'), 'r') as f:
+        ICONS[icon] = f.read().replace('<?xml version="1.0" encoding="utf-8"?>\n', '').replace('<svg ', '<svg class="search-icon"')
 
 # Available fuzzy character class options for dropdown selection
 # Each tuple is (pattern_value, display_label)
@@ -345,19 +352,7 @@ def render_dropdown(
 
     # Dropdown container (absolutely positioned below trigger)
     dropdown_html = (
-        '<div class="snc-dropdown-panel" snc-dropdown-align="left" style="'
-        'position: absolute;'
-        'left: 0;'
-        'top: 100%;'
-        'background: #252526;'
-        'border: 1px solid #3c3c3c;'
-        'border-radius: 3px;'
-        'z-index: 100;'
-        'min-width: 80px;'
-        'box-shadow: 0 2px 8px rgba(0,0,0,0.4);'
-        'font-size: 11px;'
-        'line-height: 1.4;'
-        f'">{"".join(options_html)}</div>'
+        f'<div class="snc-dropdown-panel" snc-dropdown-align="left">{"".join(options_html)}</div>'
     )
 
     # Wrap trigger and dropdown in a relative container
@@ -378,6 +373,9 @@ def _overlay_html(content: str, side: str, seg_type: str, color: str) -> str:
     """
     if not content:
         return ''
+
+    # return f'<span class="overlay-container {seg_type}"><span class="overlay-content {seg_type} side-{side}">{html.escape(content)}</span></span>'
+
     v_align = 'text-top' if seg_type == 'literal' else 'baseline'
     top = -7 if seg_type == 'literal' else 3
     h_pos = 'left: -1px;' if side == 'left' else 'right: 0px;'
@@ -432,6 +430,93 @@ def _fuzzy_dropdown_html(pat_str: str, segment_index: int, color: str, model: di
         trigger_style=trigger_style,
     )
 
+def _char_span_dropdown_html(rep_str: str, segment_index: int, seg_type: str, color: str, model: dict) -> str:
+    dropdown_id = f'dropdown-{segment_index}'
+    open_dropdown = model.get('openDropdown') if model else None
+    is_open = open_dropdown is not None and open_dropdown.get('id') == dropdown_id
+
+    if not is_open:
+        return (
+            '<span class="char-span-anchor-container"></span>'
+        )
+
+    options_html = []
+
+    for value, label in REPETITION_OPTIONS:
+        select_event = repr(DropdownSelect(dropdown_id, value))
+        option_html = (
+            f'<div snc-mouse-down="{html.escape(select_event)}" '
+            f'class="snc-dropdown-option">{html.escape(label)}</div>'
+        )
+        options_html.append(option_html)
+
+    exact_n = open_dropdown.get('exactN', '') if open_dropdown else ''
+    exact_input_event = f"lambda e: RepetitionInput(dropdown_id='{dropdown_id}', field='exact', value=e.get('value', ''))"
+    options_html.append(
+        f'<div class="snc-dropdown-option">'
+        f'{{'
+        f'<input class="snc-dropdown-input" type="text" snc-input="{html.escape(exact_input_event)}" '
+        f'value="{html.escape(exact_n)}" '
+        f'placeholder="n" />'
+        f'}}'
+        f'</div>'
+    )
+
+    range_min = open_dropdown.get('rangeMin', '') if open_dropdown else ''
+    range_max = open_dropdown.get('rangeMax', '') if open_dropdown else ''
+    min_input_event = f"lambda e: RepetitionInput(dropdown_id='{dropdown_id}', field='min', value=e.get('value', ''))"
+    max_input_event = f"lambda e: RepetitionInput(dropdown_id='{dropdown_id}', field='max', value=e.get('value', ''))"
+    options_html.append(
+        f'<div class="snc-dropdown-option">'
+        f'{{'
+        f'<input class="snc-dropdown-input" type="text" snc-input="{html.escape(min_input_event)}" '
+        f'value="{html.escape(range_min)}" '
+        f'placeholder="n" />'
+        f','
+        f'<input class="snc-dropdown-input" type="text" snc-input="{html.escape(max_input_event)}" '
+        f'value="{html.escape(range_max)}" '
+        f'placeholder="n" />'
+        f'}}'
+        f'</div>'
+    )
+
+    # Fuzzy pattern
+    pattern_options_html = []
+    if seg_type == 'fuzzy':
+        pattern_options_html = []
+        for value, label in FUZZY_PATTERN_OPTIONS:
+            select_event = repr(DropdownSelect(dropdown_id, value))
+            option_html = (
+                f'<div class="snc-dropdown-option" snc-mouse-down="{html.escape(select_event)}">{html.escape(label)}</div>'
+            )
+            pattern_options_html.append(option_html)
+
+    repetition_html = (
+        f' <div class="snc-dropdown-category">'
+        f'  <div class="snc-dropdown-category-name">Repetition</div>'
+        f'  {"".join(options_html)}'
+        f' </div>'
+    )
+
+    pattern_html = (
+        f' <div class="snc-dropdown-category-divider"></div>'
+        f' <div class="snc-dropdown-category">'
+        f'  <div class="snc-dropdown-category-name">Pattern</div>'
+        f'  {"".join(pattern_options_html)}'
+        f' </div>'
+    ) if seg_type == 'fuzzy' else ''
+
+    dropdown_panel = (
+        f'<div class="snc-dropdown-panel categorized right" snc-dropdown-align="right">'
+        f' {repetition_html}'
+        f' {pattern_html}'
+        f'</div>'
+    )
+
+    return (
+        f'<span class="snc-dropdown-trigger">{dropdown_panel}</span>'
+    )
+
 
 def _repetition_dropdown_html(rep_str: str, segment_index: int, seg_type: str, color: str, model: dict) -> str:
     """Generate a clickable dropdown for repetition selection.
@@ -483,7 +568,6 @@ def _repetition_dropdown_html(rep_str: str, segment_index: int, seg_type: str, c
         select_event = repr(DropdownSelect(dropdown_id, value))
         option_html = (
             f'<div snc-mouse-down="{html.escape(select_event)}" '
-            'style="padding: 2px 6px; cursor: pointer; white-space: nowrap;"'
             f'class="snc-dropdown-option">{html.escape(label)}</div>'
         )
         options_html.append(option_html)
@@ -491,12 +575,10 @@ def _repetition_dropdown_html(rep_str: str, segment_index: int, seg_type: str, c
     exact_n = open_dropdown.get('exactN', '') if open_dropdown else ''
     exact_input_event = f"lambda e: RepetitionInput(dropdown_id='{dropdown_id}', field='exact', value=e.get('value', ''))"
     options_html.append(
-        f'<div style="padding: 2px 6px; white-space: nowrap; display: flex; align-items: center;">'
+        f'<div class="snc-dropdown-option">'
         f'{{'
-        f'<input type="text" snc-input="{html.escape(exact_input_event)}" '
+        f'<input class="snc-dropdown-input" type="text" snc-input="{html.escape(exact_input_event)}" '
         f'value="{html.escape(exact_n)}" '
-        f'style="width: 24px; background: #1e1e1e; color: #dcdcaa; border: 1px solid #3c3c3c; '
-        f'border-radius: 2px; padding: 1px 3px; font-size: 10px; font-family: inherit; outline: none;" '
         f'placeholder="n" />'
         f'}}'
         f'</div>'
@@ -507,37 +589,21 @@ def _repetition_dropdown_html(rep_str: str, segment_index: int, seg_type: str, c
     min_input_event = f"lambda e: RepetitionInput(dropdown_id='{dropdown_id}', field='min', value=e.get('value', ''))"
     max_input_event = f"lambda e: RepetitionInput(dropdown_id='{dropdown_id}', field='max', value=e.get('value', ''))"
     options_html.append(
-        f'<div style="padding: 2px 6px; white-space: nowrap; display: flex; align-items: center;">'
+        f'<div class="snc-dropdown-option">'
         f'{{'
-        f'<input type="text" snc-input="{html.escape(min_input_event)}" '
+        f'<input class="snc-dropdown-input" type="text" snc-input="{html.escape(min_input_event)}" '
         f'value="{html.escape(range_min)}" '
-        f'style="width: 24px; background: #1e1e1e; color: #dcdcaa; border: 1px solid #3c3c3c; '
-        f'border-radius: 2px; padding: 1px 3px; font-size: 10px; font-family: inherit; outline: none;" '
         f'placeholder="n" />'
         f','
-        f'<input type="text" snc-input="{html.escape(max_input_event)}" '
+        f'<input class="snc-dropdown-input" type="text" snc-input="{html.escape(max_input_event)}" '
         f'value="{html.escape(range_max)}" '
-        f'style="width: 24px; background: #1e1e1e; color: #dcdcaa; border: 1px solid #3c3c3c; '
-        f'border-radius: 2px; padding: 1px 3px; font-size: 10px; font-family: inherit; outline: none;" '
         f'placeholder="n" />'
         f'}}'
         f'</div>'
     )
 
     dropdown_panel = (
-        '<div class="snc-dropdown-panel" snc-dropdown-align="right" style="'
-        'position: absolute;'
-        'right: 0;'
-        'top: 100%;'
-        'background: #252526;'
-        'border: 1px solid #3c3c3c;'
-        'border-radius: 3px;'
-        'z-index: 100;'
-        'min-width: 80px;'
-        'box-shadow: 0 2px 8px rgba(0,0,0,0.4);'
-        'font-size: 11px;'
-        'line-height: 1.4;'
-        f'">{"".join(options_html)}</div>'
+        f'<div class="snc-dropdown-panel right" snc-dropdown-align="right">{"".join(options_html)}</div>'
     )
 
     return (
@@ -549,7 +615,7 @@ HTML_ESCAPE_CHARS = '<>&\'"'
 
 def text_group_span(chars: list, start_index: int) -> str:
     text = ''.join(html.escape(c) if c in HTML_ESCAPE_CHARS else c for c in chars)
-    return f'<span snc-text-start="{start_index}" style="letter-spacing:1px;">{text}</span>'
+    return f'<span class="string-visualizer-text-group" snc-text-start="{start_index}">{text}</span>'
 
 def char_span(string, index, is_special, highlight=None, model=None):
     return ''.join(char_span_els(string, index, is_special, highlight, model))
@@ -564,77 +630,81 @@ def char_span_els(string, index, is_special, highlight=None, model=None) -> List
         highlight: None or a highlight tuple (start, end, type, pattern_display, repetition, segment_index)
         model: The model state (needed for dropdown open state)
     """
-    styles = f'color:{GRAY};' if is_special else ''
+    # styles = f'color:{GRAY};' if is_special else ''
     pat_html = ''
     repetition_html = ''
+    classes = ['char-span']
+    dropdown_id = None
+
+    if (is_special):
+        classes.append('is-special')
 
     if highlight is not None:
         start, end, seg_type, pat_str, (min_count, max_count), segment_index = highlight
         color = '#00aeff' if seg_type == 'literal' else '#868686'
+        classes.append('highlight')
+        classes.append(f'{seg_type}')
 
-        styles += f' border-{"top" if seg_type == "literal" else "bottom"}: 1px solid {color}; border-image: linear-gradient(to {"bottom" if seg_type == "literal" else "top"}, {color} 20%, transparent 20%) 1;'
+        # styles += f' border-{"top" if seg_type == "literal" else "bottom"}: 1px solid {color}; border-image: linear-gradient(to {"bottom" if seg_type == "literal" else "top"}, {color} 20%, transparent 20%) 1;'
         is_interactive = segment_index is not None
+
+        if is_interactive:
+            classes.append('is-interactive')
+            dropdown_id = f'dropdown-{segment_index}'
+
         if start == index:
-            styles += f' border-left: 1px solid {color}; margin-left: -1px;'
+            classes.append('start')
+            # styles += f' border-left: 1px solid {color}; margin-left: -1px;'
             if is_interactive:
-                if seg_type == 'fuzzy':
-                    pat_html = f'<span style="position: relative; display: inline-block; vertical-align: baseline">{_fuzzy_dropdown_html(pat_str, segment_index, color, model)}</span>'
-                else:
-                    pat_html = _overlay_html(pat_str, 'left', seg_type, color)
-                    left_handle_event = repr(HandleMouseDown(segment_index=segment_index, side='left'))
-                    pat_html += (
-                        '<span style="position: relative; display: inline-block; width: 0; height: 0; vertical-align: text-top;">'
-                        f'<span snc-mouse-down="{html.escape(left_handle_event)}" '
-                        'style="position: absolute; top: -1px; left: -1px; width: 3px; height: 4px; '
-                        'cursor: ew-resize; z-index: 20;"></span></span>'
-                    )
+                # if seg_type == 'fuzzy':
+                #     pat_html = f'<span style="position: relative; display: inline-block; vertical-align: baseline">{_fuzzy_dropdown_html(pat_str, segment_index, color, model)}</span>'
+                # else:
+                #     pat_html = "" # _overlay_html(pat_str, 'left', seg_type, color)
+                left_handle_event = repr(HandleMouseDown(segment_index=segment_index, side='left'))
+                pat_html += (
+                    '<span class="char-span-start-handle-container">'
+                    f'<span class="char-span-resize-handle left" snc-mouse-down="{html.escape(left_handle_event)}"></span></span>'
+                )
         if end - 1 == index:
-            styles += f' border-right: 1px solid {color}; padding-right: 0px;'
+            classes.append('end')
+            # styles += f' border-right: 1px solid {color}; padding-right: 0px;'
             if is_interactive:
-                if min_count == max_count:
-                    rep_str = f'{min_count}'
-                elif min_count == 0 and max_count == float('inf'):
-                    rep_str = '*'
-                elif min_count == 1 and max_count == float('inf'):
-                    rep_str = '+'
-                elif min_count == 0 and max_count == 1:
-                    rep_str = '?'
-                elif min_count == 0:
-                    rep_str = f'≤{max_count}'
-                elif max_count == float('inf'):
-                    rep_str = f'≥{min_count}'
-                else:
-                    rep_str = f'{min_count}-{max_count}'
-                repetition_html = _repetition_dropdown_html(rep_str, segment_index, seg_type, color, model)
+            #     if min_count == max_count:
+            #         rep_str = f'{min_count}'
+            #     elif min_count == 0 and max_count == float('inf'):
+            #         rep_str = '*'
+            #     elif min_count == 1 and max_count == float('inf'):
+            #         rep_str = '+'
+            #     elif min_count == 0 and max_count == 1:
+            #         rep_str = '?'
+            #     elif min_count == 0:
+            #         rep_str = f'≤{max_count}'
+            #     elif max_count == float('inf'):
+            #         rep_str = f'≥{min_count}'
+            #     else:
+            #         rep_str = f'{min_count}-{max_count}'
+                repetition_html = _char_span_dropdown_html('', segment_index, seg_type, color, model)
                 if seg_type == 'literal':
                     right_handle_event = repr(HandleMouseDown(segment_index=segment_index, side='right'))
                     repetition_html += (
-                        '<span style="position: relative; display: inline-block; width: 0; height: 0; vertical-align: text-top;">'
-                        f'<span snc-mouse-down="{html.escape(right_handle_event)}" '
-                        'style="position: absolute; top: -1px; left: -3px; width: 3px; height: 4px; '
-                        'cursor: ew-resize; z-index: 20;"></span></span>'
+                        '<span class="char-span-start-handle-container">'
+                        f'<span class="char-span-resize-handle right" snc-mouse-down="{html.escape(right_handle_event)}"></span></span>'
                     )
     elif model is not None and model.get('hoverIdx') == index and not model.get('dragging'):
-        # Hover preview: show border indicating literal/fuzzy on the hovered character
-        is_literal = model.get('hoverType', 'literal') == 'literal'
-        color = '#00aeff' if is_literal else '#868686'
-        border_side = 'top' if is_literal else 'bottom'
-        gradient_dir = 'bottom' if is_literal else 'top'
-        styles += (
-            f' border-{border_side}: 1px solid {color}; border-image: linear-gradient(to {gradient_dir}, {color} 20%, transparent 20%) 1;'
-            f' border-left: 1px solid {color}; margin-left: -1px;'
-            f' border-right: 1px solid {color}; padding-right: 0px;'
-        )
+        classes.append('hover')
+
+    mouse_listener = f'snc-mouse-down="{html.escape(repr(DropdownToggle(dropdown_id)))}"' if dropdown_id else f'snc-mouse="{str(index)}"'
 
     # snc-mouse="5" is shorthand for snc-mouse-move="MouseMove(5)" snc-mouse-down="MouseDown(5)" snc-mouse-up="MouseUp(5)"
     # (this abbreviation speeds up the string visualization quite a bit)
-    if styles or pat_html or repetition_html: # yes this branching speeds it up slightly
+    if pat_html or repetition_html: # yes this branching speeds it up slightly
         # return f'{pat_html}<span snc-mouse="{index}" style="padding-right:1px;{styles}">{html.escape(string) if string in HTML_ESCAPE_CHARS else string}</span>{repetition_html}'
-        return [pat_html, '<span snc-mouse="', str(index), '" style="height:100%;display:inline-block"><span style="padding-right:1px;', styles, '">', html.escape(string) if string in HTML_ESCAPE_CHARS else string, '</span></span>', repetition_html]
+        # return [pat_html, '<span snc-mouse="', str(index), '" style="height:100%;display:inline-block"><span style="padding-right:1px;', styles, '">', html.escape(string) if string in HTML_ESCAPE_CHARS else string, '</span></span>', repetition_html]
+        return [pat_html, f'<span class="char-span-container" {mouse_listener}><span class="{" ".join(classes)}">', html.escape(string) if string in HTML_ESCAPE_CHARS else string, '</span></span>', repetition_html]
     else:
         # Yes, keep {styles} bc string interning, I think
         # return f'<span snc-mouse="{index}" style="padding-right:1px;{styles}">{html.escape(string) if string in HTML_ESCAPE_CHARS else string}</span>'
-        return ['<span snc-mouse="', str(index), '" style="height:100%;display:inline-block"><span style="padding-right:1px;', styles, '">', html.escape(string) if string in HTML_ESCAPE_CHARS else string, '</span></span>']
+        return [f'<span class="char-span-container" {mouse_listener}><span class="{" ".join(classes)}">', html.escape(string) if string in HTML_ESCAPE_CHARS else string, '</span></span>']
 
 
     # return f'{pat_html}<span snc-mouse="{index}" style="padding-right:1px;{styles}">{html.escape(string) if string in HTML_ESCAPE_CHARS else string}</span>{repetition_html}'
@@ -2583,6 +2653,37 @@ def build_preview_regex(model, string_value: str) -> str | None:
         else:
             return append_segment_to_regex(current_regex, 'literal', selected_text)
 
+def action_btn(label: str, action: str, enabled: bool = True, title: str = '', extra_style: str = '') -> str:
+    # style = btn_with_copy + ('' if enabled else disabled_style) + extra_style
+    event = repr(ActionButtonClick(action=action, copy=False))
+    title_attr = f' title="{html.escape(title)}"' if title else ''
+    return f'<span snc-mouse-down="{html.escape(event)}" class="action-button {"" if enabled else "dimmed"}" {title_attr}>{label}</span>'
+
+def copy_btn(action: str, enabled: bool = True) -> str:
+    event = repr(ActionButtonClick(action=action, copy=True))
+    return f'<span snc-mouse-down="{html.escape(event)}" class="action-button action-button-copy {"" if enabled else "dimmed"}" title="Copy to clipboard">C</span>'
+
+def btn_group(label: str, action: str, enabled: bool = True, title: str = '', extra_btn_style: str = '') -> str:
+    return action_btn(label, action, enabled, title, extra_btn_style) # TODO
+    # return f'<span class="action-button-group">{action_btn(label, action, enabled, title, extra_btn_style)}{copy_btn(action, enabled)}</span>'
+
+def _render_replace_action_buttons(model: dict, value: str, eval_in_scope, max_width=None) -> str:
+    """Replace row buttons"""
+    selection_regex = model.get('search')
+    has_search = selection_regex is not None and selection_regex != ''
+    replace_visible = bool(model.get('replace_visible', False))
+    replace_text = bool(model.get('replace_text'))
+    has_replace = replace_visible and replace_text
+
+    parts = []
+    parts.append(btn_group(ICONS["replace"], 'replace', has_search and has_replace, 'Replace matches'))
+
+    return (
+        f'<div class="action-buttons action-replace-buttons">'
+        f'{"".join(parts)}'
+        f'</div>'
+    )
+
 def _render_action_buttons(model: dict, value: str, eval_in_scope, max_width=None) -> str:
     """Render the action button bar below the search/replace boxes.
 
@@ -2604,72 +2705,31 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope, max_width=Non
     else:
         match_count = _count_matches(selection_regex, value, eval_in_scope) if has_search else 0
 
-    # Common button styles
-    btn_base = (
-        'border: 1px solid #3c3c3c;'
-        'border-radius: 3px;'
-        'padding: 1px 5px;'
-        'font-family: inherit;'
-        'font-size: 10px;'
-        'cursor: pointer;'
-        'line-height: 16px;'
-        'user-select: none;'
-        'white-space: nowrap;'
-        'background: transparent;'
-        'color: #8C8C8C;'
-    )
-    # Copy button style: flush left, smaller
-    copy_base = (
-        'border: 1px solid #3c3c3c;'
-        'border-left: none;'
-        'border-radius: 0 3px 3px 0;'
-        'padding: 1px 3px;'
-        'font-family: inherit;'
-        'font-size: 10px;'
-        'cursor: pointer;'
-        'line-height: 16px;'
-        'user-select: none;'
-        'white-space: nowrap;'
-        'background: transparent;'
-        'color: #8C8C8C;'
-    )
-    # Button with flush copy neighbor: no right border-radius
-    btn_with_copy = btn_base + 'border-radius: 3px 0 0 3px;'
-    disabled_style = 'opacity: 0.35; pointer-events: none;'
-
-    def action_btn(label: str, action: str, enabled: bool = True, title: str = '', extra_style: str = '') -> str:
-        style = btn_with_copy + ('' if enabled else disabled_style) + extra_style
-        event = repr(ActionButtonClick(action=action, copy=False))
-        title_attr = f' title="{html.escape(title)}"' if title else ''
-        return f'<span class="snc-hoverable" snc-mouse-down="{html.escape(event)}" style="margin-left: 3px;{style}"{title_attr}>{label}</span>'
-
-    def copy_btn(action: str, enabled: bool = True) -> str:
-        style = copy_base + ('' if enabled else disabled_style)
-        event = repr(ActionButtonClick(action=action, copy=True))
-        return f'<span class="snc-hoverable" snc-mouse-down="{html.escape(event)}" style="{style}" title="Copy to clipboard">\u29C9</span>'
-
-    def btn_group(label: str, action: str, enabled: bool = True, title: str = '', extra_btn_style: str = '') -> str:
-        return f'<span>{action_btn(label, action, enabled, title, extra_btn_style)}{copy_btn(action, enabled)}</span>'
-
     first = is_first_match_mode(selection_regex) if has_search else False
 
     # Build button groups
     parts = []
 
+    # Count (N) + Copy
+    count_label = f'{match_count} matches'
+    parts.append(btn_group(count_label, 'count', has_search, 'Count of matches'))
+
+    parts.append('<div class="action-button-divider"></div>')
+
     # 1. Get/Transform + Copy
-    if has_replace:
-        lbl = 'Map First Match \u23ce' if first else 'Map Matches \u23ce'
-        parts.append(btn_group(lbl, 'get_transform', has_search, 'Map expression over matches (Enter)'))
-    else:
-        lbl = 'Find First Match \u23ce' if first else 'Find Matches \u23ce'
-        parts.append(btn_group(lbl, 'get_transform', has_search, 'Find matches (Enter)'))
+    # if has_replace:
+    #     lbl = 'Map First Match' if first else 'Map Matches'
+    #     parts.append(btn_group(lbl, 'get_transform', has_search, 'Map expression over matches (Enter)'))
+    # else:
+    #     lbl = 'Find First Match' if first else 'Find Matches'
+    #     parts.append(btn_group(lbl, 'get_transform', has_search, 'Find matches (Enter)'))
 
     # 2. Replace + Copy (grayed out when not in replace mode)
-    replace_lbl = 'Replace First \u2318R' if first else 'Replace All \u2318R'
-    parts.append(btn_group(replace_lbl, 'replace', has_search and has_replace, 'Replace matches (\u2318R)'))
+    # replace_lbl = 'Replace First' if first else 'Replace All'
+    # parts.append(btn_group(replace_lbl, 'replace', has_search and has_replace, 'Replace matches (UR)'))
 
     # 3. Loop + Copy (disabled in first-match mode)
-    parts.append(btn_group('Loop', 'loop', has_search and not first, 'For loop over matches'))
+    parts.append(btn_group(ICONS["loop"], 'loop', has_search and not first, 'For loop over matches'))
 
     # 4. ? dropdown button
     open_dropdown = model.get('openDropdown') if model else None
@@ -2677,9 +2737,7 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope, max_width=Non
 
     # Build ? button with dropdown
     toggle_event = repr(DropdownToggle('action-predicate'))
-    q_disabled = '' if has_search else disabled_style
-    q_style = btn_base + ('background: #264f78; color: #ccc; border-color: #aaa;' if predicate_dropdown_open else '') + q_disabled
-    q_btn = f'<span class="snc-hoverable" snc-mouse-down="{html.escape(toggle_event)}" style="margin-left: 3px;{q_style}" title="Boolean queries">? \u25be</span>'
+    q_btn = f'<span class="action-button action-button-q {"" if has_search else "dimmed"} {"active" if predicate_dropdown_open else ""}" snc-mouse-down="{html.escape(toggle_event)}" title="Boolean queries">{ICONS["exists"]}</span>'
 
     if predicate_dropdown_open:
         any_val, all_val = _compute_predicate_previews(
@@ -2690,17 +2748,12 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope, max_width=Non
 
         # Build dropdown options
         dropdown_opts = []
-        opt_style = 'padding: 3px 6px; display: flex; align-items: center; gap: 2px;'
 
         def dropdown_row(label: str, action: str, enabled: bool) -> str:
-            row_style = opt_style + ('' if enabled else disabled_style)
             act_event = repr(ActionButtonClick(action=action, copy=False))
-            cp_event = repr(ActionButtonClick(action=action, copy=True))
+            # cp_event = repr(ActionButtonClick(action=action, copy=True))
             return (
-                f'<div style="{row_style}" class="snc-dropdown-option">'
-                f'<span class="snc-hoverable" snc-mouse-down="{html.escape(act_event)}" style="flex:1;">{label}</span>'
-                f'<span class="snc-hoverable" snc-mouse-down="{html.escape(cp_event)}" style="font-size:10px;color:#8C8C8C;" title="Copy to clipboard">\u29C9</span>'
-                f'</div>'
+                f'<div class="snc-dropdown-option" snc-mouse-down="{html.escape(act_event)}">{label}</div>'
             )
 
         dropdown_opts.append(dropdown_row(f'Any{any_suffix}', 'any', has_search))
@@ -2709,19 +2762,8 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope, max_width=Non
         dropdown_opts.append(dropdown_row(f'If All{all_suffix}', 'if_all', has_search and has_replace))
 
         dropdown_panel = (
-            '<div class="snc-dropdown-panel" snc-dropdown-align="left" style="'
-            'position: absolute;'
-            'left: 0;'
-            'top: 100%;'
-            'background: #252526;'
-            'border: 1px solid #3c3c3c;'
-            'border-radius: 3px;'
-            'z-index: 100;'
-            'min-width: 100px;'
-            'box-shadow: 0 2px 8px rgba(0,0,0,0.4);'
-            'font-size: 11px;'
-            'line-height: 1.4;'
-            f'">{"".join(dropdown_opts)}</div>'
+            '<div class="snc-dropdown-panel left" snc-dropdown-align="left">'
+            f'{"".join(dropdown_opts)}</div>'
         )
         q_btn = (
             f'<span class="snc-dropdown-trigger" style="position: relative; display: inline-block;">'
@@ -2731,21 +2773,19 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope, max_width=Non
     parts.append(q_btn)
 
     # 5. Delete + Copy
-    delete_lbl = 'Delete First \u2318\u232b' if first else 'Delete All \u2318\u232b'
-    parts.append(btn_group(delete_lbl, 'delete', has_search, 'Delete matches (\u2318\u232b)'))
+    # delete_lbl = 'Delete First UU' if first else 'Delete All UU'
+    parts.append(btn_group(ICONS["bin"], 'delete', has_search, 'Delete matches'))
 
     # 6. Split + Copy
-    parts.append(btn_group('Split', 'split', has_search, 'Split string at matches'))
+    parts.append(btn_group(ICONS["split"], 'split', has_search, 'Split string at matches'))
 
     # 8. Filter + Copy (requires replace/transform predicate)
-    parts.append(btn_group('Filter', 'filter', has_search and has_replace, 'Filter matches by predicate'))
+    parts.append(btn_group(ICONS["filter"], 'filter', has_search and has_replace, 'Filter matches by predicate'))
 
-    # 8. Count (N) + Copy
-    count_label = f'Count ({match_count})'
-    parts.append(btn_group(count_label, 'count', has_search, 'Count of matches'))
+
 
     return (
-        f'<div style="margin-top: 4px; white-space: normal;max-width: {str(max_width) + "px" if max_width is not None else "none"};">'
+        f'<div class="action-buttons">'
         f'{"".join(parts)}'
         f'</div>'
     )
@@ -2805,30 +2845,20 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
     flush_group()
 
     # (must match internal index scheme for 1:1 correspondence with extract_by_internal_indices)
-    char_els.append(char_span('$', index, True, highlight_by_index.get(index), model))
+    char_els.append(char_span("$", index, True, highlight_by_index.get(index), model))
     index += 1
-    char_els.append(char_span('\\Z', index, True, highlight_by_index.get(index), model))
+    char_els.append(char_span("\\Z", index, True, highlight_by_index.get(index), model))
     index += 1
 
     # chars_html = ''.join(char_els)
 
     # Build the search box at the bottom (hidden when small)
     if small:
-        search_box_html = ''
+        search_box_html = ""
     else:
-        selection_regex = model.get('search')
+        selection_regex = model.get("search")
         search_box_value = selection_regex if selection_regex else ""
         search_input_event = "lambda e: SearchBoxInput(value=e.get('value', ''))"
-        search_svg_html = SEARCH_SVG.replace("stroke:#000000;", "stroke:#8C8C8C;").replace("<svg ", f'<svg style="position: absolute; margin-left: 5px; margin-top: 4px; width: 12px; height: 12px;"', 1)
-        toggle_btn_style = (
-            'border-radius,: 3px;'
-            'padding: 1px 3px;'
-            'font-family: inherit;'
-            'font-size: 10px;'
-            'cursor: pointer;'
-            'line-height: 16px;'
-            'user-select: none;'
-        )
         # Index/slice searches force 1st on and disable Aa / (Cap)(Grps)
         idx_slice = is_index_or_slice_search(selection_regex, eval_in_scope)
 
@@ -2836,179 +2866,103 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
         cap_groups_on = is_capture_groups_mode(selection_regex)
         cg_event = repr(CaptureGroupsToggle())
         if idx_slice:
-            cap_groups_toggle_html = (
-                f'<span'
-                f' style="'
-                f'background: transparent;'
-                f'color: #555;'
-                f'border: 1px solid #2a2a2a;'
-                f'opacity: 0.5;'
-                f'{toggle_btn_style}'
-                f'"'
-                f'>(Cap)(Grps)</span>'
-            )
+            cap_groups_toggle_html = f'<span class="search-button inactive dimmed">{ICONS["regex-group"]}</span>'
         else:
-            cap_groups_toggle_html = (
-                f'<span snc-mouse-down="{html.escape(cg_event)}"'
-                f' class="snc-hoverable"'
-                f' style="'
-                f'background: {"#264f78" if cap_groups_on else "transparent"};'
-                f'color: {"#ccc" if cap_groups_on else "#8C8C8C"};'
-                f'border: 1px solid {"#aaa" if cap_groups_on else "#3c3c3c"};'
-                f'{toggle_btn_style}'
-                f'"'
-                f'>(Cap)(Grps)</span>'
-            )
+            cap_groups_toggle_html = f'<span class="search-button {"active" if cap_groups_on else "inactive"}" snc-mouse-down="{html.escape(cg_event)}">{ICONS["regex-group"]}</span>'
 
         # "Aa" toggle: on (highlighted) = case-sensitive (default), off = case-insensitive
         # Dimmed and non-interactive for index/slice
         case_sensitive = not is_case_insensitive(selection_regex)
         cs_event = repr(CaseSensitiveToggle())
         if idx_slice:
-            case_toggle_html = (
-                f'<span'
-                f' style="'
-                f'background: transparent;'
-                f'color: #555;'
-                f'border: 1px solid #2a2a2a;'
-                f'opacity: 0.5;'
-                f'{toggle_btn_style}'
-                f'"'
-                f'>Aa</span>'
-            )
+            case_toggle_html = f'<span class="search-button inactive dimmed">{ICONS["caps"]}</span>'
         else:
-            case_toggle_html = (
-                f'<span snc-mouse-down="{html.escape(cs_event)}"'
-                f' class="snc-hoverable"'
-                f' style="'
-                f'background: {"#264f78" if case_sensitive else "transparent"};'
-                f'color: {"#ccc" if case_sensitive else "#8C8C8C"};'
-                f'border: 1px solid {"#aaa" if case_sensitive else "#3c3c3c"};'
-                f'{toggle_btn_style}'
-                f'"'
-                f'>Aa</span>'
-            )
+            case_toggle_html = f'<span class="search-button {"active" if case_sensitive else "inactive"}" snc-mouse-down="{html.escape(cs_event)}">{ICONS["caps"]}</span>'
+
         # "1st" toggle: off by default, on = first-match
         # Forced on for index/slice
         first_match = is_first_match_mode(selection_regex) or idx_slice
         fm_event = repr(FirstMatchToggle())
-        first_match_toggle_html = (
-            f'<span snc-mouse-down="{html.escape(fm_event)}"'
-            f' class="snc-hoverable"'
-            f' style="'
-            f'background: {"#264f78" if first_match else "transparent"};'
-            f'margin-left: 2px;'
-            f'color: {"#ccc" if first_match else "#8C8C8C"};'
-            f'border: 1px solid {"#aaa" if first_match else "#3c3c3c"};'
-            f'{toggle_btn_style}'
-            f'"'
-            f'>1<span style="font-size: 8px; vertical-align: 3px; display: inline-block; margin-top: -1em;">st</span></span>'
-        )
-        toggles_html = (
-            f'<span style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%);">'
-            f'{cap_groups_toggle_html}'
-            f'{case_toggle_html}'
-            f'{first_match_toggle_html}'
-            f'</span>'
-        )
-        replace_visible = model.get('replace_visible', False)
-        replace_toggle_event = repr(ReplaceToggle())
-        triangle_char = '\u25be' if replace_visible else '\u25b8'
-        disclosure_html = (
-            f'<span snc-mouse-down="{html.escape(replace_toggle_event)}" class="snc-hoverable"'
-            f' style="'
-            f'cursor: pointer;'
-            f'color: #8C8C8C;'
-            f'font-size: 10px;'
-            f'line-height: 22px;'
-            f'user-select: none;'
-            f'width: 12px;'
-            f'text-align: center;'
-            f'flex-shrink: 0;'
-            f'">{triangle_char}</span>'
-        )
+        first_match_toggle_html = f'<span class="search-button {"active" if first_match else "inactive"}" snc-mouse-down="{html.escape(fm_event)}">{ICONS["match-first"]}</span>'
 
-        replace_box_html = ''
-        preview_html = ''
+        toggles_html = (
+            f'<span class="search-toggles-container">'
+            f"{cap_groups_toggle_html}"
+            f"{case_toggle_html}"
+            f"{first_match_toggle_html}"
+            f"</span>"
+        )
+        replace_visible = model.get("replace_visible", False)
+        replace_toggle_event = repr(ReplaceToggle())
+        disclosure_icon = (
+            '<span style="transform: rotate(90deg)">></span>'
+            if replace_visible
+            else ">"
+        )
+        discolure_button = f'<span snc-mouse-down="{html.escape(replace_toggle_event)}" class="search-button disclosure-button">{disclosure_icon}</span>'
+
+        replace_box_html = ""
+        preview_html = ""
         if replace_visible:
-            replace_text_value = model.get('replace_text') or ''
+            replace_text_value = model.get("replace_text") or ""
             replace_input_event = "lambda e: ReplaceBoxInput(value=e.get('value', ''))"
+            preview_html = _render_transform_preview(model, value, eval_in_scope)
             replace_box_html = (
-                f'<div style="margin-top: 4px;">'
-                f'<input type="text" tabindex="0" class="snc-replace-input"'
+                f'<div class="search-box-input-wrapper">'
+                f'<input type="text" tabindex="0"'
                 f' snc-input="{html.escape(replace_input_event)}"'
                 f' value="{html.escape(replace_text_value)}"'
-                f' placeholder="Map/replace/filter matches"'
+                f' placeholder="Replace"'
                 f' spellcheck="false"'
-                f' style="'
-                f'background: #1e1e1e;'
-                f'color: #dcdcaa;'
-                f'border: 1px solid #3c3c3c;'
-                f'border-radius: 10px;'
-                f'padding: 2px 8px;'
-                f'font-family: inherit;'
-                f'font-size: 12px;'
-                f'outline: none;'
-                f'width: 100%;'
-                f'box-sizing: border-box;'
-                f'"'
-                f' />'
+                f' class="search-box-input search-box-input-replace"'
+                f" />"
+                f'{preview_html}'
                 f'</div>'
             )
-            preview_html = _render_transform_preview(model, value, eval_in_scope)
 
-        search_box_html = (
-            f'<div style="margin-top: 4px; white-space: normal; display: flex; align-items: start; gap: 2px;'
-            f' max-width: {str(max_width) + "px" if max_width is not None else "none"};'
-            f'">'
-            f'{disclosure_html}'
-            f'<div style="flex: 1; min-width: 0;">'
-            f'<div style="position: relative;">'
-            f'{search_svg_html}'
+        search_input_html = (
+            f'<div class="search-box-input-wrapper">'
             f'<input type="text" tabindex="0"'
             f' snc-input="{html.escape(search_input_event)}"'
             f' value="{html.escape(search_box_value)}"'
-            f' placeholder="Search"'
+            f' placeholder="Find"'
             f' spellcheck="false"'
-            f' style="'
-            f'background: #1e1e1e;'
-            f'color: #dcdcaa;'
-            f'border: 1px solid #3c3c3c;'
-            f'border-radius: 10px;'
-            f'padding: 2px 115px 2px 20px;'
-            f'font-family: inherit;'
-            f'font-size: 12px;'
-            f'outline: none;'
-            f'width: 100%;'
-            f'box-sizing: border-box;'
-            f'"'
-            f' />'
-            f'{toggles_html}'
-            f'</div>'
-            f'{replace_box_html}'
-            f'{preview_html}'
-            f'</div>'
-            f'</div>'
+            f' class="search-box-input"'
+            f" />"
+            f"{toggles_html}"
+            f" </div>"
         )
 
-    string_div_style = (
-        'line-height: 28px;'
-        f'max-height: {(max_height or 600) - 32}px;'
-        f'max-width: {max_width or 800}px;'
-        'overflow: auto;'
-        'scrollbar-width: thin;'
-        'scrollbar-color: rgba(127, 127, 127, 0.1) transparent;'
-    )
+        # Action buttons bar (hidden when small)
+        action_buttons_html = (
+            "" if small else _render_action_buttons(model, value, eval_in_scope, max_width)
+        )
 
-    # Action buttons bar (hidden when small)
-    action_buttons_html = '' if small else _render_action_buttons(model, value, eval_in_scope, max_width)
+        replace_buttons_html = (
+            "" if not replace_visible else _render_replace_action_buttons(model, value, eval_in_scope, max_width)
+        )
+
+        search_box_html = (
+            f'<div class="search-box {"expanded" if replace_visible else ""}">'
+            f"{discolure_button}"
+            f'<div class="search-replace-container">'
+            f"{search_input_html}"
+            f"{replace_box_html}"
+            f"</div>"
+            f'<div class="action-buttons-container">'
+            f'{action_buttons_html}'
+            f'{replace_buttons_html}'
+            f"</div>"
+            f"</div>"
+            f"</div>"
+        )
 
     # Add tabindex to make div focusable for keyboard events, and snc-key-down handler
     # doing it like this to try to make less string garbage
     return [
-        f'''<div tabindex="0" snc-key-down="{html.escape(repr(KeyDown()))}" style="color: {STRING}; white-space: pre; user-select: none; outline: none;"><div style="{string_div_style}">''',
+        f'''<div tabindex="0" snc-key-down="{html.escape(repr(KeyDown()))}" class="visualizer-container"><div class="string-visualizer">''',
         *char_els,
-        f'''</div>{search_box_html}{action_buttons_html}</div>''',
+        f"""</div>{search_box_html}</div>""",
     ]
 
 
@@ -3232,7 +3186,7 @@ def _trunc_repr(val, max_len=30) -> str:
     begin_end_size = max_len // 2
     r = repr(val)
     if len(r) > max_len:
-        return r[:begin_end_size] + '\u2026' + r[-begin_end_size + 1:]
+        return r[:begin_end_size] + 'U' + r[-begin_end_size + 1:]
     return r
 
 
@@ -3242,11 +3196,10 @@ def _preview_chip(expr: str, val_repr: str, target: str = '.snc-replace-input') 
     The snc-add-at-cursor attribute tells the front-end to insert `expr`
     at the cursor position in the input matched by snc-add-target (a CSS selector).
     """
-    lbl = 'color: #dcdcaa; cursor: pointer;'
     return (
-        f'<span style="display: inline-block; margin-right: 2em;">'
-        f'<span class="snc-hoverable" style="{lbl}" snc-add-at-cursor="{html.escape(expr)}" snc-add-target="{html.escape(target)}">{html.escape(expr)}</span>'
-        f' \u21d2 {val_repr}'
+        f'<span class="preview-chip-container">'
+        f'<span class="preview-chip" snc-add-at-cursor="{html.escape(expr)}" snc-add-target="{html.escape(target)}">{html.escape(expr)}</span>'
+        f' U {val_repr}'
         f'</span>'
     )
 
@@ -3294,11 +3247,11 @@ def _render_transform_preview(model: dict, value: str, eval_in_scope) -> str:
                 result_str = html.escape(_trunc_repr(result))
             except Exception as e:
                 result_str = html.escape(str(e))
-        row2 = f'<div style="font-size: 11px;">Transform: {m_repr} \u21d2 {result_str}</div>' if result_str else ''
+        row2 = f'<div class="transform-preview-content">{result_str}</div>' if result_str else ''
 
         return (
-            f'<div style="margin-top: 2px; color: #8C8C8C; white-space: normal;">'
-            f'<div style="font-size: 7px; filter: saturate(0.75); opacity: 0.75;">Match: {row1}</div>'
+            f'<div class="transform-preview">'
+            # f'<div class="transform-preview-content" style="font-size: 7px; filter: saturate(0.75); opacity: 0.75;">Match: {row1}</div>'
             f'{row2}'
             f'</div>'
         )
@@ -3357,11 +3310,11 @@ def _render_transform_preview(model: dict, value: str, eval_in_scope) -> str:
             result_str = html.escape(_trunc_repr(result))
         except Exception as e:
             result_str = html.escape(str(e))
-    row2 = f'<div style="font-size: 11px;">Transform: {m0} \u21d2 {result_str}</div>' if result_str else ''
+    row2 = f'<div class="transform-preview-content">{result_str}</div>' if result_str else ''
 
     return (
-        f'<div style="margin-top: 2px; color: #8C8C8C; white-space: normal;">'
-        f'<div style="font-size: 7px; filter: saturate(0.75); opacity: 0.75;">First match: {row1}{group_chips}</div>'
+        f'<div class="transform-preview">'
+        # f'<div class="transform-preview-matches">First match: {row1}{group_chips}</div>'
         f'{row2}'
         f'</div>'
     )
@@ -3875,7 +3828,7 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
             selection_regex = model.get('search')
 
             # Determine selection type based on top/bottom half of character
-            anchor_type = 'literal' if is_top_half(event_json) else 'fuzzy'
+            anchor_type = 'fuzzy' if event_json["altKey"] else 'literal'
 
             # Check extension points if we have an existing selection
             last_end: int | None = None

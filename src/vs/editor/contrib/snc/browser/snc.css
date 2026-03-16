@@ -3,70 +3,310 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.editor-instance .snc-visualization-widget {
+@import "./string-visualizer.css";
+
+.monaco-editor .snc-visualization-widget {
+	--string-color: #315278;
+	--border-color: #c0c0c0;
+	--bg: #fcfcfc;
+	--default-font-size: 14px;
+	--menu-font-size: 12px;
+
 	position: absolute;
 	display: inline-block;
 	margin-left: 8px;
 	margin-top: -4px;
-	padding: 4px 4px;
-	background: none;
-	font-size: 11px;
-	font-style: italic;
-	font-family: monospace;
-	color: rgba(255, 255, 255, 0.2);
+	font-size: var(--default-font-size);
+	padding: 2px 0px;
+	font-family: Pragmasevka, monospace;
 	white-space: nowrap;
 	vertical-align: middle;
-	border-radius: 2px;
-	border-color: rgba(127, 127, 127, 0.1);
-	border-style: solid;
-	border-width: 1px;
-	/* max-width: 800px; */
-	/* max-height: 600px; */
-	/* overflow: auto; */
-	/* scrollbar-width: thin; */
-	/* scrollbar-color: rgba(127, 127, 127, 0.1) transparent; */
 	filter: none;
-	opacity: 1.0;
+	opacity: 1;
 	z-index: 1000;
 	user-select: text;
-}
 
-.editor-instance .snc-visualization-widget.snc-visualization-widget-block-layout {
-	display: block;
-	margin-left: 0;
-	margin-top: 0;
-}
+	/* Not sure when this isn't applied? */
+	&.snc-visualization-widget-block-layout {
+		display: block;
+		margin-left: 0;
+		margin-top: 0;
+	}
 
-.editor-instance .snc-visualization-widget.snc-syntax-error {
-	filter: grayscale(1.0);
-	opacity: 0.8;
-	pointer-events: none;
+	&.snc-syntax-error {
+		filter: grayscale(1);
+		opacity: 0.8;
+		pointer-events: none;
+	}
 }
 
 /* hide .snc-hover-hidden until .snc-hover-hidden-parent is hovered */
-.editor-instance .snc-hover-hidden-parent .snc-hover-hidden {
+/* used to show/hide property rows on the generic object visualizer */
+.monaco-editor .snc-hover-hidden-parent .snc-hover-hidden {
 	visibility: hidden;
 }
-.editor-instance .snc-hover-hidden-parent:not(:hover) .snc-hover-hide-border {
+.monaco-editor .snc-hover-hidden-parent:not(:hover) .snc-hover-hide-border {
 	border-color: transparent !important;
 }
-.editor-instance .snc-hover-hidden-parent:hover .snc-hover-hidden {
+.monaco-editor .snc-hover-hidden-parent:hover .snc-hover-hidden {
 	visibility: visible;
 }
-.editor-instance .snc-hover-hidden:hover {
+.monaco-editor .snc-hover-hidden:hover {
 	visibility: visible;
 }
 
-.editor-instance .full-opacity-on-hover:hover {
-	opacity: 1.0 !important;
+.monaco-editor .full-opacity-on-hover:hover {
+	opacity: 1 !important;
 }
 
-.editor-instance .snc-dropdown-option:hover {
-	background-color: #094771;
+.search-box-input {
+	color: #315278 !important;
+	border: 1px solid var(--border-color);
+	border-radius: 5px;
+	padding: 5px;
+	padding-bottom: 4px;
+	font-size: var(--menu-font-size) !important;
+	outline: none;
+	width: -webkit-fill-available;
 }
 
-.editor-instance .snc-hoverable:hover {
-	border-color: white !important;
-	color: white !important;
-	cursor: pointer !important;
+.search-box {
+	white-space: normal;
+	display: flex;
+	padding: 5px;
+	border-top: 1px solid var(--border-color);
+ 	align-items: baseline;
+	gap: 5px;
+}
+
+.visualizer-container {
+	color: var(--string-color);
+	white-space: pre;
+	user-select: none;
+	outline: none;
+	display: flex;
+	flex-direction: column;
+	position: relative;
+	background: var(--bg);
+	border-radius: 5px;
+	border: 1px solid var(--border-color);
+	margin-bottom: 5px;
+	margin-top: 2px;
+
+	&::after {
+		content: "";
+		width: 1px;
+		height: -webkit-fill-available;
+		left: -15px;
+		z-index: 100;
+		display: flex;
+		position: absolute;
+		border-right: 1px solid rgba(0, 0, 0, 0.3);
+	}
+}
+
+.search-toggles-container {
+	display: flex;
+	gap: 2px;
+	position: absolute;
+	right: 5px;
+	height: 100%;
+	align-items: center;
+}
+
+.search-replace-container {
+	flex-grow: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.search-box.expanded {
+	& > .search-toggles-container {
+	}
+
+	& > .disclosure-button {
+		height: 40px;
+    align-items: baseline;
+	}
+}
+
+.search-icon {
+	width: 12px;
+	height: 12px;
+	fill: #4A4A4A;
+
+	path {
+	    fill: #4A4A4A;
+	}
+}
+
+.action-button, .search-button {
+	cursor: pointer;
+	color: #4A4A4A;
+	font-size: var(--menu-font-size);
+	line-height: 1;
+	user-select: none;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 3px;
+	padding: 3px;
+
+	&:hover {
+		color: black;
+		background: rgba(0, 0, 0, 0.06);
+	}
+
+	&:active {
+		background: rgba(0, 0, 0, 0.1);
+	}
+
+	&.active {
+		background: rgba(0, 0, 0, 0.06);
+		color: #3c53a7;
+		> svg {
+			fill: #3c53a7;
+			path {
+				fill: #3c53a7;
+			}
+		}
+	}
+
+	&.dimmed {
+		pointer-events: none;
+		opacity: 0.5;
+	}
+}
+
+.disclosure-button {
+	width: 14px;
+	padding: 5px 3px;
+}
+
+.action-button-divider {
+	border-right: 1px solid rgba(0,0,0,0.2);
+	height: auto;
+	width: 1px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 5px;
+}
+
+.search-box-input-wrapper {
+	display: flex;
+	position: relative;
+}
+
+.action-buttons-container {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.transform-preview {
+	color: #4A4A4A;
+	opacity: 0.8;
+	font-size: var(--menu-font-size);
+	position: absolute;
+	right: 3px;
+	height: 100%;
+	align-items: center;
+	display: flex;
+}
+
+.transform-preview-content {
+	padding: 0px 3px;
+	background: rgba(0, 0, 0, 0.06);
+	display: flex;
+	border-radius: 4px;
+}
+
+.snc-dropdown-panel {
+	position: absolute;
+
+	&.left {
+		left: 0;
+	}
+
+	&.right {
+		right: 0;
+	}
+
+	top: 100%;
+	background: white;
+	border: 1px solid #c0c0c0;
+	border-radius: 4px;
+	z-index: 100;
+	min-width: 100px;
+	font-size: 11px;
+	font-family: Pragmasevka, monospace;
+	padding: 3px;
+	box-shadow: 0.2px 0.3px 0.4px hsl(0deg 0% 63% / 0.36),
+    0.7px 0.9px 1.3px -0.8px hsl(0deg 0% 63% / 0.36),
+    1.8px 2.3px 3.3px -1.7px hsl(0deg 0% 63% / 0.36),
+    4.4px 5.7px 8.1px -2.5px hsl(0deg 0% 63% / 0.36);
+
+  width: fit-content;
+  margin-top: 5px;
+
+  &.categorized {
+  	padding: 0px;
+  }
+
+  &::-webkit-scrollbar {
+      width: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+      background-color: #8080805e;
+      border-radius: 5px;
+  }
+
+  max-height: 250px;
+  overflow: auto;
+}
+
+.snc-dropdown-option {
+	padding: 1px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  gap: 3px;
+  align-items: anchor-center;
+
+  &:hover {
+  	background: rgba(0, 0, 0, 0.06);
+  }
+
+ 	&:active {
+		background: rgba(0, 0, 0, 0.1);
+	}
+}
+
+.snc-dropdown-input {
+	border-radius: 4px;
+  padding-left: 4px;
+  outline: none;
+  border: 1px solid #c0c0c0;
+  width: 20px;
+  height: 12px;
+}
+
+.snc-dropdown-category {
+	padding: 5px;
+	display: flex;
+	flex-direction: column;
+	gap: 0px;
+
+	&:not(:first-child) {
+		padding-top: 0px;
+	}
+}
+
+.snc-dropdown-category-name {
+	padding: 1px 4px;
+	opacity: 0.7;
 }

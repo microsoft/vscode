@@ -115,6 +115,12 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 		this._register(dom.addDisposableListener(this.domNode, 'mouseup', (ev: MouseEvent) => {
 			this.dispatch_mouse_python_event('snc-mouse-up', ev);
 		}));
+		this._register(dom.addDisposableListener(this.domNode, 'mouseout', (ev: MouseEvent) => {
+			this.dispatch_mouse_python_event('snc-mouse-out', ev);
+		}));
+		this._register(dom.addDisposableListener(this.domNode, 'mouseleave', (ev: MouseEvent) => {
+			this.dispatch_mouse_python_event('snc-mouse-out', ev);
+		}));
 		this._register(dom.addDisposableListener(this.domNode, 'keydown', (ev: KeyboardEvent) => {
 			// For input/textarea elements, only dispatch certain keys to Python.
 			// Other keys should still type normally, but must not bubble to VS Code.

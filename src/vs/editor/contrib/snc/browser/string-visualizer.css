@@ -1,0 +1,173 @@
+.string-visualizer {
+	line-height: 24px;
+	max-height: 600px;
+	max-width: 800px;
+	overflow: auto;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(127, 127, 127, 0.1) transparent;
+	margin: 5px 10px;
+	margin-bottom: 3px;
+}
+
+.string-visualizer-overlay {
+	position: relative;
+	display: inline-block;
+	vertical-align: 3;
+
+	&.literal {
+		vertical-align: -7;
+	}
+}
+
+.string-visualizer-overlay-content {
+	position: absolute;
+	right: 0px;
+	left: inherit;
+	top: 3px;
+	font-size: 5px;
+	font-style: normal;
+	font-weight: bold;
+	padding: 0;
+	color: #868686;
+	pointer-events: none;
+	z-index: 10;
+	line-height: 6px;
+
+	&.literal {
+		top: -7;
+		color: #00aeff;
+	}
+
+	&.left {
+		right: inherit;
+		left: -1px;
+	}
+}
+
+.char-span {
+	&.hover {
+		/*background: rgba(0, 0, 0, 0.1);*/
+	}
+
+	&.is-special {
+		color: #a5a5a5;
+	}
+
+	&.literal.highlight {
+		background: #0069ff24;
+
+		&.is-interactive {
+			background: #0069ff3d;
+			cursor: pointer;
+		}
+
+		&.is-special {
+			color: rgba(0,0,0,0.8);
+		}
+	}
+
+	&.fuzzy.highlight {
+		background: #aaaaaa3d;
+
+		&.is-interactive {
+   		border-bottom: 1px dashed #0000005e;
+     	background: #7d7d7d3d;
+      cursor: pointer;
+		}
+
+		&.is-special {
+			color: rgba(0,0,0,0.8);
+		}
+	}
+
+	&.end {
+		border-radius: 0px 5px 5px 0px;
+	}
+
+	&.start {
+		border-radius: 5px 0px 0px 5px;
+	}
+
+	&.end.start {
+		border-radius: 5px;
+	}
+}
+
+.string-visualizer > * {
+	cursor: text;
+	letter-spacing: 0px;
+}
+
+span.overlay-container {
+	display: inline-block;
+  vertical-align: top;
+  pointer-events: none;
+  position: relative;
+
+  &.fuzzy {
+  	vertical-align: baseline
+  }
+}
+
+span.overlay-content {
+	position: absolute;
+  background: #0069ff24;
+  color: rgba(0, 0, 0, 0);
+  border-radius: 3px;
+  opacity: 0.5;
+  transform: scaleY(0.7);
+  right: 0px;
+
+  &.side-left {
+  	left: -1px;
+  }
+
+  &.is-interactive {
+  	background: #0069ff3d;
+  }
+
+  &.literal {
+  	top: 0px;
+  }
+}
+
+.char-span-start-handle-container {
+	position: relative;
+  display: inline-block;
+  width: 0;
+  height: 1em;
+  vertical-align: text-top;
+}
+
+.char-span-resize-handle {
+	position: absolute;
+	top: 0px;
+	width: 2px;
+	height: -webkit-fill-available;
+	cursor: ew-resize;
+	z-index: 20;
+	left: -2px;
+
+	&:hover {
+		border-right: 1px solid #00000073;
+		background: rgba(0,0,0,0.1);
+	}
+
+
+	&:hover {
+		background: rgba(0,0,0,0.06);
+	}
+}
+
+.char-span-anchor-container {
+	position: relative;
+	display: inline-block;
+	vertical-align: text-top;
+}
+
+.snc-dropdown-category-divider {
+	border-top: 1px solid #0000002e;
+  height: 1px;
+  width: 100%;
+  margin: 6px 0px;
+}
