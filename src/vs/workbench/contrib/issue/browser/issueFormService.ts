@@ -14,14 +14,19 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier, ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
 import { AuxiliaryWindowMode, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IIssueFormService, IssueReporterData } from '../common/issue.js';
+import { IssueReporterOverlay } from './issueReporterOverlay.js';
 import BaseHtml from './issueReporterPage.js';
 import { IssueWebReporter } from './issueReporterService.js';
+import { IScreenshotService } from './screenshotService.js';
+import { URI } from '../../../../base/common/uri.js';
 import './media/issueReporter.css';
 
 export interface IssuePassData {
@@ -42,6 +47,9 @@ export class IssueFormService implements IIssueFormService {
 	protected release: string = '';
 	protected type: string = '';
 
+	private overlayDisposables: DisposableStore | undefined;
+	private overlay: IssueReporterOverlay | undefined;
+
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IAuxiliaryWindowService protected readonly auxiliaryWindowService: IAuxiliaryWindowService,
@@ -49,7 +57,10 @@ export class IssueFormService implements IIssueFormService {
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@ILogService protected readonly logService: ILogService,
 		@IDialogService protected readonly dialogService: IDialogService,
-		@IHostService protected readonly hostService: IHostService
+		@IHostService protected readonly hostService: IHostService,
+		@ILayoutService protected readonly layoutService: ILayoutService,
+		@IScreenshotService protected readonly screenshotService: IScreenshotService,
+		@IOpenerService protected readonly openerService: IOpenerService,
 	) { }
 
 	async openReporter(data: IssueReporterData): Promise<void> {
@@ -57,6 +68,143 @@ export class IssueFormService implements IIssueFormService {
 			return;
 		}
 
+		this.openOverlayReporter(data);
+	}
+
+	protected openOverlayReporter(data: IssueReporterData): void {
+		// If already open, close first
+		this.closeOverlay();
+
+		this.overlayDisposables = new DisposableStore();
+
+		this.overlay = new IssueReporterOverlay(
+			data,
+			this.layoutService as import('../../../services/layout/browser/layoutService.js').IWorkbenchLayoutService,
+		);
+		this.overlayDisposables.add(this.overlay);
+
+		// Handle close
+		this.overlayDisposables.add(this.overlay.onDidClose(() => {
+			this.closeOverlay();
+		}));
+
+		// Handle screenshot request — hide overlay first so it's not in the capture
+		this.overlayDisposables.add(this.overlay.onDidRequestScreenshot(async () => {
+			this.overlay?.hideForCapture();
+			// Small delay to let the UI hide before capture
+			await new Promise(r => setTimeout(r, 100));
+			const dataUrl = await this.screenshotService.captureScreenshot();
+			this.overlay?.showAfterCapture();
+			if (dataUrl && this.overlay) {
+				const img = new Image();
+				img.onload = () => {
+					this.overlay?.addScreenshot({
+						dataUrl,
+						width: img.naturalWidth,
+						height: img.naturalHeight,
+					});
+				};
+				img.src = dataUrl;
+			}
+		}));
+
+		// Handle submit
+		this.overlayDisposables.add(this.overlay.onDidSubmit(async ({ title, body, shouldCreate, isPrivate }) => {
+			const screenshots = this.overlay?.getScreenshots() ?? [];
+
+			// Build the final issue body with screenshot image uploads
+			let issueBody = body;
+			if (screenshots.length > 0) {
+				issueBody += '\n\n### Screenshots\n\n';
+				for (let i = 0; i < screenshots.length; i++) {
+					const screenshot = screenshots[i];
+					const imageData = screenshot.annotatedDataUrl ?? screenshot.dataUrl;
+					issueBody += `![Screenshot ${i + 1}](${imageData})\n\n`;
+				}
+			}
+
+			// Determine the issue URL
+			let issueUrl = isPrivate && data.privateUri
+				? URI.revive(data.privateUri).toString()
+				: product.reportIssueUrl ?? '';
+
+			const selectedExtension = data.extensionId
+				? data.enabledExtensions.find(ext => ext.id.toLocaleLowerCase() === data.extensionId?.toLocaleLowerCase())
+				: undefined;
+
+			if (selectedExtension?.uri) {
+				issueUrl = URI.revive(selectedExtension.uri).toString();
+			}
+
+			const gitHubDetails = this.parseGitHubUrl(issueUrl);
+
+			if (data.githubAccessToken && gitHubDetails && shouldCreate) {
+				await this.submitToGitHub(title, issueBody, gitHubDetails, data.githubAccessToken);
+			} else {
+				// Preview on GitHub via URL
+				let url = `${issueUrl}${issueUrl.indexOf('?') === -1 ? '?' : '&'}title=${encodeURIComponent(title)}&body=${encodeURIComponent(issueBody)}`;
+
+				if (url.length > 7500) {
+					const shouldWrite = await this.showClipboardDialog();
+					if (!shouldWrite) {
+						return;
+					}
+					url = `${issueUrl}${issueUrl.indexOf('?') === -1 ? '?' : '&'}title=${encodeURIComponent(title)}&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
+				}
+
+				await this.openerService.open(URI.parse(url));
+			}
+
+			this.closeOverlay();
+		}));
+
+		this.overlay.show();
+	}
+
+	private parseGitHubUrl(url: string): undefined | { repositoryName: string; owner: string } {
+		const match = /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*).*/.exec(url);
+		if (match && match.length) {
+			return {
+				owner: match[1],
+				repositoryName: match[2]
+			};
+		}
+		return undefined;
+	}
+
+	private async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string; repositoryName: string }, token: string): Promise<boolean> {
+		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
+		const init = {
+			method: 'POST',
+			body: JSON.stringify({
+				title: issueTitle,
+				body: issueBody
+			}),
+			headers: new Headers({
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${token}`,
+				'User-Agent': 'request'
+			})
+		};
+
+		const response = await fetch(url, init);
+		if (!response.ok) {
+			this.logService.error('Failed to create GitHub issue:', response.statusText);
+			return false;
+		}
+		const result = await response.json();
+		await this.openerService.open(URI.parse(result.html_url));
+		return true;
+	}
+
+	private closeOverlay(): void {
+		this.overlayDisposables?.dispose();
+		this.overlayDisposables = undefined;
+		this.overlay = undefined;
+	}
+
+	/** @deprecated Use openOverlayReporter instead. Kept for web fallback. */
+	async openAuxIssueReporterLegacy(data: IssueReporterData): Promise<void> {
 		await this.openAuxIssueReporter(data);
 
 		if (this.issueReporterWindow) {
@@ -173,6 +321,7 @@ export class IssueFormService implements IIssueFormService {
 	//#region used by issue reporter
 
 	async closeReporter(): Promise<void> {
+		this.closeOverlay();
 		this.issueReporterWindow?.close();
 	}
 
@@ -231,6 +380,10 @@ export class IssueFormService implements IIssueFormService {
 		if (data.extensionId && this.extensionIdentifierSet.has(data.extensionId)) {
 			this.currentData = data;
 			this.issueReporterWindow?.focus();
+			return true;
+		}
+
+		if (this.overlay?.isVisible()) {
 			return true;
 		}
 
