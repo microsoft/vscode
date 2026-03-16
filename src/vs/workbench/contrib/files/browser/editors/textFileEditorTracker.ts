@@ -19,8 +19,6 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
 import { IWorkingCopyEditorService } from '../../../../services/workingCopy/common/workingCopyEditorService.js';
 import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor.js';
-import { IChatEditingService } from '../../../chat/common/editing/chatEditingService.js';
-import { isEqual } from '../../../../../base/common/resources.js';
 
 export class TextFileEditorTracker extends Disposable implements IWorkbenchContribution {
 
@@ -33,8 +31,7 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 		@IHostService private readonly hostService: IHostService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
-		@IChatEditingService private readonly chatEditingService: IChatEditingService
+		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService
 	) {
 		super();
 
@@ -74,20 +71,15 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 				return false; // resource must not be pending to save
 			}
 
-			// Skip files being actively modified by a chat editing session.
-			// The chat editing system manages its own editor lifecycle via
-			// the accessibility.openChatEditedFiles setting (#298700).
-			for (const session of this.chatEditingService?.editingSessionsObs?.get() ?? []) {
-				if (session.entries.get().some(e => isEqual(e.modifiedURI, resource))) {
-					return false;
-				}
-			}
-
 			if (resource.scheme !== Schemas.untitled && !fileModel?.hasState(TextFileEditorModelState.ERROR) && this.filesConfigurationService.hasShortAutoSaveDelay(resource)) {
 				// leave models auto saved after short delay unless
 				// the save resulted in an error and not for untitled
 				// that are not auto-saved anyway
 				return false;
+			}
+
+			if (this.filesConfigurationService.isOpenEditorWhenDirtyDisabled(resource)) {
+				return false; // resource must not be opened when dirty
 			}
 
 			if (this.editorService.isOpened({ resource, typeId: resource.scheme === Schemas.untitled ? UntitledTextEditorInput.ID : FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id })) {

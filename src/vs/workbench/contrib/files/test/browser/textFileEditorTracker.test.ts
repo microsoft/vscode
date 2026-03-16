@@ -142,6 +142,24 @@ suite('Files - TextFileEditorTracker', () => {
 		await testDirtyTextFileModelOpensEditorDependingOnAutoSaveSetting(resource, true, true);
 	});
 
+	test('dirty text file model does not open as editor when disabled explicitly', async function () {
+		const { accessor, cleanup } = await createTracker();
+		const resource = toResource.call(this, '/path/index.txt');
+
+		disposables.add(accessor.filesConfigurationService.disableOpenEditorWhenDirty(resource));
+		assert.ok(!accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id }));
+
+		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
+		disposables.add(model);
+
+		model.textEditorModel.setValue('Super Good');
+
+		await timeout(10);
+		assert.ok(!accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id }));
+
+		await cleanup();
+	});
+
 	async function testDirtyTextFileModelOpensEditorDependingOnAutoSaveSetting(resource: URI, autoSave: boolean, error: boolean): Promise<void> {
 		const { accessor, cleanup } = await createTracker(autoSave);
 

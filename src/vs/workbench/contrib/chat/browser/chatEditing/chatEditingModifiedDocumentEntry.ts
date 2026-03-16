@@ -179,6 +179,36 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 				resourceFilter.clear();
 			}
 		}));
+
+		const openEditorWhenDirtyOff = this._register(new MutableDisposable());
+		let keepOpenEditorWhenDirtyDisabledUntilClean = false;
+		const updateOpenEditorWhenDirtyDisabled = () => {
+			if (this._stateObs.get() === ModifiedFileEntryState.Modified) {
+				keepOpenEditorWhenDirtyDisabledUntilClean = true;
+			} else if (!this._textFileService.isDirty(this.modifiedURI)) {
+				keepOpenEditorWhenDirtyDisabledUntilClean = false;
+			}
+
+			if (keepOpenEditorWhenDirtyDisabledUntilClean) {
+				openEditorWhenDirtyOff.value = fileConfigService.disableOpenEditorWhenDirty(this.modifiedURI);
+			} else {
+				openEditorWhenDirtyOff.clear();
+			}
+		};
+		this._register(autorun(r => {
+			this._stateObs.read(r);
+			updateOpenEditorWhenDirtyDisabled();
+		}));
+		this._register(this._textFileService.files.onDidChangeDirty(model => {
+			if (isEqual(model.resource, this.modifiedURI)) {
+				updateOpenEditorWhenDirtyDisabled();
+			}
+		}));
+		this._register(this._textFileService.untitled.onDidChangeDirty(model => {
+			if (isEqual(model.resource, this.modifiedURI)) {
+				updateOpenEditorWhenDirtyDisabled();
+			}
+		}));
 	}
 
 	getDiffInfo(): Promise<IDocumentDiff> {
