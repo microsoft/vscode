@@ -31,7 +31,7 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 			? this._pathJoin(nativeEnvironmentService.appRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg')
 			: undefined;
 		this._tempDir = nativeEnvironmentService.tmpDir?.path;
-		logService.info('SandboxHelperService#constructor ripgrep path', this._rgPath ?? 'undefined');
+		logService.debug('SandboxHelperService#constructor ripgrep path configured', !!this._rgPath);
 	}
 
 	async resolveSandboxPermissionRequest(requestId: string, allowed: boolean): Promise<void> {
