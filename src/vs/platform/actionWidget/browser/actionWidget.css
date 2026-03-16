@@ -277,14 +277,16 @@
 	visibility: hidden;
 }
 
-/* Show twistie and hover background only when hovering the description group itself */
+/* Show twistie on row hover */
+.action-widget .monaco-list-row.focused.action.has-submenu .action-list-submenu-indicator,
+.action-widget .monaco-list-row:hover.action.has-submenu .action-list-submenu-indicator {
+	visibility: visible;
+}
+
+/* Show hover background only when hovering the description group itself */
 .action-widget .monaco-list-row.action.has-submenu .description-group:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	cursor: pointer;
-}
-
-.action-widget .monaco-list-row.action.has-submenu .description-group:hover .action-list-submenu-indicator {
-	visibility: visible;
 }
 
 .action-list-submenu {
