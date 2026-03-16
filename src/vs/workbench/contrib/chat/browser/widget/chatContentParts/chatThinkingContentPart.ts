@@ -1141,6 +1141,17 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			(t.kind === 'toolInvocation' || t.kind === 'toolInvocationSerialized') && t.toolCallId === toolCallId
 		);
 		if (toolInvocationsIndex !== -1) {
+			const invocation = this.toolInvocations[toolInvocationsIndex];
+			if (invocation.kind === 'toolInvocation' || invocation.kind === 'toolInvocationSerialized') {
+				const msg = invocation.invocationMessage;
+				const label = msg ? (typeof msg === 'string' ? msg : msg.value) : undefined;
+				if (label) {
+					const titleIndex = this.extractedTitles.indexOf(label);
+					if (titleIndex !== -1) {
+						this.extractedTitles.splice(titleIndex, 1);
+					}
+				}
+			}
 			this.toolInvocations.splice(toolInvocationsIndex, 1);
 		}
 
@@ -1170,6 +1181,16 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		// Clear the attached-to-thinking flag on the removed tool invocation
 		if (removedItem.kind === 'tool' && removedItem.toolInvocationOrMarkdown && (removedItem.toolInvocationOrMarkdown.kind === 'toolInvocation' || removedItem.toolInvocationOrMarkdown.kind === 'toolInvocationSerialized')) {
 			removedItem.toolInvocationOrMarkdown.isAttachedToThinking = false;
+
+			// Keep extractedTitles in sync when a lazy tool leaves the thinking container
+			const msg = removedItem.toolInvocationOrMarkdown.invocationMessage;
+			const label = msg ? (typeof msg === 'string' ? msg : msg.value) : undefined;
+			if (label) {
+				const titleIndex = this.extractedTitles.indexOf(label);
+				if (titleIndex !== -1) {
+					this.extractedTitles.splice(titleIndex, 1);
+				}
+			}
 		}
 
 		const toolInvocationsIndex = this.toolInvocations.findIndex(t =>
