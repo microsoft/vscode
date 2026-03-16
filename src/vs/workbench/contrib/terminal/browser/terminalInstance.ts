@@ -580,6 +580,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (e.affectsConfiguration('terminal.integrated')) {
 				this.updateConfig();
 				this.setVisible(this._isVisible);
+				this._updateInheritEditorBgClass();
 			}
 			const layoutSettings: string[] = [
 				TerminalSettingId.FontSize,
@@ -608,6 +609,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}));
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._labelComputer?.refreshLabel(this)));
+		this._register(this._onDidChangeTarget.event(() => this._updateInheritEditorBgClass()));
 
 		// Clear out initial data events after 10 seconds, hopefully extension hosts are up and
 		// running at that point.
@@ -1080,6 +1082,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Attach the xterm object to the DOM, exposing it to the smoke tests
 		this._wrapperElement.xterm = xterm.raw;
+		this._updateInheritEditorBgClass();
 
 		const screenElement = xterm.attachToElement(xtermHost);
 
@@ -1911,6 +1914,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	updateConfig(): void {
 		this._setCommandsToSkipShell(this._terminalConfigurationService.config.commandsToSkipShell);
 		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
+	}
+
+	private _updateInheritEditorBgClass(): void {
+		const shouldInheritBg = this._targetRef.object === TerminalLocation.Editor
+			&& !!this._terminalConfigurationService.config.editor?.inheritBackground;
+		this._wrapperElement.classList.toggle('inherit-editor-bg', shouldInheritBg);
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {
@@ -2808,14 +2817,18 @@ export class TerminalInstanceColorProvider implements IXtermColorProvider {
 	constructor(
 		private readonly _target: IReference<TerminalLocation | undefined>,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 	) {
 	}
 
 	getBackgroundColor(theme: IColorTheme) {
-		if (this._target.object === TerminalLocation.Editor) {
-			return theme.getColor(editorBackground);
-		}
 		const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);
+		if (this._target.object === TerminalLocation.Editor) {
+			if (this._terminalConfigurationService.config.editor?.inheritBackground) {
+				return theme.getColor(editorBackground);
+			}
+			return terminalBackground ?? theme.getColor(editorBackground);
+		}
 		if (terminalBackground) {
 			return terminalBackground;
 		}

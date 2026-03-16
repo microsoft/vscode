@@ -124,6 +124,7 @@ export const enum TerminalSettingId {
 	EnableWin32InputMode = 'terminal.integrated.enableWin32InputMode',
 	ExperimentalAiProfileGrouping = 'terminal.integrated.experimental.aiProfileGrouping',
 	AllowInUntrustedWorkspace = 'terminal.integrated.allowInUntrustedWorkspace',
+	EditorInheritBackground = 'terminal.integrated.editor.inheritBackground',
 
 	// Developer/debug settings
 
