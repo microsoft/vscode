@@ -379,6 +379,17 @@
 	color: white;
 }
 
+/* Center-Adjacent Toolbar (e.g., update indicator) */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container {
+	z-index: 2500;
+	-webkit-app-region: no-drag;
+	margin-right: auto;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container.has-no-actions {
+	display: none;
+}
+
 /* Action Tool Bar Controls */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {
 	display: none;
