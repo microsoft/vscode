@@ -414,6 +414,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _currentModeObservable: ISettableObservable<IChatMode>;
 	private readonly _currentPermissionLevel: ISettableObservable<ChatPermissionLevel>;
 	private readonly _isWorktreeIsolated: ISettableObservable<boolean>;
+	private _lastIsolationOptionId: string | undefined;
 	private permissionLevelKey: IContextKey<ChatPermissionLevel>;
 
 	public get currentModeKind(): ChatModeKind {
@@ -589,12 +590,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.refreshChatSessionPickers();
 				// Re-evaluate worktree isolation — the new session type may have
 				// a different isolation option than the previous one.
-				const sessionResource = this._widget?.viewModel?.model.sessionResource;
-				if (sessionResource) {
-					this.updateWorktreeIsolationState(sessionResource);
-				} else {
-					this._isWorktreeIsolated.set(false, undefined);
-				}
+				this.updateWorktreeIsolationState(this._widget?.viewModel?.model.sessionResource);
 			}));
 		}
 
@@ -835,15 +831,29 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.permissionWidget?.refresh();
 	}
 
-	private updateWorktreeIsolationState(sessionResource: URI): void {
-		const ctx = this.chatService.getChatSessionFromInternalUri(sessionResource);
-		if (!ctx) {
-			return;
+	private updateWorktreeIsolationState(sessionResource?: URI): void {
+		let isolationOptionId: string | undefined;
+
+		// Try session-based lookup first (existing session)
+		if (sessionResource) {
+			const ctx = this.chatService.getChatSessionFromInternalUri(sessionResource);
+			if (ctx) {
+				const isolationOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, 'isolation');
+				isolationOptionId = typeof isolationOption === 'string'
+					? isolationOption
+					: isolationOption?.id;
+			}
 		}
-		const isolationOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, 'isolation');
-		const isWorktree = typeof isolationOption === 'string'
-			? isolationOption === 'worktree'
-			: isolationOption?.id === 'worktree';
+
+		// Fall back to the last known isolation option value (welcome view / no session yet)
+		if (isolationOptionId === undefined) {
+			isolationOptionId = this._lastIsolationOptionId;
+		}
+
+		this.applyWorktreeIsolation(isolationOptionId === 'worktree');
+	}
+
+	private applyWorktreeIsolation(isWorktree: boolean): void {
 		const wasWorktree = this._isWorktreeIsolated.get();
 		this._isWorktreeIsolated.set(isWorktree, undefined);
 		if (isWorktree && !wasWorktree) {
@@ -889,6 +899,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Clear existing widgets
 		this.disposeSessionPickerWidgets();
 
+		// Reset isolation tracking if the isolation option is no longer visible
+		if (!visibleGroupIds.has('isolation')) {
+			this._lastIsolationOptionId = undefined;
+		}
+
 		const widgets: (ChatSessionPickerActionItem | SearchableOptionPickerActionItem)[] = [];
 		for (const optionGroup of optionGroups) {
 			if (!visibleGroupIds.has(optionGroup.id)) {
@@ -898,6 +913,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const initialItem = this.getCurrentOptionForGroup(optionGroup.id);
 			const initialState = { group: optionGroup, item: initialItem };
 
+			// Track the initial isolation option value for welcome view fallback
+			if (optionGroup.id === 'isolation' && initialItem) {
+				this._lastIsolationOptionId = initialItem.id;
+			}
+
 			// Create delegate for this option group
 			const itemDelegate: IChatSessionPickerDelegate = {
 				getCurrentOption: () => this.getCurrentOptionForGroup(optionGroup.id),
@@ -906,6 +926,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					// Update context key for this option group
 					this.updateOptionContextKey(optionGroup.id, option.id);
 					this.getOrCreateOptionEmitter(optionGroup.id).fire(option);
+
+					// Track isolation option changes for worktree isolation state
+					if (optionGroup.id === 'isolation') {
+						this._lastIsolationOptionId = option.id;
+						this.applyWorktreeIsolation(option.id === 'worktree');
+					}
 
 					// Notify session if we have one (not in welcome view before session creation)
 					const sessionResource = this._widget?.viewModel?.model.sessionResource;
