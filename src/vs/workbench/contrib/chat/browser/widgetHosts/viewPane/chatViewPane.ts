@@ -691,6 +691,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private async showModel(modelRef?: IChatModelReference | undefined, startNewSession = true): Promise<IChatModel | undefined> {
+		const oldModelResource = this.modelRef.value?.object.sessionResource;
 		this.modelRef.value = undefined;
 
 		let ref: IChatModelReference | undefined;
@@ -720,6 +721,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Update the toolbar context with new sessionId
 		this.updateActions();
+
+		// Mark the old model as read when closing unless explicitly marked unread
+		if (oldModelResource) {
+			const oldSession = this.agentSessionsService.model.getSession(oldModelResource);
+			if (oldSession && !oldSession.isMarkedUnread()) {
+				oldSession.setRead(true);
+			}
+		}
 
 		return model;
 	}
