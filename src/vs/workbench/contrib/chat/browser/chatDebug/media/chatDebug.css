@@ -336,6 +336,7 @@
 	flex-direction: row;
 	flex: 1;
 	overflow: hidden;
+	position: relative;
 }
 .chat-debug-logs-main {
 	display: flex;
@@ -428,7 +429,6 @@
 }
 .chat-debug-detail-panel {
 	flex-shrink: 0;
-	width: 350px;
 	display: flex;
 	flex-direction: column;
 	border-left: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
@@ -460,11 +460,6 @@
 .chat-debug-detail-button.monaco-button:hover {
 	opacity: 1;
 	background: var(--vscode-toolbar-hoverBackground);
-}
-.chat-debug-detail-content {
-	flex: 1;
-	min-height: 0;
-	overflow-y: auto;
 }
 .chat-debug-detail-panel pre {
 	margin: 0;
@@ -643,8 +638,6 @@
 }
 .chat-debug-message-section-content-wrapper {
 	border-top: 1px solid var(--vscode-widget-border, transparent);
-	max-height: 300px;
-	overflow-y: auto;
 }
 .chat-debug-message-section-content {
 	margin: 0;
@@ -666,7 +659,8 @@
 }
 
 /* ---- File list: settings gear button ---- */
-.chat-debug-settings-gear.monaco-button {
+.chat-debug-settings-gear.monaco-button,
+.chat-debug-section-copy-btn.monaco-button {
 	flex-shrink: 0;
 	opacity: 0.7;
 	border-radius: 3px;
@@ -676,14 +670,17 @@
 	color: inherit;
 	min-width: auto;
 }
-.chat-debug-settings-gear.monaco-button:hover {
+.chat-debug-settings-gear.monaco-button:hover,
+.chat-debug-section-copy-btn.monaco-button:hover {
 	opacity: 1;
 	background: var(--vscode-toolbar-hoverBackground);
 }
-.chat-debug-settings-gear-header-passthrough {
+.chat-debug-settings-gear-header-passthrough,
+.chat-debug-section-copy-header-passthrough {
 	pointer-events: none;
 }
-.chat-debug-settings-gear-header-passthrough .chat-debug-settings-gear {
+.chat-debug-settings-gear-header-passthrough .chat-debug-settings-gear,
+.chat-debug-section-copy-header-passthrough .chat-debug-section-copy-btn {
 	pointer-events: auto;
 }
 
@@ -727,6 +724,14 @@
 	display: flex;
 	flex: 1;
 	overflow: hidden;
+	position: relative;
+}
+.chat-debug-flowchart-content-wrapper > .chat-debug-detail-panel {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 10;
 }
 .chat-debug-flowchart-content {
 	flex: 1;

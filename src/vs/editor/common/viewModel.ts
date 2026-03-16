@@ -15,7 +15,7 @@ import { CursorChangeReason } from './cursorEvents.js';
 import { INewScrollPosition, ScrollType } from './editorCommon.js';
 import { EditorTheme } from './editorTheme.js';
 import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, TextDirection } from './model.js';
-import { ILineBreaksComputer, InjectedText } from './modelLineProjectionData.js';
+import { ILineBreaksComputer, ILineBreaksComputerContext, InjectedText } from './modelLineProjectionData.js';
 import { InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from './textModelEvents.js';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
 import { IViewLineTokens } from './tokens/lineTokens.js';
@@ -89,7 +89,7 @@ export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 	onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void;
 	emitContentChangeEvent(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void;
 
-	createLineBreaksComputer(): ILineBreaksComputer;
+	createLineBreaksComputer(context?: ILineBreaksComputerContext): ILineBreaksComputer;
 
 	//#region cursor
 	getPrimaryCursorState(): CursorState;

@@ -105,7 +105,7 @@ enum UpdateResult {
 export const RemoteFileDialogContext = new RawContextKey<boolean>('remoteFileDialogVisible', false);
 
 export interface ISimpleFileDialog extends IDisposable {
-	showOpenDialog(options: IOpenDialogOptions): Promise<URI | undefined>;
+	showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
 	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
 }
 
@@ -189,7 +189,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		return this.filePickBox.busy;
 	}
 
-	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI | undefined> {
+	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI[] | undefined> {
 		this.scheme = this.getScheme(options.availableFileSystems, options.defaultUri);
 		this.userHome = await this.getUserHome();
 		this.trueHome = await this.getUserHome(true);
@@ -198,7 +198,11 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			return Promise.resolve(undefined);
 		}
 		this.options = newOptions;
-		return this.pickResource();
+		const result = await this.pickResource();
+		if (Array.isArray(result)) {
+			return result;
+		}
+		return result ? [result] : undefined;
 	}
 
 	public async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
@@ -215,8 +219,8 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		this.options.canSelectFiles = true;
 
 		return new Promise<URI | undefined>((resolve) => {
-			this.pickResource(true).then(folderUri => {
-				resolve(folderUri);
+			this.pickResource(true).then(result => {
+				resolve(Array.isArray(result) ? result[0] : result);
 			});
 		});
 	}
@@ -281,7 +285,14 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			: this.fileDialogService.preferredHome(this.scheme);
 	}
 
-	private async pickResource(isSave: boolean = false): Promise<URI | undefined> {
+	private normalizeUri(uri: URI): URI {
+		uri = resources.addTrailingPathSeparator(uri, this.separator); // Ensures that c: is c:/ since this comes from user input and can be incorrect.
+		// To be consistent, we should never have a trailing path separator on directories (or anything else). Will not remove from c:/.
+		uri = resources.removeTrailingPathSeparator(uri);
+		return uri;
+	}
+
+	private async pickResource(isSave: boolean = false): Promise<URI[] | URI | undefined> {
 		this.allowFolderSelection = !!this.options.canSelectFolders;
 		this.allowFileSelection = !!this.options.canSelectFiles;
 		this.separator = this.labelService.getSeparator(this.scheme, this.remoteAuthority);
@@ -302,7 +313,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			}
 		}
 
-		return new Promise<URI | undefined>((resolve) => {
+		return new Promise<URI[] | URI | undefined>((resolve) => {
 			this.filePickBox = this._register(this.quickInputService.createQuickPick<FileQuickPickItem>());
 			this.busy = true;
 			this.filePickBox.matchOnLabel = false;
@@ -345,13 +356,15 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			this.filePickBox.value = this.pathFromUri(this.currentFolder, true);
 			this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 
-			const doResolve = (uri: URI | undefined) => {
-				if (uri) {
-					uri = resources.addTrailingPathSeparator(uri, this.separator); // Ensures that c: is c:/ since this comes from user input and can be incorrect.
-					// To be consistent, we should never have a trailing path separator on directories (or anything else). Will not remove from c:/.
-					uri = resources.removeTrailingPathSeparator(uri);
+			const doResolve = (uriOrUris: URI | URI[] | undefined) => {
+				if (uriOrUris) {
+					if (Array.isArray(uriOrUris)) {
+						uriOrUris = uriOrUris.map(uri => this.normalizeUri(uri));
+					} else {
+						uriOrUris = this.normalizeUri(uriOrUris);
+					}
 				}
-				resolve(uri);
+				resolve(uriOrUris);
 				this.contextKey.set(false);
 				this.dispose();
 			};
@@ -373,7 +386,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 					});
 				} else {
 					return this.fileDialogService.showOpenDialog(this.options).then(result => {
-						doResolve(result ? result[0] : undefined);
+						doResolve(result);
 					});
 				}
 			}));
