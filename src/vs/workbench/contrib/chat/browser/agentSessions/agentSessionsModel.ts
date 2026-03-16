@@ -523,7 +523,13 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				const agentSessionProvider = getAgentSessionProvider(chatSessionType);
 				if (agentSessionProvider !== undefined) {
 					providerLabel = getAgentSessionProviderName(agentSessionProvider);
-					icon = getAgentSessionProviderIcon(agentSessionProvider);
+					// For background sessions, distinguish worktree vs folder based on metadata
+					if (agentSessionProvider === AgentSessionProviders.Background) {
+						const hasWorktree = typeof session.metadata?.worktreePath === 'string';
+						icon = hasWorktree ? Codicon.worktree : Codicon.folder;
+					} else {
+						icon = getAgentSessionProviderIcon(agentSessionProvider);
+					}
 				} else {
 					providerLabel = mapSessionContributionToType.get(chatSessionType)?.name ?? chatSessionType;
 					icon = session.iconPath ?? Codicon.terminal;
