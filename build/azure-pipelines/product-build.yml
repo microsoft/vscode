@@ -122,7 +122,7 @@ variables:
   - name: VSCODE_BUILD_STAGE_WEB
     value: ${{ eq(parameters.VSCODE_BUILD_WEB, true) }}
   - name: VSCODE_CIBUILD
-    value: ${{ or(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), eq(parameters.VSCODE_BUILD_TYPE, 'CI')) }}
+    value: ${{ or(and(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), not(startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))), eq(parameters.VSCODE_BUILD_TYPE, 'CI')) }}
   - name: VSCODE_PUBLISH
     value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
   - name: VSCODE_SCHEDULEDBUILD
