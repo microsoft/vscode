@@ -362,15 +362,6 @@
 	padding-top: 2px;
 }
 
-.action-list-submenu-header {
-	padding: 4px 12px 2px 12px;
-	font-size: 11px;
-	text-transform: uppercase;
-	color: var(--vscode-descriptionForeground);
-	letter-spacing: 0.5px;
-	white-space: nowrap;
-}
-
 .action-list-submenu-separator {
 	height: 1px;
 	background-color: var(--vscode-menu-separatorBackground);
