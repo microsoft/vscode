@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.112.0",
-  "distro": "a1ab5a4a27fc4bed366a051840f72810985fce06",
+  "version": "1.113.0",
+  "distro": "e5f18aa9c30af482492789ea8994f33f94e09a7d",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -122,7 +122,7 @@
     "open": "^10.1.2",
     "playwright-core": "1.59.0-alpha-2026-02-20",
     "tas-client": "0.3.1",
-    "undici": "^7.18.2",
+    "undici": "^7.24.0",
     "v8-inspect-profiler": "^0.1.1",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
@@ -172,7 +172,7 @@
     "cookie": "^0.7.2",
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
-    "electron": "39.8.0",
+    "electron": "39.8.1",
     "eslint": "^9.36.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",

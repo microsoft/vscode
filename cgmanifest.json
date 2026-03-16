@@ -516,12 +516,12 @@
 				"git": {
 					"name": "nodejs",
 					"repositoryUrl": "https://github.com/nodejs/node",
-					"commitHash": "6add85e4c46b8be383c8b637102d6b6fd206adce",
-					"tag": "22.22.0"
+					"commitHash": "b4acf0c9393e4b31c4937564f059c672967161d8",
+					"tag": "22.22.1"
 				}
 			},
 			"isOnlyProductionDependency": true,
-			"version": "22.22.0"
+			"version": "22.22.1"
 		},
 		{
 			"component": {
@@ -529,13 +529,13 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "69c8cbf259da0f84e9c1db04958516a68f7170aa",
-					"tag": "39.8.0"
+					"commitHash": "bd3abf3a2c91fcf09525ea105a9e38e50c19d00a",
+					"tag": "39.8.1"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "39.8.0"
+			"version": "39.8.1"
 		},
 		{
 			"component": {

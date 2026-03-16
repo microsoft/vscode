@@ -585,6 +585,7 @@ suite('AgentSessions', () => {
 				isArchived: () => false,
 				setArchived: archived => { },
 				isRead: () => false,
+				isMarkedUnread: () => false,
 				setRead: read => { }
 			};
 
@@ -600,6 +601,7 @@ suite('AgentSessions', () => {
 				isArchived: () => false,
 				setArchived: archived => { },
 				isRead: () => false,
+				isMarkedUnread: () => false,
 				setRead: read => { }
 			};
 
@@ -620,6 +622,7 @@ suite('AgentSessions', () => {
 				isArchived: () => false,
 				setArchived: archived => { },
 				isRead: () => false,
+				isMarkedUnread: () => false,
 				setRead: read => { }
 			};
 
@@ -644,6 +647,7 @@ suite('AgentSessions', () => {
 				isArchived: () => false,
 				setArchived: archived => { },
 				isRead: () => false,
+				isMarkedUnread: () => false,
 				setRead: read => { }
 			};
 
@@ -680,6 +684,7 @@ suite('AgentSessions', () => {
 				isArchived: () => false,
 				setArchived: () => { },
 				isRead: () => false,
+				isMarkedUnread: () => false,
 				setRead: read => { },
 				...overrides
 			};
@@ -1373,6 +1378,41 @@ suite('AgentSessions', () => {
 				// Mark as unread
 				session.setRead(false);
 				assert.strictEqual(session.isRead(), false);
+				assert.strictEqual(session.isMarkedUnread(), true);
+			});
+		});
+
+		test('should report isMarkedUnread only when explicitly marked unread', async () => {
+			return runWithFakedTimers({}, async () => {
+				const futureSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
+				};
+
+				const controller = new StaticChatSessionItemController([{
+					resource: URI.parse('test://session-1'),
+					label: 'Session 1',
+					timing: futureSessionTiming,
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+
+				// Naturally unread session is NOT marked unread (no explicit user action)
+				assert.strictEqual(session.isRead(), false);
+				assert.strictEqual(session.isMarkedUnread(), false);
+
+				// Mark as read, then explicitly mark as unread
+				session.setRead(true);
+				assert.strictEqual(session.isMarkedUnread(), false);
+
+				session.setRead(false);
+				assert.strictEqual(session.isMarkedUnread(), true);
 			});
 		});
 

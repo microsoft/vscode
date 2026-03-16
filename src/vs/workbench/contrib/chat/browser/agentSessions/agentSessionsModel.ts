@@ -26,7 +26,7 @@ import { IWorkspaceTrustManagementService } from '../../../../../platform/worksp
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
-import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isBuiltInAgentSessionProvider } from './agentSessions.js';
@@ -114,6 +114,7 @@ export interface IAgentSession extends IAgentSessionData {
 	setArchived(archived: boolean): void;
 
 	isRead(): boolean;
+	isMarkedUnread(): boolean;
 	setRead(read: boolean): void;
 }
 
@@ -571,6 +572,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			isArchived: () => this.isArchived(data),
 			setArchived: (archived: boolean) => this.setArchived(data, archived),
 			isRead: () => this.isRead(data),
+			isMarkedUnread: () => this.isMarkedUnread(data),
 			setRead: (read: boolean) => this.setRead(data, read),
 		};
 	}
@@ -603,6 +605,10 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		}
 
 		this._onDidChangeSessions.fire();
+	}
+
+	private isMarkedUnread(session: IInternalAgentSessionData): boolean {
+		return this.sessionStates.get(session.resource)?.read === AgentSessionsModel.UNREAD_MARKER;
 	}
 
 	private isRead(session: IInternalAgentSessionData): boolean {
@@ -747,7 +753,7 @@ class AgentSessionsCache {
 			badge: session.badge,
 			tooltip: session.tooltip,
 
-			status: session.status,
+			status: isSessionInProgressStatus(session.status) ? AgentSessionStatus.Completed : session.status, // never cache sessions as in progress, this needs to be live state
 			archived: session.archived,
 
 			timing: session.timing,
