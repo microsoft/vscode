@@ -251,7 +251,6 @@ export interface IChatSessionsService {
 	registerChatSessionContribution(contribution: IChatSessionsExtensionPoint): IDisposable;
 
 	registerChatSessionItemController(chatSessionType: string, controller: IChatSessionItemController): IDisposable;
-	getRegisteredChatSessionItemProviders(): readonly string[];
 	activateChatSessionItemProvider(chatSessionType: string): Promise<void>;
 
 	/**

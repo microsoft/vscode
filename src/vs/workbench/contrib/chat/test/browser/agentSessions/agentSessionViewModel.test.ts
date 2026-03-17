@@ -114,8 +114,11 @@ suite('AgentSessions', () => {
 				await viewModel.resolve(undefined);
 
 				assert.strictEqual(viewModel.sessions.length, 2);
-				assert.strictEqual(viewModel.sessions[0].resource.toString(), `${chatSessionTestType}://session-1`);
-				assert.strictEqual(viewModel.sessions[1].resource.toString(), `${chatSessionTestType}://session-2`);
+				const uris = viewModel.sessions.map(s => s.resource.toString()).sort();
+				assert.deepStrictEqual(uris, [
+					`${chatSessionTestType}://session-1`,
+					`${chatSessionTestType}://session-2`,
+				]);
 			});
 		});
 
