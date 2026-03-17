@@ -7,178 +7,235 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { getActiveWindow } from '../../../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { IAction, SubmenuAction } from '../../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { IAction } from '../../../../../../base/common/actions.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { IObservable } from '../../../../../../base/common/observable.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { IObservable, autorun } from '../../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { localize } from '../../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { ActionListItemKind, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
-import { ActionListItemKind, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 
 export interface IModelConfigPickerDelegate {
-	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
+readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 }
 
 /**
- * Action view item that shows a dropdown picker for model configuration properties
- * with `group: 'navigation'` (e.g., "Thinking Effort").
+ * Picker widget for a single model configuration property.
+ * Shows the current value as a label and opens a dropdown to change it.
+ */
+class ModelConfigurationPicker extends Disposable {
+
+private readonly _onDidChange = this._register(new Emitter<void>());
+readonly onDidChange = this._onDidChange.event;
+
+readonly domNode: HTMLElement;
+
+constructor(
+private readonly _key: string,
+private readonly _propSchema: any,
+private readonly _getModelId: () => string | undefined,
+private readonly _getAnchorElement: () => HTMLElement,
+private readonly _languageModelsService: ILanguageModelsService,
+private readonly _actionWidgetService: IActionWidgetService,
+) {
+super();
+
+this.domNode = dom.$('a.action-label');
+this.domNode.tabIndex = 0;
+this.domNode.setAttribute('role', 'button');
+this.domNode.setAttribute('aria-haspopup', 'true');
+
+this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_DOWN, (e) => {
+if (e.button !== 0) {
+return;
+}
+dom.EventHelper.stop(e, true);
+this._showPicker();
+}));
+
+this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, (e) => {
+if (e.key === 'Enter' || e.key === ' ') {
+dom.EventHelper.stop(e, true);
+this._showPicker();
+}
+}));
+
+this.updateLabel();
+}
+
+updateLabel(): void {
+const modelId = this._getModelId();
+const currentConfig = modelId ? this._languageModelsService.getModelConfiguration(modelId) ?? {} : {};
+const value = currentConfig[this._key] ?? this._propSchema.default;
+
+const enumIndex = this._propSchema.enum?.indexOf(value) ?? -1;
+const displayValue = (enumIndex >= 0 && this._propSchema.enumItemLabels?.[enumIndex]) ?? String(value ?? '');
+
+const domChildren: (HTMLElement | string)[] = [];
+domChildren.push(dom.$('span.chat-input-picker-label', undefined, displayValue));
+domChildren.push(...renderLabelWithIcons('$(chevron-down)'));
+dom.reset(this.domNode, ...domChildren);
+
+this.domNode.ariaLabel = displayValue;
+}
+
+private _showPicker(): void {
+const modelId = this._getModelId();
+if (!modelId) {
+return;
+}
+
+const currentConfig = this._languageModelsService.getModelConfiguration(modelId) ?? {};
+const currentValue = currentConfig[this._key] ?? this._propSchema.default;
+const title = (typeof this._propSchema.title === 'string' ? this._propSchema.title : undefined)
+?? this._key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (s: string) => s.toUpperCase());
+
+if (!this._propSchema.enum || !Array.isArray(this._propSchema.enum)) {
+return;
+}
+
+const items: IActionListItem<IAction>[] = [];
+
+// Header
+items.push({
+kind: ActionListItemKind.Header,
+group: { title },
+});
+
+// Enum values as actions with descriptions
+const enumItemLabels = this._propSchema.enumItemLabels;
+const enumDescriptions = this._propSchema.enumDescriptions;
+for (let i = 0; i < this._propSchema.enum.length; i++) {
+const value = this._propSchema.enum[i];
+const itemLabel = enumItemLabels?.[i] ?? String(value);
+const isDefault = value === this._propSchema.default;
+const displayLabel = isDefault ? localize('models.enumDefault', "{0} (default)", itemLabel) : itemLabel;
+const description = enumDescriptions?.[i];
+
+items.push({
+item: {
+id: 'configureModel.' + this._key + '.' + value,
+label: displayLabel,
+class: undefined,
+enabled: true,
+tooltip: '',
+checked: currentValue === value,
+run: () => this._languageModelsService.setModelConfiguration(modelId, { [this._key]: value })
+},
+kind: ActionListItemKind.Action,
+label: displayLabel,
+description,
+group: { title: '', icon: ThemeIcon.fromId(currentValue === value ? Codicon.check.id : Codicon.blank.id) },
+hideIcon: false,
+});
+}
+
+this._actionWidgetService.show('modelConfigPicker', false, items, {
+onSelect: (action: IAction) => {
+action.run();
+this._onDidChange.fire();
+},
+onHide: () => { },
+}, this._getAnchorElement(), undefined);
+}
+}
+
+/**
+ * Action view item that shows configuration pickers for model properties
+ * with `group: 'navigation'`.
  */
 export class ModelConfigPickerActionItem extends BaseActionViewItem {
 
-	private _domNode: HTMLElement | undefined;
+private _container: HTMLElement | undefined;
+private _pickers: ModelConfigurationPicker[] = [];
 
-	private readonly _onDidChange = this._register(new Emitter<void>());
-	readonly onDidChange = this._onDidChange.event;
+constructor(
+action: IAction,
+private readonly delegate: IModelConfigPickerDelegate,
+private readonly pickerOptions: IChatInputPickerOptions,
+@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
+) {
+super(undefined, action);
 
-	constructor(
-		action: IAction,
-		private readonly delegate: IModelConfigPickerDelegate,
-		private readonly pickerOptions: IChatInputPickerOptions,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
-	) {
-		super(undefined, action);
+this._register(autorun(reader => {
+delegate.currentModel.read(reader);
+this._rebuild();
+}));
+this._register(this._languageModelsService.onDidChangeLanguageModelVendors(() => {
+this._rebuild();
+}));
+}
 
-		// Update label when model or config changes
-		this._register(autorun(reader => {
-			delegate.currentModel.read(reader);
-			this._updateLabel();
-		}));
-		this._register(this._languageModelsService.onDidChangeLanguageModelVendors(() => {
-			this._updateLabel();
-		}));
-	}
+override render(container: HTMLElement): void {
+this._container = container;
+this._container.classList.add('chat-input-picker-item');
+this._rebuild();
+}
 
-	override render(container: HTMLElement): void {
-		container.classList.add('chat-input-picker-item');
-		this._domNode = dom.append(container, dom.$('a.action-label'));
-		this._domNode.tabIndex = 0;
-		this._domNode.setAttribute('role', 'button');
-		this._domNode.setAttribute('aria-haspopup', 'true');
-		this.element = this._domNode;
+private _rebuild(): void {
+if (!this._container) {
+return;
+}
 
-		this._register(dom.addDisposableListener(this._domNode, dom.EventType.MOUSE_DOWN, (e) => {
-			if (e.button !== 0) {
-				return;
-			}
-			dom.EventHelper.stop(e, true);
-			this._showPicker();
-		}));
+// Dispose old pickers
+for (const picker of this._pickers) {
+picker.dispose();
+}
+this._pickers = [];
+dom.clearNode(this._container);
+this._container.classList.add('chat-input-picker-item');
 
-		this._register(dom.addDisposableListener(this._domNode, dom.EventType.KEY_DOWN, (e) => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				dom.EventHelper.stop(e, true);
-				this._showPicker();
-			}
-		}));
+const model = this.delegate.currentModel.get();
+if (!model) {
+this._container.style.display = 'none';
+return;
+}
 
-		this._updateLabel();
-	}
+const schema = model.metadata.configurationSchema;
+if (!schema?.properties) {
+this._container.style.display = 'none';
+return;
+}
 
-	private _getNavigationProperties(): { key: string; schema: any; currentValue: unknown }[] {
-		const model = this.delegate.currentModel.get();
-		if (!model) {
-			return [];
-		}
-		const schema = model.metadata.configurationSchema;
-		if (!schema?.properties) {
-			return [];
-		}
+let hasNavProps = false;
 
-		const currentConfig = this._languageModelsService.getModelConfiguration(model.identifier) ?? {};
-		const result: { key: string; schema: any; currentValue: unknown }[] = [];
+for (const [key, propSchema] of Object.entries(schema.properties)) {
+if (typeof propSchema === 'boolean' || propSchema.group !== 'navigation') {
+continue;
+}
+hasNavProps = true;
 
-		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (typeof propSchema === 'boolean' || propSchema.group !== 'navigation') {
-				continue;
-			}
-			const value = currentConfig[key] ?? propSchema.default;
-			result.push({ key, schema: propSchema, currentValue: value });
-		}
+const picker = new ModelConfigurationPicker(
+key,
+propSchema,
+() => this.delegate.currentModel.get()?.identifier,
+() => this._getAnchorElement(),
+this._languageModelsService,
+this._actionWidgetService,
+);
 
-		return result;
-	}
+this._register(picker.onDidChange(() => {
+for (const p of this._pickers) {
+p.updateLabel();
+}
+}));
 
-	private _updateLabel(): void {
-		if (!this._domNode) {
-			return;
-		}
+this._pickers.push(picker);
+this._container.appendChild(picker.domNode);
+}
 
-		const navProps = this._getNavigationProperties();
-		if (navProps.length === 0) {
-			this._domNode.style.display = 'none';
-			return;
-		}
+this._container.style.display = hasNavProps ? '' : 'none';
+}
 
-		this._domNode.style.display = '';
-		this._domNode.classList.remove('disabled');
-		this._domNode.removeAttribute('aria-disabled');
-
-		const parts: string[] = [];
-		for (const prop of navProps) {
-			if (prop.currentValue !== undefined) {
-				const enumIndex = prop.schema.enum?.indexOf(prop.currentValue) ?? -1;
-				const displayValue = (enumIndex >= 0 && prop.schema.enumItemLabels?.[enumIndex]) ?? String(prop.currentValue);
-				parts.push(displayValue);
-			}
-		}
-
-		const label = parts.join(' · ') || '';
-		const domChildren: (HTMLElement | string)[] = [];
-		domChildren.push(dom.$('span.chat-input-picker-label', undefined, label));
-		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
-		dom.reset(this._domNode, ...domChildren);
-
-		this._domNode.ariaLabel = label;
-	}
-
-	private _showPicker(): void {
-		const model = this.delegate.currentModel.get();
-		if (!model) {
-			return;
-		}
-
-		const anchorElement = this._getAnchorElement();
-		const actions = this._languageModelsService.getModelConfigurationActions(model.identifier);
-		if (actions.length === 0) {
-			return;
-		}
-
-		// Build action list items from the submenu actions
-		const items: IActionListItem<IAction>[] = [];
-		for (const action of actions) {
-			if (action instanceof SubmenuAction) {
-				// Add header with the group label (e.g., "Thinking Effort")
-				items.push({
-					kind: ActionListItemKind.Header,
-					group: { title: action.label },
-				});
-				for (const child of action.actions) {
-					items.push({
-						item: child,
-						kind: ActionListItemKind.Action,
-						label: child.label,
-						group: { title: '', icon: child.checked ? { id: 'check' } : { id: 'blank' } },
-						hideIcon: false,
-					});
-				}
-			}
-		}
-
-		this._actionWidgetService.show('modelConfigPicker', false, items, {
-			onSelect: (action: IAction) => {
-				action.run();
-				this._onDidChange.fire();
-			},
-			onHide: () => { },
-		}, anchorElement, undefined);
-	}
-
-	private _getAnchorElement(): HTMLElement {
-		if (this._domNode && getActiveWindow().document.contains(this._domNode)) {
-			return this._domNode;
-		}
-		return this.pickerOptions.getOverflowAnchor?.() ?? this._domNode!;
-	}
+private _getAnchorElement(): HTMLElement {
+if (this._container && getActiveWindow().document.contains(this._container)) {
+return this._container;
+}
+return this.pickerOptions.getOverflowAnchor?.() ?? this._container!;
+}
 }
