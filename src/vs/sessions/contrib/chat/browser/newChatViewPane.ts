@@ -403,12 +403,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private _openRepository(folderUri: URI): void {
 		this._openRepositoryCts.value?.cancel();
 		const cts = this._openRepositoryCts.value = new CancellationTokenSource();
-		const session = this._newSession.value;
 
 		this._repositoryLoading = true;
 		this._updateInputLoadingState();
 		this._branchPicker.setRepository(undefined);
-		this._targetPicker.setProject(session?.project ?? new SessionProject(folderUri));
 		this._syncIndicator.setRepository(undefined);
 		this._modePicker.reset();
 
@@ -418,11 +416,15 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			}
 			this._repositoryLoading = false;
 			this._updateInputLoadingState();
-			const projectWithRepo = (session?.project ?? new SessionProject(folderUri)).withRepository(repository);
-			this._targetPicker.setProject(projectWithRepo);
-			if (session) {
-				session.setProject(projectWithRepo);
+
+			// Update the session and target picker with the resolved repository
+			const session = this._newSession.value;
+			if (session?.project) {
+				const updatedProject = session.project.withRepository(repository);
+				session.setProject(updatedProject);
+				this._targetPicker.setProject(updatedProject);
 			}
+
 			this._branchPicker.setRepository(repository);
 			this._branchPicker.setVisible(!!repository && this._targetPicker.isWorktree);
 			this._syncIndicator.setRepository(repository);
@@ -435,7 +437,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this.logService.warn(`Failed to open repository at ${folderUri.toString()}`, getErrorMessage(e));
 			this._repositoryLoading = false;
 			this._updateInputLoadingState();
-			this._targetPicker.setProject(session?.project ?? new SessionProject(folderUri));
 			this._branchPicker.setRepository(undefined);
 			this._branchPicker.setVisible(false);
 			this._syncIndicator.setRepository(undefined);
