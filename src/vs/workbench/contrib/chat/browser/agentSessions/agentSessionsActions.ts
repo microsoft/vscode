@@ -540,6 +540,76 @@ export class UnarchiveAgentSessionAction extends BaseAgentSessionAction {
 	}
 }
 
+export class PinAgentSessionAction extends BaseAgentSessionAction {
+
+	constructor() {
+		super({
+			id: 'agentSession.pin',
+			title: localize2('pin', "Pin"),
+			icon: Codicon.pin,
+			menu: [{
+				id: MenuId.AgentSessionItemToolbar,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					ChatContextKeys.isPinnedAgentSession.negate(),
+					ChatContextKeys.isArchivedAgentSession.negate()
+				),
+			}, {
+				id: MenuId.AgentSessionsContext,
+				group: '0_pin',
+				order: 1,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					ChatContextKeys.isPinnedAgentSession.negate(),
+					ChatContextKeys.isArchivedAgentSession.negate()
+				),
+			}]
+		});
+	}
+
+	runWithSessions(sessions: IAgentSession[]): void {
+		for (const session of sessions) {
+			session.setPinned(true);
+		}
+	}
+}
+
+export class UnpinAgentSessionAction extends BaseAgentSessionAction {
+
+	constructor() {
+		super({
+			id: 'agentSession.unpin',
+			title: localize2('unpin', "Unpin"),
+			icon: Codicon.pinned,
+			menu: [{
+				id: MenuId.AgentSessionItemToolbar,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					ChatContextKeys.isPinnedAgentSession
+				),
+			}, {
+				id: MenuId.AgentSessionsContext,
+				group: '0_pin',
+				order: 1,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					ChatContextKeys.isPinnedAgentSession
+				),
+			}]
+		});
+	}
+
+	runWithSessions(sessions: IAgentSession[]): void {
+		for (const session of sessions) {
+			session.setPinned(false);
+		}
+	}
+}
+
 export class RenameAgentSessionAction extends BaseAgentSessionAction {
 
 	constructor() {

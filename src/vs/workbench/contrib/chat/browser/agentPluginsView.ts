@@ -36,7 +36,7 @@ import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPan
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewDescriptorService, IViewsRegistry, Extensions as ViewExtensions } from '../../../common/views.js';
-import { IEditorService, MODAL_GROUP } from '../../../services/editor/common/editorService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 import { manageExtensionIcon } from '../../extensions/browser/extensionsIcons.js';
 import { AbstractExtensionsListView } from '../../extensions/browser/extensionsViews.js';
@@ -358,8 +358,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		this._register(Event.debounce(Event.filter(this.list.onDidOpen, e => e.element !== null), (_, event) => event, 75, true)(options => {
 			this.editorService.openEditor(
 				this.instantiationService.createInstance(AgentPluginEditorInput, options.element!),
-				options.editorOptions,
-				MODAL_GROUP
+				options.editorOptions
 			);
 		}));
 	}
@@ -415,7 +414,8 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		this.currentQuery = query;
 		const stripped = query.replace(/@agentPlugins/i, '').trim();
 		const isRecommended = /^@recommended$/i.test(stripped);
-		const text = isRecommended ? '' : stripped.toLowerCase();
+		const isInstalled = /(?:^|\s)@installed(?:\s|$)/i.test(stripped);
+		const text = isRecommended ? '' : stripped.replace(/(?:^|\s)@installed(?:\s|$)/gi, ' ').trim().toLowerCase();
 
 		let installed = this.queryInstalled();
 		if (text) {
@@ -440,7 +440,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 
 		let items: IAgentPluginItem[] = installed;
 
-		if (!this.listOptions.installedOnly) {
+		if (!this.listOptions.installedOnly && !isInstalled) {
 			const marketplacePlugins = await this.queryMarketplacePlugins();
 			let filteredMp = marketplacePlugins;
 

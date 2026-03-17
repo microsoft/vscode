@@ -1047,7 +1047,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			tip,
 			renderer,
 		));
-		tipContainer.appendChild(tipPart.domNode);
 		this._gettingStartedTipPartRef = tipPart;
 
 		store.add(tipPart.onDidHide(() => {
@@ -1058,7 +1057,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.focusInput();
 		}));
 
+		// Set the guard before appending to DOM so that any re-entrant calls
+		// triggered by context-key changes during construction see the guard
+		// and return early without adding a duplicate tip node.
 		this._gettingStartedTipPart.value = store;
+		// Clear any stale nodes left from a previous tip that was not properly
+		// removed (e.g. if re-entrancy bypassed the guard above).
+		dom.clearNode(tipContainer);
+		tipContainer.appendChild(tipPart.domNode);
 		dom.setVisibility(true, tipContainer);
 	}
 
