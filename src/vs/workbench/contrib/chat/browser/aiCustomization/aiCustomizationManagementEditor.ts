@@ -641,7 +641,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Set initial visibility based on selected section
 		this.updateContentVisibility();
 
-		// Wire up section count updates
+		// Wire up section count updates — active prompts section gets its count
+		// from the list widget; all prompts sections are also refreshed from
+		// the prompts service on every change event for consistency.
 		this.editorDisposables.add(this.listWidget.onDidChangeItemCount(count => {
 			this.updateSectionCount(this.selectedSection, count);
 		}));
@@ -649,7 +651,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.editorDisposables.add(this.mcpListWidget.onDidChangeItemCount(count => {
 				this.updateSectionCount(AICustomizationManagementSection.McpServers, count);
 			}));
-			// Seed initial count (the widget may have already loaded before we subscribed)
 			this.updateSectionCount(AICustomizationManagementSection.McpServers, this.mcpListWidget.itemCount);
 		}
 		if (this.pluginListWidget) {
@@ -665,17 +666,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.updateSectionCount(AICustomizationManagementSection.Models, this.modelsWidget.itemCount);
 		}
 
-		// Listen for data changes and refresh counts for non-active prompts sections
-		this.editorDisposables.add(this.promptsService.onDidChangeCustomAgents(() => this.refreshPromptsSectionCount(AICustomizationManagementSection.Agents)));
-		this.editorDisposables.add(this.promptsService.onDidChangeSkills(() => this.refreshPromptsSectionCount(AICustomizationManagementSection.Skills)));
-		this.editorDisposables.add(this.promptsService.onDidChangeInstructions(() => this.refreshPromptsSectionCount(AICustomizationManagementSection.Instructions)));
-		this.editorDisposables.add(this.promptsService.onDidChangeSlashCommands(() => {
-			this.refreshPromptsSectionCount(AICustomizationManagementSection.Prompts);
-			this.refreshPromptsSectionCount(AICustomizationManagementSection.Hooks);
-		}));
+		// Any prompts data change → refresh ALL prompts section counts
+		this.editorDisposables.add(this.promptsService.onDidChangeCustomAgents(() => this.refreshAllPromptsSectionCounts()));
+		this.editorDisposables.add(this.promptsService.onDidChangeSkills(() => this.refreshAllPromptsSectionCounts()));
+		this.editorDisposables.add(this.promptsService.onDidChangeInstructions(() => this.refreshAllPromptsSectionCounts()));
+		this.editorDisposables.add(this.promptsService.onDidChangeSlashCommands(() => this.refreshAllPromptsSectionCounts()));
 
 		// Load initial counts for all sections
-		void this.refreshAllSectionCounts();
+		void this.refreshAllPromptsSectionCounts();
 
 		// Load items for the initial section
 		if (this.isPromptsSection(this.selectedSection)) {
@@ -708,19 +706,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	/**
-	 * Refreshes the count for a single prompts-based section by querying the prompts service.
-	 * For the currently active prompts section, the count is driven by the list widget instead.
+	 * Refreshes counts for all prompts-based sections by querying the prompts service.
+	 * Called on init, on any prompts data change, and on section switches.
 	 */
-	private async refreshPromptsSectionCount(sectionId: AICustomizationManagementSection): Promise<void> {
-		if (!this.sections.some(s => s.id === sectionId)) {
-			return;
+	private async refreshAllPromptsSectionCounts(): Promise<void> {
+		const promises: Promise<void>[] = [];
+		for (const section of this.sections) {
+			if (this.isPromptsSection(section.id)) {
+				promises.push(
+					this.computePromptsSectionCount(section.id).then(count => {
+						this.updateSectionCount(section.id, count);
+					})
+				);
+			}
 		}
-		// The active prompts section count is handled by listWidget.onDidChangeItemCount
-		if (this.isPromptsSection(this.selectedSection) && this.selectedSection === sectionId) {
-			return;
-		}
-		const count = await this.computePromptsSectionCount(sectionId);
-		this.updateSectionCount(sectionId, count);
+		await Promise.all(promises);
 	}
 
 	/**
@@ -752,19 +752,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const allItems = [...promptFiles, ...agentInstructions.map(f => ({ uri: f.uri, storage: PromptsStorage.local as string }))];
 			return applyStorageSourceFilter(allItems, filter).length;
 		}
-	}
-
-	/**
-	 * Refreshes counts for all sections. Called once during initialization.
-	 */
-	private async refreshAllSectionCounts(): Promise<void> {
-		const promises: Promise<void>[] = [];
-		for (const section of this.sections) {
-			if (this.isPromptsSection(section.id)) {
-				promises.push(this.refreshPromptsSectionCount(section.id));
-			}
-		}
-		await Promise.all(promises);
 	}
 
 	//#endregion
