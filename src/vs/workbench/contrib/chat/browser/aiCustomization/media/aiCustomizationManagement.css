@@ -141,15 +141,15 @@
 
 .ai-customization-management-editor .section-list-item .section-count {
 	flex-shrink: 0;
-	font-size: 10px;
+	font-size: 9px;
 	font-weight: 500;
-	padding: 0 5px;
+	padding: 0 4px;
 	background-color: var(--vscode-list-inactiveSelectionBackground);
 	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
-	border-radius: 8px;
-	min-width: 14px;
+	border-radius: 6px;
+	min-width: 12px;
 	text-align: center;
-	line-height: 16px;
+	line-height: 14px;
 }
 
 .ai-customization-management-editor .monaco-list .monaco-list-row.selected .section-list-item .section-count {
