@@ -32,6 +32,7 @@ export class TargetPicker extends Disposable {
 
 	private _targetMode: TargetMode = 'worktree';
 	private _project: SessionProject | undefined;
+	private _pendingReset: boolean = false;
 	private _isolationOptionEnabled: boolean = true;
 
 	private readonly _onDidChange = this._register(new Emitter<TargetMode>());
@@ -88,12 +89,18 @@ export class TargetPicker extends Disposable {
 	setProject(project: SessionProject | undefined, resetMode = false): void {
 		this._project = project;
 
+		if (resetMode) {
+			this._pendingReset = true;
+		}
+
 		if (project?.isRepo) {
 			this._targetMode = 'cloud';
+			this._pendingReset = false;
 		} else if (project?.isFolder && project.repository) {
-			if (resetMode || this._targetMode === 'cloud') {
+			if (this._pendingReset || this._targetMode === 'cloud') {
 				this._targetMode = 'worktree';
 			}
+			this._pendingReset = false;
 		} else if (project?.isFolder) {
 			this._targetMode = 'workspace';
 		}
