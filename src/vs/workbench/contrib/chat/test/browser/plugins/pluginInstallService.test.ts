@@ -845,7 +845,7 @@ suite('PluginInstallService', () => {
 			assert.strictEqual(state.addedPlugins[0].plugin.name, 'my-discovered-plugin');
 		});
 
-		test('installs repo-root plugin when no marketplace.json found', async () => {
+		test('shows error when no marketplace.json found', async () => {
 			const { service, state } = createService({
 				ensurePluginSourceResult: URI.file('/cache/agentPlugins/github.com/owner/cool-tool'),
 				readPluginsResult: [],
@@ -853,9 +853,9 @@ suite('PluginInstallService', () => {
 
 			await service.installPluginFromSource('owner/cool-tool');
 
-			assert.strictEqual(state.addedPlugins.length, 1);
-			assert.strictEqual(state.addedPlugins[0].plugin.name, 'cool-tool');
-			assert.strictEqual(state.addedPlugins[0].plugin.sourceDescriptor.kind, PluginSourceKind.GitHub);
+			assert.strictEqual(state.addedPlugins.length, 0);
+			assert.strictEqual(state.notifications.length, 1);
+			assert.ok(state.notifications[0].message.includes('No plugins found'));
 		});
 
 		test('shows quick pick for multi-plugin repos', async () => {
@@ -924,7 +924,7 @@ suite('PluginInstallService', () => {
 			assert.strictEqual(state.addedPlugins.length, 0);
 		});
 
-		test('installs from full git URL', async () => {
+		test('shows error when no plugins found in git URL', async () => {
 			const { service, state } = createService({
 				ensurePluginSourceResult: URI.file('/cache/agentPlugins/github.com/owner/my-tool'),
 				readPluginsResult: [],
@@ -932,9 +932,9 @@ suite('PluginInstallService', () => {
 
 			await service.installPluginFromSource('https://github.com/owner/my-tool.git');
 
-			assert.strictEqual(state.addedPlugins.length, 1);
-			assert.strictEqual(state.addedPlugins[0].plugin.name, 'my-tool');
-			assert.strictEqual(state.addedPlugins[0].plugin.sourceDescriptor.kind, PluginSourceKind.GitUrl);
+			assert.strictEqual(state.addedPlugins.length, 0);
+			assert.strictEqual(state.notifications.length, 1);
+			assert.ok(state.notifications[0].message.includes('No plugins found'));
 		});
 
 		test('shows error when clone directory does not exist', async () => {

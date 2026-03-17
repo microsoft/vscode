@@ -39,11 +39,12 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ChatConfiguration } from '../../common/constants.js';
 import { IFileService, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
+import { basename, dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, isMacintosh } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 
 //#region Telemetry
 
@@ -231,8 +232,26 @@ registerAction2(class extends Action2 {
 		// For skills, use the parent folder name since skills are structured as <skillname>/SKILL.md.
 		const fileName = isSkill ? basename(dirname(uri)) : basename(uri);
 
-		// Extension, plugin, and built-in files cannot be deleted
-		if (storage === PromptsStorage.extension || storage === PromptsStorage.plugin || storage === BUILTIN_STORAGE) {
+		// Plugin-provided files: offer to uninstall the plugin
+		if (storage === PromptsStorage.plugin) {
+			const agentPluginService = accessor.get(IAgentPluginService);
+			const plugin = agentPluginService.plugins.get().find(p => isEqualOrParent(uri, p.uri));
+			if (plugin) {
+				const result = await dialogService.confirm({
+					message: localize('cannotDeletePluginItem', "This item is provided by the plugin '{0}'", plugin.label),
+					detail: localize('cannotDeletePluginItemDetail', "Individual components from a plugin cannot be removed separately. Would you like to uninstall the entire plugin?"),
+					primaryButton: localize('uninstallPlugin', "Uninstall Plugin"),
+					type: 'question',
+				});
+				if (result.confirmed) {
+					plugin.remove();
+				}
+			}
+			return;
+		}
+
+		// Extension and built-in files cannot be deleted
+		if (storage === PromptsStorage.extension || storage === BUILTIN_STORAGE) {
 			await dialogService.info(
 				localize('cannotDeleteExtension', "Cannot Delete Extension File"),
 				localize('cannotDeleteExtensionDetail', "Files provided by extensions cannot be deleted. You can disable the extension if you no longer want to use this customization.")
@@ -307,6 +326,11 @@ const WHEN_ITEM_IS_DELETABLE = ContextKeyExpr.and(
 	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
 );
 
+/**
+ * When clause that shows an action only for plugin items.
+ */
+const WHEN_ITEM_IS_PLUGIN = ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, PromptsStorage.plugin);
+
 // Register context menu items
 
 // Inline hover actions (shown as icon buttons on hover)
@@ -352,6 +376,52 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	group: '4_modify',
 	order: 1,
 	when: WHEN_ITEM_IS_DELETABLE,
+});
+
+// Uninstall Plugin action - shown for plugin-provided items
+const UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.uninstallPlugin';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID,
+			title: localize2('uninstallPlugin', "Uninstall Plugin"),
+			icon: Codicon.trash,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		const agentPluginService = accessor.get(IAgentPluginService);
+		const dialogService = accessor.get(IDialogService);
+
+		const uri = extractURI(context);
+		const plugin = agentPluginService.plugins.get().find(p => isEqualOrParent(uri, p.uri));
+		if (!plugin) {
+			return;
+		}
+
+		const result = await dialogService.confirm({
+			message: localize('confirmUninstallPlugin', "This item is provided by the plugin '{0}'", plugin.label),
+			detail: localize('confirmUninstallPluginDetail', "Individual components from a plugin cannot be removed separately. Would you like to uninstall the entire plugin?"),
+			primaryButton: localize('uninstallPluginBtn', "Uninstall Plugin"),
+			type: 'question',
+		});
+		if (result.confirmed) {
+			plugin.remove();
+		}
+	}
+});
+
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('uninstallPlugin', "Uninstall Plugin"), icon: Codicon.trash },
+	group: 'inline',
+	order: 10,
+	when: WHEN_ITEM_IS_PLUGIN,
+});
+
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('uninstallPlugin', "Uninstall Plugin") },
+	group: '4_modify',
+	order: 1,
+	when: WHEN_ITEM_IS_PLUGIN,
 });
 
 //#endregion

@@ -9,6 +9,7 @@ import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions
 import { BrowserTabDto, ExtHostBrowsersShape, ExtHostContext, MainContext, MainThreadBrowsersShape } from '../common/extHost.protocol.js';
 import { IBrowserViewCDPService } from '../../contrib/browserView/common/browserView.js';
 import { BrowserViewUri } from '../../../platform/browserView/common/browserViewUri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { EditorGroupColumn, columnToEditorGroup } from '../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -59,17 +60,17 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 	// #region Browser tab open
 
 	async $openBrowserTab(url: string, viewColumn?: EditorGroupColumn, options?: IEditorOptions): Promise<BrowserTabDto> {
-		const browserUri = BrowserViewUri.forUrl(url);
-		const parsed = BrowserViewUri.parse(browserUri)!;
+		const id = generateUuid();
+		const browserUri = BrowserViewUri.forId(id);
 
 		await this.editorService.openEditor(
 			{
 				resource: browserUri,
-				options
+				options: { ...options, viewState: { url } }
 			},
 			columnToEditorGroup(this.editorGroupsService, this.configurationService, viewColumn),
 		);
-		const known = this._knownBrowsers.get(parsed.id);
+		const known = this._knownBrowsers.get(id);
 		if (!known) {
 			throw new Error('Failed to open browser tab');
 		}

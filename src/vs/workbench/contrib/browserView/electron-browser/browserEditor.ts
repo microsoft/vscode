@@ -19,7 +19,10 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { IBrowserViewModel } from '../../browserView/common/browserView.js';
+import {
+	IBrowserEditorViewState,
+	IBrowserViewModel
+} from '../../browserView/common/browserView.js';
 import { IBrowserZoomService } from '../../browserView/common/browserZoomService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -630,7 +633,7 @@ export class BrowserEditor extends EditorPane {
 			this._devToolsOpenContext.set(e.isDevToolsOpen);
 		}));
 
-		this._inputDisposables.add(this._model.onDidRequestNewPage(({ resource, location, position }) => {
+		this._inputDisposables.add(this._model.onDidRequestNewPage(({ resource, url, location, position }) => {
 			logBrowserOpen(this.telemetryService, (() => {
 				switch (location) {
 					case BrowserNewPageLocation.Background: return 'browserLinkBackground';
@@ -640,15 +643,17 @@ export class BrowserEditor extends EditorPane {
 			})());
 
 			const targetGroup = location === BrowserNewPageLocation.NewWindow ? AUX_WINDOW_GROUP : this.group;
+			const viewState: IBrowserEditorViewState = { url };
 			this.editorService.openEditor({
-				resource: URI.from(resource),
+				resource: URI.revive(resource),
 				options: {
 					pinned: true,
 					inactive: location === BrowserNewPageLocation.Background,
 					auxiliary: {
 						bounds: position,
 						compact: true
-					}
+					},
+					viewState
 				}
 			}, targetGroup);
 		}));
