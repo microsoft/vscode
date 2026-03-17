@@ -413,7 +413,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._branchPicker.setRepository(undefined);
 		this._targetPicker.setProject(session?.project ?? new SessionProject(folderUri));
 		this._syncIndicator.setRepository(undefined);
-		this._modePicker.setRepository(undefined);
+		this._modePicker.reset();
 
 		this.gitService.openRepository(folderUri).then(repository => {
 			if (cts.token.isCancellationRequested) {
@@ -430,7 +430,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._branchPicker.setVisible(!!repository && this._targetPicker.isWorktree);
 			this._syncIndicator.setRepository(repository);
 			this._syncIndicator.setVisible(!!repository && this._targetPicker.isWorktree);
-			this._modePicker.setRepository(repository);
+			this._modePicker.reset();
 		}).catch(e => {
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -443,7 +443,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._branchPicker.setVisible(false);
 			this._syncIndicator.setRepository(undefined);
 			this._syncIndicator.setVisible(false);
-			this._modePicker.setRepository(undefined);
+			this._modePicker.reset();
 		});
 	}
 
