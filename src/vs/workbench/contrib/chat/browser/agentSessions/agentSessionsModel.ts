@@ -388,7 +388,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	get resolved(): boolean { return this._resolved; }
 
 	private _sessions: ResourceMap<IInternalAgentSession>;
-	get sessions(): IAgentSession[] { return Array.from(this._sessions.values()); }
+	get sessions(): IAgentSession[] {
+		return Array.from(this._sessions.values()).filter(session =>
+			session.providerType !== AgentSessionProviders.Claude &&
+			session.providerType !== AgentSessionProviders.Codex
+		);
+	}
 
 	private readonly resolver = this._register(new ThrottledDelayer<void>(300));
 	private readonly providersToResolve = new Set<string | undefined>();

@@ -119,6 +119,34 @@ suite('AgentSessions', () => {
 			});
 		});
 
+		test('should filter out Claude and Codex sessions', async () => {
+			return runWithFakedTimers({}, async () => {
+				const regularController = new StaticChatSessionItemController([
+					makeSimpleSessionItem('session-1', { label: 'Regular Session' }),
+				]);
+				const claudeController = new StaticChatSessionItemController([{
+					resource: URI.parse(`${AgentSessionProviders.Claude}://claude-session-1`),
+					label: 'Claude Session',
+					timing: makeNewSessionTiming(),
+				}]);
+				const codexController = new StaticChatSessionItemController([{
+					resource: URI.parse(`${AgentSessionProviders.Codex}://codex-session-1`),
+					label: 'Codex Session',
+					timing: makeNewSessionTiming(),
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, regularController);
+				mockChatSessionsService.registerChatSessionItemController(AgentSessionProviders.Claude, claudeController);
+				mockChatSessionsService.registerChatSessionItemController(AgentSessionProviders.Codex, codexController);
+				viewModel = createViewModel();
+
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(viewModel.sessions.length, 1);
+				assert.strictEqual(viewModel.sessions[0].label, 'Regular Session');
+			});
+		});
+
 		test('should fire onWillResolve and onDidResolve events', async () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = new StaticChatSessionItemController([]);
