@@ -54,7 +54,7 @@ import { ContextMenuController } from '../../../../editor/contrib/contextmenu/br
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { TargetMode, TargetPicker } from './sessionTargetPicker.js';
+import { TargetPicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
 import { SyncIndicator } from './syncIndicator.js';
 import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
@@ -77,7 +77,6 @@ const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
 
 interface IDraftState extends IChatModelInputState {
-	targetMode?: TargetMode;
 	branch?: string;
 	projectUri?: UriComponents;
 }
@@ -314,7 +313,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Create initial session
 		const restoredProject = this._projectPicker.selectedProject;
 		if (restoredProject) {
-			this._createNewSession(restoredProject);
+			this._onProjectSelected(restoredProject);
 		} else {
 			this._createNewSession();
 		}
@@ -866,7 +865,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			selectedModel: this._currentLanguageModel.get(),
 			selections: this._editor?.getSelections() ?? [],
 			contrib: {},
-			targetMode: isLocal ? this._targetPicker.targetMode : undefined,
 			branch: this._branchPicker.selectedBranch,
 			projectUri: this._newSession.value?.project?.uri.toJSON(),
 		};
@@ -1016,7 +1014,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 				try {
 					const project = new SessionProject(URI.revive(draft.projectUri));
 					this._projectPicker.setSelectedProject(project, false);
-					this._targetPicker.setProject(project, draft.targetMode);
 				} catch { /* ignore */ }
 			}
 		}
@@ -1045,7 +1042,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			selectedModel: this._draftState?.selectedModel,
 			selections: [],
 			contrib: {},
-			targetMode: isLocal ? this._targetPicker.targetMode : undefined,
 			branch: isLocal ? this._branchPicker.selectedBranch : undefined,
 			projectUri: project?.uri.toJSON(),
 		};
