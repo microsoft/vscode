@@ -6,7 +6,7 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { getActiveWindow } from '../../../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { renderIcon, renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Emitter } from '../../../../../../base/common/event.js';
@@ -74,8 +74,12 @@ const value = currentConfig[this._key] ?? this._propSchema.default;
 
 const enumIndex = this._propSchema.enum?.indexOf(value) ?? -1;
 const displayValue = (enumIndex >= 0 && this._propSchema.enumItemLabels?.[enumIndex]) ?? String(value ?? '');
+const enumIcon = enumIndex >= 0 ? this._propSchema.enumIcons?.[enumIndex] : undefined;
 
 const domChildren: (HTMLElement | string)[] = [];
+if (enumIcon) {
+domChildren.push(renderIcon(ThemeIcon.fromId(enumIcon)));
+}
 domChildren.push(dom.$('span.chat-input-picker-label', undefined, displayValue));
 domChildren.push(...renderLabelWithIcons('$(chevron-down)'));
 dom.reset(this.domNode, ...domChildren);
@@ -109,12 +113,16 @@ group: { title },
 // Enum values as actions with descriptions
 const enumItemLabels = this._propSchema.enumItemLabels;
 const enumDescriptions = this._propSchema.enumDescriptions;
+const enumIcons = this._propSchema.enumIcons;
 for (let i = 0; i < this._propSchema.enum.length; i++) {
 const value = this._propSchema.enum[i];
 const itemLabel = enumItemLabels?.[i] ?? String(value);
 const isDefault = value === this._propSchema.default;
 const displayLabel = isDefault ? localize('models.enumDefault', "{0} (default)", itemLabel) : itemLabel;
 const description = enumDescriptions?.[i];
+const isChecked = currentValue === value;
+const enumIcon = enumIcons?.[i];
+const icon = enumIcon ? ThemeIcon.fromId(enumIcon) : ThemeIcon.fromId(isChecked ? Codicon.check.id : Codicon.blank.id);
 
 items.push({
 item: {
@@ -123,13 +131,13 @@ label: displayLabel,
 class: undefined,
 enabled: true,
 tooltip: '',
-checked: currentValue === value,
+checked: isChecked,
 run: () => this._languageModelsService.setModelConfiguration(modelId, { [this._key]: value })
 },
 kind: ActionListItemKind.Action,
 label: displayLabel,
 description,
-group: { title: '', icon: ThemeIcon.fromId(currentValue === value ? Codicon.check.id : Codicon.blank.id) },
+group: { title: '', icon },
 hideIcon: false,
 });
 }
