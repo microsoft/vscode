@@ -172,9 +172,10 @@ export type IExtendedChatResponsePart = IChatResponsePullRequestPart;
 
 export interface ILanguageModelConfigurationSchemaProperty extends IJSONSchema {
 	/**
-	 * When true, this property is pinned to the model picker for quick access.
+	 * The group this property belongs to. When set to `'navigation'`, the property
+	 * is shown as a primary action in the model picker.
 	 */
-	pinToModelPicker?: boolean;
+	group?: string;
 	/**
 	 * Labels for enum values. If provided, these are shown instead of the raw enum values.
 	 * Must have the same length and order as {@link IJSONSchema.enum}.
@@ -1202,7 +1203,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const parts: string[] = [];
 
 		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (typeof propSchema === 'boolean' || !propSchema.pinToModelPicker) {
+			if (typeof propSchema === 'boolean' || propSchema.group !== 'navigation') {
 				continue;
 			}
 			const value = currentConfig[key] ?? propSchema.default;
