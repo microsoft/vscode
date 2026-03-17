@@ -12,6 +12,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { extUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugLogProvider, IChatDebugResolvedEventContent, IChatDebugService } from './chatDebugService.js';
+import { LocalChatSessionUri } from './model/chatUri.js';
 
 /**
  * Per-session circular buffer for debug events.
@@ -108,7 +109,7 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	/** Events that were returned by providers (not internally logged). */
 	private readonly _providerEvents = new WeakSet<IChatDebugEvent>();
 
-	/** Session URIs created via import, allowed through the invokeProviders guard. */
+	/** Session URIs created via import. */
 	private readonly _importedSessions = new ResourceMap<boolean>();
 
 	/** Human-readable titles for imported sessions. */
@@ -116,7 +117,21 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 
 	activeSessionResource: URI | undefined;
 
+	/** Schemes eligible for debug logging and provider invocation. */
+	private static readonly _debugEligibleSchemes = new Set([
+		LocalChatSessionUri.scheme,	// vscode-chat-session (local sessions)
+		'copilotcli',				// Copilot CLI background sessions
+	]);
+
+	private _isDebugEligibleSession(sessionResource: URI): boolean {
+		return ChatDebugServiceImpl._debugEligibleSchemes.has(sessionResource.scheme)
+			|| this._importedSessions.has(sessionResource);
+	}
+
 	log(sessionResource: URI, name: string, details?: string, level: ChatDebugLogLevel = ChatDebugLogLevel.Info, options?: { id?: string; category?: string; parentEventId?: string }): void {
+		if (!this._isDebugEligibleSession(sessionResource)) {
+			return;
+		}
 		this.addEvent({
 			kind: 'generic',
 			id: options?.id,
@@ -222,6 +237,9 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 
 	async invokeProviders(sessionResource: URI): Promise<void> {
 
+		if (!this._isDebugEligibleSession(sessionResource)) {
+			return;
+		}
 		// Cancel only the previous invocation for THIS session, not others.
 		// Each session has its own pipeline so events from multiple sessions
 		// can be streamed concurrently.

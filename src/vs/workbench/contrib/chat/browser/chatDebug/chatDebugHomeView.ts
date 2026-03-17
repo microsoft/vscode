@@ -114,15 +114,17 @@ export class ChatDebugHomeView extends Disposable {
 
 			for (const sessionResource of sessionResources) {
 				const rawTitle = this.chatService.getSessionTitle(sessionResource);
+				const importedTitle = this.chatDebugService.getImportedSessionTitle(sessionResource);
 				let sessionTitle: string;
 				if (rawTitle && !isUUID(rawTitle)) {
 					sessionTitle = rawTitle;
 				} else if (LocalChatSessionUri.isLocalSession(sessionResource)) {
 					sessionTitle = localize('chatDebug.newSession', "New Chat");
-				} else if (this.chatDebugService.getImportedSessionTitle(sessionResource)) {
-					sessionTitle = localize('chatDebug.importedSession', "Imported: {0}", this.chatDebugService.getImportedSessionTitle(sessionResource)!);
+				} else if (importedTitle) {
+					sessionTitle = localize('chatDebug.importedSession', "Imported: {0}", importedTitle);
 				} else if (sessionResource.scheme === 'copilotcli') {
-					const shortId = sessionResource.path.replace(/^\//, '').split('-')[0] || '';
+					const pathId = sessionResource.path.replace(/^\//, '').split('-')[0];
+					const shortId = pathId || sessionResource.authority || sessionResource.toString();
 					sessionTitle = localize('chatDebug.copilotCliSessionWithId', "Copilot CLI: {0}", shortId);
 				} else {
 					sessionTitle = localize('chatDebug.newSession', "New Chat");
