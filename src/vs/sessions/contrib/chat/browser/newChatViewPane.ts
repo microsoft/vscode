@@ -1005,16 +1005,21 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._projectPicker.showPicker();
 	}
 
-	private async _requestFolderTrust(folderUri: URI): Promise<boolean> {
+	private async _requestFolderTrust(folderUri: URI, previousProject?: IProjectSelection): Promise<boolean> {
 		const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
 			uri: folderUri,
 			message: localize('trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
 		});
 		if (!trusted) {
 			this._projectPicker.removeFromRecents(folderUri);
-			const previousFolderUri = this._newSession.value?.repoUri;
-			if (previousFolderUri) {
-				this._projectPicker.setSelectedFolder(previousFolderUri, false);
+			if (previousProject) {
+				if (previousProject.kind === 'folder') {
+					this._projectPicker.setSelectedFolder(previousProject.uri, false);
+				} else if (previousProject.repoId) {
+					this._projectPicker.setSelectedRepo(previousProject.repoId, false);
+				} else {
+					this._projectPicker.clearSelection();
+				}
 			} else {
 				this._projectPicker.clearSelection();
 			}
@@ -1121,6 +1126,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._projectSelectionCts.value?.cancel();
 		const cts = this._projectSelectionCts.value = new CancellationTokenSource();
 
+		// Capture previous state for revert on trust denial
+		const previousProject = this._projectPicker.selectedProject;
+		const previousTarget = this._currentTarget;
+
 		const newTarget = project.kind === 'folder' ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
 		const targetChanged = this._currentTarget !== newTarget;
 		this._currentTarget = newTarget;
@@ -1135,8 +1144,13 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		if (isLocal) {
 			// For folder selections, request trust
-			const trusted = await this._requestFolderTrust(project.uri);
+			const trusted = await this._requestFolderTrust(project.uri, previousProject);
 			if (!trusted || cts.token.isCancellationRequested) {
+				// Revert target if trust was denied
+				if (!trusted) {
+					this._currentTarget = previousTarget;
+					this._updateTargetPickerState();
+				}
 				return;
 			}
 		}

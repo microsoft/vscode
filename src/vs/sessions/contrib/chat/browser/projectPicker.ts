@@ -16,6 +16,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 
 const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
 const STORAGE_KEY_LAST_PROJECT = 'agentSessions.lastPickedProject';
@@ -133,7 +134,7 @@ export class ProjectPicker extends Disposable {
 			if (storedRepos) {
 				const repos: { id: string; name: string }[] = JSON.parse(storedRepos);
 				for (const repo of repos) {
-					const uri = URI.from({ scheme: 'github-remote-file', authority: 'github', path: `/${repo.id}/HEAD` });
+					const uri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repo.id}/HEAD` });
 					migrated.push({ kind: 'repo', uri: uri.toString(), label: repo.name, repoId: repo.id });
 				}
 			}
@@ -164,7 +165,7 @@ export class ProjectPicker extends Disposable {
 			const lastRepo = this.storageService.get(LEGACY_STORAGE_KEY_LAST_REPO, StorageScope.PROFILE);
 			if (lastRepo) {
 				const repo: { id: string; name: string } = JSON.parse(lastRepo);
-				const uri = URI.from({ scheme: 'github-remote-file', authority: 'github', path: `/${repo.id}/HEAD` });
+				const uri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repo.id}/HEAD` });
 				this._selectedProject = { kind: 'repo', uri, label: repo.name, repoId: repo.id };
 			}
 		} catch { /* ignore */ }
@@ -265,7 +266,7 @@ export class ProjectPicker extends Disposable {
 	setSelectedRepo(repoId: string, fireEvent = true): void {
 		this._selectProject({
 			kind: 'repo',
-			uri: URI.from({ scheme: 'github-remote-file', authority: 'github', path: `/${repoId}/HEAD` }),
+			uri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repoId}/HEAD` }),
 			label: repoId,
 			repoId,
 		}, fireEvent);
@@ -329,7 +330,7 @@ export class ProjectPicker extends Disposable {
 			if (result) {
 				this._selectProject({
 					kind: 'repo',
-					uri: URI.from({ scheme: 'github-remote-file', authority: 'github', path: `/${result}/HEAD` }),
+					uri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${result}/HEAD` }),
 					label: result,
 					repoId: result,
 				});

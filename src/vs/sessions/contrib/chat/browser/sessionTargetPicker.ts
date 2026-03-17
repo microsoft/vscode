@@ -75,8 +75,8 @@ export class TargetPicker extends Disposable {
 	}
 
 	/**
-	 * Sets the git repository. When undefined and in worktree mode,
-	 * the picker becomes disabled.
+	 * Sets the git repository. When undefined, the picker is disabled
+	 * but retains its current mode.
 	 */
 	setRepository(repository: IGitRepository | undefined): void {
 		this._repository = repository;
@@ -84,9 +84,6 @@ export class TargetPicker extends Disposable {
 			const preferred = this._preferredLocalMode;
 			this._preferredLocalMode = undefined;
 			this._setMode(preferred ?? this._targetMode);
-		} else if (!repository && this._targetMode === 'worktree') {
-			this._preferredLocalMode ??= 'worktree';
-			this._setMode('workspace');
 		}
 		this._updateTriggerLabel();
 	}
