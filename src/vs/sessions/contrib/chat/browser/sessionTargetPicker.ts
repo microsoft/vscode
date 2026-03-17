@@ -12,20 +12,11 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
+import { ISessionProject } from '../../sessions/common/types.js';
 
 // #region --- Target Picker ---
 
 export type TargetMode = 'worktree' | 'workspace' | 'cloud';
-
-/**
- * Input for {@link TargetPicker.setProject}. Carries the project selection
- * and optionally the resolved git repository for the selected folder.
- */
-export interface ITargetPickerProject {
-	readonly kind: 'folder' | 'repo';
-	readonly repository?: IGitRepository;
-}
 
 /**
  * A self-contained widget for selecting the session target mode.
@@ -41,7 +32,7 @@ export class TargetPicker extends Disposable {
 
 	private _targetMode: TargetMode = 'worktree';
 	private _preferredLocalMode: TargetMode | undefined;
-	private _project: ITargetPickerProject | undefined;
+	private _project: ISessionProject | undefined;
 	private _isolationOptionEnabled: boolean = true;
 
 	private readonly _onDidChange = this._register(new Emitter<TargetMode>());
@@ -92,7 +83,7 @@ export class TargetPicker extends Disposable {
 	 * - Folder without git repo → worktree disabled, keeps current mode
 	 * - No project → retains current mode
 	 */
-	setProject(project: ITargetPickerProject | undefined): void {
+	setProject(project: ISessionProject | undefined): void {
 		this._project = project;
 
 		if (project?.kind === 'repo') {

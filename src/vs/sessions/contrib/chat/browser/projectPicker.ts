@@ -18,6 +18,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
+import { ISessionProject } from '../../sessions/common/types.js';
 
 const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
 const STORAGE_KEY_LAST_PROJECT = 'sessions.lastPickedProject';
@@ -37,19 +38,11 @@ const LEGACY_STORAGE_KEY_RECENT_PROJECTS = 'agentSessions.recentlyPickedProjects
 const COMMAND_BROWSE_FOLDERS = 'command:browseFolders';
 const COMMAND_BROWSE_REPOS = 'command:browseRepos';
 
-export type ProjectSelectionKind = 'folder' | 'repo';
-
-export interface IProjectSelection {
-	readonly kind: ProjectSelectionKind;
-	/** For folders: the folder URI. For repos: a URI constructed from the repo path. */
-	readonly uri: URI;
-}
-
 /**
  * Serializable form of a project entry for storage.
  */
 interface IStoredProject {
-	readonly kind: ProjectSelectionKind;
+	readonly kind: ISessionProject['kind'];
 	readonly uri: UriComponents;
 	readonly label: string;
 	readonly checked?: boolean;
@@ -64,6 +57,9 @@ interface IStoredProject {
  * - "Browse Folders..." — opens a folder dialog
  * - "Browse Repositories..." — runs the cloud repository picker command
  */
+/** A project selection with a required URI — used by the picker for concrete selections. */
+export type IProjectSelection = Required<Pick<ISessionProject, 'kind' | 'uri'>>;
+
 export class ProjectPicker extends Disposable {
 
 	private readonly _onDidSelectProject = this._register(new Emitter<IProjectSelection>());
