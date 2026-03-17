@@ -42,6 +42,7 @@ function createMockUpdateService(state: State): IUpdateService {
 		isLatestVersion: async () => true,
 		_applySpecificUpdate: async () => { },
 		setInternalOrg: async () => { },
+		setStateForTesting: () => { }
 	};
 	return service;
 }

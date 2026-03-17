@@ -30,6 +30,7 @@ export class UpdateChannel implements IServerChannel {
 			case 'isLatestVersion': return this.service.isLatestVersion();
 			case '_applySpecificUpdate': return this.service._applySpecificUpdate(arg);
 			case 'setInternalOrg': return this.service.setInternalOrg(arg);
+			case 'setStateForTesting': this.service.setStateForTesting(arg); return Promise.resolve();
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -86,5 +87,9 @@ export class UpdateChannelClient implements IUpdateService {
 
 	dispose(): void {
 		this.disposables.dispose();
+	}
+
+	setStateForTesting(state: State): void {
+		this.channel.call('setStateForTesting', state);
 	}
 }

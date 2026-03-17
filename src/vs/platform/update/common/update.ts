@@ -117,4 +117,5 @@ export interface IUpdateService {
 	isLatestVersion(): Promise<boolean | undefined>;
 	_applySpecificUpdate(packagePath: string): Promise<void>;
 	setInternalOrg(internalOrg: string | undefined): Promise<void>;
+	setStateForTesting(state: State): void;
 }

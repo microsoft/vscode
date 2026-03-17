@@ -382,7 +382,9 @@ export class UpdateTooltip extends Disposable {
 			const url = getUpdateInfoUrl(this.productService.version);
 			const context = await this.requestService.request({ url, callSite: 'updateTooltip' }, CancellationToken.None);
 			text = await asTextOrError(context);
-		} catch { }
+		} catch {
+			text = await this.clipboardService.readText() || undefined;
+		}
 
 		if (!text) {
 			return;

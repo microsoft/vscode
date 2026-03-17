@@ -89,6 +89,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		return this._state;
 	}
 
+	public setStateForTesting(state: State): void {
+		this.setState(state);
+	}
+
 	protected setState(state: State): void {
 		this.logService.info('update#setState', state.type);
 		this._state = state;
