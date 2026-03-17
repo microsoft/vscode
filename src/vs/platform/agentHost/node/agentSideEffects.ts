@@ -6,8 +6,8 @@
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import * as fs from 'fs';
 import * as os from 'os';
+import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, IAgent, IAgentAttachment } from '../common/agentService.js';
 import type { ISessionAction } from '../common/state/sessionActions.js';
@@ -49,6 +49,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		private readonly _stateManager: SessionStateManager,
 		private readonly _options: IAgentSideEffectsOptions,
 		private readonly _logService: ILogService,
+		private readonly _fileService: IFileService,
 	) {
 		super();
 
@@ -234,27 +235,21 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 	}
 
 	async handleBrowseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
-		const dirPath = uri.fsPath || '/';
-		let dirents;
+		let stat;
 		try {
-			dirents = await fs.promises.readdir(dirPath, { withFileTypes: true });
-		} catch (err) {
-			const code = (err as NodeJS.ErrnoException).code;
-			if (code === 'ENOENT') {
-				throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Directory not found: ${uri.toString()}`);
-			}
-			if (code === 'ENOTDIR') {
-				throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Not a directory: ${uri.toString()}`);
-			}
-			if (code === 'EACCES' || code === 'EPERM') {
-				throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Cannot access directory: ${uri.toString()}`);
-			}
-			throw err;
+			stat = await this._fileService.resolve(uri);
+		} catch {
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Directory not found: ${uri.toString()}`);
 		}
-		const entries = dirents.map(dirent => {
-			const type: IDirectoryEntry['type'] = dirent.isDirectory() ? 'directory' : 'file';
-			return { name: dirent.name, type };
-		});
+
+		if (!stat.isDirectory) {
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Not a directory: ${uri.toString()}`);
+		}
+
+		const entries: IDirectoryEntry[] = (stat.children ?? []).map(child => ({
+			name: child.name,
+			type: child.isDirectory ? 'directory' : 'file',
+		}));
 		return { entries };
 	}
 

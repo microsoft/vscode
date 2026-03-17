@@ -8,6 +8,7 @@ import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
+import { IFileService } from '../../files/common/files.js';
 import { AgentProvider, IAgentCreateSessionConfig, IAgent, IAgentService, IAgentSessionMetadata, AgentSession, IAgentDescriptor } from '../common/agentService.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
 import type { IBrowseDirectoryResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -52,6 +53,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	constructor(
 		private readonly _logService: ILogService,
+		private readonly _fileService: IFileService,
 	) {
 		super();
 		this._logService.info('AgentService initialized');
@@ -61,7 +63,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sideEffects = this._register(new AgentSideEffects(this._stateManager, {
 			getAgent: session => this._findProviderForSession(session),
 			agents: this._agents,
-		}, this._logService));
+		}, this._logService, this._fileService));
 	}
 
 	// ---- provider registration ----------------------------------------------

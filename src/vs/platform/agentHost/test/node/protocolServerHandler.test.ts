@@ -342,7 +342,7 @@ suite('ProtocolServerHandler', () => {
 		const resp = findResponse(transport.sent, 1);
 		assert.ok(resp);
 		const result = (resp as { result: IInitializeResult }).result;
-		assert.strictEqual(URI.revive(result.defaultDirectory!).fsPath, '/home/testuser');
+		assert.strictEqual(URI.revive(result.defaultDirectory!).path, '/home/testuser');
 	});
 
 	test('browseDirectory routes to side effect handler', async () => {
@@ -355,7 +355,7 @@ suite('ProtocolServerHandler', () => {
 		const resp = await responsePromise;
 
 		assert.strictEqual(sideEffects.browsedUris.length, 1);
-		assert.strictEqual(sideEffects.browsedUris[0].fsPath, '/home/user/project');
+		assert.strictEqual(sideEffects.browsedUris[0].path, '/home/user/project');
 
 		assert.ok(resp);
 		const result = (resp as { result: { entries: { name: string; uri: unknown; type: string }[] } }).result;

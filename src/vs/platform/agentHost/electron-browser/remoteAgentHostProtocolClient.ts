@@ -66,10 +66,11 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	constructor(
 		address: string,
+		connectionToken: string | undefined,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._transport = this._register(new WebSocketClientTransport(address));
+		this._transport = this._register(new WebSocketClientTransport(address, connectionToken));
 		this._register(this._transport.onMessage(msg => this._handleMessage(msg)));
 		this._register(this._transport.onClose(() => this._onDidClose.fire()));
 	}

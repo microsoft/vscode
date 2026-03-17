@@ -100,6 +100,7 @@ const vscodeResourceIncludes = [
 	// Sessions
 	'out-build/vs/sessions/contrib/chat/browser/media/*.svg',
 	'out-build/vs/sessions/prompts/*.prompt.md',
+	'out-build/vs/sessions/skills/**/SKILL.md',
 
 	// Extensions
 	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
@@ -561,7 +562,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			platform,
 			arch: arch === 'armhf' ? 'arm' : arch,
 			ffmpegChromium: false,
-			darwinAssetsCar: 'resources/darwin/code.car',
 			...(embedded ? {
 				darwinMiniAppName: embedded.nameShort,
 				darwinMiniAppBundleIdentifier: embedded.darwinBundleIdentifier,
@@ -727,43 +727,50 @@ function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFo
 	const outputDir = path.join(path.dirname(root), destinationFolderName);
 
 	return async () => {
-		const appBase = platform === 'darwin'
-			? path.join(outputDir, `${product.nameLong}.app`, 'Contents', 'Resources', 'app')
-			: path.join(outputDir, 'resources', 'app');
+		const quality = (product as { quality?: string }).quality;
 
 		// On stable builds the copilot SDK is stripped entirely -- nothing to copy into.
-		const copilotDir = path.join(appBase, 'node_modules', '@github', 'copilot');
-		if (!fs.existsSync(copilotDir)) {
-			const quality = (product as { quality?: string }).quality;
-			if (quality && quality !== 'stable') {
-				throw new Error(`[copyCopilotNativeDeps] Copilot SDK directory not found at ${copilotDir} -- unexpected for ${quality} build`);
-			}
-			console.log(`[copyCopilotNativeDeps] Skipping -- copilot SDK not present (stable build)`);
+		if (quality === 'stable') {
+			console.log(`[copyCopilotNativeDeps] Skipping -- stable build`);
 			return;
 		}
 
+		// On Windows with win32VersionedUpdate, app resources live under a
+		// commit-hash prefix: {output}/{commitHash}/resources/app/
+		const versionedResourcesFolder = util.getVersionedResourcesFolder(platform, commit!);
+		const appBase = platform === 'darwin'
+			? path.join(outputDir, `${product.nameLong}.app`, 'Contents', 'Resources', 'app')
+			: path.join(outputDir, versionedResourcesFolder, 'resources', 'app');
+
+		// Source and destination are both in node_modules/, which exists as a real
+		// directory on disk on all platforms after packaging.
+		const nodeModulesDir = path.join(appBase, 'node_modules');
+		const copilotBase = path.join(nodeModulesDir, '@github', 'copilot');
 		const platformArch = `${platform === 'win32' ? 'win32' : platform}-${arch}`;
 
-		// Copy node-pty (pty.node + spawn-helper) into copilot prebuilds
-		const nodePtySource = path.join(appBase, 'node_modules', 'node-pty', 'build', 'Release');
-		const copilotPrebuildsDir = path.join(appBase, 'node_modules', '@github', 'copilot', 'prebuilds', platformArch);
+		const nodePtySource = path.join(nodeModulesDir, 'node-pty', 'build', 'Release');
+		const rgBinary = platform === 'win32' ? 'rg.exe' : 'rg';
+		const ripgrepSource = path.join(nodeModulesDir, '@vscode', 'ripgrep', 'bin', rgBinary);
 
-		if (fs.existsSync(nodePtySource)) {
-			fs.mkdirSync(copilotPrebuildsDir, { recursive: true });
-			fs.cpSync(nodePtySource, copilotPrebuildsDir, { recursive: true });
-			console.log(`[copyCopilotNativeDeps] Copied node-pty to ${copilotPrebuildsDir}`);
+		// Fail-fast: source binaries must exist on non-stable builds.
+		if (!fs.existsSync(nodePtySource)) {
+			throw new Error(`[copyCopilotNativeDeps] node-pty source not found at ${nodePtySource}`);
 		}
+		if (!fs.existsSync(ripgrepSource)) {
+			throw new Error(`[copyCopilotNativeDeps] ripgrep source not found at ${ripgrepSource}`);
+		}
+
+		// Copy node-pty (pty.node + spawn-helper) into copilot prebuilds
+		const copilotPrebuildsDir = path.join(copilotBase, 'prebuilds', platformArch);
+		fs.mkdirSync(copilotPrebuildsDir, { recursive: true });
+		fs.cpSync(nodePtySource, copilotPrebuildsDir, { recursive: true });
+		console.log(`[copyCopilotNativeDeps] Copied node-pty from ${nodePtySource} to ${copilotPrebuildsDir}`);
 
 		// Copy ripgrep (rg binary) into copilot ripgrep
-		const rgBinary = platform === 'win32' ? 'rg.exe' : 'rg';
-		const ripgrepSource = path.join(appBase, 'node_modules', '@vscode', 'ripgrep', 'bin', rgBinary);
-		const copilotRipgrepDir = path.join(appBase, 'node_modules', '@github', 'copilot', 'ripgrep', 'bin', platformArch);
-
-		if (fs.existsSync(ripgrepSource)) {
-			fs.mkdirSync(copilotRipgrepDir, { recursive: true });
-			fs.copyFileSync(ripgrepSource, path.join(copilotRipgrepDir, rgBinary));
-			console.log(`[copyCopilotNativeDeps] Copied ripgrep to ${copilotRipgrepDir}`);
-		}
+		const copilotRipgrepDir = path.join(copilotBase, 'ripgrep', 'bin', platformArch);
+		fs.mkdirSync(copilotRipgrepDir, { recursive: true });
+		fs.copyFileSync(ripgrepSource, path.join(copilotRipgrepDir, rgBinary));
+		console.log(`[copyCopilotNativeDeps] Copied ripgrep from ${ripgrepSource} to ${copilotRipgrepDir}`);
 	};
 }
 

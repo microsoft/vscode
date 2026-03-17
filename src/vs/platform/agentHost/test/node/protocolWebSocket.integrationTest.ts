@@ -189,7 +189,7 @@ class TestProtocolClient {
 async function startServer(): Promise<{ process: ChildProcess; port: number }> {
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../node/agentHostServerMain.js', import.meta.url));
-		const child = fork(serverPath, ['--enable-mock-agent', '--quiet', '--port', '0'], {
+		const child = fork(serverPath, ['--enable-mock-agent', '--quiet', '--port', '0', '--without-connection-token'], {
 			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
 		});
 
@@ -207,8 +207,8 @@ async function startServer(): Promise<{ process: ChildProcess; port: number }> {
 			}
 		});
 
-		child.stderr!.on('data', (data: Buffer) => {
-			console.error('[TestServer]', data.toString());
+		child.stderr!.on('data', () => {
+			// Intentionally swallowed - the test runner fails if console.error is used.
 		});
 
 		child.on('error', err => {

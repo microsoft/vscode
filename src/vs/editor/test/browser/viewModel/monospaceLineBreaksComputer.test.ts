@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { EditorOptions, WrappingIndent } from '../../../common/config/editorOptions.js';
+import { EditorOption, EditorOptions, WrappingIndent } from '../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../common/config/fontInfo.js';
 import { ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
+import { ComputedEditorOptions } from '../../../browser/config/editorConfiguration.js';
 
 function parseAnnotatedText(annotatedText: string): { text: string; indices: number[] } {
 	let text = '';
@@ -71,7 +72,19 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 			return null;
 		}
 	};
-	const lineBreaksComputer = factory.createLineBreaksComputer(context, fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds);
+	const options = new ComputedEditorOptions();
+	options._write(EditorOption.fontInfo, fontInfo);
+	options._write(EditorOption.wrappingIndent, wrappingIndent);
+	options._write(EditorOption.wordWrapColumn, breakAfter);
+	options._write(EditorOption.wordBreak, wordBreak);
+	options._write(EditorOption.wrapOnEscapedLineFeeds, wrapOnEscapedLineFeeds);
+	options._write(EditorOption.wrappingInfo, {
+		isDominatedByLongLines: false,
+		isWordWrapMinified: false,
+		isViewportWrapping: false,
+		wrappingColumn: breakAfter,
+	});
+	const lineBreaksComputer = factory.createLineBreaksComputer(context, options, tabSize);
 	const previousLineBreakDataClone = previousLineBreakData ? new ModelLineProjectionData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
 	lineBreaksComputer.addRequest(1, previousLineBreakDataClone);
 	return lineBreaksComputer.finalize()[0];

@@ -15,6 +15,7 @@ export const RemoteAgentHostsSettingId = 'chat.remoteAgentHosts';
 export interface IRemoteAgentHostEntry {
 	readonly address: string;
 	readonly name: string;
+	readonly connectionToken?: string;
 }
 
 export const IRemoteAgentHostService = createDecorator<IRemoteAgentHostService>('remoteAgentHostService');
@@ -49,4 +50,11 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly name: string;
 	readonly clientId: string;
 	readonly defaultDirectory?: URI;
+}
+
+export class NullRemoteAgentHostService implements IRemoteAgentHostService {
+	declare readonly _serviceBrand: undefined;
+	readonly onDidChangeConnections = Event.None;
+	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
+	getConnection(): IAgentConnection | undefined { return undefined; }
 }
