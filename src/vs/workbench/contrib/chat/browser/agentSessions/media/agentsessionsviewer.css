@@ -254,18 +254,6 @@
 				display: none;
 			}
 
-			.agent-session-status-time.codicon {
-				font: inherit;
-				display: inline-flex;
-				align-items: center;
-				flex-direction: row-reverse;
-				gap: 4px;
-
-				&::before {
-					font-family: 'codicon';
-					font-size: 11px;
-				}
-			}
 		}
 		.agent-session-approval-row {
 			display: none;

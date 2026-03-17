@@ -89,7 +89,6 @@ interface IAgentSessionItemTemplate {
 
 export interface IAgentSessionRendererOptions {
 	readonly disableHover?: boolean;
-	readonly showIsolationIcon?: boolean;
 	getHoverPosition(): HoverPosition;
 	isGroupedByRepository?(): boolean;
 }
@@ -294,7 +293,13 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			}
 		}
 
-		this.renderMarkdownOrText(this.stripCodicons(badge), template.badge, template.elementDisposable);
+		const normalisedBadge = this.stripCodicons(badge);
+		const badgeValue = typeof normalisedBadge === 'string' ? normalisedBadge : normalisedBadge.value;
+		if (!badgeValue) {
+			return false;
+		}
+
+		this.renderMarkdownOrText(normalisedBadge, template.badge, template.elementDisposable);
 
 		return true;
 	}
@@ -419,30 +424,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return timeLabel;
 		};
 
-		// Provider icon (rendered as codicon on the time span for alignment)
-		// When showIsolationIcon is enabled for background sessions, show worktree/folder icon instead
-		const isLocal = session.element.providerType === AgentSessionProviders.Local;
-		let providerIconClass = '';
-		if (!isLocal) {
-			if (this.options.showIsolationIcon && session.element.providerType === AgentSessionProviders.Background) {
-				const hasWorktree = typeof session.element.metadata?.worktreePath === 'string';
-				const isolationIcon = hasWorktree ? Codicon.worktree : Codicon.folder;
-				providerIconClass = ThemeIcon.asClassName(isolationIcon);
-			} else {
-				providerIconClass = ThemeIcon.asClassName(session.element.icon);
-			}
-		}
-
-		// Time label (with optional provider icon rendered inline via codicon class)
-		const updateTimeLabel = () => {
-			template.statusTime.className = providerIconClass
-				? `agent-session-status-time ${providerIconClass}`
-				: 'agent-session-status-time';
-			template.statusTime.textContent = getTimeLabel(session.element);
-		};
-		updateTimeLabel();
+		// Time label
+		template.statusTime.textContent = getTimeLabel(session.element);
 		const timer = template.elementDisposable.add(new IntervalTimer());
-		timer.cancelAndSet(() => updateTimeLabel(), session.element.status === AgentSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
+		timer.cancelAndSet(() => template.statusTime.textContent = getTimeLabel(session.element), session.element.status === AgentSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
 
 		return true;
 	}
