@@ -505,6 +505,11 @@ export class ModelPickerWidget extends Disposable {
 		@IUpdateService private readonly _updateService: IUpdateService,
 	) {
 		super();
+
+		// Re-render label when model configuration changes
+		this._register(this._languageModelsService.onDidChangeLanguageModelVendors(() => {
+			this._renderLabel();
+		}));
 	}
 
 	setHideChevrons(hideChevrons: IObservable<boolean>): void {
@@ -544,11 +549,6 @@ export class ModelPickerWidget extends Disposable {
 		this._updateBadge();
 
 		this._renderLabel();
-
-		// Re-render label when model configuration changes
-		this._register(this._languageModelsService.onDidChangeLanguageModelVendors(() => {
-			this._renderLabel();
-		}));
 
 		// Open picker on click
 		this._register(dom.addDisposableListener(this._domNode, dom.EventType.MOUSE_DOWN, (e) => {
