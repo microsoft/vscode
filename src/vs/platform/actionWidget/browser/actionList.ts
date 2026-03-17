@@ -114,7 +114,6 @@ interface IActionMenuTemplateData {
 	readonly text: HTMLElement;
 	readonly badge: HTMLElement;
 	readonly description?: HTMLElement;
-	readonly descriptionText?: HTMLElement;
 	readonly keybinding: KeybindingLabel;
 	readonly toolbar: HTMLElement;
 	readonly elementDisposables: DisposableStore;
@@ -218,13 +217,9 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		description.className = 'description';
 		container.append(description);
 
-		const descriptionText = document.createElement('span');
-		descriptionText.className = 'description-text';
-		description.append(descriptionText);
-
 		const elementDisposables = new DisposableStore();
 
-		return { container, icon, text, badge, description, descriptionText, keybinding, toolbar, elementDisposables };
+		return { container, icon, text, badge, description, keybinding, toolbar, elementDisposables };
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, data: IActionMenuTemplateData): void {
@@ -270,13 +265,13 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		}
 
 		if (element.keybinding) {
-			data.descriptionText!.textContent = element.keybinding.getLabel();
-			data.description!.style.display = 'inline-flex';
-			data.descriptionText!.style.letterSpacing = '0.5px';
+			data.description!.textContent = element.keybinding.getLabel();
+			data.description!.style.display = 'inline';
+			data.description!.style.letterSpacing = '0.5px';
 		} else if (element.description) {
-			dom.clearNode(data.descriptionText!);
+			dom.clearNode(data.description!);
 			if (typeof element.description === 'string') {
-				data.descriptionText!.textContent = stripNewlines(element.description);
+				data.description!.textContent = stripNewlines(element.description);
 			} else {
 				const rendered = renderMarkdown(element.description, {
 					actionHandler: (content: string) => {
@@ -284,11 +279,11 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 					}
 				});
 				data.elementDisposables.add(rendered);
-				data.descriptionText!.appendChild(rendered.element);
+				data.description!.appendChild(rendered.element);
 			}
-			data.description!.style.display = 'inline-flex';
+			data.description!.style.display = 'inline';
 		} else {
-			data.descriptionText!.textContent = '';
+			data.description!.textContent = '';
 			data.description!.style.display = 'none';
 		}
 
