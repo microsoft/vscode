@@ -394,7 +394,7 @@ async function openInBrowser(args: string[], verbose: boolean) {
 	for (const location of args) {
 		try {
 			if (/^[a-z-]+:\/\/.+/.test(location)) {
-				uris.push(url.parse(location).href);
+				uris.push(new URL(location).href);
 			} else {
 				uris.push(pathToURI(location).href);
 			}

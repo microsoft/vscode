@@ -63,7 +63,7 @@ const height = 900;
 type BrowserType = 'chromium' | 'firefox' | 'webkit';
 type BrowserChannel = 'msedge' | 'chrome';
 
-async function runTestsInBrowser(browserType: BrowserType, browserChannel: BrowserChannel, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
+async function runTestsInBrowser(browserType: BrowserType, browserChannel: BrowserChannel, endpoint: URL, server: cp.ChildProcess): Promise<void> {
 	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), channel: browserChannel });
 	const context = await browser.newContext();
 
@@ -155,7 +155,7 @@ function consoleLogFn(msg: playwright.ConsoleMessage) {
 	return console.log;
 }
 
-async function launchServer(browserType: BrowserType, browserChannel: BrowserChannel): Promise<{ endpoint: url.UrlWithStringQuery; server: cp.ChildProcess }> {
+async function launchServer(browserType: BrowserType, browserChannel: BrowserChannel): Promise<{ endpoint: URL; server: cp.ChildProcess }> {
 
 	// Ensure a tmp user-data-dir is used for the tests
 	const tmpDir = tmp.dirSync({ prefix: 't' });
@@ -219,7 +219,7 @@ async function launchServer(browserType: BrowserType, browserChannel: BrowserCha
 		serverProcess.stdout!.on('data', data => {
 			const matches = data.toString('ascii').match(/Web UI available at (.+)/);
 			if (matches !== null) {
-				c({ endpoint: url.parse(matches[1]), server: serverProcess });
+				c({ endpoint: new URL(matches[1]), server: serverProcess });
 			}
 		});
 	});

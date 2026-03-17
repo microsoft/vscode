@@ -8,7 +8,6 @@
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
-const url = require('url');
 const minimatch = require('minimatch');
 
 // list of languagesId not shipped with VSCode. The information is used to associate an icon with a language association
@@ -97,8 +96,8 @@ function download(source) {
 		return readFile(source);
 	}
 	return new Promise((c, e) => {
-		const _url = url.parse(source);
-		const options = { host: _url.host, port: _url.port, path: _url.path, headers: { 'User-Agent': 'NodeJS' } };
+		const _url = new URL(source);
+		const options = { host: _url.host, port: _url.port, path: _url.pathname + _url.search, headers: { 'User-Agent': 'NodeJS' } };
 		let content = '';
 		https.get(options, function (response) {
 			response.on('data', function (data) {
@@ -472,6 +471,5 @@ exports.update = function () {
 if (path.basename(process.argv[1]) === 'update-icon-theme.js') {
 	exports.copyFont().then(() => exports.update());
 }
-
 
 
