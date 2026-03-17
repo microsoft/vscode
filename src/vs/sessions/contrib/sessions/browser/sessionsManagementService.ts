@@ -41,6 +41,7 @@ export const IsActiveSessionBackgroundProviderContext = new RawContextKey<boolea
 //#region Active Session Service
 
 const LAST_SELECTED_SESSION_KEY = 'agentSessions.lastSelectedSession';
+const repositoryOptionId = 'repository';
 
 /**
  * An active session item extends IChatSessionItem with repository information.
@@ -242,6 +243,25 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			URI.isUri(worktreePathUri) ? worktreePathUri : undefined,
 			worktreeBranchName,
 			worktreeBaseBranchProtected];
+	}
+
+	private getRepositoryFromSessionOption(sessionResource: URI): URI | undefined {
+		const optionValue = this.chatSessionsService.getSessionOption(sessionResource, repositoryOptionId);
+		if (!optionValue) {
+			return undefined;
+		}
+
+		// Option value can be a string or IChatSessionProviderOptionItem
+		const optionId = typeof optionValue === 'string' ? optionValue : (optionValue as IChatSessionProviderOptionItem).id;
+		if (!optionId) {
+			return undefined;
+		}
+
+		try {
+			return URI.parse(optionId);
+		} catch {
+			return undefined;
+		}
 	}
 
 	getActiveSession(): IActiveSessionItem | undefined {
@@ -468,7 +488,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					isUntitled: false,
 					label: session.label,
 					resource: session.resource,
-					repository: repository,
+					repository: repository ?? this.getRepositoryFromSessionOption(session.resource),
 					worktree,
 					worktreeBranchName: worktreeBranchName,
 					worktreeBaseBranchProtected: worktreeBaseBranchProtected === true,
