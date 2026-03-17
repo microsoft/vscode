@@ -12,12 +12,12 @@
 	height: 100%;
 	box-sizing: border-box;
 	overflow: hidden;
-	padding: 0 24px 48px 24px;
+	padding: 0 24px 16px 24px;
 	container-type: size;
 }
 
 .chat-full-welcome.revealed {
-	justify-content: center;
+	justify-content: end;
 }
 
 /* Header */

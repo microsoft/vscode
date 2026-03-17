@@ -505,6 +505,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const chatControlsContainer = append(parent, $('.chat-controls-container'));
 
 		const locationBasedColors = this.getLocationBasedColors();
+		const chatBackground = this.workbenchEnvironmentService.isSessionsWindow ? editorBackground : locationBasedColors.background;
 
 		const editorOverflowWidgetsDomNode = this.layoutService.getContainer(getWindow(chatControlsContainer)).appendChild($('.chat-editor-overflow.monaco-editor'));
 		this._register(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
@@ -544,9 +545,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			},
 			{
 				listForeground: SIDE_BAR_FOREGROUND,
-				listBackground: locationBasedColors.background,
+				listBackground: chatBackground,
 				overlayBackground: locationBasedColors.overlayBackground,
-				inputEditorBackground: locationBasedColors.background,
+				inputEditorBackground: chatBackground,
 				resultEditorBackground: editorBackground,
 			}));
 		this._widget.render(chatControlsContainer);

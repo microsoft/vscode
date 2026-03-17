@@ -40,7 +40,7 @@
 }
 
 .agent-sessions-workbench .part.panel {
-	margin: 0 16px 16px 16px;
+	margin: 0 16px 18px 16px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
@@ -72,6 +72,14 @@
 	box-sizing: border-box;
 }
 
+.interactive-session:not(.chat-widget > .interactive-session) {
+	.interactive-item-container {
+		padding: 18px 24px;
+	}
+}
+
+
+
 .agent-sessions-workbench .interactive-session > .chat-suggest-next-widget {
 	max-width: 950px;
 	margin: 0 auto;
@@ -92,6 +100,6 @@
 	margin: 0 auto !important;
 	display: inherit !important;
 	/* Align with panel (terminal) card margin */
-	padding: 4px 8px 6px 8px !important;
+	padding: 4px 16px 16px 16px !important;
 	box-sizing: border-box;
 }
