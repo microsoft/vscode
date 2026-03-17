@@ -301,6 +301,9 @@ export class McpListWidget extends Disposable {
 	private readonly _onDidSelectServer = this._register(new Emitter<IWorkbenchMcpServer>());
 	readonly onDidSelectServer = this._onDidSelectServer.event;
 
+	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
+	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
+
 	private sectionHeader!: HTMLElement;
 	private sectionDescription!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
@@ -699,6 +702,18 @@ export class McpListWidget extends Disposable {
 
 		this.displayEntries = entries;
 		this.list.splice(0, this.list.length, this.displayEntries);
+
+		this._onDidChangeItemCount.fire(this.itemCount);
+	}
+
+	/**
+	 * Gets the total item count (unfiltered).
+	 */
+	get itemCount(): number {
+		const localIds = new Set(this.mcpWorkbenchService.local.map(s => s.id));
+		const builtinCount = this.mcpService.servers.get()
+			.filter(s => !localIds.has(s.definition.id)).length;
+		return this.mcpWorkbenchService.local.length + builtinCount;
 	}
 
 	/**

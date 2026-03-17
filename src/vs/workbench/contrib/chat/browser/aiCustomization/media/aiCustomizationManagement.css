@@ -139,6 +139,23 @@
 	font-weight: 400;
 }
 
+.ai-customization-management-editor .section-list-item .section-count {
+	flex-shrink: 0;
+	font-size: 9px;
+	font-weight: 500;
+	padding: 1px 5px;
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
+	border-radius: 8px;
+	min-width: 14px;
+	text-align: center;
+}
+
+.ai-customization-management-editor .monaco-list .monaco-list-row.selected .section-list-item .section-count {
+	background-color: rgba(255, 255, 255, 0.15);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
 /* Content area */
 .ai-customization-management-editor .management-content {
 	background-color: var(--vscode-editor-background);

@@ -32,7 +32,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { registerColor } from '../../../../../platform/theme/common/colorRegistry.js';
 import { PANEL_BORDER } from '../../../../common/theme.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
-import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
+import { AICustomizationListWidget, sectionToPromptType } from './aiCustomizationListWidget.js';
 import { McpListWidget } from './mcpListWidget.js';
 import { PluginListWidget } from './pluginListWidget.js';
 import {
@@ -58,7 +58,7 @@ import { INewPromptOptions, NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, 
 import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
 import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory } from './customizationCreatorService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, applyStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
@@ -162,6 +162,7 @@ interface ISectionItem {
 	readonly id: AICustomizationManagementSection;
 	readonly label: string;
 	readonly icon: ThemeIcon;
+	count: number;
 }
 
 interface ISaveTargetQuickPickItem extends IQuickPickItem {
@@ -198,6 +199,7 @@ interface ISectionItemTemplateData {
 	readonly container: HTMLElement;
 	readonly icon: HTMLElement;
 	readonly label: HTMLElement;
+	readonly count: HTMLElement;
 }
 
 class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTemplateData> {
@@ -207,13 +209,21 @@ class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTem
 		container.classList.add('section-list-item');
 		const icon = DOM.append(container, $('.section-icon'));
 		const label = DOM.append(container, $('.section-label'));
-		return { container, icon, label };
+		const count = DOM.append(container, $('.section-count'));
+		return { container, icon, label, count };
 	}
 
 	renderElement(element: ISectionItem, index: number, templateData: ISectionItemTemplateData): void {
 		templateData.icon.className = 'section-icon';
 		templateData.icon.classList.add(...ThemeIcon.asClassNameArray(element.icon));
 		templateData.label.textContent = element.label;
+		if (element.count > 0) {
+			templateData.count.textContent = String(element.count);
+			templateData.count.style.display = '';
+		} else {
+			templateData.count.textContent = '';
+			templateData.count.style.display = 'none';
+		}
 	}
 
 	disposeTemplate(): void { }
@@ -342,7 +352,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		for (const id of this.workspaceService.managementSections) {
 			const info = sectionInfo[id];
 			if (info) {
-				this.sections.push({ id, ...info });
+				this.sections.push({ id, ...info, count: 0 });
 			}
 		}
 
@@ -631,6 +641,38 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Set initial visibility based on selected section
 		this.updateContentVisibility();
 
+		// Wire up section count updates
+		this.editorDisposables.add(this.listWidget.onDidChangeItemCount(count => {
+			this.updateSectionCount(this.selectedSection, count);
+		}));
+		if (this.mcpListWidget) {
+			this.editorDisposables.add(this.mcpListWidget.onDidChangeItemCount(count => {
+				this.updateSectionCount(AICustomizationManagementSection.McpServers, count);
+			}));
+		}
+		if (this.pluginListWidget) {
+			this.editorDisposables.add(this.pluginListWidget.onDidChangeItemCount(count => {
+				this.updateSectionCount(AICustomizationManagementSection.Plugins, count);
+			}));
+		}
+		if (this.modelsWidget) {
+			this.editorDisposables.add(this.modelsWidget.onDidChangeItemCount(count => {
+				this.updateSectionCount(AICustomizationManagementSection.Models, count);
+			}));
+		}
+
+		// Listen for data changes and refresh counts for non-active prompts sections
+		this.editorDisposables.add(this.promptsService.onDidChangeCustomAgents(() => this.refreshPromptsSectionCount(AICustomizationManagementSection.Agents)));
+		this.editorDisposables.add(this.promptsService.onDidChangeSkills(() => this.refreshPromptsSectionCount(AICustomizationManagementSection.Skills)));
+		this.editorDisposables.add(this.promptsService.onDidChangeInstructions(() => this.refreshPromptsSectionCount(AICustomizationManagementSection.Instructions)));
+		this.editorDisposables.add(this.promptsService.onDidChangeSlashCommands(() => {
+			this.refreshPromptsSectionCount(AICustomizationManagementSection.Prompts);
+			this.refreshPromptsSectionCount(AICustomizationManagementSection.Hooks);
+		}));
+
+		// Load initial counts for all sections
+		void this.refreshAllSectionCounts();
+
 		// Load items for the initial section
 		if (this.isPromptsSection(this.selectedSection)) {
 			void this.listWidget.setSection(this.selectedSection);
@@ -644,6 +686,85 @@ export class AICustomizationManagementEditor extends EditorPane {
 			section === AICustomizationManagementSection.Prompts ||
 			section === AICustomizationManagementSection.Hooks;
 	}
+
+	//#region Section Counts
+
+	/**
+	 * Updates the count for a specific section and re-renders the sidebar.
+	 */
+	private updateSectionCount(sectionId: AICustomizationManagementSection, count: number): void {
+		const section = this.sections.find(s => s.id === sectionId);
+		if (!section || section.count === count) {
+			return;
+		}
+		section.count = count;
+		// Re-splice the sections list to trigger re-render
+		this.sectionsList.splice(0, this.sectionsList.length, this.sections);
+		this.ensureSectionsListReflectsActiveSection();
+	}
+
+	/**
+	 * Refreshes the count for a single prompts-based section by querying the prompts service.
+	 * For the currently active prompts section, the count is driven by the list widget instead.
+	 */
+	private async refreshPromptsSectionCount(sectionId: AICustomizationManagementSection): Promise<void> {
+		if (!this.sections.some(s => s.id === sectionId)) {
+			return;
+		}
+		// The active prompts section count is handled by listWidget.onDidChangeItemCount
+		if (this.isPromptsSection(this.selectedSection) && this.selectedSection === sectionId) {
+			return;
+		}
+		const count = await this.computePromptsSectionCount(sectionId);
+		this.updateSectionCount(sectionId, count);
+	}
+
+	/**
+	 * Computes the item count for a prompts-based section using the prompts service.
+	 */
+	private async computePromptsSectionCount(sectionId: AICustomizationManagementSection): Promise<number> {
+		const promptType = sectionToPromptType(sectionId);
+		const filter = this.workspaceService.getStorageSourceFilter(promptType);
+
+		if (promptType === PromptsType.agent) {
+			const agents = await this.promptsService.getCustomAgents(CancellationToken.None);
+			return applyStorageSourceFilter(agents.map(a => ({ uri: a.uri, storage: a.source.storage })), filter).length;
+		} else if (promptType === PromptsType.skill) {
+			const skills = await this.promptsService.findAgentSkills(CancellationToken.None);
+			return applyStorageSourceFilter((skills || []).map(s => ({ uri: s.uri, storage: s.storage })), filter).length;
+		} else if (promptType === PromptsType.prompt) {
+			const commands = await this.promptsService.getPromptSlashCommands(CancellationToken.None);
+			const items = commands
+				.filter(c => c.promptPath.type !== PromptsType.skill)
+				.map(c => ({ uri: c.promptPath.uri, storage: c.promptPath.storage }));
+			return applyStorageSourceFilter(items, filter).length;
+		} else if (promptType === PromptsType.hook) {
+			const hookFiles = await this.promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None);
+			return applyStorageSourceFilter(hookFiles.map(h => ({ uri: h.uri, storage: h.storage })), filter).length;
+		} else {
+			// Instructions
+			const promptFiles = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
+			const agentInstructions = await this.promptsService.listAgentInstructions(CancellationToken.None, undefined);
+			const allItems = [...promptFiles, ...agentInstructions.map(f => ({ uri: f.uri, storage: PromptsStorage.local as string }))];
+			return applyStorageSourceFilter(allItems, filter).length;
+		}
+	}
+
+	/**
+	 * Refreshes counts for all sections. Called once during initialization.
+	 */
+	private async refreshAllSectionCounts(): Promise<void> {
+		const promises: Promise<void>[] = [];
+		for (const section of this.sections) {
+			if (this.isPromptsSection(section.id)) {
+				promises.push(this.refreshPromptsSectionCount(section.id));
+			}
+			// MCP, Plugins, and Models counts are driven by their widget events
+		}
+		await Promise.all(promises);
+	}
+
+	//#endregion
 
 	private selectSection(section: AICustomizationManagementSection): void {
 		if (this.selectedSection === section) {
