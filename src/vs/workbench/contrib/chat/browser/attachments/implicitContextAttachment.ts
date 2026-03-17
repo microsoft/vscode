@@ -99,7 +99,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		// Create toggle button BEFORE the label so it appears on the left
 		if (isSuggestedEnabled) {
 			if (!isSelection) {
-				const buttonMsg = context.enabled ? localize('disable', "Disable current {0} context", attachmentTypeName) : '';
+				const buttonMsg = context.enabled ? localize('removeImplicitContext', "Remove current {0} context", attachmentTypeName) : localize('addToContext', "Add to context");
 				const toggleButton = this.renderDisposables.add(new Button(contextNode, { supportIcons: true, title: buttonMsg }));
 				toggleButton.icon = context.enabled ? Codicon.x : Codicon.plus;
 				this.renderDisposables.add(toggleButton.onDidClick(async (e) => {
@@ -158,6 +158,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		if (isStringImplicitContextValue(context.value)) {
 			markdownTooltip = context.value.tooltip;
 			title = this.renderString(label, context.name, context.icon, context.value.resourceUri, markdownTooltip, localize('openFile', "Current file context"));
+			contextNode.ariaLabel = localize('chat.implicitStringContext', "Suggested context, {0}", context.name);
 		} else {
 			title = this.renderResource(context.value, context.isSelection, context.enabled, label, contextNode);
 		}
@@ -214,7 +215,8 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const fileBasename = basename(file);
 		const fileDirname = dirname(file);
 		const friendlyName = `${fileBasename} ${fileDirname}`;
-		const ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached {0}, {1}, line {2} to line {3}", attachmentTypeName, friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached {0}, {1}", attachmentTypeName, friendlyName);
+		const baseAriaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached {0}, {1}, line {2} to line {3}", attachmentTypeName, friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached {0}, {1}", attachmentTypeName, friendlyName);
+		const ariaLabel = localize('chat.implicitFileContext', "Suggested context, {0}", baseAriaLabel);
 
 		const uriLabel = this.labelService.getUriLabel(file, { relative: true });
 		const currentFile = localize('openEditor', "Current {0} context", attachmentTypeName);
