@@ -157,13 +157,14 @@ function parseScpMarketplaceReference(rawValue: string): IMarketplaceReference |
 		return undefined;
 	}
 
+	const gitSuffix = '.git';
 	const authority = match[2];
 	const pathWithGit = match[3].replace(/^\/+/, '');
-	if (!pathWithGit.toLowerCase().endsWith('.git')) {
+	if (!pathWithGit.toLowerCase().endsWith(gitSuffix)) {
 		return undefined;
 	}
 
-	const pathWithoutGit = pathWithGit.slice(0, -4);
+	const pathWithoutGit = pathWithGit.slice(0, -gitSuffix.length);
 	const pathSegments = pathWithoutGit.split('/').map(sanitizePathSegment);
 	const githubRepo = extractGitHubRepo(authority, pathWithoutGit);
 
