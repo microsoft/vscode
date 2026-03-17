@@ -34,6 +34,9 @@ import { AgentSideEffects } from './agentSideEffects.js';
 import { SessionStateManager } from './sessionStateManager.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
+import { FileService } from '../../files/common/fileService.js';
+import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
+import { Schemas } from '../../../base/common/network.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -140,6 +143,10 @@ async function main(): Promise<void> {
 	// Observable agents list for root state
 	const registeredAgents = observableValue<readonly IAgent[]>('agents', []);
 
+	// File service
+	const fileService = disposables.add(new FileService(logService));
+	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
+
 	// Shared side-effect handler
 	const sideEffects = disposables.add(new AgentSideEffects(stateManager, {
 		getAgent(session) {
@@ -147,7 +154,7 @@ async function main(): Promise<void> {
 			return provider ? agents.get(provider) : agents.values().next().value;
 		},
 		agents: registeredAgents,
-	}, logService));
+	}, logService, fileService));
 
 	function registerAgent(agent: IAgent): void {
 		agents.set(agent.id, agent);

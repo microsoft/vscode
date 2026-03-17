@@ -26,6 +26,9 @@ import { DefaultURITransformer } from '../../../base/common/uriIpc.js';
 import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
 import { localize } from '../../../nls.js';
+import { FileService } from '../../files/common/fileService.js';
+import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
+import { Schemas } from '../../../base/common/network.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
@@ -54,10 +57,14 @@ function startAgentHost(): void {
 	const logService = new LogService(logger);
 	logService.info('Agent Host process started successfully');
 
+	// File service
+	const fileService = disposables.add(new FileService(logService));
+	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
+
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
 	try {
-		agentService = new AgentService(logService);
+		agentService = new AgentService(logService, fileService);
 		agentService.registerProvider(new CopilotAgent(logService));
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
