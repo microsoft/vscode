@@ -113,6 +113,11 @@ export function validate(allowStylesheet: boolean = true): boolean {
 	if (!allowStylesheet && isStyleSheet(editor.document.languageId)) {
 		return false;
 	}
+	const mappedModes = getMappingForIncludedLanguages();
+	const excludedLanguages = vscode.workspace.getConfiguration('emmet').get<string[]>('excludeLanguages') ?? [];
+	if (!getEmmetMode(editor.document.languageId, mappedModes, excludedLanguages)) {
+		return false;
+	}
 	return true;
 }
 
