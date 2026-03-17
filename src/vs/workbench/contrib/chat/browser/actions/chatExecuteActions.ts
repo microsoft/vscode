@@ -481,7 +481,7 @@ export class OpenModelConfigPickerAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		// TODO: open the config picker
+		// The picker is opened by the ModelConfigPickerActionItem view item on click
 	}
 }
 
