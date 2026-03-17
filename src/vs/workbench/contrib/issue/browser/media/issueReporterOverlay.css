@@ -32,7 +32,6 @@ body.issue-reporter-active {
 	overflow: hidden;
 	transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 	background: var(--vscode-editor-background, #1e1e1e);
-	border-bottom: 3px solid var(--vscode-focusBorder, #007acc);
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, sans-serif;
 	font-size: 13px;
 	color: var(--vscode-foreground, #ccc);
@@ -40,6 +39,28 @@ body.issue-reporter-active {
 
 .issue-reporter-wizard.open {
 	max-height: 60vh;
+	overflow: visible;
+}
+
+/* ── Resize Sash ── */
+.wizard-resize-sash {
+	flex-shrink: 0;
+	height: 4px;
+	cursor: ns-resize;
+	background: var(--vscode-sash-hoverBorder, var(--vscode-focusBorder, #007acc));
+	opacity: 0;
+	transition: opacity 0.15s ease;
+	z-index: 1;
+}
+
+.wizard-resize-sash:hover,
+body.wizard-resizing .wizard-resize-sash {
+	opacity: 1;
+}
+
+body.wizard-resizing {
+	cursor: ns-resize !important;
+	user-select: none !important;
 }
 
 /* ── Toolbar ── */
@@ -127,7 +148,7 @@ body.issue-reporter-active {
 	flex: 1;
 	position: relative;
 	overflow: hidden;
-	min-height: 250px;
+	min-height: 150px;
 }
 
 /* ── Individual Steps ── */

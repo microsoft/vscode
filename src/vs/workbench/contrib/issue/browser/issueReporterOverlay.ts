@@ -90,6 +90,7 @@ export class IssueReporterOverlay {
 	private readonly model: IssueReporterModel;
 	private visible = false;
 	private animating = false;
+	private resizeSash!: HTMLElement;
 
 	constructor(
 		private readonly data: IssueReporterData,
@@ -161,6 +162,10 @@ export class IssueReporterOverlay {
 
 		this.registerEventHandlers();
 		this.updateStepUI();
+
+		// ── Resize sash ──
+		this.resizeSash = $('div.wizard-resize-sash');
+		this.setupResizeSash();
 	}
 
 	// ── Step 1: Describe ──
@@ -401,6 +406,34 @@ export class IssueReporterOverlay {
 		}));
 	}
 
+	private setupResizeSash(): void {
+		let startY = 0;
+		let startHeight = 0;
+
+		const onPointerMove = (e: PointerEvent) => {
+			const delta = e.clientY - startY;
+			const newHeight = Math.max(150, Math.min(startHeight + delta, window.innerHeight - 100));
+			this.wizardPanel.style.height = `${newHeight}px`;
+			this.wizardPanel.style.maxHeight = 'none';
+			this.layoutService.layout();
+		};
+
+		const onPointerUp = () => {
+			document.removeEventListener('pointermove', onPointerMove);
+			document.removeEventListener('pointerup', onPointerUp);
+			document.body.classList.remove('wizard-resizing');
+		};
+
+		this.disposables.add(addDisposableListener(this.resizeSash, EventType.POINTER_DOWN, (e: PointerEvent) => {
+			e.preventDefault();
+			startY = e.clientY;
+			startHeight = this.wizardPanel.offsetHeight;
+			document.body.classList.add('wizard-resizing');
+			document.addEventListener('pointermove', onPointerMove);
+			document.addEventListener('pointerup', onPointerUp);
+		}));
+	}
+
 	private goBack(): void {
 		if (this.currentStep > WizardStep.Describe) {
 			this.setStep(this.currentStep - 1);
@@ -590,8 +623,9 @@ export class IssueReporterOverlay {
 
 		body.classList.add('issue-reporter-active');
 
-		// Insert wizard panel BEFORE the workbench
+		// Insert wizard panel BEFORE the workbench, sash between them
 		body.insertBefore(this.wizardPanel, workbenchContainer);
+		body.insertBefore(this.resizeSash, workbenchContainer);
 
 		// Animate open: panel starts collapsed, then expands
 		this.animating = true;
@@ -611,6 +645,7 @@ export class IssueReporterOverlay {
 
 		this.disposables.add(toDisposable(() => {
 			this.wizardPanel.remove();
+			this.resizeSash.remove();
 			body.classList.remove('issue-reporter-active');
 			this.layoutService.layout();
 			this.visible = false;
@@ -624,10 +659,13 @@ export class IssueReporterOverlay {
 
 		this.animating = true;
 		this.wizardPanel.classList.remove('open');
+		this.wizardPanel.style.height = '';
+		this.wizardPanel.style.maxHeight = '';
 
 		const onTransitionEnd = () => {
 			this.wizardPanel.removeEventListener('transitionend', onTransitionEnd);
 			this.wizardPanel.remove();
+			this.resizeSash.remove();
 			const targetWindow = getWindow(this.layoutService.mainContainer);
 			targetWindow.document.body.classList.remove('issue-reporter-active');
 			this.layoutService.layout();
@@ -782,10 +820,12 @@ export class IssueReporterOverlay {
 
 	hideForCapture(): void {
 		this.wizardPanel.style.visibility = 'hidden';
+		this.resizeSash.style.visibility = 'hidden';
 	}
 
 	showAfterCapture(): void {
 		this.wizardPanel.style.visibility = '';
+		this.resizeSash.style.visibility = '';
 	}
 
 	setRecordingState(state: RecordingState): void {
