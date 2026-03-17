@@ -1101,6 +1101,7 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 				uri: stat.resource,
 				fromMarketplace: entry.plugin,
 				remove: () => {
+					this._enablementModel.remove(stat.resource.toString());
 					this._pluginMarketplaceService.removeInstalledPlugin(entry.pluginUri);
 					this._pluginRepositoryService.cleanupPluginSource(entry.plugin).catch(error => {
 						this._logService.error('[MarketplaceAgentPluginDiscovery] Failed to clean up plugin source', error);
