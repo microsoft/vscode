@@ -311,11 +311,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Restore draft input state from storage
 		this._restoreState();
 
-		// Create initial session — if a project was restored, go through
-		// _onProjectSelected to handle trust and target consistently
+		// Create initial session
 		const restoredProject = this._projectPicker.selectedProject;
 		if (restoredProject) {
-			this._onProjectSelected(restoredProject);
+			this._createNewSession(restoredProject);
 		} else {
 			this._createNewSession();
 		}
