@@ -820,10 +820,9 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	private groupSessionsIntoSections(sessions: IAgentSession[]): AgentSessionListItem[] {
 		const isCapped = this.filter?.groupResults?.() === AgentSessionsGrouping.Capped;
 
-		// Prioritize sessions asking for input when using capped grouping
 		const sorter = this.sorter;
 		const sortedSessions = sorter instanceof AgentSessionsSorter
-			? sessions.sort((a, b) => sorter.compare(a, b, isCapped))
+			? sessions.sort((a, b) => sorter.compare(a, b, isCapped /* special sorting for when results are capped to keep active ones top */))
 			: sessions.sort(sorter.compare.bind(sorter));
 
 		if (isCapped) {
@@ -1203,15 +1202,10 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 			return 1; // a (archived) comes after b (non-archived)
 		}
 
-		// Sort by creation time (most recent first)
-		let sessionATime = sessionA.timing.created;
-		let sessionBTime = sessionB.timing.created;
-		if (prioritizeActiveSessions) {
-			sessionATime = sessionA.timing.lastRequestStarted ?? sessionATime;
-			sessionBTime = sessionB.timing.lastRequestStarted ?? sessionBTime;
-		}
-
-		return sessionBTime - sessionATime;
+		// Sort by time
+		const timeA = prioritizeActiveSessions ? sessionA.timing.lastRequestStarted ?? sessionA.timing.created : sessionA.timing.created;
+		const timeB = prioritizeActiveSessions ? sessionB.timing.lastRequestStarted ?? sessionB.timing.created : sessionB.timing.created;
+		return timeB - timeA;
 	}
 }
 
