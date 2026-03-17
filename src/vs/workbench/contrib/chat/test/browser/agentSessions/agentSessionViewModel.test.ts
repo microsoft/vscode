@@ -129,13 +129,15 @@ suite('AgentSessions', () => {
 				let willResolveFired = false;
 				let didResolveFired = false;
 
-				disposables.add(viewModel.onWillResolve(() => {
+				disposables.add(viewModel.onWillResolve(provider => {
 					willResolveFired = true;
+					assert.strictEqual(typeof provider, 'string', 'onWillResolve should carry the provider');
 					assert.strictEqual(didResolveFired, false, 'onDidResolve should not fire before onWillResolve completes');
 				}));
 
-				disposables.add(viewModel.onDidResolve(() => {
+				disposables.add(viewModel.onDidResolve(provider => {
 					didResolveFired = true;
+					assert.strictEqual(typeof provider, 'string', 'onDidResolve should carry the provider');
 					assert.strictEqual(willResolveFired, true, 'onWillResolve should fire before onDidResolve');
 				}));
 
@@ -217,8 +219,8 @@ suite('AgentSessions', () => {
 
 				// Now resolve only type-1
 				await viewModel.resolve('type-1');
-				// Only type-1 sessions remain since non-resolved providers are cleared
-				assert.strictEqual(viewModel.sessions.length, 1);
+				// Per-provider resolution preserves sessions from other providers
+				assert.strictEqual(viewModel.sessions.length, 2);
 			});
 		});
 
@@ -459,7 +461,7 @@ suite('AgentSessions', () => {
 			});
 		});
 
-		test('should not preserve sessions from non-resolved controllers', async () => {
+		test('should preserve sessions from non-resolved controllers', async () => {
 			return runWithFakedTimers({}, async () => {
 				let controller1CallCount = 0;
 				let controller2CallCount = 0;
@@ -506,12 +508,62 @@ suite('AgentSessions', () => {
 				// Now resolve only type-2
 				await viewModel.resolve('type-2');
 
-				// Should still have only one session
-				assert.strictEqual(viewModel.sessions.length, 1);
+				// Per-provider resolution: type-1 sessions are preserved
+				assert.strictEqual(viewModel.sessions.length, 2);
 				// Controller 1 should not be called again
 				assert.strictEqual(controller1CallCount, 2);
 				// Controller 2 should be called again
 				assert.strictEqual(controller2CallCount, 3);
+			});
+		});
+
+		test('should resolve providers independently (per-provider delayers)', async () => {
+			return runWithFakedTimers({}, async () => {
+				let controller1RefreshCount = 0;
+				let controller2RefreshCount = 0;
+				let _items1: IChatSessionItem[] = [];
+				let _items2: IChatSessionItem[] = [];
+
+				const controller1: IChatSessionItemController = {
+					onDidChangeChatSessionItems: Event.None,
+					refresh: async () => {
+						controller1RefreshCount++;
+						_items1 = [makeSimpleSessionItem('session-1', { label: `Session 1 v${controller1RefreshCount}` })];
+					},
+					get items() { return _items1; }
+				};
+
+				const controller2: IChatSessionItemController = {
+					onDidChangeChatSessionItems: Event.None,
+					refresh: async () => {
+						controller2RefreshCount++;
+						_items2 = [makeSimpleSessionItem('session-2', { label: `Session 2 v${controller2RefreshCount}` })];
+					},
+					get items() { return _items2; }
+				};
+
+				mockChatSessionsService.registerChatSessionItemController('type-1', controller1);
+				mockChatSessionsService.registerChatSessionItemController('type-2', controller2);
+
+				viewModel = createViewModel();
+
+				// Resolve all to populate both providers
+				await viewModel.resolve(undefined);
+				assert.strictEqual(viewModel.sessions.length, 2);
+
+				// Resolve only type-1: should refresh only type-1, preserve type-2
+				const type1RefreshBefore = controller1RefreshCount;
+				const type2RefreshBefore = controller2RefreshCount;
+				await viewModel.resolve('type-1');
+
+				assert.strictEqual(controller1RefreshCount, type1RefreshBefore + 1);
+				assert.strictEqual(controller2RefreshCount, type2RefreshBefore); // not refreshed
+				assert.strictEqual(viewModel.sessions.length, 2); // type-2 session preserved
+
+				// Resolve only type-2: should refresh only type-2, preserve type-1
+				await viewModel.resolve('type-2');
+				assert.strictEqual(controller2RefreshCount, type2RefreshBefore + 1);
+				assert.strictEqual(viewModel.sessions.length, 2); // type-1 session preserved
 			});
 		});
 
