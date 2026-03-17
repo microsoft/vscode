@@ -39,7 +39,7 @@ body.issue-reporter-active {
 }
 
 .issue-reporter-wizard.open {
-	max-height: 50vh;
+	max-height: 60vh;
 }
 
 /* ── Toolbar ── */
@@ -127,7 +127,7 @@ body.issue-reporter-active {
 	flex: 1;
 	position: relative;
 	overflow: hidden;
-	min-height: 0;
+	min-height: 250px;
 }
 
 /* ── Individual Steps ── */
