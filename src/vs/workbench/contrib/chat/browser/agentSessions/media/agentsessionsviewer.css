@@ -237,7 +237,6 @@
 		.agent-session-description.has-separator::before {
 			content: '\00B7';
 			margin-right: 4px;
-			flex-shrink: 0;
 		}
 
 		.agent-session-title {
