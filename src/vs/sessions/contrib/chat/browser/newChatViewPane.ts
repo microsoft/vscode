@@ -374,9 +374,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Set the current mode on the session (for local sessions)
 		session.setMode(this._modePicker.selectedMode);
 
-		// Open repository for the session's repoUri
-		if (session.project?.uri) {
-			this._openRepository(session.project?.uri);
+		// Open repository for local folder projects
+		if (session.project?.isFolder) {
+			this._openRepository(session.project.uri);
 		}
 
 		// Listen for session changes
