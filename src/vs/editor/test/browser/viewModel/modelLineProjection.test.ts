@@ -105,7 +105,6 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			1,
 			model,
 			lineBreaksComputerFactory,
-			lineBreaksComputerFactory,
 			config.options,
 			model.getOptions().tabSize
 		);
@@ -944,7 +943,6 @@ suite('SplitLinesCollection', () => {
 		const linesCollection = new ViewModelLinesFromProjectedModel(
 			1,
 			model,
-			lineBreaksComputerFactory,
 			lineBreaksComputerFactory,
 			configuration.options,
 			model.getOptions().tabSize

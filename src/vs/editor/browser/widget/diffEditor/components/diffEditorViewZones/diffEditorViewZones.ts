@@ -164,17 +164,29 @@ export class DiffEditorViewZones extends Disposable {
 			}
 
 			const renderSideBySide = this._options.renderSideBySide.read(reader);
+			const originalModel = this._editors.original.getModel()!;
 			const context: ILineBreaksComputerContext = {
+				getLineMaxColumn: (lineNumber: number): number => {
+					return originalModel.getLineMaxColumn(lineNumber);
+				},
 				getLineContent: (lineNumber: number): string => {
-					return this._editors.original.getModel()!.getLineContent(lineNumber);
+					return originalModel.getLineContent(lineNumber);
 				},
 				getLineInjectedText: (lineNumber: number) => {
 					return null;
+				},
+				getLineInlineDecorations: (lineNumber: number) => {
+					return [];
+				},
+				getLineTokens: (lineNumber: number) => {
+					return originalModel.getLineTokens(lineNumber);
+				},
+				hasVariableFonts: (lineNumber: number) => {
+					return false;
 				}
 			};
 			const deletedCodeLineBreaksComputer = !renderSideBySide ? this._editors.modified._getViewModel()?.createLineBreaksComputer(context) : undefined;
 			if (deletedCodeLineBreaksComputer) {
-				const originalModel = this._editors.original.getModel()!;
 				for (const a of alignmentsVal) {
 					if (a.diff) {
 						for (let i = a.originalRange.startLineNumber; i < a.originalRange.endLineNumberExclusive; i++) {

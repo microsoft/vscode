@@ -9,6 +9,8 @@ import { FontInfo } from '../../../common/config/fontInfo.js';
 import { ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
 import { ComputedEditorOptions } from '../../../browser/config/editorConfiguration.js';
+import { LanguageIdCodec } from '../../../common/services/languagesRegistry.js';
+import { LineTokens } from '../../../common/tokens/lineTokens.js';
 
 function parseAnnotatedText(annotatedText: string): { text: string; indices: number[] } {
 	let text = '';
@@ -65,11 +67,23 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 		maxDigitWidth: 7
 	}, false);
 	const context: ILineBreaksComputerContext = {
+		getLineMaxColumn(lineNumber) {
+			return text.length;
+		},
 		getLineContent(lineNumber: number) {
 			return text;
 		},
+		getLineInlineDecorations(lineNumber: number) {
+			return [];
+		},
+		getLineTokens(lineNumber: number) {
+			return new LineTokens(new Uint32Array(text.length), text, new LanguageIdCodec());
+		},
 		getLineInjectedText(lineNumber) {
 			return null;
+		},
+		hasVariableFonts(lineNumber) {
+			return false;
 		}
 	};
 	const options = new ComputedEditorOptions();

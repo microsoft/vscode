@@ -70,8 +70,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		editorId: number,
 		configuration: IEditorConfiguration,
 		model: ITextModel,
-		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
-		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
+		lineBreaksComputer: ILineBreaksComputerFactory,
 		scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable,
 		private readonly languageConfigurationService: ILanguageConfigurationService,
 		private readonly _themeService: IThemeService,
@@ -100,8 +99,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
 				this.model,
-				domLineBreaksComputerFactory,
-				monospaceLineBreaksComputerFactory,
+				lineBreaksComputer,
 				options,
 				this.model.getOptions().tabSize
 			);
@@ -296,9 +294,39 @@ export class ViewModel extends Disposable implements IViewModel {
 		}
 	}
 
-	/**
-	 * Gets called directly by the text model.
-	 */
+	onFontChanged(e: textModelEvents.ModelFontChangedEvent): void {
+		try {
+			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
+			const lineBreaksComputer = this._lines.createLineBreaksComputer();
+			for (const change of e.changes) {
+				lineBreaksComputer.addRequest(change.lineNumber, null);
+			}
+			const lineBreaks = lineBreaksComputer.finalize();
+			const lineBreakQueue = new ArrayQueue(lineBreaks);
+			let lineMappingHasChanged = false;
+			for (const change of e.changes) {
+				const changedLineBreakData = lineBreakQueue.dequeue()!;
+				const [lineMappingChanged, linesChangedEvent] = this._lines.onModelFontChanged(change.lineNumber, changedLineBreakData);
+				lineMappingHasChanged = lineMappingChanged;
+				if (linesChangedEvent) {
+					eventsCollector.emitViewEvent(linesChangedEvent);
+				}
+			}
+			this.viewLayout.onHeightMaybeChanged();
+			if (lineMappingHasChanged) {
+				eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
+				eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
+				this._cursor.onLineMappingChanged(eventsCollector);
+				this._decorations.onLineMappingChanged();
+				this.viewLayout.onFlushed(this.getLineCount(), this._getCustomLineHeights());
+			}
+		} finally {
+			this._eventDispatcher.endEmitViewEvents();
+		}
+		this._updateConfigurationViewLineCountNow();
+		this._handleVisibleLinesChanged();
+	}
+
 	onDidChangeContentOrInjectedText(e: textModelEvents.InternalModelContentChangeEvent | textModelEvents.ModelInjectedTextChangedEvent): void {
 
 		try {

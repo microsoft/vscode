@@ -857,6 +857,14 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._buffer.getLineContent(lineNumber);
 	}
 
+	public getLineTokens(lineNumber: number): LineTokens {
+		const lineTokens = this.tokenization.getLineTokens(lineNumber);
+		const lineInjectedText = this.getLineInjectedText(lineNumber);
+		const injectionOptions = lineInjectedText.map(t => t.options);
+		const injectionOffsets = lineInjectedText.map(text => text.column - 1);
+		return getLineTokensWithInjections(lineTokens, injectionOptions, injectionOffsets);
+	}
+
 	public getLineLength(lineNumber: number): number {
 		this._assertNotDisposed();
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
@@ -1645,7 +1653,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (affectedFontLines && affectedFontLines.size > 0) {
 			const affectedLines = Array.from(affectedFontLines);
 			const fontChangeEvent = affectedLines.map(fontChange => new ModelFontChanged(fontChange.ownerId, fontChange.lineNumber));
-			this._onDidChangeFont.fire(new ModelFontChangedEvent(fontChangeEvent));
+			const modelFontChangedEvent = new ModelFontChangedEvent(fontChangeEvent);
+			this._onDidChangeFont.fire(modelFontChangedEvent);
+			for (const viewModel of this._viewModels) {
+				viewModel.onFontChanged(modelFontChangedEvent);
+			}
 		}
 	}
 
