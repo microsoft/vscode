@@ -324,13 +324,30 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 		if (existingTask) {
 			if (mode === 'configure') {
-				const updatedTask: ITaskEntry = {
-					label: taskConfiguration.label?.trim() || taskConfiguration.command,
-					type: 'shell',
-					command: taskConfiguration.command,
+				const newLabel = taskConfiguration.label?.trim() || existingTask.task.label || taskConfiguration.command;
+
+				let updatedTask: ITaskEntry = {
+					...existingTask.task,
+					label: newLabel,
 					inSessions: true,
-					...(taskConfiguration.runOn ? { runOptions: { runOn: taskConfiguration.runOn } } : {}),
 				};
+
+				if (taskConfiguration.command && 'command' in existingTask.task) {
+					updatedTask = {
+						...updatedTask,
+						command: taskConfiguration.command,
+					};
+				}
+
+				if (taskConfiguration.runOn) {
+					updatedTask = {
+						...updatedTask,
+						runOptions: {
+							...(existingTask.task.runOptions ?? {}),
+							runOn: taskConfiguration.runOn,
+						},
+					};
+				}
 
 				await this._sessionsConfigService.updateTask(existingTask.task.label, updatedTask, session, existingTask.target, taskConfiguration.target);
 				return updatedTask;
