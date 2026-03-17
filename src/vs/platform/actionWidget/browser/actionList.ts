@@ -206,16 +206,15 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		badge.className = 'action-item-badge';
 		container.append(badge);
 
+		const description = document.createElement('span');
+		description.className = 'description';
+		container.append(description);
+
 		const keybinding = new KeybindingLabel(container, OS);
 
 		const toolbar = document.createElement('div');
 		toolbar.className = 'action-list-item-toolbar';
 		container.append(toolbar);
-
-		// Description element at the far right
-		const description = document.createElement('span');
-		description.className = 'description';
-		container.append(description);
 
 		const elementDisposables = new DisposableStore();
 
