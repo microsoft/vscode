@@ -156,6 +156,12 @@ export class ModelConfigPickerActionItem extends BaseActionViewItem {
 		const items: IActionListItem<IAction>[] = [];
 		for (const action of actions) {
 			if (action instanceof SubmenuAction) {
+				// Add header with the group label (e.g., "Select Thinking Effort")
+				items.push({
+					kind: ActionListItemKind.Header,
+					label: action.label,
+					group: { title: '' },
+				});
 				for (const child of action.actions) {
 					items.push({
 						item: child,
