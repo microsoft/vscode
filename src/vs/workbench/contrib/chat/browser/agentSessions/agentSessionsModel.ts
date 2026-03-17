@@ -446,7 +446,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			}
 
 			for (const chatSessionType of changedChatSessionTypes) {
-				this.updateItems(chatSessionType, CancellationToken.None);
+				this.resolveProvider(chatSessionType, { refreshProvider: false /* already handled by delta */ });
 			}
 		}));
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.resolve(undefined)));
@@ -468,12 +468,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			? provider
 			: provider !== undefined
 				? [provider]
-				: this.chatSessionsService.getAllChatSessionContributions().map(c => c.type);
+				: this.chatSessionsService.getAllChatSessionContributions().map(contribution => contribution.type);
 
-		await Promise.all(providers.map(p => this.resolveProvider(p)));
+		await Promise.all(providers.map(provider => this.resolveProvider(provider, { refreshProvider: true })));
 	}
 
-	private resolveProvider(provider: string): Promise<void> {
+	private resolveProvider(provider: string, options: { refreshProvider: boolean }): Promise<void> {
 		let resolver = this.resolvers.get(provider);
 		if (!resolver) {
 			resolver = new ThrottledDelayer<void>(300);
@@ -487,22 +487,18 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 			try {
 				this._onWillResolve.fire(provider);
-				return await this.doResolve(provider, token);
+				return await this.doResolve(provider, options, token);
 			} finally {
 				this._onDidResolve.fire(provider);
 			}
 		});
 	}
 
-	private async doResolve(provider: string, token: CancellationToken): Promise<void> {
-		await this.chatSessionsService.refreshChatSessionItems([provider], token);
-		await this.updateItems(provider, token);
-	}
+	private async doResolve(provider: string, options: { refreshProvider: boolean }, token: CancellationToken): Promise<void> {
+		if (options.refreshProvider) {
+			await this.chatSessionsService.refreshChatSessionItems([provider], token);
+		}
 
-	/**
-	 * Update the sessions by fetching from the service. This does not trigger an explicit refresh
-	 */
-	private async updateItems(provider: string, token: CancellationToken): Promise<void> {
 		const mapSessionContributionToType = new Map<string, ResolvedChatSessionsExtensionPoint>();
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
 			mapSessionContributionToType.set(contribution.type, contribution);
