@@ -68,7 +68,7 @@ export class LocalNewSession extends Disposable implements INewSession {
 
 	private _repoUri: URI | undefined;
 	private _project: SessionProject | undefined;
-	private _targetMode: TargetMode = 'worktree';
+	private _targetMode: TargetMode;
 	private _branch: string | undefined;
 	private _modelId: string | undefined;
 	private _mode: IChatMode | undefined;
@@ -82,7 +82,8 @@ export class LocalNewSession extends Disposable implements INewSession {
 	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
 
 	get project(): SessionProject | undefined { return this._project; }
-	get targetMode(): TargetMode { return this._targetMode; }	get branch(): string | undefined { return this._branch; }
+	get targetMode(): TargetMode { return this._targetMode; }
+	get branch(): string | undefined { return this._branch; }
 	get modelId(): string | undefined { return this._modelId; }
 	get mode(): IChatMode | undefined { return this._mode; }
 	get query(): string | undefined { return this._query; }
@@ -108,12 +109,14 @@ export class LocalNewSession extends Disposable implements INewSession {
 			this._repoUri = defaultRepoUri;
 			this.setOption(REPOSITORY_OPTION_ID, defaultRepoUri.fsPath);
 		}
+		this._targetMode = 'worktree';
+		this.setOption(ISOLATION_OPTION_ID, 'worktree');
 	}
 
 	setProject(project: SessionProject): void {
 		this._project = project;
 		this._repoUri = project.uri;
-		this._targetMode = 'workspace';
+		this.setTargetMode('worktree');
 		this._branch = undefined;
 		this._onDidChange.fire('repoUri');
 		this._onDidChange.fire('disabled');
