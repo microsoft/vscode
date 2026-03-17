@@ -2709,7 +2709,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 */
 	private async _autoAttachInstructions({ attachedContext }: IChatRequestInputOptions): Promise<void> {
 		const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
-		if (contribution?.autoAttachReferences === false) {
+		if (!contribution?.autoAttachReferences) {
 			this.logService.debug(`ChatWidget#_autoAttachInstructions: skipped, autoAttachReferences is disabled`);
 			return;
 		}
