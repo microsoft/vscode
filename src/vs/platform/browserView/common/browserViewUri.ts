@@ -21,7 +21,7 @@ export namespace BrowserViewUri {
 	}
 
 	/**
-	 * Parses a browser view resource URI to extract the ID and URL.
+	 * Parses a browser view resource URI to extract the ID.
 	 */
 	export function parse(resource: URI): { id: string } | undefined {
 		if (resource.scheme !== scheme) {
