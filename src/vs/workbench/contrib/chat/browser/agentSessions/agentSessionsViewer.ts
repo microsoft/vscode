@@ -253,11 +253,12 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(hasAgentSessionChanges);
 
 
-		// Separator (dot between badge and diff)
-		template.separator.classList.toggle('has-separator', hasBadge && hasDiff);
-
 		// Description
-		this.renderDescription(session, template);
+		const hasDescription = this.renderDescription(session, template);
+
+		// Separators: dot between badge·diff, and between (badge|diff)·description
+		template.separator.classList.toggle('has-separator', hasBadge && hasDiff);
+		template.description.classList.toggle('has-separator', hasDescription && (hasBadge || hasDiff));
 
 		// Status
 		this.renderStatus(session, template);
@@ -354,23 +355,27 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		return Codicon.circleSmallFilled;
 	}
 
-	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
 		const description = session.element.description;
 		if (description) {
 			this.renderMarkdownOrText(description, template.description, template.elementDisposable);
-			return;
+			return true;
 		}
 
 		// Fallback to state label
 		if (session.element.status === AgentSessionStatus.InProgress) {
 			template.description.textContent = localize('chat.session.status.inProgress', "Working...");
+			return true;
 		} else if (session.element.status === AgentSessionStatus.NeedsInput) {
 			template.description.textContent = localize('chat.session.status.needsInput', "Input needed.");
+			return true;
 		} else if (session.element.status === AgentSessionStatus.Failed) {
 			template.description.textContent = localize('chat.session.status.failed', "Failed");
-		} else {
-			template.description.textContent = '';
+			return true;
 		}
+
+		template.description.textContent = '';
+		return false;
 	}
 
 	private toDuration(startTime: number, endTime: number, useFullTimeWords: boolean, disallowNow: boolean): string {
