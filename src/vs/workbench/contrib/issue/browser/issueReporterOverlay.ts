@@ -14,6 +14,7 @@ import { localize } from '../../../../nls.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IssueReporterData, IssueType } from '../common/issue.js';
 import { IssueReporterModel } from './issueReporterModel.js';
+import { RecordingState } from './recordingService.js';
 import { ScreenshotAnnotationEditor } from './screenshotAnnotation.js';
 
 const MAX_SCREENSHOTS = 3;
@@ -34,6 +35,12 @@ export class IssueReporterOverlay {
 	readonly onDidSubmit: Event<{ title: string; body: string; shouldCreate: boolean; isPrivate: boolean }> = this._onDidSubmit.event;
 	private readonly _onDidRequestScreenshot = new Emitter<void>();
 	readonly onDidRequestScreenshot: Event<void> = this._onDidRequestScreenshot.event;
+	private readonly _onDidRequestStartRecording = new Emitter<void>();
+	readonly onDidRequestStartRecording: Event<void> = this._onDidRequestStartRecording.event;
+	private readonly _onDidRequestStopRecording = new Emitter<void>();
+	readonly onDidRequestStopRecording: Event<void> = this._onDidRequestStopRecording.event;
+	private readonly _onDidRequestSaveRecording = new Emitter<void>();
+	readonly onDidRequestSaveRecording: Event<void> = this._onDidRequestSaveRecording.event;
 
 	private overlayContainer!: HTMLElement;
 	private titleInput!: HTMLInputElement;
@@ -47,16 +54,26 @@ export class IssueReporterOverlay {
 	private submitButton!: Button;
 	private cancelButton!: Button;
 
+	private recordButton!: Button;
+	private recordingIndicator!: HTMLElement;
+	private recordingElapsedLabel!: HTMLElement;
+	private saveRecordingButton!: Button;
+	private discardRecordingButton!: HTMLElement;
+
 	private readonly screenshots: IScreenshot[] = [];
 	private readonly model: IssueReporterModel;
 	private visible = false;
 	private screenshotDelay = 0; // seconds
 	private isScreenshotCountdownActive = false;
+	private recordingState = RecordingState.Idle;
+	private recordingElapsedTimer: ReturnType<typeof setInterval> | undefined;
+	private recordingStartTime = 0;
 
 	constructor(
 		private readonly data: IssueReporterData,
 		private readonly layoutService: IWorkbenchLayoutService,
 		private readonly updateWindowControlsColors?: (backgroundColor: string, foregroundColor: string) => void,
+		private readonly recordingSupported: boolean = false,
 	) {
 		this.model = new IssueReporterModel({
 			...data,
@@ -183,6 +200,35 @@ export class IssueReporterOverlay {
 		this.disposables.add(addDisposableListener(this.footerElement, EventType.CLICK, () => {
 			delayDropdown.style.display = 'none';
 		}));
+
+		// Recording controls (only when supported)
+		if (this.recordingSupported) {
+			const recordingRow = append(this.footerElement, $('div.issue-reporter-row.issue-reporter-recording-row'));
+
+			this.recordButton = this.disposables.add(new Button(recordingRow, unthemedButtonStyles));
+			this.recordButton.label = localize('startRecording', "Record");
+			this.recordButton.element.classList.add('record-btn');
+
+			// Recording indicator (hidden by default)
+			this.recordingIndicator = append(recordingRow, $('div.recording-indicator'));
+			this.recordingIndicator.style.display = 'none';
+			const redDot = append(this.recordingIndicator, $('span.recording-dot'));
+			redDot.textContent = '\u25CF'; // ● red circle
+			this.recordingElapsedLabel = append(this.recordingIndicator, $('span.recording-elapsed'));
+			this.recordingElapsedLabel.textContent = '0:00';
+
+			// Save recording button (hidden by default)
+			this.saveRecordingButton = this.disposables.add(new Button(recordingRow, unthemedButtonStyles));
+			this.saveRecordingButton.label = localize('saveRecording', "Save Recording");
+			this.saveRecordingButton.element.style.display = 'none';
+
+			// Discard recording button (hidden by default)
+			this.discardRecordingButton = append(recordingRow, $('div.recording-discard-btn'));
+			this.discardRecordingButton.setAttribute('role', 'button');
+			this.discardRecordingButton.setAttribute('aria-label', localize('discardRecording', "Discard recording"));
+			this.discardRecordingButton.textContent = '\u00D7'; // ×
+			this.discardRecordingButton.style.display = 'none';
+		}
 
 		const actionRow = append(this.footerElement, $('div.issue-reporter-row.issue-reporter-action-row'));
 		append(actionRow, $('div.spacer'));
@@ -319,6 +365,25 @@ export class IssueReporterOverlay {
 				isPrivate: false,
 			});
 		}));
+
+		// Recording controls event handlers
+		if (this.recordingSupported) {
+			this.disposables.add(this.recordButton.onDidClick(() => {
+				if (this.recordingState === RecordingState.Idle) {
+					this._onDidRequestStartRecording.fire();
+				} else if (this.recordingState === RecordingState.Recording) {
+					this._onDidRequestStopRecording.fire();
+				}
+			}));
+
+			this.disposables.add(this.saveRecordingButton.onDidClick(() => {
+				this._onDidRequestSaveRecording.fire();
+			}));
+
+			this.disposables.add(addDisposableListener(this.discardRecordingButton, EventType.CLICK, () => {
+				this.setRecordingState(RecordingState.Idle);
+			}));
+		}
 	}
 
 	show(): void {
@@ -464,6 +529,65 @@ export class IssueReporterOverlay {
 		return this.screenshots;
 	}
 
+	/** Update the recording UI to reflect the current state. */
+	setRecordingState(state: RecordingState): void {
+		this.recordingState = state;
+		if (!this.recordingSupported) {
+			return;
+		}
+
+		// Clear elapsed timer
+		if (this.recordingElapsedTimer !== undefined) {
+			clearInterval(this.recordingElapsedTimer);
+			this.recordingElapsedTimer = undefined;
+		}
+
+		switch (state) {
+			case RecordingState.Idle:
+				this.recordButton.label = localize('startRecording', "Record");
+				this.recordButton.element.classList.remove('recording');
+				this.recordButton.enabled = true;
+				this.recordingIndicator.style.display = 'none';
+				this.saveRecordingButton.element.style.display = 'none';
+				this.discardRecordingButton.style.display = 'none';
+				break;
+
+			case RecordingState.Recording:
+				this.recordButton.label = localize('stopRecording', "Stop");
+				this.recordButton.element.classList.add('recording');
+				this.recordButton.enabled = true;
+				this.recordingIndicator.style.display = 'flex';
+				this.recordingElapsedLabel.textContent = '0:00';
+				this.saveRecordingButton.element.style.display = 'none';
+				this.discardRecordingButton.style.display = 'none';
+
+				// Start elapsed timer
+				this.recordingStartTime = Date.now();
+				this.recordingElapsedTimer = setInterval(() => {
+					const elapsed = Math.floor((Date.now() - this.recordingStartTime) / 1000);
+					const mins = Math.floor(elapsed / 60);
+					const secs = elapsed % 60;
+					this.recordingElapsedLabel.textContent = `${mins}:${String(secs).padStart(2, '0')}`;
+				}, 1000);
+				break;
+
+			case RecordingState.Stopped:
+				this.recordButton.label = localize('startRecording', "Record");
+				this.recordButton.element.classList.remove('recording');
+				this.recordButton.enabled = false; // Must save or discard first
+				this.recordingIndicator.style.display = 'none';
+				this.saveRecordingButton.element.style.display = '';
+				this.discardRecordingButton.style.display = '';
+				break;
+		}
+
+		this.layoutService.layout();
+	}
+
+	getRecordingState(): RecordingState {
+		return this.recordingState;
+	}
+
 	private buildIssueBody(): string {
 		const description = this.descriptionTextarea.value;
 		this.model.update({ issueDescription: description });
@@ -530,9 +654,16 @@ export class IssueReporterOverlay {
 
 	dispose(): void {
 		this.restoreWindowControlsColors();
+		if (this.recordingElapsedTimer !== undefined) {
+			clearInterval(this.recordingElapsedTimer);
+			this.recordingElapsedTimer = undefined;
+		}
 		this.disposables.dispose();
 		this._onDidClose.dispose();
 		this._onDidSubmit.dispose();
 		this._onDidRequestScreenshot.dispose();
+		this._onDidRequestStartRecording.dispose();
+		this._onDidRequestStopRecording.dispose();
+		this._onDidRequestSaveRecording.dispose();
 	}
 }

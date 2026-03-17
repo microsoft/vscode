@@ -11,7 +11,7 @@ import Severity from '../../../../base/common/severity.js';
 import { localize } from '../../../../nls.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier, ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
@@ -25,7 +25,10 @@ import { IIssueFormService, IssueReporterData } from '../common/issue.js';
 import { IssueReporterOverlay } from './issueReporterOverlay.js';
 import BaseHtml from './issueReporterPage.js';
 import { IssueWebReporter } from './issueReporterService.js';
+import { IRecordingData, IRecordingService, RecordingState } from './recordingService.js';
 import { IScreenshotService } from './screenshotService.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import './media/issueReporter.css';
 
@@ -49,6 +52,7 @@ export class IssueFormService implements IIssueFormService {
 
 	private overlayDisposables: DisposableStore | undefined;
 	private overlay: IssueReporterOverlay | undefined;
+	private pendingRecording: IRecordingData | undefined;
 
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -61,6 +65,9 @@ export class IssueFormService implements IIssueFormService {
 		@ILayoutService protected readonly layoutService: ILayoutService,
 		@IScreenshotService protected readonly screenshotService: IScreenshotService,
 		@IOpenerService protected readonly openerService: IOpenerService,
+		@IRecordingService protected readonly recordingService: IRecordingService,
+		@IFileDialogService protected readonly fileDialogService: IFileDialogService,
+		@IFileService protected readonly fileService: IFileService,
 	) { }
 
 	async openReporter(data: IssueReporterData): Promise<void> {
@@ -81,6 +88,7 @@ export class IssueFormService implements IIssueFormService {
 			data,
 			this.layoutService as import('../../../services/layout/browser/layoutService.js').IWorkbenchLayoutService,
 			this.getWindowControlsUpdater(),
+			this.recordingService.isSupported,
 		);
 		this.overlayDisposables.add(this.overlay);
 
@@ -106,6 +114,48 @@ export class IssueFormService implements IIssueFormService {
 					});
 				};
 				img.src = dataUrl;
+			}
+		}));
+
+		// Handle recording start
+		this.overlayDisposables.add(this.overlay.onDidRequestStartRecording(async () => {
+			try {
+				await this.recordingService.startRecording();
+				this.overlay?.setRecordingState(RecordingState.Recording);
+			} catch (err) {
+				this.logService.error('[IssueFormService] Failed to start recording:', err);
+				this.overlay?.setRecordingState(RecordingState.Idle);
+			}
+		}));
+
+		// Handle recording stop
+		this.overlayDisposables.add(this.overlay.onDidRequestStopRecording(async () => {
+			const data = await this.recordingService.stopRecording();
+			if (data) {
+				this.pendingRecording = data;
+				this.overlay?.setRecordingState(RecordingState.Stopped);
+			} else {
+				this.overlay?.setRecordingState(RecordingState.Idle);
+			}
+		}));
+
+		// Handle save recording
+		this.overlayDisposables.add(this.overlay.onDidRequestSaveRecording(async () => {
+			await this.saveRecordingToFile();
+		}));
+
+		// Handle recording stopped externally (max duration reached, user clicked OS "Stop sharing").
+		// Only act on Stopped state — the service fires this when MediaRecorder stops unexpectedly.
+		this.overlayDisposables.add(this.recordingService.onDidChangeState(state => {
+			if (state === RecordingState.Stopped) {
+				this.recordingService.stopRecording().then(d => {
+					if (d) {
+						this.pendingRecording = d;
+						this.overlay?.setRecordingState(RecordingState.Stopped);
+					} else {
+						this.overlay?.setRecordingState(RecordingState.Idle);
+					}
+				});
 			}
 		}));
 
@@ -203,9 +253,57 @@ export class IssueFormService implements IIssueFormService {
 	}
 
 	private closeOverlay(): void {
+		// Stop any in-progress recording before closing
+		if (this.recordingService.state === RecordingState.Recording) {
+			this.recordingService.discardRecording();
+		}
+		this.pendingRecording = undefined;
 		this.overlayDisposables?.dispose();
 		this.overlayDisposables = undefined;
 		this.overlay = undefined;
+	}
+
+	private async saveRecordingToFile(): Promise<void> {
+		if (!this.pendingRecording) {
+			return;
+		}
+
+		const extension = this.pendingRecording.mimeType.includes('webm') ? 'webm' : 'mp4';
+		const defaultName = `vscode-recording-${new Date().toISOString().replace(/[:.]/g, '-')}.${extension}`;
+
+		const defaultUri = URI.file(defaultName);
+		const target = await this.fileDialogService.showSaveDialog({
+			title: localize('saveRecording', "Save Recording"),
+			defaultUri,
+			filters: [
+				{ name: localize('videoFiles', "Video Files"), extensions: [extension] },
+				{ name: localize('allFiles', "All Files"), extensions: ['*'] }
+			]
+		});
+
+		if (!target) {
+			return; // User cancelled
+		}
+
+		try {
+			const arrayBuffer = await this.pendingRecording.blob.arrayBuffer();
+			await this.fileService.writeFile(target, VSBuffer.wrap(new Uint8Array(arrayBuffer)));
+			this.logService.info(`[IssueFormService] Recording saved to ${target.toString()}`);
+
+			// Reset recording state after successful save
+			this.pendingRecording = undefined;
+			this.overlay?.setRecordingState(RecordingState.Idle);
+		} catch (err) {
+			this.logService.error('[IssueFormService] Failed to save recording:', err);
+			this.dialogService.prompt({
+				type: Severity.Error,
+				message: localize('saveRecordingFailed', "Failed to save the recording. Please try again."),
+				buttons: [{
+					label: localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+					run: () => { }
+				}]
+			});
+		}
 	}
 
 	/** @deprecated Use openOverlayReporter instead. Kept for web fallback. */

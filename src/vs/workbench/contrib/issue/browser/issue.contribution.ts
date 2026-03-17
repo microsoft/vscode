@@ -18,6 +18,7 @@ import { IIssueFormService, IWorkbenchIssueService } from '../common/issue.js';
 import { BaseIssueContribution } from '../common/issue.contribution.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { BrowserScreenshotService, IScreenshotService } from './screenshotService.js';
+import { BrowserRecordingService, IRecordingService } from './recordingService.js';
 
 
 class WebIssueContribution extends BaseIssueContribution {
@@ -40,6 +41,7 @@ Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkb
 registerSingleton(IWorkbenchIssueService, BrowserIssueService, InstantiationType.Delayed);
 registerSingleton(IIssueFormService, IssueFormService, InstantiationType.Delayed);
 registerSingleton(IScreenshotService, BrowserScreenshotService, InstantiationType.Delayed);
+registerSingleton(IRecordingService, BrowserRecordingService, InstantiationType.Delayed);
 
 CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
 	return nls.localize('statusUnsupported', "The --status argument is not yet supported in browsers.");
