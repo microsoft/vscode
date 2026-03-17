@@ -152,11 +152,6 @@
 	line-height: 16px;
 }
 
-.ai-customization-management-editor .monaco-list .monaco-list-row.selected .section-list-item .section-count {
-	background-color: rgba(255, 255, 255, 0.15);
-	color: var(--vscode-list-activeSelectionForeground);
-}
-
 /* Content area */
 .ai-customization-management-editor .management-content {
 	background-color: var(--vscode-editor-background);
