@@ -5,6 +5,7 @@
 
 export type CodeWindow = Window & typeof globalThis & {
 	readonly vscodeWindowId: number;
+	readonly cspNonce?: string;
 };
 
 export function ensureCodeWindow(targetWindow: Window, fallbackWindowId: number): asserts targetWindow is CodeWindow {

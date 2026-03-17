@@ -43,6 +43,9 @@ export function createStyleSheet(container: HTMLElement = mainWindow.document.he
 	const style = document.createElement('style');
 	style.type = 'text/css';
 	style.media = 'screen';
+	if (mainWindow.cspNonce) {
+		style.nonce = mainWindow.cspNonce;
+	}
 	beforeAppend?.(style);
 	container.appendChild(style);
 

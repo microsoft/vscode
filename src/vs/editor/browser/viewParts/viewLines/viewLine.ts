@@ -21,6 +21,7 @@ import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
 import { TextDirection } from '../../../common/model.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -171,6 +172,7 @@ export class ViewLine implements IVisibleLine {
 			lineData.textDirection,
 			options.verticalScrollbarSize
 		);
+		const className = 'view-line-' + lineNumber.toString() + '-' + Math.random().toString(36).substring(2);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
 			// no need to do anything, we have the same render input
@@ -183,7 +185,21 @@ export class ViewLine implements IVisibleLine {
 		} else if (lineData.containsRTL) {
 			sb.appendString('dir="ltr" ');
 		}
-		sb.appendString('style="top:');
+		if (mainWindow.cspNonce) {
+			sb.appendString('class="');
+			sb.appendString(className);
+			sb.appendString(' ');
+			sb.appendString(ViewLine.CLASS_NAME);
+			sb.appendString('"><style nonce="');
+			sb.appendString(mainWindow.cspNonce);
+			sb.appendString('">.');
+			sb.appendString(className);
+			sb.appendString('{top:');
+		} else {
+			sb.appendString('class="');
+			sb.appendString(ViewLine.CLASS_NAME);
+			sb.appendString('" style="top:');
+		}
 		sb.appendString(String(deltaTop));
 		sb.appendString('px;height:');
 		sb.appendString(String(lineHeight));
@@ -193,9 +209,12 @@ export class ViewLine implements IVisibleLine {
 			sb.appendString('px;padding-right:');
 			sb.appendString(String(options.verticalScrollbarSize));
 		}
-		sb.appendString('px;" class="');
-		sb.appendString(ViewLine.CLASS_NAME);
-		sb.appendString('">');
+		sb.appendString('px;');
+		if (mainWindow.cspNonce) {
+			sb.appendString('}</style>');
+		} else {
+			sb.appendString('">');
+		}
 
 		const output = renderViewLine(renderLineInput, sb);
 

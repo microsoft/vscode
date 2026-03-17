@@ -14,6 +14,7 @@ import { ViewContext } from '../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../common/viewEvents.js';
 import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
+import { mainWindow } from '../../../base/browser/window.js';
 
 export class ViewOverlays extends ViewPart {
 	private readonly _visibleLines: VisibleLinesCollection<ViewOverlayLine>;
@@ -174,13 +175,29 @@ export class ViewOverlayLine implements IVisibleLine {
 
 		this._renderedContent = result;
 
-		sb.appendString('<div style="top:');
+		if (mainWindow.cspNonce) {
+			const className = 'view-overlay-line' + lineNumber.toString() + Math.random().toString(36).substring(2);
+			sb.appendString('<div class="');
+			sb.appendString(className);
+			sb.appendString('">');
+			sb.appendString('<style nonce="');
+			sb.appendString(mainWindow.cspNonce);
+			sb.appendString('">.');
+			sb.appendString(className);
+			sb.appendString('{ top:');
+		} else {
+			sb.appendString('<div style="top:');
+		}
 		sb.appendString(String(deltaTop));
 		sb.appendString('px;height:');
 		sb.appendString(String(lineHeight));
 		sb.appendString('px;line-height:');
 		sb.appendString(String(lineHeight));
-		sb.appendString('px;">');
+		if (mainWindow.cspNonce) {
+			sb.appendString('px;}</style>');
+		} else {
+			sb.appendString('px;">');
+		}
 		sb.appendString(result);
 		sb.appendString('</div>');
 

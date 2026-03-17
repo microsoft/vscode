@@ -14,6 +14,7 @@ import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../../common/viewEvents.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { editorDimmedLineNumber, editorLineNumbers } from '../../../common/core/editorColorRegistry.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 /**
  * Renders line numbers to the left of the main view lines content.
@@ -196,9 +197,11 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 				extraClassNames += ' active-line-number';
 			}
 
-
+			const layoutClassName = ' line-numbers-layout-' + Math.random().toString(36).substring(2);
 			output[lineIndex] = (
-				`<div class="${LineNumbersOverlay.CLASS_NAME}${lineHeightClassName}${extraClassNames}" style="left:${this._lineNumbersLeft}px;width:${this._lineNumbersWidth}px;">${renderLineNumber}</div>`
+				mainWindow.cspNonce ?
+					`<div class="${LineNumbersOverlay.CLASS_NAME}${layoutClassName}${lineHeightClassName}${extraClassNames}"><style nonce="${mainWindow.cspNonce}">.${layoutClassName}{left:${this._lineNumbersLeft}px;width:${this._lineNumbersWidth}px;}</style>${renderLineNumber}</div>` :
+					`<div class="${LineNumbersOverlay.CLASS_NAME}${lineHeightClassName}${extraClassNames}" style="left:${this._lineNumbersLeft}px;width:${this._lineNumbersWidth}px;">${renderLineNumber}</div>`
 			);
 		}
 

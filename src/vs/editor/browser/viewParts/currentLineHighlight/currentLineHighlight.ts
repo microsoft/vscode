@@ -15,6 +15,7 @@ import { Selection } from '../../../common/core/selection.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { Position } from '../../../common/core/position.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	private readonly _context: ViewContext;
@@ -208,6 +209,10 @@ export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
 
 	protected _renderOne(ctx: RenderingContext, exact: boolean): string {
 		const className = 'current-line' + (this._shouldRenderInMargin() ? ' current-line-both' : '') + (exact ? ' current-line-exact' : '');
+		if (mainWindow.cspNonce) {
+			const widthClassName = 'current-line-width' + Math.random().toString(36).substring(2);
+			return `<div class="${className} ${widthClassName}"><style nonce="${mainWindow.cspNonce}">.${widthClassName}{width:${Math.max(ctx.scrollWidth, this._contentWidth)}px;}</style></div>`;
+		}
 		return `<div class="${className}" style="width:${Math.max(ctx.scrollWidth, this._contentWidth)}px;"></div>`;
 	}
 	protected _shouldRenderThis(): boolean {
@@ -224,6 +229,10 @@ export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
 export class CurrentLineMarginHighlightOverlay extends AbstractLineHighlightOverlay {
 	protected _renderOne(ctx: RenderingContext, exact: boolean): string {
 		const className = 'current-line' + (this._shouldRenderInMargin() ? ' current-line-margin' : '') + (this._shouldRenderOther() ? ' current-line-margin-both' : '') + (this._shouldRenderInMargin() && exact ? ' current-line-exact-margin' : '');
+		if (mainWindow.cspNonce) {
+			const widthClassName = 'current-line-width' + Math.random().toString(36).substring(2);
+			return `<div class="${className} ${widthClassName}"><style nonce="${mainWindow.cspNonce}">.${widthClassName}{width:${this._contentLeft}px;}</style></div>`;
+		}
 		return `<div class="${className}" style="width:${this._contentLeft}px"></div>`;
 	}
 	protected _shouldRenderThis(): boolean {
