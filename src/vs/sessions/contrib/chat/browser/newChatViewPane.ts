@@ -77,7 +77,6 @@ const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
 
 interface IDraftState extends IChatModelInputState {
-	target?: AgentSessionProviders;
 	targetMode?: TargetMode;
 	branch?: string;
 	projectUri?: UriComponents;
@@ -107,8 +106,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private readonly _syncIndicator: SyncIndicator;
 	private readonly _options: INewChatWidgetOptions;
 
-	/** The inferred session target based on the current project selection. */
-	private _currentTarget: AgentSessionProviders = AgentSessionProviders.Background;
+	/** The inferred session target based on the current target picker state. */
+	private get _currentTarget(): AgentSessionProviders {
+		return this._targetPicker.isCloud ? AgentSessionProviders.Cloud : AgentSessionProviders.Background;
+	}
 
 	// IHistoryNavigationWidget
 	private readonly _onDidFocus = this._register(new Emitter<void>());
@@ -884,7 +885,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			selectedModel: this._currentLanguageModel.get(),
 			selections: this._editor?.getSelections() ?? [],
 			contrib: {},
-			target: this._currentTarget,
 			targetMode: this._targetPicker.targetMode,
 			branch: this._branchPicker.selectedBranch,
 			projectUri: this._projectPicker.selectedProject?.uri.toJSON(),
@@ -1036,7 +1036,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 					const project = new SessionProject(URI.revive(draft.projectUri));
 					this._projectPicker.setSelectedProject(project, false);
 					this._targetPicker.setProject(project, draft.targetMode);
-					this._currentTarget = project.isFolder ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
 				} catch { /* ignore */ }
 			}
 		}
@@ -1056,8 +1055,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private _clearDraftState(): void {
 		// Preserve picker preferences so they survive widget recreation
-		const target = this._currentTarget;
-		const isLocal = target === AgentSessionProviders.Background;
+		const isLocal = this._currentTarget === AgentSessionProviders.Background;
 		const project = this._projectPicker.selectedProject;
 		const preserved: IDraftState = {
 			inputText: '',
@@ -1066,7 +1064,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			selectedModel: this._draftState?.selectedModel,
 			selections: [],
 			contrib: {},
-			target,
 			targetMode: isLocal ? this._targetPicker.targetMode : undefined,
 			branch: isLocal ? this._branchPicker.selectedBranch : undefined,
 			projectUri: project?.uri.toJSON(),
@@ -1107,13 +1104,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const previousProject = this._projectPicker.selectedProject;
 		const previousTarget = this._currentTarget;
 
-		const newTarget = project.isFolder ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
-		const targetChanged = this._currentTarget !== newTarget;
-		this._currentTarget = newTarget;
-		const isLocal = newTarget === AgentSessionProviders.Background;
+		// Update target picker with new project (determines target mode)
+		this._updateTargetPickerState();
+		const isLocal = this._currentTarget === AgentSessionProviders.Background;
+		const targetChanged = previousTarget !== this._currentTarget;
 
 		// Show/hide local-only pickers
-		this._updateTargetPickerState();
 		this._permissionPicker.setVisible(isLocal);
 		const isWorktree = this._targetPicker.isWorktree;
 		this._branchPicker.setVisible(isLocal && isWorktree);
@@ -1123,10 +1119,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			// For folder selections, request trust
 			const trusted = await this._requestFolderTrust(project.uri, previousProject);
 			if (!trusted || cts.token.isCancellationRequested) {
-				// Revert target if trust was denied
-				if (!trusted) {
-					this._currentTarget = previousTarget;
-					this._updateTargetPickerState();
+				// Revert target picker if trust was denied
+				if (!trusted && previousProject) {
+					this._targetPicker.setProject(previousProject);
 				}
 				return;
 			}
@@ -1136,7 +1131,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			return;
 		}
 
-		// Recreate session if target type changed, otherwise just update the URI
+		// Recreate session if target type changed, otherwise just update the project
 		if (targetChanged) {
 			await this._createNewSession();
 		} else {
