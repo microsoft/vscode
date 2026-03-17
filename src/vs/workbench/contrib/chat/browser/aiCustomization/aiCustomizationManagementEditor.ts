@@ -759,7 +759,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.isPromptsSection(section.id)) {
 				promises.push(this.refreshPromptsSectionCount(section.id));
 			}
-			// MCP, Plugins, and Models counts are driven by their widget events
+		}
+		if (this.mcpListWidget) {
+			this.updateSectionCount(AICustomizationManagementSection.McpServers, this.mcpListWidget.itemCount);
+		}
+		if (this.pluginListWidget) {
+			this.updateSectionCount(AICustomizationManagementSection.Plugins, this.pluginListWidget.itemCount);
+		}
+		if (this.modelsWidget) {
+			this.updateSectionCount(AICustomizationManagementSection.Models, this.modelsWidget.itemCount);
 		}
 		await Promise.all(promises);
 	}
