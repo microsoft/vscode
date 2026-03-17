@@ -321,6 +321,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return false;
 		}
 
+		if (diff.insertions === 0 && diff.deletions === 0) {
+			return false;
+		}
+
 		if (diff.insertions >= 0 /* render even `0` for more homogeneity */) {
 			template.diffAddedSpan.textContent = `+${diff.insertions}`;
 		}
