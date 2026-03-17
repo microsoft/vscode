@@ -7,8 +7,6 @@ import { localize } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-
-import { IChatSessionTiming } from '../../common/chatService/chatService.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -180,7 +178,3 @@ export const agentSessionSelectedUnfocusedBadgeBorder = registerColor(
 
 export const AGENT_SESSION_RENAME_ACTION_ID = 'agentSession.rename';
 export const AGENT_SESSION_DELETE_ACTION_ID = 'agentSession.delete';
-
-export function getAgentSessionTime(timing: IChatSessionTiming): number {
-	return timing.lastRequestStarted ?? timing.created;
-}
