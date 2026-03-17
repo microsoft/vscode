@@ -809,9 +809,14 @@ suite('Modal Editor Group', () => {
 			const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
 			input.capabilities = EditorInputCapabilities.RequiresModal;
 
-			instantiationService.invokeFunction(accessor => findGroup(accessor, { editor: input, options: {} }, undefined));
+			const result = instantiationService.invokeFunction(accessor => findGroup(accessor, { editor: input, options: {} }, undefined));
+
+			assert.ok(result instanceof Promise);
+			const [group] = await result;
 
 			assert.ok(parts.activeModalEditorPart);
+			assert.strictEqual(parts.activeModalEditorPart, modalPart);
+			assert.strictEqual(group.id, modalPart.activeGroup.id);
 
 			modalPart.close();
 		});
