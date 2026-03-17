@@ -51,3 +51,10 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly clientId: string;
 	readonly defaultDirectory?: URI;
 }
+
+export class NullRemoteAgentHostService implements IRemoteAgentHostService {
+	declare readonly _serviceBrand: undefined;
+	readonly onDidChangeConnections = Event.None;
+	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
+	getConnection(): IAgentConnection | undefined { return undefined; }
+}

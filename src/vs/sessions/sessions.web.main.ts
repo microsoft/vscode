@@ -99,16 +99,7 @@ import { IWebContentExtractorService, NullWebContentExtractorService, ISharedWeb
 import { IMcpGalleryManifestService } from '../platform/mcp/common/mcpGalleryManifest.js';
 import { WorkbenchMcpGalleryManifestService } from '../workbench/services/mcp/browser/mcpGalleryManifestService.js';
 import { UserDataSyncResourceProviderService } from '../platform/userDataSync/common/userDataSyncResourceProvider.js';
-import { IRemoteAgentHostService, IRemoteAgentHostConnectionInfo } from '../platform/agentHost/common/remoteAgentHostService.js';
-import { IAgentConnection } from '../platform/agentHost/common/agentService.js';
-import { Event } from '../base/common/event.js';
-
-class NullRemoteAgentHostService implements IRemoteAgentHostService {
-	declare readonly _serviceBrand: undefined;
-	readonly onDidChangeConnections = Event.None;
-	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
-	getConnection(): IAgentConnection | undefined { return undefined; }
-}
+import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
