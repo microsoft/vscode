@@ -818,9 +818,15 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	}
 
 	private groupSessionsIntoSections(sessions: IAgentSession[]): AgentSessionListItem[] {
-		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
+		const isCapped = this.filter?.groupResults?.() === AgentSessionsGrouping.Capped;
 
-		if (this.filter?.groupResults?.() === AgentSessionsGrouping.Capped) {
+		// Prioritize sessions asking for input when using capped grouping
+		const sorter = this.sorter;
+		const sortedSessions = sorter instanceof AgentSessionsSorter
+			? sessions.sort((a, b) => sorter.compare(a, b, isCapped))
+			: sessions.sort(sorter.compare.bind(sorter));
+
+		if (isCapped) {
 			if (this.filter?.getExcludes().read) {
 				return sortedSessions; // When filtering to show only unread sessions, show a flat list
 			}
@@ -1171,9 +1177,20 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 
 export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
-	constructor() { }
+	compare(sessionA: IAgentSession, sessionB: IAgentSession, prioritizeInputNeeded = false): number {
 
-	compare(sessionA: IAgentSession, sessionB: IAgentSession): number {
+		// Sessions asking for input come first when enabled
+		if (prioritizeInputNeeded) {
+			const aNeedsInput = sessionA.status === AgentSessionStatus.NeedsInput;
+			const bNeedsInput = sessionB.status === AgentSessionStatus.NeedsInput;
+
+			if (aNeedsInput && !bNeedsInput) {
+				return -1; // a (needs input) comes before b (other)
+			}
+			if (!aNeedsInput && bNeedsInput) {
+				return 1; // a (other) comes after b (needs input)
+			}
+		}
 
 		// Archived
 		const aArchived = sessionA.isArchived();
