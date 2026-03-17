@@ -39,7 +39,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ChatConfiguration } from '../../common/constants.js';
 import { IFileService, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
+import { basename, dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, isMacintosh } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -235,7 +235,7 @@ registerAction2(class extends Action2 {
 		// Plugin-provided files: offer to uninstall the plugin
 		if (storage === PromptsStorage.plugin) {
 			const agentPluginService = accessor.get(IAgentPluginService);
-			const plugin = agentPluginService.plugins.get().find(p => uri.toString().startsWith(p.uri.toString()));
+			const plugin = agentPluginService.plugins.get().find(p => isEqualOrParent(uri, p.uri));
 			if (plugin) {
 				const result = await dialogService.confirm({
 					message: localize('cannotDeletePluginItem', "This item is provided by the plugin '{0}'", plugin.label),
@@ -393,7 +393,7 @@ registerAction2(class extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 
 		const uri = extractURI(context);
-		const plugin = agentPluginService.plugins.get().find(p => uri.toString().startsWith(p.uri.toString()));
+		const plugin = agentPluginService.plugins.get().find(p => isEqualOrParent(uri, p.uri));
 		if (!plugin) {
 			return;
 		}

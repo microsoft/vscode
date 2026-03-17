@@ -792,7 +792,8 @@ export class McpListWidget extends Disposable {
 				return;
 			}
 
-			const uninstallAction = new Action(
+			const disposables = new DisposableStore();
+			const uninstallAction = disposables.add(new Action(
 				'mcpServer.uninstallPlugin',
 				localize('uninstallPlugin', "Uninstall Plugin"),
 				undefined,
@@ -808,11 +809,12 @@ export class McpListWidget extends Disposable {
 						plugin.remove();
 					}
 				}
-			);
+			));
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => [uninstallAction],
+				onHide: () => disposables.dispose(),
 			});
 			return;
 		}
