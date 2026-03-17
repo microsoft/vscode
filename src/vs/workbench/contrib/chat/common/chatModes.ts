@@ -616,7 +616,7 @@ export interface ICustomAgentInfo {
  * @param modes - The set of agents/modes to include. Pass all modes to get a
  *   complete picture, or a filtered subset to scope the result.
  * @returns One entry per agent/mode, each containing the agent's metadata and
- *   its declared handoffs. Built-in modes will have an empty `handoffs` array.
+ *   its declared handoffs.
  */
 export function buildCustomAgentHandoffsInfo(modes: readonly IChatMode[]): ICustomAgentInfo[] {
 	return modes.map(mode => {

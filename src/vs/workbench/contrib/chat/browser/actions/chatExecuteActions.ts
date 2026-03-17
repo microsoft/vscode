@@ -1128,7 +1128,12 @@ class ExecuteHandoffAction extends Action2 {
 		// Resolve the target widget: explicit sessionResource, or fall back to last-focused
 		let widget: IChatWidget | undefined;
 		if (arg.sessionResource) {
-			const sessionResource = URI.parse(arg.sessionResource);
+			let sessionResource;
+			try {
+				sessionResource = URI.parse(arg.sessionResource);
+			} catch {
+				return { success: false, error: `Invalid sessionResource URI: '${arg.sessionResource}'` };
+			}
 			widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
 		} else {
 			widget = chatWidgetService.lastFocusedWidget;
@@ -1159,8 +1164,8 @@ class ExecuteHandoffAction extends Action2 {
 			: undefined;
 
 		if (!matchedHandoff && arg.label) {
-			const labelLower = arg.label.toLowerCase();
-			matchedHandoff = handoffs.find(h => h.label.toLowerCase() === labelLower);
+			const labelLower = arg.label.trim().toLowerCase();
+			matchedHandoff = handoffs.find(h => h.label.trim().toLowerCase() === labelLower);
 		}
 
 		if (!matchedHandoff) {

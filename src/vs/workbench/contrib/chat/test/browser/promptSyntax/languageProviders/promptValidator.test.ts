@@ -669,6 +669,22 @@ suite('PromptValidator', () => {
 			]);
 		});
 
+		test('handoff label must contain alphanumeric character', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`handoffs:`,
+				'  - label: "!!!"',
+				'    agent: agent',
+				'    prompt: Go',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers.map(m => m.message), [
+				'The \'label\' property in a handoff must contain at least one alphanumeric character.',
+			]);
+		});
+
 		test('github-copilot agent with supported attributes', async () => {
 			const content = [
 				'---',

@@ -1260,7 +1260,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.executeHandoff(handoff, agentId).catch(e => {
 			const target = agentId ?? handoff.agent ?? 'unknown';
-			this.logService.error(`[Handoff] Failed to execute handoff '${handoff.label}' to '${target}': ${e}`);
+			this.logService.error(`[Handoff] Failed to execute handoff '${handoff.label}' to '${target}'`, e);
 		});
 	}
 
@@ -1276,7 +1276,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.input.setValue(`@${agentId} ${promptToUse}`, false);
 			this.input.focus();
 			// Auto-submit for delegated chat sessions
-			this.acceptInput().catch(e => this.logService.error(`[Handoff] Failed to submit delegated handoff to '@${agentId}': ${e}`));
+			this.acceptInput().catch(e => this.logService.error(`[Handoff] Failed to submit delegated handoff to '@${agentId}'`, e));
 		} else if (handoff.agent) {
 			// Regular handoff to specified agent
 			this._switchToAgentByName(handoff.agent);
