@@ -42,7 +42,6 @@ const COMMAND_BROWSE_REPOS = 'command:browseRepos';
  */
 interface IStoredProject {
 	readonly uri: UriComponents;
-	readonly label: string;
 	readonly checked?: boolean;
 }
 
@@ -119,7 +118,7 @@ export class ProjectPicker extends Disposable {
 				const folderUris: string[] = JSON.parse(storedFolders);
 				for (const uriStr of folderUris) {
 					const uri = URI.parse(uriStr);
-					migrated.push({ uri: uri.toJSON(), label: basename(uri) });
+					migrated.push({ uri: uri.toJSON() });
 				}
 			}
 		} catch { /* ignore */ }
@@ -131,7 +130,7 @@ export class ProjectPicker extends Disposable {
 				const repos: { id: string; name: string }[] = JSON.parse(storedRepos);
 				for (const repo of repos) {
 					const uri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repo.id}/HEAD` });
-					migrated.push({ uri: uri.toJSON(), label: repo.name });
+					migrated.push({ uri: uri.toJSON() });
 				}
 			}
 		} catch { /* ignore */ }
@@ -342,8 +341,8 @@ export class ProjectPicker extends Disposable {
 
 		// Split into folders and repos, sort each group alphabetically
 		const isStoredFolder = (p: IStoredProject) => URI.revive(p.uri).scheme !== GITHUB_REMOTE_FILE_SCHEME;
-		const folders = allProjects.filter(p => isStoredFolder(p)).sort((a, b) => a.label.localeCompare(b.label));
-		const repos = allProjects.filter(p => !isStoredFolder(p)).sort((a, b) => a.label.localeCompare(b.label));
+		const folders = allProjects.filter(p => isStoredFolder(p)).sort((a, b) => this._getStoredProjectLabel(a).localeCompare(this._getStoredProjectLabel(b)));
+		const repos = allProjects.filter(p => !isStoredFolder(p)).sort((a, b) => this._getStoredProjectLabel(a).localeCompare(this._getStoredProjectLabel(b)));
 
 		const selectedKey = this._selectedProject ? this._projectKey(this._toStored(this._selectedProject)) : undefined;
 
@@ -352,7 +351,7 @@ export class ProjectPicker extends Disposable {
 			const isSelected = selectedKey !== undefined && this._projectKey(project) === selectedKey;
 			items.push({
 				kind: ActionListItemKind.Action,
-				label: project.label,
+				label: this._getStoredProjectLabel(project),
 				group: { title: '', icon: Codicon.folder },
 				item: isSelected ? { ...project, checked: true } : project,
 				onRemove: () => this._removeProject(project),
@@ -364,7 +363,7 @@ export class ProjectPicker extends Disposable {
 			const isSelected = selectedKey !== undefined && this._projectKey(project) === selectedKey;
 			items.push({
 				kind: ActionListItemKind.Action,
-				label: project.label,
+				label: this._getStoredProjectLabel(project),
 				group: { title: '', icon: Codicon.repo },
 				item: isSelected ? { ...project, checked: true } : project,
 				onRemove: () => this._removeProject(project),
@@ -379,13 +378,13 @@ export class ProjectPicker extends Disposable {
 			kind: ActionListItemKind.Action,
 			label: localize('browseFolders', "Browse Folders..."),
 			group: { title: '', icon: Codicon.folderOpened },
-			item: { uri: URI.parse(COMMAND_BROWSE_FOLDERS).toJSON(), label: localize('browseFolders', "Browse Folders...") },
+			item: { uri: URI.parse(COMMAND_BROWSE_FOLDERS).toJSON() },
 		});
 		items.push({
 			kind: ActionListItemKind.Action,
 			label: localize('browseRepositories', "Browse Repositories..."),
 			group: { title: '', icon: Codicon.repo },
-			item: { uri: URI.parse(COMMAND_BROWSE_REPOS).toJSON(), label: localize('browseRepositories', "Browse Repositories...") },
+			item: { uri: URI.parse(COMMAND_BROWSE_REPOS).toJSON() },
 		});
 
 		return items;
@@ -413,17 +412,21 @@ export class ProjectPicker extends Disposable {
 	}
 
 	private _getProjectLabel(project: SessionProject): string {
-		if (project.isFolder) {
-			return basename(project.uri);
+		return this._getStoredProjectLabel({ uri: project.uri.toJSON() });
+	}
+
+	private _getStoredProjectLabel(project: IStoredProject): string {
+		const uri = URI.revive(project.uri);
+		if (uri.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
+			return basename(uri);
 		}
 		// For repos, extract "owner/repo" from the URI path (e.g. "/owner/repo/HEAD" → "owner/repo")
-		return project.uri.path.substring(1).replace(/\/HEAD$/, '');
+		return uri.path.substring(1).replace(/\/HEAD$/, '');
 	}
 
 	private _toStored(project: SessionProject): IStoredProject {
 		return {
 			uri: project.uri.toJSON(),
-			label: this._getProjectLabel(project),
 		};
 	}
 
