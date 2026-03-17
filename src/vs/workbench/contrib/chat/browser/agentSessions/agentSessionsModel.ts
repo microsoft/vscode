@@ -23,6 +23,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
 import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
@@ -387,7 +388,14 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	get resolved(): boolean { return this._resolved; }
 
 	private _sessions: ResourceMap<IInternalAgentSession>;
-	get sessions(): IAgentSession[] { return Array.from(this._sessions.values()); }
+	get sessions(): IAgentSession[] {
+		const sessions = Array.from(this._sessions.values());
+		if (this.environmentService.isSessionsWindow) {
+			return sessions.filter(session => session.providerType !== AgentSessionProviders.Claude && session.providerType !== AgentSessionProviders.Codex); // filter out sessions that can currently not be triggered in the sessions app (TODO@bpasero revisit later)
+		}
+
+		return sessions;
+	}
 
 	private readonly resolvers = this._register(new DisposableMap<string, ThrottledDelayer<void>>());
 
@@ -403,6 +411,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -474,6 +484,10 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private resolveProvider(provider: string, options: { refreshProvider: boolean }): Promise<void> {
+		if (this.chatEntitlementService.sentiment.hidden) {
+			return Promise.resolve(); // don't resolve if AI features are disabled
+		}
+
 		let resolver = this.resolvers.get(provider);
 		if (!resolver) {
 			resolver = new ThrottledDelayer<void>(500);
@@ -500,7 +514,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		if (options.refreshProvider) {
 			await this.chatSessionsService.refreshChatSessionItems([provider], token);
 		}
-
 
 		const mapSessionContributionToType = new Map<string, ResolvedChatSessionsExtensionPoint>();
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
