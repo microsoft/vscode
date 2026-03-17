@@ -1115,16 +1115,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			return;
 		}
 
-		// Create a new session if the target type changed, otherwise update the existing one
-		const targetChanged = previousProject?.isFolder !== project.isFolder;
-		if (targetChanged || !this._newSession.value) {
-			await this._createNewSession(project);
-		} else {
-			this._newSession.value.setProject(project);
-			if (project.isFolder) {
-				this._openRepository(project.uri);
-			}
-		}
+		// Always create a new session when the project changes
+		await this._createNewSession(project);
 	}
 
 	prefillInput(text: string): void {
