@@ -352,15 +352,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.useModal': {
 				'type': 'string',
-				'enum': ['off', 'required-only', 'some', 'all'],
+				'enum': ['off', 'some', 'all'],
 				'enumDescriptions': [
 					localize('useModal.off', "Editors never open in a modal overlay."),
-					localize('useModal.requiredOnly', "Only editors that specifically require a modal overlay will open in one."),
 					localize('useModal.some', "Certain editors such as Settings and Keyboard Shortcuts may open in a centered modal overlay."),
 					localize('useModal.all', "All editors open in a centered modal overlay."),
 				],
-				'description': localize('useModal', "Controls whether editors open in a modal overlay."),
-				'default': product.quality !== 'stable' ? 'some' : 'required-only',
+				'description': localize('useModal', "Controls whether editors open in a modal overlay. Some editors require opening in a modal and are not affected by this setting."),
+				'default': product.quality !== 'stable' ? 'some' : 'off',
 				tags: ['experimental'],
 				experiment: {
 					mode: 'auto'
@@ -1064,8 +1063,8 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			const result: ConfigurationKeyValuePairs = [];
 			if (value === 'default') {
 				result.push(['workbench.editor.useModal', { value: 'some' }]);
-			} else if (value === 'essential-only') {
-				result.push(['workbench.editor.useModal', { value: 'required-only' }]);
+			} else if (value === 'essential-only' || value === 'required-only') {
+				result.push(['workbench.editor.useModal', { value: 'off' }]);
 			} else if (value === 'on') {
 				result.push(['workbench.editor.useModal', { value: 'all' }]);
 			}

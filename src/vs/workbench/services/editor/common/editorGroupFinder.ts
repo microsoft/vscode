@@ -124,17 +124,13 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 			.then(group => group.activeGroup);
 	}
 
-	// Group: Modal (gated behind a setting)
+	// Group: Modal (gated behind a setting, except required modal editors)
 	else if (preferredGroup === MODAL_GROUP) {
-		const modalMode = configurationService.getValue<string>('workbench.editor.useModal');
-		if (modalMode === 'required-only') {
-			// Only allow modal for editors that explicitly require it
-			const editorInput = isEditorInputWithOptions(input) ? input.editor : input;
-			if (isEditorInput(editorInput) && editorInput.hasCapability(EditorInputCapabilities.RequiresModal)) {
-				group = editorGroupService.createModalEditorPart(options?.modal)
-					.then(part => part.activeGroup);
-			}
-		} else if (modalMode !== 'off') {
+		const editorInput = isEditorInputWithOptions(input) ? input.editor : input;
+		if (isEditorInput(editorInput) && editorInput.hasCapability(EditorInputCapabilities.RequiresModal)) {
+			group = editorGroupService.createModalEditorPart(options?.modal)
+				.then(part => part.activeGroup);
+		} else if (configurationService.getValue<string>('workbench.editor.useModal') !== 'off') {
 			group = editorGroupService.createModalEditorPart(options?.modal)
 				.then(part => part.activeGroup);
 		}
