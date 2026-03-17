@@ -34,6 +34,9 @@ workbench.registerWorkbenchContribution(DefaultAccountUpdateContribution, Lifecy
 workbench.registerWorkbenchContribution(UpdateStatusBarContribution, LifecyclePhase.Restored);
 workbench.registerWorkbenchContribution(UpdateTitleBarContribution, LifecyclePhase.Restored);
 
+// Dev-only: test commands for simulating update states (gitignored)
+import('./update.test.contribution.js').catch(() => { });
+
 // Release notes
 
 export class ShowReleaseNotesAction extends Action2 {

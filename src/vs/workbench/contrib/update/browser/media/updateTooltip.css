@@ -6,10 +6,10 @@
 .update-tooltip {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
-	padding: 6px 6px;
-	min-width: 320px;
-	max-width: 320px;
+	gap: 0;
+	padding: 0;
+	min-width: 260px;
+	max-width: 300px;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-bodyFontSize-small);
 }
@@ -19,6 +19,7 @@
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
+	padding: 6px 8px 4px;
 }
 
 .update-tooltip .header .title {
@@ -27,37 +28,93 @@
 	color: var(--vscode-foreground);
 }
 
-/* Product info */
-.update-tooltip .product-info {
+.update-tooltip .header .header-actions {
 	display: flex;
-	gap: 12px;
+	align-items: center;
+	gap: 4px;
 }
 
-.update-tooltip .product-logo {
-	width: 48px;
-	height: 48px;
-	border-radius: var(--vscode-cornerRadius-large);
-	padding: 5px;
+.update-tooltip .header .header-logo {
+	width: 18px;
+	height: 18px;
 	flex-shrink: 0;
 	background: url('../../../../browser/media/code-icon.svg') center / contain no-repeat;
 }
 
-.update-tooltip .product-details {
+/* Collapsible version details */
+.update-tooltip .version-details {
+	padding: 0 8px 4px;
+}
+
+.update-tooltip .version-details > summary.version-summary {
+	cursor: pointer;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-bodyFontSize-small);
+	list-style: none;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	user-select: none;
+}
+
+.update-tooltip .version-details > summary.version-summary::before {
+	content: '';
+	display: inline-block;
+	width: 0;
+	height: 0;
+	border-style: solid;
+	border-width: 4px 0 4px 6px;
+	border-color: transparent transparent transparent var(--vscode-descriptionForeground);
+	transition: transform 0.15s ease;
+	flex-shrink: 0;
+}
+
+.update-tooltip .version-details[open] > summary.version-summary::before {
+	transform: rotate(90deg);
+}
+
+.update-tooltip .version-details > summary.version-summary::-webkit-details-marker {
+	display: none;
+}
+
+.update-tooltip .version-body {
+	padding: 6px 0 2px 10px;
 	display: flex;
 	flex-direction: column;
-	justify-content: center;
+	gap: 3px;
+}
+
+.update-tooltip .version-label {
+	color: var(--vscode-descriptionForeground);
+	margin-right: 6px;
+	font-size: var(--vscode-bodyFontSize-small);
+}
+
+/* Product info — release notes link area */
+.update-tooltip .product-info {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 0 8px 4px;
+}
+
+.update-tooltip .product-logo {
+	display: none;
+}
+
+.update-tooltip .product-details {
+	display: none;
 }
 
 .update-tooltip .product-name {
-	font-weight: 600;
-	color: var(--vscode-foreground);
-	margin-bottom: 4px;
+	display: none;
 }
 
 .update-tooltip .product-version {
 	display: flex;
 	align-items: center;
 	gap: 4px;
+	color: var(--vscode-descriptionForeground);
 }
 
 .update-tooltip .copy-version-button {
@@ -65,7 +122,6 @@
 	opacity: 0;
 	color: var(--vscode-descriptionForeground);
 	transition: opacity 0.1s;
-	margin-top: -2px;
 }
 
 .update-tooltip .product-version:hover .copy-version-button,
@@ -78,28 +134,135 @@
 	color: var(--vscode-foreground);
 }
 
+.update-tooltip .product-release-date {
+	display: none;
+}
+
 .update-tooltip .release-notes-link {
-	color: var(--vscode-textLink-foreground);
 	text-decoration: none;
+	font-size: var(--vscode-bodyFontSize-small);
 }
 
 .update-tooltip .release-notes-link:hover {
-	color: var(--vscode-textLink-activeForeground);
-	text-decoration: underline;
+	text-decoration: none;
+}
+
+/* Separator */
+.update-tooltip .tooltip-separator {
+	height: 1px;
+	background: var(--vscode-editorWidget-border, var(--vscode-contrastBorder, transparent));
+	opacity: 0.3;
+	margin: 0;
+}
+
+/* Step indicator — dot + label progress tracker */
+.update-tooltip .stepper {
+	display: flex;
+	align-items: flex-start;
+	justify-content: center;
+	padding: 6px 8px 8px;
+	gap: 0;
+}
+
+.update-tooltip .stepper .step {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+.update-tooltip .stepper .step-circle {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	border: 1.5px solid color-mix(in srgb, var(--vscode-foreground) 20%, transparent);
+	background: transparent;
+	font-size: 0;
+	overflow: hidden;
+}
+
+/* Completed step — shows a check icon instead of a dot */
+.update-tooltip .stepper .step.completed .step-circle {
+	width: auto;
+	height: auto;
+	border: none;
+	background: none;
+	font-size: 12px;
+	overflow: visible;
+	color: var(--vscode-button-background);
+}
+
+.update-tooltip .stepper .step.completed .step-label {
+	color: color-mix(in srgb, var(--vscode-foreground) 60%, transparent);
+}
+
+.update-tooltip .stepper .step.active .step-circle {
+	border-color: var(--vscode-button-background);
+	background: var(--vscode-button-background);
+}
+
+.update-tooltip .stepper .step.in-progress .step-circle {
+	animation: stepper-pulse 2s ease-in-out infinite;
+}
+
+@keyframes stepper-pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.6; }
+}
+
+.monaco-workbench.monaco-reduce-motion .update-tooltip .stepper .step.in-progress .step-circle {
+	animation: none;
+}
+
+.update-tooltip .stepper .step-label {
+	font-size: 10px;
+	color: color-mix(in srgb, var(--vscode-foreground) 40%, transparent);
+	white-space: nowrap;
+}
+
+.update-tooltip .stepper .step.active .step-label {
+	color: var(--vscode-foreground);
+	font-weight: 600;
+}
+
+.update-tooltip .stepper .step-line {
+	width: 20px;
+	height: 1px;
+	background: color-mix(in srgb, var(--vscode-foreground) 15%, transparent);
+	margin-top: 5px;
+	flex-shrink: 0;
+}
+
+.update-tooltip .stepper .step-line.completed {
+	background: var(--vscode-button-background);
+	opacity: 0.5;
+}
+
+.update-tooltip .stepper .step-line::after {
+	content: none;
+}
+
+.update-tooltip .stepper .step-connector {
+	display: none;
 }
 
 /* Progress bar */
+.update-tooltip .progress-container {
+	padding: 0 8px 4px;
+}
+
 .update-tooltip .progress-bar {
-	height: 4px;
-	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 30%, transparent);
-	border-radius: var(--vscode-cornerRadius-small);
+	height: 3px;
+	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 20%, transparent);
+	border-radius: 2px;
 	overflow: hidden;
 }
 
 .update-tooltip .progress-fill {
 	height: 100%;
 	background-color: var(--vscode-progressBar-background);
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: 2px;
 	transition: width 0.3s ease;
 }
 
@@ -107,27 +270,94 @@
 	transition: none;
 }
 
-.update-tooltip .progress-text,
-.update-tooltip .download-stats {
+.update-tooltip .progress-text {
 	display: flex;
 	justify-content: space-between;
+	margin-top: 4px;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.update-tooltip .download-stats {
+	display: none;
+}
+
+/* Collapsible details section */
+.update-tooltip .details-section {
+	border-top: 1px solid color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	margin-top: 2px;
+	padding: 4px 8px 6px;
+}
+
+.update-tooltip .details-section > summary.details-summary {
+	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
+	font-size: 11px;
+	list-style: none;
+	user-select: none;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.update-tooltip .details-section > summary.details-summary::-webkit-details-marker {
+	display: none;
+}
+
+.update-tooltip .details-section > summary.details-summary .header-logo {
+	width: 14px;
+	height: 14px;
+	flex-shrink: 0;
+	background: url('../../../../browser/media/code-icon.svg') center / contain no-repeat;
+}
+
+.update-tooltip .details-body {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 4px 0 0;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.update-tooltip .details-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.update-tooltip .details-label {
+	color: color-mix(in srgb, var(--vscode-foreground) 60%, transparent);
+}
+
+.update-tooltip .details-value {
+	color: var(--vscode-foreground);
+}
+
+.update-tooltip .details-row.download-stats-row {
+	margin-top: 2px;
+	padding-top: 2px;
+	border-top: 1px solid color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 }
 
 .update-tooltip .progress-text {
 	margin-top: 4px;
 }
 
+/* State message */
 .update-tooltip .state-message {
 	display: flex;
 	align-items: flex-start;
-	font-size: var(--vscode-bodyFontSize);
-	gap: 4px;
+	gap: 5px;
+	padding: 4px 8px;
+	font-size: var(--vscode-bodyFontSize-small);
+	line-height: 1.3;
 }
 
 .update-tooltip .state-message-icon.codicon[class*='codicon-'] {
-	font-size: 16px;
+	font-size: 14px;
 	flex-shrink: 0;
-	margin-top: 2px;
+	margin-top: 1px;
 }
 
 .update-tooltip .state-message-icon.codicon.codicon-warning {
@@ -138,11 +368,54 @@
 	color: var(--vscode-editorError-foreground);
 }
 
+.update-tooltip .state-message-icon.codicon.codicon-info {
+	color: var(--vscode-editorInfo-foreground);
+}
+
+/* Button row — side by side */
+.update-tooltip .tooltip-button-row {
+	display: flex;
+	gap: 4px;
+	padding: 4px 8px 8px;
+}
+
+/* Action button */
+.update-tooltip .tooltip-action {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 4px 10px;
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	font-size: var(--vscode-bodyFontSize-small);
+	font-weight: 500;
+	cursor: pointer;
+	border: none;
+	text-decoration: none;
+	flex: 1;
+	white-space: nowrap;
+}
+
+.update-tooltip .tooltip-action:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.update-tooltip .tooltip-action.secondary {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.update-tooltip .tooltip-action.secondary:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
 /* Markdown */
 .update-tooltip .update-markdown {
 	background: var(--vscode-editor-background);
 	border-radius: var(--vscode-cornerRadius-large);
-	padding: 12px;
+	padding: 10px;
+	margin: 0 8px 6px;
 }
 
 .update-tooltip .update-markdown p {
