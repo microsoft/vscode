@@ -4,27 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { AgentHostContribution } from '../browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { resolve } from '../../../../base/common/path.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { localize } from '../../../../nls.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ViewContainerLocation } from '../../../common/views.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../browser/chat.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidgetService } from '../browser/chat.js';
+import { ChatEditorInput } from '../browser/widgetHosts/editor/chatEditorInput.js';
+import { ChatViewPane } from '../browser/widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionProviders } from '../browser/agentSessions/agentSessions.js';
 import { isSessionInProgressStatus } from '../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsService.js';
@@ -234,3 +240,31 @@ registerWorkbenchContribution2(NativeBuiltinToolsContribution.ID, NativeBuiltinT
 registerWorkbenchContribution2(ChatCommandLineHandler.ID, ChatCommandLineHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSuspendThrottlingHandler.ID, ChatSuspendThrottlingHandler, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatLifecycleHandler.ID, ChatLifecycleHandler, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostContribution.ID, AgentHostContribution, WorkbenchPhase.AfterRestored);
+
+// Register command for opening a new Agent Host session from the session type picker
+CommandsRegistry.registerCommand(
+	`workbench.action.chat.openNewChatSessionInPlace.${AgentSessionProviders.AgentHostCopilot}`,
+	async (accessor, chatSessionPosition: string) => {
+		const viewsService = accessor.get(IViewsService);
+		const resource = URI.from({
+			scheme: AgentSessionProviders.AgentHostCopilot,
+			path: `/untitled-${generateUuid()}`,
+		});
+
+		if (chatSessionPosition === 'editor') {
+			const editorService = accessor.get(IEditorService);
+			await editorService.openEditor({
+				resource,
+				options: {
+					override: ChatEditorInput.EditorID,
+					pinned: true,
+				},
+			});
+		} else {
+			const view = await viewsService.openView(ChatViewId) as ChatViewPane;
+			await view.loadSession(resource);
+			view.focus();
+		}
+	}
+);

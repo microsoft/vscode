@@ -413,9 +413,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 		const widgetWidth = getTotalWidth(this._domNode) || 280;
 		const widgetHeight = this._domNode.offsetHeight || 0;
+		const headerHeight = this._headerNode.offsetHeight || lineHeight;
 
-		// Compute content-relative top and clamp to keep the widget within the editor content area
-		const contentRelativeTop = this._editor.getTopForLineNumber(startLineNumber) - lineHeight;
+		// Align the header center with the start line center before clamping within the editor content area.
+		const contentRelativeTop = this._editor.getTopForLineNumber(startLineNumber) + (lineHeight - headerHeight) / 2;
 		const scrollHeight = this._editor.getScrollHeight();
 		const clampedContentTop = Math.min(Math.max(0, contentRelativeTop), Math.max(0, scrollHeight - widgetHeight));
 

@@ -11,7 +11,7 @@
 			"dark_modern": "markup.heading: #569CD6",
 			"hc_light": "markup.heading: #0F4A85",
 			"light_modern": "markup.heading: #800000",
-			"2026-dark": "markup.heading: #6CB6FF",
+			"2026-dark": "markup.heading: #79C0FF",
 			"2026-light": "markup.heading: #0550AE"
 		}
 	},
@@ -27,7 +27,7 @@
 			"dark_modern": "markup.heading: #569CD6",
 			"hc_light": "markup.heading: #0F4A85",
 			"light_modern": "markup.heading: #800000",
-			"2026-dark": "markup.heading: #6CB6FF",
+			"2026-dark": "markup.heading: #79C0FF",
 			"2026-light": "markup.heading: #0550AE"
 		}
 	},
@@ -43,7 +43,7 @@
 			"dark_modern": "markup.heading: #569CD6",
 			"hc_light": "markup.heading: #0F4A85",
 			"light_modern": "markup.heading: #800000",
-			"2026-dark": "markup.heading entity.name: #6CB6FF",
+			"2026-dark": "markup.heading entity.name: #79C0FF",
 			"2026-light": "markup.heading entity.name: #0550AE"
 		}
 	},
@@ -75,7 +75,7 @@
 			"dark_modern": "entity.name.tag: #569CD6",
 			"hc_light": "entity.name.tag: #0F4A85",
 			"light_modern": "entity.name.tag: #800000",
-			"2026-dark": "entity.name.tag: #8DDB8C",
+			"2026-dark": "entity.name.tag: #7EE787",
 			"2026-light": "entity.name.tag: #116329"
 		}
 	},
@@ -123,7 +123,7 @@
 			"dark_modern": "entity.name.tag: #569CD6",
 			"hc_light": "entity.name.tag: #0F4A85",
 			"light_modern": "entity.name.tag: #800000",
-			"2026-dark": "entity.name.tag: #8DDB8C",
+			"2026-dark": "entity.name.tag: #7EE787",
 			"2026-light": "entity.name.tag: #116329"
 		}
 	},
@@ -187,7 +187,7 @@
 			"dark_modern": "entity.name.tag: #569CD6",
 			"hc_light": "entity.name.tag: #0F4A85",
 			"light_modern": "entity.name.tag: #800000",
-			"2026-dark": "entity.name.tag: #8DDB8C",
+			"2026-dark": "entity.name.tag: #7EE787",
 			"2026-light": "entity.name.tag: #116329"
 		}
 	},
@@ -235,7 +235,7 @@
 			"dark_modern": "entity.name.tag: #569CD6",
 			"hc_light": "entity.name.tag: #0F4A85",
 			"light_modern": "entity.name.tag: #800000",
-			"2026-dark": "entity.name.tag: #8DDB8C",
+			"2026-dark": "entity.name.tag: #7EE787",
 			"2026-light": "entity.name.tag: #116329"
 		}
 	},
@@ -267,7 +267,7 @@
 			"dark_modern": "markup.heading: #569CD6",
 			"hc_light": "markup.heading: #0F4A85",
 			"light_modern": "markup.heading: #800000",
-			"2026-dark": "markup.heading: #6CB6FF",
+			"2026-dark": "markup.heading: #79C0FF",
 			"2026-light": "markup.heading: #0550AE"
 		}
 	},
@@ -283,7 +283,7 @@
 			"dark_modern": "markup.heading: #569CD6",
 			"hc_light": "markup.heading: #0F4A85",
 			"light_modern": "markup.heading: #800000",
-			"2026-dark": "markup.heading: #6CB6FF",
+			"2026-dark": "markup.heading: #79C0FF",
 			"2026-light": "markup.heading: #0550AE"
 		}
 	},
@@ -299,7 +299,7 @@
 			"dark_modern": "markup.heading: #569CD6",
 			"hc_light": "markup.heading: #0F4A85",
 			"light_modern": "markup.heading: #800000",
-			"2026-dark": "markup.heading entity.name: #6CB6FF",
+			"2026-dark": "markup.heading entity.name: #79C0FF",
 			"2026-light": "markup.heading entity.name: #0550AE"
 		}
 	},
@@ -331,7 +331,7 @@
 			"dark_modern": "entity.name.tag: #569CD6",
 			"hc_light": "entity.name.tag: #0F4A85",
 			"light_modern": "entity.name.tag: #800000",
-			"2026-dark": "entity.name.tag: #8DDB8C",
+			"2026-dark": "entity.name.tag: #7EE787",
 			"2026-light": "entity.name.tag: #116329"
 		}
 	},
@@ -411,7 +411,7 @@
 			"dark_modern": "entity.name.tag: #569CD6",
 			"hc_light": "entity.name.tag: #0F4A85",
 			"light_modern": "entity.name.tag: #800000",
-			"2026-dark": "entity.name.tag: #8DDB8C",
+			"2026-dark": "entity.name.tag: #7EE787",
 			"2026-light": "entity.name.tag: #116329"
 		}
 	},
@@ -443,7 +443,7 @@
 			"dark_modern": "markup.heading: #569CD6",
 			"hc_light": "markup.heading: #0F4A85",
 			"light_modern": "markup.heading: #800000",
-			"2026-dark": "markup.heading: #6CB6FF",
+			"2026-dark": "markup.heading: #79C0FF",
 			"2026-light": "markup.heading: #0550AE"
 		}
 	},
@@ -459,7 +459,7 @@
 			"dark_modern": "markup.heading: #569CD6",
 			"hc_light": "markup.heading: #0F4A85",
 			"light_modern": "markup.heading: #800000",
-			"2026-dark": "markup.heading: #6CB6FF",
+			"2026-dark": "markup.heading: #79C0FF",
 			"2026-light": "markup.heading: #0550AE"
 		}
 	},
@@ -475,7 +475,7 @@
 			"dark_modern": "markup.heading: #569CD6",
 			"hc_light": "markup.heading: #0F4A85",
 			"light_modern": "markup.heading: #800000",
-			"2026-dark": "markup.heading entity.name: #6CB6FF",
+			"2026-dark": "markup.heading entity.name: #79C0FF",
 			"2026-light": "markup.heading entity.name: #0550AE"
 		}
 	}

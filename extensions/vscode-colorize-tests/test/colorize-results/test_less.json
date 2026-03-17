@@ -59,7 +59,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -75,7 +75,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -91,7 +91,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -203,7 +203,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -219,7 +219,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -235,7 +235,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -363,7 +363,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -379,7 +379,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -395,7 +395,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -523,7 +523,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -539,7 +539,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -683,7 +683,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -699,7 +699,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -747,7 +747,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -763,7 +763,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -891,7 +891,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -907,7 +907,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -1035,7 +1035,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -1051,7 +1051,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -1067,7 +1067,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -1083,7 +1083,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -1099,7 +1099,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -1115,7 +1115,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -1211,7 +1211,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -1227,7 +1227,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -1275,7 +1275,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -1291,7 +1291,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -1483,7 +1483,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -1499,7 +1499,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -1643,7 +1643,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -1659,7 +1659,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -1883,7 +1883,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -1899,7 +1899,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -2139,7 +2139,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -2155,7 +2155,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -2363,7 +2363,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -2379,7 +2379,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -3899,7 +3899,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -3915,7 +3915,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -4011,7 +4011,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -4027,7 +4027,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -4123,7 +4123,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -4139,7 +4139,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -4379,7 +4379,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -4395,7 +4395,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -4571,7 +4571,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -4587,7 +4587,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -4699,7 +4699,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -4715,7 +4715,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -4987,7 +4987,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -5003,7 +5003,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},
@@ -5211,7 +5211,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -5227,7 +5227,7 @@
 			"dark_modern": "source.css variable: #9CDCFE",
 			"hc_light": "source.css variable: #264F78",
 			"light_modern": "source.css variable: #E50000",
-			"2026-dark": "support: #6CB6FF",
+			"2026-dark": "support: #79C0FF",
 			"2026-light": "support: #0550AE"
 		}
 	},

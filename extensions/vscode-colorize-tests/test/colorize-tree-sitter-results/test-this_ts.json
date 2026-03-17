@@ -27,7 +27,7 @@
 			"dark_modern": "variable.language: #569CD6",
 			"hc_light": "variable.language: #0F4A85",
 			"light_modern": "variable.language: #0000FF",
-			"2026-dark": "variable.language: #6CB6FF",
+			"2026-dark": "variable.language: #79C0FF",
 			"2026-light": "variable.language: #0550AE"
 		}
 	},
@@ -59,7 +59,7 @@
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080",
-			"2026-dark": "variable: #F69D50",
+			"2026-dark": "variable: #FFA657",
 			"2026-light": "variable: #953800"
 		}
 	},
