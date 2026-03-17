@@ -99,6 +99,11 @@ export interface IChatSessionsExtensionPoint {
 	 * Defaults to true.
 	 */
 	readonly supportsDelegation?: boolean;
+	/**
+	 * Decides whether to automatically attach instruction files to chat requests
+	 * for this session type. Defaults to false when not specified.
+	 */
+	readonly autoAttachReferences?: boolean;
 }
 
 export interface IChatSessionItem {
