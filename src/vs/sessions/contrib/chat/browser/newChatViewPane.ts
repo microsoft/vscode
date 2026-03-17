@@ -12,7 +12,8 @@ import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../base/common/observable.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { basename } from '../../../../base/common/resources.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -80,8 +81,7 @@ interface IDraftState extends IChatModelInputState {
 	isolationMode?: IsolationMode;
 	branch?: string;
 	projectKind?: 'folder' | 'repo';
-	projectUri?: string;
-	projectRepoId?: string;
+	projectUri?: UriComponents;
 }
 
 // #region --- Chat Welcome Widget ---
@@ -894,8 +894,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			isolationMode: this._targetPicker.isolationMode,
 			branch: this._branchPicker.selectedBranch,
 			projectKind: this._projectPicker.selectedProject?.kind,
-			projectUri: this._projectPicker.selectedProject?.uri.toString(),
-			projectRepoId: this._projectPicker.selectedProject?.repoId,
+			projectUri: this._projectPicker.selectedProject?.uri.toJSON(),
 		};
 	}
 
@@ -1013,13 +1012,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		if (!trusted) {
 			this._projectPicker.removeFromRecents(folderUri);
 			if (previousProject) {
-				if (previousProject.kind === 'folder') {
-					this._projectPicker.setSelectedFolder(previousProject.uri, false);
-				} else if (previousProject.repoId) {
-					this._projectPicker.setSelectedRepo(previousProject.repoId, false);
-				} else {
-					this._projectPicker.clearSelection();
-				}
+				this._projectPicker.setSelectedProject(previousProject, false);
 			} else {
 				this._projectPicker.clearSelection();
 			}
@@ -1051,13 +1044,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			}
 			if (draft.projectKind && draft.projectUri) {
 				try {
-					if (draft.projectKind === 'folder') {
-						this._projectPicker.setSelectedFolder(URI.parse(draft.projectUri), false);
-						this._currentTarget = AgentSessionProviders.Background;
-					} else if (draft.projectRepoId) {
-						this._projectPicker.setSelectedRepo(draft.projectRepoId, false);
-						this._currentTarget = AgentSessionProviders.Cloud;
-					}
+					const uri = URI.revive(draft.projectUri);
+					const label = draft.projectKind === 'folder' ? basename(uri) : uri.path.substring(1).replace(/\/HEAD$/, '');
+					this._projectPicker.setSelectedProject({ kind: draft.projectKind, uri, label }, false);
+					this._currentTarget = draft.projectKind === 'folder' ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
 				} catch { /* ignore */ }
 			}
 		}
@@ -1091,8 +1081,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			isolationMode: isLocal ? this._targetPicker.isolationMode : undefined,
 			branch: isLocal ? this._branchPicker.selectedBranch : undefined,
 			projectKind: project?.kind,
-			projectUri: project?.uri.toString(),
-			projectRepoId: project?.repoId,
+			projectUri: project?.uri.toJSON(),
 		};
 		this._draftState = preserved;
 		this.storageService.store(STORAGE_KEY_DRAFT_STATE, JSON.stringify(preserved), StorageScope.WORKSPACE, StorageTarget.MACHINE);

@@ -8,7 +8,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -19,8 +19,8 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 
 const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
-const STORAGE_KEY_LAST_PROJECT = 'agentSessions.lastPickedProject';
-const STORAGE_KEY_RECENT_PROJECTS = 'agentSessions.recentlyPickedProjects';
+const STORAGE_KEY_LAST_PROJECT = 'sessions.lastPickedProject';
+const STORAGE_KEY_RECENT_PROJECTS = 'sessions.recentlyPickedProjects';
 const MAX_RECENT_PROJECTS = 10;
 const FILTER_THRESHOLD = 10;
 
@@ -29,17 +29,21 @@ const LEGACY_STORAGE_KEY_LAST_FOLDER = 'agentSessions.lastPickedFolder';
 const LEGACY_STORAGE_KEY_RECENT_FOLDERS = 'agentSessions.recentlyPickedFolders';
 const LEGACY_STORAGE_KEY_LAST_REPO = 'agentSessions.lastPickedRepo';
 const LEGACY_STORAGE_KEY_RECENT_REPOS = 'agentSessions.recentlyPickedRepos';
+// Old unified keys (renamed)
+const LEGACY_STORAGE_KEY_LAST_PROJECT = 'agentSessions.lastPickedProject';
+const LEGACY_STORAGE_KEY_RECENT_PROJECTS = 'agentSessions.recentlyPickedProjects';
+
+const COMMAND_BROWSE_FOLDERS = 'command:browseFolders';
+const COMMAND_BROWSE_REPOS = 'command:browseRepos';
 
 export type ProjectSelectionKind = 'folder' | 'repo';
 
 export interface IProjectSelection {
 	readonly kind: ProjectSelectionKind;
-	/** For folders: the folder URI. For repos: a URI constructed from the repo id. */
+	/** For folders: the folder URI. For repos: a URI constructed from the repo path. */
 	readonly uri: URI;
 	/** Display label (folder basename or repo name). */
 	readonly label: string;
-	/** For repos: the repo id string (e.g. "owner/repo"). */
-	readonly repoId?: string;
 }
 
 /**
@@ -47,9 +51,8 @@ export interface IProjectSelection {
  */
 interface IStoredProject {
 	readonly kind: ProjectSelectionKind;
-	readonly uri: string;
+	readonly uri: UriComponents;
 	readonly label: string;
-	readonly repoId?: string;
 	readonly checked?: boolean;
 }
 
@@ -87,7 +90,8 @@ export class ProjectPicker extends Disposable {
 
 		// Restore recently picked projects (or migrate from legacy storage)
 		try {
-			const stored = this.storageService.get(STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE);
+			const stored = this.storageService.get(STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE)
+				?? this.storageService.get(LEGACY_STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE);
 			if (stored) {
 				this._recentProjects = JSON.parse(stored);
 			} else {
@@ -98,7 +102,8 @@ export class ProjectPicker extends Disposable {
 
 		// Restore last picked project (or migrate from legacy)
 		try {
-			const last = this.storageService.get(STORAGE_KEY_LAST_PROJECT, StorageScope.PROFILE);
+			const last = this.storageService.get(STORAGE_KEY_LAST_PROJECT, StorageScope.PROFILE)
+				?? this.storageService.get(LEGACY_STORAGE_KEY_LAST_PROJECT, StorageScope.PROFILE);
 			if (last) {
 				const stored: IStoredProject = JSON.parse(last);
 				this._selectedProject = this._fromStored(stored);
@@ -123,7 +128,7 @@ export class ProjectPicker extends Disposable {
 				const folderUris: string[] = JSON.parse(storedFolders);
 				for (const uriStr of folderUris) {
 					const uri = URI.parse(uriStr);
-					migrated.push({ kind: 'folder', uri: uriStr, label: basename(uri) });
+					migrated.push({ kind: 'folder', uri: uri.toJSON(), label: basename(uri) });
 				}
 			}
 		} catch { /* ignore */ }
@@ -135,7 +140,7 @@ export class ProjectPicker extends Disposable {
 				const repos: { id: string; name: string }[] = JSON.parse(storedRepos);
 				for (const repo of repos) {
 					const uri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repo.id}/HEAD` });
-					migrated.push({ kind: 'repo', uri: uri.toString(), label: repo.name, repoId: repo.id });
+					migrated.push({ kind: 'repo', uri: uri.toJSON(), label: repo.name });
 				}
 			}
 		} catch { /* ignore */ }
@@ -166,7 +171,7 @@ export class ProjectPicker extends Disposable {
 			if (lastRepo) {
 				const repo: { id: string; name: string } = JSON.parse(lastRepo);
 				const uri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repo.id}/HEAD` });
-				this._selectedProject = { kind: 'repo', uri, label: repo.name, repoId: repo.id };
+				this._selectedProject = { kind: 'repo', uri, label: repo.name };
 			}
 		} catch { /* ignore */ }
 	}
@@ -218,9 +223,10 @@ export class ProjectPicker extends Disposable {
 		const delegate: IActionListDelegate<IStoredProject> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
-				if (item.kind === 'folder' && item.uri === 'command:browseFolders') {
+				const uriStr = URI.revive(item.uri).toString();
+				if (uriStr === COMMAND_BROWSE_FOLDERS) {
 					this._browseForFolder();
-				} else if (item.kind === 'repo' && item.uri === 'command:browseRepos') {
+				} else if (uriStr === COMMAND_BROWSE_REPOS) {
 					this._browseForRepo();
 				} else {
 					this._selectProject(this._fromStored(item));
@@ -248,28 +254,11 @@ export class ProjectPicker extends Disposable {
 	}
 
 	/**
-	 * Programmatically set the selected project from a folder URI.
+	 * Programmatically set the selected project.
 	 * @param fireEvent Whether to fire the onDidSelectProject event. Defaults to true.
 	 */
-	setSelectedFolder(folderUri: URI, fireEvent = true): void {
-		this._selectProject({
-			kind: 'folder',
-			uri: folderUri,
-			label: basename(folderUri),
-		}, fireEvent);
-	}
-
-	/**
-	 * Programmatically set the selected project from a repository id.
-	 * @param fireEvent Whether to fire the onDidSelectProject event. Defaults to true.
-	 */
-	setSelectedRepo(repoId: string, fireEvent = true): void {
-		this._selectProject({
-			kind: 'repo',
-			uri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repoId}/HEAD` }),
-			label: repoId,
-			repoId,
-		}, fireEvent);
+	setSelectedProject(project: IProjectSelection, fireEvent = true): void {
+		this._selectProject(project, fireEvent);
 	}
 
 	/**
@@ -281,12 +270,13 @@ export class ProjectPicker extends Disposable {
 	}
 
 	/**
-	 * Removes a folder from the recently picked list.
+	 * Removes a project from the recently picked list by URI.
 	 */
-	removeFromRecents(folderUri: URI): void {
-		this._recentProjects = this._recentProjects.filter(p => !(p.kind === 'folder' && p.uri === folderUri.toString()));
+	removeFromRecents(uri: URI): void {
+		const uriKey = uri.toString();
+		this._recentProjects = this._recentProjects.filter(p => URI.revive(p.uri).toString() !== uriKey);
 		this._persistRecents();
-		if (this._selectedProject?.kind === 'folder' && isEqual(this._selectedProject.uri, folderUri)) {
+		if (this._selectedProject && isEqual(this._selectedProject.uri, uri)) {
 			this._selectedProject = undefined;
 			this.storageService.remove(STORAGE_KEY_LAST_PROJECT, StorageScope.PROFILE);
 			this._updateTriggerLabel();
@@ -332,7 +322,6 @@ export class ProjectPicker extends Disposable {
 					kind: 'repo',
 					uri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${result}/HEAD` }),
 					label: result,
-					repoId: result,
 				});
 			}
 		} catch {
@@ -409,13 +398,13 @@ export class ProjectPicker extends Disposable {
 			kind: ActionListItemKind.Action,
 			label: localize('browseFolders', "Browse Folders..."),
 			group: { title: '', icon: Codicon.folderOpened },
-			item: { kind: 'folder', uri: 'command:browseFolders', label: localize('browseFolders', "Browse Folders...") },
+			item: { kind: 'folder', uri: URI.parse(COMMAND_BROWSE_FOLDERS).toJSON(), label: localize('browseFolders', "Browse Folders...") },
 		});
 		items.push({
 			kind: ActionListItemKind.Action,
 			label: localize('browseRepositories', "Browse Repositories..."),
 			group: { title: '', icon: Codicon.repo },
-			item: { kind: 'repo', uri: 'command:browseRepos', label: localize('browseRepositories', "Browse Repositories...") },
+			item: { kind: 'repo', uri: URI.parse(COMMAND_BROWSE_REPOS).toJSON(), label: localize('browseRepositories', "Browse Repositories...") },
 		});
 
 		return items;
@@ -445,26 +434,24 @@ export class ProjectPicker extends Disposable {
 	private _toStored(project: IProjectSelection): IStoredProject {
 		return {
 			kind: project.kind,
-			uri: project.uri.toString(),
+			uri: project.uri.toJSON(),
 			label: project.label,
-			repoId: project.repoId,
 		};
 	}
 
 	private _fromStored(stored: IStoredProject): IProjectSelection {
 		return {
 			kind: stored.kind,
-			uri: URI.parse(stored.uri),
+			uri: URI.revive(stored.uri),
 			label: stored.label,
-			repoId: stored.repoId,
 		};
 	}
 
 	private _projectKey(project: IStoredProject): string {
-		return `${project.kind}:${project.uri}`;
+		return `${project.kind}:${URI.revive(project.uri).toString()}`;
 	}
 
 	private _isSameProject(a: IStoredProject, b: IStoredProject): boolean {
-		return a.kind === b.kind && a.uri === b.uri;
+		return a.kind === b.kind && URI.revive(a.uri).toString() === URI.revive(b.uri).toString();
 	}
 }
