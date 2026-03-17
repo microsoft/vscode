@@ -83,6 +83,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		@IProductService private readonly productService: IProductService,
 	) {
 		super();
+		// Debounce because onDidChangeLanguageModels fires per vendor/model during
+		// startup, and each event would trigger getToolData() re-registration.
 		this.onDidUpdateToolData = Event.debounce(
 			Event.any(
 				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.SubagentToolCustomAgents)),
