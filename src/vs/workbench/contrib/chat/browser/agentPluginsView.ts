@@ -415,7 +415,8 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		this.currentQuery = query;
 		const stripped = query.replace(/@agentPlugins/i, '').trim();
 		const isRecommended = /^@recommended$/i.test(stripped);
-		const text = isRecommended ? '' : stripped.toLowerCase();
+		const isInstalled = /(?:^|\s)@installed(?:\s|$)/i.test(stripped);
+		const text = isRecommended ? '' : stripped.replace(/(?:^|\s)@installed(?:\s|$)/gi, ' ').trim().toLowerCase();
 
 		let installed = this.queryInstalled();
 		if (text) {
@@ -440,7 +441,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 
 		let items: IAgentPluginItem[] = installed;
 
-		if (!this.listOptions.installedOnly) {
+		if (!this.listOptions.installedOnly && !isInstalled) {
 			const marketplacePlugins = await this.queryMarketplacePlugins();
 			let filteredMp = marketplacePlugins;
 
