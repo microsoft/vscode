@@ -1557,7 +1557,7 @@ export class CodeApplication extends Disposable {
 									};
 									type GpuCrashClassification = {
 										gpuFeatureStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Current GPU feature status.' };
-										gpuLogMessages: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Last 10 GPU log messages before crash.' };
+										gpuLogMessages: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Last 10 GPU log messages collected after the crash and GPU process restart.' };
 										owner: 'deepak1556';
 										comment: 'Tracks GPU process crashes that would result in fallback mode.';
 									};
