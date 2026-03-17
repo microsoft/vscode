@@ -2,6 +2,16 @@ trigger: none
 
 pr: none
 
+parameters:
+  - name: GITHUB_APP_ID
+    type: string
+  - name: GITHUB_APP_INSTALLATION_ID
+    type: string
+  - name: GITHUB_APP_PRIVATE_KEY
+    type: string
+  - name: GITHUB_CHECK_RUN_ID
+    type: string
+
 variables:
   - name: NPM_REGISTRY
     value: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/"
@@ -112,3 +122,13 @@ jobs:
       - script: .github/workflows/check-clean-git-state.sh
         displayName: Check clean git state
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
+
+      - script: node build/azure-pipelines/github-check-run.js
+        displayName: Update GitHub check run
+        condition: always()
+        env:
+          GITHUB_APP_ID: ${{ parameters.GITHUB_APP_ID }}
+          GITHUB_APP_INSTALLATION_ID: ${{ parameters.GITHUB_APP_INSTALLATION_ID }}
+          GITHUB_APP_PRIVATE_KEY: ${{ parameters.GITHUB_APP_PRIVATE_KEY }}
+          CHECK_RUN_ID: ${{ parameters.GITHUB_CHECK_RUN_ID }}
+          AGENT_JOBSTATUS: $(Agent.JobStatus)
