@@ -456,7 +456,7 @@ function getHeaderIconAndClass(checks: readonly IGitHubCICheck[], overallStatus:
 		case GitHubCIOverallStatus.Failure:
 			return { icon: Codicon.error, className: 'ci-status-failure' };
 		case GitHubCIOverallStatus.Pending:
-			return { icon: Codicon.circle, className: 'ci-status-pending' };
+			return { icon: Codicon.circleFilled, className: 'ci-status-pending' };
 		default:
 			return { icon: Codicon.circleFilled, className: 'ci-status-neutral' };
 	}
@@ -467,7 +467,7 @@ function getCheckIcon(check: IGitHubCICheck): ThemeIcon {
 		case GitHubCheckStatus.InProgress:
 			return spinningLoading;
 		case GitHubCheckStatus.Queued:
-			return Codicon.circle;
+			return Codicon.circleFilled;
 		case GitHubCheckStatus.Completed:
 			switch (check.conclusion) {
 				case GitHubCheckConclusion.Success:
