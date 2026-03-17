@@ -44,6 +44,8 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, isMacintosh } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 //#region Telemetry
 
@@ -151,6 +153,13 @@ function extractPromptType(context: AICustomizationContext): PromptsType | undef
 	return context.promptType;
 }
 
+/**
+ * Returns whether the given storage type is read-only (extension, plugin, or built-in).
+ */
+function isReadonlyStorage(storage: PromptsStorage | string | undefined): boolean {
+	return storage === PromptsStorage.extension || storage === PromptsStorage.plugin || storage === BUILTIN_STORAGE;
+}
+
 // Open file action
 const OPEN_AI_CUSTOMIZATION_MGMT_FILE_ID = 'aiCustomizationManagement.openFile';
 registerAction2(class extends Action2 {
@@ -163,9 +172,19 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		await editorService.openEditor({
+		const storage = extractStorage(context);
+		const isReadonly = isReadonlyStorage(storage);
+
+		const editor = await editorService.openEditor({
 			resource: extractURI(context)
 		});
+
+		if (isReadonly && isCodeEditor(editor)) {
+			editor.updateOptions({
+				readOnly: true,
+				readOnlyMessage: new MarkdownString(localize('readonlyPluginFile', "This file is provided by a plugin or extension and cannot be edited.")),
+			});
+		}
 	}
 });
 
@@ -232,7 +251,7 @@ registerAction2(class extends Action2 {
 		const fileName = isSkill ? basename(dirname(uri)) : basename(uri);
 
 		// Extension, plugin, and built-in files cannot be deleted
-		if (storage === PromptsStorage.extension || storage === PromptsStorage.plugin || storage === BUILTIN_STORAGE) {
+		if (isReadonlyStorage(storage)) {
 			await dialogService.info(
 				localize('cannotDeleteExtension', "Cannot Delete Extension File"),
 				localize('cannotDeleteExtensionDetail', "Files provided by extensions cannot be deleted. You can disable the extension if you no longer want to use this customization.")
