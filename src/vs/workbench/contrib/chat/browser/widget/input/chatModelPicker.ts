@@ -713,6 +713,28 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, la
 		markdown.appendText(`\n`);
 	}
 
+	// Show navigation-group configuration values
+	if (languageModelsService) {
+		const schema = model.metadata.configurationSchema;
+		if (schema?.properties) {
+			const currentConfig = languageModelsService.getModelConfiguration(model.identifier) ?? {};
+			for (const [key, propSchema] of Object.entries(schema.properties)) {
+				if (typeof propSchema === 'boolean' || propSchema.group !== 'navigation') {
+					continue;
+				}
+				const value = currentConfig[key] ?? propSchema.default;
+				if (value !== undefined) {
+					const title = (typeof propSchema.title === 'string' ? propSchema.title : undefined)
+						?? key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase());
+					const enumIndex = propSchema.enum?.indexOf(value) ?? -1;
+					const displayValue = (enumIndex >= 0 && propSchema.enumItemLabels?.[enumIndex]) ?? String(value);
+					markdown.appendMarkdown(`${title}: ${displayValue}`);
+					markdown.appendText(`\n`);
+				}
+			}
+		}
+	}
+
 	return markdown;
 }
 
