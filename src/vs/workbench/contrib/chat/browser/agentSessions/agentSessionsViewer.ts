@@ -296,7 +296,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return stripped;
 		}
 
-		return new MarkdownString(stripped);
+		return MarkdownString.lift({ ...content, value: stripped });
 	}
 
 	private renderMarkdownOrText(content: string | IMarkdownString, container: HTMLElement, disposables: DisposableStore): void {
