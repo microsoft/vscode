@@ -127,9 +127,11 @@ function getDiffHunks(
 		return undefined;
 	}
 
-	const relevantGroups = groupChanges(diffResult.changes2).filter(group =>
-		group.some(change => rangeTouchesChange(range, selectionIsInOriginal ? change.original : change.modified))
-	);
+	const selectionIsEmpty = range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn;
+	const relevantGroups = groupChanges(diffResult.changes2).filter(group => {
+		const changeTouchesSelection = (change: DetailedLineRangeMapping) => rangeTouchesChange(range, selectionIsInOriginal ? change.original : change.modified);
+		return selectionIsEmpty ? group.some(changeTouchesSelection) : group.every(changeTouchesSelection);
+	});
 	if (relevantGroups.length === 0) {
 		return undefined;
 	}
