@@ -17,8 +17,7 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
-import { SessionProject } from '../../sessions/common/types.js';
+import { GITHUB_REMOTE_FILE_SCHEME, SessionProject } from '../../sessions/common/sessionProject.js';
 
 const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
 const STORAGE_KEY_LAST_PROJECT = 'sessions.lastPickedProject';

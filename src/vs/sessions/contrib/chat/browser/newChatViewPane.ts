@@ -60,7 +60,7 @@ import { SyncIndicator } from './syncIndicator.js';
 import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { ProjectPicker } from './projectPicker.js';
-import { SessionProject } from '../../sessions/common/types.js';
+import { SessionProject } from '../../sessions/common/sessionProject.js';
 import { ModePicker } from './modePicker.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { SlashCommandHandler } from './slashCommands.js';

@@ -12,7 +12,7 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { SessionProject } from '../../sessions/common/types.js';
+import { SessionProject } from '../../sessions/common/sessionProject.js';
 
 // #region --- Target Picker ---
 

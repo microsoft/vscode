@@ -6,7 +6,7 @@
 import { URI } from '../../../../base/common/uri.js';
 import { IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
 
-const REMOTE_FILE_SCHEME = 'github-remote-file';
+export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
 
 /**
  * Represents a project (folder or repository) for a session.
@@ -24,12 +24,12 @@ export class SessionProject {
 
 	/** Whether this is a local folder project. */
 	get isFolder(): boolean {
-		return this.uri.scheme !== REMOTE_FILE_SCHEME;
+		return this.uri.scheme !== GITHUB_REMOTE_FILE_SCHEME;
 	}
 
 	/** Whether this is a remote repository project. */
 	get isRepo(): boolean {
-		return this.uri.scheme === REMOTE_FILE_SCHEME;
+		return this.uri.scheme === GITHUB_REMOTE_FILE_SCHEME;
 	}
 
 	/** Returns a new SessionProject with the repository updated. */
