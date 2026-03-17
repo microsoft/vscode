@@ -83,7 +83,7 @@ export class ProjectPicker extends Disposable {
 			const stored = this.storageService.get(STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE)
 				?? this.storageService.get(LEGACY_STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE);
 			if (stored) {
-				this._recentProjects = JSON.parse(stored);
+				this._recentProjects = this._migrateStoredProjects(JSON.parse(stored));
 			} else {
 				// Migrate from legacy separate folder/repo storage
 				this._migrateFromLegacyStorage();
@@ -95,7 +95,7 @@ export class ProjectPicker extends Disposable {
 			const last = this.storageService.get(STORAGE_KEY_LAST_PROJECT, StorageScope.PROFILE)
 				?? this.storageService.get(LEGACY_STORAGE_KEY_LAST_PROJECT, StorageScope.PROFILE);
 			if (last) {
-				const stored: IStoredProject = JSON.parse(last);
+				const stored: IStoredProject = this._migrateStoredProject(JSON.parse(last));
 				this._selectedProject = this._fromStored(stored);
 			} else {
 				// Try migrating last picked from legacy keys
@@ -211,7 +211,7 @@ export class ProjectPicker extends Disposable {
 		const delegate: IActionListDelegate<IStoredProject> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
-				const uriStr = this._reviveUri(item.uri).toString();
+				const uriStr = URI.revive(item.uri).toString();
 				if (uriStr === COMMAND_BROWSE_FOLDERS) {
 					this._browseForFolder();
 				} else if (uriStr === COMMAND_BROWSE_REPOS) {
@@ -261,7 +261,7 @@ export class ProjectPicker extends Disposable {
 	 * Removes a project from the recently picked list by URI.
 	 */
 	removeFromRecents(uri: URI): void {
-		this._recentProjects = this._recentProjects.filter(p => !this.uriIdentityService.extUri.isEqual(this._reviveUri(p.uri), uri));
+		this._recentProjects = this._recentProjects.filter(p => !this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), uri));
 		this._persistRecents();
 		if (this._selectedProject && this.uriIdentityService.extUri.isEqual(this._selectedProject.uri, uri)) {
 			this._selectedProject = undefined;
@@ -340,7 +340,7 @@ export class ProjectPicker extends Disposable {
 		}
 
 		// Split into folders and repos, sort each group alphabetically
-		const isStoredFolder = (p: IStoredProject) => this._reviveUri(p.uri).scheme !== GITHUB_REMOTE_FILE_SCHEME;
+		const isStoredFolder = (p: IStoredProject) => URI.revive(p.uri).scheme !== GITHUB_REMOTE_FILE_SCHEME;
 		const folders = allProjects.filter(p => isStoredFolder(p)).sort((a, b) => this._getStoredProjectLabel(a).localeCompare(this._getStoredProjectLabel(b)));
 		const repos = allProjects.filter(p => !isStoredFolder(p)).sort((a, b) => this._getStoredProjectLabel(a).localeCompare(this._getStoredProjectLabel(b)));
 
@@ -416,7 +416,7 @@ export class ProjectPicker extends Disposable {
 	}
 
 	private _getStoredProjectLabel(project: IStoredProject): string {
-		const uri = this._reviveUri(project.uri);
+		const uri = URI.revive(project.uri);
 		if (uri.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
 			return basename(uri);
 		}
@@ -431,25 +431,42 @@ export class ProjectPicker extends Disposable {
 	}
 
 	private _fromStored(stored: IStoredProject): SessionProject {
-		return new SessionProject(this._reviveUri(stored.uri));
-	}
-
-	private _projectKey(project: IStoredProject): string {
-		return this._reviveUri(project.uri).toString();
-	}
-
-	private _isSameProject(a: IStoredProject, b: IStoredProject): boolean {
-		return this.uriIdentityService.extUri.isEqual(this._reviveUri(a.uri), this._reviveUri(b.uri));
+		return new SessionProject(URI.revive(stored.uri));
 	}
 
 	/**
-	 * Revives a stored URI, handling both UriComponents (new format) and
-	 * plain strings (legacy format from old storage keys).
+	 * Migrates a stored project from old string URI format to UriComponents if needed.
 	 */
-	private _reviveUri(uri: UriComponents | string): URI {
-		if (typeof uri === 'string') {
-			return URI.parse(uri);
+	private _migrateStoredProject(project: IStoredProject & { uri: UriComponents | string }): IStoredProject {
+		if (typeof project.uri === 'string') {
+			return { ...project, uri: URI.parse(project.uri).toJSON() };
 		}
-		return URI.revive(uri);
+		return project;
+	}
+
+	/**
+	 * Migrates an array of stored projects and re-persists if any were in old format.
+	 */
+	private _migrateStoredProjects(projects: (IStoredProject & { uri: UriComponents | string })[]): IStoredProject[] {
+		let migrated = false;
+		const result = projects.map(p => {
+			if (typeof p.uri === 'string') {
+				migrated = true;
+				return { ...p, uri: URI.parse(p.uri).toJSON() };
+			}
+			return p;
+		});
+		if (migrated) {
+			this.storageService.store(STORAGE_KEY_RECENT_PROJECTS, JSON.stringify(result), StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+		return result;
+	}
+
+	private _projectKey(project: IStoredProject): string {
+		return URI.revive(project.uri).toString();
+	}
+
+	private _isSameProject(a: IStoredProject, b: IStoredProject): boolean {
+		return this.uriIdentityService.extUri.isEqual(URI.revive(a.uri), URI.revive(b.uri));
 	}
 }
