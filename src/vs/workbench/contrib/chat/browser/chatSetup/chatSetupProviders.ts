@@ -321,6 +321,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doForwardRequestToChatWhenReady(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
+		mark('code/chat/setup/willForwardRequestToChatWhenReady');
 
 		// Ensure auth extension is enabled before waiting for chat readiness.
 		// This must run before the readiness event listeners are set up because
@@ -342,8 +343,9 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		let languageModelReady = false;
 		let toolsModelReady = false;
 
-		const whenAgentActivated = this.whenAgentActivated(chatService).then(() => agentActivated = true);
 		mark('code/chat/setup/willWaitForReadiness');
+
+		const whenAgentActivated = this.whenAgentActivated(chatService).then(() => agentActivated = true);
 		const whenAgentReady = this.whenAgentReady(chatAgentService, modeInfo?.kind)?.then(() => agentReady = true);
 		if (!whenAgentReady) {
 			agentReady = true;
