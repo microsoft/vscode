@@ -1080,7 +1080,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const previousProject = this._projectPicker.selectedProject;
 
 		// Update target picker with new project (determines target mode)
-		this._targetPicker.setProject(project, true);
+		this._targetPicker.setProject(project);
 		const isLocal = this._currentTarget === AgentSessionProviders.Background;
 
 		// Show/hide local-only pickers

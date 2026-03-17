@@ -32,7 +32,6 @@ export class TargetPicker extends Disposable {
 
 	private _targetMode: TargetMode = 'worktree';
 	private _project: SessionProject | undefined;
-	private _pendingReset: boolean = false;
 	private _isolationOptionEnabled: boolean = true;
 
 	private readonly _onDidChange = this._register(new Emitter<TargetMode>());
@@ -79,30 +78,19 @@ export class TargetPicker extends Disposable {
 	/**
 	 * Sets the current project context. Determines the available target modes:
 	 * - Repo project → cloud mode (disabled picker)
-	 * - Folder with git repo → worktree/folder modes available
+	 * - Folder with git repo → retains current local mode (worktree/folder)
 	 * - Folder without git repo → folder mode only
 	 * - No project → retains current mode
-	 *
-	 * @param resetMode When true, resets to the default mode for the project type.
-	 *   When false, retains the current mode if compatible (e.g., repo resolving).
 	 */
-	setProject(project: SessionProject | undefined, resetMode = false): void {
+	setProject(project: SessionProject | undefined): void {
 		this._project = project;
-
-		if (resetMode) {
-			this._pendingReset = true;
-		}
 
 		if (project?.isRepo) {
 			this._targetMode = 'cloud';
-			this._pendingReset = false;
-		} else if (project?.isFolder && project.repository) {
-			if (this._pendingReset || this._targetMode === 'cloud') {
-				this._targetMode = 'worktree';
-			}
-			this._pendingReset = false;
-		} else if (project?.isFolder) {
+		} else if (project?.isFolder && !project.repository) {
 			this._targetMode = 'workspace';
+		} else if (project?.isFolder && this._targetMode === 'cloud') {
+			this._targetMode = 'worktree';
 		}
 
 		this._updateTriggerLabel();
