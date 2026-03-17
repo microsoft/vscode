@@ -93,13 +93,16 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		contextNode.classList.toggle('disabled', !context.enabled);
 		const file: URI | undefined = context.uri;
 		const attachmentTypeName = file?.scheme === Schemas.vscodeNotebookCell ? localize('cell.lowercase', "cell") : localize('file.lowercase', "file");
+		const contextLabel = context.name ?? (file ? basename(file) : localize('implicitContextFallback', "context"));
 
 		const isSuggestedEnabled = this.configService.getValue('chat.implicitContext.suggestedContext');
 
 		// Create toggle button BEFORE the label so it appears on the left
 		if (isSuggestedEnabled) {
 			if (!isSelection) {
-				const buttonMsg = context.enabled ? localize('disableImplicitContext', "Disable current {0} context", attachmentTypeName) : localize('addToContext', "Add to context");
+				const buttonMsg = context.enabled
+					? localize('disableImplicitContext', "Disable {0} context {1}", attachmentTypeName, contextLabel)
+					: localize('addToContext', "Add {0} to context", contextLabel);
 				const toggleButton = this.renderDisposables.add(new Button(contextNode, { supportIcons: true, title: buttonMsg }));
 				toggleButton.icon = context.enabled ? Codicon.x : Codicon.plus;
 				this.renderDisposables.add(toggleButton.onDidClick(async (e) => {
