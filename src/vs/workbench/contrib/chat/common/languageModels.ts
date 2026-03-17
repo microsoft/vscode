@@ -170,21 +170,13 @@ export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart
 
 export type IExtendedChatResponsePart = IChatResponsePullRequestPart;
 
-export interface ILanguageModelConfigurationSchemaProperty extends IJSONSchema {
-	/**
-	 * The group this property belongs to. When set to `'navigation'`, the property
-	 * is shown as a primary action in the model picker.
-	 */
-	group?: string;
-	/**
-	 * Labels for enum values. If provided, these are shown instead of the raw enum values.
-	 * Must have the same length and order as {@link IJSONSchema.enum}.
-	 */
-	enumItemLabels?: string[];
-}
-
 export interface ILanguageModelConfigurationSchema extends IJSONSchema {
-	properties?: { [key: string]: ILanguageModelConfigurationSchemaProperty | boolean };
+	properties?: { [key: string]: IJSONSchema & {
+		/** When set to `'navigation'`, the property is shown as a primary action in the model picker. */
+		group?: string;
+		/** Labels for enum values. If provided, these are shown instead of the raw enum values. */
+		enumItemLabels?: string[];
+	} | boolean };
 }
 
 export interface ILanguageModelChatMetadata {
