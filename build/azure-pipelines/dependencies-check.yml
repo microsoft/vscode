@@ -1,8 +1,16 @@
 trigger: none
 
-pr:
-  branches:
-    include: ["main"]
+pr: none
+
+parameters:
+  - name: GITHUB_APP_ID
+    type: string
+  - name: GITHUB_APP_INSTALLATION_ID
+    type: string
+  - name: GITHUB_APP_PRIVATE_KEY
+    type: string
+  - name: GITHUB_CHECK_RUN_ID
+    type: string
 
 variables:
   - name: NPM_REGISTRY
@@ -12,11 +20,11 @@ variables:
 
 jobs:
   - job: ValidateNpmPackages
-    displayName: Valiate NPM packages against Terrapin
+    displayName: Validate package-lock.json, Cargo.lock changes via Azure DevOps pipeline
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux
-    timeoutInMinutes: 40000
+    timeoutInMinutes: 1300
     variables:
       VSCODE_ARCH: x64
     steps:
@@ -75,10 +83,10 @@ jobs:
       - script: |
           set -e
 
-          for attempt in {1..12}; do
+          for attempt in {1..120}; do
             if [ $attempt -gt 1 ]; then
-              echo "Attempt $attempt: Waiting for 30 minutes before retrying..."
-              sleep 1800
+              echo "Attempt $attempt: Waiting for 10 minutes before retrying..."
+              sleep 600
             fi
 
             echo "Attempt $attempt: Running npm ci"
@@ -94,7 +102,7 @@ jobs:
             fi
           done
 
-          echo "npm i failed after 12 attempts"
+          echo "giving up after 120 attempts (20 hours)"
           exit 1
         env:
           npm_command: 'install --ignore-scripts'
@@ -102,7 +110,7 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Install dependencies with retries
-        timeoutInMinutes: 400
+        timeoutInMinutes: 1300
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
 
       - script: |
@@ -114,3 +122,13 @@ jobs:
       - script: .github/workflows/check-clean-git-state.sh
         displayName: Check clean git state
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
+
+      - script: node build/azure-pipelines/update-dependencies-check.ts
+        displayName: Update GitHub check run
+        condition: always()
+        env:
+          GITHUB_APP_ID: ${{ parameters.GITHUB_APP_ID }}
+          GITHUB_APP_INSTALLATION_ID: ${{ parameters.GITHUB_APP_INSTALLATION_ID }}
+          GITHUB_APP_PRIVATE_KEY: ${{ parameters.GITHUB_APP_PRIVATE_KEY }}
+          CHECK_RUN_ID: ${{ parameters.GITHUB_CHECK_RUN_ID }}
+          AGENT_JOBSTATUS: $(Agent.JobStatus)

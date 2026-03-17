@@ -61,8 +61,6 @@ async function main(buildDir?: string) {
 			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@github', `copilot-${plat}`));
 			// @github/copilot/prebuilds/{platform} (pty.node, spawn-helper)
 			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@github', 'copilot', 'prebuilds', plat));
-			// @github/copilot/ripgrep/bin/{platform} (rg binary)
-			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@github', 'copilot', 'ripgrep', 'bin', plat));
 		}
 	}
 
@@ -76,12 +74,8 @@ async function main(buildDir?: string) {
 		'**/node_modules.asar.unpacked/@github/copilot-darwin-arm64/**',
 		'**/node_modules/@github/copilot/prebuilds/darwin-x64/**',
 		'**/node_modules/@github/copilot/prebuilds/darwin-arm64/**',
-		'**/node_modules/@github/copilot/ripgrep/bin/darwin-x64/**',
-		'**/node_modules/@github/copilot/ripgrep/bin/darwin-arm64/**',
 		'**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-x64/**',
 		'**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-arm64/**',
-		'**/node_modules.asar.unpacked/@github/copilot/ripgrep/bin/darwin-x64/**',
-		'**/node_modules.asar.unpacked/@github/copilot/ripgrep/bin/darwin-arm64/**',
 	];
 
 	await makeUniversalApp({
@@ -91,7 +85,7 @@ async function main(buildDir?: string) {
 		outAppPath,
 		force: true,
 		mergeASARs: true,
-		x64ArchFiles: '{*/kerberos.node,**/extensions/microsoft-authentication/dist/libmsalruntime.dylib,**/extensions/microsoft-authentication/dist/msal-node-runtime.node,**/node_modules/@github/copilot-darwin-*/copilot,**/node_modules/@github/copilot/prebuilds/darwin-*/*,**/node_modules/@github/copilot/ripgrep/bin/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot-darwin-*/copilot,**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot/ripgrep/bin/darwin-*/*}',
+		x64ArchFiles: '{*/kerberos.node,**/extensions/microsoft-authentication/dist/libmsalruntime.dylib,**/extensions/microsoft-authentication/dist/msal-node-runtime.node,**/node_modules/@github/copilot-darwin-*/copilot,**/node_modules/@github/copilot/prebuilds/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot-darwin-*/copilot,**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/*}',
 		filesToSkipComparison: (file: string) => {
 			for (const expected of filesToSkip) {
 				if (minimatch(file, expected)) {

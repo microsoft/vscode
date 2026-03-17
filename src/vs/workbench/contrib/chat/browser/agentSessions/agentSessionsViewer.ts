@@ -41,7 +41,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
-import { AgentSessionProviders, getAgentSessionTime } from './agentSessions.js';
+import { AgentSessionProviders } from './agentSessions.js';
 import { AgentSessionsGrouping } from './agentSessionsFilter.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -144,19 +144,17 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 						h('div.agent-session-title-toolbar@titleToolbar'),
 					]),
 					h('div.agent-session-details-row', [
+						h('div.agent-session-badge@badge'),
+						h('span.agent-session-separator@separator'),
 						h('div.agent-session-diff-container@diffContainer',
 							[
 								h('span.agent-session-diff-added@addedSpan'),
 								h('span.agent-session-diff-removed@removedSpan')
 							]),
 						h('div.agent-session-description@description'),
-						h('div.agent-session-details-right', [
-							h('div.agent-session-badge@badge'),
-							h('span.agent-session-separator@separator'),
-							h('div.agent-session-status@statusContainer', [
-								h('span.agent-session-status-provider-icon@statusProviderIcon'),
-								h('span.agent-session-status-time@statusTime')
-							]),
+						h('div.agent-session-status@statusContainer', [
+							h('span.agent-session-status-provider-icon@statusProviderIcon'),
+							h('span.agent-session-status-time@statusTime')
 						]),
 					]),
 					h('div.agent-session-approval-row@approvalRow', [
@@ -180,11 +178,11 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			icon: elements.icon,
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
 			titleToolbar,
+			badge: elements.badge,
+			separator: elements.separator,
 			diffContainer: elements.diffContainer,
 			diffAddedSpan: elements.addedSpan,
 			diffRemovedSpan: elements.removedSpan,
-			badge: elements.badge,
-			separator: elements.separator,
 			description: elements.description,
 			statusContainer: elements.statusContainer,
 			statusProviderIcon: elements.statusProviderIcon,
@@ -211,7 +209,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		template.element.classList.toggle('archived', session.element.isArchived());
 
 		// Icon
-		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}`;
+		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}${session.element.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
 
 		// Title
 		const markdownTitle = new MarkdownString(session.element.label);
@@ -223,6 +221,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		ChatContextKeys.agentSessionType.bindTo(template.contextKeyService).set(session.element.providerType);
 		template.titleToolbar.context = session.element;
 
+		// Badge
+		const hasBadge = this.renderBadge(session, template);
+
 		// Diff information
 		let hasDiff = false;
 		const { changes: diff } = session.element;
@@ -231,7 +232,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 				hasDiff = true;
 			}
 		}
-		template.diffContainer.classList.toggle('has-diff', hasDiff);
 
 		let hasAgentSessionChanges = false;
 		if (
@@ -248,20 +248,21 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(hasAgentSessionChanges);
 
-		// Badge
-		const hasBadge = this.renderBadge(session, template);
-		template.badge.classList.toggle('has-badge', hasBadge);
 
-		// Description (unless diff is shown)
-		if (!hasDiff) {
-			this.renderDescription(session, template);
-		}
-
-		// Separator (dot between badge and timestamp)
-		template.separator.classList.toggle('has-separator', hasBadge);
+		// Description
+		const hasDescription = this.renderDescription(session, template);
 
 		// Status
-		this.renderStatus(session, template);
+		const hasStatus = this.renderStatus(session, template);
+
+		// When in progress with a description, only show description in the details row
+		const hideDetails = hasDescription && isSessionInProgressStatus(session.element.status);
+		template.badge.classList.toggle('has-badge', hasBadge && !hideDetails);
+		template.diffContainer.classList.toggle('has-diff', hasDiff && !hideDetails);
+		template.statusContainer.classList.toggle('hidden', hideDetails);
+		template.separator.classList.toggle('has-separator', !hideDetails && hasBadge && hasDiff);
+		template.description.classList.toggle('has-separator', hasDescription && !hideDetails && (hasBadge || hasDiff));
+		template.statusContainer.classList.toggle('has-separator', !hideDetails && hasStatus && (hasBadge || hasDiff || hasDescription));
 
 		// Hover
 		this.renderHover(session, template);
@@ -295,8 +296,19 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			}
 		}
 
-		this.renderMarkdownOrText(badge, template.badge, template.elementDisposable);
+		this.renderMarkdownOrText(this.stripCodicons(badge), template.badge, template.elementDisposable);
+
 		return true;
+	}
+
+	private stripCodicons(content: string | IMarkdownString): string | IMarkdownString {
+		const raw = typeof content === 'string' ? content : content.value;
+		const stripped = raw.replace(/\$\([a-z0-9\-]+\)\s*/gi, '').trim();
+		if (typeof content === 'string') {
+			return stripped;
+		}
+
+		return MarkdownString.lift({ ...content, value: stripped });
 	}
 
 	private renderMarkdownOrText(content: string | IMarkdownString, container: HTMLElement, disposables: DisposableStore): void {
@@ -321,6 +333,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return false;
 		}
 
+		if (diff.insertions === 0 && diff.deletions === 0) {
+			return false;
+		}
+
 		if (diff.insertions >= 0 /* render even `0` for more homogeneity */) {
 			template.diffAddedSpan.textContent = `+${diff.insertions}`;
 		}
@@ -338,7 +354,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		}
 
 		if (session.status === AgentSessionStatus.NeedsInput) {
-			return Codicon.report;
+			return Codicon.circleFilled;
 		}
 
 		if (session.status === AgentSessionStatus.Failed) {
@@ -352,33 +368,27 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		return Codicon.circleSmallFilled;
 	}
 
-	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
 		const description = session.element.description;
 		if (description) {
 			this.renderMarkdownOrText(description, template.description, template.elementDisposable);
-			return;
+			return true;
 		}
 
 		// Fallback to state label
 		if (session.element.status === AgentSessionStatus.InProgress) {
 			template.description.textContent = localize('chat.session.status.inProgress', "Working...");
+			return true;
 		} else if (session.element.status === AgentSessionStatus.NeedsInput) {
 			template.description.textContent = localize('chat.session.status.needsInput', "Input needed.");
-		} else if (
-			session.element.timing.lastRequestEnded &&
-			session.element.timing.lastRequestStarted &&
-			session.element.timing.lastRequestEnded > session.element.timing.lastRequestStarted
-		) {
-			const duration = this.toDuration(session.element.timing.lastRequestStarted, session.element.timing.lastRequestEnded, false, true);
-
-			template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
-				localize('chat.session.status.failedAfter', "Failed after {0}", duration) :
-				localize('chat.session.status.completedAfter', "Completed in {0}", duration);
-		} else {
-			template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
-				localize('chat.session.status.failed', "Failed") :
-				localize('chat.session.status.completed', "Completed");
+			return true;
+		} else if (session.element.status === AgentSessionStatus.Failed) {
+			template.description.textContent = localize('chat.session.status.failed', "Failed");
+			return true;
 		}
+
+		template.description.textContent = '';
+		return false;
 	}
 
 	private toDuration(startTime: number, endTime: number, useFullTimeWords: boolean, disallowNow: boolean): string {
@@ -390,7 +400,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		return getDurationString(elapsed, useFullTimeWords);
 	}
 
-	private renderStatus(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+	private renderStatus(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
 
 		const getTimeLabel = (session: IAgentSession) => {
 			let timeLabel: string | undefined;
@@ -399,12 +409,12 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			}
 
 			if (!timeLabel) {
-				const date = getAgentSessionTime(session.timing);
+				const date = session.timing.created;
 				const seconds = Math.round((new Date().getTime() - date) / 1000);
 				if (seconds < 60) {
 					timeLabel = localize('secondsDuration', "now");
 				} else {
-					timeLabel = sessionDateFromNow(date);
+					timeLabel = sessionDateFromNow(date, true);
 				}
 			}
 
@@ -428,6 +438,8 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		template.statusTime.textContent = getTimeLabel(session.element);
 		const timer = template.elementDisposable.add(new IntervalTimer());
 		timer.cancelAndSet(() => template.statusTime.textContent = getTimeLabel(session.element), session.element.status === AgentSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
+
+		return true;
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
@@ -821,9 +833,14 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	}
 
 	private groupSessionsIntoSections(sessions: IAgentSession[]): AgentSessionListItem[] {
-		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
+		const isCapped = this.filter?.groupResults?.() === AgentSessionsGrouping.Capped;
 
-		if (this.filter?.groupResults?.() === AgentSessionsGrouping.Capped) {
+		const sorter = this.sorter;
+		const sortedSessions = sorter instanceof AgentSessionsSorter
+			? sessions.sort((a, b) => sorter.compare(a, b, isCapped /* special sorting for when results are capped to keep active ones top */))
+			: sessions.sort(sorter.compare.bind(sorter));
+
+		if (isCapped) {
 			if (this.filter?.getExcludes().read) {
 				return sortedSessions; // When filtering to show only unread sessions, show a flat list
 			}
@@ -1098,7 +1115,7 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 		if (session.isArchived()) {
 			archivedSessions.push(session);
 		} else {
-			const sessionTime = getAgentSessionTime(session.timing);
+			const sessionTime = session.timing.created;
 			if (sessionTime >= startOfToday) {
 				todaySessions.push(session);
 			} else if (sessionTime >= startOfYesterday) {
@@ -1120,7 +1137,7 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 	]);
 }
 
-export function sessionDateFromNow(sessionTime: number): string {
+export function sessionDateFromNow(sessionTime: number, appendAgoLabel?: boolean): string {
 	const now = Date.now();
 	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;
@@ -1133,14 +1150,18 @@ export function sessionDateFromNow(sessionTime: number): string {
 	// normalization logic.
 
 	if (sessionTime < startOfToday && sessionTime >= startOfYesterday) {
-		return localize('date.fromNow.days.singular', '1 day');
+		return appendAgoLabel
+			? localize('date.fromNow.days.singular.ago', '1 day ago')
+			: localize('date.fromNow.days.singular', '1 day');
 	}
 
 	if (sessionTime < startOfYesterday && sessionTime >= startOfTwoDaysAgo) {
-		return localize('date.fromNow.days.multiple', '2 days');
+		return appendAgoLabel
+			? localize('date.fromNow.days.multiple.ago', '2 days ago')
+			: localize('date.fromNow.days.multiple', '2 days');
 	}
 
-	return fromNow(sessionTime, false);
+	return fromNow(sessionTime, appendAgoLabel);
 }
 
 export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSessionsModel | AgentSessionListItem> {
@@ -1172,25 +1193,21 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 	}
 }
 
-export interface IAgentSessionsSorterOptions {
-	overrideCompare?(sessionA: IAgentSession, sessionB: IAgentSession): number | undefined;
-}
-
 export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
-	constructor(private readonly options?: IAgentSessionsSorterOptions) { }
+	compare(sessionA: IAgentSession, sessionB: IAgentSession, prioritizeActiveSessions = false): number {
 
-	compare(sessionA: IAgentSession, sessionB: IAgentSession): number {
+		// Special sorting if enabled
+		if (prioritizeActiveSessions) {
+			const aNeedsInput = sessionA.status === AgentSessionStatus.NeedsInput;
+			const bNeedsInput = sessionB.status === AgentSessionStatus.NeedsInput;
 
-		// Input Needed
-		const aNeedsInput = sessionA.status === AgentSessionStatus.NeedsInput;
-		const bNeedsInput = sessionB.status === AgentSessionStatus.NeedsInput;
-
-		if (aNeedsInput && !bNeedsInput) {
-			return -1; // a (needs input) comes before b (other)
-		}
-		if (!aNeedsInput && bNeedsInput) {
-			return 1; // a (other) comes after b (needs input)
+			if (aNeedsInput && !bNeedsInput) {
+				return -1; // a (needs input) comes before b (other)
+			}
+			if (!aNeedsInput && bNeedsInput) {
+				return 1; // a (other) comes after b (needs input)
+			}
 		}
 
 		// Archived
@@ -1204,15 +1221,9 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 			return 1; // a (archived) comes after b (non-archived)
 		}
 
-		// Before we compare by time, allow override
-		const override = this.options?.overrideCompare?.(sessionA, sessionB);
-		if (typeof override === 'number') {
-			return override;
-		}
-
-		// Sort by end or start time (most recent first)
-		const timeA = getAgentSessionTime(sessionA.timing);
-		const timeB = getAgentSessionTime(sessionB.timing);
+		// Sort by time
+		const timeA = prioritizeActiveSessions ? sessionA.timing.lastRequestStarted ?? sessionA.timing.created : sessionA.timing.created;
+		const timeB = prioritizeActiveSessions ? sessionB.timing.lastRequestStarted ?? sessionB.timing.created : sessionB.timing.created;
 		return timeB - timeA;
 	}
 }

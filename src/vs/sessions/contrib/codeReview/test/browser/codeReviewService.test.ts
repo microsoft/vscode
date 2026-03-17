@@ -113,8 +113,8 @@ suite('CodeReviewService', () => {
 			this.onDidChangeSessionArchivedState = this._onDidChangeSessionArchivedState.event;
 			this._onDidChangeSessions = disposables.add(new Emitter<void>());
 			this.model = {
-				onWillResolve: Event.None,
-				onDidResolve: Event.None,
+				onWillResolve: Event.None as Event<string>,
+				onDidResolve: Event.None as Event<string>,
 				onDidChangeSessions: this._onDidChangeSessions.event,
 				onDidChangeSessionArchivedState: this._onDidChangeSessionArchivedState.event,
 				resolved: true,

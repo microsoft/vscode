@@ -278,6 +278,7 @@ export interface Repository {
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
 	diffBetweenPatch(ref1: string, ref2: string, path?: string): Promise<string>;
 	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]>;
+	diffBetweenWithStats2(ref: string, path?: string): Promise<DiffChange[]>;
 
 	hashObject(data: string): Promise<string>;
 
