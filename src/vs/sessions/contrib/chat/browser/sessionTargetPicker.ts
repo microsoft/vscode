@@ -116,8 +116,7 @@ export class TargetPicker extends Disposable {
 			const preferred = this._preferredLocalMode;
 			this._preferredLocalMode = undefined;
 			if (preferred && preferred !== 'cloud') {
-				this._setMode(preferred);
-				return;
+				this._targetMode = preferred;
 			}
 		}
 
