@@ -870,6 +870,31 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	private async loadItems(): Promise<void> {
 		const section = this.currentSection;
+		const items = await this.fetchItemsForSection(section);
+
+		if (this.currentSection !== section) {
+			return; // section changed while loading
+		}
+
+		this.allItems = items;
+		this.filterItems();
+		this._onDidChangeItemCount.fire(items.length);
+	}
+
+	/**
+	 * Computes the item count for a given section without updating the display.
+	 * Uses the same loading and filtering logic as `loadItems` for consistency.
+	 */
+	async computeItemCountForSection(section: AICustomizationManagementSection): Promise<number> {
+		const items = await this.fetchItemsForSection(section);
+		return items.length;
+	}
+
+	/**
+	 * Fetches and filters items for a given section.
+	 * Shared between `loadItems` (active section) and `computeItemCountForSection` (any section).
+	 */
+	private async fetchItemsForSection(section: AICustomizationManagementSection): Promise<IAICustomizationListItem[]> {
 		const promptType = sectionToPromptType(section);
 		const items: IAICustomizationListItem[] = [];
 
@@ -1066,13 +1091,7 @@ export class AICustomizationListWidget extends Disposable {
 		// Sort items by name
 		items.sort((a, b) => a.name.localeCompare(b.name));
 
-		if (this.currentSection !== section) {
-			return; // section changed while loading
-		}
-
-		this.allItems = items;
-		this.filterItems();
-		this._onDidChangeItemCount.fire(items.length);
+		return items;
 	}
 
 	/**

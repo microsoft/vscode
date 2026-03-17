@@ -139,6 +139,19 @@
 	font-weight: 400;
 }
 
+.ai-customization-management-editor .section-list-item .section-count {
+	flex-shrink: 0;
+	font-size: 10px;
+	font-weight: 500;
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
+	padding: 0 5px;
+	border-radius: 8px;
+	min-width: 14px;
+	text-align: center;
+	line-height: 16px;
+}
+
 /* Content area */
 .ai-customization-management-editor .management-content {
 	background-color: var(--vscode-editor-background);
