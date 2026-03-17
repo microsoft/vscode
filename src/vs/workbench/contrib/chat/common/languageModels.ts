@@ -403,8 +403,8 @@ export interface ILanguageModelsService {
 	getModelConfigurationActions(modelId: string): IAction[];
 
 	/**
-	 * Returns the display description for configuration properties marked with `showInDescription`.
-	 * Returns undefined if no properties are marked or all are at default values.
+	 * Returns a display string for navigation-group configuration properties (e.g., "High" for thinking effort).
+	 * Used by the model picker to show the current config value inline with the model name.
 	 */
 	getModelConfigurationDescription(modelId: string): string | undefined;
 
