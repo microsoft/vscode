@@ -132,7 +132,7 @@ suite('AgentSessionsDataSource', () => {
 	function createMockSorter(): ITreeSorter<IAgentSession> {
 		return {
 			compare: (a, b) => {
-				// Sort by end time, most recent first
+				// Sort by creation time, most recent first
 				const aTime = a.timing.created;
 				const bTime = b.timing.created;
 				return bTime - aTime;
