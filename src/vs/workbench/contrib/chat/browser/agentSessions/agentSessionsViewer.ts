@@ -278,7 +278,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return false;
 		}
 
-		// No badge when grouped by repository to avoid repitition (unless archived)
+		// No badge when grouped by repository to avoid repetition (unless archived)
 		if (this.options.isGroupedByRepository?.() && !session.element.isArchived()) {
 			return false;
 		}
