@@ -746,6 +746,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void> {
+		mark('code/chat/willResendRequest');
 		const model = this._sessionModels.get(request.session.sessionResource);
 		if (!model && model !== request.session) {
 			throw new Error(`Unknown session: ${request.session.sessionResource}`);
@@ -823,6 +824,7 @@ export class ChatService extends Disposable implements IChatService {
 		// to the rest of code. Instead use `createNewChatSessionItem` to make sure the session gets properly initialized with a real resource before processing the first request.
 		if (!model.hasRequests && isUntitledChatSession(sessionResource) && getChatSessionType(sessionResource) !== localChatSessionType) {
 
+			mark('code/chat/willMigrateSession');
 			const parsedRequest = this.parseChatRequest(sessionResource, request, options?.location ?? model.initialLocation, options);
 			const commandPart = parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
 			const requestText = getPromptText(parsedRequest).message;
@@ -852,6 +854,7 @@ export class ChatService extends Disposable implements IChatService {
 				sessionResource = newItem.resource;
 				newSessionResource = newItem.resource;
 			}
+			mark('code/chat/didMigrateSession');
 		}
 
 		const hasPendingRequest = this._pendingRequests.has(sessionResource);
@@ -1039,7 +1042,9 @@ export class ChatService extends Disposable implements IChatService {
 			let collectedHooks: ChatRequestHooks | undefined;
 			let hasDisabledClaudeHooks = false;
 			try {
+				mark('code/chat/willCollectHooks');
 				const hooksInfo = await this.promptsService.getHooks(token, model.sessionResource);
+				mark('code/chat/didCollectHooks');
 				if (hooksInfo) {
 					collectedHooks = hooksInfo.hooks;
 					hasDisabledClaudeHooks = hooksInfo.hasDisabledClaudeHooks;
@@ -1052,7 +1057,9 @@ export class ChatService extends Disposable implements IChatService {
 			const agentName = options?.modeInfo?.modeInstructions?.name;
 			if (agentName) {
 				try {
+					mark('code/chat/willLoadCustomAgents');
 					const agents = await this.promptsService.getCustomAgents(token, model.sessionResource);
+					mark('code/chat/didLoadCustomAgents');
 					const customAgent = agents.find(a => a.name === agentName);
 					if (customAgent?.hooks) {
 						collectedHooks = mergeHooks(collectedHooks, customAgent.hooks);
@@ -1170,7 +1177,9 @@ export class ChatService extends Disposable implements IChatService {
 						// Prepare the request object that we will send to the participant detection provider
 						const chatAgentRequest = prepareChatAgentRequest(defaultAgent, undefined, enableCommandDetection, undefined, false);
 
+						mark('code/chat/willDetectParticipant');
 						const result = await this.chatAgentService.detectAgentOrCommand(chatAgentRequest, defaultAgentHistory, { location }, token);
+						mark('code/chat/didDetectParticipant');
 						if (result && this.chatAgentService.getAgent(result.agent.id)?.locations?.includes(location)) {
 							// Update the response in the ChatModel to reflect the detected agent and command
 							request?.response?.setAgent(result.agent, result.command);
@@ -1325,6 +1334,7 @@ export class ChatService extends Disposable implements IChatService {
 		this._pendingRequests.set(model.sessionResource, cancellableRequest);
 		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'sendRequest', chatSessionId: chatSessionResourceToId(model.sessionResource) });
 		rawResponsePromise.finally(() => {
+			mark('code/chat/didCompleteRequest');
 			if (this._pendingRequests.get(model.sessionResource) === cancellableRequest) {
 				this._pendingRequests.deleteAndDispose(model.sessionResource);
 				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'sendRequestComplete', requestId: cancellableRequest.requestId, chatSessionId: chatSessionResourceToId(model.sessionResource) });
@@ -1357,6 +1367,7 @@ export class ChatService extends Disposable implements IChatService {
 	 * Multiple consecutive steering requests are combined into a single request.
 	 */
 	private processNextPendingRequest(model: ChatModel): void {
+		mark('code/chat/willProcessNextPendingRequest');
 		// Dequeue all consecutive steering requests and combine them into one
 		const steeringRequests = model.dequeueAllSteeringRequests();
 

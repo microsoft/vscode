@@ -6,6 +6,7 @@
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { mark } from '../../../../../base/common/performance.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -242,6 +243,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	async invoke(request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void): Promise<IChatAgentResult> {
+		mark('code/chat/setup/willInvoke');
 		return this.instantiationService.invokeFunction(async accessor /* using accessor for lazy loading */ => {
 			const chatService = accessor.get(IChatService);
 			const languageModelsService = accessor.get(ILanguageModelsService);
@@ -272,6 +274,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doInvokeWithoutSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService): Promise<IChatAgentResult> {
+		mark('code/chat/setup/willForwardWithoutSetup');
 		const requestModel = chatWidgetService.getWidgetBySessionResource(request.sessionResource)?.viewModel?.model.getRequests().at(-1);
 		if (!requestModel) {
 			this.logService.error('[chat setup] Request model not found, cannot redispatch request.');
@@ -340,6 +343,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		let toolsModelReady = false;
 
 		const whenAgentActivated = this.whenAgentActivated(chatService).then(() => agentActivated = true);
+		mark('code/chat/setup/willWaitForReadiness');
 		const whenAgentReady = this.whenAgentReady(chatAgentService, modeInfo?.kind)?.then(() => agentReady = true);
 		if (!whenAgentReady) {
 			agentReady = true;
@@ -534,6 +538,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			}
 		}
 
+		mark('code/chat/setup/didWaitForReadiness');
 		await chatService.resendRequest(requestModel, {
 			...widget?.getModeRequestOptions(),
 			modeInfo,
