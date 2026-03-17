@@ -1,8 +1,6 @@
 trigger: none
 
-pr:
-  branches:
-    include: ["main"]
+pr: none
 
 variables:
   - name: NPM_REGISTRY
@@ -16,7 +14,7 @@ jobs:
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux
-    timeoutInMinutes: 40000
+    timeoutInMinutes: 1300
     variables:
       VSCODE_ARCH: x64
     steps:
@@ -75,10 +73,10 @@ jobs:
       - script: |
           set -e
 
-          for attempt in {1..12}; do
+          for attempt in {1..120}; do
             if [ $attempt -gt 1 ]; then
-              echo "Attempt $attempt: Waiting for 30 minutes before retrying..."
-              sleep 1800
+              echo "Attempt $attempt: Waiting for 10 minutes before retrying..."
+              sleep 600
             fi
 
             echo "Attempt $attempt: Running npm ci"
@@ -94,7 +92,7 @@ jobs:
             fi
           done
 
-          echo "npm i failed after 12 attempts"
+          echo "giving up after 120 attempts (20 hours)"
           exit 1
         env:
           npm_command: 'install --ignore-scripts'
@@ -102,7 +100,7 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Install dependencies with retries
-        timeoutInMinutes: 400
+        timeoutInMinutes: 1300
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
 
       - script: |
