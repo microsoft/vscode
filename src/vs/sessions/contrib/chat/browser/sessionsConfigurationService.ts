@@ -518,9 +518,15 @@ export class SessionsConfigurationService extends Disposable implements ISession
 
 		const disposables = new DisposableStore();
 
+		// Watch workspace tasks.json
 		disposables.add(this._fileService.watch(tasksUri));
+
+		// Also watch user-level tasks.json so that user session tasks changes refresh the observable
+		const userUri = joinPath(dirname(this._preferencesService.userSettingsResource), 'tasks.json');
+		disposables.add(this._fileService.watch(userUri));
+
 		disposables.add(this._fileService.onDidFilesChange(e => {
-			if (e.affects(tasksUri)) {
+			if (e.affects(tasksUri) || e.affects(userUri)) {
 				this._refreshSessionTasks(folder);
 			}
 		}));
