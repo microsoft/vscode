@@ -661,20 +661,16 @@ export class PluginListWidget extends Disposable {
 		this.displayEntries = entries;
 		this.list.splice(0, this.list.length, this.displayEntries);
 
-		// Sum displayed group counts for the sidebar badge
-		const totalCount = entries
-			.filter((e): e is IPluginGroupHeaderEntry => e.type === 'group-header')
-			.reduce((sum, g) => sum + g.count, 0);
-		this._onDidChangeItemCount.fire(totalCount);
+		// Compute sidebar badge directly from the data array (same source as group headers)
+		this._onDidChangeItemCount.fire(this.itemCount);
 	}
 
 	/**
-	 * Gets the total item count from displayed group headers.
+	 * Gets the total item count from the underlying data array
+	 * (the same source used to build group headers).
 	 */
 	get itemCount(): number {
-		return this.displayEntries
-			.filter((e): e is IPluginGroupHeaderEntry => e.type === 'group-header')
-			.reduce((sum, g) => sum + g.count, 0);
+		return this.installedItems.length;
 	}
 
 	/**

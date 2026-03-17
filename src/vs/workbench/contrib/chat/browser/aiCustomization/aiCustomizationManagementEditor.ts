@@ -645,7 +645,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// from the list widget; all prompts sections are also refreshed from
 		// the prompts service on every change event for consistency.
 		this.editorDisposables.add(this.listWidget.onDidChangeItemCount(count => {
-			this.updateSectionCount(this.selectedSection, count);
+			if (this.isPromptsSection(this.selectedSection)) {
+				this.updateSectionCount(this.selectedSection, count);
+			}
 		}));
 		if (this.mcpListWidget) {
 			this.editorDisposables.add(this.mcpListWidget.onDidChangeItemCount(count => {
