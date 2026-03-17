@@ -223,7 +223,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		// Badge
 		const hasBadge = this.renderBadge(session, template);
-		template.badge.classList.toggle('has-badge', hasBadge);
 
 		// Diff information
 		let hasDiff = false;
@@ -233,7 +232,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 				hasDiff = true;
 			}
 		}
-		template.diffContainer.classList.toggle('has-diff', hasDiff);
 
 		let hasAgentSessionChanges = false;
 		if (
@@ -257,10 +255,14 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		// Status
 		const hasStatus = this.renderStatus(session, template);
 
-		// Separators: [badge] · [diff] · [description] · [status]
-		template.separator.classList.toggle('has-separator', hasBadge && hasDiff);
-		template.description.classList.toggle('has-separator', hasDescription && (hasBadge || hasDiff));
-		template.statusContainer.classList.toggle('has-separator', hasStatus && (hasBadge || hasDiff || hasDescription));
+		// When in progress with a description, only show description in the details row
+		const hideDetails = hasDescription && isSessionInProgressStatus(session.element.status);
+		template.badge.classList.toggle('has-badge', hasBadge && !hideDetails);
+		template.diffContainer.classList.toggle('has-diff', hasDiff && !hideDetails);
+		template.statusContainer.classList.toggle('hidden', hideDetails);
+		template.separator.classList.toggle('has-separator', !hideDetails && hasBadge && hasDiff);
+		template.description.classList.toggle('has-separator', hasDescription && !hideDetails && (hasBadge || hasDiff));
+		template.statusContainer.classList.toggle('has-separator', !hideDetails && hasStatus && (hasBadge || hasDiff || hasDescription));
 
 		// Hover
 		this.renderHover(session, template);

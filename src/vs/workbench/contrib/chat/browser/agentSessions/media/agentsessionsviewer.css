@@ -254,6 +254,10 @@
 				margin-right: 4px;
 			}
 
+			&.hidden {
+				display: none;
+			}
+
 			.agent-session-status-provider-icon {
 				font-size: 11px;
 				margin-right: 4px;
