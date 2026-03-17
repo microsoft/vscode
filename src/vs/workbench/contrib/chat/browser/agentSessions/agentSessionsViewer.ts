@@ -1172,17 +1172,6 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
 	compare(sessionA: IAgentSession, sessionB: IAgentSession): number {
 
-		// Input Needed
-		const aNeedsInput = sessionA.status === AgentSessionStatus.NeedsInput;
-		const bNeedsInput = sessionB.status === AgentSessionStatus.NeedsInput;
-
-		if (aNeedsInput && !bNeedsInput) {
-			return -1; // a (needs input) comes before b (other)
-		}
-		if (!aNeedsInput && bNeedsInput) {
-			return 1; // a (other) comes after b (needs input)
-		}
-
 		// Archived
 		const aArchived = sessionA.isArchived();
 		const bArchived = sessionB.isArchived();
