@@ -102,8 +102,9 @@ export interface IActionListItem<T> {
 	 */
 	readonly onRemove?: () => void;
 	/**
-	 * Optional submenu actions. When set, the item renders with a submenu indicator (▸)
-	 * and shows a child menu on hover/click.
+	 * Optional actions shown in the hover popup alongside the hover content.
+	 * When set, the hover displays actionable items (e.g., configuration options)
+	 * that the user can interact with.
 	 */
 	readonly submenuActions?: IAction[];
 }
@@ -448,7 +449,6 @@ export class ActionList<T> extends Disposable {
 		super();
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
-		this.domNode.style.position = 'relative';
 		if (this._options?.descriptionBelow) {
 			this.domNode.classList.add('description-below');
 		}
@@ -701,15 +701,6 @@ export class ActionList<T> extends Disposable {
 
 	get filterInput(): HTMLInputElement | undefined {
 		return this._filterInput;
-	}
-
-	get hasActiveSubmenu(): boolean {
-		return this._hover.value !== undefined;
-	}
-
-	cleanupSubmenu(): void {
-		this._submenuDisposables.clear();
-		this._hover.clear();
 	}
 
 	private focusCondition(element: IActionListItem<unknown>): boolean {
@@ -1048,15 +1039,6 @@ export class ActionList<T> extends Disposable {
 			return;
 		}
 
-		// Don't select when clicking on toolbar actions, submenu indicator, or submenu
-		if (e.browserEvent && dom.isHTMLElement((e.browserEvent as MouseEvent).target)) {
-			const target = (e.browserEvent as MouseEvent).target as HTMLElement;
-			if (target.closest('.action-list-item-toolbar') || target.closest('.action-list-submenu')) {
-				this._list.setSelection([]);
-				return;
-			}
-		}
-
 		const element = e.elements[0];
 		if (element.isSectionToggle) {
 			this._list.setSelection([]);
@@ -1128,60 +1110,15 @@ export class ActionList<T> extends Disposable {
 		}
 
 		if (hasSubmenu) {
-			// Build combined hover content: model info + config actions as HTMLElement
-			const container = document.createElement('div');
-			container.className = 'action-list-submenu';
-
-			// Render hover content at the top if available
-			if (hasHoverContent) {
-				const hoverSection = dom.append(container, dom.$('.action-list-submenu-hover'));
-				const content = element.hover!.content!;
-				const markdown = typeof content === 'string' ? new MarkdownString(content) : content;
-				const rendered = renderMarkdown(markdown);
-				this._submenuDisposables.add(rendered);
-				hoverSection.appendChild(rendered.element);
-			}
-
-			// Render submenu items
-			for (const action of element.submenuActions!) {
-				if (action instanceof SubmenuAction) {
-					const children = action.actions;
-
-					// Render group header: label with separator line
-					const headerRow = dom.append(container, dom.$('.action-list-submenu-group-header'));
-					const headerLabel = dom.append(headerRow, dom.$('span.action-list-submenu-group-label'));
-					headerLabel.textContent = action.label;
-					dom.append(headerRow, dom.$('.action-list-submenu-group-line'));
-
-					for (const child of children) {
-						const item = dom.append(container, dom.$('.action-list-submenu-item'));
-						const checkIcon = dom.append(item, dom.$('.check-icon'));
-						if (child.checked) {
-							checkIcon.classList.add('codicon', 'codicon-check');
-						}
-						const content = dom.append(item, dom.$('.action-list-submenu-content'));
-						const labelRow = dom.append(content, dom.$('.action-list-submenu-label-row'));
-						const label = dom.append(labelRow, dom.$('span.action-list-submenu-label'));
-						label.textContent = child.label;
-						if (child.tooltip) {
-							const desc = dom.append(content, dom.$('span.action-list-submenu-description'));
-							desc.textContent = child.tooltip;
-						}
-						this._submenuDisposables.add(dom.addDisposableListener(item, dom.EventType.MOUSE_DOWN, (e) => {
-							dom.EventHelper.stop(e, true);
-						}));
-						this._submenuDisposables.add(dom.addDisposableListener(item, dom.EventType.CLICK, (e) => {
-							dom.EventHelper.stop(e, true);
-							child.run();
-							this._hover.clear();
-							this.hide();
-						}));
-					}
-				}
-			}
+			const hoverContent = new ActionListHoverContent(
+				element.hover?.content,
+				element.submenuActions!,
+				() => { this._hover.clear(); this.hide(); },
+				this._submenuDisposables,
+			);
 
 			this._hover.value = this._hoverService.showDelayedHover({
-				content: container,
+				content: hoverContent.domNode,
 				target: rowElement,
 				additionalClasses: ['action-widget-hover'],
 				position: {
@@ -1218,12 +1155,9 @@ export class ActionList<T> extends Disposable {
 		const element = e.element;
 
 		if (element && element.item && this.focusCondition(element)) {
-			// Check if the hover target is inside a toolbar or active submenu - if so, skip the splice
-			// to avoid re-rendering which would destroy the toolbar/submenu mid-hover
-			const isHoveringToolbar = dom.isHTMLElement(e.browserEvent.target) && (
-				e.browserEvent.target.closest('.action-list-item-toolbar') !== null ||
-				e.browserEvent.target.closest('.action-list-submenu') !== null
-			);
+			// Check if the hover target is inside a toolbar - if so, skip the splice
+			// to avoid re-rendering which would destroy the toolbar mid-hover
+			const isHoveringToolbar = dom.isHTMLElement(e.browserEvent.target) && e.browserEvent.target.closest('.action-list-item-toolbar') !== null;
 			if (isHoveringToolbar) {
 				this._list.setFocus([]);
 				return;
@@ -1263,4 +1197,67 @@ export class ActionList<T> extends Disposable {
 
 function stripNewlines(str: string): string {
 	return str.replace(/\r\n|\r|\n/g, ' ');
+}
+
+/**
+ * Renders the combined hover content with optional markdown description and actionable items.
+ */
+class ActionListHoverContent {
+
+	readonly domNode: HTMLElement;
+
+	constructor(
+		hoverContent: string | MarkdownString | undefined,
+		actions: readonly IAction[],
+		onSelect: () => void,
+		disposables: DisposableStore,
+	) {
+		this.domNode = document.createElement('div');
+		this.domNode.className = 'action-list-submenu';
+
+		if (hoverContent) {
+			const hoverSection = dom.append(this.domNode, dom.$('.action-list-submenu-hover'));
+			const markdown = typeof hoverContent === 'string' ? new MarkdownString(hoverContent) : hoverContent;
+			const rendered = renderMarkdown(markdown);
+			disposables.add(rendered);
+			hoverSection.appendChild(rendered.element);
+		}
+
+		for (const action of actions) {
+			if (action instanceof SubmenuAction) {
+				this._renderGroup(action, onSelect, disposables);
+			}
+		}
+	}
+
+	private _renderGroup(group: SubmenuAction, onSelect: () => void, disposables: DisposableStore): void {
+		const headerRow = dom.append(this.domNode, dom.$('.action-list-submenu-group-header'));
+		const headerLabel = dom.append(headerRow, dom.$('span.action-list-submenu-group-label'));
+		headerLabel.textContent = group.label;
+		dom.append(headerRow, dom.$('.action-list-submenu-group-line'));
+
+		for (const child of group.actions) {
+			const item = dom.append(this.domNode, dom.$('.action-list-submenu-item'));
+			const checkIcon = dom.append(item, dom.$('.check-icon'));
+			if (child.checked) {
+				checkIcon.classList.add('codicon', 'codicon-check');
+			}
+			const content = dom.append(item, dom.$('.action-list-submenu-content'));
+			const labelRow = dom.append(content, dom.$('.action-list-submenu-label-row'));
+			const label = dom.append(labelRow, dom.$('span.action-list-submenu-label'));
+			label.textContent = child.label;
+			if (child.tooltip) {
+				const desc = dom.append(content, dom.$('span.action-list-submenu-description'));
+				desc.textContent = child.tooltip;
+			}
+			disposables.add(dom.addDisposableListener(item, dom.EventType.MOUSE_DOWN, (e) => {
+				dom.EventHelper.stop(e, true);
+			}));
+			disposables.add(dom.addDisposableListener(item, dom.EventType.CLICK, (e) => {
+				dom.EventHelper.stop(e, true);
+				child.run();
+				onSelect();
+			}));
+		}
+	}
 }
