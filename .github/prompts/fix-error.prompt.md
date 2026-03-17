@@ -30,8 +30,8 @@ After the fix is validated (compilation clean, tests pass):
    - Steps a user can follow to manually validate the fix.
    - How the fix addresses the issue, with a brief note per changed file.
 5. **Monitor the PR** for Copilot review comments. Wait 1-2 minutes after each push for Copilot to leave its review, then check for new comments. Evaluate each comment:
-   - If valid, apply the fix, amend the commit, and force-push.
+   - If valid, apply the fix in a new commit, push, and **resolve the comment thread**.
    - If not applicable, leave a reply explaining why.
    - After addressing comments, update the PR description if the changes affect the summary, code flow explanation, or per-file notes.
-6. **Repeat monitoring** after each force-push: wait 1-2 minutes, check for new Copilot comments, and address them. Continue this loop until no new comments appear.
+6. **Repeat monitoring** after each push: wait 1-2 minutes, check for new Copilot comments, and address them. Continue this loop until no new comments appear.
 7. **Re-run tests** after addressing review comments to confirm nothing regressed.
