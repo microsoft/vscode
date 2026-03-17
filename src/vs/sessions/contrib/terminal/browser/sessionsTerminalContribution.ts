@@ -99,9 +99,14 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		let existing = await this._findTerminalsForKey(key);
 
 		if (existing.length === 0) {
-			existing = [await this._terminalService.createTerminal({ config: { cwd } })];
-			this._terminalService.setActiveInstance(existing[0]);
-			this._logService.trace(`[SessionsTerminal] Created terminal ${existing[0].instanceId} for ${cwd.fsPath}`);
+			try {
+				existing = [await this._terminalService.createTerminal({ config: { cwd } })];
+				this._terminalService.setActiveInstance(existing[0]);
+				this._logService.trace(`[SessionsTerminal] Created terminal ${existing[0].instanceId} for ${cwd.fsPath}`);
+			} catch (e) {
+				this._logService.trace(`[SessionsTerminal] Cannot create terminal for ${cwd.fsPath}: ${e}`);
+				return [];
+			}
 		}
 
 		if (focus) {

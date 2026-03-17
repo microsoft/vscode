@@ -410,7 +410,7 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 	}
 
 	provideDecorations(uri: URI, _token: CancellationToken): IDecorationData | undefined {
-		const isCurrentlyBeingModified = this._currentlyEditingUris.get().some(e => e.toString() === uri.toString());
+		const isCurrentlyBeingModified = this._currentlyEditingUris.get().some(e => isEqual(e, uri));
 		if (isCurrentlyBeingModified) {
 			return {
 				weight: 1000,
@@ -418,7 +418,7 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 				bubble: false
 			};
 		}
-		const isModified = this._modifiedUris.get().some(e => e.toString() === uri.toString());
+		const isModified = this._modifiedUris.get().some(e => isEqual(e, uri));
 		if (isModified) {
 			return {
 				weight: 1000,

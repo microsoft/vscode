@@ -26,6 +26,7 @@
 	height: 100%;
 	padding: 12px;
 	gap: 8px;
+	overflow: hidden;
 }
 
 .image-carousel-editor .slideshow-container:focus,
@@ -109,22 +110,59 @@
 	right: 8px;
 }
 
-/* Counter */
-.image-carousel-editor .image-counter {
+/* Bottom bar: caption + counter + thumbnails */
+.image-carousel-editor .bottom-bar {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 2px;
+	padding: 4px 0 8px;
+	flex-shrink: 0;
+	min-width: 0;
+	max-width: 100%;
+}
+
+/* Extra gap before thumbnails */
+.image-carousel-editor .bottom-bar .sections-container {
+	margin-top: 4px;
+}
+
+/* Caption */
+.image-carousel-editor .image-caption {
 	text-align: center;
 	color: var(--vscode-descriptionForeground);
 	font-size: 12px;
-	padding: 2px 0;
+	padding: 0 24px;
 }
 
-/* Thumbnail strip */
-.image-carousel-editor .thumbnails-container {
+/* Sections container — flat horizontal thumbnail strip */
+.image-carousel-editor .sections-container {
 	display: flex;
+	flex-direction: row;
+	align-items: center;
 	gap: 6px;
 	overflow-x: auto;
-	padding: 4px 0;
 	justify-content: center;
+	justify-content: safe center;
+	padding: 0;
 	flex-shrink: 0;
+	min-width: 0;
+	max-width: 100%;
+	scrollbar-width: none;
+}
+
+.image-carousel-editor .sections-container::-webkit-scrollbar {
+	display: none;
+}
+
+/* Subtle separator between sections */
+.image-carousel-editor .thumbnail-separator {
+	width: 1px;
+	height: 24px;
+	background: var(--vscode-editorWidget-border, var(--vscode-widget-border));
+	opacity: 0.4;
+	flex-shrink: 0;
+	margin: 0 6px;
 }
 
 .image-carousel-editor .thumbnail {

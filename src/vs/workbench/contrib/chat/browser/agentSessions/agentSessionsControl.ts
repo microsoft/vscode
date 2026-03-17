@@ -13,7 +13,7 @@ import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection } from './agentSessionsModel.js';
-import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionsSorter, IAgentSessionsFilter, IAgentSessionsSorterOptions } from './agentSessionsViewer.js';
+import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionsSorter, IAgentSessionsFilter } from './agentSessionsViewer.js';
 import { AgentSessionsGrouping } from './agentSessionsFilter.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
@@ -33,7 +33,7 @@ import { IAgentSessionsService } from './agentSessionsService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { getAgentSessionTime, IAgentSessionsControl } from './agentSessions.js';
+import { IAgentSessionsControl } from './agentSessions.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ISessionOpenOptions, openSession } from './agentSessionsOpener.js';
@@ -42,8 +42,9 @@ import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IChatWidget } from '../chat.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
-export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOptions {
+export interface IAgentSessionsControlOptions {
 	readonly overrideStyles: IStyleOverride<IListStyles>;
 	readonly filter: IAgentSessionsFilter;
 	readonly source: string;
@@ -108,6 +109,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -241,14 +243,14 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			return false;
 		};
 
-		const sorter = new AgentSessionsSorter(this.options);
+		const sorter = new AgentSessionsSorter();
 		const approvalModel = this.options.enableApprovalRow ? this._register(this.instantiationService.createInstance(AgentSessionApprovalModel)) : undefined;
 		const activeSessionResource = observableValue<URI | undefined>(this, undefined);
 		const sessionRenderer = this._register(this.instantiationService.createInstance(AgentSessionRenderer, {
 			...this.options,
 			isGroupedByRepository: () => this.options.filter.groupResults?.() === AgentSessionsGrouping.Repository,
 		}, approvalModel, activeSessionResource));
-		const sessionFilter = this._register(new AgentSessionsDataSource(this.options.filter, sorter));
+		const sessionFilter = this._register(new AgentSessionsDataSource(this.options.filter, sorter, this.logService));
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
 			container,
@@ -367,7 +369,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		return this.agentSessionsService.model.sessions.some(session =>
 			!session.isArchived() &&
-			getAgentSessionTime(session.timing) >= startOfToday
+			session.timing.created >= startOfToday
 		);
 	}
 

@@ -121,6 +121,9 @@ import { ipcUtilityProcessWorkerChannelName } from '../../platform/utilityProces
 import { ILocalPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from '../../platform/terminal/common/terminal.js';
 import { ElectronPtyHostStarter } from '../../platform/terminal/electron-main/electronPtyHostStarter.js';
 import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
+import { ElectronAgentHostStarter } from '../../platform/agentHost/electron-main/electronAgentHostStarter.js';
+import { AgentHostProcessManager } from '../../platform/agentHost/node/agentHostService.js';
+import { AgentHostEnabledSettingId } from '../../platform/agentHost/common/agentService.js';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from '../../platform/remote/common/electronRemoteResources.js';
 import { Lazy } from '../../base/common/lazy.js';
 import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindows.js';
@@ -132,6 +135,9 @@ import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeM
 import { IMcpGatewayService, McpGatewayChannelName } from '../../platform/mcp/common/mcpGateway.js';
 import { McpGatewayService } from '../../platform/mcp/node/mcpGatewayService.js';
 import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js';
+import { SandboxHelperChannelName } from '../../platform/sandbox/common/sandboxHelperIpc.js';
+import { ISandboxHelperService } from '../../platform/sandbox/common/sandboxHelperService.js';
+import { SandboxHelperService } from '../../platform/sandbox/node/sandboxHelperService.js';
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
@@ -1105,6 +1111,12 @@ export class CodeApplication extends Disposable {
 		);
 		services.set(ILocalPtyService, ptyHostService);
 
+		// Agent Host
+		if (this.configurationService.getValue(AgentHostEnabledSettingId)) {
+			const agentHostStarter = new ElectronAgentHostStarter(this.environmentMainService, this.lifecycleMainService, this.logService);
+			this._register(new AgentHostProcessManager(agentHostStarter, this.logService, this.loggerService));
+		}
+
 		// External terminal
 		if (isWindows) {
 			services.set(IExternalTerminalMainService, new SyncDescriptor(WindowsExternalTerminalService));
@@ -1132,7 +1144,7 @@ export class CodeApplication extends Disposable {
 			const isInternal = isInternalTelemetry(this.productService, this.configurationService);
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, sqmId, devDeviceId, isInternal, this.productService.date);
+			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, sqmId, devDeviceId, isInternal, this.productService.date, this.productService.telemetryAppName);
 			const piiPaths = getPiiPathsFromEnvironment(this.environmentMainService);
 			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
 
@@ -1150,6 +1162,9 @@ export class CodeApplication extends Disposable {
 
 		// Proxy Auth
 		services.set(IProxyAuthService, new SyncDescriptor(ProxyAuthService));
+
+		// Sandbox
+		services.set(ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
 
 		// MCP
 		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
@@ -1282,6 +1297,10 @@ export class CodeApplication extends Disposable {
 		// External Terminal
 		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService), disposables);
 		mainProcessElectronServer.registerChannel('externalTerminal', externalTerminalChannel);
+
+		// Sandbox
+		const sandboxHelperChannel = ProxyChannel.fromService(accessor.get(ISandboxHelperService), disposables);
+		mainProcessElectronServer.registerChannel(SandboxHelperChannelName, sandboxHelperChannel);
 
 		// MCP
 		const mcpDiscoveryChannel = ProxyChannel.fromService(accessor.get(INativeMcpDiscoveryHelperService), disposables);
@@ -1545,6 +1564,33 @@ export class CodeApplication extends Disposable {
 					}));
 				}
 			});
+		}
+
+		{
+			interface NetworkProcessLaunchedDetails {
+				readonly pid: number;
+			}
+			interface NetworkProcessGoneDetails {
+				readonly pid: number;
+				readonly exitCode: number;
+				readonly crashed: boolean;
+				readonly crashedPreIPC: boolean;
+			}
+
+			type AppWithNetworkProcessEvents = typeof app & {
+				on(event: 'network-process-launched', listener: (event: Electron.Event, details: NetworkProcessLaunchedDetails) => void): typeof app;
+				on(event: 'network-process-gone', listener: (event: Electron.Event, details: NetworkProcessGoneDetails) => void): typeof app;
+			};
+
+			const customApp = app as AppWithNetworkProcessEvents;
+
+			this._register(Event.fromNodeEventEmitter<NetworkProcessLaunchedDetails>(customApp, 'network-process-launched', (_event, details) => details)(details => {
+				this.logService.info(`[network process] launched with pid ${details.pid}`);
+			}));
+
+			this._register(Event.fromNodeEventEmitter<NetworkProcessGoneDetails>(customApp, 'network-process-gone', (_event, details) => details)(details => {
+				this.logService.info(`[network process] gone - pid: ${details.pid}, exitCode: ${details.exitCode}, crashed: ${details.crashed}, crashedPreIPC: ${details.crashedPreIPC}`);
+			}));
 		}
 	}
 
