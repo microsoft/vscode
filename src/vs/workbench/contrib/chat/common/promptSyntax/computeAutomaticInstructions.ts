@@ -5,7 +5,6 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { match, splitGlobAware } from '../../../../../base/common/glob.js';
-import { mark } from '../../../../../base/common/performance.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
@@ -97,9 +96,7 @@ export class ComputeAutomaticInstructions {
 
 	public async collect(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
 
-		mark('code/chat/willGetInstructionFiles');
 		const instructionFiles = await this._promptsService.getInstructionFiles(token, this._sessionResource);
-		mark('code/chat/didGetInstructionFiles');
 
 		this._logService.trace(`[InstructionsContextComputer] ${instructionFiles.length} instruction files available.`);
 
@@ -107,21 +104,15 @@ export class ComputeAutomaticInstructions {
 		const context = this._getContext(variables);
 
 		// find instructions where the `applyTo` matches the attached context
-		mark('code/chat/willMatchApplyToInstructions');
 		await this.addApplyingInstructions(instructionFiles, context, variables, telemetryEvent, token);
-		mark('code/chat/didMatchApplyToInstructions');
 
 		// add all instructions referenced by all instruction files that are in the context
 		await this._addReferencedInstructions(variables, telemetryEvent, token);
 
 		// get copilot instructions
-		mark('code/chat/willAddAgentInstructions');
 		await this._addAgentInstructions(variables, telemetryEvent, token);
-		mark('code/chat/didAddAgentInstructions');
 
-		mark('code/chat/willBuildCustomizationsIndex');
 		const customizationsIndexVariable = await this._getCustomizationsIndex(instructionFiles, variables, telemetryEvent, token);
-		mark('code/chat/didBuildCustomizationsIndex');
 		if (customizationsIndexVariable) {
 			variables.add(customizationsIndexVariable);
 			telemetryEvent.listedInstructionsCount++;

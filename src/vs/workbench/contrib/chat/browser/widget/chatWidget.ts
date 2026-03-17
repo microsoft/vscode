@@ -2161,7 +2161,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		mark('code/chat/willAcceptInput');
-		return this._acceptInput(query ? { query } : undefined, options);
+		const result = await this._acceptInput(query ? { query } : undefined, options);
+		mark('code/chat/didAcceptInput');
+		return result;
 	}
 
 	async rerunLastRequest(): Promise<void> {
@@ -2301,6 +2303,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// process the prompt command
 		await this._applyPromptFileIfSet(requestInputs);
+
 		mark('code/chat/willAutoAttachInstructions');
 		await this._autoAttachInstructions(requestInputs);
 		mark('code/chat/didAutoAttachInstructions');
@@ -2367,6 +2370,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			queue: options?.queue,
 			pauseQueue: options?.alwaysQueue,
 		});
+		mark('code/chat/didSendRequest');
 
 		if (ChatSendResult.isRejected(result)) {
 			return;

@@ -9,6 +9,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
@@ -250,6 +251,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 			const variableSet = new ChatRequestVariableSet();
 			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, modeTools, undefined, invocation.context.sessionResource); // agents can not call subagents
+			mark('code/chat/subagent/willCollectCustomizations');
 			await computer.collect(variableSet, token);
 
 			// Collect hooks from hook .json files
@@ -274,6 +276,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				}
 				collectedHooks = mergeHooks(collectedHooks, remapped);
 			}
+			mark('code/chat/subagent/didCollectCustomizations');
 
 			// Build the agent request
 			const agentRequest: IChatAgentRequest = {
@@ -301,6 +304,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			}));
 
 			// Invoke the agent
+			mark('code/chat/subagent/willInvokeAgent');
 			const result = await this.chatAgentService.invokeAgent(
 				defaultAgent.id,
 				agentRequest,
@@ -308,6 +312,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				[],
 				token
 			);
+			mark('code/chat/subagent/didInvokeAgent');
 
 			// Check for errors
 			if (result.errorDetails) {
