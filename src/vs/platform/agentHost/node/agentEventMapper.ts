@@ -28,6 +28,7 @@ import type {
 	IReasoningAction,
 } from '../common/state/sessionActions.js';
 import { URI } from '../../../base/common/uri.js';
+import { createTerminalToolMeta, ToolResultContentType } from '../common/state/sessionState.js';
 
 /**
  * Maps a flat {@link IAgentProgressEvent} from the agent host into
@@ -59,8 +60,7 @@ export function mapProgressEventToActions(event: IAgentProgressEvent, session: U
 				toolCallId: e.toolCallId,
 				toolName: e.toolName,
 				displayName: e.displayName,
-				toolKind: e.toolKind,
-				language: e.language,
+				_meta: e.toolKind === 'terminal' ? createTerminalToolMeta(e.language) : undefined,
 			};
 			const readyAction: IToolCallReadyAction = {
 				type: 'session/toolCallReady',
@@ -84,7 +84,7 @@ export function mapProgressEventToActions(event: IAgentProgressEvent, session: U
 				result: {
 					success: e.success,
 					pastTenseMessage: e.pastTenseMessage,
-					toolOutput: e.toolOutput,
+					content: e.toolOutput !== undefined ? [{ type: ToolResultContentType.Text, text: e.toolOutput }] : undefined,
 					error: e.error,
 				},
 			} satisfies IToolCallCompleteAction;

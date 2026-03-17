@@ -8,7 +8,7 @@ import { Disposable, toDisposable, type IDisposable } from '../../../../base/com
 import { dirname, basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
-import type { IDirectoryEntry } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
+import type { IBrowseDirectoryResult } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import {
 	createFileSystemProviderError,
 	FilePermission,
@@ -99,8 +99,8 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 		const parentUri = dirname(resource);
 		const name = basename(resource);
 
-		const entries = await this._listDirectory(resource.authority, parentUri);
-		const entry = entries.find(e => e.name === name);
+		const result = await this._listDirectory(resource.authority, parentUri);
+		const entry = result.entries.find(e => e.name === name);
 		if (!entry) {
 			throw createFileSystemProviderError(`File not found: ${path}`, FileSystemProviderErrorCode.FileNotFound);
 		}
@@ -115,8 +115,8 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 	}
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {
-		const entries = await this._listDirectory(resource.authority, resource);
-		return entries.map(e => [e.name, e.type === 'directory' ? FileType.Directory : FileType.File]);
+		const result = await this._listDirectory(resource.authority, resource);
+		return result.entries.map(e => [e.name, e.type === 'directory' ? FileType.Directory : FileType.File]);
 	}
 
 	// ---- Read-only stubs (required by interface) ----------------------------
@@ -155,13 +155,13 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 		return connection;
 	}
 
-	private async _listDirectory(authority: string, resource: URI): Promise<readonly IDirectoryEntry[]> {
+	private async _listDirectory(authority: string, resource: URI): Promise<IBrowseDirectoryResult> {
 		const connection = this._getConnection(authority);
 		try {
 			// Convert the agenthost URI to a file URI for the remote server
 			const remoteUri = URI.from({ scheme: 'file', path: resource.path || '/' });
 			const result = await connection.browseDirectory(remoteUri);
-			return result.entries;
+			return result;
 		} catch (err) {
 			throw createFileSystemProviderError(
 				err instanceof Error ? err.message : String(err),

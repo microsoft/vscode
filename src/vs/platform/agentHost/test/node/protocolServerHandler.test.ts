@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { ISessionAction } from '../../common/state/sessionActions.js';
-import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type ICreateSessionParams, type IInitializeResult, type IProtocolMessage, type IProtocolNotification, type IReconnectResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IBrowseDirectoryResult, type ICreateSessionParams, type IInitializeResult, type IProtocolMessage, type IProtocolNotification, type IReconnectResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -75,7 +75,7 @@ class MockSideEffectHandler implements IProtocolSideEffectHandler {
 	handleDisposeSession(_session: URI): void { }
 	async handleListSessions(): Promise<ISessionSummary[]> { return []; }
 	handleSetAuthToken(_token: string): void { }
-	async handleBrowseDirectory(uri: URI): Promise<{ entries: { name: string; type: 'file' | 'directory' }[] }> {
+	async handleBrowseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
 		this.browsedUris.push(uri);
 		const error = this.browseErrors.get(uri.toString());
 		if (error) {

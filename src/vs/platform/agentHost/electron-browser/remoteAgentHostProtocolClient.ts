@@ -163,7 +163,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 */
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		const result = await this._sendRequest('listSessions') as IListSessionsResult;
-		return result.sessions.map((s: ISessionSummary) => ({
+		return result.items.map((s: ISessionSummary) => ({
 			session: s.resource,
 			startTime: s.createdAt,
 			modifiedTime: s.modifiedAt,

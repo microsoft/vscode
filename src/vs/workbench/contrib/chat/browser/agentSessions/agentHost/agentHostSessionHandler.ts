@@ -18,7 +18,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IAgentAttachment, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
-import { TurnState, type IMessageAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { isTerminalToolCall, getToolCallLanguage, TurnState, type IMessageAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -368,11 +368,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					existing.invocationMessage = typeof tc.invocationMessage === 'string'
 						? tc.invocationMessage
 						: new MarkdownString(tc.invocationMessage.markdown);
-					if (tc.toolKind === 'terminal' && tc.toolInput) {
+					if (isTerminalToolCall(tc) && tc.toolInput) {
 						existing.toolSpecificData = {
 							kind: 'terminal',
 							commandLine: { original: tc.toolInput },
-							language: tc.language ?? 'shellscript',
+							language: getToolCallLanguage(tc) ?? 'shellscript',
 						};
 					}
 				}

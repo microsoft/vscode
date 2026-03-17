@@ -843,11 +843,11 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-shell', toolName: 'bash', displayName: 'Bash', toolKind: 'terminal' } as ISessionAction);
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-shell', toolName: 'bash', displayName: 'Bash', _meta: { ptyTerminal: { language: 'shellscript' } } } as ISessionAction);
 			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-shell', invocationMessage: 'Running `echo hello`', toolInput: 'echo hello', confirmed: 'not-needed' } as ISessionAction);
 			fire({
 				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-shell',
-				result: { success: true, pastTenseMessage: 'Ran `echo hello`', toolOutput: 'hello\n' },
+				result: { success: true, pastTenseMessage: 'Ran `echo hello`', content: [{ type: 'text', text: 'hello\n' }] },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
@@ -881,11 +881,11 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-fail', toolName: 'bash', displayName: 'Bash', toolKind: 'terminal' } as ISessionAction);
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-fail', toolName: 'bash', displayName: 'Bash', _meta: { ptyTerminal: { language: 'shellscript' } } } as ISessionAction);
 			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-fail', invocationMessage: 'Running `bad_cmd`', toolInput: 'bad_cmd', confirmed: 'not-needed' } as ISessionAction);
 			fire({
 				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-fail',
-				result: { success: false, pastTenseMessage: '"Bash" failed', toolOutput: 'command not found: bad_cmd', error: { message: 'command not found: bad_cmd' } },
+				result: { success: false, pastTenseMessage: '"Bash" failed', content: [{ type: 'text', text: 'command not found: bad_cmd' }], error: { message: 'command not found: bad_cmd' } },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
@@ -1003,8 +1003,9 @@ suite('AgentHostChatContribution', () => {
 					usage: undefined,
 					toolCalls: [{
 						status: 'completed' as const, toolCallId: 'tc-1', toolName: 'bash', displayName: 'Bash',
-						invocationMessage: 'Running `ls`', toolInput: 'ls', toolKind: 'terminal' as const,
-						confirmed: 'not-needed' as const, success: true, pastTenseMessage: 'Ran `ls`', toolOutput: 'file1\nfile2',
+						invocationMessage: 'Running `ls`', toolInput: 'ls', _meta: { ptyTerminal: { language: 'shellscript' } },
+						confirmed: 'not-needed' as const, success: true, pastTenseMessage: 'Ran `ls`',
+						content: [{ type: 'text' as const, text: 'file1\nfile2' }],
 					}],
 					responseText: '',
 				}],

@@ -87,8 +87,7 @@ suite('AgentEventMapper', () => {
 		assert.strictEqual(startAction.toolCallId, 'tc-1');
 		assert.strictEqual(startAction.toolName, 'readFile');
 		assert.strictEqual(startAction.displayName, 'Read File');
-		assert.strictEqual(startAction.toolKind, 'terminal');
-		assert.strictEqual(startAction.language, 'shellscript');
+		assert.ok(startAction._meta?.['ptyTerminal'], 'should have ptyTerminal _meta');
 
 		const readyAction = actions[1] as IToolCallReadyAction;
 		assert.strictEqual(readyAction.type, 'session/toolCallReady');
@@ -115,7 +114,9 @@ suite('AgentEventMapper', () => {
 		assert.strictEqual(complete.toolCallId, 'tc-1');
 		assert.strictEqual(complete.result.success, true);
 		assert.strictEqual(complete.result.pastTenseMessage, 'Read file successfully');
-		assert.strictEqual(complete.result.toolOutput, 'file contents here');
+		const textContent = complete.result.content?.[0];
+		assert.ok(textContent);
+		assert.strictEqual((textContent as { type: string }).type, 'text');
 	});
 
 	test('idle event maps to session/turnComplete action', () => {

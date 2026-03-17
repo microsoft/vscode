@@ -417,8 +417,7 @@ suite('Protocol WebSocket E2E', function () {
 		);
 
 		const result = await client.call<IListSessionsResult>('listSessions');
-		assert.ok(Array.isArray(result.sessions));
-		assert.ok(result.sessions.length >= 1, 'should have at least one session');
+		assert.ok(result.items.length >= 1, 'should have at least one session');
 	});
 
 	// 8. Reconnect

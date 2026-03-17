@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { TurnState, type ICompletedToolCall, type IPermissionRequest, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { TurnState, getToolOutputText, isTerminalToolCall, getToolCallLanguage, type ICompletedToolCall, type IPermissionRequest, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IChatProgress, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -47,17 +47,17 @@ export function turnsToHistory(turns: readonly ITurn[], participantId: string): 
  * tool invocation suitable for history replay.
  */
 function completedToolCallToSerialized(tc: ICompletedToolCall): IChatToolInvocationSerialized {
-	const isTerminal = tc.toolKind === 'terminal';
+	const isTerminal = isTerminalToolCall(tc);
 	const isSuccess = tc.status === 'completed' && tc.success;
 	const invocationMsg = stringOrMarkdownToString(tc.invocationMessage) ?? '';
 
 	let toolSpecificData: IChatTerminalToolInvocationData | undefined;
 	if (isTerminal && tc.toolInput) {
-		const toolOutput = tc.status === 'completed' ? tc.toolOutput : undefined;
+		const toolOutput = tc.status === 'completed' ? getToolOutputText(tc) : undefined;
 		toolSpecificData = {
 			kind: 'terminal',
 			commandLine: { original: tc.toolInput },
-			language: tc.language ?? 'shellscript',
+			language: getToolCallLanguage(tc) ?? 'shellscript',
 			terminalCommandOutput: toolOutput !== undefined ? { text: toolOutput } : undefined,
 			terminalCommandState: { exitCode: isSuccess ? 0 : 1 },
 		};
@@ -113,11 +113,11 @@ export function toolCallStateToInvocation(tc: IToolCallState): ChatToolInvocatio
 	const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, undefined, undefined);
 	invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage) ?? '';
 
-	if (tc.toolKind === 'terminal' && tc.status !== 'streaming' && tc.toolInput) {
+	if (isTerminalToolCall(tc) && tc.status !== 'streaming' && tc.toolInput) {
 		invocation.toolSpecificData = {
 			kind: 'terminal',
 			commandLine: { original: tc.toolInput },
-			language: tc.language ?? 'shellscript',
+			language: getToolCallLanguage(tc) ?? 'shellscript',
 		} satisfies IChatTerminalToolInvocationData;
 	}
 
@@ -204,9 +204,20 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ITool
 	const isCompleted = tc.status === 'completed';
 	const isCancelled = tc.status === 'cancelled';
 
+	// If the invocation was created during the streaming phase, it may lack
+	// terminal toolSpecificData.  Populate it now from the completed state's
+	// _meta and toolInput so the terminal output path below can run.
+	if (!invocation.toolSpecificData && isTerminalToolCall(tc) && tc.status !== 'streaming' && tc.toolInput) {
+		invocation.toolSpecificData = {
+			kind: 'terminal',
+			commandLine: { original: tc.toolInput },
+			language: getToolCallLanguage(tc) ?? 'shellscript',
+		} satisfies IChatTerminalToolInvocationData;
+	}
+
 	if (invocation.toolSpecificData?.kind === 'terminal' && (isCompleted || isCancelled)) {
 		const terminalData = invocation.toolSpecificData as IChatTerminalToolInvocationData;
-		const toolOutput = isCompleted ? tc.toolOutput : undefined;
+		const toolOutput = isCompleted ? getToolOutputText(tc) : undefined;
 		invocation.toolSpecificData = {
 			...terminalData,
 			terminalCommandOutput: toolOutput !== undefined ? { text: toolOutput } : undefined,

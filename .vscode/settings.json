@@ -72,6 +72,7 @@
 		"extensions/terminal-suggest/src/completions/upstream/**": true,
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
+		"src/vs/platform/agentHost/common/state/protocol/**": true,
 		"test/integration/browser/out/**": true,
 		// "src/vs/sessions/**": true
 	},

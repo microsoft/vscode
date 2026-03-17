@@ -51,6 +51,9 @@ export interface IJsonRpcNotification {
 	readonly params?: unknown;
 }
 
+/** @deprecated Use IJsonRpcNotification instead. */
+export type IProtocolNotification = IJsonRpcNotification;
+
 /** A JSON-RPC request: has both `method` and `id`. */
 export interface IProtocolRequest {
 	readonly jsonrpc: '2.0';

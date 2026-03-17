@@ -11,7 +11,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, IAgent, IAgentAttachment } from '../common/agentService.js';
 import type { ISessionAction } from '../common/state/sessionActions.js';
-import { IBrowseDirectoryResult, ICreateSessionParams, AHP_PROVIDER_NOT_FOUND, JSON_RPC_INTERNAL_ERROR, ProtocolError, IDirectoryEntry } from '../common/state/sessionProtocol.js';
+import { IBrowseDirectoryResult, ICreateSessionParams, AHP_PROVIDER_NOT_FOUND, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../common/state/sessionProtocol.js';
 import {
 	ISessionModelInfo,
 	SessionStatus, type ISessionSummary
@@ -19,6 +19,7 @@ import {
 import { mapProgressEventToActions } from './agentEventMapper.js';
 import type { IProtocolSideEffectHandler } from './protocolServerHandler.js';
 import { SessionStateManager } from './sessionStateManager.js';
+import { IDirectoryEntry } from '../common/state/protocol/commands.js';
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -246,7 +247,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Not a directory: ${uri.toString()}`);
 		}
 
-		const entries: IDirectoryEntry[] = (stat.children ?? []).map(child => ({
+		const entries = (stat.children ?? []).map((child): IDirectoryEntry => ({
 			name: child.name,
 			type: child.isDirectory ? 'directory' : 'file',
 		}));

@@ -127,7 +127,9 @@ export class ProtocolServerHandler extends Disposable {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(params.action.type)}`);
 							const origin = { clientId: client.clientId, clientSeq: params.clientSeq };
 							this._stateManager.dispatchClientAction(params.action, origin);
-							this._sideEffectHandler.handleAction(params.action);
+							if (isSessionAction(params.action)) {
+								this._sideEffectHandler.handleAction(params.action);
+							}
 						}
 						break;
 					case 'setAuthToken': {
@@ -287,7 +289,7 @@ export class ProtocolServerHandler extends Disposable {
 			}
 			case 'listSessions': {
 				const sessions = await this._sideEffectHandler.handleListSessions();
-				return { sessions };
+				return { items: sessions };
 			}
 			case 'fetchTurns': {
 				const p = params as IFetchTurnsParams;

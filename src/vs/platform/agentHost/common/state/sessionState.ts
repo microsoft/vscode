@@ -8,18 +8,21 @@
 // ICompletedToolCall alias, toolOutput helper).
 
 import { URI } from '../../../../base/common/uri.js';
-import type {
-	ISessionSummary,
-	ISessionState,
-	IToolCallCompletedState,
-	IToolCallCancelledState,
-	IToolCallResult,
-	IToolResultTextContent,
-	IUserMessage,
-	IActiveTurn,
-	IRootState,
+import { hasKey } from '../../../../base/common/types.js';
+import {
+	SessionLifecycle,
+	ToolResultContentType,
+	type ISessionSummary,
+	type ISessionState,
+	type IToolCallCompletedState,
+	type IToolCallCancelledState,
+	type IToolCallResult,
+	type IToolResultTextContent,
+	type IToolResultContent,
+	type IUserMessage,
+	type IActiveTurn,
+	type IRootState,
 } from './protocol/state.js';
-import { SessionLifecycle, ToolResultContentType } from './protocol/state.js';
 
 // ---- Re-exports from protocol (all public types) ----------------------------
 
@@ -93,11 +96,45 @@ export function getToolOutputText(result: IToolCallResult): string | undefined {
 	}
 	const texts: string[] = [];
 	for (const block of result.content) {
-		if ('type' in block && block.type === ToolResultContentType.Text) {
-			texts.push((block as IToolResultTextContent).text);
+		if (isToolResultTextContent(block)) {
+			texts.push(block.text);
 		}
 	}
 	return texts.length > 0 ? texts.join('\n') : undefined;
+}
+
+function isToolResultTextContent(block: IToolResultContent): block is IToolResultTextContent {
+	return hasKey(block, { type: true }) && block.type === ToolResultContentType.Text;
+}
+
+// ---- _meta helpers for tool call rendering hints ----------------------------
+
+/** Well-known key in `_meta` for terminal tool call display data. */
+interface IPtyTerminalMeta {
+	language?: string;
+}
+
+/**
+ * Returns true if the tool call's `_meta` indicates terminal presentation.
+ */
+export function isTerminalToolCall(tc: { _meta?: Record<string, unknown> }): boolean {
+	return tc._meta !== undefined && hasKey(tc._meta, { ptyTerminal: true });
+}
+
+/**
+ * Reads the language hint from a terminal tool call's `_meta`.
+ */
+export function getToolCallLanguage(tc: { _meta?: Record<string, unknown> }): string | undefined {
+	const pty = tc._meta?.['ptyTerminal'] as IPtyTerminalMeta | undefined;
+	return pty?.language;
+}
+
+/**
+ * Creates a `_meta` object with terminal tool call hints.
+ * Used by the agent event mapper when constructing tool call start actions.
+ */
+export function createTerminalToolMeta(language?: string): Record<string, unknown> {
+	return { ptyTerminal: { language: language ?? 'shellscript' } };
 }
 
 // ---- Factory helpers --------------------------------------------------------
