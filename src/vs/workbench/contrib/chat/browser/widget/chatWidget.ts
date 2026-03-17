@@ -2709,8 +2709,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 */
 	private async _autoAttachInstructions({ attachedContext }: IChatRequestInputOptions): Promise<void> {
 		const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
-		if (contribution && !contribution.autoAttachReferences) {
-			this.logService.debug(`ChatWidget#_autoAttachInstructions: skipped, autoAttachReferences is not enabled`);
+		if (contribution?.autoAttachReferences === false) {
+			this.logService.debug(`ChatWidget#_autoAttachInstructions: skipped, autoAttachReferences is disabled`);
 			return;
 		}
 		this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are always enabled`);

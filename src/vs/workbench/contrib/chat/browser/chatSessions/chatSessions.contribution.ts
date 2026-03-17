@@ -218,9 +218,9 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					default: false
 				},
 				autoAttachReferences: {
-					description: localize('chatSessionsExtPoint.autoAttachReferences', 'Whether to automatically attach references (instruction files, implicit context) to chat requests for this session type. Defaults to false when not specified.'),
+					description: localize('chatSessionsExtPoint.autoAttachReferences', 'Whether to automatically attach instruction files (prompt files, copilot-instructions) to chat requests for this session type. Defaults to true when not specified.'),
 					type: 'boolean',
-					default: false
+					default: true
 				}
 			},
 			required: ['type', 'name', 'displayName', 'description'],
