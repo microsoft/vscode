@@ -13,6 +13,7 @@ import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/
 import { IAction, SubmenuAction, toAction } from '../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
+import { Emitter } from '../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
@@ -1110,12 +1111,14 @@ export class ActionList<T> extends Disposable {
 		}
 
 		if (hasSubmenu) {
-			const hoverContent = new ActionListHoverContent(
+			const hoverContent = this._submenuDisposables.add(new ActionListHoverContent(
 				element.hover?.content,
 				element.submenuActions!,
-				() => { this._hover.clear(); this.hide(); },
-				this._submenuDisposables,
-			);
+			));
+			this._submenuDisposables.add(hoverContent.onDidSelect(() => {
+				this._hover.clear();
+				this.hide();
+			}));
 
 			this._hover.value = this._hoverService.showDelayedHover({
 				content: hoverContent.domNode,
@@ -1202,16 +1205,18 @@ function stripNewlines(str: string): string {
 /**
  * Renders the combined hover content with optional markdown description and actionable items.
  */
-class ActionListHoverContent {
+class ActionListHoverContent extends Disposable {
+
+	private readonly _onDidSelect = this._register(new Emitter<void>());
+	readonly onDidSelect = this._onDidSelect.event;
 
 	readonly domNode: HTMLElement;
 
 	constructor(
 		hoverContent: string | MarkdownString | undefined,
 		actions: readonly IAction[],
-		onSelect: () => void,
-		disposables: DisposableStore,
 	) {
+		super();
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'action-list-submenu';
 
@@ -1219,13 +1224,14 @@ class ActionListHoverContent {
 			const hoverSection = dom.append(this.domNode, dom.$('.action-list-submenu-hover'));
 			const markdown = typeof hoverContent === 'string' ? new MarkdownString(hoverContent) : hoverContent;
 			const rendered = renderMarkdown(markdown);
-			disposables.add(rendered);
+			this._register(rendered);
 			hoverSection.appendChild(rendered.element);
 		}
 
 		for (const action of actions) {
 			if (action instanceof SubmenuAction) {
-				const group = new ActionListHoverGroup(action, onSelect, disposables);
+				const group = this._register(new ActionListHoverGroup(action));
+				this._register(group.onDidSelect(() => this._onDidSelect.fire()));
 				this.domNode.appendChild(group.domNode);
 			}
 		}
@@ -1235,16 +1241,16 @@ class ActionListHoverContent {
 /**
  * Renders a group of actionable items with a labeled header and separator line.
  */
-class ActionListHoverGroup {
+class ActionListHoverGroup extends Disposable {
 
-	readonly domNode: DocumentFragment;
+	private readonly _onDidSelect = this._register(new Emitter<void>());
+	readonly onDidSelect = this._onDidSelect.event;
 
-	constructor(
-		group: SubmenuAction,
-		onSelect: () => void,
-		disposables: DisposableStore,
-	) {
-		this.domNode = document.createDocumentFragment();
+	readonly domNode: HTMLElement;
+
+	constructor(group: SubmenuAction) {
+		super();
+		this.domNode = document.createElement('div');
 
 		const headerRow = dom.append(this.domNode, dom.$('.action-list-submenu-group-header'));
 		const headerLabel = dom.append(headerRow, dom.$('span.action-list-submenu-group-label'));
@@ -1265,13 +1271,13 @@ class ActionListHoverGroup {
 				const desc = dom.append(content, dom.$('span.action-list-submenu-description'));
 				desc.textContent = child.tooltip;
 			}
-			disposables.add(dom.addDisposableListener(item, dom.EventType.MOUSE_DOWN, (e) => {
+			this._register(dom.addDisposableListener(item, dom.EventType.MOUSE_DOWN, (e) => {
 				dom.EventHelper.stop(e, true);
 			}));
-			disposables.add(dom.addDisposableListener(item, dom.EventType.CLICK, (e) => {
+			this._register(dom.addDisposableListener(item, dom.EventType.CLICK, (e) => {
 				dom.EventHelper.stop(e, true);
 				child.run();
-				onSelect();
+				this._onDidSelect.fire();
 			}));
 		}
 	}
