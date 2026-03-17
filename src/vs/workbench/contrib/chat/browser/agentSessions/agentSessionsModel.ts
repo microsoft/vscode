@@ -487,7 +487,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 			try {
 				this._onWillResolve.fire(provider);
-				return await this.doResolve(provider, options, token);
+				return await this.doResolveProvider(provider, options, token);
 			} catch (error) {
 				this.logger.logIfTrace(`Error resolving sessions for provider ${provider}: ${error instanceof Error ? error.stack : String(error)}`);
 			} finally {
@@ -496,7 +496,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		});
 	}
 
-	private async doResolve(provider: string, options: { refreshProvider: boolean }, token: CancellationToken): Promise<void> {
+	private async doResolveProvider(provider: string, options: { refreshProvider: boolean }, token: CancellationToken): Promise<void> {
 		if (options.refreshProvider) {
 			await this.chatSessionsService.refreshChatSessionItems([provider], token);
 		}
