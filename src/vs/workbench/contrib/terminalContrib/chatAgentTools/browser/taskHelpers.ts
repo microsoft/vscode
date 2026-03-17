@@ -291,6 +291,17 @@ export async function collectTerminalResults(
 
 	const parallelResults = await Promise.all(terminalPromises);
 	results.push(...parallelResults);
+
+	if (startMarkersByTerminalInstanceId) {
+		const activeInstanceIds = new Set(terminals.map(instance => instance.instanceId));
+		for (const [instanceId, marker] of startMarkersByTerminalInstanceId) {
+			if (!activeInstanceIds.has(instanceId)) {
+				marker.dispose();
+				startMarkersByTerminalInstanceId.delete(instanceId);
+			}
+		}
+	}
+
 	return results;
 }
 
