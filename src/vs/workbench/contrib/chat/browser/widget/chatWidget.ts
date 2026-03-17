@@ -2367,8 +2367,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			pauseQueue: options?.alwaysQueue,
 		});
 
-		mark('code/chat/willUpdateChatViewVisibility');
-
 		if (ChatSendResult.isRejected(result)) {
 			return;
 		}

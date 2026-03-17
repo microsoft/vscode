@@ -1225,9 +1225,7 @@ export class ChatService extends Disposable implements IChatService {
 						}
 					}
 
-					mark('code/chat/willInvokeAgent');
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
-					mark('code/chat/didInvokeAgent');
 					rawResult = agentResult;
 					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, history, followupsCancelToken);
 				} else if (commandPart && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
