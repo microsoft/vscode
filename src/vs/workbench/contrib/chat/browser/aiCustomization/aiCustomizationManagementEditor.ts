@@ -5,8 +5,10 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -289,6 +291,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private selectedSection: AICustomizationManagementSection = AICustomizationManagementSection.Agents;
 
 	private readonly editorDisposables = this._register(new DisposableStore());
+	private readonly promptsSectionCountScheduler = this._register(new RunOnceScheduler(() => this._doRefreshAllPromptsSectionCounts(), 100));
 	private _editorContentChanged = false;
 
 	// Folder picker (sessions window only)
@@ -668,14 +671,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.modelsWidget.fireItemCount();
 		}
 
-		// Any prompts data change → refresh ALL prompts section counts
+		// Any prompts data change → refresh ALL prompts section counts (debounced)
 		this.editorDisposables.add(this.promptsService.onDidChangeCustomAgents(() => this.refreshAllPromptsSectionCounts()));
 		this.editorDisposables.add(this.promptsService.onDidChangeSkills(() => this.refreshAllPromptsSectionCounts()));
 		this.editorDisposables.add(this.promptsService.onDidChangeInstructions(() => this.refreshAllPromptsSectionCounts()));
 		this.editorDisposables.add(this.promptsService.onDidChangeSlashCommands(() => this.refreshAllPromptsSectionCounts()));
 
 		// Load initial counts for all sections
-		void this.refreshAllPromptsSectionCounts();
+		this.refreshAllPromptsSectionCounts();
 
 		// Load items for the initial section
 		if (this.isPromptsSection(this.selectedSection)) {
@@ -708,22 +711,25 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	/**
-	 * Refreshes counts for all prompts-based sections using the list widget's
-	 * shared item-loading logic. This guarantees the sidebar counts always
+	 * Schedules a debounced refresh of all prompts-based section counts.
+	 */
+	private refreshAllPromptsSectionCounts(): void {
+		this.promptsSectionCountScheduler.schedule();
+	}
+
+	/**
+	 * Performs the actual refresh of all prompts-based section counts.
+	 * Uses the list widget's shared item-loading logic so sidebar counts
 	 * match the per-group counts shown inside each section.
 	 */
-	private async refreshAllPromptsSectionCounts(): Promise<void> {
-		const promises: Promise<void>[] = [];
+	private _doRefreshAllPromptsSectionCounts(): void {
 		for (const section of this.sections) {
 			if (this.isPromptsSection(section.id)) {
-				promises.push(
-					this.listWidget.computeItemCountForSection(section.id).then(count => {
-						this.updateSectionCount(section.id, count);
-					})
-				);
+				this.listWidget.computeItemCountForSection(section.id).then(count => {
+					this.updateSectionCount(section.id, count);
+				}, onUnexpectedError);
 			}
 		}
-		await Promise.all(promises);
 	}
 
 	//#endregion
