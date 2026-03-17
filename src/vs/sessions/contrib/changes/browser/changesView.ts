@@ -54,7 +54,7 @@ import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChan
 import { chatEditingWidgetFileStateContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, ModifiedFileEntryState } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { IActivityService, NumberBadge } from '../../../../workbench/services/activity/common/activity.js';
-import { IEditorService, MODAL_GROUP, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
@@ -945,7 +945,7 @@ export class ChangesViewPane extends ViewPane {
 					}
 				};
 
-				const group = sideBySide ? SIDE_GROUP : MODAL_GROUP;
+				const group = sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
 
 				if (isDeletion && originalUri) {
 					this.editorService.openEditor({

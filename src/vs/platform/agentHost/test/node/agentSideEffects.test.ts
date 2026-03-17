@@ -4,9 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
@@ -20,6 +25,7 @@ import { MockAgent } from './mockAgent.js';
 suite('AgentSideEffects', () => {
 
 	const disposables = new DisposableStore();
+	let fileService: FileService;
 	let stateManager: SessionStateManager;
 	let agent: MockAgent;
 	let sideEffects: AgentSideEffects;
@@ -46,7 +52,16 @@ suite('AgentSideEffects', () => {
 		);
 	}
 
-	setup(() => {
+	setup(async () => {
+		fileService = disposables.add(new FileService(new NullLogService()));
+		const memFs = disposables.add(new InMemoryFileSystemProvider());
+		disposables.add(fileService.registerProvider(Schemas.inMemory, memFs));
+
+		// Seed a file so the handleBrowseDirectory tests can distinguish files from dirs
+		const testDir = URI.from({ scheme: Schemas.inMemory, path: '/testDir' });
+		await fileService.createFolder(testDir);
+		await fileService.writeFile(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' }), VSBuffer.fromString('hello'));
+
 		agent = new MockAgent();
 		disposables.add(toDisposable(() => agent.dispose()));
 		stateManager = disposables.add(new SessionStateManager(new NullLogService()));
@@ -54,10 +69,12 @@ suite('AgentSideEffects', () => {
 		sideEffects = disposables.add(new AgentSideEffects(stateManager, {
 			getAgent: () => agent,
 			agents: agentList,
-		}, new NullLogService()));
+		}, new NullLogService(), fileService));
 	});
 
-	teardown(() => disposables.clear());
+	teardown(() => {
+		disposables.clear();
+	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// ---- handleAction: session/turnStarted ------------------------------
@@ -86,7 +103,7 @@ suite('AgentSideEffects', () => {
 			const noAgentSideEffects = disposables.add(new AgentSideEffects(stateManager, {
 				getAgent: () => undefined,
 				agents: emptyAgents,
-			}, new NullLogService()));
+			}, new NullLogService(), fileService));
 
 			const envelopes: IActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
@@ -231,7 +248,7 @@ suite('AgentSideEffects', () => {
 			const noAgentSideEffects = disposables.add(new AgentSideEffects(stateManager, {
 				getAgent: () => undefined,
 				agents: emptyAgents,
-			}, new NullLogService()));
+			}, new NullLogService(), fileService));
 
 			await assert.rejects(
 				() => noAgentSideEffects.handleCreateSession({ session: sessionUri, provider: 'nonexistent' }),
@@ -266,6 +283,25 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(sessions[0].provider, 'mock');
 			assert.strictEqual(sessions[0].title, 'Session');
+		});
+	});
+
+	// ---- handleBrowseDirectory ------------------------------------------
+
+	suite('handleBrowseDirectory', () => {
+
+		test('throws when the directory does not exist', async () => {
+			await assert.rejects(
+				() => sideEffects.handleBrowseDirectory(URI.from({ scheme: Schemas.inMemory, path: '/nonexistent' })),
+				/Directory not found/,
+			);
+		});
+
+		test('throws when the target is not a directory', async () => {
+			await assert.rejects(
+				() => sideEffects.handleBrowseDirectory(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' })),
+				/Not a directory/,
+			);
 		});
 	});
 

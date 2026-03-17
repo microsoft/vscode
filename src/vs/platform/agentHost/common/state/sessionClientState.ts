@@ -181,7 +181,7 @@ export class SessionClientState extends Disposable {
 			const headIdx = this._pendingActions.findIndex(p => p.clientSeq === origin.clientSeq);
 
 			if (headIdx !== -1) {
-				if (envelope.rejected) {
+				if (envelope.rejectionReason) {
 					this._pendingActions.splice(headIdx, 1);
 				} else {
 					this._applyToConfirmed(envelope.action);

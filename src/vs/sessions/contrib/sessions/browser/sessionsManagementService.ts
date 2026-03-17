@@ -251,8 +251,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async openSession(sessionResource: URI, openOptions?: ISessionOpenOptions): Promise<void> {
 		const existingSession = this.agentSessionsService.model.getSession(sessionResource);
 		if (!existingSession) {
+			this.logService.warn(`[SessionsManagement] openSession: session not found in model: ${sessionResource.toString()}, model has ${this.agentSessionsService.model.sessions.length} sessions with types: ${[...new Set(this.agentSessionsService.model.sessions.map(s => s.providerType))].join(', ')}`);
 			throw new Error(`Session with resource ${sessionResource.toString()} not found`);
 		}
+		this.logService.info(`[SessionsManagement] openSession: ${sessionResource.toString()} provider=${existingSession.providerType}`);
 		this.isNewChatSessionContext.set(false);
 		this.setActiveSession(existingSession);
 		await this.instantiationService.invokeFunction(openSessionDefault, existingSession, openOptions);

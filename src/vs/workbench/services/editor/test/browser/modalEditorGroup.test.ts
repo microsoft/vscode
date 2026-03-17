@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, createEditorParts } from '../../../../test/browser/workbenchTestServices.js';
 import { GroupsOrder, IEditorGroupsService } from '../../common/editorGroupsService.js';
-import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
+import { EditorExtensions, EditorInputCapabilities, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -412,7 +412,7 @@ suite('Modal Editor Group', () => {
 
 		// findGroup without MODAL_GROUP should return main part group, not modal group
 		const newInput = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
-		const [group] = instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: newInput.resource }, undefined));
+		const [group] = await instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: newInput.resource }, undefined));
 
 		assert.strictEqual(group.id, mainGroup.id);
 	});
@@ -432,7 +432,7 @@ suite('Modal Editor Group', () => {
 
 		// findGroup without MODAL_GROUP and without preserveFocus should close the modal
 		const newInput = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
-		instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: newInput.resource }, undefined));
+		await instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: newInput.resource }, undefined));
 
 		assert.strictEqual(parts.activeModalEditorPart, undefined);
 	});
@@ -452,7 +452,7 @@ suite('Modal Editor Group', () => {
 
 		// findGroup with preserveFocus should keep the modal open
 		const newInput = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
-		instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: newInput.resource, options: { preserveFocus: true } }, undefined));
+		await instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: newInput.resource, options: { preserveFocus: true } }, undefined));
 
 		assert.strictEqual(parts.activeModalEditorPart, modalPart);
 
@@ -764,6 +764,62 @@ suite('Modal Editor Group', () => {
 		assert.strictEqual(modalPart.maximized, true);
 
 		modalPart.close();
+	});
+
+	suite('RequiresModal capability', () => {
+
+		test('findGroup opens modal for editor with RequiresModal even when setting is off', async () => {
+			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration('workbench.editor.useModal', 'off');
+			instantiationService.stub(IConfigurationService, configurationService);
+			const parts = await createEditorParts(instantiationService, disposables);
+			instantiationService.stub(IEditorGroupsService, parts);
+
+			const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+			input.capabilities = EditorInputCapabilities.RequiresModal;
+
+			const result = instantiationService.invokeFunction(accessor => findGroup(accessor, { editor: input, options: {} }, undefined));
+
+			assert.ok(result instanceof Promise);
+			const [group] = await result;
+
+			assert.ok(parts.activeModalEditorPart);
+			assert.strictEqual(group.id, parts.activeModalEditorPart.activeGroup.id);
+
+			parts.activeModalEditorPart.close();
+		});
+
+		test('findGroup does not close modal for RequiresModal editor when modal is already open', async () => {
+			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration('workbench.editor.useModal', 'some');
+			instantiationService.stub(IConfigurationService, configurationService);
+			const parts = await createEditorParts(instantiationService, disposables);
+			instantiationService.stub(IEditorGroupsService, parts);
+
+			// Create a modal part first
+			const modalPart = await parts.createModalEditorPart();
+			const existingInput = createTestFileEditorInput(URI.file('foo/existing'), TEST_EDITOR_INPUT_ID);
+			await modalPart.activeGroup.openEditor(existingInput, { pinned: true });
+
+			// Now open a RequiresModal editor — modal should stay open
+			const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+			input.capabilities = EditorInputCapabilities.RequiresModal;
+
+			const result = instantiationService.invokeFunction(accessor => findGroup(accessor, { editor: input, options: {} }, undefined));
+
+			assert.ok(result instanceof Promise);
+			const [group] = await result;
+
+			assert.ok(parts.activeModalEditorPart);
+			assert.strictEqual(parts.activeModalEditorPart, modalPart);
+			assert.strictEqual(group.id, modalPart.activeGroup.id);
+
+			modalPart.close();
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
