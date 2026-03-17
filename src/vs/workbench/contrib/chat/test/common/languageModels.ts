@@ -87,10 +87,6 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 		return [];
 	}
 
-	getModelConfigurationDescription(_modelId: string): string | undefined {
-		return undefined;
-	}
-
 	async configureLanguageModelsProviderGroup(vendorId: string, name?: string): Promise<void> {
 
 	}
