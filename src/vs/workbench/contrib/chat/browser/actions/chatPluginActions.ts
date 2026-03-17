@@ -14,6 +14,7 @@ import { IPluginInstallService } from '../../common/plugins/pluginInstallService
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { InstalledAgentPluginsViewId } from '../agentPluginsView.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
 export class ManagePluginsAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.managePlugins';
@@ -64,12 +65,21 @@ class InstallFromSourceAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const pluginInstallService = accessor.get(IPluginInstallService);
 
-		const inputBox = quickInputService.createInputBox();
+		const store = new DisposableStore();
+		const inputBox = store.add(quickInputService.createInputBox());
 		inputBox.placeholder = localize('pluginSourcePlaceholder', "owner/repo or git clone URL");
 		inputBox.prompt = localize('pluginSourcePrompt', "Enter a GitHub repository or git URL to install a plugin from");
 		inputBox.show();
 
-		inputBox.onDidAccept(async () => {
+		store.add(inputBox.onDidChangeValue(() => {
+			inputBox.validationMessage = undefined;
+		}));
+
+		store.add(inputBox.onDidHide(() => {
+			store.dispose();
+		}));
+
+		store.add(inputBox.onDidAccept(async () => {
 			const source = inputBox.value.trim();
 			if (!source) {
 				return;
@@ -82,16 +92,26 @@ class InstallFromSourceAction extends Action2 {
 				return;
 			}
 
-			// Hide the input box so it doesn't conflict with trust/progress dialogs.
-			inputBox.hide();
+			// Show busy state and prevent concurrent installs.
+			inputBox.busy = true;
+			inputBox.enabled = false;
+			try {
+				// Hide the input box so it doesn't conflict with trust/progress dialogs.
+				inputBox.hide();
 
-			const result = await pluginInstallService.installPluginFromValidatedSource(source);
-			if (result.message) {
-				// Re-open with the error so the user can correct their input.
-				inputBox.validationMessage = result.message;
-				inputBox.show();
+				const result = await pluginInstallService.installPluginFromValidatedSource(source);
+				if (!result.success) {
+					if (result.message) {
+						// Re-open with the error so the user can correct their input.
+						inputBox.validationMessage = result.message;
+					}
+					inputBox.show();
+				}
+			} finally {
+				inputBox.busy = false;
+				inputBox.enabled = true;
 			}
-		});
+		}));
 	}
 }
 
