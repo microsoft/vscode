@@ -99,7 +99,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		// Create toggle button BEFORE the label so it appears on the left
 		if (isSuggestedEnabled) {
 			if (!isSelection) {
-				const buttonMsg = context.enabled ? localize('removeImplicitContext', "Remove current {0} context", attachmentTypeName) : localize('addToContext', "Add to context");
+				const buttonMsg = context.enabled ? localize('disableImplicitContext', "Disable current {0} context", attachmentTypeName) : localize('addToContext', "Add to context");
 				const toggleButton = this.renderDisposables.add(new Button(contextNode, { supportIcons: true, title: buttonMsg }));
 				toggleButton.icon = context.enabled ? Codicon.x : Codicon.plus;
 				this.renderDisposables.add(toggleButton.onDidClick(async (e) => {
