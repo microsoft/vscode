@@ -488,6 +488,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			try {
 				this._onWillResolve.fire(provider);
 				return await this.doResolve(provider, options, token);
+			} catch (error) {
+				this.logger.logIfTrace(`Error resolving sessions for provider ${provider}: ${error instanceof Error ? error.stack : String(error)}`);
 			} finally {
 				this._onDidResolve.fire(provider);
 			}
