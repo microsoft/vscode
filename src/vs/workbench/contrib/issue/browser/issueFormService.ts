@@ -28,6 +28,7 @@ import { IssueWebReporter } from './issueReporterService.js';
 import { IRecordingService, RecordingState } from './recordingService.js';
 import { IScreenshotService } from './screenshotService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import './media/issueReporter.css';
@@ -67,6 +68,7 @@ export class IssueFormService implements IIssueFormService {
 		@IRecordingService protected readonly recordingService: IRecordingService,
 		@IFileDialogService protected readonly fileDialogService: IFileDialogService,
 		@IFileService protected readonly fileService: IFileService,
+		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
 	) { }
 
 	async openReporter(data: IssueReporterData): Promise<void> {
@@ -262,9 +264,7 @@ export class IssueFormService implements IIssueFormService {
 		try {
 			const extension = data.mimeType.includes('mp4') ? 'mp4' : 'webm';
 			const fileName = `vscode-recording-${new Date().toISOString().replace(/[:.]/g, '-')}.${extension}`;
-			// Save to a temp-like path in user data dir
-			const userHome = URI.file(process.env.USERPROFILE ?? process.env.HOME ?? '.');
-			const target = URI.joinPath(userHome, '.vscode-issue-recordings', fileName);
+			const target = URI.joinPath(this.environmentService.userRoamingDataHome, 'issue-recordings', fileName);
 
 			const arrayBuffer = await data.blob.arrayBuffer();
 			await this.fileService.writeFile(target, VSBuffer.wrap(new Uint8Array(arrayBuffer)));

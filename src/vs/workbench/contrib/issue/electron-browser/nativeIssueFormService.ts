@@ -7,6 +7,7 @@ import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -35,9 +36,10 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		@IRecordingService recordingService: IRecordingService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IFileService fileService: IFileService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 	) {
-		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, layoutService, screenshotService, openerService, recordingService, fileDialogService, fileService);
+		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, layoutService, screenshotService, openerService, recordingService, fileDialogService, fileService, environmentService);
 	}
 
 	// override to grab platform info
