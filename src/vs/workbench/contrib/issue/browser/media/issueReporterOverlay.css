@@ -45,10 +45,10 @@ body.issue-reporter-active {
 /* ── Resize Sash ── */
 .wizard-resize-sash {
 	flex-shrink: 0;
-	height: 4px;
+	height: 6px;
 	cursor: ns-resize;
 	background: var(--vscode-sash-hoverBorder, var(--vscode-focusBorder, #007acc));
-	opacity: 0;
+	opacity: 0.5;
 	transition: opacity 0.15s ease;
 	z-index: 1;
 }
@@ -491,7 +491,6 @@ body.wizard-resizing {
 	align-items: center;
 	gap: 8px;
 	padding: 10px 16px;
-	border-top: 1px solid var(--vscode-panel-border, #444);
 	flex-shrink: 0;
 	background: var(--vscode-editor-background, #1e1e1e);
 }
