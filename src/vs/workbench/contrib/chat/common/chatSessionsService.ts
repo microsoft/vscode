@@ -244,7 +244,14 @@ export interface IChatSessionsService {
 	getChatSessionContribution(chatSessionType: string): ResolvedChatSessionsExtensionPoint | undefined;
 	getAllChatSessionContributions(): ResolvedChatSessionsExtensionPoint[];
 
+	/**
+	 * Programmatically register a chat session contribution (for internal session types
+	 * that don't go through the extension point).
+	 */
+	registerChatSessionContribution(contribution: IChatSessionsExtensionPoint): IDisposable;
+
 	registerChatSessionItemController(chatSessionType: string, controller: IChatSessionItemController): IDisposable;
+	getRegisteredChatSessionItemProviders(): readonly string[];
 	activateChatSessionItemProvider(chatSessionType: string): Promise<void>;
 
 	/**

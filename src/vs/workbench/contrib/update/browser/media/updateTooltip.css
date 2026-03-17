@@ -8,8 +8,8 @@
 	flex-direction: column;
 	gap: 12px;
 	padding: 6px 6px;
-	min-width: 320px;
-	max-width: 320px;
+	min-width: 300px;
+	max-width: 350px;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-bodyFontSize-small);
 }

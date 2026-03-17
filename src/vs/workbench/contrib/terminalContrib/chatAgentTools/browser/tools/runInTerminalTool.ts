@@ -447,10 +447,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const truncatedCommand = normalizedCommand.length > 80
 				? normalizedCommand.substring(0, 77) + '...'
 				: normalizedCommand;
-			const escapedCommand = escapeMarkdownSyntaxTokens(truncatedCommand);
 			const invocationMessage = partialInput.isBackground
-				? new MarkdownString(localize('runInTerminal.streaming.background', "Running `{0}` in background", escapedCommand))
-				: new MarkdownString(localize('runInTerminal.streaming', "Running `{0}`", escapedCommand));
+				? new MarkdownString(localize('runInTerminal.streaming.background', "Running `{0}` in background", truncatedCommand))
+				: new MarkdownString(localize('runInTerminal.streaming', "Running `{0}`", truncatedCommand));
 			return { invocationMessage };
 		}
 		return { invocationMessage: localize('runInTerminal.streaming.default', "Running command") };

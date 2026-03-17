@@ -130,6 +130,7 @@ suite('AgentSessionsDataSource', () => {
 			isArchived: () => overrides.isArchived ?? false,
 			setArchived: () => { },
 			isRead: () => overrides.isRead ?? true,
+			isMarkedUnread: () => false,
 			setRead: () => { },
 		};
 	}
@@ -139,8 +140,8 @@ suite('AgentSessionsDataSource', () => {
 			sessions,
 			resolved: true,
 			getSession: () => undefined,
-			onWillResolve: Event.None,
-			onDidResolve: Event.None,
+			onWillResolve: Event.None as Event<string>,
+			onDidResolve: Event.None as Event<string>,
 			onDidChangeSessions: Event.None,
 			onDidChangeSessionArchivedState: Event.None,
 			resolve: async () => { },
