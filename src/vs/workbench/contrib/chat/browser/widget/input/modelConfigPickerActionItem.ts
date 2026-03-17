@@ -74,11 +74,11 @@ const value = currentConfig[this._key] ?? this._propSchema.default;
 
 const enumIndex = this._propSchema.enum?.indexOf(value) ?? -1;
 const displayValue = (enumIndex >= 0 && this._propSchema.enumItemLabels?.[enumIndex]) ?? String(value ?? '');
-const enumIcon = enumIndex >= 0 ? this._propSchema.enumIcons?.[enumIndex] : undefined;
+const propIcon = this._propSchema.icon;
 
 const domChildren: (HTMLElement | string)[] = [];
-if (enumIcon) {
-domChildren.push(renderIcon(ThemeIcon.fromId(enumIcon)));
+if (propIcon) {
+domChildren.push(renderIcon(ThemeIcon.fromId(propIcon)));
 }
 domChildren.push(dom.$('span.chat-input-picker-label', undefined, displayValue));
 domChildren.push(...renderLabelWithIcons('$(chevron-down)'));
@@ -113,7 +113,7 @@ group: { title },
 // Enum values as actions with descriptions
 const enumItemLabels = this._propSchema.enumItemLabels;
 const enumDescriptions = this._propSchema.enumDescriptions;
-const enumIcons = this._propSchema.enumIcons;
+const propIcon = this._propSchema.icon;
 for (let i = 0; i < this._propSchema.enum.length; i++) {
 const value = this._propSchema.enum[i];
 const itemLabel = enumItemLabels?.[i] ?? String(value);
@@ -121,8 +121,7 @@ const isDefault = value === this._propSchema.default;
 const displayLabel = isDefault ? localize('models.enumDefault', "{0} (default)", itemLabel) : itemLabel;
 const description = enumDescriptions?.[i];
 const isChecked = currentValue === value;
-const enumIcon = enumIcons?.[i];
-const icon = enumIcon ? ThemeIcon.fromId(enumIcon) : ThemeIcon.fromId(isChecked ? Codicon.check.id : Codicon.blank.id);
+const icon = propIcon ? ThemeIcon.fromId(propIcon) : ThemeIcon.fromId(isChecked ? Codicon.check.id : Codicon.blank.id);
 
 items.push({
 item: {
