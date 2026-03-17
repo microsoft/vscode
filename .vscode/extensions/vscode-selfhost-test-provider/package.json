@@ -6,9 +6,6 @@
     "testObserver",
     "testRelatedCode"
   ],
-  "extensionDependencies": [
-    "ms-vscode.vscode-extras"
-  ],
   "engines": {
     "vscode": "^1.88.0"
   },

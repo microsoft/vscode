@@ -519,6 +519,9 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		default: false,
 		tags: ['preview'],
 		restricted: true,
+		experiment: {
+			mode: 'auto'
+		}
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxNetwork]: {
 		markdownDescription: localize('terminalSandbox.networkSetting', "Note: this setting is applicable only when {0} is enabled. Controls network access in the terminal sandbox.", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
@@ -539,13 +542,13 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			allowTrustedDomains: {
 				type: 'boolean',
 				description: localize('terminalSandbox.networkSetting.allowTrustedDomains', "When enabled, the Trusted Domains list is included in the allowed domains for network access."),
-				default: false
+				default: true
 			}
 		},
 		default: {
 			allowedDomains: [],
 			deniedDomains: [],
-			allowTrustedDomains: false
+			allowTrustedDomains: true
 		},
 		tags: ['preview'],
 		restricted: true,

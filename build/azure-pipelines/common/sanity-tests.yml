@@ -48,7 +48,7 @@ jobs:
       - checkout: self
         fetchDepth: 1
         fetchTags: false
-        sparseCheckoutDirectories: test/sanity .nvmrc
+        sparseCheckoutDirectories: build/azure-pipelines/config test/sanity .nvmrc
         displayName: Checkout test/sanity
 
       - ${{ if eq(parameters.os, 'windows') }}:

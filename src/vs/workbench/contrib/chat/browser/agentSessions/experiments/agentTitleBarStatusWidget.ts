@@ -432,7 +432,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			label.classList.add('has-progress');
 		}
 
-		const hoverLabel = localize('askAnythingPlaceholder', "Ask anything or describe what to build next");
+		const hoverLabel = localize('askAnythingPlaceholder', "Ask anything or describe what to build");
 
 		label.textContent = defaultLabel;
 		pill.appendChild(label);

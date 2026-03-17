@@ -13,7 +13,8 @@ declare module 'vscode' {
 	export interface ProvideLanguageModelChatResponseOptions {
 
 		/**
-		 * What extension initiated the request to the language model
+		 * What extension initiated the request to the language model, or
+		 * `undefined` if the request was initiated by other functionality in the editor.
 		 */
 		readonly requestInitiator: string;
 	}

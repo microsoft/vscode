@@ -5,6 +5,7 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -19,8 +20,9 @@ import { WorkbenchList } from '../../../../../platform/list/browser/listService.
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../../base/browser/ui/list/list.js';
 import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon, pluginIcon } from './aiCustomizationIcons.js';
-import { AICustomizationManagementItemMenuId, AICustomizationManagementSection } from './aiCustomizationManagement.js';
+import { AGENT_MD_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon, pluginIcon, builtinIcon } from './aiCustomizationIcons.js';
+import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AICustomizationManagementItemMenuId, AICustomizationManagementSection, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { Delayer } from '../../../../../base/common/async.js';
@@ -31,27 +33,47 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, getContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IAICustomizationWorkspaceService, applyStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
-import { ISCMService } from '../../../scm/common/scm.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
+import { getCustomizationSecondaryText } from './aiCustomizationListWidgetUtils.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
-import { HOOK_TYPES, formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
+import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
+import { HookType, HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+
+export { truncateToFirstSentence } from './aiCustomizationListWidgetUtils.js';
 
 const $ = DOM.$;
 
+//#region Telemetry
+
+type CustomizationEditorSearchEvent = {
+	section: string;
+	resultCount: number;
+};
+
+type CustomizationEditorSearchClassification = {
+	section: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The active section when the search was performed.' };
+	resultCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of items matching the search query.' };
+	owner: 'joshspicer';
+	comment: 'Tracks search usage in the Chat Customizations editor.';
+};
+
+//#endregion
+
 const ITEM_HEIGHT = 44;
-const GROUP_HEADER_HEIGHT = 32;
+const GROUP_HEADER_HEIGHT = 36;
 const GROUP_HEADER_HEIGHT_WITH_SEPARATOR = 40;
 
 /**
@@ -65,7 +87,8 @@ export interface IAICustomizationListItem {
 	readonly description?: string;
 	readonly storage: PromptsStorage;
 	readonly promptType: PromptsType;
-	gitStatus?: 'uncommitted' | 'committed';
+	/** When set, overrides `storage` for display grouping purposes. */
+	readonly groupKey?: string;
 	nameMatches?: IMatch[];
 	descriptionMatches?: IMatch[];
 }
@@ -76,7 +99,7 @@ export interface IAICustomizationListItem {
 interface IGroupHeaderEntry {
 	readonly type: 'group-header';
 	readonly id: string;
-	readonly storage: PromptsStorage;
+	readonly groupKey: string;
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	readonly count: number;
@@ -114,10 +137,10 @@ class AICustomizationListDelegate implements IListVirtualDelegate<IListEntry> {
 interface IAICustomizationItemTemplateData {
 	readonly container: HTMLElement;
 	readonly actionsContainer: HTMLElement;
+	readonly actionBar: ActionBar;
+	readonly typeIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
 	readonly description: HighlightedLabel;
-	readonly storageBadge: HTMLElement;
-	readonly gitStatusBadge: HTMLElement;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 }
@@ -196,10 +219,45 @@ class GroupHeaderRenderer implements IListRenderer<IGroupHeaderEntry, IGroupHead
 }
 
 /**
+ * Returns the icon for a given prompt type.
+ */
+function promptTypeToIcon(type: PromptsType): ThemeIcon {
+	switch (type) {
+		case PromptsType.agent: return agentIcon;
+		case PromptsType.skill: return skillIcon;
+		case PromptsType.instructions: return instructionsIcon;
+		case PromptsType.prompt: return promptIcon;
+		case PromptsType.hook: return hookIcon;
+		default: return promptIcon;
+	}
+}
+
+/**
+ * Formats a name for display: strips a trailing .md extension, converts dashes/underscores
+ * to spaces and applies title case.
+ * Note: callers that pass IMatch highlight ranges must compute those ranges against the
+ * formatted string (not the raw input), since .md stripping changes string length.
+ */
+export function formatDisplayName(name: string): string {
+	return name
+		.replace(/\.md$/i, '')
+		.replace(/[-_]/g, ' ')
+		.replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/**
  * Renderer for AI customization list items.
  */
 class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICustomizationItemTemplateData> {
 	readonly templateId = 'aiCustomizationItem';
+
+	constructor(
+		@IHoverService private readonly hoverService: IHoverService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) { }
 
 	renderTemplate(container: HTMLElement): IAICustomizationItemTemplateData {
 		const disposables = new DisposableStore();
@@ -208,25 +266,24 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		container.classList.add('ai-customization-list-item');
 
 		const leftSection = DOM.append(container, $('.item-left'));
-		// Storage badge on left (shows workspace/user/extension)
-		const storageBadge = DOM.append(leftSection, $('.storage-badge'));
+		const typeIcon = DOM.append(leftSection, $('.item-type-icon'));
 		const textContainer = DOM.append(leftSection, $('.item-text'));
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(textContainer, $('.item-name'))));
 		const description = disposables.add(new HighlightedLabel(DOM.append(textContainer, $('.item-description'))));
 
-		// Git status badge (always visible, outside item-right hover container)
-		const gitStatusBadge = DOM.append(container, $('.git-status-badge'));
-
 		// Right section for actions (hover-visible)
 		const actionsContainer = DOM.append(container, $('.item-right'));
+		const actionBar = disposables.add(new ActionBar(actionsContainer, {
+			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
+		}));
 
 		return {
 			container,
 			actionsContainer,
+			actionBar,
+			typeIcon,
 			nameLabel,
 			description,
-			storageBadge,
-			gitStatusBadge,
 			disposables,
 			elementDisposables,
 		};
@@ -236,13 +293,50 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		templateData.elementDisposables.clear();
 		const element = entry.item;
 
-		// Name with highlights
-		templateData.nameLabel.set(element.name, element.nameMatches);
+		// Type icon based on prompt type
+		templateData.typeIcon.className = 'item-type-icon';
+		templateData.typeIcon.classList.add(...ThemeIcon.asClassNameArray(promptTypeToIcon(element.promptType)));
 
-		// Description - show either description or filename as secondary text
-		const secondaryText = element.description || element.filename;
+		// Hover tooltip: name + full path
+		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => {
+			const uriLabel = this.labelService.getUriLabel(element.uri, { relative: false });
+			return {
+				content: `${element.name}\n${uriLabel}`,
+				appearance: {
+					compact: true,
+					skipFadeInAnimation: true,
+				}
+			};
+		}));
+
+		// Name with highlights — nameMatches are pre-computed against the formatted display name
+		const displayName = formatDisplayName(element.name);
+		templateData.nameLabel.set(displayName, element.nameMatches);
+
+		// Hooks show shell commands here, so keep the full text instead of truncating to the first sentence.
+		const secondaryText = getCustomizationSecondaryText(element.description, element.filename, element.promptType);
+		let secondaryTextMatches: IMatch[] | undefined;
+		if (secondaryText && element.description && element.descriptionMatches) {
+			if (secondaryText === element.description) {
+				// No truncation, matches can be used as-is.
+				secondaryTextMatches = element.descriptionMatches;
+			} else {
+				// Description was truncated for display; clamp matches to the visible range.
+				const maxLength = secondaryText.length;
+				const clampedMatches = element.descriptionMatches.map(match => {
+					// Discard matches that are entirely outside the visible portion.
+					if (match.start >= maxLength || match.end <= 0) {
+						return undefined;
+					}
+					const clampedStart = Math.max(0, match.start);
+					const clampedEnd = Math.min(match.end, maxLength);
+					return clampedEnd > clampedStart ? { start: clampedStart, end: clampedEnd } : undefined;
+				}).filter((match): match is IMatch => !!match);
+				secondaryTextMatches = clampedMatches.length ? clampedMatches : undefined;
+			}
+		}
 		if (secondaryText) {
-			templateData.description.set(secondaryText, element.description ? element.descriptionMatches : undefined);
+			templateData.description.set(secondaryText, secondaryTextMatches);
 			templateData.description.element.style.display = '';
 			// Style differently for filename vs description
 			templateData.description.element.classList.toggle('is-filename', !element.description);
@@ -251,44 +345,35 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			templateData.description.element.style.display = 'none';
 		}
 
-		// Storage badge
-		let storageBadgeIcon: ThemeIcon;
-		let storageBadgeLabel: string;
-		switch (element.storage) {
-			case PromptsStorage.local:
-				storageBadgeIcon = workspaceIcon;
-				storageBadgeLabel = localize('workspace', "Workspace");
-				break;
-			case PromptsStorage.user:
-				storageBadgeIcon = userIcon;
-				storageBadgeLabel = localize('user', "User");
-				break;
-			case PromptsStorage.extension:
-				storageBadgeIcon = extensionIcon;
-				storageBadgeLabel = localize('extension', "Extension");
-				break;
-			case PromptsStorage.plugin:
-				storageBadgeIcon = pluginIcon;
-				storageBadgeLabel = localize('plugin', "Plugin");
-				break;
-		}
+		// Inline action bar from menu
+		const context = {
+			uri: element.uri.toString(),
+			name: element.name,
+			promptType: element.promptType,
+			storage: element.storage,
+		};
 
-		templateData.storageBadge.className = 'storage-badge';
-		templateData.storageBadge.classList.add(...ThemeIcon.asClassNameArray(storageBadgeIcon));
-		templateData.storageBadge.title = storageBadgeLabel;
+		// Create scoped context key service with item-specific keys for when-clause filtering
+		const overlay = this.contextKeyService.createOverlay([
+			[AI_CUSTOMIZATION_ITEM_TYPE_KEY, element.promptType],
+			[AI_CUSTOMIZATION_ITEM_STORAGE_KEY, element.storage],
+			[AI_CUSTOMIZATION_ITEM_URI_KEY, element.uri.toString()],
+		]);
 
-		// Git status badge
-		const gitBadge = templateData.gitStatusBadge;
-		gitBadge.className = 'git-status-badge';
-		if (element.gitStatus === 'committed') {
-			gitBadge.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
-			gitBadge.classList.add('committed');
-			gitBadge.textContent = '';
-			gitBadge.title = localize('committedStatus', "Committed");
-			gitBadge.style.display = '';
-		} else {
-			gitBadge.style.display = 'none';
-		}
+		const menu = templateData.elementDisposables.add(
+			this.menuService.createMenu(AICustomizationManagementItemMenuId, overlay)
+		);
+
+		const updateActions = () => {
+			const actions = menu.getActions({ arg: context, shouldForwardArgs: true });
+			const { primary } = getContextMenuActions(actions, 'inline');
+			templateData.actionBar.clear();
+			templateData.actionBar.push(primary, { icon: true, label: false });
+		};
+		updateActions();
+		templateData.elementDisposables.add(menu.onDidChange(updateActions));
+
+		templateData.actionBar.context = context;
 	}
 
 	disposeTemplate(templateData: IAICustomizationItemTemplateData): void {
@@ -343,7 +428,7 @@ export class AICustomizationListWidget extends Disposable {
 	private allItems: IAICustomizationListItem[] = [];
 	private displayEntries: IListEntry[] = [];
 	private searchQuery: string = '';
-	private readonly collapsedGroups = new Set<PromptsStorage>();
+	private readonly collapsedGroups = new Set<string>();
 	private readonly dropdownActionDisposables = this._register(new DisposableStore());
 
 	private readonly delayedFilter = new Delayer<void>(200);
@@ -357,8 +442,8 @@ export class AICustomizationListWidget extends Disposable {
 	private readonly _onDidRequestCreate = this._register(new Emitter<PromptsType>());
 	readonly onDidRequestCreate: Event<PromptsType> = this._onDidRequestCreate.event;
 
-	private readonly _onDidRequestCreateManual = this._register(new Emitter<{ type: PromptsType; target: 'workspace' | 'user' }>());
-	readonly onDidRequestCreateManual: Event<{ type: PromptsType; target: 'workspace' | 'user' }> = this._onDidRequestCreateManual.event;
+	private readonly _onDidRequestCreateManual = this._register(new Emitter<{ type: PromptsType; target: 'workspace' | 'user' | 'workspace-root' }>());
+	readonly onDidRequestCreateManual: Event<{ type: PromptsType; target: 'workspace' | 'user' | 'workspace-root' }> = this._onDidRequestCreateManual.event;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -372,10 +457,10 @@ export class AICustomizationListWidget extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
-		@ISCMService private readonly scmService: ISCMService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.element = $('.ai-customization-list-widget');
@@ -387,18 +472,6 @@ export class AICustomizationListWidget extends Disposable {
 			this.updateAddButton();
 			this.refresh();
 		}));
-
-		// Re-filter when SCM repositories change (updates git status badges after commits)
-		const trackRepoChanges = (repo: { provider: { onDidChangeResources: Event<void> } }) => {
-			this._register(repo.provider.onDidChangeResources(() => {
-				this.updateGitStatus(this.allItems);
-				this.filterItems();
-			}));
-		};
-		for (const repo of [...this.scmService.repositories]) {
-			trackRepoChanges(repo);
-		}
-		this._register(this.scmService.onDidAddRepository(repo => trackRepoChanges(repo)));
 
 	}
 
@@ -415,7 +488,15 @@ export class AICustomizationListWidget extends Disposable {
 
 		this._register(this.searchInput.onDidChange(() => {
 			this.searchQuery = this.searchInput.value;
-			this.delayedFilter.trigger(() => this.filterItems());
+			this.delayedFilter.trigger(() => {
+				const matchCount = this.filterItems();
+				if (this.searchQuery.trim()) {
+					this.telemetryService.publicLog2<CustomizationEditorSearchEvent, CustomizationEditorSearchClassification>('chatCustomizationEditor.search', {
+						section: this.currentSection,
+						resultCount: matchCount,
+					});
+				}
+			});
 		}));
 
 		// Add button container next to search
@@ -502,6 +583,13 @@ export class AICustomizationListWidget extends Disposable {
 		this._register(this.promptsService.onDidChangeCustomAgents(() => this.refresh()));
 		this._register(this.promptsService.onDidChangeSlashCommands(() => this.refresh()));
 
+		// Refresh on file deletions so the list updates after inline delete actions
+		this._register(this.fileService.onDidFilesChange(e => {
+			if (e.gotDeleted()) {
+				this.refresh();
+			}
+		}));
+
 		// Section footer at bottom with description and link
 		this.sectionHeader = DOM.append(this.element, $('.section-footer'));
 		this.sectionDescription = DOM.append(this.sectionHeader, $('p.section-footer-description'));
@@ -534,13 +622,20 @@ export class AICustomizationListWidget extends Disposable {
 			storage: item.storage,
 		};
 
-		// Get menu actions
-		const actions = this.menuService.getMenuActions(AICustomizationManagementItemMenuId, this.contextKeyService, {
+		// Create scoped context key service with item-specific keys for when-clause filtering
+		const overlay = this.contextKeyService.createOverlay([
+			[AI_CUSTOMIZATION_ITEM_TYPE_KEY, item.promptType],
+			[AI_CUSTOMIZATION_ITEM_STORAGE_KEY, item.storage],
+			[AI_CUSTOMIZATION_ITEM_URI_KEY, item.uri.toString()],
+		]);
+
+		// Get menu actions, excluding inline actions to avoid duplicates
+		const actions = this.menuService.getMenuActions(AICustomizationManagementItemMenuId, overlay, {
 			arg: context,
 			shouldForwardArgs: true,
 		});
 
-		const flatActions = getFlatContextMenuActions(actions);
+		const { secondary } = getContextMenuActions(actions, 'inline');
 
 		// Add copy path actions
 		const copyActions = [
@@ -563,7 +658,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => [...flatActions, ...copyActions],
+			getActions: () => [...secondary, ...copyActions],
 		});
 	}
 
@@ -698,6 +793,12 @@ export class AICustomizationListWidget extends Disposable {
 			actions.push(this.dropdownActionDisposables.add(new Action('createUser', `$(${Codicon.account.id}) New ${typeLabel} (User)`, undefined, true, () => {
 				this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
 			})));
+			// For instructions: offer AGENTS.md at workspace root
+			if (promptType === PromptsType.instructions && this.hasActiveWorkspace()) {
+				actions.push(this.dropdownActionDisposables.add(new Action('createAgentsMd', `$(${Codicon.file.id}) New ${AGENT_MD_FILENAME}`, undefined, true, () => {
+					this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace-root' });
+				})));
+			}
 		} else {
 			// Core: primary is generate, dropdown has workspace + user
 			if (this.hasActiveWorkspace()) {
@@ -768,7 +869,8 @@ export class AICustomizationListWidget extends Disposable {
 	 * Loads items for the current section.
 	 */
 	private async loadItems(): Promise<void> {
-		const promptType = sectionToPromptType(this.currentSection);
+		const section = this.currentSection;
+		const promptType = sectionToPromptType(section);
 		const items: IAICustomizationListItem[] = [];
 
 
@@ -839,7 +941,7 @@ export class AICustomizationListWidget extends Disposable {
 					if (hooks.size > 0) {
 						parsedHooks = true;
 						for (const [hookType, entry] of hooks) {
-							const hookMeta = HOOK_TYPES.find(h => h.id === hookType);
+							const hookMeta = HOOK_METADATA[hookType];
 							for (let i = 0; i < entry.hooks.length; i++) {
 								const hook = entry.hooks[i];
 								const cmdLabel = formatHookCommandLabel(hook, OS);
@@ -872,6 +974,37 @@ export class AICustomizationListWidget extends Disposable {
 					});
 				}
 			}
+
+			// Also include hooks defined in agent frontmatter (not in sessions window)
+			// TODO: add this back when Copilot CLI supports this
+			const agents = !this.workspaceService.isSessionsWindow ? await this.promptsService.getCustomAgents(CancellationToken.None) : [];
+			for (const agent of agents) {
+				if (!agent.hooks) {
+					continue;
+				}
+				for (const hookType of Object.values(HookType)) {
+					const hookCommands = agent.hooks[hookType];
+					if (!hookCommands || hookCommands.length === 0) {
+						continue;
+					}
+					const hookMeta = HOOK_METADATA[hookType];
+					for (let i = 0; i < hookCommands.length; i++) {
+						const hook = hookCommands[i];
+						const cmdLabel = formatHookCommandLabel(hook, OS);
+						const truncatedCmd = cmdLabel.length > 60 ? cmdLabel.substring(0, 57) + '...' : cmdLabel;
+						items.push({
+							id: `${agent.uri.toString()}#hook:${hookType}[${i}]`,
+							uri: agent.uri,
+							name: hookMeta?.label ?? hookType,
+							filename: basename(agent.uri),
+							description: `${agent.name}: ${truncatedCmd || localize('hookUnset', "(unset)")}`,
+							storage: agent.source.storage,
+							groupKey: 'agents',
+							promptType,
+						});
+					}
+				}
+			}
 		} else {
 			// For instructions, fetch prompt files and group by storage
 			const promptFiles = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
@@ -900,6 +1033,7 @@ export class AICustomizationListWidget extends Disposable {
 			const userItems = allItems.filter(item => item.storage === PromptsStorage.user);
 			const extensionItems = allItems.filter(item => item.storage === PromptsStorage.extension);
 			const pluginItems = allItems.filter(item => item.storage === PromptsStorage.plugin);
+			const builtinItems = allItems.filter(item => item.storage === BUILTIN_STORAGE);
 
 			const mapToListItem = (item: IPromptPath): IAICustomizationListItem => {
 				const filename = basename(item.uri);
@@ -920,6 +1054,7 @@ export class AICustomizationListWidget extends Disposable {
 			items.push(...userItems.map(mapToListItem));
 			items.push(...extensionItems.map(mapToListItem));
 			items.push(...pluginItems.map(mapToListItem));
+			items.push(...builtinItems.map(mapToListItem));
 		}
 
 		// Apply storage source filter (removes items not in visible sources or excluded user roots)
@@ -931,34 +1066,13 @@ export class AICustomizationListWidget extends Disposable {
 		// Sort items by name
 		items.sort((a, b) => a.name.localeCompare(b.name));
 
-		// Set git status for workspace (local) items
-		this.updateGitStatus(items);
+		if (this.currentSection !== section) {
+			return; // section changed while loading
+		}
 
 		this.allItems = items;
 		this.filterItems();
 		this._onDidChangeItemCount.fire(items.length);
-	}
-
-	/**
-	 * Updates git status on local workspace items by checking SCM resource groups.
-	 * Files found in resource groups have uncommitted changes; others are committed.
-	 */
-	private updateGitStatus(items: IAICustomizationListItem[]): void {
-		// Build a set of URIs that have uncommitted changes in SCM
-		const uncommittedUris = new Set<string>();
-		for (const repo of [...this.scmService.repositories]) {
-			for (const group of repo.provider.groups) {
-				for (const resource of group.resources) {
-					uncommittedUris.add(resource.sourceUri.toString());
-				}
-			}
-		}
-
-		for (const item of items) {
-			if (item.storage === PromptsStorage.local) {
-				item.gitStatus = uncommittedUris.has(item.uri.toString()) ? 'uncommitted' : 'committed';
-			}
-		}
 	}
 
 	/**
@@ -983,7 +1097,7 @@ export class AICustomizationListWidget extends Disposable {
 	/**
 	 * Filters items based on the current search query and builds grouped display entries.
 	 */
-	private filterItems(): void {
+	private filterItems(): number {
 		let matchedItems: IAICustomizationListItem[];
 
 		if (!this.searchQuery.trim()) {
@@ -993,7 +1107,10 @@ export class AICustomizationListWidget extends Disposable {
 			matchedItems = [];
 
 			for (const item of this.allItems) {
-				const nameMatches = matchesContiguousSubString(query, item.name);
+				// Compute matches against the formatted display name so highlight positions
+				// are correct even after .md stripping and title-casing.
+				const displayName = formatDisplayName(item.name);
+				const nameMatches = matchesContiguousSubString(query, displayName);
 				const descriptionMatches = item.description ? matchesContiguousSubString(query, item.description) : null;
 				const filenameMatches = matchesContiguousSubString(query, item.filename);
 
@@ -1010,15 +1127,18 @@ export class AICustomizationListWidget extends Disposable {
 		// Group items by storage
 		const promptType = sectionToPromptType(this.currentSection);
 		const visibleSources = new Set(this.workspaceService.getStorageSourceFilter(promptType).sources);
-		const groups: { storage: PromptsStorage; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] = [
-			{ storage: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
-			{ storage: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
-			{ storage: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
-			{ storage: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
-		].filter(g => visibleSources.has(g.storage));
+		const groups: { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] = [
+			{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
+			{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
+			{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
+			{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
+			{ groupKey: BUILTIN_STORAGE, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
+			{ groupKey: 'agents', label: localize('agentsGroup', "Agents"), icon: agentIcon, description: localize('agentsGroupDescription', "Hooks defined in agent files."), items: [] },
+		].filter(g => visibleSources.has(g.groupKey as PromptsStorage) || g.groupKey === 'agents');
 
 		for (const item of matchedItems) {
-			const group = groups.find(g => g.storage === item.storage);
+			const key = item.groupKey ?? item.storage;
+			const group = groups.find(g => g.groupKey === key);
 			if (group) {
 				group.items.push(item);
 			}
@@ -1037,12 +1157,12 @@ export class AICustomizationListWidget extends Disposable {
 				continue;
 			}
 
-			const collapsed = this.collapsedGroups.has(group.storage);
+			const collapsed = this.collapsedGroups.has(group.groupKey);
 
 			this.displayEntries.push({
 				type: 'group-header',
-				id: `group-${group.storage}`,
-				storage: group.storage,
+				id: `group-${group.groupKey}`,
+				groupKey: group.groupKey,
 				label: group.label,
 				icon: group.icon,
 				count: group.items.length,
@@ -1061,16 +1181,17 @@ export class AICustomizationListWidget extends Disposable {
 
 		this.list.splice(0, this.list.length, this.displayEntries);
 		this.updateEmptyState();
+		return matchedItems.length;
 	}
 
 	/**
 	 * Toggles the collapsed state of a group.
 	 */
 	private toggleGroup(entry: IGroupHeaderEntry): void {
-		if (this.collapsedGroups.has(entry.storage)) {
-			this.collapsedGroups.delete(entry.storage);
+		if (this.collapsedGroups.has(entry.groupKey)) {
+			this.collapsedGroups.delete(entry.groupKey);
 		} else {
-			this.collapsedGroups.add(entry.storage);
+			this.collapsedGroups.add(entry.groupKey);
 		}
 		this.filterItems();
 	}
@@ -1184,14 +1305,28 @@ export class AICustomizationListWidget extends Disposable {
 	 * Layouts the widget.
 	 */
 	layout(height: number, width: number): void {
-		const sectionFooterHeight = this.sectionHeader.offsetHeight || 100;
-		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 40;
-		const margins = 12; // search margin (6+6), not included in offsetHeight
-		const listHeight = height - sectionFooterHeight - searchBarHeight - margins;
+		const sectionFooterHeight = this.sectionHeader.offsetHeight || 0;
+		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 52;
+		const listHeight = height - sectionFooterHeight - searchBarHeight;
 
 		this.searchInput.layout();
 		this.listContainer.style.height = `${Math.max(0, listHeight)}px`;
 		this.list.layout(Math.max(0, listHeight), width);
+
+		// Re-layout once after footer renders if we used a zero fallback
+		if (sectionFooterHeight === 0) {
+			DOM.getWindow(this.listContainer).requestAnimationFrame(() => {
+				if (this._store.isDisposed) {
+					return;
+				}
+				const actualFooterHeight = this.sectionHeader.offsetHeight;
+				if (actualFooterHeight > 0) {
+					const correctedHeight = height - actualFooterHeight - searchBarHeight;
+					this.listContainer.style.height = `${Math.max(0, correctedHeight)}px`;
+					this.list.layout(Math.max(0, correctedHeight), width);
+				}
+			});
+		}
 	}
 
 	/**

@@ -42,7 +42,7 @@ import '../workbench/services/update/electron-browser/updateService.js';
 import '../workbench/services/url/electron-browser/urlService.js';
 import '../workbench/services/lifecycle/electron-browser/lifecycleService.js';
 import '../workbench/services/host/electron-browser/nativeHostService.js';
-import './electron-browser/titleService.js';
+import './services/title/electron-browser/titleService.js';
 import '../platform/meteredConnection/electron-browser/meteredConnectionService.js';
 import '../workbench/services/request/electron-browser/requestService.js';
 import '../workbench/services/clipboard/electron-browser/clipboardService.js';
@@ -177,7 +177,6 @@ import '../workbench/contrib/remoteTunnel/electron-browser/remoteTunnel.contribu
 
 // Chat
 import '../workbench/contrib/chat/electron-browser/chat.contribution.js';
-//import '../workbench/contrib/inlineChat/electron-browser/inlineChat.contribution.js';
 import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
 
 // Encryption
@@ -203,12 +202,15 @@ import './browser/layoutActions.js';
 import './contrib/accountMenu/browser/account.contribution.js';
 import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
+import './contrib/chat/browser/customizationsDebugLog.contribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
-import './contrib/changesView/browser/changesView.contribution.js';
+import './contrib/changes/browser/changesView.contribution.js';
+import './contrib/codeReview/browser/codeReview.contributions.js';
 import './contrib/files/browser/files.contribution.js';
-import './contrib/gitSync/browser/gitSync.contribution.js';
-import './contrib/applyToParentRepo/browser/applyToParentRepo.contribution.js';
+import './contrib/git/browser/git.contribution.js';
+import './contrib/github/browser/github.contribution.js';
+import './contrib/applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
 import './contrib/fileTreeView/browser/fileTreeView.contribution.js'; // view registration disabled; filesystem provider still needed
 import './contrib/configuration/browser/configuration.contribution.js';
 

@@ -26,6 +26,7 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
 
 const WELCOME_COMPLETE_KEY = 'workbench.agentsession.welcomeComplete';
 
@@ -138,10 +139,22 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 		@IProductService private readonly productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
 		if (!this.productService.defaultChatAgent?.chatExtensionId) {
+			return;
+		}
+
+		// Allow automated tests to skip the welcome overlay entirely.
+		// Desktop: --skip-sessions-welcome CLI flag
+		// Web: ?skip-sessions-welcome query parameter
+		const envArgs = (this.environmentService as IWorkbenchEnvironmentService & { args?: Record<string, unknown> }).args;
+		if (envArgs?.['skip-sessions-welcome']) {
+			return;
+		}
+		if (typeof globalThis.location !== 'undefined' && new URLSearchParams(globalThis.location.search).has('skip-sessions-welcome')) {
 			return;
 		}
 

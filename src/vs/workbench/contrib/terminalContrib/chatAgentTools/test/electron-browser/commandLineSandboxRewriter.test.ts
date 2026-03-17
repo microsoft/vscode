@@ -22,10 +22,9 @@ suite('CommandLineSandboxRewriter', () => {
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
 			isEnabled: async () => false,
-			wrapCommand: command => command,
-			getSandboxConfigPath: async () => '/tmp/sandbox.json',
-			getTempDir: () => undefined,
-			setNeedsForceUpdateConfigFile: () => { },
+			promptToAllowWritePath: async () => false,
+			wrapWithSandbox: async (_runtimeConfig, command) => command,
+			wrapCommand: command => Promise.resolve(command),
 			...overrides
 		});
 	};
@@ -46,29 +45,13 @@ suite('CommandLineSandboxRewriter', () => {
 		strictEqual(result, undefined);
 	});
 
-	test('returns undefined when sandbox config is unavailable', async () => {
-		stubSandboxService({
-			isEnabled: async () => true,
-			wrapCommand: command => `wrapped:${command}`,
-			getSandboxConfigPath: async () => undefined,
-		});
-
-		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter));
-		const result = await rewriter.rewrite(createRewriteOptions('echo hello'));
-		strictEqual(result, undefined);
-	});
-
-	test('wraps command when sandbox is enabled and config exists', async () => {
+	test('wraps command when sandbox is enabled', async () => {
 		const calls: string[] = [];
 		stubSandboxService({
 			isEnabled: async () => true,
 			wrapCommand: command => {
 				calls.push('wrapCommand');
-				return `wrapped:${command}`;
-			},
-			getSandboxConfigPath: async () => {
-				calls.push('getSandboxConfigPath');
-				return '/tmp/sandbox.json';
+				return Promise.resolve(`wrapped:${command}`);
 			},
 		});
 
@@ -76,6 +59,6 @@ suite('CommandLineSandboxRewriter', () => {
 		const result = await rewriter.rewrite(createRewriteOptions('echo hello'));
 		strictEqual(result?.rewritten, 'wrapped:echo hello');
 		strictEqual(result?.reasoning, 'Wrapped command for sandbox execution');
-		deepStrictEqual(calls, ['getSandboxConfigPath', 'wrapCommand']);
+		deepStrictEqual(calls, ['wrapCommand']);
 	});
 });

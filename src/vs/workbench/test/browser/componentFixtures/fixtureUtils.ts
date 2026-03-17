@@ -10,6 +10,7 @@ import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle
 import { URI } from '../../../../base/common/uri.js';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../../build/vite/style.css';
+import '../../../browser/media/style.css';
 
 // Theme
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
@@ -244,10 +245,11 @@ function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
 		return lightThemeStyleSheet;
 	}
 
+	const scopeSelector = '.' + theme.classNames[0];
 	const sheet = new CSSStyleSheet();
 	const css = generateColorThemeCSS(
 		theme,
-		':host',
+		scopeSelector,
 		themingRegistry.getThemingParticipants(),
 		mockEnvironmentService
 	);
@@ -261,20 +263,40 @@ function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
 	return sheet;
 }
 
-/**
- * Applies theme styling to a shadow DOM container.
- * Adds theme class names and adopts shared stylesheets.
- */
-export function setupTheme(container: HTMLElement, theme: ColorThemeData): void {
-	container.classList.add(...theme.classNames);
+let globalStylesInstalled = false;
 
-	const shadowRoot = container.getRootNode() as ShadowRoot;
-	if (shadowRoot.adoptedStyleSheets !== undefined) {
-		shadowRoot.adoptedStyleSheets = [
-			getGlobalStyleSheet(),
-			getIconsStyleSheetCached(),
-			getThemeStyleSheet(theme),
-		];
+function installGlobalStyles(): void {
+	if (globalStylesInstalled) {
+		return;
+	}
+	globalStylesInstalled = true;
+	document.adoptedStyleSheets = [
+		...document.adoptedStyleSheets,
+		getGlobalStyleSheet(),
+		getIconsStyleSheetCached(),
+		getThemeStyleSheet(darkTheme),
+		getThemeStyleSheet(lightTheme),
+	];
+}
+
+export function setupTheme(container: HTMLElement, theme: ColorThemeData): void {
+	installGlobalStyles();
+	container.classList.add('monaco-workbench', getPlatformClass(), ...theme.classNames);
+}
+
+function getPlatformClass(): string {
+	const alwaysUseMac = true;
+	if (alwaysUseMac) {
+		return 'mac';
+	} else {
+		const ua = navigator.userAgent;
+		if (ua.includes('Macintosh')) {
+			return 'mac';
+		}
+		if (ua.includes('Linux')) {
+			return 'linux';
+		}
+		return 'windows';
 	}
 }
 
@@ -474,6 +496,24 @@ export function createTextModel(
 // Fixture Adapters
 // ============================================================================
 
+export interface ThemedFixtureGroupLabels {
+	readonly kind?: 'screenshot' | 'animated';
+	readonly blocksCi?: true;
+}
+
+function resolveLabels(labels: ThemedFixtureGroupLabels | undefined): string[] {
+	const result: string[] = [];
+	if (labels?.kind === 'screenshot') {
+		result.push('.screenshot');
+	} else if (labels?.kind === 'animated') {
+		result.push('animated');
+	}
+	if (labels?.blocksCi) {
+		result.push('blocks-ci');
+	}
+	return result;
+}
+
 export interface ComponentFixtureContext {
 	container: HTMLElement;
 	disposableStore: DisposableStore;
@@ -482,6 +522,7 @@ export interface ComponentFixtureContext {
 
 export interface ComponentFixtureOptions {
 	render: (context: ComponentFixtureContext) => void | Promise<void>;
+	labels?: ThemedFixtureGroupLabels;
 }
 
 type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
@@ -496,7 +537,7 @@ type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
  */
 export function defineComponentFixture(options: ComponentFixtureOptions): ThemedFixtures {
 	const createFixture = (theme: typeof darkTheme | typeof lightTheme) => defineFixture({
-		isolation: 'shadow-dom',
+		isolation: 'none',
 		displayMode: { type: 'component' },
 		properties: [],
 		background: theme === darkTheme ? 'dark' : 'light',
@@ -509,18 +550,33 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		},
 	});
 
-	return defineFixtureVariants({
+	const labels = resolveLabels(options.labels);
+	return defineFixtureVariants(labels.length > 0 ? { labels } : {}, {
 		Dark: createFixture(darkTheme),
 		Light: createFixture(lightTheme),
 	});
 }
 
-type ThemedFixtureGroupInput = Record<string, ThemedFixtures>;
+interface ThemedFixtureGroupOptions {
+	readonly path?: string;
+	readonly labels?: ThemedFixtureGroupLabels;
+}
+
+type ThemedFixtureGroupFixtures = Record<string, ThemedFixtures>;
 
 /**
  * Creates a nested fixture group from themed fixtures.
  * E.g., { MergeEditor: { Dark: ..., Light: ... } } becomes a nested group: MergeEditor > Dark/Light
  */
-export function defineThemedFixtureGroup(group: ThemedFixtureGroupInput): ReturnType<typeof defineFixtureGroup> {
-	return defineFixtureGroup(group);
+export function defineThemedFixtureGroup(options: ThemedFixtureGroupOptions, fixtures: ThemedFixtureGroupFixtures): ReturnType<typeof defineFixtureGroup>;
+export function defineThemedFixtureGroup(fixtures: ThemedFixtureGroupFixtures): ReturnType<typeof defineFixtureGroup>;
+export function defineThemedFixtureGroup(optionsOrFixtures: ThemedFixtureGroupOptions | ThemedFixtureGroupFixtures, fixtures?: ThemedFixtureGroupFixtures): ReturnType<typeof defineFixtureGroup> {
+	if (fixtures) {
+		const options = optionsOrFixtures as ThemedFixtureGroupOptions;
+		return defineFixtureGroup({
+			labels: resolveLabels(options.labels),
+			path: options.path,
+		}, fixtures as ThemedFixtureGroupFixtures);
+	}
+	return defineFixtureGroup(optionsOrFixtures as ThemedFixtureGroupFixtures);
 }

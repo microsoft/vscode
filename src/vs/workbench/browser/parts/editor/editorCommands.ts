@@ -1517,11 +1517,15 @@ function registerModalEditorCommands(): void {
 				f1: true,
 				icon: Codicon.close,
 				precondition: EditorPartModalContext,
-				keybinding: {
+				keybinding: [{
 					primary: KeyCode.Escape,
-					weight: KeybindingWeight.WorkbenchContrib + 10,
-					when: EditorPartModalContext
-				},
+					weight: KeybindingWeight.WorkbenchContrib + 10, // higher when no text editor is focused...
+					when: EditorContextKeys.focus.toNegated()
+				}, {
+					primary: KeyCode.Escape,
+					weight: KeybindingWeight.EditorContrib - 1, // ...lower to prevent accidental close when text editor is focused
+					when: EditorContextKeys.focus
+				}],
 				menu: {
 					id: MenuId.ModalEditorTitle,
 					group: 'navigation',

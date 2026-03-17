@@ -52,8 +52,22 @@ if (testResults) {
 const mocha = new Mocha(mochaOptions);
 mocha.addFile(fileURLToPath(new URL('./main.js', import.meta.url)));
 await mocha.loadFilesAsync();
-mocha.run(failures => {
+const runner = mocha.run(failures => {
+	if (options.verbose) {
+		console.log(`Mocha test run finished: ${failures} failure(s)`);
+	}
 	process.exitCode = failures > 0 ? 1 : 0;
 	// Force exit to prevent hanging on open handles (background processes, timers, etc.)
-	setTimeout(() => process.exit(process.exitCode), 1000);
+	setTimeout(() => {
+		if (options.verbose) {
+			console.log(`Exiting with code ${process.exitCode}`);
+		}
+		process.exit(process.exitCode);
+	}, 1000);
 });
+
+if (options.verbose) {
+	runner.on('test', (test) => console.log(`Starting: ${test.fullTitle()}`));
+	runner.on('pass', (test) => console.log(`Passed: ${test.fullTitle()}`));
+	runner.on('fail', (test, err) => console.log(`Failed: ${test.fullTitle()} - ${err.message}`));
+}

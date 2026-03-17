@@ -8,13 +8,13 @@
 	color: var(--vscode-foreground);
 	background-color: var(--vscode-editorWidget-background);
 	border-radius: 6px;
-	border: 1px solid var(--vscode-contrastBorder);
+	border: 1px solid var(--vscode-editorHoverWidget-border);
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	gap: 4px;
 	z-index: 10;
-	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	box-shadow: var(--vscode-shadow-lg);
 	overflow: hidden;
 }
 
