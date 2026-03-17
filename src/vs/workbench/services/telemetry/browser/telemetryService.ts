@@ -58,7 +58,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		}));
 
 		this._register(requestService.onDidCompleteRequest(e => {
-			if (e.callSite === NO_FETCH_TELEMETRY) {
+			if (e.callSite === NO_FETCH_TELEMETRY || productService.quality === 'stable') {
 				return;
 			}
 			type FetchCallClassification = {
