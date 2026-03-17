@@ -85,13 +85,13 @@ export class TargetPicker extends Disposable {
 	 * @param preferredMode Optional preferred local mode to apply when switching
 	 *   from cloud to a local project or when a git repo becomes available.
 	 */
-	setProject(project: SessionProject | undefined): void {
+	setProject(project: SessionProject | undefined, preferredMode?: TargetMode): void {
 		this._project = project;
 
 		if (project?.isRepo) {
 			this._targetMode = 'cloud';
 		} else if (project?.isFolder && project.repository) {
-			this._targetMode = 'worktree';
+			this._targetMode = preferredMode ?? 'worktree';
 		} else if (project?.isFolder) {
 			this._targetMode = 'workspace';
 		}
