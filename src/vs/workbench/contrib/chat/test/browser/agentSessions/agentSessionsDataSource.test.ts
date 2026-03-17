@@ -13,40 +13,6 @@ import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { AgentSessionsGrouping } from '../../../browser/agentSessions/agentSessionsFilter.js';
-import { getAgentSessionTime } from '../../../browser/agentSessions/agentSessions.js';
-import { IChatSessionTiming } from '../../../common/chatService/chatService.js';
-
-suite('getAgentSessionTime', () => {
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('returns lastRequestStarted when available', () => {
-		const timing: IChatSessionTiming = {
-			created: 1000,
-			lastRequestStarted: 2000,
-			lastRequestEnded: 3000,
-		};
-		assert.strictEqual(getAgentSessionTime(timing), 2000);
-	});
-
-	test('returns lastRequestStarted even when lastRequestEnded is undefined', () => {
-		const timing: IChatSessionTiming = {
-			created: 1000,
-			lastRequestStarted: 2000,
-			lastRequestEnded: undefined,
-		};
-		assert.strictEqual(getAgentSessionTime(timing), 2000);
-	});
-
-	test('returns created when lastRequestStarted is undefined', () => {
-		const timing: IChatSessionTiming = {
-			created: 1000,
-			lastRequestStarted: undefined,
-			lastRequestEnded: undefined,
-		};
-		assert.strictEqual(getAgentSessionTime(timing), 1000);
-	});
-});
 
 suite('sessionDateFromNow', () => {
 
@@ -167,8 +133,8 @@ suite('AgentSessionsDataSource', () => {
 		return {
 			compare: (a, b) => {
 				// Sort by end time, most recent first
-				const aTime = getAgentSessionTime(a.timing);
-				const bTime = getAgentSessionTime(b.timing);
+				const aTime = a.timing.created;
+				const bTime = b.timing.created;
 				return bTime - aTime;
 			}
 		};

@@ -41,7 +41,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
-import { AgentSessionProviders, getAgentSessionTime } from './agentSessions.js';
+import { AgentSessionProviders } from './agentSessions.js';
 import { AgentSessionsGrouping } from './agentSessionsFilter.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -393,7 +393,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			}
 
 			if (!timeLabel) {
-				const date = getAgentSessionTime(session.timing);
+				const date = session.timing.created;
 				const seconds = Math.round((new Date().getTime() - date) / 1000);
 				if (seconds < 60) {
 					timeLabel = localize('secondsDuration', "now");
@@ -1092,7 +1092,7 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 		if (session.isArchived()) {
 			archivedSessions.push(session);
 		} else {
-			const sessionTime = getAgentSessionTime(session.timing);
+			const sessionTime = session.timing.created;
 			if (sessionTime >= startOfToday) {
 				todaySessions.push(session);
 			} else if (sessionTime >= startOfYesterday) {
@@ -1166,13 +1166,9 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 	}
 }
 
-export interface IAgentSessionsSorterOptions {
-	overrideCompare?(sessionA: IAgentSession, sessionB: IAgentSession): number | undefined;
-}
-
 export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
-	constructor(private readonly options?: IAgentSessionsSorterOptions) { }
+	constructor() { }
 
 	compare(sessionA: IAgentSession, sessionB: IAgentSession): number {
 
@@ -1198,16 +1194,8 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 			return 1; // a (archived) comes after b (non-archived)
 		}
 
-		// Before we compare by time, allow override
-		const override = this.options?.overrideCompare?.(sessionA, sessionB);
-		if (typeof override === 'number') {
-			return override;
-		}
-
-		// Sort by end or start time (most recent first)
-		const timeA = getAgentSessionTime(sessionA.timing);
-		const timeB = getAgentSessionTime(sessionB.timing);
-		return timeB - timeA;
+		// Sort by creation time (most recent first)
+		return sessionB.timing.created - sessionA.timing.created;
 	}
 }
 
