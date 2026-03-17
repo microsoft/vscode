@@ -70,6 +70,7 @@ export namespace ChatContextKeys {
 	 * even when the widget is locked to a coding agent.
 	 */
 	export const chatSessionHasTargetedModels = new RawContextKey<boolean>('chatSessionHasTargetedModels', false, { type: 'boolean', description: localize('chatSessionHasTargetedModels', "True when the chat session has language models that target it via targetChatSessionType.") });
+	export const chatModelHasNavigationConfig = new RawContextKey<boolean>('chatModelHasNavigationConfig', false, { type: 'boolean', description: localize('chatModelHasNavigationConfig', "True when the selected chat model has configuration properties with group 'navigation'.") });
 	export const agentSupportsAttachments = new RawContextKey<boolean>('agentSupportsAttachments', false, { type: 'boolean', description: localize('agentSupportsAttachments', "True when the chat agent supports attachments.") });
 	export const withinEditSessionDiff = new RawContextKey<boolean>('withinEditSessionDiff', false, { type: 'boolean', description: localize('withinEditSessionDiff', "True when the chat widget dispatches to the edit session chat.") });
 	export const filePartOfEditSession = new RawContextKey<boolean>('filePartOfEditSession', false, { type: 'boolean', description: localize('filePartOfEditSession', "True when the chat widget is within a file with an edit session.") });
