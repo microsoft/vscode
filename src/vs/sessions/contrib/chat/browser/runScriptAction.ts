@@ -444,7 +444,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		const state = this._activeRunState.get();
 		const hasTasks = state && state.tasks.length > 0;
 
-		// Primary action button - runs the MRU task
+		// Primary action button - runs the pinned task (or first task when none is pinned)
 		this._primaryActionAction = this._register(new Action(
 			'agentSessions.runScriptPrimary',
 			this._getPrimaryActionTooltip(state),
