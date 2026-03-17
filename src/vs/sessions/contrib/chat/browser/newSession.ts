@@ -9,6 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { TargetMode } from './sessionTargetPicker.js';
+import { SessionProject } from '../../sessions/common/sessionProject.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
@@ -33,6 +34,7 @@ export interface ISessionOptionGroup {
 export interface INewSession extends IDisposable {
 	readonly resource: URI;
 	readonly target: AgentSessionProviders;
+	readonly project: SessionProject | undefined;
 	readonly repoUri: URI | undefined;
 	readonly targetMode: TargetMode;
 	readonly branch: string | undefined;
@@ -43,6 +45,7 @@ export interface INewSession extends IDisposable {
 	readonly selectedOptions: ReadonlyMap<string, IChatSessionProviderOptionItem>;
 	readonly disabled: boolean;
 	readonly onDidChange: Event<NewSessionChangeType>;
+	setProject(project: SessionProject): void;
 	setRepoUri(uri: URI): void;
 	setTargetMode(mode: TargetMode): void;
 	setBranch(branch: string | undefined): void;
@@ -66,6 +69,7 @@ const AGENT_OPTION_ID = 'agent';
 export class LocalNewSession extends Disposable implements INewSession {
 
 	private _repoUri: URI | undefined;
+	private _project: SessionProject | undefined;
 	private _targetMode: TargetMode = 'worktree';
 	private _branch: string | undefined;
 	private _modelId: string | undefined;
@@ -79,9 +83,9 @@ export class LocalNewSession extends Disposable implements INewSession {
 	readonly target = AgentSessionProviders.Background;
 	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
 
+	get project(): SessionProject | undefined { return this._project; }
 	get repoUri(): URI | undefined { return this._repoUri; }
-	get targetMode(): TargetMode { return this._targetMode; }
-	get branch(): string | undefined { return this._branch; }
+	get targetMode(): TargetMode { return this._targetMode; }	get branch(): string | undefined { return this._branch; }
 	get modelId(): string | undefined { return this._modelId; }
 	get mode(): IChatMode | undefined { return this._mode; }
 	get query(): string | undefined { return this._query; }
@@ -109,13 +113,18 @@ export class LocalNewSession extends Disposable implements INewSession {
 		}
 	}
 
-	setRepoUri(uri: URI): void {
-		this._repoUri = uri;
+	setProject(project: SessionProject): void {
+		this._project = project;
+		this._repoUri = project.uri;
 		this._targetMode = 'workspace';
 		this._branch = undefined;
 		this._onDidChange.fire('repoUri');
 		this._onDidChange.fire('disabled');
-		this.setOption(REPOSITORY_OPTION_ID, uri.fsPath);
+		this.setOption(REPOSITORY_OPTION_ID, project.uri.fsPath);
+	}
+
+	setRepoUri(uri: URI): void {
+		this.setProject(new SessionProject(uri));
 	}
 
 	setTargetMode(mode: TargetMode): void {
@@ -178,6 +187,7 @@ export class LocalNewSession extends Disposable implements INewSession {
 export class RemoteNewSession extends Disposable implements INewSession {
 
 	private _repoUri: URI | undefined;
+	private _project: SessionProject | undefined;
 	private _modelId: string | undefined;
 	private _query: string | undefined;
 	private _attachedContext: IChatRequestVariableEntry[] | undefined;
@@ -190,6 +200,7 @@ export class RemoteNewSession extends Disposable implements INewSession {
 
 	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
 
+	get project(): SessionProject | undefined { return this._project; }
 	get repoUri(): URI | undefined { return this._repoUri; }
 	get targetMode(): TargetMode { return 'cloud'; }
 	get branch(): string | undefined { return undefined; }
@@ -226,12 +237,17 @@ export class RemoteNewSession extends Disposable implements INewSession {
 		}));
 	}
 
-	setRepoUri(uri: URI): void {
-		this._repoUri = uri;
+	setProject(project: SessionProject): void {
+		this._project = project;
+		this._repoUri = project.uri;
 		this._onDidChange.fire('repoUri');
 		this._onDidChange.fire('disabled');
-		const id = uri.path.substring(1);
+		const id = project.uri.path.substring(1);
 		this.setOption('repositories', { id, name: id });
+	}
+
+	setRepoUri(uri: URI): void {
+		this.setProject(new SessionProject(uri));
 	}
 
 	setTargetMode(_mode: TargetMode): void {

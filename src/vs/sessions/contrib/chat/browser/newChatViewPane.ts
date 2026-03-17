@@ -371,8 +371,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Set the repo URI from the project picker on the session
 		const project = this._projectPicker.selectedProject;
-		if (project && !session.repoUri) {
-			session.setRepoUri(project.uri);
+		if (project && !session.project) {
+			session.setProject(project);
 		}
 
 		// Set the current model on the session (for local sessions)
@@ -1140,7 +1140,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		if (targetChanged) {
 			await this._createNewSession();
 		} else {
-			this._newSession.value?.setRepoUri(project.uri);
+			this._newSession.value?.setProject(project);
 		}
 	}
 
