@@ -218,8 +218,9 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const fileBasename = basename(file);
 		const fileDirname = dirname(file);
 		const friendlyName = `${fileBasename} ${fileDirname}`;
-		const baseAriaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached {0}, {1}, line {2} to line {3}", attachmentTypeName, friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached {0}, {1}", attachmentTypeName, friendlyName);
-		const ariaLabel = localize('chat.implicitFileContext', "Suggested context, {0}", baseAriaLabel);
+		const ariaLabel = range
+			? localize('chat.implicitFileContextWithRange', "Suggested context, {0}, {1}, line {2} to line {3}", attachmentTypeName, friendlyName, range.startLineNumber, range.endLineNumber)
+			: localize('chat.implicitFileContext', "Suggested context, {0}, {1}", attachmentTypeName, friendlyName);
 
 		const uriLabel = this.labelService.getUriLabel(file, { relative: true });
 		const currentFile = localize('openEditor', "Current {0} context", attachmentTypeName);
