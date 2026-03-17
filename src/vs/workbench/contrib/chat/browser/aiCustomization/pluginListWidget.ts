@@ -661,14 +661,20 @@ export class PluginListWidget extends Disposable {
 		this.displayEntries = entries;
 		this.list.splice(0, this.list.length, this.displayEntries);
 
-		this._onDidChangeItemCount.fire(this.itemCount);
+		// Sum displayed group counts for the sidebar badge
+		const totalCount = entries
+			.filter((e): e is IPluginGroupHeaderEntry => e.type === 'group-header')
+			.reduce((sum, g) => sum + g.count, 0);
+		this._onDidChangeItemCount.fire(totalCount);
 	}
 
 	/**
-	 * Gets the total item count (unfiltered).
+	 * Gets the total item count from displayed group headers.
 	 */
 	get itemCount(): number {
-		return this.agentPluginService.plugins.get().length;
+		return this.displayEntries
+			.filter((e): e is IPluginGroupHeaderEntry => e.type === 'group-header')
+			.reduce((sum, g) => sum + g.count, 0);
 	}
 
 	private toggleGroup(entry: IPluginGroupHeaderEntry): void {

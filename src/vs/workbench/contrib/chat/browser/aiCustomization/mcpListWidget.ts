@@ -703,17 +703,20 @@ export class McpListWidget extends Disposable {
 		this.displayEntries = entries;
 		this.list.splice(0, this.list.length, this.displayEntries);
 
-		this._onDidChangeItemCount.fire(this.itemCount);
+		// Sum displayed group counts for the sidebar badge
+		const totalCount = entries
+			.filter((e): e is IMcpGroupHeaderEntry => e.type === 'group-header')
+			.reduce((sum, g) => sum + g.count, 0);
+		this._onDidChangeItemCount.fire(totalCount);
 	}
 
 	/**
-	 * Gets the total item count (unfiltered).
+	 * Gets the total item count from displayed group headers.
 	 */
 	get itemCount(): number {
-		const localIds = new Set(this.mcpWorkbenchService.local.map(s => s.id));
-		const builtinCount = this.mcpService.servers.get()
-			.filter(s => !localIds.has(s.definition.id)).length;
-		return this.mcpWorkbenchService.local.length + builtinCount;
+		return this.displayEntries
+			.filter((e): e is IMcpGroupHeaderEntry => e.type === 'group-header')
+			.reduce((sum, g) => sum + g.count, 0);
 	}
 
 	/**
