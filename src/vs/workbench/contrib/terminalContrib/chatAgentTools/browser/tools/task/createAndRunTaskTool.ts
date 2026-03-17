@@ -97,11 +97,18 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			return { content: [{ kind: 'text', value: `Task not found: ${args.task.label}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.task.label)) };
 		}
 
+		const dependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
+		const preRunResources = this._tasksService.getTerminalsForTasks(dependencyTasks ?? task);
+		const preRunTerminals = preRunResources?.map(resource => this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme)).filter(Boolean) as ITerminalInstance[] | undefined;
+		const startMarkersByTerminalInstanceId = new Map<number, ReturnType<ITerminalInstance['registerMarker']>>();
+		for (const terminal of preRunTerminals ?? []) {
+			startMarkersByTerminalInstanceId.set(terminal.instanceId, terminal.registerMarker());
+		}
+
 		_progress.report({ message: new MarkdownString(localize('copilotChat.runningTask', 'Running task `{0}`', args.task.label)) });
 		const raceResult = await Promise.race([this._tasksService.run(task, undefined, TaskRunSource.ChatAgent), timeout(3000)]);
 		const result: ITaskSummary | undefined = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
 
-		const dependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
 		const resources = this._tasksService.getTerminalsForTasks(dependencyTasks ?? task);
 		const terminals = resources?.map(resource => this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme)).filter(Boolean) as ITerminalInstance[];
 		if (!terminals || terminals.length === 0) {
@@ -118,7 +125,8 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			store,
 			(terminalTask) => this._isTaskActive(terminalTask),
 			dependencyTasks,
-			this._tasksService
+			this._tasksService,
+			startMarkersByTerminalInstanceId
 		);
 		store.dispose();
 		for (const r of terminalResults) {
