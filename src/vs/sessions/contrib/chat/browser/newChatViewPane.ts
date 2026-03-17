@@ -250,7 +250,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	private _updateTargetPickerState(): void {
-		this._targetPicker.setProject(this._projectPicker.selectedProject);
+		this._targetPicker.setProject(this._newSession.value?.project ?? this._projectPicker.selectedProject);
 	}
 
 	// --- Rendering ---
@@ -409,11 +409,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private _openRepository(folderUri: URI): void {
 		this._openRepositoryCts.value?.cancel();
 		const cts = this._openRepositoryCts.value = new CancellationTokenSource();
+		const session = this._newSession.value;
 
 		this._repositoryLoading = true;
 		this._updateInputLoadingState();
 		this._branchPicker.setRepository(undefined);
-		this._targetPicker.setProject(new SessionProject(folderUri));
+		this._targetPicker.setProject(session?.project ?? new SessionProject(folderUri));
 		this._syncIndicator.setRepository(undefined);
 		this._modePicker.setRepository(undefined);
 
@@ -423,7 +424,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			}
 			this._repositoryLoading = false;
 			this._updateInputLoadingState();
-			this._targetPicker.setProject(new SessionProject(folderUri, repository));
+			const projectWithRepo = (session?.project ?? new SessionProject(folderUri)).withRepository(repository);
+			this._targetPicker.setProject(projectWithRepo);
+			if (session) {
+				session.setProject(projectWithRepo);
+			}
 			this._branchPicker.setRepository(repository);
 			this._branchPicker.setVisible(!!repository && this._targetPicker.isWorktree);
 			this._syncIndicator.setRepository(repository);
@@ -436,7 +441,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this.logService.warn(`Failed to open repository at ${folderUri.toString()}`, getErrorMessage(e));
 			this._repositoryLoading = false;
 			this._updateInputLoadingState();
-			this._targetPicker.setProject(new SessionProject(folderUri));
+			this._targetPicker.setProject(session?.project ?? new SessionProject(folderUri));
 			this._branchPicker.setRepository(undefined);
 			this._branchPicker.setVisible(false);
 			this._syncIndicator.setRepository(undefined);
@@ -603,11 +608,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	 * Returns the folder URI for the context picker based on the current project selection.
 	 */
 	private _getContextFolderUri(): URI | undefined {
-		const project = this._projectPicker.selectedProject;
-		if (!project) {
-			return undefined;
-		}
-		return project.uri;
+		return this._newSession.value?.project?.uri;
 	}
 
 	private _createBottomToolbar(container: HTMLElement): void {
@@ -877,7 +878,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			contrib: {},
 			targetMode: isLocal ? this._targetPicker.targetMode : undefined,
 			branch: this._branchPicker.selectedBranch,
-			projectUri: this._projectPicker.selectedProject?.uri.toJSON(),
+			projectUri: this._newSession.value?.project?.uri.toJSON(),
 		};
 	}
 
@@ -980,7 +981,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	 * For other targets, checks extension-contributed repo/folder option groups.
 	 */
 	private _hasRequiredRepoOrFolderSelection(_sessionType: AgentSessionProviders): boolean {
-		return !!this._projectPicker.selectedProject;
+		return !!this._newSession.value?.project;
 	}
 
 	private _openRepoOrFolderPicker(_sessionType: AgentSessionProviders): void {
@@ -1046,7 +1047,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private _clearDraftState(): void {
 		// Preserve picker preferences so they survive widget recreation
 		const isLocal = this._currentTarget === AgentSessionProviders.Background;
-		const project = this._projectPicker.selectedProject;
+		const project = this._newSession.value?.project;
 		const preserved: IDraftState = {
 			inputText: '',
 			attachments: [],
