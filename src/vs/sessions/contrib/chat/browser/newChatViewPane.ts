@@ -382,9 +382,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Listen for session changes
 		const listeners = new DisposableStore();
 		listeners.add(session.onDidChange((changeType) => {
-			if (changeType === 'targetMode') {
-				this._branchPicker.setVisible(session.targetMode === 'worktree');
-			}
 			if (changeType === 'disabled') {
 				this._updateSendButtonState();
 			}
