@@ -86,6 +86,7 @@ suite('AgentSessionsDataSource', () => {
 		id: string;
 		status: ChatSessionStatus;
 		isArchived: boolean;
+		isPinned: boolean;
 		isRead: boolean;
 		hasChanges: boolean;
 		startTime: number;
@@ -111,6 +112,8 @@ suite('AgentSessionsDataSource', () => {
 			badge: overrides.badge,
 			isArchived: () => overrides.isArchived ?? false,
 			setArchived: () => { },
+			isPinned: () => overrides.isPinned ?? false,
+			setPinned: () => { },
 			isRead: () => overrides.isRead ?? true,
 			isMarkedUnread: () => false,
 			setRead: () => { },
@@ -481,6 +484,94 @@ suite('AgentSessionsDataSource', () => {
 			assert.strictEqual(sections.length, 1);
 			assert.strictEqual(sections[0].section, AgentSessionSection.More);
 			assert.strictEqual(sections[0].sessions.length, 2);
+		});
+
+		test('pinned sessions appear in Pinned section at the top with date grouping', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: 'pinned1', isPinned: true, startTime: now - WEEK_THRESHOLD - ONE_DAY }),
+				createMockSession({ id: 'today', startTime: now }),
+				createMockSession({ id: 'pinned2', isPinned: true, startTime: now }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
+			const sorter = createMockSorter();
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+			const sections = getSectionsFromResult(result);
+
+			assert.strictEqual(sections[0].section, AgentSessionSection.Pinned);
+			assert.strictEqual(sections[0].sessions.length, 2);
+			assert.strictEqual(sections[1].section, AgentSessionSection.Today);
+			assert.strictEqual(sections[1].sessions.length, 1);
+		});
+
+		test('archived pinned sessions go to Archived, not Pinned', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: 'archived-pinned', isPinned: true, isArchived: true, startTime: now }),
+				createMockSession({ id: 'pinned', isPinned: true, startTime: now }),
+				createMockSession({ id: 'today', startTime: now }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
+			const sorter = createMockSorter();
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+			const sections = getSectionsFromResult(result);
+
+			const pinnedSection = sections.find(s => s.section === AgentSessionSection.Pinned);
+			const archivedSection = sections.find(s => s.section === AgentSessionSection.Archived);
+
+			assert.ok(pinnedSection);
+			assert.strictEqual(pinnedSection.sessions.length, 1);
+			assert.strictEqual(pinnedSection.sessions[0].label, 'Session pinned');
+
+			assert.ok(archivedSection);
+			assert.strictEqual(archivedSection.sessions.length, 1);
+			assert.strictEqual(archivedSection.sessions[0].label, 'Session archived-pinned');
+		});
+
+		test('pinned sessions are not capped into More section with capped grouping', () => {
+			const now = Date.now();
+			const sessions = [
+				// Two pinned sessions — sorted to top by time so they appear in the flat portion
+				createMockSession({ id: 'pinned1', isPinned: true, startTime: now }),
+				createMockSession({ id: 'pinned2', isPinned: true, startTime: now - ONE_DAY }),
+				// Additional unpinned sessions to exceed the cap and populate the More section
+				createMockSession({ id: 's1', startTime: now }),
+				createMockSession({ id: 's2', startTime: now - ONE_DAY }),
+				createMockSession({ id: 's3', startTime: now - 2 * ONE_DAY }),
+			];
+
+			const filter = createMockFilter({
+				groupBy: AgentSessionsGrouping.Capped,
+				excludeRead: false
+			});
+			const sorter = createMockSorter();
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+			const sections = getSectionsFromResult(result);
+
+			// Capped grouping does not create a Pinned section — all sessions are
+			// sorted by time and the top N appear as flat items, the rest in More.
+			assert.strictEqual(sections.filter(s => s.section === AgentSessionSection.Pinned).length, 0);
+
+			const moreSection = sections.find(s => s.section === AgentSessionSection.More);
+			assert.ok(moreSection);
+			// Pinned sessions have recent timestamps so they land in the flat top portion,
+			// not in the More section
+			const moreLabels = moreSection.sessions.map(s => s.label);
+			for (const label of moreLabels) {
+				assert.notStrictEqual(label, 'Session pinned1');
+				assert.notStrictEqual(label, 'Session pinned2');
+			}
 		});
 	});
 
@@ -866,6 +957,7 @@ suite('AgentSessionsSorter', () => {
 		id: string;
 		status: ChatSessionStatus;
 		isArchived: boolean;
+		isPinned: boolean;
 		created: number;
 		lastRequestStarted: number;
 	}>): IAgentSession {
@@ -886,6 +978,8 @@ suite('AgentSessionsSorter', () => {
 			metadata: undefined,
 			isArchived: () => overrides.isArchived ?? false,
 			setArchived: () => { },
+			isPinned: () => overrides.isPinned ?? false,
+			setPinned: () => { },
 			isRead: () => true,
 			isMarkedUnread: () => false,
 			setRead: () => { },
@@ -944,5 +1038,23 @@ suite('AgentSessionsSorter', () => {
 
 		const sorted = [recentlyCreated, recentlyActive].sort((a, b) => sorter.compare(a, b, true));
 		assert.deepStrictEqual(sorted.map(s => s.label), ['Session recent-active', 'Session recent-created']);
+	});
+
+	test('pinned sessions come before non-pinned sessions', () => {
+		const sorter = new AgentSessionsSorter();
+		const pinned = createSession({ id: 'pinned', isPinned: true, created: 1000 });
+		const regular = createSession({ id: 'regular', created: 2000 });
+
+		const sorted = [regular, pinned].sort((a, b) => sorter.compare(a, b));
+		assert.deepStrictEqual(sorted.map(s => s.label), ['Session pinned', 'Session regular']);
+	});
+
+	test('archived pinned sessions do not sort before non-archived', () => {
+		const sorter = new AgentSessionsSorter();
+		const archivedPinned = createSession({ id: 'archived-pinned', isPinned: true, isArchived: true, created: 3000 });
+		const regular = createSession({ id: 'regular', created: 1000 });
+
+		const sorted = [archivedPinned, regular].sort((a, b) => sorter.compare(a, b));
+		assert.deepStrictEqual(sorted.map(s => s.label), ['Session regular', 'Session archived-pinned']);
 	});
 });

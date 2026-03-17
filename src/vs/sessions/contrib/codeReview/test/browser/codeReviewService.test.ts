@@ -135,6 +135,8 @@ suite('CodeReviewService', () => {
 				changes,
 				isArchived: () => _archived,
 				setArchived: (v: boolean) => { _archived = v; },
+				isPinned: () => false,
+				setPinned: () => { },
 				isRead: () => true,
 				setRead: () => { },
 			} as unknown as IAgentSession;
