@@ -867,6 +867,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private _updateDraftState(): void {
 		const attachments = [...this._contextAttachments.attachments];
+		const isLocal = this._currentTarget === AgentSessionProviders.Background;
 		this._draftState = {
 			inputText: this._editor?.getModel()?.getValue() ?? '',
 			attachments,
@@ -874,7 +875,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			selectedModel: this._currentLanguageModel.get(),
 			selections: this._editor?.getSelections() ?? [],
 			contrib: {},
-			targetMode: this._targetPicker.targetMode,
+			targetMode: isLocal ? this._targetPicker.targetMode : undefined,
 			branch: this._branchPicker.selectedBranch,
 			projectUri: this._projectPicker.selectedProject?.uri.toJSON(),
 		};
