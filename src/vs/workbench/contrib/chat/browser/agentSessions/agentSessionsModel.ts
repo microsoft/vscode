@@ -553,8 +553,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		// so concurrent updateItems calls for other providers don't lose data)
 
 		for (const [, session] of this._sessions) {
-			if (session.providerType !== provider && !sessions.has(session.resource) && (isBuiltInAgentSessionProvider(session.providerType) || mapSessionContributionToType.has(session.providerType))) {
-				sessions.set(session.resource, session); // fill in existing sessions for providers that did not resolve if they are known or built-in
+			if (
+				session.providerType !== provider &&
+				!sessions.has(session.resource) &&
+				(isBuiltInAgentSessionProvider(session.providerType) || mapSessionContributionToType.has(session.providerType))
+			) {
+				sessions.set(session.resource, session);
 			}
 		}
 

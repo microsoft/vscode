@@ -55,6 +55,10 @@ suite('AgentSessions', () => {
 			));
 		}
 
+		function registerContribution(type: string): void {
+			disposables.add(mockChatSessionsService.registerChatSessionContribution({ type, name: type, displayName: type, description: type }));
+		}
+
 		setup(() => {
 			mockChatSessionsService = new MockChatSessionsService();
 			mockLifecycleService = disposables.add(new TestLifecycleService());
@@ -106,6 +110,8 @@ suite('AgentSessions', () => {
 
 				const controller2 = new StaticChatSessionItemController([makeSimpleSessionItem('session-2')]);
 
+				registerContribution('type-1');
+				registerContribution('type-2');
 				mockChatSessionsService.registerChatSessionItemController('type-1', controller1);
 				mockChatSessionsService.registerChatSessionItemController('type-2', controller2);
 
@@ -211,6 +217,8 @@ suite('AgentSessions', () => {
 
 				const controller2 = new StaticChatSessionItemController([makeSimpleSessionItem('session-2')]);
 
+				registerContribution('type-1');
+				registerContribution('type-2');
 				disposables.add(mockChatSessionsService.registerChatSessionItemController('type-1', controller1));
 				disposables.add(mockChatSessionsService.registerChatSessionItemController('type-2', controller2));
 
@@ -233,6 +241,8 @@ suite('AgentSessions', () => {
 
 				const controller2 = new StaticChatSessionItemController([makeSimpleSessionItem('session-2')]);
 
+				registerContribution('type-1');
+				registerContribution('type-2');
 				mockChatSessionsService.registerChatSessionItemController('type-1', controller1);
 				mockChatSessionsService.registerChatSessionItemController('type-2', controller2);
 
@@ -497,6 +507,8 @@ suite('AgentSessions', () => {
 					get items() { return _items2; }
 				};
 
+				registerContribution('type-1');
+				registerContribution('type-2');
 				mockChatSessionsService.registerChatSessionItemController('type-1', controller1);
 				mockChatSessionsService.registerChatSessionItemController('type-2', controller2);
 
@@ -545,6 +557,8 @@ suite('AgentSessions', () => {
 					get items() { return _items2; }
 				};
 
+				registerContribution('type-1');
+				registerContribution('type-2');
 				mockChatSessionsService.registerChatSessionItemController('type-1', controller1);
 				mockChatSessionsService.registerChatSessionItemController('type-2', controller2);
 
@@ -601,6 +615,8 @@ suite('AgentSessions', () => {
 					get items() { return _items2; }
 				};
 
+				registerContribution('type-1');
+				registerContribution('type-2');
 				mockChatSessionsService.registerChatSessionItemController('type-1', controller1);
 				mockChatSessionsService.registerChatSessionItemController('type-2', controller2);
 
