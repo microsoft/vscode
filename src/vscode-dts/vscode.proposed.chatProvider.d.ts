@@ -117,14 +117,22 @@ declare module 'vscode' {
 
 	/**
 	 * A [JSON Schema](https://json-schema.org) describing configuration options for a language model.
-	 * Each property in `properties` defines a configurable option with standard JSON Schema fields
-	 * (`type`, `title`, `description`, `default`, `enum`, `enumDescriptions`) plus additional
-	 * display hints:
-	 * - `enumItemLabels`: Human-readable labels for enum values shown instead of raw values
-	 * - `group`: When set to `'navigation'`, the property is shown as a primary action in the model picker
+	 * Each property in `properties` defines a configurable option using standard JSON Schema fields
+	 * plus additional display hints.
 	 */
 	export type LanguageModelConfigurationSchema = {
-		readonly properties?: { readonly [key: string]: Record<string, any> };
+		readonly properties?: { readonly [key: string]: Record<string, any> & {
+			/**
+			 * Human-readable labels for enum values, shown instead of the raw values.
+			 * Must have the same length and order as `enum`.
+			 */
+			readonly enumItemLabels?: string[];
+			/**
+			 * The group this property belongs to. When set to `'navigation'`, the property
+			 * is shown as a primary action in the model picker.
+			 */
+			readonly group?: string;
+		} };
 	};
 
 	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
