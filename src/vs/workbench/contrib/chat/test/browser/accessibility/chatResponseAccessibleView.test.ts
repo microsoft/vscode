@@ -491,11 +491,12 @@ suite('ChatResponseAccessibleView', () => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const storageService = store.add(new TestStorageService());
 
+			const inlineReferenceUri = URI.file('/path/to/index.ts');
 			const responseItem = {
 				response: {
 					value: [
 						{ kind: 'markdownContent', content: new MarkdownString('See file ') },
-						{ kind: 'inlineReference', inlineReference: URI.file('/path/to/index.ts'), name: 'index.ts' },
+						{ kind: 'inlineReference', inlineReference: inlineReferenceUri, name: 'index.ts' },
 						{ kind: 'markdownContent', content: new MarkdownString(' for details') }
 					]
 				},
@@ -534,8 +535,9 @@ suite('ChatResponseAccessibleView', () => {
 			assert.ok(provider);
 			store.add(provider);
 			const content = provider.provideContent();
+			const expectedPath = inlineReferenceUri.fsPath || inlineReferenceUri.path;
 			assert.ok(content.includes('index.ts'));
-			assert.ok(content.includes('/path/to/index.ts'));
+			assert.ok(content.includes(expectedPath));
 			assert.ok(content.includes('See file'));
 			assert.ok(content.includes('for details'));
 		});
