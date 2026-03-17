@@ -359,6 +359,19 @@ body.issue-reporter-active {
 	background: rgba(255, 255, 255, 0.1);
 }
 
+/* ── Recording Disabled State ── */
+.issue-reporter-header.recording-disabled,
+.issue-reporter-footer.recording-disabled {
+	opacity: 0.5;
+	pointer-events: none;
+}
+
+/* Keep the recording row interactive during recording */
+.issue-reporter-footer.recording-disabled .issue-reporter-recording-row {
+	opacity: 1;
+	pointer-events: auto;
+}
+
 /* ── Buttons ── */
 .issue-reporter-header .monaco-button,
 .issue-reporter-footer .monaco-button,

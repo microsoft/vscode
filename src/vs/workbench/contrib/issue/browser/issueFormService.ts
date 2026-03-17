@@ -89,6 +89,7 @@ export class IssueFormService implements IIssueFormService {
 			this.layoutService as import('../../../services/layout/browser/layoutService.js').IWorkbenchLayoutService,
 			this.getWindowControlsUpdater(),
 			this.recordingService.isSupported,
+			this.recordingService.getSupportedFormats(),
 		);
 		this.overlayDisposables.add(this.overlay);
 
@@ -118,9 +119,9 @@ export class IssueFormService implements IIssueFormService {
 		}));
 
 		// Handle recording start
-		this.overlayDisposables.add(this.overlay.onDidRequestStartRecording(async () => {
+		this.overlayDisposables.add(this.overlay.onDidRequestStartRecording(async ({ mimeType }) => {
 			try {
-				await this.recordingService.startRecording();
+				await this.recordingService.startRecording(mimeType, this.layoutService.mainContainer);
 				this.overlay?.setRecordingState(RecordingState.Recording);
 			} catch (err) {
 				this.logService.error('[IssueFormService] Failed to start recording:', err);
@@ -268,15 +269,16 @@ export class IssueFormService implements IIssueFormService {
 			return;
 		}
 
-		const extension = this.pendingRecording.mimeType.includes('webm') ? 'webm' : 'mp4';
+		const extension = this.pendingRecording.mimeType.includes('mp4') ? 'mp4' : 'webm';
 		const defaultName = `vscode-recording-${new Date().toISOString().replace(/[:.]/g, '-')}.${extension}`;
+		const formatLabel = extension === 'mp4' ? 'MP4' : 'WebM';
 
 		const defaultUri = URI.file(defaultName);
 		const target = await this.fileDialogService.showSaveDialog({
 			title: localize('saveRecording', "Save Recording"),
 			defaultUri,
 			filters: [
-				{ name: localize('videoFiles', "Video Files"), extensions: [extension] },
+				{ name: localize('videoFormat', "{0} Video", formatLabel), extensions: [extension] },
 				{ name: localize('allFiles', "All Files"), extensions: ['*'] }
 			]
 		});

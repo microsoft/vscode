@@ -35,8 +35,8 @@ export class IssueReporterOverlay {
 	readonly onDidSubmit: Event<{ title: string; body: string; shouldCreate: boolean; isPrivate: boolean }> = this._onDidSubmit.event;
 	private readonly _onDidRequestScreenshot = new Emitter<void>();
 	readonly onDidRequestScreenshot: Event<void> = this._onDidRequestScreenshot.event;
-	private readonly _onDidRequestStartRecording = new Emitter<void>();
-	readonly onDidRequestStartRecording: Event<void> = this._onDidRequestStartRecording.event;
+	private readonly _onDidRequestStartRecording = new Emitter<{ mimeType: string }>();
+	readonly onDidRequestStartRecording: Event<{ mimeType: string }> = this._onDidRequestStartRecording.event;
 	private readonly _onDidRequestStopRecording = new Emitter<void>();
 	readonly onDidRequestStopRecording: Event<void> = this._onDidRequestStopRecording.event;
 	private readonly _onDidRequestSaveRecording = new Emitter<void>();
@@ -59,6 +59,7 @@ export class IssueReporterOverlay {
 	private recordingElapsedLabel!: HTMLElement;
 	private saveRecordingButton!: Button;
 	private discardRecordingButton!: HTMLElement;
+	private recordingFormatSelect!: HTMLSelectElement;
 
 	private readonly screenshots: IScreenshot[] = [];
 	private readonly model: IssueReporterModel;
@@ -68,13 +69,18 @@ export class IssueReporterOverlay {
 	private recordingState = RecordingState.Idle;
 	private recordingElapsedTimer: ReturnType<typeof setInterval> | undefined;
 	private recordingStartTime = 0;
+	private selectedRecordingMimeType = '';
 
 	constructor(
 		private readonly data: IssueReporterData,
 		private readonly layoutService: IWorkbenchLayoutService,
 		private readonly updateWindowControlsColors?: (backgroundColor: string, foregroundColor: string) => void,
 		private readonly recordingSupported: boolean = false,
+		private readonly recordingFormats: { mimeType: string; label: string; extension: string }[] = [],
 	) {
+		if (recordingFormats.length > 0) {
+			this.selectedRecordingMimeType = recordingFormats[0].mimeType;
+		}
 		this.model = new IssueReporterModel({
 			...data,
 			issueType: data.issueType || IssueType.Bug,
@@ -208,6 +214,15 @@ export class IssueReporterOverlay {
 			this.recordButton = this.disposables.add(new Button(recordingRow, unthemedButtonStyles));
 			this.recordButton.label = localize('startRecording', "Record");
 			this.recordButton.element.classList.add('record-btn');
+
+			// Format selector
+			this.recordingFormatSelect = append(recordingRow, $('select.recording-format-select')) as HTMLSelectElement;
+			for (const fmt of this.recordingFormats) {
+				this.addOption(this.recordingFormatSelect, fmt.label, fmt.mimeType);
+			}
+			if (this.recordingFormats.length <= 1) {
+				this.recordingFormatSelect.style.display = 'none';
+			}
 
 			// Recording indicator (hidden by default)
 			this.recordingIndicator = append(recordingRow, $('div.recording-indicator'));
@@ -370,10 +385,14 @@ export class IssueReporterOverlay {
 		if (this.recordingSupported) {
 			this.disposables.add(this.recordButton.onDidClick(() => {
 				if (this.recordingState === RecordingState.Idle) {
-					this._onDidRequestStartRecording.fire();
+					this._onDidRequestStartRecording.fire({ mimeType: this.selectedRecordingMimeType });
 				} else if (this.recordingState === RecordingState.Recording) {
 					this._onDidRequestStopRecording.fire();
 				}
+			}));
+
+			this.disposables.add(addDisposableListener(this.recordingFormatSelect, EventType.CHANGE, () => {
+				this.selectedRecordingMimeType = this.recordingFormatSelect.value;
 			}));
 
 			this.disposables.add(this.saveRecordingButton.onDidClick(() => {
@@ -544,22 +563,31 @@ export class IssueReporterOverlay {
 
 		switch (state) {
 			case RecordingState.Idle:
+				this.setIssueReporterControlsDisabled(false);
 				this.recordButton.label = localize('startRecording', "Record");
 				this.recordButton.element.classList.remove('recording');
 				this.recordButton.enabled = true;
 				this.recordingIndicator.style.display = 'none';
 				this.saveRecordingButton.element.style.display = 'none';
 				this.discardRecordingButton.style.display = 'none';
+				if (this.recordingFormats.length > 1) {
+					this.recordingFormatSelect.style.display = '';
+				}
+				this.recordingFormatSelect.disabled = false;
 				break;
 
 			case RecordingState.Recording:
+				// Disable all issue reporter controls except the stop button
+				this.setIssueReporterControlsDisabled(true);
+
 				this.recordButton.label = localize('stopRecording', "Stop");
 				this.recordButton.element.classList.add('recording');
-				this.recordButton.enabled = true;
+				this.recordButton.enabled = true; // Keep stop button active
 				this.recordingIndicator.style.display = 'flex';
 				this.recordingElapsedLabel.textContent = '0:00';
 				this.saveRecordingButton.element.style.display = 'none';
 				this.discardRecordingButton.style.display = 'none';
+				this.recordingFormatSelect.style.display = 'none';
 
 				// Start elapsed timer
 				this.recordingStartTime = Date.now();
@@ -572,12 +600,15 @@ export class IssueReporterOverlay {
 				break;
 
 			case RecordingState.Stopped:
+				this.setIssueReporterControlsDisabled(false);
+
 				this.recordButton.label = localize('startRecording', "Record");
 				this.recordButton.element.classList.remove('recording');
 				this.recordButton.enabled = false; // Must save or discard first
 				this.recordingIndicator.style.display = 'none';
 				this.saveRecordingButton.element.style.display = '';
 				this.discardRecordingButton.style.display = '';
+				this.recordingFormatSelect.style.display = 'none';
 				break;
 		}
 
@@ -611,8 +642,6 @@ export class IssueReporterOverlay {
 
 	/** Hide the UI temporarily so screenshots only capture the workbench */
 	hideForCapture(): void {
-		// Use visibility:hidden instead of display:none so layout doesn't change.
-		// This prevents context menus from shifting position in the screenshot.
 		this.headerElement.style.visibility = 'hidden';
 		this.footerElement.style.visibility = 'hidden';
 	}
@@ -621,6 +650,20 @@ export class IssueReporterOverlay {
 	showAfterCapture(): void {
 		this.headerElement.style.visibility = '';
 		this.footerElement.style.visibility = '';
+	}
+
+	/** Disable or enable all issue reporter controls (except the recording stop button). */
+	private setIssueReporterControlsDisabled(disabled: boolean): void {
+		this.titleInput.disabled = disabled;
+		this.descriptionTextarea.disabled = disabled;
+		this.issueTypeSelect.disabled = disabled;
+		this.issueSourceSelect.disabled = disabled;
+		this.screenshotButton.enabled = !disabled;
+		this.delayButton.disabled = disabled;
+		this.submitButton.enabled = !disabled;
+		this.cancelButton.enabled = !disabled;
+		this.headerElement.classList.toggle('recording-disabled', disabled);
+		this.footerElement.classList.toggle('recording-disabled', disabled);
 	}
 
 	private savedWindowControlColors: { bg: string; fg: string } | undefined;

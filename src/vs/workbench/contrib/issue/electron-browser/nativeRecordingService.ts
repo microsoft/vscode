@@ -44,7 +44,22 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 		}
 	}
 
-	async startRecording(): Promise<void> {
+	getSupportedFormats(): { mimeType: string; label: string; extension: string }[] {
+		const formats: { mimeType: string; label: string; extension: string }[] = [];
+		if (typeof MediaRecorder !== 'undefined') {
+			if (MediaRecorder.isTypeSupported('video/mp4')) {
+				formats.push({ mimeType: 'video/mp4', label: 'MP4', extension: 'mp4' });
+			}
+			if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+				formats.push({ mimeType: 'video/webm;codecs=vp9', label: 'WebM', extension: 'webm' });
+			} else if (MediaRecorder.isTypeSupported('video/webm')) {
+				formats.push({ mimeType: 'video/webm', label: 'WebM', extension: 'webm' });
+			}
+		}
+		return formats;
+	}
+
+	async startRecording(preferredMimeType?: string, cropElement?: HTMLElement): Promise<void> {
 		if (this._state === RecordingState.Recording) {
 			throw new Error('Recording already in progress.');
 		}
@@ -62,12 +77,34 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 			throw new Error('Failed to start recording. The user may have cancelled the source picker.');
 		}
 
-		// Detect preferred mime type
-		const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-			? 'video/webm;codecs=vp9'
-			: MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
-				? 'video/webm;codecs=vp8'
-				: 'video/webm';
+		// Crop the video stream to just the target element using Region Capture API
+		if (cropElement) {
+			try {
+				// CropTarget is a Chromium-only API not in standard TS lib types
+				const CropTargetCtor = (globalThis as unknown as Record<string, { fromElement?(el: Element): Promise<unknown> }>)['CropTarget'];
+				if (CropTargetCtor?.fromElement) {
+					const cropTarget = await CropTargetCtor.fromElement(cropElement);
+					if (cropTarget) {
+						const videoTrack = this.mediaStream.getVideoTracks()[0];
+						await (videoTrack as unknown as { cropTo(target: unknown): Promise<void> }).cropTo(cropTarget);
+					}
+				}
+			} catch (err) {
+				this.logService.warn('[RecordingService] Region Capture not available, recording full window:', err);
+			}
+		}
+
+		// Select mime type: prefer caller's choice, fall back to best available
+		let mimeType: string;
+		if (preferredMimeType && MediaRecorder.isTypeSupported(preferredMimeType)) {
+			mimeType = preferredMimeType;
+		} else if (MediaRecorder.isTypeSupported('video/mp4')) {
+			mimeType = 'video/mp4';
+		} else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+			mimeType = 'video/webm;codecs=vp9';
+		} else {
+			mimeType = 'video/webm';
+		}
 
 		this.chunks = [];
 		this.startTime = Date.now();
