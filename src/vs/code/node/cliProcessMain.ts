@@ -12,7 +12,7 @@ import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '..
 import { Disposable } from '../../base/common/lifecycle.js';
 import { Schemas } from '../../base/common/network.js';
 import { isAbsolute, join } from '../../base/common/path.js';
-import { isWindows, isMacintosh, isLinux, INodeProcess } from '../../base/common/platform.js';
+import { isWindows, isMacintosh, isLinux } from '../../base/common/platform.js';
 import { cwd } from '../../base/common/process.js';
 import { URI } from '../../base/common/uri.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
@@ -257,7 +257,7 @@ class CliMain extends Disposable {
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				sendErrorTelemetry: false,
-				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, devDeviceId, isInternal, productService.date, (process as INodeProcess).isEmbeddedApp ? 'sessions' : undefined),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, devDeviceId, isInternal, productService.date, productService.telemetryAppName),
 				piiPaths: getPiiPathsFromEnvironment(environmentService)
 			};
 

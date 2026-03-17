@@ -59,8 +59,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 					environmentService.devDeviceId,
 					isInternal,
 					process,
-					environmentService.remoteAuthority,
-					environmentService.isSessionsWindow ? 'sessions' : undefined
+					environmentService.remoteAuthority
 				),
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
 				sendErrorTelemetry: true,
