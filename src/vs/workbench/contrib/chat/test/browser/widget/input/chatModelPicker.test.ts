@@ -550,6 +550,7 @@ suite('buildModelPickerItems', () => {
 
 	test('admin unavailable model shows manage settings link in description', () => {
 		const auto = createAutoModel();
+		const businessEntitlementService = createStubEntitlementService({ entitlement: ChatEntitlement.Business });
 		const items = buildModelPickerItems(
 			[auto],
 			undefined,
@@ -561,7 +562,7 @@ suite('buildModelPickerItems', () => {
 			'https://aka.ms/github-copilot-settings',
 			true,
 			undefined,
-			stubChatEntitlementService,
+			businessEntitlementService,
 			true,
 			true,
 		);
