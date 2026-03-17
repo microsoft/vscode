@@ -31,8 +31,8 @@ interface PersistedTrustData {
  * or query certificate errors.
  */
 export interface IBrowserSessionTrust {
-	trustCertificate(host: string, fingerprint: string): void;
-	untrustCertificate(host: string, fingerprint: string): void;
+	trustCertificate(host: string, fingerprint: string): Promise<void>;
+	untrustCertificate(host: string, fingerprint: string): Promise<void>;
 	getCertificateError(url: string): IBrowserViewCertificateError | undefined;
 	installCertErrorHandler(webContents: Electron.WebContents): void;
 }
@@ -57,7 +57,7 @@ export class BrowserSessionTrust implements IBrowserSessionTrust {
 	 * handshake, not just errors. This lets us look up cert status for a
 	 * URL even after Chromium has cached the allow decision.
 	 */
-	private readonly _certErrors = new Map<string, { fingerprint: string; error: string }>();
+	private readonly _certErrors = new Map<string, { certificate: Electron.Certificate; error: string }>();
 
 	/**
 	 * Application storage service for persisting trusted certificates
@@ -72,25 +72,20 @@ export class BrowserSessionTrust implements IBrowserSessionTrust {
 	}
 
 	/**
-	 * Install the session-level certificate verification callback that
-	 * records cert errors and honours user-granted trust.
+	 * Install the session-level certificate verification callback that records cert errors.
+	 * This does not grant any trust by itself; it just populates the `_certErrors` cache.
 	 */
 	private _installCertVerifyProc(): void {
 		this._session.electronSession.setCertificateVerifyProc((request, callback) => {
 			const { hostname, errorCode, certificate, verificationResult } = request;
-			const fingerprint = certificate.fingerprint;
 
 			if (errorCode !== 0) {
-				this._certErrors.set(hostname, { fingerprint, error: verificationResult });
+				this._certErrors.set(hostname, { certificate, error: verificationResult });
 			} else {
 				this._certErrors.delete(hostname);
 			}
 
-			if (this.isCertificateTrusted(hostname, fingerprint)) {
-				return callback(0); // Allow the certificate
-			} else {
-				return callback(-3); // Use default handling from Chromium
-			}
+			return callback(-3); // Always use default handling from Chromium
 		});
 	}
 
@@ -137,19 +132,24 @@ export class BrowserSessionTrust implements IBrowserSessionTrust {
 			return undefined;
 		}
 
+		const cert = known.certificate;
 		return {
 			host,
-			fingerprint: known.fingerprint,
+			fingerprint: cert.fingerprint,
 			error: known.error,
 			url,
-			hasTrustedException: this.isCertificateTrusted(host, known.fingerprint)
+			hasTrustedException: this.isCertificateTrusted(host, cert.fingerprint),
+			issuerName: cert.issuerName,
+			subjectName: cert.subjectName,
+			validStart: cert.validStart,
+			validExpiry: cert.validExpiry,
 		};
 	}
 
 	/**
 	 * Trust a certificate identified by host and SHA-256 fingerprint.
 	 */
-	trustCertificate(host: string, fingerprint: string): void {
+	async trustCertificate(host: string, fingerprint: string): Promise<void> {
 		let entries = this._trustedCertificates.get(host);
 		if (!entries) {
 			entries = new Map();
@@ -162,7 +162,7 @@ export class BrowserSessionTrust implements IBrowserSessionTrust {
 	/**
 	 * Revoke trust for a certificate identified by host and fingerprint.
 	 */
-	untrustCertificate(host: string, fingerprint: string): void {
+	async untrustCertificate(host: string, fingerprint: string): Promise<void> {
 		const entries = this._trustedCertificates.get(host);
 		if (entries && entries.delete(fingerprint)) {
 			if (entries.size === 0) {
@@ -173,7 +173,7 @@ export class BrowserSessionTrust implements IBrowserSessionTrust {
 		}
 		this.writeStorage();
 		// Important: close all connections since they may be using the now-untrusted cert.
-		void this._session.electronSession.closeAllConnections().catch(() => { });
+		await this._session.electronSession.closeAllConnections();
 	}
 
 	/**
@@ -185,8 +185,6 @@ export class BrowserSessionTrust implements IBrowserSessionTrust {
 			return false;
 		}
 		if (Date.now() > expiresAt) {
-			// Expired — remove and persist the change.
-			this.untrustCertificate(host, fingerprint);
 			return false;
 		}
 		return true;

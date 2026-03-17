@@ -6,7 +6,8 @@
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
 import { $, addDisposableListener, Dimension, EventType, IDomPosition, registerExternalFocusChecker } from '../../../../base/browser/dom.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
+import { Button, ButtonBar } from '../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -27,6 +28,7 @@ import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoad
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { isMacintosh, isLinux } from '../../../../base/common/platform.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { BrowserOverlayManager, BrowserOverlayType, IBrowserOverlayInfo } from './overlayManager.js';
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
@@ -397,6 +399,7 @@ export class BrowserEditor extends EditorPane {
 	private _elementSelectionCts: CancellationTokenSource | undefined;
 	private _consoleSessionCts: CancellationTokenSource | undefined;
 	private _screenshotTimeout: ReturnType<typeof setTimeout> | undefined;
+	private readonly _certActionButton = this._register(new MutableDisposable<ButtonBar>());
 
 	constructor(
 		group: IEditorGroup,
@@ -774,6 +777,7 @@ export class BrowserEditor extends EditorPane {
 
 		if (error) {
 			// Update error content
+			this._certActionButton.clear();
 
 			while (this._errorContainer.firstChild) {
 				this._errorContainer.removeChild(this._errorContainer.firstChild);
@@ -784,17 +788,17 @@ export class BrowserEditor extends EditorPane {
 
 			const errorIcon = $('.browser-error-icon');
 			errorIcon.classList.toggle('cert-error', isCertError);
-			errorIcon.appendChild(renderIcon(isCertError ? Codicon.warning : Codicon.globe));
+			errorIcon.appendChild(renderIcon(isCertError ? Codicon.workspaceUntrusted : Codicon.globe));
 
 			const errorTitle = $('.browser-error-title');
 			errorTitle.textContent = isCertError
-				? localize('browser.certErrorLabel', "Your Connection Is Not Private")
+				? localize('browser.certErrorLabel', "Certificate Error")
 				: localize('browser.loadErrorLabel', "Failed to Load Page");
 
 			const errorMessage = $('.browser-error-detail');
 			const errorText = $('span');
 			errorText.textContent = isCertError
-				? localize('browser.certErrorDescription', "This site's security certificate could not be verified. Attackers might be trying to steal your information.")
+				? localize('browser.certErrorDescription', "This site's security certificate could not be verified.")
 				: `${error.errorDescription} (${error.errorCode})`;
 			errorMessage.appendChild(errorText);
 
@@ -810,34 +814,76 @@ export class BrowserEditor extends EditorPane {
 			errorContent.appendChild(errorIcon);
 			errorContent.appendChild(errorTitle);
 			errorContent.appendChild(errorMessage);
+
+			// Show cert error name below description, above URL
+			if (error.certificateError) {
+				const extraWarning = $('b.browser-error-detail');
+				extraWarning.textContent = localize('browser.certErrorExtraWarning', " Your connection is not private.");
+				errorMessage.appendChild(extraWarning);
+			}
+
 			errorContent.appendChild(errorUrl);
 
-			// Show "proceed anyway" link for certificate errors
+			// Show certificate details table and actions
 			if (error.certificateError) {
 				const certError = error.certificateError;
-				const certDetail = $('.browser-error-detail.browser-cert-detail');
-				certDetail.textContent = `${certError.error}`;
-				errorContent.appendChild(certDetail);
 
-				const proceedContainer = $('.browser-cert-proceed');
-				const proceedLink = $('a.browser-cert-proceed-link');
-				proceedLink.textContent = localize('browser.certProceed', "Proceed anyway (unsafe)");
-				proceedLink.tabIndex = 0;
-				proceedLink.role = 'button';
+				const certDetailsTable = $('.browser-cert-details-table');
 
-				const onClick = () => {
-					this._model?.trustCertificate(certError.host, certError.fingerprint);
+				const heading = $('.browser-cert-details-heading');
+				heading.textContent = localize('browser.certDetailsHeading', "Certificate Details");
+				certDetailsTable.appendChild(heading);
+
+				const addRow = (label: string, value: string) => {
+					const row = $('.browser-cert-details-row');
+					const labelEl = $('.browser-cert-details-label');
+					labelEl.textContent = label;
+					const valueEl = $('.browser-cert-details-value');
+					valueEl.textContent = value;
+					row.appendChild(labelEl);
+					row.appendChild(valueEl);
+					certDetailsTable.appendChild(row);
 				};
-				proceedLink.addEventListener('click', onClick);
-				proceedLink.addEventListener('keydown', (e) => {
-					if (e.key === 'Enter' || e.key === ' ') {
-						e.preventDefault();
-						onClick();
+
+				addRow(localize('browser.certError', "Error"), certError.error);
+				addRow(localize('browser.certIssuer', "Issuer"), certError.issuerName);
+				addRow(localize('browser.certSubject', "Subject"), certError.subjectName);
+
+				const formatDate = (epoch: number) => new Date(epoch * 1000).toLocaleDateString();
+				addRow(
+					localize('browser.certValid', "Valid"),
+					`${formatDate(certError.validStart)} - ${formatDate(certError.validExpiry)}`
+				);
+
+				addRow(localize('browser.certFingerprint', "Fingerprint"), certError.fingerprint);
+
+				errorContent.appendChild(certDetailsTable);
+
+				const actionContainer = $('.browser-cert-action');
+				actionContainer.classList.toggle('reverse', isMacintosh || isLinux);
+				const canGoBack = this._model.canGoBack;
+				const buttonBar = new ButtonBar(actionContainer);
+				this._certActionButton.value = buttonBar;
+
+				const primaryButton = buttonBar.addButton({ ...defaultButtonStyles });
+				primaryButton.label = canGoBack
+					? localize('browser.certGoBack', "Go Back")
+					: localize('browser.certCloseTab', "Close Tab");
+				primaryButton.onDidClick(() => {
+					if (canGoBack) {
+						this.goBack();
+					} else {
+						this.group?.closeEditor(this.input);
 					}
 				});
 
-				proceedContainer.appendChild(proceedLink);
-				errorContent.appendChild(proceedContainer);
+				const secondaryButton = buttonBar.addButton({ ...defaultButtonStyles, secondary: true });
+				secondaryButton.label = localize('browser.certProceed', "Proceed anyway (unsafe)");
+				secondaryButton.onDidClick(() => {
+					this._model?.trustCertificate(certError.host, certError.fingerprint);
+				});
+
+				errorContent.appendChild(actionContainer);
 			}
 
 			this._errorContainer.appendChild(errorContent);

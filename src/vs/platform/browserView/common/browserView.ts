@@ -89,6 +89,10 @@ export interface IBrowserViewCertificateError {
 	error: string;
 	url: string;
 	hasTrustedException: boolean;
+	issuerName: string;
+	subjectName: string;
+	validStart: number;
+	validExpiry: number;
 }
 
 export interface IBrowserViewFocusEvent {

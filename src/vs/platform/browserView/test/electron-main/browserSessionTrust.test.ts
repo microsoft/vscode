@@ -88,8 +88,8 @@ function createTrust(sessionId = 'test-session'): {
 	return { trust, electronSession, storage };
 }
 
-function createCertificate(fingerprint: string): Electron.Certificate {
-	return { fingerprint } as Electron.Certificate;
+function createCertificate(fingerprint: string, extra?: Partial<Electron.Certificate>): Electron.Certificate {
+	return { fingerprint, issuerName: 'Test CA', subjectName: 'test.example.com', validStart: 0, validExpiry: 0, ...extra } as Electron.Certificate;
 }
 
 function invokeVerifyProc(
@@ -132,7 +132,11 @@ suite('BrowserSessionTrust', () => {
 			fingerprint: 'abc123',
 			error: 'net::ERR_CERT_AUTHORITY_INVALID',
 			url: 'https://example.com/path',
-			hasTrustedException: false
+			hasTrustedException: false,
+			issuerName: 'Test CA',
+			subjectName: 'test.example.com',
+			validStart: 0,
+			validExpiry: 0,
 		});
 
 		invokeVerifyProc(electronSession, {
@@ -143,16 +147,12 @@ suite('BrowserSessionTrust', () => {
 		assert.strictEqual(trust.getCertificateError('https://example.com/path'), undefined);
 	});
 
-	test('trustCertificate persists data under the trust storage key', () => {
-		const { trust, electronSession, storage } = createTrust();
+	test('trustCertificate persists data under the trust storage key', async () => {
+		const { trust, storage } = createTrust();
 		trust.connectStorage(storage.asService());
 
-		trust.trustCertificate('example.com', 'abc123');
+		await trust.trustCertificate('example.com', 'abc123');
 
-		assert.strictEqual(invokeVerifyProc(electronSession, {
-			hostname: 'example.com',
-			certificate: createCertificate('abc123')
-		}), 0);
 		assert.strictEqual(storage.store.calledOnce, true);
 		assert.deepStrictEqual(storage.store.firstCall.args.slice(0, 4), [STORAGE_KEY, storage.read(STORAGE_KEY), StorageScope.APPLICATION, StorageTarget.MACHINE]);
 
@@ -160,12 +160,12 @@ suite('BrowserSessionTrust', () => {
 		assert.deepStrictEqual(persisted['test-session'].trustedCerts.map((entry: { host: string; fingerprint: string }) => ({ host: entry.host, fingerprint: entry.fingerprint })), [{ host: 'example.com', fingerprint: 'abc123' }]);
 	});
 
-	test('trustCertificate stores expiresAt relative to current time', () => {
+	test('trustCertificate stores expiresAt relative to current time', async () => {
 		const clock = sinon.useFakeTimers({ now: Date.parse('2026-03-01T00:00:00.000Z') });
 		const { trust, storage } = createTrust();
 		trust.connectStorage(storage.asService());
 
-		trust.trustCertificate('example.com', 'abc123');
+		await trust.trustCertificate('example.com', 'abc123');
 
 		const persisted = JSON.parse(storage.read(STORAGE_KEY)!);
 		const [entry] = persisted['test-session'].trustedCerts as { host: string; fingerprint: string; expiresAt: number }[];
@@ -176,24 +176,31 @@ suite('BrowserSessionTrust', () => {
 		clock.restore();
 	});
 
-	test('trust is valid at expiration and invalid after expiration', () => {
+	test('trust is valid at expiration and invalid after expiration', async () => {
 		const clock = sinon.useFakeTimers({ now: Date.parse('2026-03-01T00:00:00.000Z') });
 		const { trust, electronSession, storage } = createTrust();
+		const webContents = new TestWebContents();
+		trust.installCertErrorHandler(webContents.asWebContents());
 		trust.connectStorage(storage.asService());
-		trust.trustCertificate('example.com', 'abc123');
+		await trust.trustCertificate('example.com', 'abc123');
 		electronSession.closeAllConnections.resetHistory();
 
+		// At exactly the expiration boundary, trust should still be valid
 		clock.tick(TRUST_DURATION_MS);
-		assert.strictEqual(invokeVerifyProc(electronSession, {
-			hostname: 'example.com',
-			certificate: createCertificate('abc123')
-		}), 0);
+		let callbackResult: boolean | undefined;
+		const firstEvent = { preventDefault: sinon.spy() };
+		webContents.emit('certificate-error', firstEvent, 'https://example.com', 'ERR_CERT', createCertificate('abc123'), (value: boolean) => {
+			callbackResult = value;
+		});
+		assert.strictEqual(callbackResult, true);
 
+		// One ms after expiration, trust should be revoked
 		clock.tick(1);
-		assert.strictEqual(invokeVerifyProc(electronSession, {
-			hostname: 'example.com',
-			certificate: createCertificate('abc123')
-		}), -3);
+		const secondEvent = { preventDefault: sinon.spy() };
+		webContents.emit('certificate-error', secondEvent, 'https://example.com', 'ERR_CERT', createCertificate('abc123'), (value: boolean) => {
+			callbackResult = value;
+		});
+		assert.strictEqual(callbackResult, false);
 		assert.strictEqual(electronSession.closeAllConnections.calledOnce, true);
 		assert.strictEqual(storage.read(STORAGE_KEY), undefined);
 
@@ -201,7 +208,9 @@ suite('BrowserSessionTrust', () => {
 	});
 
 	test('connectStorage restores valid trust entries and prunes expired ones', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const { trust, electronSession, storage } = createTrust();
+		const { trust, storage } = createTrust();
+		const webContents = new TestWebContents();
+		trust.installCertErrorHandler(webContents.asWebContents());
 		storage.seed(STORAGE_KEY, JSON.stringify({
 			'test-session': {
 				trustedCerts: [
@@ -213,20 +222,24 @@ suite('BrowserSessionTrust', () => {
 
 		trust.connectStorage(storage.asService());
 
-		assert.strictEqual(invokeVerifyProc(electronSession, {
-			hostname: 'valid.example.com',
-			certificate: createCertificate('valid')
-		}), 0);
-		assert.strictEqual(invokeVerifyProc(electronSession, {
-			hostname: 'expired.example.com',
-			certificate: createCertificate('expired')
-		}), -3);
+		let callbackResult: boolean | undefined;
+		const validEvent = { preventDefault: sinon.spy() };
+		webContents.emit('certificate-error', validEvent, 'https://valid.example.com', 'ERR_CERT', createCertificate('valid'), (value: boolean) => {
+			callbackResult = value;
+		});
+		assert.strictEqual(callbackResult, true);
+
+		const expiredEvent = { preventDefault: sinon.spy() };
+		webContents.emit('certificate-error', expiredEvent, 'https://expired.example.com', 'ERR_CERT', createCertificate('expired'), (value: boolean) => {
+			callbackResult = value;
+		});
+		assert.strictEqual(callbackResult, false);
 
 		const persisted = JSON.parse(storage.read(STORAGE_KEY)!);
 		assert.deepStrictEqual(persisted['test-session'].trustedCerts.map((entry: { host: string; fingerprint: string }) => ({ host: entry.host, fingerprint: entry.fingerprint })), [{ host: 'valid.example.com', fingerprint: 'valid' }]);
 	}));
 
-	test('stored and reloaded trust expires and is pruned', () => {
+	test('stored and reloaded trust expires and is pruned', async () => {
 		const clock = sinon.useFakeTimers({ now: Date.parse('2026-03-01T00:00:00.000Z') });
 
 		const storage = new TestApplicationStorageMainService();
@@ -234,43 +247,47 @@ suite('BrowserSessionTrust', () => {
 		const firstBrowserSession = new TestBrowserSession('test-session', firstSession.asSession());
 		const firstTrust = new BrowserSessionTrust(firstBrowserSession.asBrowserSession());
 		firstTrust.connectStorage(storage.asService());
-		firstTrust.trustCertificate('reload.example.com', 'reload-fingerprint');
+		await firstTrust.trustCertificate('reload.example.com', 'reload-fingerprint');
 
 		clock.tick(TRUST_DURATION_MS + 1);
 
 		const secondSession = new TestElectronSession();
 		const secondBrowserSession = new TestBrowserSession('test-session', secondSession.asSession());
 		const secondTrust = new BrowserSessionTrust(secondBrowserSession.asBrowserSession());
+		const webContents = new TestWebContents();
+		secondTrust.installCertErrorHandler(webContents.asWebContents());
 		secondTrust.connectStorage(storage.asService());
 
-		assert.strictEqual(invokeVerifyProc(secondSession, {
-			hostname: 'reload.example.com',
-			certificate: createCertificate('reload-fingerprint')
-		}), -3);
+		let callbackResult: boolean | undefined;
+		const event = { preventDefault: sinon.spy() };
+		webContents.emit('certificate-error', event, 'https://reload.example.com', 'ERR_CERT', createCertificate('reload-fingerprint'), (value: boolean) => {
+			callbackResult = value;
+		});
+		assert.strictEqual(callbackResult, false);
 		assert.strictEqual(storage.read(STORAGE_KEY), undefined);
 
 		clock.restore();
 	});
 
-	test('untrustCertificate removes persisted trust and closes connections', () => {
+	test('untrustCertificate removes persisted trust and closes connections', async () => {
 		const { trust, electronSession, storage } = createTrust();
 		trust.connectStorage(storage.asService());
-		trust.trustCertificate('example.com', 'abc123');
+		await trust.trustCertificate('example.com', 'abc123');
 		electronSession.closeAllConnections.resetHistory();
 		storage.store.resetHistory();
 
-		trust.untrustCertificate('example.com', 'abc123');
+		await trust.untrustCertificate('example.com', 'abc123');
 
 		assert.strictEqual(electronSession.closeAllConnections.calledOnce, true);
 		assert.strictEqual(storage.remove.calledOnceWithExactly(STORAGE_KEY, StorageScope.APPLICATION), true);
 		assert.strictEqual(storage.read(STORAGE_KEY), undefined);
 	});
 
-	test('untrustCertificate throws when certificate is not found', () => {
+	test('untrustCertificate throws when certificate is not found', async () => {
 		const { trust, electronSession, storage } = createTrust();
 		trust.connectStorage(storage.asService());
 
-		assert.throws(
+		await assert.rejects(
 			() => trust.untrustCertificate('missing.example.com', 'missing-fingerprint'),
 			error => {
 				assert.ok(error instanceof Error);
@@ -284,7 +301,7 @@ suite('BrowserSessionTrust', () => {
 	test('clear removes trust, clears cert errors, and closes connections', async () => {
 		const { trust, electronSession, storage } = createTrust();
 		trust.connectStorage(storage.asService());
-		trust.trustCertificate('example.com', 'abc123');
+		await trust.trustCertificate('example.com', 'abc123');
 		invokeVerifyProc(electronSession, {
 			hostname: 'example.com',
 			errorCode: -202,
@@ -299,7 +316,7 @@ suite('BrowserSessionTrust', () => {
 		assert.strictEqual(storage.read(STORAGE_KEY), undefined);
 	});
 
-	test('installCertErrorHandler only allows trusted certificates', () => {
+	test('installCertErrorHandler only allows trusted certificates', async () => {
 		const { trust } = createTrust();
 		const webContents = new TestWebContents();
 		trust.installCertErrorHandler(webContents.asWebContents());
@@ -312,7 +329,7 @@ suite('BrowserSessionTrust', () => {
 		assert.strictEqual(callbackResult, false);
 		assert.strictEqual(firstEvent.preventDefault.calledOnce, true);
 
-		trust.trustCertificate('example.com', 'abc123');
+		await trust.trustCertificate('example.com', 'abc123');
 		const secondEvent = { preventDefault: sinon.spy() };
 		webContents.emit('certificate-error', secondEvent, 'https://example.com', 'ERR_CERT', createCertificate('abc123'), (value: boolean) => {
 			callbackResult = value;

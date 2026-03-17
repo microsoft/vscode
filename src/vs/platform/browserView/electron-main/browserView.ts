@@ -596,16 +596,16 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	/**
 	 * Trust a certificate for a given host and reload the page.
 	 */
-	trustCertificate(host: string, fingerprint: string): void {
-		this.session.trust.trustCertificate(host, fingerprint);
+	async trustCertificate(host: string, fingerprint: string): Promise<void> {
+		await this.session.trust.trustCertificate(host, fingerprint);
 		this._view.webContents.reload();
 	}
 
 	/**
 	 * Revoke trust for a previously trusted certificate and close the view.
 	 */
-	untrustCertificate(host: string, fingerprint: string): void {
-		this.session.trust.untrustCertificate(host, fingerprint);
+	async untrustCertificate(host: string, fingerprint: string): Promise<void> {
+		await this.session.trust.untrustCertificate(host, fingerprint);
 		this.dispose();
 	}
 
