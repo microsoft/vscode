@@ -134,6 +134,14 @@ suite('PluginUrlHandler', () => {
 		assert.deepStrictEqual(state.installedSources, []);
 	});
 
+	test('install rejects local file URI sources', async () => {
+		const { handler, state } = createHandler();
+		const encoded = toBase64('file:///home/user/my-plugin');
+		const result = await handler.handleURL(uri('/install', `source=${encodeURIComponent(encoded)}`));
+		assert.strictEqual(result, true);
+		assert.deepStrictEqual(state.installedSources, []);
+	});
+
 	// --- add-marketplace: plain text ---
 
 	test('add-marketplace with plain-text ref', async () => {
@@ -160,6 +168,14 @@ suite('PluginUrlHandler', () => {
 	test('add-marketplace does not duplicate existing entry', async () => {
 		const { handler, state } = createHandler();
 		const result = await handler.handleURL(uri('/add-marketplace', 'ref=existing/marketplace'));
+		assert.strictEqual(result, true);
+		assert.strictEqual(state.configUpdates.length, 0);
+	});
+
+	test('add-marketplace deduplicates by canonical ID', async () => {
+		const { handler, state } = createHandler();
+		// The URL form of the same GitHub shorthand should match canonically
+		const result = await handler.handleURL(uri('/add-marketplace', 'ref=existing%2Fmarketplace'));
 		assert.strictEqual(result, true);
 		assert.strictEqual(state.configUpdates.length, 0);
 	});

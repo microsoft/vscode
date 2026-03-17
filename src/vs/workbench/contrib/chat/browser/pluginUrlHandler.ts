@@ -15,7 +15,7 @@ import { IURLHandler, IURLService } from '../../../../platform/url/common/url.js
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { parseMarketplaceReference } from '../common/plugins/marketplaceReference.js';
+import { MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences } from '../common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 
@@ -72,6 +72,11 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			return true;
 		}
 
+		if (ref.kind === MarketplaceReferenceKind.LocalFileUri) {
+			this._logService.warn('[PluginUrlHandler] Local file URIs are not supported for install');
+			return true;
+		}
+
 		await this._hostService.focus(mainWindow);
 
 		const { confirmed } = await this._dialogService.confirm({
@@ -120,7 +125,8 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		}
 
 		const existing = this._configurationService.getValue<string[]>(ChatConfiguration.PluginMarketplaces) ?? [];
-		if (!existing.includes(refValue)) {
+		const existingRefs = parseMarketplaceReferences(existing);
+		if (!existingRefs.some(e => e.canonicalId === ref.canonicalId)) {
 			await this._configurationService.updateValue(
 				ChatConfiguration.PluginMarketplaces,
 				[...existing, refValue],
