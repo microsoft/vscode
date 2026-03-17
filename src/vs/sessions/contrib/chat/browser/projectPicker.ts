@@ -211,7 +211,7 @@ export class ProjectPicker extends Disposable {
 		const delegate: IActionListDelegate<IStoredProject> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
-				const uriStr = URI.revive(item.uri).toString();
+				const uriStr = this._reviveUri(item.uri).toString();
 				if (uriStr === COMMAND_BROWSE_FOLDERS) {
 					this._browseForFolder();
 				} else if (uriStr === COMMAND_BROWSE_REPOS) {
@@ -261,7 +261,7 @@ export class ProjectPicker extends Disposable {
 	 * Removes a project from the recently picked list by URI.
 	 */
 	removeFromRecents(uri: URI): void {
-		this._recentProjects = this._recentProjects.filter(p => !this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), uri));
+		this._recentProjects = this._recentProjects.filter(p => !this.uriIdentityService.extUri.isEqual(this._reviveUri(p.uri), uri));
 		this._persistRecents();
 		if (this._selectedProject && this.uriIdentityService.extUri.isEqual(this._selectedProject.uri, uri)) {
 			this._selectedProject = undefined;
@@ -340,7 +340,7 @@ export class ProjectPicker extends Disposable {
 		}
 
 		// Split into folders and repos, sort each group alphabetically
-		const isStoredFolder = (p: IStoredProject) => URI.revive(p.uri).scheme !== GITHUB_REMOTE_FILE_SCHEME;
+		const isStoredFolder = (p: IStoredProject) => this._reviveUri(p.uri).scheme !== GITHUB_REMOTE_FILE_SCHEME;
 		const folders = allProjects.filter(p => isStoredFolder(p)).sort((a, b) => this._getStoredProjectLabel(a).localeCompare(this._getStoredProjectLabel(b)));
 		const repos = allProjects.filter(p => !isStoredFolder(p)).sort((a, b) => this._getStoredProjectLabel(a).localeCompare(this._getStoredProjectLabel(b)));
 
@@ -416,7 +416,7 @@ export class ProjectPicker extends Disposable {
 	}
 
 	private _getStoredProjectLabel(project: IStoredProject): string {
-		const uri = URI.revive(project.uri);
+		const uri = this._reviveUri(project.uri);
 		if (uri.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
 			return basename(uri);
 		}
@@ -431,14 +431,25 @@ export class ProjectPicker extends Disposable {
 	}
 
 	private _fromStored(stored: IStoredProject): SessionProject {
-		return new SessionProject(URI.revive(stored.uri));
+		return new SessionProject(this._reviveUri(stored.uri));
 	}
 
 	private _projectKey(project: IStoredProject): string {
-		return URI.revive(project.uri).toString();
+		return this._reviveUri(project.uri).toString();
 	}
 
 	private _isSameProject(a: IStoredProject, b: IStoredProject): boolean {
-		return this.uriIdentityService.extUri.isEqual(URI.revive(a.uri), URI.revive(b.uri));
+		return this.uriIdentityService.extUri.isEqual(this._reviveUri(a.uri), this._reviveUri(b.uri));
+	}
+
+	/**
+	 * Revives a stored URI, handling both UriComponents (new format) and
+	 * plain strings (legacy format from old storage keys).
+	 */
+	private _reviveUri(uri: UriComponents | string): URI {
+		if (typeof uri === 'string') {
+			return URI.parse(uri);
+		}
+		return URI.revive(uri);
 	}
 }
