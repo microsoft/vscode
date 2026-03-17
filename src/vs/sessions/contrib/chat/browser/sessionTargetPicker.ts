@@ -31,7 +31,6 @@ export type TargetMode = 'worktree' | 'workspace' | 'cloud';
 export class TargetPicker extends Disposable {
 
 	private _targetMode: TargetMode = 'worktree';
-	private _preferredLocalMode: TargetMode | undefined;
 	private _project: SessionProject | undefined;
 	private _isolationOptionEnabled: boolean = true;
 
@@ -89,35 +88,15 @@ export class TargetPicker extends Disposable {
 	setProject(project: SessionProject | undefined, preferredMode?: TargetMode): void {
 		this._project = project;
 
-		if (preferredMode) {
-			this._preferredLocalMode = preferredMode;
-		}
-
 		if (project?.isRepo) {
 			// Cloud project — switch to cloud mode
-			if (this._targetMode !== 'cloud') {
-				this._preferredLocalMode = this._targetMode;
-			}
 			this._targetMode = 'cloud';
-		} else if (this._targetMode === 'cloud') {
-			// Switching back from cloud to a local project
-			this._targetMode = this._preferredLocalMode ?? 'worktree';
-			this._preferredLocalMode = undefined;
-		}
-
-		if (project?.isFolder && !project.repository) {
-			// Folder without git repo — force to folder mode
-			if (this._targetMode !== 'workspace') {
-				this._preferredLocalMode ??= this._targetMode;
-				this._targetMode = 'workspace';
-			}
 		} else if (project?.isFolder && project.repository) {
-			// Folder with git repo — restore preferred mode
-			const preferred = this._preferredLocalMode;
-			this._preferredLocalMode = undefined;
-			if (preferred && preferred !== 'cloud') {
-				this._targetMode = preferred;
-			}
+			// Folder with git repo — default to worktree, or use preferred
+			this._targetMode = preferredMode ?? 'worktree';
+		} else if (project?.isFolder) {
+			// Folder without git repo — force to folder mode
+			this._targetMode = 'workspace';
 		}
 
 		this._updateTriggerLabel();
