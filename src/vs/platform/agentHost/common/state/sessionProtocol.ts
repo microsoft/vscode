@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Re-exports protocol command and error types, adds JSON-RPC 2.0 framing types
-// and VS Code-specific extras (ISetAuthTokenParams, ProtocolError class).
+// Re-exports protocol command, error, and message types, adds JSON-RPC 2.0 type
+// guards and VS Code-specific extras (ISetAuthTokenParams, ProtocolError class).
 
-import { hasKey } from '../../../../base/common/types.js';
 import type { IActionEnvelope, INotification } from './sessionActions.js';
 
 // ---- Re-exports from protocol -----------------------------------------------
@@ -42,61 +41,62 @@ export { ReconnectResultType, ContentEncoding } from './protocol/commands.js';
 
 export type { ISnapshot as IStateSnapshot } from './protocol/state.js';
 
-// ---- JSON-RPC 2.0 base types -----------------------------------------------
+// ---- Re-exports from protocol messages --------------------------------------
 
-/** A JSON-RPC notification: has `method` but no `id`. */
-export interface IJsonRpcNotification {
+export type {
+	IJsonRpcRequest,
+	IJsonRpcSuccessResponse,
+	IJsonRpcErrorResponse,
+	IJsonRpcResponse,
+	IJsonRpcNotification,
+	ICommandMap,
+	IClientNotificationMap,
+	IServerNotificationMap,
+	INotificationMap,
+	IAhpRequest,
+	IAhpSuccessResponse,
+	IAhpResponse,
+	IAhpNotification,
+	IAhpClientNotification,
+	IAhpServerNotification,
+} from './protocol/messages.js';
+
+import type { IJsonRpcNotification as _IJsonRpcNotification, IAhpRequest as _IAhpRequest } from './protocol/messages.js';
+
+/** @deprecated Use IJsonRpcNotification from messages.js instead. */
+export type IProtocolNotification = _IJsonRpcNotification;
+
+/** @deprecated Use IAhpRequest from messages.js instead. */
+export type IProtocolRequest = _IAhpRequest;
+
+// ---- Loose message union (used by transport layer) --------------------------
+
+/**
+ * A loosely-typed protocol message as it comes off the wire after JSON.parse.
+ * Requests and notifications have `method`; responses have `id` + `result`/`error`.
+ * Use {@link protocolReviver} to produce fully typed {@link AhpIncomingMessage}.
+ */
+export interface IProtocolMessage {
 	readonly jsonrpc: '2.0';
-	readonly method: string;
+	readonly id?: number;
+	readonly method?: string;
 	readonly params?: unknown;
+	readonly result?: unknown;
+	readonly error?: { code: number; message: string; data?: unknown };
 }
-
-/** @deprecated Use IJsonRpcNotification instead. */
-export type IProtocolNotification = IJsonRpcNotification;
-
-/** A JSON-RPC request: has both `method` and `id`. */
-export interface IProtocolRequest {
-	readonly jsonrpc: '2.0';
-	readonly id: number;
-	readonly method: string;
-	readonly params?: unknown;
-}
-
-/** A JSON-RPC success response. */
-export interface IJsonRpcSuccessResponse {
-	readonly jsonrpc: '2.0';
-	readonly id: number;
-	readonly result: unknown;
-}
-
-/** A JSON-RPC error response. */
-export interface IJsonRpcErrorResponse {
-	readonly jsonrpc: '2.0';
-	readonly id: number;
-	readonly error: {
-		readonly code: number;
-		readonly message: string;
-		readonly data?: unknown;
-	};
-}
-
-export type IJsonRpcResponse = IJsonRpcSuccessResponse | IJsonRpcErrorResponse;
-
-/** Any message that flows over the protocol transport. */
-export type IProtocolMessage = IJsonRpcNotification | IProtocolRequest | IJsonRpcResponse;
 
 // ---- Type guards -----------------------------------------------------------
 
-export function isJsonRpcRequest(msg: IProtocolMessage): msg is IProtocolRequest {
-	return hasKey(msg, { id: true, method: true });
+export function isJsonRpcRequest(msg: IProtocolMessage): msg is IProtocolMessage & { readonly id: number; readonly method: string } {
+	return typeof msg.method === 'string' && typeof msg.id === 'number';
 }
 
-export function isJsonRpcNotification(msg: IProtocolMessage): msg is IJsonRpcNotification {
-	return hasKey(msg, { method: true }) && !hasKey(msg, { id: true });
+export function isJsonRpcNotification(msg: IProtocolMessage): msg is IProtocolMessage & { readonly method: string } {
+	return typeof msg.method === 'string' && msg.id === undefined;
 }
 
-export function isJsonRpcResponse(msg: IProtocolMessage): msg is IJsonRpcResponse {
-	return hasKey(msg, { id: true }) && !hasKey(msg, { method: true });
+export function isJsonRpcResponse(msg: IProtocolMessage): msg is IProtocolMessage & { readonly id: number } {
+	return typeof msg.id === 'number' && msg.method === undefined;
 }
 
 // ---- JSON-RPC error codes (convenience constants) ---------------------------

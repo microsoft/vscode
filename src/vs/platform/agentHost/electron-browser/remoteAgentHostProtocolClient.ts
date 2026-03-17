@@ -12,7 +12,6 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { URI } from '../../../base/common/uri.js';
 import { DeferredPromise } from '../../../base/common/async.js';
-import { hasKey } from '../../../base/common/types.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IAgentConnection, IAgentCreateSessionConfig, IAgentDescriptor, IAgentSessionMetadata } from '../common/agentService.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
@@ -183,7 +182,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			const pending = this._pendingRequests.get(msg.id);
 			if (pending) {
 				this._pendingRequests.delete(msg.id);
-				if (hasKey(msg, { error: true })) {
+				if (msg.error) {
 					this._logService.warn(`[RemoteAgentHostProtocol] Request ${msg.id} failed:`, msg.error);
 					pending.error(new Error(msg.error.message));
 				} else {

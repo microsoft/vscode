@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { URI } from '../../../../base/common/uri.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
-import { protocolReplacer, protocolReviver } from '../../common/state/jsonSerialization.js';
+import { protocolReplacer } from '../../common/state/jsonSerialization.js';
 import {
 	isJsonRpcNotification,
 	isJsonRpcResponse,
@@ -52,7 +52,7 @@ class TestProtocolClient {
 			this._ws.on('open', () => {
 				this._ws.on('message', (data: Buffer | string) => {
 					const text = typeof data === 'string' ? data : data.toString('utf-8');
-					const msg = JSON.parse(text, protocolReviver);
+					const msg = JSON.parse(text);
 					this._handleMessage(msg);
 				});
 				resolve();

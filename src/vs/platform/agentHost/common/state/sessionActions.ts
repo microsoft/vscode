@@ -52,24 +52,8 @@ export type {
 
 import type { IStateAction } from './protocol/actions.js';
 
-// Re-export the serialization helpers so consumers can revive/serialize at the boundary
-export {
-	type Wire,
-	reviveSessionAction,
-	serializeSessionAction,
-	reviveSessionSummary,
-	serializeSessionSummary,
-	reviveSnapshot,
-	serializeSnapshot,
-	reviveInitializeParams,
-	serializeInitializeParams,
-	reviveReconnectParams,
-	serializeReconnectParams,
-	reviveSubscribeParams,
-	serializeSubscribeParams,
-	reviveUnsubscribeParams,
-	serializeUnsubscribeParams,
-} from './protocol/protocolSerialization.js';
+// Re-export the protocol reviver/replacer and Wire type for boundary consumers
+export { type Wire, type AhpIncomingMessage, protocolReviver, protocolReplacer } from './protocol/protocolSerialization.js';
 
 // ---- VS Code name aliases ---------------------------------------------------
 // The protocol uses `ISession*` / `IRoot*` prefix. VS Code historically

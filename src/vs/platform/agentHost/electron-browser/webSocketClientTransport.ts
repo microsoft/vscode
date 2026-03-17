@@ -11,7 +11,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
 import type { IProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolTransport } from '../common/state/sessionTransport.js';
-import { protocolReplacer, protocolReviver } from '../common/state/jsonSerialization.js';
+import { protocolReplacer } from '../common/state/jsonSerialization.js';
 
 // ---- Client transport -------------------------------------------------------
 
@@ -97,7 +97,7 @@ export class WebSocketClientTransport extends Disposable implements IProtocolTra
 			ws.addEventListener('message', (event: MessageEvent) => {
 				try {
 					const text = typeof event.data === 'string' ? event.data : '';
-					const message = JSON.parse(text, protocolReviver) as IProtocolMessage;
+					const message = JSON.parse(text) as IProtocolMessage;
 					this._onMessage.fire(message);
 				} catch {
 					// Malformed message - drop.

@@ -75,6 +75,7 @@ const FILES: { src: string; dest: string }[] = [
 	{ src: 'commands.ts', dest: 'commands.ts' },
 	{ src: 'errors.ts', dest: 'errors.ts' },
 	{ src: 'notifications.ts', dest: 'notifications.ts' },
+	{ src: 'messages.ts', dest: 'messages.ts' },
 	{ src: 'version/registry.ts', dest: 'version/registry.ts' },
 ];
 
@@ -416,7 +417,92 @@ function findUriFields(): UriFieldInfo[] {
 	return fields;
 }
 
-function generateSerializationFile(fields: UriFieldInfo[], commitHash: string): void {
+// ─── Method mapping detection via JSDoc @method tags ─────────────────────────
+
+interface MethodMapping {
+	/** JSON-RPC method name, e.g. 'initialize' */
+	method: string;
+	/** Params interface name, e.g. 'IInitializeParams' */
+	paramType: string;
+	/** Whether this is a Request or Notification */
+	messageType: 'Request' | 'Notification';
+	/** True if the params type has a field of type IStateAction (nested action revival) */
+	hasNestedAction: boolean;
+	/** Field names that have type IStateAction */
+	actionFields: string[];
+}
+
+/**
+ * Parses @method and @messageType JSDoc tags from commands.ts to build a
+ * mapping from protocol method names to their params interface names.
+ */
+function findMethodMappings(): MethodMapping[] {
+	const filePath = path.join(TYPES_DIR, 'commands.ts');
+	if (!fs.existsSync(filePath)) {
+		return [];
+	}
+
+	const source = fs.readFileSync(filePath, 'utf-8');
+	const sf = ts.createSourceFile('commands.ts', source, ts.ScriptTarget.Latest, true);
+	const mappings: MethodMapping[] = [];
+
+	ts.forEachChild(sf, node => {
+		if (!ts.isInterfaceDeclaration(node)) {
+			return;
+		}
+		if (!node.name.text.endsWith('Params')) {
+			return;
+		}
+
+		// Extract @method and @messageType from JSDoc
+		const jsDocTags = ts.getJSDocTags(node);
+		let method: string | undefined;
+		let messageType: string | undefined;
+
+		for (const tag of jsDocTags) {
+			const comment = typeof tag.comment === 'string' ? tag.comment.trim() : '';
+			if (tag.tagName.text === 'method') {
+				method = comment;
+			} else if (tag.tagName.text === 'messageType') {
+				messageType = comment;
+			}
+		}
+
+		if (!method || !messageType) {
+			return;
+		}
+
+		// Check if any field has type IStateAction (for nested action revival)
+		let hasNestedAction = false;
+		const actionFields: string[] = [];
+		for (const member of node.members) {
+			if (ts.isPropertySignature(member) && member.type && member.name) {
+				const typeText = member.type.getText(sf);
+				if (typeText === 'IStateAction') {
+					hasNestedAction = true;
+					const name = ts.isIdentifier(member.name) ? member.name.text : undefined;
+					if (name) {
+						actionFields.push(name);
+					}
+				}
+			}
+		}
+
+		mappings.push({
+			method,
+			paramType: node.name.text,
+			messageType: messageType as 'Request' | 'Notification',
+			hasNestedAction,
+			actionFields,
+		});
+	});
+
+	return mappings;
+}
+
+// ─── Serialization file generation ───────────────────────────────────────────
+
+function generateSerializationFile(fields: UriFieldInfo[], methodMappings: MethodMapping[], commitHash: string): void {
 	// Group fields by interface and source
 	const byInterface = new Map<string, UriFieldInfo[]>();
 	for (const f of fields) {
@@ -439,16 +525,59 @@ function generateSerializationFile(fields: UriFieldInfo[], commitHash: string): 
 		}
 	}
 
-	// Determine imports
-	const allTypes = new Set<string>();
+	// Classify each protocol method (deduplicate by method name)
+	const sessionActionTypeSet = new Set(sessionActionTypes);
+	const sessionMethods: string[] = [];
+	const otherMethodCases: { method: string; paramType: string }[] = [];
+	const nestedActionMethods: { method: string; paramType: string; actionFields: string[] }[] = [];
+	const seenMethods = new Set<string>();
+
+	for (const mapping of methodMappings) {
+		if (seenMethods.has(mapping.method)) {
+			continue;
+		}
+		if (sessionActionTypeSet.has(mapping.paramType)) {
+			seenMethods.add(mapping.method);
+			sessionMethods.push(mapping.method);
+		} else if (otherTypes.has(mapping.paramType)) {
+			seenMethods.add(mapping.method);
+			otherMethodCases.push({ method: mapping.method, paramType: mapping.paramType });
+		} else if (mapping.hasNestedAction) {
+			seenMethods.add(mapping.method);
+			nestedActionMethods.push({ method: mapping.method, paramType: mapping.paramType, actionFields: mapping.actionFields });
+		}
+	}
+
+	// Only import types that are actually referenced in per-type helpers
+	const neededOtherTypes = new Set(otherMethodCases.map(c => c.paramType));
+	const hasNestedActions = nestedActionMethods.length > 0;
+	// Nested-action param types need imports too
+	const nestedActionParamTypes = new Set<string>();
+	for (const { paramType } of nestedActionMethods) {
+		neededOtherTypes.add(paramType);
+		nestedActionParamTypes.add(paramType);
+	}
+	const usedTypes = new Set<string>([...sessionActionTypes, ...neededOtherTypes]);
 	const importsBySource = new Map<string, Set<string>>();
 	for (const [iface, infos] of byInterface) {
-		allTypes.add(iface);
+		if (!usedTypes.has(iface)) {
+			continue;
+		}
 		const source = infos[0].sourceFile;
 		if (!importsBySource.has(source)) {
 			importsBySource.set(source, new Set());
 		}
 		importsBySource.get(source)!.add(iface);
+	}
+	// Nested-action param types may not be in byInterface (no direct URI fields),
+	// so add them to commands.ts imports explicitly.
+	for (const paramType of nestedActionParamTypes) {
+		if (!byInterface.has(paramType)) {
+			if (!importsBySource.has('commands.ts')) {
+				importsBySource.set('commands.ts', new Set());
+			}
+			importsBySource.get('commands.ts')!.add(paramType);
+		}
 	}
 
 	const sourceToModule: Record<string, string> = {
@@ -472,59 +601,88 @@ function generateSerializationFile(fields: UriFieldInfo[], commitHash: string): 
 	for (const [source, types] of importsBySource) {
 		const module = sourceToModule[source];
 		if (module) {
+			// If we need IStateAction for nested-action revival, add it to the actions import
+			if (hasNestedActions && module === './actions.js') {
+				types.add('IStateAction');
+			}
 			lines.push(`import type { ${[...types].sort().join(', ')} } from '${module}';`);
 		}
 	}
+	lines.push(`import type { IAhpRequest, IAhpClientNotification, ICommandMap, IClientNotificationMap, IJsonRpcResponse } from './messages.js';`);
 
 	lines.push('');
 	lines.push('// ---- Wire<T> helper --------------------------------------------------------');
 	lines.push('');
 	lines.push('/**');
-	lines.push(' * Maps a protocol type to its JSON wire format by replacing URI fields with');
-	lines.push(' * plain strings. Use at the JSON-RPC boundary.');
+	lines.push(' * Recursively maps a protocol type to its JSON wire format by replacing URI');
+	lines.push(' * fields with plain strings. Distributes over unions so');
+	lines.push(' * `Wire<URI | undefined>` = `string | undefined`.');
 	lines.push(' */');
-	lines.push('export type Wire<T> = {');
-	lines.push('\t[K in keyof T]:');
-	lines.push('\t\tT[K] extends URI ? string :');
-	lines.push('\t\tT[K] extends URI | undefined ? string | undefined :');
-	lines.push('\t\tT[K] extends URI[] ? string[] :');
-	lines.push('\t\tT[K] extends (URI[] | undefined) ? string[] | undefined :');
-	lines.push('\t\tT[K];');
-	lines.push('};');
+	lines.push('export type Wire<T> =');
+	lines.push('\tT extends URI ? string :');
+	lines.push('\tT extends URI[] ? string[] :');
+	lines.push('\tT extends readonly (infer U)[] ? Wire<U>[] :');
+	lines.push('\tT extends object ? { [K in keyof T]: Wire<T[K]> } :');
+	lines.push('\tT;');
 
-	// Generate a generic reviveSessionAction / serializeSessionAction for the many
-	// action types that only differ by having `session: URI`.
+	// ---- Wire command/notification maps ----
+	lines.push('');
+	lines.push('// ---- Wire message maps -----------------------------------------------------');
+	lines.push('');
+	lines.push('/** ICommandMap with URI params replaced by strings. */');
+	lines.push('type WireCommandMap = { [M in keyof ICommandMap]: { params: Wire<ICommandMap[M][\'params\']>; result: ICommandMap[M][\'result\'] } };');
+	lines.push('');
+	lines.push('/** IClientNotificationMap with URI params replaced by strings. */');
+	lines.push('type WireClientNotificationMap = { [M in keyof IClientNotificationMap]: { params: Wire<IClientNotificationMap[M][\'params\']> } };');
+	lines.push('');
+	lines.push('/** A wire-format request (params have string instead of URI). */');
+	lines.push('type WireAhpRequest<M extends keyof WireCommandMap = keyof WireCommandMap> =');
+	lines.push('\tM extends unknown ? { readonly jsonrpc: \'2.0\'; readonly id: number; readonly method: M; readonly params: WireCommandMap[M][\'params\'] } : never;');
+	lines.push('');
+	lines.push('/** A wire-format client notification (params have string instead of URI). */');
+	lines.push('type WireAhpClientNotification<M extends keyof WireClientNotificationMap = keyof WireClientNotificationMap> =');
+	lines.push('\tM extends unknown ? { readonly jsonrpc: \'2.0\'; readonly method: M; readonly params: WireClientNotificationMap[M][\'params\'] } : never;');
+	lines.push('');
+	lines.push('/** Any message as it arrives from JSON.parse (URIs are plain strings). */');
+	lines.push('export type WireAhpMessage = WireAhpRequest | WireAhpClientNotification | IJsonRpcResponse;');
+
+	// ---- Private revive helpers ----
 	if (sessionActionTypes.length > 0) {
 		lines.push('');
 		lines.push('// ---- Session action helpers (all have `session: URI`) ----------------------');
 		lines.push('');
-		lines.push(`type SessionAction = ${sessionActionTypes.map(t => t).join(' | ')};`);
+		lines.push(`type SessionAction = ${sessionActionTypes.join(' | ')};`);
+		lines.push('type WireSessionAction = Wire<SessionAction>;');
 		lines.push('');
-		lines.push('/** Revive any action whose only URI field is `session`. */');
-		lines.push('export function reviveSessionAction<T extends SessionAction>(wire: Wire<T>): T {');
-		lines.push('\t// eslint-disable-next-line local/code-no-dangerous-type-assertions');
-		lines.push('\treturn { ...wire, session: URI.parse(wire.session as string) } as T;');
-		lines.push('}');
-		lines.push('');
-		lines.push('/** Serialize any action whose only URI field is `session`. */');
-		lines.push('export function serializeSessionAction<T extends SessionAction>(obj: T): Wire<T> {');
-		lines.push('\t// eslint-disable-next-line local/code-no-dangerous-type-assertions');
-		lines.push('\treturn { ...obj, session: obj.session.toString() } as Wire<T>;');
+		lines.push('function reviveSessionAction(wire: WireSessionAction): SessionAction {');
+		lines.push('\treturn { ...wire, session: URI.parse(wire.session) };');
 		lines.push('}');
 	}
 
-	// Generate individual helpers for the non-session types
+	// Generate reviveStateAction for the full IStateAction union (session + root).
+	// Root actions have no URI fields so they pass through unchanged.
+	if (hasNestedActions && sessionActionTypes.length > 0) {
+		lines.push('');
+		lines.push('function reviveStateAction(wire: Wire<IStateAction>): IStateAction {');
+		lines.push('\tif (\'session\' in wire && typeof wire.session === \'string\') {');
+		lines.push('\t\treturn { ...wire, session: URI.parse(wire.session) } as IStateAction;');
+		lines.push('\t}');
+		lines.push('\treturn wire as IStateAction;');
+		lines.push('}');
+	}
+
 	lines.push('');
-	lines.push('// ---- Individual helpers for types with non-trivial URI fields ---------------');
+	lines.push('// ---- Individual helpers (private) ------------------------------------------');
 
 	for (const [iface, infos] of otherTypes) {
+		if (!neededOtherTypes.has(iface)) {
+			continue;
+		}
 		lines.push('');
 		const wireType = `Wire<${iface}>`;
-
-		// revive function
-		lines.push(`export function revive${iface.replace(/^I/, '')}(wire: ${wireType}): ${iface} {`);
-		lines.push(`\treturn {`);
-		lines.push(`\t\t...wire,`);
+		lines.push(`function revive${iface.replace(/^I/, '')}(wire: ${wireType}): ${iface} {`);
+		lines.push('\treturn {');
+		lines.push('\t\t...wire,');
 		for (const f of infos) {
 			if (f.isArray) {
 				if (f.isOptional) {
@@ -540,32 +698,95 @@ function generateSerializationFile(fields: UriFieldInfo[], commitHash: string): 
 				}
 			}
 		}
-		lines.push(`\t};`);
-		lines.push(`}`);
-		lines.push('');
-
-		// serialize function
-		lines.push(`export function serialize${iface.replace(/^I/, '')}(obj: ${iface}): ${wireType} {`);
-		lines.push(`\treturn {`);
-		lines.push(`\t\t...obj,`);
-		for (const f of infos) {
-			if (f.isArray) {
-				if (f.isOptional) {
-					lines.push(`\t\t${f.fieldName}: obj.${f.fieldName}?.map(u => u.toString()),`);
-				} else {
-					lines.push(`\t\t${f.fieldName}: obj.${f.fieldName}.map(u => u.toString()),`);
-				}
-			} else {
-				if (f.isOptional) {
-					lines.push(`\t\t${f.fieldName}: obj.${f.fieldName}?.toString(),`);
-				} else {
-					lines.push(`\t\t${f.fieldName}: obj.${f.fieldName}.toString(),`);
-				}
-			}
-		}
-		lines.push(`\t};`);
-		lines.push(`}`);
+		lines.push('\t};');
+		lines.push('}');
 	}
+
+	// Generate revive functions for params types that contain nested IStateAction fields
+	for (const { paramType, actionFields } of nestedActionMethods) {
+		lines.push('');
+		const wireType = `Wire<${paramType}>`;
+		lines.push(`function revive${paramType.replace(/^I/, '')}(wire: ${wireType}): ${paramType} {`);
+		lines.push('\treturn {');
+		lines.push('\t\t...wire,');
+		for (const field of actionFields) {
+			lines.push(`\t\t${field}: reviveStateAction(wire.${field}),`);
+		}
+		lines.push('\t};');
+		lines.push('}');
+	}
+
+	// ---- protocolReviver ----
+	lines.push('');
+	lines.push('// ---- Protocol reviver ------------------------------------------------------');
+	lines.push('');
+	lines.push('/** Replace `params` on a message while preserving the discriminant. */');
+	lines.push('function withParams<T extends { readonly params: unknown }, P>(msg: T, params: P): Omit<T, \'params\'> & { readonly params: P } {');
+	lines.push('\treturn { ...msg, params };');
+	lines.push('}');
+	lines.push('');
+	lines.push('/** Fully-typed incoming message after revival. */');
+	lines.push('export type AhpIncomingMessage = IAhpRequest | IAhpClientNotification | IJsonRpcResponse;');
+	lines.push('');
+	lines.push('/**');
+	lines.push(' * Revives URI strings in an incoming JSON-RPC message\'s params back to URI');
+	lines.push(' * instances. Call once after `JSON.parse` at the transport boundary.');
+	lines.push(' *');
+	lines.push(' * Accepts a loosely-typed message (`{ jsonrpc, ... }`) and returns a fully');
+	lines.push(' * typed {@link AhpIncomingMessage} with narrowable `method` and `params`.');
+	lines.push(' * Responses (no `method`) pass through unchanged.');
+	lines.push(' */');
+	lines.push('export function protocolReviver(msg: { readonly jsonrpc: \'2.0\'; method?: string; params?: unknown; id?: number; result?: unknown; error?: unknown }): AhpIncomingMessage {');
+	lines.push('\tif (typeof msg.method !== \'string\') {');
+	lines.push('\t\treturn msg as unknown as IJsonRpcResponse;');
+	lines.push('\t}');
+	lines.push('\t// Narrow to the wire-format discriminated union so that switching on');
+	lines.push('\t// `method` gives fully typed `params` in each branch.');
+	lines.push('\tconst wire = msg as WireAhpRequest | WireAhpClientNotification;');
+	lines.push('\tswitch (wire.method) {');
+
+	// Session-action methods (grouped)
+	if (sessionMethods.length > 0) {
+		for (const method of sessionMethods) {
+			lines.push(`\t\tcase '${method}':`);
+		}
+		lines.push('\t\t\treturn withParams(wire, reviveSessionAction(wire.params));');
+	}
+
+	// Methods with their own revive function
+	for (const { method, paramType } of otherMethodCases) {
+		const fnName = `revive${paramType.replace(/^I/, '')}`;
+		lines.push(`\t\tcase '${method}':`);
+		lines.push(`\t\t\treturn withParams(wire, ${fnName}(wire.params));`);
+	}
+
+	// Methods with nested IStateAction fields (e.g. dispatchAction)
+	for (const { method, paramType } of nestedActionMethods) {
+		const fnName = `revive${paramType.replace(/^I/, '')}`;
+		lines.push(`\t\tcase '${method}':`);
+		lines.push(`\t\t\treturn withParams(wire, ${fnName}(wire.params));`);
+	}
+
+	lines.push('\t\tdefault:');
+	lines.push('\t\t\treturn wire as AhpIncomingMessage;');
+	lines.push('\t}');
+	lines.push('}');
+
+	lines.push('');
+
+	// protocolReplacer
+	lines.push('// ---- JSON replacer for WebSocket transports --------------------------------');
+	lines.push('');
+	lines.push('/**');
+	lines.push(' * JSON.stringify replacer that converts URI instances to plain strings.');
+	lines.push(' * Use with `JSON.stringify(msg, protocolReplacer)` at the transport boundary.');
+	lines.push(' */');
+	lines.push('export function protocolReplacer(_key: string, value: unknown): unknown {');
+	lines.push('\tif (value instanceof URI) {');
+	lines.push('\t\treturn value.toString();');
+	lines.push('\t}');
+	lines.push('\treturn value;');
+	lines.push('}');
 
 	lines.push('');
 	let content = lines.join('\n') + '\n';
@@ -605,12 +826,14 @@ function main() {
 		processFile(srcPath, file.dest, commitHash);
 	}
 
-	// Step 2: Detect URI fields and generate serialization helpers
+	// Step 2: Detect URI fields and method mappings, then generate serialization helpers
 	console.log();
 	console.log('Generating serialization helpers...');
 	const uriFields = findUriFields();
 	console.log(`  Found ${uriFields.length} URI fields across ${new Set(uriFields.map(f => f.interfaceName)).size} interfaces`);
-	generateSerializationFile(uriFields, commitHash);
+	const methodMappings = findMethodMappings();
+	console.log(`  Found ${methodMappings.length} method mappings`);
+	generateSerializationFile(uriFields, methodMappings, commitHash);
 
 	console.log();
 	console.log('Done.');

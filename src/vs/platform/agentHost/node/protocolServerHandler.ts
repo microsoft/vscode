@@ -8,26 +8,19 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IActionEnvelope, INotification, isSessionAction, type ISessionAction } from '../common/state/sessionActions.js';
 import { isActionKnownToVersion, MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
+import { protocolReviver, type AhpIncomingMessage } from '../common/state/protocol/protocolSerialization.js';
+import type { IAhpRequest, IAhpClientNotification } from '../common/state/protocol/messages.js';
 import {
-	isJsonRpcRequest,
-	isJsonRpcNotification,
 	JSON_RPC_INTERNAL_ERROR,
 	AHP_SESSION_NOT_FOUND,
 	AHP_UNSUPPORTED_PROTOCOL_VERSION,
 	ProtocolError,
-	type IBrowseDirectoryParams,
 	type IBrowseDirectoryResult,
 	type ICreateSessionParams,
-	type IDispatchActionParams,
-	type IDisposeSessionParams,
-	type IFetchTurnsParams,
 	type IInitializeParams,
-	type IProtocolMessage,
 	type IReconnectParams,
 	type ISetAuthTokenParams,
 	type IStateSnapshot,
-	type ISubscribeParams,
-	type IUnsubscribeParams,
 } from '../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI, type ISessionSummary } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
@@ -45,6 +38,14 @@ interface IConnectedClient {
 	readonly transport: IProtocolTransport;
 	readonly subscriptions: Set<string>;
 	readonly disposables: DisposableStore;
+}
+
+function isAhpRequest(msg: AhpIncomingMessage): msg is IAhpRequest {
+	return 'method' in msg && 'id' in msg;
+}
+
+function isAhpNotification(msg: AhpIncomingMessage): msg is IAhpClientNotification {
+	return 'method' in msg && !('id' in msg);
 }
 
 /**
@@ -88,16 +89,20 @@ export class ProtocolServerHandler extends Disposable {
 		const disposables = new DisposableStore();
 		let client: IConnectedClient | undefined;
 
-		disposables.add(transport.onMessage(msg => {
-			if (isJsonRpcRequest(msg)) {
+		disposables.add(transport.onMessage(raw => {
+			const msg = protocolReviver(raw);
+			if (isAhpRequest(msg)) {
 				this._logService.trace(`[ProtocolServer] request: method=${msg.method} id=${msg.id}`);
 
 				// Handle initialize/reconnect as requests that set up the client
 				if (!client && (msg.method === 'initialize' || msg.method === 'reconnect')) {
 					try {
-						const result = msg.method === 'initialize'
-							? this._handleInitialize(msg.params as IInitializeParams, transport, disposables)
-							: this._handleReconnect(msg.params as IReconnectParams, transport, disposables);
+						let result: { client: IConnectedClient; response: unknown };
+						if (msg.method === 'initialize') {
+							result = this._handleInitialize(msg.params, transport, disposables);
+						} else {
+							result = this._handleReconnect(msg.params, transport, disposables);
+						}
 						client = result.client;
 						transport.send({ jsonrpc: '2.0', id: msg.id, result: result.response });
 					} catch (err) {
@@ -111,31 +116,30 @@ export class ProtocolServerHandler extends Disposable {
 				if (!client) {
 					return;
 				}
-				this._handleRequest(client, msg.method, msg.params, msg.id);
-			} else if (isJsonRpcNotification(msg)) {
+				this._handleRequest(client, msg, msg.id);
+			} else if (isAhpNotification(msg)) {
 				this._logService.trace(`[ProtocolServer] notification: method=${msg.method}`);
 				// Notification — fire-and-forget
-				switch (msg.method) {
-					case 'unsubscribe':
-						if (client) {
-							client.subscriptions.delete((msg.params as IUnsubscribeParams).resource.toString());
+				if (msg.method === 'unsubscribe') {
+					if (client) {
+						client.subscriptions.delete(msg.params.resource.toString());
+					}
+				} else if (msg.method === 'dispatchAction') {
+					if (client) {
+						const action = msg.params.action;
+						this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(action.type)}`);
+						const origin = { clientId: client.clientId, clientSeq: msg.params.clientSeq };
+						this._stateManager.dispatchClientAction(action, origin);
+						if (isSessionAction(action)) {
+							this._sideEffectHandler.handleAction(action);
 						}
-						break;
-					case 'dispatchAction':
-						if (client) {
-							const params = msg.params as IDispatchActionParams;
-							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(params.action.type)}`);
-							const origin = { clientId: client.clientId, clientSeq: params.clientSeq };
-							this._stateManager.dispatchClientAction(params.action, origin);
-							if (isSessionAction(params.action)) {
-								this._sideEffectHandler.handleAction(params.action);
-							}
-						}
-						break;
-					case 'setAuthToken': {
-						const p = msg.params as ISetAuthTokenParams;
+					}
+				} else {
+					// VS Code-specific notifications not in the protocol maps
+					const raw = msg as unknown as { method: string; params?: unknown };
+					if (raw.method === 'setAuthToken') {
+						const p = raw.params as ISetAuthTokenParams;
 						this._sideEffectHandler.handleSetAuthToken(p.token);
-						break;
 					}
 				}
 			}
@@ -235,11 +239,10 @@ export class ProtocolServerHandler extends Disposable {
 		} else {
 			const snapshots: IStateSnapshot[] = [];
 			for (const sub of params.subscriptions) {
-				const resource = URI.revive(sub);
-				const snapshot = this._stateManager.getSnapshot(resource);
+				const snapshot = this._stateManager.getSnapshot(sub);
 				if (snapshot) {
 					snapshots.push(snapshot);
-					client.subscriptions.add(resource.toString());
+					client.subscriptions.add(sub.toString());
 				}
 			}
 			return { client, response: { type: 'snapshot', snapshots } };
@@ -248,12 +251,12 @@ export class ProtocolServerHandler extends Disposable {
 
 	// ---- Requests (expect a response) ---------------------------------------
 
-	private _handleRequest(client: IConnectedClient, method: string, params: unknown, id: number): void {
-		this._handleRequestAsync(client, method, params).then(result => {
-			this._logService.trace(`[ProtocolServer] Request '${method}' id=${id} succeeded`);
+	private _handleRequest(client: IConnectedClient, req: IAhpRequest, id: number): void {
+		this._handleRequestAsync(client, req).then(result => {
+			this._logService.trace(`[ProtocolServer] Request '${req.method}' id=${id} succeeded`);
 			client.transport.send({ jsonrpc: '2.0', id, result: result ?? null });
 		}).catch(err => {
-			this._logService.error(`[ProtocolServer] Request '${method}' failed`, err);
+			this._logService.error(`[ProtocolServer] Request '${req.method}' failed`, err);
 			const code = err instanceof ProtocolError ? err.code : JSON_RPC_INTERNAL_ERROR;
 			const message = err instanceof ProtocolError
 				? err.message
@@ -268,23 +271,21 @@ export class ProtocolServerHandler extends Disposable {
 		});
 	}
 
-	private async _handleRequestAsync(client: IConnectedClient, method: string, params: unknown): Promise<unknown> {
-		switch (method) {
+	private async _handleRequestAsync(client: IConnectedClient, req: IAhpRequest): Promise<unknown> {
+		switch (req.method) {
 			case 'subscribe': {
-				const p = params as ISubscribeParams;
-				const resource = URI.revive(p.resource);
-				const snapshot = this._stateManager.getSnapshot(resource);
+				const snapshot = this._stateManager.getSnapshot(req.params.resource);
 				if (snapshot) {
-					client.subscriptions.add(resource.toString());
+					client.subscriptions.add(req.params.resource.toString());
 				}
 				return snapshot ?? null;
 			}
 			case 'createSession': {
-				const session = await this._sideEffectHandler.handleCreateSession(params as ICreateSessionParams);
+				const session = await this._sideEffectHandler.handleCreateSession(req.params);
 				return { session };
 			}
 			case 'disposeSession': {
-				this._sideEffectHandler.handleDisposeSession(URI.revive((params as IDisposeSessionParams).session));
+				this._sideEffectHandler.handleDisposeSession(req.params.session);
 				return null;
 			}
 			case 'listSessions': {
@@ -292,18 +293,16 @@ export class ProtocolServerHandler extends Disposable {
 				return { items: sessions };
 			}
 			case 'fetchTurns': {
-				const p = params as IFetchTurnsParams;
-				const session = URI.revive(p.session);
-				const state = this._stateManager.getSessionState(session);
+				const state = this._stateManager.getSessionState(req.params.session);
 				if (!state) {
-					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${session.toString()}`);
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${req.params.session.toString()}`);
 				}
 				const turns = state.turns;
-				const limit = Math.min(p.limit ?? 50, 100);
+				const limit = Math.min(req.params.limit ?? 50, 100);
 
 				let endIndex = turns.length;
-				if (p.before) {
-					const idx = turns.findIndex(t => t.id === p.before);
+				if (req.params.before) {
+					const idx = turns.findIndex(t => t.id === req.params.before);
 					if (idx !== -1) {
 						endIndex = idx;
 					}
@@ -316,11 +315,10 @@ export class ProtocolServerHandler extends Disposable {
 				};
 			}
 			case 'browseDirectory': {
-				const p = params as IBrowseDirectoryParams;
-				return this._sideEffectHandler.handleBrowseDirectory(URI.revive(p.uri));
+				return this._sideEffectHandler.handleBrowseDirectory(req.params.uri);
 			}
 			default:
-				throw new Error(`Unknown method: ${method}`);
+				throw new Error(`Unknown method: ${req.method}`);
 		}
 	}
 
@@ -328,7 +326,7 @@ export class ProtocolServerHandler extends Disposable {
 
 	private _broadcastAction(envelope: IActionEnvelope): void {
 		this._logService.trace(`[ProtocolServer] Broadcasting action: ${envelope.action.type}`);
-		const msg: IProtocolMessage = { jsonrpc: '2.0', method: 'action', params: { envelope } };
+		const msg = { jsonrpc: '2.0' as const, method: 'action', params: { envelope } };
 		for (const client of this._clients.values()) {
 			if (this._isRelevantToClient(client, envelope)) {
 				client.transport.send(msg);
@@ -337,7 +335,7 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	private _broadcastNotification(notification: INotification): void {
-		const msg: IProtocolMessage = { jsonrpc: '2.0', method: 'notification', params: { notification } };
+		const msg = { jsonrpc: '2.0' as const, method: 'notification', params: { notification } };
 		for (const client of this._clients.values()) {
 			client.transport.send(msg);
 		}
