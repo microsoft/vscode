@@ -176,8 +176,8 @@ export interface ILanguageModelConfigurationSchema extends IJSONSchema {
 		group?: string;
 		/** Labels for enum values. If provided, these are shown instead of the raw enum values. */
 		enumItemLabels?: string[];
-		/** Codicon IDs for enum values. If provided, icons are shown next to each enum value. */
-		enumIcons?: string[];
+		/** Codicon ID for this configuration property, shown in the picker label and dropdown items. */
+		icon?: string;
 	} | boolean };
 }
 

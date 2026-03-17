@@ -128,10 +128,9 @@ declare module 'vscode' {
 			 */
 			readonly enumItemLabels?: string[];
 			/**
-			 * Codicon IDs for enum values, shown as icons next to each value.
-			 * Must have the same length and order as `enum`.
+			 * Codicon ID for this configuration property, shown in the picker label and dropdown items.
 			 */
-			readonly enumIcons?: string[];
+			readonly icon?: string;
 			/**
 			 * The group this property belongs to. When set to `'navigation'`, the property
 			 * is shown as a primary action in the model picker.
