@@ -54,7 +54,7 @@ import { ContextMenuController } from '../../../../editor/contrib/contextmenu/br
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { TargetMode, TargetPicker } from './sessionTargetPicker.js';
+import { TargetPicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
 import { SyncIndicator } from './syncIndicator.js';
 import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
@@ -77,7 +77,6 @@ const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
 
 interface IDraftState extends IChatModelInputState {
-	targetMode?: TargetMode;
 	branch?: string;
 	projectUri?: UriComponents;
 }
@@ -371,7 +370,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Open repository for local folder projects
 		if (session.project?.isFolder) {
-			this._openRepository(session.project.uri, this._draftState?.targetMode);
+			this._openRepository(session.project.uri);
 		}
 
 		// Listen for session changes
@@ -395,7 +394,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._updateSendButtonState();
 	}
 
-	private _openRepository(folderUri: URI, preferredTargetMode?: TargetMode): void {
+	private _openRepository(folderUri: URI): void {
 		this._openRepositoryCts.value?.cancel();
 		const cts = this._openRepositoryCts.value = new CancellationTokenSource();
 
@@ -417,7 +416,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			if (session?.project) {
 				const updatedProject = session.project.withRepository(repository);
 				session.setProject(updatedProject);
-				this._targetPicker.setProject(updatedProject, preferredTargetMode);
+				this._targetPicker.setProject(updatedProject);
 			}
 
 			this._branchPicker.setRepository(repository);
@@ -865,7 +864,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			selectedModel: this._currentLanguageModel.get(),
 			selections: this._editor?.getSelections() ?? [],
 			contrib: {},
-			targetMode: this._targetPicker.targetMode,
 			branch: this._branchPicker.selectedBranch,
 			projectUri: this._newSession.value?.project?.uri.toJSON(),
 		};
@@ -1043,7 +1041,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			selectedModel: this._draftState?.selectedModel,
 			selections: [],
 			contrib: {},
-			targetMode: isLocal ? this._targetPicker.targetMode : undefined,
 			branch: isLocal ? this._branchPicker.selectedBranch : undefined,
 			projectUri: project?.uri.toJSON(),
 		};
@@ -1083,7 +1080,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const previousProject = this._projectPicker.selectedProject;
 
 		// Update target picker with new project (determines target mode)
-		this._targetPicker.setProject(project);
+		this._targetPicker.setProject(project, true);
 		const isLocal = this._currentTarget === AgentSessionProviders.Background;
 
 		// Show/hide local-only pickers
