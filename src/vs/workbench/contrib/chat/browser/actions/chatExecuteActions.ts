@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { mark } from '../../../../../base/common/performance.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
@@ -52,6 +53,7 @@ export interface IChatExecuteActionContext {
 
 abstract class SubmitAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		mark('code/chat/willSubmitAction');
 		const context = args[0] as IChatExecuteActionContext | undefined;
 		const telemetryService = accessor.get(ITelemetryService);
 		const widgetService = accessor.get(IChatWidgetService);
