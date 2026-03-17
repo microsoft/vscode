@@ -25,10 +25,10 @@ import { IWorkspaceTrustManagementService } from '../../../../../platform/worksp
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
-import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
-import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isBuiltInAgentSessionProvider } from './agentSessions.js';
 
 //#region Interfaces, Types
 
@@ -502,12 +502,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		}
 
 
-		let contributedProviderLabel: string | undefined;
+		const mapSessionContributionToType = new Map<string, ResolvedChatSessionsExtensionPoint>();
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
-			if (contribution.type === provider) {
-				contributedProviderLabel = contribution.name;
-				break;
-			}
+			mapSessionContributionToType.set(contribution.type, contribution);
 		}
 
 		// Phase 1: Fetch new items for this provider (async, may interleave with other providers)
@@ -525,7 +522,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					providerLabel = getAgentSessionProviderName(agentSessionProvider);
 					icon = getAgentSessionProviderIcon(agentSessionProvider);
 				} else {
-					providerLabel = contributedProviderLabel ?? chatSessionType;
+					providerLabel = mapSessionContributionToType.get(chatSessionType)?.name ?? chatSessionType;
 					icon = session.iconPath ?? Codicon.terminal;
 				}
 
@@ -556,8 +553,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		// so concurrent updateItems calls for other providers don't lose data)
 
 		for (const [, session] of this._sessions) {
-			if (session.providerType !== provider && !sessions.has(session.resource)) {
-				sessions.set(session.resource, session);
+			if (session.providerType !== provider && !sessions.has(session.resource) && (isBuiltInAgentSessionProvider(session.providerType) || mapSessionContributionToType.has(session.providerType))) {
+				sessions.set(session.resource, session); // fill in existing sessions for providers that did not resolve if they are known or built-in
 			}
 		}
 
