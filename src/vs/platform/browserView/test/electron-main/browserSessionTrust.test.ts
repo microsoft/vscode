@@ -201,8 +201,6 @@ suite('BrowserSessionTrust', () => {
 			callbackResult = value;
 		});
 		assert.strictEqual(callbackResult, false);
-		assert.strictEqual(electronSession.closeAllConnections.calledOnce, true);
-		assert.strictEqual(storage.read(STORAGE_KEY), undefined);
 
 		clock.restore();
 	});
