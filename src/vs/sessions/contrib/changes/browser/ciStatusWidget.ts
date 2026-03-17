@@ -286,7 +286,7 @@ export class CIStatusWidget extends Disposable {
 		const fixChecksAction = this._headerActionDisposables.add(new Action(
 			'ci.fixChecks',
 			localize('ci.fixChecks', "Fix Checks"),
-			ThemeIcon.asClassName(Codicon.sparkle),
+			ThemeIcon.asClassName(Codicon.lightbulbAutofix),
 			true,
 			async () => {
 				await this._sendFixChecksPrompt(failedChecks);
@@ -483,6 +483,8 @@ function getCheckIcon(check: IGitHubCICheck): ThemeIcon {
 				default:
 					return Codicon.circleFilled;
 			}
+		default:
+			return Codicon.circleFilled;
 	}
 }
 
