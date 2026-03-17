@@ -152,11 +152,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 								h('span.agent-session-diff-removed@removedSpan')
 							]),
 						h('div.agent-session-description@description'),
-						h('div.agent-session-details-right', [
-							h('div.agent-session-status@statusContainer', [
-								h('span.agent-session-status-provider-icon@statusProviderIcon'),
-								h('span.agent-session-status-time@statusTime')
-							]),
+						h('div.agent-session-status@statusContainer', [
+							h('span.agent-session-status-provider-icon@statusProviderIcon'),
+							h('span.agent-session-status-time@statusTime')
 						]),
 					]),
 					h('div.agent-session-approval-row@approvalRow', [
@@ -256,12 +254,13 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		// Description
 		const hasDescription = this.renderDescription(session, template);
 
-		// Separators: dot between badge·diff, and between (badge|diff)·description
+		// Status
+		const hasStatus = this.renderStatus(session, template);
+
+		// Separators: [badge] · [diff] · [description] · [status]
 		template.separator.classList.toggle('has-separator', hasBadge && hasDiff);
 		template.description.classList.toggle('has-separator', hasDescription && (hasBadge || hasDiff));
-
-		// Status
-		this.renderStatus(session, template);
+		template.statusContainer.classList.toggle('has-separator', hasStatus && (hasBadge || hasDiff || hasDescription));
 
 		// Hover
 		this.renderHover(session, template);
@@ -387,7 +386,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		return getDurationString(elapsed, useFullTimeWords);
 	}
 
-	private renderStatus(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+	private renderStatus(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
 
 		const getTimeLabel = (session: IAgentSession) => {
 			let timeLabel: string | undefined;
@@ -401,7 +400,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 				if (seconds < 60) {
 					timeLabel = localize('secondsDuration', "now");
 				} else {
-					timeLabel = sessionDateFromNow(date);
+					timeLabel = sessionDateFromNow(date, true);
 				}
 			}
 
@@ -425,6 +424,8 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		template.statusTime.textContent = getTimeLabel(session.element);
 		const timer = template.elementDisposable.add(new IntervalTimer());
 		timer.cancelAndSet(() => template.statusTime.textContent = getTimeLabel(session.element), session.element.status === AgentSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
+
+		return true;
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
@@ -1122,7 +1123,7 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 	]);
 }
 
-export function sessionDateFromNow(sessionTime: number): string {
+export function sessionDateFromNow(sessionTime: number, appendAgoLabel?: boolean): string {
 	const now = Date.now();
 	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;
@@ -1135,14 +1136,18 @@ export function sessionDateFromNow(sessionTime: number): string {
 	// normalization logic.
 
 	if (sessionTime < startOfToday && sessionTime >= startOfYesterday) {
-		return localize('date.fromNow.days.singular', '1 day');
+		return appendAgoLabel
+			? localize('date.fromNow.days.singular.ago', '1 day ago')
+			: localize('date.fromNow.days.singular', '1 day');
 	}
 
 	if (sessionTime < startOfYesterday && sessionTime >= startOfTwoDaysAgo) {
-		return localize('date.fromNow.days.multiple', '2 days');
+		return appendAgoLabel
+			? localize('date.fromNow.days.multiple.ago', '2 days ago')
+			: localize('date.fromNow.days.multiple', '2 days');
 	}
 
-	return fromNow(sessionTime, false);
+	return fromNow(sessionTime, appendAgoLabel);
 }
 
 export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSessionsModel | AgentSessionListItem> {

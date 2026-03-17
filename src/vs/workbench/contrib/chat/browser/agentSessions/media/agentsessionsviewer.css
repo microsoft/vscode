@@ -243,20 +243,16 @@
 			font-size: 13px;
 		}
 
-		.agent-session-details-right {
-			display: flex;
-			align-items: center;
-			gap: 4px;
-			margin-left: auto;
-			white-space: nowrap;
-			flex-shrink: 0;
-		}
-
 		.agent-session-status {
 			display: flex;
 			align-items: center;
 			font-variant-numeric: tabular-nums;
 			white-space: nowrap;
+
+			&.has-separator::before {
+				content: '\00B7';
+				margin-right: 4px;
+			}
 
 			.agent-session-status-provider-icon {
 				font-size: 11px;

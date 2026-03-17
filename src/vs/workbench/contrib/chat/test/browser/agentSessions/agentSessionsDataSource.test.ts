@@ -57,6 +57,22 @@ suite('sessionDateFromNow', () => {
 		assert.ok(result.includes('day'), `Expected days ago, got: ${result}`);
 		assert.ok(!result.includes('1 day') && !result.includes('2 days'), `Should not be 1 or 2 days ago, got: ${result}`);
 	});
+
+	test('appends "ago" when appendAgoLabel is true', () => {
+		const now = Date.now();
+		const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+
+		const yesterday = startOfToday - ONE_DAY / 2;
+		assert.strictEqual(sessionDateFromNow(yesterday, true), '1 day ago');
+
+		const startOfYesterday = startOfToday - ONE_DAY;
+		const twoDaysAgo = startOfYesterday - ONE_DAY / 2;
+		assert.strictEqual(sessionDateFromNow(twoDaysAgo, true), '2 days ago');
+
+		const fiveDaysAgo = startOfToday - 5 * ONE_DAY;
+		const result = sessionDateFromNow(fiveDaysAgo, true);
+		assert.ok(result.includes('ago'), `Expected "ago" in result, got: ${result}`);
+	});
 });
 
 suite('AgentSessionsDataSource', () => {
