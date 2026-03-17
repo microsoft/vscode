@@ -490,44 +490,10 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		const providersToResolve = Array.from(this.providersToResolve);
 		this.providersToResolve.clear();
 
-		let providerFilter: string[] | undefined;
-		if (providersToResolve.includes(undefined)) {
-			// Explicit "all providers" request: keep filter undefined so that all
-			// providers/controllers are refreshed, including built-in ones.
-			providerFilter = undefined;
-		} else {
-			const coalesced = coalesce(providersToResolve);
-			// Treat an empty filter as "all" as well.
-			providerFilter = coalesced.length > 0 ? coalesced : undefined;
-		}
+		const providerFilter = providersToResolve.includes(undefined) ? undefined : coalesce(providersToResolve);
 
-		// Resolve provider not in sequence but parallel so that one slow provider
-		// does not block the others from resolving and showing up in the UI.
-
-		if (!providerFilter) {
-			// No specific providers requested: refresh and update all providers/controllers.
-			try {
-				await this.chatSessionsService.refreshChatSessionItems(undefined, token);
-				await this.updateItems(undefined, token);
-			} catch (error) {
-				this.logger.logIfTrace(`Error resolving sessions for all providers: ${error instanceof Error ? error.message : safeStringify(error)}`);
-			}
-			return;
-		}
-
-		await Promise.all(providerFilter.map(async provider => {
-			try {
-				await this.chatSessionsService.refreshChatSessionItems([provider], token);
-			} catch (error) {
-				this.logger.logIfTrace(`Error resolving sessions for provider ${provider}: ${error instanceof Error ? error.message : safeStringify(error)}`);
-			}
-		}));
-
-		try {
-			await this.updateItems(providerFilter, token);
-		} catch (error) {
-			this.logger.logIfTrace(`Error updating sessions for providers ${providerFilter.join(', ')}: ${error instanceof Error ? error.message : safeStringify(error)}`);
-		}
+		await this.chatSessionsService.refreshChatSessionItems(providerFilter, token);
+		await this.updateItems(providerFilter, token);
 	}
 
 	/**
@@ -539,20 +505,17 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			mapSessionContributionToType.set(contribution.type, contribution);
 		}
 
-		const providerResults: { readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }[] = [];
-		for await (const result of this.chatSessionsService.getChatSessionItems(providerFilter, token)) {
-			providerResults.push(result);
-		}
-
-		if (token.isCancellationRequested) {
-			return;
-		}
+		const providerResults = this.chatSessionsService.getChatSessionItems(providerFilter, token);
 
 		const resolvedProviders = new Set<string>();
 		const sessions = new ResourceMap<IInternalAgentSession>();
 
-		for (const { chatSessionType, items: providerSessions } of providerResults) {
+		for await (const { chatSessionType, items: providerSessions } of providerResults) {
 			resolvedProviders.add(chatSessionType);
+
+			if (token.isCancellationRequested) {
+				return;
+			}
 
 			for (const session of providerSessions) {
 				let icon: ThemeIcon;
