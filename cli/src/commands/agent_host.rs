@@ -319,7 +319,7 @@ impl AgentHostManager {
 				e = child.wait() => {
 					info!(self.log, "[{} process]: exited: {:?}", commit_prefix, e);
 					if let Some(o) = opener.take() {
-						o.open(Err(format!("Server exited before ready: {:?}", e)));
+						o.open(Err(format!("Server exited before ready: {e:?}")));
 					}
 					break;
 				}

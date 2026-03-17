@@ -15,6 +15,7 @@ import { SessionStatus } from '../../common/state/sessionState.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { SessionStateManager } from '../../node/sessionStateManager.js';
 import { MockAgent } from './mockAgent.js';
+import { cwd } from '../../../../base/common/process.js';
 
 // ---- Tests ------------------------------------------------------------------
 
@@ -283,7 +284,7 @@ suite('AgentSideEffects', () => {
 
 		test('throws when the target is not a directory', async () => {
 			await assert.rejects(
-				() => sideEffects.handleBrowseDirectory(URI.file('/Users/roblou/code/vscode/package.json')),
+				() => sideEffects.handleBrowseDirectory(URI.file(cwd() + '/package.json')),
 				/Not a directory/,
 			);
 		});

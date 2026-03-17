@@ -5,6 +5,6 @@
 
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { IRemoteAgentHostService } from '../common/remoteAgentHostService.js';
-import { RemoteAgentHostService } from '../node/remoteAgentHostService.js';
+import { RemoteAgentHostService } from './remoteAgentHostServiceImpl.js';
 
 registerSingleton(IRemoteAgentHostService, RemoteAgentHostService, InstantiationType.Delayed);
