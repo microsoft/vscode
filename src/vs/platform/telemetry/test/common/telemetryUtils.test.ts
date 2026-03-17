@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { cleanRemoteAuthority } from '../../common/telemetryUtils.js';
+import { cleanRemoteAuthority, getPiiPathsFromEnvironment, getBrowserPiiPaths } from '../../common/telemetryUtils.js';
 
 suite('TelemetryUtils', () => {
 
@@ -119,6 +119,63 @@ suite('TelemetryUtils', () => {
 
 			assert.strictEqual(cleanRemoteAuthority('ssh-remote', config), 'other');
 			assert.strictEqual(cleanRemoteAuthority(undefined, config), 'none');
+		});
+	});
+
+	suite('getPiiPathsFromEnvironment', () => {
+		test('returns array of paths from IPathEnvironment', () => {
+			const paths = {
+				appRoot: '/Applications/VS Code.app/Contents/Resources/app',
+				extensionsPath: '/Users/test/.vscode/extensions',
+				userDataPath: '/Users/test/Library/Application Support/Code',
+				userHome: { fsPath: '/Users/test' } as any,
+				tmpDir: { fsPath: '/tmp' } as any
+			};
+
+			const result = getPiiPathsFromEnvironment(paths);
+
+			assert.strictEqual(result.length, 5);
+			assert(result.includes('/Applications/VS Code.app/Contents/Resources/app'));
+			assert(result.includes('/Users/test/.vscode/extensions'));
+			assert(result.includes('/Users/test/Library/Application Support/Code'));
+			assert(result.includes('/Users/test'));
+			assert(result.includes('/tmp'));
+		});
+	});
+
+	suite('getBrowserPiiPaths', () => {
+		test('returns empty array when no webEndpoint is provided', () => {
+			const result = getBrowserPiiPaths(undefined);
+			assert.strictEqual(result.length, 0);
+		});
+
+		test('returns path patterns for vscode.dev endpoint', () => {
+			const result = getBrowserPiiPaths('https://vscode.dev');
+
+			assert.strictEqual(result.length, 4);
+			// Should include the origin and common path patterns
+			assert(result.some(p => p.includes('vscode.dev')));
+		});
+
+		test('returns path patterns for codespaces endpoint', () => {
+			const result = getBrowserPiiPaths('https://test-github-1234567.github.dev');
+
+			assert.strictEqual(result.length, 4);
+			assert(result.some(p => p.includes('github.dev')));
+		});
+
+		test('handles endpoint with trailing slash', () => {
+			const result = getBrowserPiiPaths('https://vscode.dev/');
+
+			assert.strictEqual(result.length, 4);
+			assert(result.some(p => p === 'https://vscode.dev'));
+		});
+
+		test('handles endpoint without protocol', () => {
+			const result = getBrowserPiiPaths('vscode.dev');
+
+			// Should still work, though ideally protocol is included
+			assert(result.length > 0);
 		});
 	});
 });

@@ -281,6 +281,31 @@ export function getPiiPathsFromEnvironment(paths: IPathEnvironment): string[] {
 	return [paths.appRoot, paths.extensionsPath, paths.userHome.fsPath, paths.tmpDir.fsPath, paths.userDataPath];
 }
 
+/**
+ * Generates PII path patterns for browser/web environments.
+ * In web environments, stack traces contain URLs like https://host/static/build/bundle.js
+ * We need to add these URL patterns to avoid them being fully redacted.
+ * @param webEndpoint The base URL of the web endpoint (e.g., https://vscode.dev or https://codespace.github.dev)
+ * @returns Array of URL patterns that should not be redacted
+ */
+export function getBrowserPiiPaths(webEndpoint: string | undefined): string[] {
+	if (!webEndpoint) {
+		return [];
+	}
+
+	// Normalize endpoint to remove trailing slash
+	const endpoint = webEndpoint.replace(/\/$/, '');
+
+	// Generate patterns for common bundle paths
+	// These patterns will be used to clean stack traces while preserving VS Code's own paths
+	return [
+		endpoint,
+		`${endpoint}/static/`,
+		`${endpoint}/out/`,
+		`${endpoint}/node_modules/`
+	];
+}
+
 //#region Telemetry Cleaning
 
 /**
