@@ -100,11 +100,12 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 
 	// Group: Force modal if the editor has the RequiresModal capability
 	if ((isEditorInput(editor) && (editor.hasCapability(EditorInputCapabilities.RequiresModal) || editor.hasCapability(EditorInputCapabilities.RequiresModal)))) {
-		preferredGroup = MODAL_GROUP;
+		group = editorGroupService.createModalEditorPart(options?.modal)
+			.then(part => part.activeGroup);
 	}
 
 	// Group: Instance of Group
-	if (preferredGroup && typeof preferredGroup !== 'number') {
+	else if (preferredGroup && typeof preferredGroup !== 'number') {
 		group = preferredGroup;
 	}
 
