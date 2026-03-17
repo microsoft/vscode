@@ -25,15 +25,6 @@ const STORAGE_KEY_RECENT_PROJECTS = 'sessions.recentlyPickedProjects';
 const MAX_RECENT_PROJECTS = 10;
 const FILTER_THRESHOLD = 10;
 
-// Legacy storage keys from the old separate folder/repo pickers
-const LEGACY_STORAGE_KEY_LAST_FOLDER = 'agentSessions.lastPickedFolder';
-const LEGACY_STORAGE_KEY_RECENT_FOLDERS = 'agentSessions.recentlyPickedFolders';
-const LEGACY_STORAGE_KEY_LAST_REPO = 'agentSessions.lastPickedRepo';
-const LEGACY_STORAGE_KEY_RECENT_REPOS = 'agentSessions.recentlyPickedRepos';
-// Old unified keys (renamed)
-const LEGACY_STORAGE_KEY_LAST_PROJECT = 'agentSessions.lastPickedProject';
-const LEGACY_STORAGE_KEY_RECENT_PROJECTS = 'agentSessions.recentlyPickedProjects';
-
 const COMMAND_BROWSE_FOLDERS = 'command:browseFolders';
 const COMMAND_BROWSE_REPOS = 'command:browseRepos';
 
@@ -78,88 +69,19 @@ export class ProjectPicker extends Disposable {
 	) {
 		super();
 
-		// Restore recently picked projects (or migrate from legacy storage)
+		// Restore recently picked projects
 		try {
-			const stored = this.storageService.get(STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE)
-				?? this.storageService.get(LEGACY_STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE);
+			const stored = this.storageService.get(STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE);
 			if (stored) {
-				this._recentProjects = this._migrateStoredProjects(JSON.parse(stored));
-			} else {
-				// Migrate from legacy separate folder/repo storage
-				this._migrateFromLegacyStorage();
+				this._recentProjects = JSON.parse(stored);
 			}
 		} catch { /* ignore */ }
 
-		// Restore last picked project (or migrate from legacy)
+		// Restore last picked project
 		try {
-			const last = this.storageService.get(STORAGE_KEY_LAST_PROJECT, StorageScope.PROFILE)
-				?? this.storageService.get(LEGACY_STORAGE_KEY_LAST_PROJECT, StorageScope.PROFILE);
+			const last = this.storageService.get(STORAGE_KEY_LAST_PROJECT, StorageScope.PROFILE);
 			if (last) {
-				const stored: IStoredProject = this._migrateStoredProject(JSON.parse(last));
-				this._selectedProject = this._fromStored(stored);
-			} else {
-				// Try migrating last picked from legacy keys
-				this._migrateLastPickedFromLegacy();
-			}
-		} catch { /* ignore */ }
-	}
-
-	/**
-	 * Migrates recently picked folders and repos from the old separate storage
-	 * keys into the unified project list.
-	 */
-	private _migrateFromLegacyStorage(): void {
-		const migrated: IStoredProject[] = [];
-
-		// Migrate recent folders
-		try {
-			const storedFolders = this.storageService.get(LEGACY_STORAGE_KEY_RECENT_FOLDERS, StorageScope.PROFILE);
-			if (storedFolders) {
-				const folderUris: string[] = JSON.parse(storedFolders);
-				for (const uriStr of folderUris) {
-					const uri = URI.parse(uriStr);
-					migrated.push({ uri: uri.toJSON() });
-				}
-			}
-		} catch { /* ignore */ }
-
-		// Migrate recent repos
-		try {
-			const storedRepos = this.storageService.get(LEGACY_STORAGE_KEY_RECENT_REPOS, StorageScope.PROFILE);
-			if (storedRepos) {
-				const repos: { id: string; name: string }[] = JSON.parse(storedRepos);
-				for (const repo of repos) {
-					const uri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repo.id}/HEAD` });
-					migrated.push({ uri: uri.toJSON() });
-				}
-			}
-		} catch { /* ignore */ }
-
-		if (migrated.length > 0) {
-			this._recentProjects = migrated.slice(0, MAX_RECENT_PROJECTS);
-			this._persistRecents();
-		}
-	}
-
-	/**
-	 * Migrates the last picked folder or repo from the old storage keys.
-	 */
-	private _migrateLastPickedFromLegacy(): void {
-		// Try last folder first
-		try {
-			const lastFolder = this.storageService.get(LEGACY_STORAGE_KEY_LAST_FOLDER, StorageScope.PROFILE);
-			if (lastFolder) {
-				this._selectedProject = new SessionProject(URI.parse(lastFolder));
-				return;
-			}
-		} catch { /* ignore */ }
-
-		// Try last repo
-		try {
-			const lastRepo = this.storageService.get(LEGACY_STORAGE_KEY_LAST_REPO, StorageScope.PROFILE);
-			if (lastRepo) {
-				const repo: { id: string; name: string } = JSON.parse(lastRepo);
-				this._selectedProject = new SessionProject(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repo.id}/HEAD` }));
+				this._selectedProject = this._fromStored(JSON.parse(last));
 			}
 		} catch { /* ignore */ }
 	}
@@ -432,34 +354,6 @@ export class ProjectPicker extends Disposable {
 
 	private _fromStored(stored: IStoredProject): SessionProject {
 		return new SessionProject(URI.revive(stored.uri));
-	}
-
-	/**
-	 * Migrates a stored project from old string URI format to UriComponents if needed.
-	 */
-	private _migrateStoredProject(project: IStoredProject & { uri: UriComponents | string }): IStoredProject {
-		if (typeof project.uri === 'string') {
-			return { ...project, uri: URI.parse(project.uri).toJSON() };
-		}
-		return project;
-	}
-
-	/**
-	 * Migrates an array of stored projects and re-persists if any were in old format.
-	 */
-	private _migrateStoredProjects(projects: (IStoredProject & { uri: UriComponents | string })[]): IStoredProject[] {
-		let migrated = false;
-		const result = projects.map(p => {
-			if (typeof p.uri === 'string') {
-				migrated = true;
-				return { ...p, uri: URI.parse(p.uri).toJSON() };
-			}
-			return p;
-		});
-		if (migrated) {
-			this.storageService.store(STORAGE_KEY_RECENT_PROJECTS, JSON.stringify(result), StorageScope.PROFILE, StorageTarget.MACHINE);
-		}
-		return result;
 	}
 
 	private _projectKey(project: IStoredProject): string {
