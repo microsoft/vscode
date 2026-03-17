@@ -99,7 +99,7 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 	const options = input.options;
 
 	// Group: Force modal if the editor has the RequiresModal capability
-	if ((isEditorInput(editor) && (editor.hasCapability(EditorInputCapabilities.RequiresModal) || editor.hasCapability(EditorInputCapabilities.RequiresModal)))) {
+	if (isEditorInput(editor) && editor.hasCapability(EditorInputCapabilities.RequiresModal)) {
 		group = editorGroupService.createModalEditorPart(options?.modal)
 			.then(part => part.activeGroup);
 	}
@@ -159,7 +159,7 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 		// We also try to reveal an editor if it has the `ForceReveal` or `Singleton`
 		// capability which indicates that editor prefers to be revealed.
 		if (!group) {
-			if (options?.revealIfOpened || configurationService.getValue<boolean>('workbench.editor.revealIfOpen') || (isEditorInput(editor) && (editor.hasCapability(EditorInputCapabilities.ForceReveal) || editor.hasCapability(EditorInputCapabilities.Singleton)))) {
+			if (options?.revealIfOpened || configurationService.getValue<boolean>('workbench.editor.revealIfOpen') || (isEditorInput(editor) && editor.hasCapability(EditorInputCapabilities.Singleton))) {
 				let groupWithInputActive: IEditorGroup | undefined = undefined;
 				let groupWithInputOpened: IEditorGroup | undefined = undefined;
 
