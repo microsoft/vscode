@@ -32,7 +32,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { registerColor } from '../../../../../platform/theme/common/colorRegistry.js';
 import { PANEL_BORDER } from '../../../../common/theme.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
-import { AICustomizationListWidget, sectionToPromptType } from './aiCustomizationListWidget.js';
+import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
 import { McpListWidget } from './mcpListWidget.js';
 import { PluginListWidget } from './pluginListWidget.js';
 import {
@@ -58,7 +58,7 @@ import { INewPromptOptions, NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, 
 import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
 import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory } from './customizationCreatorService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IAICustomizationWorkspaceService, applyStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
@@ -706,52 +706,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	/**
-	 * Refreshes counts for all prompts-based sections by querying the prompts service.
-	 * Called on init, on any prompts data change, and on section switches.
+	 * Refreshes counts for all prompts-based sections using the list widget's
+	 * shared item-loading logic. This guarantees the sidebar counts always
+	 * match the per-group counts shown inside each section.
 	 */
 	private async refreshAllPromptsSectionCounts(): Promise<void> {
 		const promises: Promise<void>[] = [];
 		for (const section of this.sections) {
 			if (this.isPromptsSection(section.id)) {
 				promises.push(
-					this.computePromptsSectionCount(section.id).then(count => {
+					this.listWidget.computeItemCountForSection(section.id).then(count => {
 						this.updateSectionCount(section.id, count);
 					})
 				);
 			}
 		}
 		await Promise.all(promises);
-	}
-
-	/**
-	 * Computes the item count for a prompts-based section using the prompts service.
-	 */
-	private async computePromptsSectionCount(sectionId: AICustomizationManagementSection): Promise<number> {
-		const promptType = sectionToPromptType(sectionId);
-		const filter = this.workspaceService.getStorageSourceFilter(promptType);
-
-		if (promptType === PromptsType.agent) {
-			const agents = await this.promptsService.getCustomAgents(CancellationToken.None);
-			return applyStorageSourceFilter(agents.map(a => ({ uri: a.uri, storage: a.source.storage })), filter).length;
-		} else if (promptType === PromptsType.skill) {
-			const skills = await this.promptsService.findAgentSkills(CancellationToken.None);
-			return applyStorageSourceFilter((skills || []).map(s => ({ uri: s.uri, storage: s.storage })), filter).length;
-		} else if (promptType === PromptsType.prompt) {
-			const commands = await this.promptsService.getPromptSlashCommands(CancellationToken.None);
-			const items = commands
-				.filter(c => c.promptPath.type !== PromptsType.skill)
-				.map(c => ({ uri: c.promptPath.uri, storage: c.promptPath.storage }));
-			return applyStorageSourceFilter(items, filter).length;
-		} else if (promptType === PromptsType.hook) {
-			const hookFiles = await this.promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None);
-			return applyStorageSourceFilter(hookFiles.map(h => ({ uri: h.uri, storage: h.storage })), filter).length;
-		} else {
-			// Instructions
-			const promptFiles = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
-			const agentInstructions = await this.promptsService.listAgentInstructions(CancellationToken.None, undefined);
-			const allItems = [...promptFiles, ...agentInstructions.map(f => ({ uri: f.uri, storage: PromptsStorage.local as string }))];
-			return applyStorageSourceFilter(allItems, filter).length;
-		}
 	}
 
 	//#endregion
