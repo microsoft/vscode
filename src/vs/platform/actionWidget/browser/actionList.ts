@@ -10,6 +10,7 @@ import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/con
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
+import { IMenuStyles, Menu } from '../../../base/browser/ui/menu/menu.js';
 import { IAction, SubmenuAction, toAction } from '../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -26,7 +27,7 @@ import { localize } from '../../../nls.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { IOpenerService } from '../../opener/common/opener.js';
-import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
+import { defaultListStyles, defaultMenuStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../theme/common/colorRegistry.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { IHoverService } from '../../hover/browser/hover.js';
@@ -1114,6 +1115,7 @@ export class ActionList<T> extends Disposable {
 			const hoverContent = this._submenuDisposables.add(new ActionListHoverContent(
 				element.hover?.content,
 				element.submenuActions!,
+				defaultMenuStyles,
 			));
 			this._submenuDisposables.add(hoverContent.onDidSelect(() => {
 				this._hover.clear();
@@ -1215,6 +1217,7 @@ class ActionListHoverContent extends Disposable {
 	constructor(
 		hoverContent: string | MarkdownString | undefined,
 		actions: readonly IAction[],
+		menuStyles: IMenuStyles,
 	) {
 		super();
 		this.domNode = document.createElement('div');
@@ -1230,7 +1233,7 @@ class ActionListHoverContent extends Disposable {
 
 		for (const action of actions) {
 			if (action instanceof SubmenuAction) {
-				const group = this._register(new ActionListHoverGroup(action));
+				const group = this._register(new ActionListHoverGroup(action, menuStyles));
 				this._register(group.onDidSelect(() => this._onDidSelect.fire()));
 				this.domNode.appendChild(group.domNode);
 			}
@@ -1239,7 +1242,7 @@ class ActionListHoverContent extends Disposable {
 }
 
 /**
- * Renders a group of actionable items with a labeled header and separator line.
+ * Renders a group of actionable items with a labeled header using the Menu widget.
  */
 class ActionListHoverGroup extends Disposable {
 
@@ -1248,7 +1251,7 @@ class ActionListHoverGroup extends Disposable {
 
 	readonly domNode: HTMLElement;
 
-	constructor(group: SubmenuAction) {
+	constructor(group: SubmenuAction, menuStyles: IMenuStyles) {
 		super();
 		this.domNode = document.createElement('div');
 
@@ -1257,28 +1260,8 @@ class ActionListHoverGroup extends Disposable {
 		headerLabel.textContent = group.label;
 		dom.append(headerRow, dom.$('.action-list-submenu-group-line'));
 
-		for (const child of group.actions) {
-			const item = dom.append(this.domNode, dom.$('.action-list-submenu-item'));
-			const checkIcon = dom.append(item, dom.$('.check-icon'));
-			if (child.checked) {
-				checkIcon.classList.add('codicon', 'codicon-check');
-			}
-			const content = dom.append(item, dom.$('.action-list-submenu-content'));
-			const labelRow = dom.append(content, dom.$('.action-list-submenu-label-row'));
-			const label = dom.append(labelRow, dom.$('span.action-list-submenu-label'));
-			label.textContent = child.label;
-			if (child.tooltip) {
-				const desc = dom.append(content, dom.$('span.action-list-submenu-description'));
-				desc.textContent = child.tooltip;
-			}
-			this._register(dom.addDisposableListener(item, dom.EventType.MOUSE_DOWN, (e) => {
-				dom.EventHelper.stop(e, true);
-			}));
-			this._register(dom.addDisposableListener(item, dom.EventType.CLICK, (e) => {
-				dom.EventHelper.stop(e, true);
-				child.run();
-				this._onDidSelect.fire();
-			}));
-		}
+		const menuContainer = dom.append(this.domNode, dom.$('.action-list-submenu-menu'));
+		const menu = this._register(new Menu(menuContainer, group.actions, {}, menuStyles));
+		this._register(menu.onDidRun(() => this._onDidSelect.fire()));
 	}
 }
