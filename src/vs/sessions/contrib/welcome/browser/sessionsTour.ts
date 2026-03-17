@@ -20,30 +20,34 @@ import { mainWindow } from '../../../../base/browser/window.js';
 interface ITourStepConfig {
 	title: string;
 	body: string;
+	/** Short instruction telling the user what to do. */
+	action?: string;
 	/** Part to spotlight. Undefined = no spotlight (full-screen scrim). */
 	part?: Parts;
 	/** Arrow direction on the floating card relative to the spotlight. */
 	arrow?: 'up' | 'down' | 'left' | 'right';
-	/** Whether this step waits for user to send a chat message before auto-advancing. */
-	interactive?: boolean;
+	/** If true, the step auto-advances when a chat message is sent. */
+	waitForChat?: boolean;
+	/** Action to run when this step becomes active (e.g. show/hide panels). */
+	onEnter?: () => void;
 }
 
 const CARD_PADDING = 16; // gap between spotlight rect and card edge
 
 /**
- * Spotlight-style interactive product tour for the Sessions window.
+ * Guided product tour for the Sessions window.
  *
- * Steps:
- *  1. Introduction – centered card, no spotlight
- *  2. Chat Bar – spotlight on the chat bar input
- *  3. Sidebar – spotlight on the sessions sidebar
- *  4. Changes panel – spotlight on the auxiliary bar
- *  5. Send your first message – interactive; auto-advances when user sends a prompt
+ * Walks new users through the core concepts and UI areas — session types,
+ * worktrees vs. folders, branches, the changes panel, and the sidebar —
+ * so they understand the workflow before sending their first message.
  */
 export class SessionsTourOverlay extends Disposable {
 
 	private readonly overlay: HTMLElement;
-	private readonly spotlight: HTMLElement;
+	private readonly scrimTop: HTMLElement;
+	private readonly scrimBottom: HTMLElement;
+	private readonly scrimLeft: HTMLElement;
+	private readonly scrimRight: HTMLElement;
 	private readonly card: HTMLElement;
 
 	private currentStep = 0;
@@ -53,37 +57,7 @@ export class SessionsTourOverlay extends Disposable {
 	/** Resolves when the tour is finished or dismissed. */
 	readonly finished: Promise<void> = new Promise(resolve => { this._resolveFinished = resolve; });
 
-	private readonly steps: ITourStepConfig[] = [
-		{
-			title: localize('tour.step1.title', "Welcome to Sessions"),
-			body: localize('tour.step1.body', "This quick tour will show you the key parts of the Sessions window. You can skip at any time."),
-		},
-		{
-			title: localize('tour.step2.title', "The Chat Bar"),
-			body: localize('tour.step2.body', "This is your main interface. Type a question, generate code, or run a task — all through natural language."),
-			part: Parts.CHATBAR_PART,
-			arrow: 'down',
-		},
-		{
-			title: localize('tour.step3.title', "Your Sessions"),
-			body: localize('tour.step3.body', "The sidebar lists all your active sessions. Create new ones, switch between them, or archive completed work."),
-			part: Parts.SIDEBAR_PART,
-			arrow: 'right',
-		},
-		{
-			title: localize('tour.step4.title', "Review Changes"),
-			body: localize('tour.step4.body', "The Changes panel shows every file your agent has modified. Review diffs and approve or discard before merging."),
-			part: Parts.AUXILIARYBAR_PART,
-			arrow: 'left',
-		},
-		{
-			title: localize('tour.step5.title', "Send Your First Message"),
-			body: localize('tour.step5.body', "Now it's your turn! Type anything in the Chat Bar below and press Enter to start your first session."),
-			part: Parts.CHATBAR_PART,
-			arrow: 'down',
-			interactive: true,
-		},
-	];
+	private readonly steps: ITourStepConfig[];
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -93,7 +67,9 @@ export class SessionsTourOverlay extends Disposable {
 	) {
 		super();
 
-		// Overlay container
+		this.steps = this._buildSteps();
+
+		// Overlay container (pointer-events: none so clicks pass through)
 		this.overlay = append(container, $('.sessions-tour-overlay'));
 		this._register(toDisposable(() => this.overlay.remove()));
 
@@ -102,13 +78,86 @@ export class SessionsTourOverlay extends Disposable {
 		tourVisibleKey.set(true);
 		this._register(toDisposable(() => tourVisibleKey.reset()));
 
-		// Spotlight element
-		this.spotlight = append(this.overlay, $('.sessions-tour-spotlight hidden'));
+		// Four scrim panels around the spotlight cutout (these block clicks outside the spotlight)
+		this.scrimTop = append(this.overlay, $('.sessions-tour-scrim.scrim-top'));
+		this.scrimBottom = append(this.overlay, $('.sessions-tour-scrim.scrim-bottom'));
+		this.scrimLeft = append(this.overlay, $('.sessions-tour-scrim.scrim-left'));
+		this.scrimRight = append(this.overlay, $('.sessions-tour-scrim.scrim-right'));
 
 		// Floating card
 		this.card = append(this.overlay, $('.sessions-tour-card sessions-tour-card-centered'));
 
 		this._renderStep();
+	}
+
+	// ------------------------------------------------------------------
+	// Step definitions
+
+	private _buildSteps(): ITourStepConfig[] {
+		return [
+			// 1. Choose Local or Cloud
+			{
+				title: localize('tour.provider.title', "Choose Local or Cloud"),
+				body: localize('tour.provider.body', "Start by selecting where your session runs. Local runs the agent on your machine with direct file access. Cloud runs it on a remote server."),
+				action: localize('tour.provider.action', "Select Local or Cloud above."),
+				part: Parts.CHATBAR_PART,
+				arrow: 'up',
+				onEnter: () => {
+					this.layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
+					this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+				},
+			},
+
+			// 2. Pick a folder
+			{
+				title: localize('tour.folder.title', "Pick a Folder"),
+				body: localize('tour.folder.body', "Select the project folder the agent will work in. This is the repository or workspace where changes will be made."),
+				action: localize('tour.folder.action', "Click \u201CPick Folder\u201D to select your project."),
+				part: Parts.CHATBAR_PART,
+				arrow: 'up',
+			},
+
+			// 3. Worktree or Folder mode
+			{
+				title: localize('tour.isolation.title', "Choose Isolation Mode"),
+				body: localize('tour.isolation.body', "Worktree creates an isolated copy with its own branch \u2014 your main code stays untouched. Folder mode works directly in place."),
+				action: localize('tour.isolation.action', "Select Worktree or Folder, then pick a branch if needed."),
+				part: Parts.CHATBAR_PART,
+				arrow: 'up',
+			},
+
+			// 4. Send your first message
+			{
+				title: localize('tour.send.title', "Send Your First Message"),
+				body: localize('tour.send.body', "Describe what you want to build. The agent will analyze your project and start working."),
+				action: localize('tour.send.action', "Try: \u201CCreate a hello world script\u201D"),
+				part: Parts.CHATBAR_PART,
+				arrow: 'up',
+				waitForChat: true,
+			},
+
+			// 5. Sidebar — session list
+			{
+				title: localize('tour.sidebar.title', "Your Session Is Running"),
+				body: localize('tour.sidebar.body', "Your session is listed here. You can run multiple sessions at the same time, switch between them, or archive completed work."),
+				part: Parts.SIDEBAR_PART,
+				arrow: 'right',
+			},
+
+			// 6. Changes panel
+			{
+				title: localize('tour.changes.title', "Review Changes"),
+				body: localize('tour.changes.body', "Every file the agent modifies appears here. Click one to see a diff. When done, create a pull request, merge, or discard."),
+				part: Parts.AUXILIARYBAR_PART,
+				arrow: 'left',
+			},
+
+			// 7. Done
+			{
+				title: localize('tour.done.title', "You\u2019re All Set"),
+				body: localize('tour.done.body', "You\u2019ve set up a session, sent a message, and know where to review changes. Start building."),
+			},
+		];
 	}
 
 	// ------------------------------------------------------------------
@@ -124,12 +173,18 @@ export class SessionsTourOverlay extends Disposable {
 		const store = new DisposableStore();
 		this.stepStore.value = store;
 
+		// Run step enter action (e.g. show/hide panels)
+		step.onEnter?.();
+
 		clearNode(this.card);
 		this.card.className = 'sessions-tour-card';
 
-		// Header (title + close button)
+		// Header (step counter + close button)
 		const header = append(this.card, $('.sessions-tour-card-header'));
-		append(header, $('span.sessions-tour-card-title', undefined, step.title));
+		const titleRow = append(header, $('.sessions-tour-card-title-row'));
+		append(titleRow, $('span.sessions-tour-card-step-number', undefined,
+			localize('tour.stepCounter', "{0} of {1}", this.currentStep + 1, this.steps.length)));
+		append(titleRow, $('span.sessions-tour-card-title', undefined, step.title));
 		const closeBtn = append(header, $('button.sessions-tour-close'));
 		closeBtn.setAttribute('aria-label', localize('tour.close', "Close tour"));
 		closeBtn.appendChild(renderIcon(Codicon.close));
@@ -137,84 +192,69 @@ export class SessionsTourOverlay extends Disposable {
 
 		// Body
 		const bodyEl = append(this.card, $('div.sessions-tour-card-body'));
-		if (step.interactive) {
-			// Body text
-			append(bodyEl, $('span', undefined, step.body));
+		append(bodyEl, $('p', undefined, step.body));
 
-			// Hint box
-			const hint = append(bodyEl, $('div.sessions-tour-prompt-hint'));
-			hint.style.marginTop = '10px';
-			hint.appendChild(renderIcon(Codicon.send));
-			append(hint, $('span', undefined, localize('tour.step5.hint', "Type anything and press Enter ↵")));
+		// Action hint (if present)
+		let hintEl: HTMLElement | undefined;
+		if (step.action) {
+			hintEl = append(bodyEl, $('div.sessions-tour-prompt-hint'));
+			hintEl.appendChild(renderIcon(step.waitForChat ? Codicon.arrowRight : Codicon.lightbulb));
+			append(hintEl, $('span', undefined, step.action));
+		}
 
-			// Wait for user to send a message
+		// Waiting indicator for chat steps
+		if (step.waitForChat) {
 			const waiting = append(bodyEl, $('div.sessions-tour-waiting'));
 			waiting.style.display = 'none';
-			waiting.style.marginTop = '8px';
 			waiting.appendChild(renderIcon(Codicon.loading));
-			append(waiting, $('span', undefined, localize('tour.step5.waiting', "Waiting for your message…")));
-
-			// Mark overlay as interactive so the spotlight passes pointer events
-			this.overlay.classList.add('sessions-tour-interactive');
+			append(waiting, $('span', undefined, localize('tour.send.waiting', "Starting session\u2026")));
 
 			store.add(this.chatService.onDidSubmitRequest(() => {
 				waiting.style.display = 'flex';
-				hint.style.display = 'none';
-				// Short delay then close tour
-				const handle = setTimeout(() => this._finishTour(), 1500);
+				if (hintEl) {
+					hintEl.style.display = 'none';
+				}
+				const handle = setTimeout(() => {
+					this.currentStep++;
+					this._renderStep();
+				}, 1500);
 				store.add(toDisposable(() => clearTimeout(handle)));
 			}));
-		} else {
-			bodyEl.textContent = step.body;
 		}
 
-		// Progress + navigation row
+		// Navigation — always show so there's a next arrow on every step
 		const progress = append(this.card, $('.sessions-tour-progress'));
+		const nav = append(progress, $('.sessions-tour-nav'));
 
-		const dots = append(progress, $('.sessions-tour-progress-dots'));
-		for (let i = 0; i < this.steps.length; i++) {
-			const dot = append(dots, $('span.sessions-tour-progress-dot'));
-			if (i === this.currentStep) {
-				dot.classList.add('active');
-			}
+		if (this.currentStep > 0) {
+			const prevBtn = store.add(new Button(nav, { ...defaultButtonStyles, secondary: true }));
+			prevBtn.label = localize('tour.prev', "Back");
+			store.add(prevBtn.onDidClick(() => { this.currentStep--; this._renderStep(); }));
 		}
 
-		if (!step.interactive) {
-			const nav = append(progress, $('.sessions-tour-nav'));
-
-			if (this.currentStep > 0) {
-				const prevBtn = store.add(new Button(nav, { ...defaultButtonStyles, secondary: true }));
-				prevBtn.label = localize('tour.prev', "Back");
-				store.add(prevBtn.onDidClick(() => { this.currentStep--; this._renderStep(); }));
-			}
-
-			const isLast = this.currentStep === this.steps.length - 1;
-			const nextBtn = store.add(new Button(nav, { ...defaultButtonStyles }));
-			nextBtn.label = isLast ? localize('tour.finish', "Finish") : localize('tour.next', "Next");
-			store.add(nextBtn.onDidClick(() => {
-				this.currentStep++;
-				this._renderStep();
-			}));
-		}
+		const isLast = this.currentStep === this.steps.length - 1;
+		const nextBtn = store.add(new Button(nav, { ...defaultButtonStyles }));
+		nextBtn.label = isLast ? localize('tour.done.btn', "Done") : localize('tour.continue', "Continue");
+		store.add(nextBtn.onDidClick(() => {
+			this.currentStep++;
+			this._renderStep();
+		}));
 
 		// Position spotlight and card
 		this._positionForStep(step, store);
 	}
 
 	// ------------------------------------------------------------------
-	// Spotlight + card positioning
+	// Scrim + card positioning
 
 	private _positionForStep(step: ITourStepConfig, store: DisposableStore): void {
 		if (!step.part) {
-			// No spotlight — full-screen scrim via CSS class
-			this.overlay.classList.add('sessions-tour-no-spotlight');
-			this.spotlight.classList.add('hidden');
+			// No spotlight — full-screen scrim
+			this._setScrimFullScreen();
 			this.card.classList.add('sessions-tour-card-centered');
 			return;
 		}
 
-		this.overlay.classList.remove('sessions-tour-no-spotlight');
-		this.spotlight.classList.remove('hidden');
 		this.card.classList.remove('sessions-tour-card-centered');
 
 		const place = () => {
@@ -232,11 +272,8 @@ export class SessionsTourOverlay extends Disposable {
 			const width = partRect.width;
 			const height = partRect.height;
 
-			// Spotlight
-			this.spotlight.style.top = `${top}px`;
-			this.spotlight.style.left = `${left}px`;
-			this.spotlight.style.width = `${width}px`;
-			this.spotlight.style.height = `${height}px`;
+			// Position the four scrim panels around the spotlight cutout
+			this._setScrimCutout(top, left, width, height, containerRect.width, containerRect.height);
 
 			// Card position based on arrow direction
 			this._placeCard(step.arrow, top, left, width, height, containerRect);
@@ -248,6 +285,26 @@ export class SessionsTourOverlay extends Disposable {
 		store.add(addDisposableListener(mainWindow, EventType.RESIZE, place));
 	}
 
+	/** Covers the entire container with scrim (no cutout). */
+	private _setScrimFullScreen(): void {
+		this.scrimTop.style.cssText = 'top:0;left:0;width:100%;height:100%';
+		this.scrimBottom.style.cssText = 'display:none';
+		this.scrimLeft.style.cssText = 'display:none';
+		this.scrimRight.style.cssText = 'display:none';
+	}
+
+	/** Positions four panels around a rectangular cutout, leaving the cutout area click-through. */
+	private _setScrimCutout(top: number, left: number, width: number, height: number, containerWidth: number, containerHeight: number): void {
+		// Top: full width, from 0 to spotlight top
+		this.scrimTop.style.cssText = `display:block;top:0;left:0;width:${containerWidth}px;height:${top}px`;
+		// Bottom: full width, from spotlight bottom to container bottom
+		this.scrimBottom.style.cssText = `display:block;top:${top + height}px;left:0;width:${containerWidth}px;height:${containerHeight - top - height}px`;
+		// Left: spotlight height, from 0 to spotlight left
+		this.scrimLeft.style.cssText = `display:block;top:${top}px;left:0;width:${left}px;height:${height}px`;
+		// Right: spotlight height, from spotlight right to container right
+		this.scrimRight.style.cssText = `display:block;top:${top}px;left:${left + width}px;width:${containerWidth - left - width}px;height:${height}px`;
+	}
+
 	private _placeCard(
 		arrow: ITourStepConfig['arrow'],
 		spotTop: number,
@@ -256,71 +313,54 @@ export class SessionsTourOverlay extends Disposable {
 		spotHeight: number,
 		containerRect: DOMRect,
 	): void {
-		const cardWidth = 340;
+		const cardWidth = 380;
 		const containerWidth = containerRect.width;
 		const containerHeight = containerRect.height;
 
 		// Remove previous arrow classes
 		this.card.classList.remove('arrow-up', 'arrow-down', 'arrow-left', 'arrow-right');
 
+		// Reset inline styles
+		this.card.style.top = '';
+		this.card.style.left = '';
+		this.card.style.bottom = '';
+		this.card.style.right = '';
+		this.card.style.transform = '';
+
 		switch (arrow) {
 			case 'down': {
 				// Card sits above the spotlight
 				const cardTop = Math.max(CARD_PADDING, spotTop - this.card.offsetHeight - CARD_PADDING);
-				const cardLeft = Math.min(
-					containerWidth - cardWidth - CARD_PADDING,
-					Math.max(CARD_PADDING, spotLeft)
-				);
+				const cardLeft = this._clampHorizontal(spotLeft + spotWidth / 2 - cardWidth / 2, cardWidth, containerWidth);
 				this.card.style.top = `${cardTop}px`;
 				this.card.style.left = `${cardLeft}px`;
-				this.card.style.bottom = '';
-				this.card.style.right = '';
-				this.card.style.transform = '';
 				this.card.classList.add('arrow-down');
 				break;
 			}
 			case 'up': {
 				// Card sits below the spotlight
-				const cardTop = spotTop + spotHeight + CARD_PADDING;
-				const cardLeft = Math.min(
-					containerWidth - cardWidth - CARD_PADDING,
-					Math.max(CARD_PADDING, spotLeft)
-				);
+				const cardTop = Math.min(containerHeight - 280, spotTop + spotHeight + CARD_PADDING);
+				const cardLeft = this._clampHorizontal(spotLeft + spotWidth / 2 - cardWidth / 2, cardWidth, containerWidth);
 				this.card.style.top = `${cardTop}px`;
 				this.card.style.left = `${cardLeft}px`;
-				this.card.style.bottom = '';
-				this.card.style.right = '';
-				this.card.style.transform = '';
 				this.card.classList.add('arrow-up');
 				break;
 			}
 			case 'right': {
 				// Card sits to the right of the spotlight
-				const cardLeft = spotLeft + spotWidth + CARD_PADDING;
-				const cardTop = Math.min(
-					containerHeight - 200,
-					Math.max(CARD_PADDING, spotTop + spotHeight / 2 - 100)
-				);
+				const cardLeft = Math.min(containerWidth - cardWidth - CARD_PADDING, spotLeft + spotWidth + CARD_PADDING);
+				const cardTop = this._clampVertical(spotTop + spotHeight / 2 - 120, containerHeight);
 				this.card.style.top = `${cardTop}px`;
 				this.card.style.left = `${cardLeft}px`;
-				this.card.style.bottom = '';
-				this.card.style.right = '';
-				this.card.style.transform = '';
 				this.card.classList.add('arrow-left');
 				break;
 			}
 			case 'left': {
 				// Card sits to the left of the spotlight
-				const cardRight = containerWidth - spotLeft + CARD_PADDING;
-				const cardTop = Math.min(
-					containerHeight - 200,
-					Math.max(CARD_PADDING, spotTop + spotHeight / 2 - 100)
-				);
+				const cardLeft = Math.max(CARD_PADDING, spotLeft - cardWidth - CARD_PADDING);
+				const cardTop = this._clampVertical(spotTop + spotHeight / 2 - 120, containerHeight);
 				this.card.style.top = `${cardTop}px`;
-				this.card.style.left = '';
-				this.card.style.bottom = '';
-				this.card.style.right = `${cardRight}px`;
-				this.card.style.transform = '';
+				this.card.style.left = `${cardLeft}px`;
 				this.card.classList.add('arrow-right');
 				break;
 			}
@@ -333,6 +373,14 @@ export class SessionsTourOverlay extends Disposable {
 				break;
 			}
 		}
+	}
+
+	private _clampHorizontal(left: number, cardWidth: number, containerWidth: number): number {
+		return Math.max(CARD_PADDING, Math.min(left, containerWidth - cardWidth - CARD_PADDING));
+	}
+
+	private _clampVertical(top: number, containerHeight: number): number {
+		return Math.max(CARD_PADDING, Math.min(top, containerHeight - 280));
 	}
 
 	// ------------------------------------------------------------------

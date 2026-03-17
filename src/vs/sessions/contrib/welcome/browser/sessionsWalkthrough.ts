@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsWalkthrough.css';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { $, append, EventHelper, EventType, addDisposableListener } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -16,26 +16,22 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { IWorkbenchThemeService, ThemeSettingTarget } from '../../../../workbench/services/themes/common/workbenchThemeService.js';
-import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
-
-const DARK_THEME_ID = 'VS Code Dark';
-const LIGHT_THEME_ID = 'VS Code Light';
-const SYSTEM_THEME_ID = 'auto';
 
 export type WalkthroughOutcome = 'completed' | 'dismissed' | 'startTour';
 
 /**
  * Multi-step onboarding walkthrough overlay:
- *   Step 1 – Sign in
- *   Step 2 – Pick a theme
- *   Step 3 – Explore features / Start Tour
+ *   Step 1 - Sign in
+ *   Step 2 - Import from VS Code
+ *   Step 3 - Ready / Start Tour
  */
 export class SessionsWalkthroughOverlay extends Disposable {
 
 	private readonly overlay: HTMLElement;
 	private readonly card: HTMLElement;
 	private readonly dotsContainer: HTMLElement;
+	private readonly contentContainer: HTMLElement;
+	private readonly footerContainer: HTMLElement;
 	private currentStep = 0;
 	private readonly totalSteps = 3;
 	private _resolveOutcome!: (outcome: WalkthroughOutcome) => void;
@@ -48,7 +44,6 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -61,11 +56,15 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 		this.card = append(this.overlay, $('.sessions-walkthrough-card'));
 
-		// Progress dots
+		// Progress dots (top)
 		this.dotsContainer = append(this.card, $('.sessions-walkthrough-dots'));
-		this._renderDots();
 
-		// Render initial step
+		// Scrollable content area (middle)
+		this.contentContainer = append(this.card, $('.sessions-walkthrough-content'));
+
+		// Fixed footer (bottom)
+		this.footerContainer = append(this.card, $('.sessions-walkthrough-footer'));
+
 		this._renderStep();
 	}
 
@@ -83,22 +82,53 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	}
 
 	// ------------------------------------------------------------------
-	// Step rendering (clears and re-renders the card body)
+	// Step rendering
 
 	private _renderStep(): void {
-		// Remove everything after the dots row
-		const nodes = Array.from(this.card.childNodes);
-		for (const node of nodes) {
-			if (node !== this.dotsContainer) {
-				this.card.removeChild(node);
-			}
-		}
 		this._renderDots();
 
+		// Clear content and footer
+		this.contentContainer.textContent = '';
+		this.footerContainer.textContent = '';
+
 		switch (this.currentStep) {
-			case 0: return this._renderSignIn();
-			case 1: return this._renderThemePicker();
-			case 2: return this._renderFeatures();
+			case 0: this._renderSignIn(); break;
+			case 1: this._renderImportSettings(); break;
+			case 2: this._renderFeatures(); break;
+		}
+	}
+
+	/** Renders the fixed footer with consistent button layout across all steps. */
+	private _renderFooter(
+		primaryLabel: string,
+		onPrimary: () => void,
+		options?: { secondaryLabel?: string; onSecondary?: () => void; showBack?: boolean },
+	): void {
+		const row = append(this.footerContainer, $('.sessions-walkthrough-button-row'));
+
+		// Back button (left side) — secondary styled, only on steps > 0
+		if (options?.showBack && this.currentStep > 0) {
+			const backBtn = this._register(new Button(row, { ...defaultButtonStyles, secondary: true }));
+			backBtn.label = localize('walkthrough.back', "Back");
+			this._register(backBtn.onDidClick(() => {
+				this.currentStep--;
+				this._renderStep();
+			}));
+		}
+
+		// Primary button (right side)
+		const primaryBtn = this._register(new Button(row, { ...defaultButtonStyles }));
+		primaryBtn.label = primaryLabel;
+		primaryBtn.focus();
+		this._register(primaryBtn.onDidClick(onPrimary));
+
+		// Skip link (below the button row, if provided)
+		if (options?.secondaryLabel && options.onSecondary) {
+			const skipLink = append(this.footerContainer, $('button.sessions-walkthrough-skip', undefined, options.secondaryLabel));
+			this._register(addDisposableListener(skipLink, EventType.CLICK, e => {
+				EventHelper.stop(e);
+				options.onSecondary!();
+			}));
 		}
 	}
 
@@ -106,30 +136,46 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	// Step 1: Sign In
 
 	private _renderSignIn(): void {
-		const header = append(this.card, $('.sessions-walkthrough-header'));
+		const header = append(this.contentContainer, $('.sessions-walkthrough-header'));
 		const iconEl = append(header, $('span.sessions-walkthrough-icon'));
 		iconEl.appendChild(renderIcon(Codicon.agent));
 		append(header, $('h2', undefined, localize('walkthrough.step1.title', "Welcome to Sessions")));
-		append(header, $('p', undefined, localize('walkthrough.step1.subtitle', "Agent-powered development at your fingertips. Sign in to get started.")));
+		append(header, $('p', undefined, localize('walkthrough.step1.subtitle', "Sign in to start building with your AI agent.")));
 
-		const actionArea = append(this.card, $('.sessions-walkthrough-actions'));
-		const button = this._register(new Button(actionArea, { ...defaultButtonStyles }));
-		button.label = localize('walkthrough.step1.cta', "Get Started");
-
-		const spinnerContainer = append(actionArea, $('.sessions-walkthrough-spinner'));
-		spinnerContainer.style.display = 'none';
-		const errorContainer = append(actionArea, $('p.sessions-walkthrough-error'));
-		errorContainer.style.display = 'none';
-
-		this._register(button.onDidClick(() => this._runSignIn(button, spinnerContainer, errorContainer)));
-
-		// Already signed in → skip to step 2
+		// If already signed in, just show a Continue button
 		if (this._isAlreadySetUp()) {
-			this._advance();
+			this._renderFooter(
+				localize('walkthrough.step1.continue', "Continue"),
+				() => this._advance(),
+			);
 			return;
 		}
 
-		button.focus();
+		// Sign-in provider buttons rendered directly in content
+		const providers = append(this.contentContainer, $('.sessions-walkthrough-providers'));
+
+		const providerData: Array<{ label: string; cssClass: string }> = [
+			{ label: localize('walkthrough.signin.github', "Continue with GitHub"), cssClass: 'provider-github' },
+			{ label: localize('walkthrough.signin.microsoft', "Continue with Microsoft"), cssClass: 'provider-microsoft' },
+			{ label: localize('walkthrough.signin.apple', "Continue with Apple"), cssClass: 'provider-apple' },
+		];
+
+		const providerButtons: HTMLButtonElement[] = [];
+		for (const provider of providerData) {
+			const btn = append(providers, $(`button.sessions-walkthrough-provider-btn.${provider.cssClass}`)) as HTMLButtonElement;
+			providerButtons.push(btn);
+			append(btn, $('span.sessions-walkthrough-provider-label', undefined, provider.label));
+		}
+
+		// Spinner + error below providers
+		const spinnerContainer = append(this.footerContainer, $('.sessions-walkthrough-spinner'));
+		spinnerContainer.style.display = 'none';
+		const errorContainer = append(this.footerContainer, $('p.sessions-walkthrough-error'));
+		errorContainer.style.display = 'none';
+
+		for (const btn of providerButtons) {
+			this._register(addDisposableListener(btn, EventType.CLICK, () => this._runSignIn(providerButtons, spinnerContainer, errorContainer)));
+		}
 	}
 
 	private _isAlreadySetUp(): boolean {
@@ -142,13 +188,17 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		);
 	}
 
-	private async _runSignIn(button: Button, spinner: HTMLElement, error: HTMLElement): Promise<void> {
-		button.enabled = false;
+	private async _runSignIn(providerButtons: HTMLButtonElement[], spinner: HTMLElement, error: HTMLElement): Promise<void> {
+		// Disable all provider buttons
+		for (const btn of providerButtons) {
+			btn.disabled = true;
+		}
+
 		error.style.display = 'none';
 
 		spinner.textContent = '';
 		spinner.appendChild(renderIcon(Codicon.loading));
-		append(spinner, $('span', undefined, localize('walkthrough.settingUp', "Setting up…")));
+		append(spinner, $('span', undefined, localize('walkthrough.settingUp', "Setting up\u2026")));
 		spinner.style.display = '';
 
 		try {
@@ -163,7 +213,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			if (success) {
 				spinner.textContent = '';
 				spinner.appendChild(renderIcon(Codicon.loading));
-				append(spinner, $('span', undefined, localize('walkthrough.restarting', "Completing setup…")));
+				append(spinner, $('span', undefined, localize('walkthrough.restarting', "Completing setup\u2026")));
 
 				this.logService.info('[sessions walkthrough] Restarting extension host after setup');
 				const stopped = await this.extensionService.stopExtensionHosts(
@@ -174,105 +224,109 @@ export class SessionsWalkthroughOverlay extends Disposable {
 				}
 				this._advance();
 			} else {
-				button.enabled = true;
+				for (const btn of providerButtons) {
+					btn.disabled = false;
+				}
 				spinner.style.display = 'none';
 			}
 		} catch (err) {
 			this.logService.error('[sessions walkthrough] Sign-in failed:', err);
 			error.textContent = localize('walkthrough.error', "Something went wrong. Please try again.");
 			error.style.display = '';
-			button.enabled = true;
+			for (const btn of providerButtons) {
+				btn.disabled = false;
+			}
 			spinner.style.display = 'none';
 		}
 	}
 
 	// ------------------------------------------------------------------
-	// Step 2: Theme Picker
+	// Step 2: Import from VS Code
 
-	private _selectedTheme: string | null = null;
-	private readonly _stepStore = this._register(new DisposableStore());
+	private _renderImportSettings(): void {
+		const header = append(this.contentContainer, $('.sessions-walkthrough-header'));
+		append(header, $('h2', undefined, localize('walkthrough.import.title', "Import from VS Code")));
+		append(header, $('p', undefined, localize('walkthrough.import.subtitle', "Bring over your existing setup so Sessions feels familiar.")));
 
-	private _renderThemePicker(): void {
-		this._stepStore.clear();
+		const items = append(this.contentContainer, $('.sessions-walkthrough-import-list'));
 
-		const header = append(this.card, $('.sessions-walkthrough-header'));
-		append(header, $('h2', undefined, localize('walkthrough.step2.title', "Choose your style")));
-		append(header, $('p', undefined, localize('walkthrough.step2.subtitle', "Pick a theme for Sessions. You can always change it later.")));
-
-		const currentThemeId = this.themeService.getColorTheme().settingsId ?? '';
-
-		const picker = append(this.card, $('.sessions-walkthrough-theme-picker'));
-		const themes: Array<{ id: string; label: string; dataTheme: string }> = [
-			{ id: DARK_THEME_ID, label: localize('theme.dark', "Dark"), dataTheme: 'dark' },
-			{ id: LIGHT_THEME_ID, label: localize('theme.light', "Light"), dataTheme: 'light' },
-			{ id: SYSTEM_THEME_ID, label: localize('theme.system', "System"), dataTheme: 'system' },
+		const importOptions: Array<{ icon: typeof Codicon.colorMode; label: string; desc: string; checked: boolean }> = [
+			{
+				icon: Codicon.colorMode,
+				label: localize('import.theme', "Color Theme"),
+				desc: localize('import.theme.desc', "Your current VS Code color theme"),
+				checked: true,
+			},
+			{
+				icon: Codicon.notebook,
+				label: localize('import.instructions', "Agent Instructions"),
+				desc: localize('import.instructions.desc', "Custom instructions, prompts, and agent configurations"),
+				checked: true,
+			},
+			{
+				icon: Codicon.settingsGear,
+				label: localize('import.settings', "Editor Settings"),
+				desc: localize('import.settings.desc', "Font size, tab width, key bindings, and other preferences"),
+				checked: true,
+			},
+			{
+				icon: Codicon.extensions,
+				label: localize('import.extensions', "Extensions"),
+				desc: localize('import.extensions.desc', "Language support, linters, and other installed extensions"),
+				checked: false,
+			},
 		];
 
-		// Determine which tile should be initially selected
-		let initialSelected = DARK_THEME_ID;
-		if (currentThemeId.toLowerCase().includes('light')) {
-			initialSelected = LIGHT_THEME_ID;
-		}
-		this._selectedTheme = initialSelected;
-
-		for (const theme of themes) {
-			const tile = append(picker, $('.sessions-walkthrough-theme-tile'));
-			tile.dataset['theme'] = theme.dataTheme;
-			if (theme.id === initialSelected) {
-				tile.classList.add('selected');
+		for (const opt of importOptions) {
+			const row = append(items, $('.sessions-walkthrough-import-item'));
+			if (opt.checked) {
+				row.classList.add('selected');
 			}
 
-			// Mini swatch
-			const swatch = append(tile, $('.sessions-walkthrough-theme-swatch'));
-			append(swatch, $('.swatch-titlebar'));
-			const swatchBody = append(swatch, $('div'));
-			swatchBody.style.display = 'flex';
-			swatchBody.style.height = '100%';
-			append(swatchBody, $('.swatch-sidebar'));
-			append(swatchBody, $('.swatch-content'));
+			const check = append(row, $('span.sessions-walkthrough-import-check'));
+			check.appendChild(renderIcon(Codicon.check));
 
-			append(tile, $('span.sessions-walkthrough-theme-label', undefined, theme.label));
+			const iconEl = append(row, $('span.sessions-walkthrough-import-icon'));
+			iconEl.appendChild(renderIcon(opt.icon));
 
-			this._stepStore.add(addDisposableListener(tile, EventType.CLICK, async () => {
-				// Deselect all tiles
-				for (const t of picker.querySelectorAll('.sessions-walkthrough-theme-tile')) {
-					t.classList.remove('selected');
-				}
-				tile.classList.add('selected');
-				this._selectedTheme = theme.id;
+			const text = append(row, $('.sessions-walkthrough-import-text'));
+			append(text, $('span.sessions-walkthrough-import-label', undefined, opt.label));
+			append(text, $('span.sessions-walkthrough-import-desc', undefined, opt.desc));
 
-				if (theme.id === SYSTEM_THEME_ID) {
-					// Use auto-detect
-					await this.themeService.setColorTheme(undefined, 'auto' as ThemeSettingTarget);
-				} else {
-					await this.themeService.setColorTheme(theme.id, 'preview' as ThemeSettingTarget);
-				}
+			// Clicking the row toggles selection
+			this._register(addDisposableListener(row, EventType.CLICK, () => {
+				row.classList.toggle('selected');
 			}));
 		}
 
-		const actionArea = append(this.card, $('.sessions-walkthrough-actions'));
-		const button = this._register(new Button(actionArea, { ...defaultButtonStyles }));
-		button.label = localize('walkthrough.step2.cta', "Continue");
-		button.focus();
+		// Disclaimer
+		const disclaimer = append(this.contentContainer, $('p.sessions-walkthrough-disclaimer'));
+		disclaimer.textContent = localize('walkthrough.import.disclaimer', "These can be changed or removed at any time from Settings.");
 
-		this._stepStore.add(button.onDidClick(async () => {
-			// Persist the previewed theme
-			if (this._selectedTheme && this._selectedTheme !== SYSTEM_THEME_ID) {
-				await this.themeService.setColorTheme(this._selectedTheme, ConfigurationTarget.USER);
-			}
-			this._advance();
-		}));
+		// Footer
+		this._renderFooter(
+			localize('walkthrough.import.cta', "Import Selected"),
+			() => {
+				this.logService.info('[sessions walkthrough] Import selected (not yet implemented)');
+				this._advance();
+			},
+			{
+				showBack: true,
+				secondaryLabel: localize('walkthrough.import.skip', "Skip"),
+				onSecondary: () => this._advance(),
+			},
+		);
 	}
 
 	// ------------------------------------------------------------------
-	// Step 3: Features + Tour/Close
+	// Step 3: Ready / Start Tour
 
 	private _renderFeatures(): void {
-		const header = append(this.card, $('.sessions-walkthrough-header'));
-		append(header, $('h2', undefined, localize('walkthrough.step3.title', "You're ready to build")));
+		const header = append(this.contentContainer, $('.sessions-walkthrough-header'));
+		append(header, $('h2', undefined, localize('walkthrough.step3.title', "You're Ready")));
 		append(header, $('p', undefined, localize('walkthrough.step3.subtitle', "Here's what you can do with Sessions.")));
 
-		const features = append(this.card, $('.sessions-walkthrough-features'));
+		const features = append(this.contentContainer, $('.sessions-walkthrough-features'));
 
 		const featureData: Array<{ icon: typeof Codicon.commentDiscussion; title: string; desc: string }> = [
 			{
@@ -301,18 +355,15 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			append(text, $('p', undefined, f.desc));
 		}
 
-		const actionArea = append(this.card, $('.sessions-walkthrough-actions'));
-		const tourButton = this._register(new Button(actionArea, { ...defaultButtonStyles }));
-		tourButton.label = localize('walkthrough.step3.startTour', "Start Tour");
-		tourButton.focus();
-
-		this._register(tourButton.onDidClick(() => this._finish('startTour')));
-
-		const closeLink = append(actionArea, $('button.sessions-walkthrough-link', undefined, localize('walkthrough.step3.close', "Close")));
-		this._register(addDisposableListener(closeLink, EventType.CLICK, e => {
-			EventHelper.stop(e);
-			this._finish('completed');
-		}));
+		this._renderFooter(
+			localize('walkthrough.step3.startTour', "Take the Tour"),
+			() => this._finish('startTour'),
+			{
+				showBack: true,
+				secondaryLabel: localize('walkthrough.step3.close', "Skip Tour"),
+				onSecondary: () => this._finish('completed'),
+			},
+		);
 	}
 
 	// ------------------------------------------------------------------

@@ -14,6 +14,8 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -164,7 +166,7 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 
 registerWorkbenchContribution2(SessionsWelcomeContribution.ID, SessionsWelcomeContribution, WorkbenchPhase.BlockRestore);
 
-// Developer: reset walkthrough so it shows again on next launch
+// Developer: reset walkthrough and immediately re-show it
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -172,10 +174,52 @@ registerAction2(class extends Action2 {
 			title: localize2('resetSessionsWelcome', "Reset Sessions Welcome"),
 			category: Categories.Developer,
 			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyW,
+			},
 		});
 	}
 	run(accessor: ServicesAccessor): void {
-		accessor.get(IStorageService).remove(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION);
+		const storageService = accessor.get(IStorageService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const contextKeyService = accessor.get(IContextKeyService);
+		const logService = accessor.get(ILogService);
+
+		// Clear completion markers
+		storageService.remove(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION);
+		storageService.remove(TOUR_COMPLETE_KEY, StorageScope.APPLICATION);
+
+		// Immediately show the walkthrough overlay
+		const store = new DisposableStore();
+		const welcomeVisibleKey = SessionsWelcomeVisibleContext.bindTo(contextKeyService);
+		welcomeVisibleKey.set(true);
+		store.add(toDisposable(() => welcomeVisibleKey.reset()));
+
+		const walkthrough = store.add(instantiationService.createInstance(
+			SessionsWalkthroughOverlay,
+			layoutService.mainContainer,
+		));
+
+		walkthrough.outcome.then(outcome => {
+			logService.info(`[sessions welcome] Developer reset walkthrough finished with outcome: ${outcome}`);
+			storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			store.dispose();
+
+			if (outcome === 'startTour') {
+				const tourStore = new DisposableStore();
+				const tour = tourStore.add(instantiationService.createInstance(
+					SessionsTourOverlay,
+					layoutService.mainContainer,
+				));
+				tour.finished.then(() => {
+					logService.info('[sessions welcome] Tour finished from developer reset');
+					storageService.store(TOUR_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+					tourStore.dispose();
+				});
+			}
+		});
 	}
 });
 
@@ -187,6 +231,10 @@ registerAction2(class extends Action2 {
 			title: localize2('startSessionsTour', "Start Sessions Tour"),
 			category: Categories.Developer,
 			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyT,
+			},
 		});
 	}
 	run(accessor: ServicesAccessor): void {

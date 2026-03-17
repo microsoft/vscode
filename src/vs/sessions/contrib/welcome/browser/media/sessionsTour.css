@@ -18,42 +18,21 @@
 	opacity: 0;
 }
 
-/* ---- Spotlight: dark scrim filled by box-shadow on a positioned element ---- */
+/* ---- Scrim panels: four rectangles around the spotlight cutout ---- */
+/* The cutout area has NO element covering it, so clicks pass through to the UI. */
 
-.sessions-tour-spotlight {
+.sessions-tour-scrim {
 	position: absolute;
-	border-radius: 6px;
-	box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
-	pointer-events: none;
-	transition: top 300ms ease, left 300ms ease, width 300ms ease, height 300ms ease,
-		border-radius 300ms ease;
-}
-
-/* When there is no spotlight target (intro/outro step) hide it */
-.sessions-tour-spotlight.hidden {
-	box-shadow: none;
-}
-
-/* For the interactive "send a prompt" step, the spotlight covers the input area
-   and pointer-events are restored only on the spotlight region itself */
-.sessions-tour-overlay.sessions-tour-interactive .sessions-tour-spotlight {
-	pointer-events: auto;
-}
-
-/* Scrim behind everything except spotlight when no spotlight is shown (intro) */
-.sessions-tour-overlay.sessions-tour-no-spotlight::before {
-	content: '';
-	position: absolute;
-	inset: 0;
 	background: rgba(0, 0, 0, 0.55);
-	pointer-events: auto;
+	pointer-events: auto; /* blocks clicks outside the spotlight */
+	transition: top 300ms ease, left 300ms ease, width 300ms ease, height 300ms ease;
 }
 
 /* ---- Floating Card ---- */
 
 .sessions-tour-card {
 	position: absolute;
-	width: 340px;
+	width: 380px;
 	background: var(--vscode-editorWidget-background);
 	border: 1px solid var(--vscode-editorHoverWidget-border);
 	border-radius: 10px;
@@ -83,6 +62,21 @@
 	justify-content: space-between;
 	align-items: flex-start;
 	gap: 8px;
+}
+
+.sessions-tour-card-title-row {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	flex: 1;
+}
+
+.sessions-tour-card-step-number {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--vscode-descriptionForeground);
+	font-weight: 500;
 }
 
 .sessions-tour-card-title {
@@ -125,33 +119,47 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.sessions-tour-card-body p {
+	margin: 0 0 8px;
+}
+
+.sessions-tour-card-body p:last-child {
+	margin-bottom: 0;
+}
+
+.sessions-tour-details {
+	margin: 8px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.sessions-tour-details li {
+	position: relative;
+	padding: 8px 12px;
+	margin-bottom: 6px;
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--vscode-foreground) 5%, transparent);
+	font-size: 12px;
+	line-height: 1.5;
+	color: var(--vscode-foreground);
+}
+
+.sessions-tour-details li:last-child {
+	margin-bottom: 0;
+}
+
 /* ---- Progress ---- */
 
 .sessions-tour-progress {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
+	justify-content: flex-end;
 	gap: 12px;
 }
 
-.sessions-tour-progress-dots {
-	display: flex;
-	gap: 6px;
-	align-items: center;
-}
-
-.sessions-tour-progress-dot {
-	width: 6px;
-	height: 6px;
-	border-radius: 50%;
-	background: var(--vscode-descriptionForeground);
-	opacity: 0.3;
-	transition: opacity 200ms, background 200ms;
-}
-
-.sessions-tour-progress-dot.active {
-	opacity: 1;
-	background: var(--vscode-button-background);
+.sessions-tour-counter {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
 }
 
 /* ---- Navigation buttons ---- */
