@@ -42,6 +42,8 @@ export class IssueReporterOverlay {
 	private issueSourceSelect!: HTMLSelectElement;
 	private screenshotContainer!: HTMLElement;
 	private screenshotButton!: Button;
+	private delayButton!: HTMLButtonElement;
+	private delayDropdown!: HTMLElement;
 	private submitButton!: Button;
 	private cancelButton!: Button;
 
@@ -49,10 +51,12 @@ export class IssueReporterOverlay {
 	private readonly model: IssueReporterModel;
 	private visible = false;
 	private screenshotDelay = 0; // seconds
+	private isScreenshotCountdownActive = false;
 
 	constructor(
 		private readonly data: IssueReporterData,
 		private readonly layoutService: IWorkbenchLayoutService,
+		private readonly updateWindowControlsColors?: (backgroundColor: string, foregroundColor: string) => void,
 	) {
 		this.model = new IssueReporterModel({
 			...data,
@@ -125,15 +129,16 @@ export class IssueReporterOverlay {
 		// Screenshot thumbnails on their own row
 		this.screenshotContainer = append(this.footerElement, $('div.screenshot-thumbnails'));
 
-		const bottomRow = append(this.footerElement, $('div.issue-reporter-row'));
+		const screenshotRow = append(this.footerElement, $('div.issue-reporter-row.issue-reporter-screenshot-row'));
 
 		// Screenshot split button: [Screenshot | ⏱ No delay ▾]
-		const screenshotGroup = append(bottomRow, $('div.screenshot-btn-group'));
+		const screenshotGroup = append(screenshotRow, $('div.screenshot-btn-group'));
 
 		this.screenshotButton = this.disposables.add(new Button(screenshotGroup, unthemedButtonStyles));
 		this.screenshotButton.label = localize('takeScreenshot', "Screenshot");
 
-		const delayBtn = append(screenshotGroup, $('button.delay-btn'));
+		const delayBtn = append(screenshotGroup, $('button.delay-btn')) as HTMLButtonElement;
+		this.delayButton = delayBtn;
 		const delayIcon = append(delayBtn, $('span'));
 		delayIcon.textContent = '\u23F1'; // ⏱
 		const delayLabel = append(delayBtn, $('span.delay-label'));
@@ -143,6 +148,7 @@ export class IssueReporterOverlay {
 
 		// Delay dropdown (hidden by default)
 		const delayDropdown = append(screenshotGroup, $('div.delay-dropdown'));
+		this.delayDropdown = delayDropdown;
 		delayDropdown.style.display = 'none';
 		const delayOptions = [
 			{ label: localize('noDelay', "No delay"), value: 0 },
@@ -178,12 +184,13 @@ export class IssueReporterOverlay {
 			delayDropdown.style.display = 'none';
 		}));
 
-		append(bottomRow, $('div.spacer'));
+		const actionRow = append(this.footerElement, $('div.issue-reporter-row.issue-reporter-action-row'));
+		append(actionRow, $('div.spacer'));
 
-		this.cancelButton = this.disposables.add(new Button(bottomRow, unthemedButtonStyles));
+		this.cancelButton = this.disposables.add(new Button(actionRow, unthemedButtonStyles));
 		this.cancelButton.label = localize('cancel', "Cancel");
 
-		this.submitButton = this.disposables.add(new Button(bottomRow, unthemedButtonStyles));
+		this.submitButton = this.disposables.add(new Button(actionRow, unthemedButtonStyles));
 		this.submitButton.label = this.data.githubAccessToken
 			? localize('createOnGitHub', "Create on GitHub")
 			: localize('previewOnGitHub', "Preview on GitHub");
@@ -246,12 +253,18 @@ export class IssueReporterOverlay {
 
 		// Screenshot button — supports delay
 		this.disposables.add(this.screenshotButton.onDidClick(() => {
+			if (this.isScreenshotCountdownActive) {
+				return;
+			}
+
 			if (this.screenshots.length >= MAX_SCREENSHOTS) {
 				return;
 			}
 			if (this.screenshotDelay > 0) {
 				// Disable buttons during countdown
-				this.screenshotButton.enabled = false;
+				this.isScreenshotCountdownActive = true;
+				this.setScreenshotControlsEnabled(false);
+				this.delayDropdown.style.display = 'none';
 				const origLabel = this.screenshotButton.label;
 				let remaining = this.screenshotDelay;
 				this.screenshotButton.label = `${remaining}...`;
@@ -262,7 +275,8 @@ export class IssueReporterOverlay {
 					} else {
 						clearInterval(interval);
 						this.screenshotButton.label = origLabel;
-						this.screenshotButton.enabled = true;
+						this.isScreenshotCountdownActive = false;
+						this.updateScreenshotButton();
 						this._onDidRequestScreenshot.fire();
 					}
 				}, 1000);
@@ -328,6 +342,9 @@ export class IssueReporterOverlay {
 		// 'issue-reporter-active' class and subtract sibling heights
 		this.layoutService.layout();
 
+		// Update window controls to match header background
+		this.syncWindowControlsColors();
+
 		this.titleInput.focus();
 
 		// Cleanup on dispose
@@ -344,6 +361,8 @@ export class IssueReporterOverlay {
 		if (!this.visible) {
 			return;
 		}
+
+		this.restoreWindowControlsColors();
 
 		this.headerElement.remove();
 		this.footerElement.remove();
@@ -362,6 +381,7 @@ export class IssueReporterOverlay {
 		this.screenshots.push(screenshot);
 		this.updateScreenshotThumbnails();
 		this.updateScreenshotButton();
+		this.layoutService.layout();
 	}
 
 	private updateScreenshotThumbnails(): void {
@@ -389,6 +409,7 @@ export class IssueReporterOverlay {
 				this.screenshots.splice(i, 1);
 				this.updateScreenshotThumbnails();
 				this.updateScreenshotButton();
+				this.layoutService.layout();
 			});
 		}
 	}
@@ -401,25 +422,42 @@ export class IssueReporterOverlay {
 		const screenshot = this.screenshots[index];
 
 		const targetWindow = getWindow(this.overlayContainer);
-		const editor = new ScreenshotAnnotationEditor(screenshot, targetWindow.document.body);
+		const editor = new ScreenshotAnnotationEditor(screenshot, targetWindow.document.body, this.updateWindowControlsColors);
 
 		editor.onDidSave(annotatedDataUrl => {
 			screenshot.annotatedDataUrl = annotatedDataUrl;
 			this.updateScreenshotThumbnails();
+			this.syncWindowControlsColors();
 		});
 
 		editor.onDidCancel(() => {
-			// nothing to do, editor disposes itself
+			this.syncWindowControlsColors();
 		});
 	}
 
 	private updateScreenshotButton(): void {
-		this.screenshotButton.enabled = this.screenshots.length < MAX_SCREENSHOTS;
+		this.setScreenshotControlsEnabled(this.screenshots.length < MAX_SCREENSHOTS && !this.isScreenshotCountdownActive);
 		if (this.screenshots.length >= MAX_SCREENSHOTS) {
 			this.screenshotButton.element.title = localize('maxScreenshots', "Maximum of {0} screenshots reached", MAX_SCREENSHOTS);
 		} else {
 			this.screenshotButton.element.title = localize('takeScreenshotTooltip', "Capture a screenshot of the current state");
 		}
+	}
+
+	private setScreenshotControlsEnabled(enabled: boolean): void {
+		if (this.isScreenshotCountdownActive) {
+			// Keep primary button label updates visible during countdown but block interaction.
+			this.screenshotButton.enabled = true;
+			this.screenshotButton.element.classList.add('disabled');
+			this.screenshotButton.element.setAttribute('aria-disabled', String(true));
+			this.delayButton.disabled = true;
+			this.delayButton.classList.add('disabled');
+			return;
+		}
+
+		this.screenshotButton.enabled = enabled;
+		this.delayButton.disabled = !enabled;
+		this.delayButton.classList.toggle('disabled', !enabled);
 	}
 
 	getScreenshots(): readonly IScreenshot[] {
@@ -461,7 +499,37 @@ export class IssueReporterOverlay {
 		this.footerElement.style.visibility = '';
 	}
 
+	private savedWindowControlColors: { bg: string; fg: string } | undefined;
+
+	private syncWindowControlsColors(): void {
+		if (!this.updateWindowControlsColors) {
+			return;
+		}
+		// Save the original colors from the titlebar element
+		const workbench = this.layoutService.mainContainer;
+		const titlebar = workbench.querySelector('.part.titlebar') as HTMLElement | null;
+		if (titlebar) {
+			this.savedWindowControlColors = {
+				bg: titlebar.style.backgroundColor,
+				fg: titlebar.style.color,
+			};
+		}
+		// Set controls to match our header background
+		const targetWindow = getWindow(this.headerElement);
+		const computedStyle = targetWindow.getComputedStyle(this.headerElement);
+		this.updateWindowControlsColors(computedStyle.backgroundColor, computedStyle.color);
+	}
+
+	private restoreWindowControlsColors(): void {
+		if (!this.updateWindowControlsColors || !this.savedWindowControlColors) {
+			return;
+		}
+		this.updateWindowControlsColors(this.savedWindowControlColors.bg, this.savedWindowControlColors.fg);
+		this.savedWindowControlColors = undefined;
+	}
+
 	dispose(): void {
+		this.restoreWindowControlsColors();
 		this.disposables.dispose();
 		this._onDidClose.dispose();
 		this._onDidSubmit.dispose();

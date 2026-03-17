@@ -80,6 +80,7 @@ export class IssueFormService implements IIssueFormService {
 		this.overlay = new IssueReporterOverlay(
 			data,
 			this.layoutService as import('../../../services/layout/browser/layoutService.js').IWorkbenchLayoutService,
+			this.getWindowControlsUpdater(),
 		);
 		this.overlayDisposables.add(this.overlay);
 
@@ -159,6 +160,10 @@ export class IssueFormService implements IIssueFormService {
 		}));
 
 		this.overlay.show();
+	}
+
+	protected getWindowControlsUpdater(): ((backgroundColor: string, foregroundColor: string) => void) | undefined {
+		return undefined; // Browser — no native window controls
 	}
 
 	private parseGitHubUrl(url: string): undefined | { repositoryName: string; owner: string } {

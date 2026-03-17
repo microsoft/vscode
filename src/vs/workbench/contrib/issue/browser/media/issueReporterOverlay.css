@@ -153,8 +153,17 @@ body.issue-reporter-active {
 	display: flex;
 	align-items: center;
 	position: relative;
-	flex: 1;
+	flex: 1 1 100%;
+	width: 100%;
 	min-width: 0;
+}
+
+.issue-reporter-screenshot-row {
+	width: 100%;
+}
+
+.issue-reporter-action-row {
+	width: 100%;
 }
 
 .screenshot-btn-group .delay-btn {
@@ -175,6 +184,13 @@ body.issue-reporter-active {
 
 .screenshot-btn-group .delay-btn:hover {
 	background: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+.screenshot-btn-group .delay-btn.disabled,
+.screenshot-btn-group .delay-btn:disabled {
+	opacity: 0.6;
+	cursor: default;
+	pointer-events: none;
 }
 
 .screenshot-btn-group .delay-label {

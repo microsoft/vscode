@@ -35,6 +35,15 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, layoutService, screenshotService, openerService);
 	}
 
+	protected override getWindowControlsUpdater(): ((backgroundColor: string, foregroundColor: string) => void) | undefined {
+		return (backgroundColor, foregroundColor) => {
+			void this.nativeHostService.updateWindowControls({
+				backgroundColor,
+				foregroundColor,
+			});
+		};
+	}
+
 	// override to grab platform info
 	override async openReporter(data: IssueReporterData): Promise<void> {
 		if (this.hasToReload(data)) {

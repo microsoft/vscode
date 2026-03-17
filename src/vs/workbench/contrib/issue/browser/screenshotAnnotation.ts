@@ -98,6 +98,7 @@ export class ScreenshotAnnotationEditor {
 	constructor(
 		private readonly screenshot: IScreenshot,
 		private readonly parentElement: HTMLElement,
+		private readonly updateWindowControlsColors?: (backgroundColor: string, foregroundColor: string) => void,
 	) {
 		this.createUI();
 		this.loadImage();
@@ -254,6 +255,13 @@ export class ScreenshotAnnotationEditor {
 
 		// Canvas container
 		const canvasContainer = append(this.container, $('div.annotation-canvas-container'));
+
+		// Sync window controls to match the annotation toolbar
+		if (this.updateWindowControlsColors) {
+			const targetWindow = getWindow(toolbar);
+			const computedStyle = targetWindow.getComputedStyle(toolbar);
+			this.updateWindowControlsColors(computedStyle.backgroundColor, computedStyle.color);
+		}
 		this.canvas = append(canvasContainer, $('canvas')) as HTMLCanvasElement;
 		const ctx = this.canvas.getContext('2d');
 		if (!ctx) {
