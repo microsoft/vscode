@@ -67,9 +67,7 @@ export class TargetPicker extends Disposable {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('github.copilot.chat.cli.isolationOption.enabled')) {
 				this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
-				if (!this._isolationOptionEnabled && this._targetMode === 'workspace') {
-					this._setMode('worktree');
-				}
+				this._updateMode();
 				this._updateTriggerLabel();
 			}
 		}));
@@ -84,14 +82,20 @@ export class TargetPicker extends Disposable {
 	 */
 	setProject(project: SessionProject | undefined): void {
 		this._project = project;
+		this._updateMode();
+		this._updateTriggerLabel();
+	}
 
-		if (project?.isRepo) {
-			this._targetMode = 'cloud';
-		} else if (project?.isFolder && this._targetMode === 'cloud') {
-			this._targetMode = 'worktree';
+	private _updateMode(): void {
+		if (this._project?.isRepo) {
+			this._setMode('cloud');
+			return;
 		}
 
-		this._updateTriggerLabel();
+		if (this._project?.isFolder) {
+			this._setMode(this._project.repository ? 'worktree' : 'workspace');
+			return;
+		}
 	}
 
 	render(container: HTMLElement): void {
@@ -189,24 +193,25 @@ export class TargetPicker extends Disposable {
 
 		let modeIcon;
 		let modeLabel: string;
-		let isDisabled: boolean;
+		let isDisabled: boolean = true;
+
+		if (this._project?.isFolder && this._project.repository) {
+			isDisabled = !this._isolationOptionEnabled;
+		}
 
 		switch (this._targetMode) {
 			case 'cloud':
 				modeIcon = Codicon.cloud;
 				modeLabel = localize('targetMode.cloud', "Cloud");
-				isDisabled = true;
 				break;
 			case 'workspace':
 				modeIcon = Codicon.folder;
 				modeLabel = localize('targetMode.folder', "Folder");
-				isDisabled = !this._project?.repository;
 				break;
 			case 'worktree':
 			default:
 				modeIcon = Codicon.worktree;
 				modeLabel = localize('targetMode.worktree', "Worktree");
-				isDisabled = !this._project?.repository;
 				break;
 		}
 
