@@ -385,15 +385,15 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		session.setMode(this._modePicker.selectedMode);
 
 		// Open repository for the session's repoUri
-		if (session.repoUri) {
-			this._openRepository(session.repoUri);
+		if (session.project?.uri) {
+			this._openRepository(session.project?.uri);
 		}
 
 		// Listen for session changes
 		const listeners = new DisposableStore();
 		listeners.add(session.onDidChange((changeType) => {
-			if (changeType === 'repoUri' && session.repoUri) {
-				this._openRepository(session.repoUri);
+			if (changeType === 'repoUri' && session.project?.uri) {
+				this._openRepository(session.project?.uri);
 			}
 			if (changeType === 'targetMode') {
 				this._branchPicker.setVisible(session.targetMode === 'worktree');

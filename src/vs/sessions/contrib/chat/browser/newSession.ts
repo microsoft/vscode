@@ -35,7 +35,6 @@ export interface INewSession extends IDisposable {
 	readonly resource: URI;
 	readonly target: AgentSessionProviders;
 	readonly project: SessionProject | undefined;
-	readonly repoUri: URI | undefined;
 	readonly targetMode: TargetMode;
 	readonly branch: string | undefined;
 	readonly modelId: string | undefined;
@@ -46,7 +45,6 @@ export interface INewSession extends IDisposable {
 	readonly disabled: boolean;
 	readonly onDidChange: Event<NewSessionChangeType>;
 	setProject(project: SessionProject): void;
-	setRepoUri(uri: URI): void;
 	setTargetMode(mode: TargetMode): void;
 	setBranch(branch: string | undefined): void;
 	setModelId(modelId: string | undefined): void;
@@ -84,7 +82,6 @@ export class LocalNewSession extends Disposable implements INewSession {
 	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
 
 	get project(): SessionProject | undefined { return this._project; }
-	get repoUri(): URI | undefined { return this._repoUri; }
 	get targetMode(): TargetMode { return this._targetMode; }	get branch(): string | undefined { return this._branch; }
 	get modelId(): string | undefined { return this._modelId; }
 	get mode(): IChatMode | undefined { return this._mode; }
@@ -121,10 +118,6 @@ export class LocalNewSession extends Disposable implements INewSession {
 		this._onDidChange.fire('repoUri');
 		this._onDidChange.fire('disabled');
 		this.setOption(REPOSITORY_OPTION_ID, project.uri.fsPath);
-	}
-
-	setRepoUri(uri: URI): void {
-		this.setProject(new SessionProject(uri));
 	}
 
 	setTargetMode(mode: TargetMode): void {
@@ -201,7 +194,6 @@ export class RemoteNewSession extends Disposable implements INewSession {
 	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
 
 	get project(): SessionProject | undefined { return this._project; }
-	get repoUri(): URI | undefined { return this._repoUri; }
 	get targetMode(): TargetMode { return 'cloud'; }
 	get branch(): string | undefined { return undefined; }
 	get modelId(): string | undefined { return this._modelId; }
@@ -244,10 +236,6 @@ export class RemoteNewSession extends Disposable implements INewSession {
 		this._onDidChange.fire('disabled');
 		const id = project.uri.path.substring(1);
 		this.setOption('repositories', { id, name: id });
-	}
-
-	setRepoUri(uri: URI): void {
-		this.setProject(new SessionProject(uri));
 	}
 
 	setTargetMode(_mode: TargetMode): void {
