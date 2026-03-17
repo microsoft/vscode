@@ -302,6 +302,53 @@
 	background-color: var(--vscode-menu-separatorBackground);
 }
 
+.action-list-submenu-item {
+	display: flex;
+	align-items: flex-start;
+	padding: 4px 12px 4px 4px;
+	cursor: pointer;
+	white-space: nowrap;
+	font-size: 13px;
+}
+
+.action-list-submenu-item .check-icon {
+	width: 20px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	padding-top: 2px;
+}
+
+.action-list-submenu-item .action-list-submenu-content {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0;
+}
+
+.action-list-submenu-item .action-list-submenu-label-row {
+	display: flex;
+	align-items: center;
+}
+
+.action-list-submenu-item .action-list-submenu-label {
+	flex: 1;
+}
+
+.action-list-submenu-item .action-list-submenu-description {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	white-space: normal;
+	line-height: 1.3;
+	padding-top: 2px;
+}
+
+.action-list-submenu-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	color: var(--vscode-list-hoverForeground);
+}
+
 .action-widget-delegate-label {
 	display: flex;
 	align-items: center;
