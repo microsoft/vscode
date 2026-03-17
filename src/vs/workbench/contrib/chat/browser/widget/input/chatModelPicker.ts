@@ -98,14 +98,9 @@ function createModelAction(
 	selectedModelId: string | undefined,
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
 	section?: string,
-	languageModelsService?: ILanguageModelsService,
+	_languageModelsService?: ILanguageModelsService,
 ): IActionWidgetDropdownAction & { section?: string } {
-	const toolbarActions = languageModelsService?.getModelConfigurationActions(model.identifier);
-	const configDescription = languageModelsService ? getModelConfigurationDescription(model, languageModelsService) : undefined;
-	const baseDescription = model.metadata.multiplier ?? model.metadata.detail;
-	const description = configDescription && baseDescription
-		? `${configDescription} · ${baseDescription}`
-		: configDescription ?? baseDescription;
+	const description = model.metadata.multiplier ?? model.metadata.detail;
 	return {
 		id: model.identifier,
 		enabled: true,
@@ -116,7 +111,6 @@ function createModelAction(
 		tooltip: model.metadata.name,
 		label: model.metadata.name,
 		section,
-		toolbarActions: toolbarActions && toolbarActions.length > 0 ? toolbarActions : undefined,
 		run: () => onSelect(model),
 	};
 }
@@ -514,11 +508,6 @@ export class ModelPickerWidget extends Disposable {
 		@IUpdateService private readonly _updateService: IUpdateService,
 	) {
 		super();
-
-		// Re-render label when model configuration changes
-		this._register(this._languageModelsService.onDidChangeLanguageModelVendors(() => {
-			this._renderLabel();
-		}));
 	}
 
 	setHideChevrons(hideChevrons: IObservable<boolean>): void {
@@ -691,10 +680,7 @@ export class ModelPickerWidget extends Disposable {
 			domChildren.push(iconElement);
 		}
 
-		const modelLabel = name ?? localize('chat.modelPicker.auto', "Auto");
-		const configDescription = this._selectedModel ? getModelConfigurationDescription(this._selectedModel, this._languageModelsService) : undefined;
-		const fullLabel = configDescription ? `${modelLabel} · ${configDescription}` : modelLabel;
-		domChildren.push(dom.$('span.chat-input-picker-label', undefined, fullLabel));
+		domChildren.push(dom.$('span.chat-input-picker-label', undefined, name ?? localize('chat.modelPicker.auto', "Auto")));
 
 		// Badge icon between label and chevron
 		if (this._badgeIcon) {
@@ -751,29 +737,3 @@ function formatTokenCount(count: number): string {
 	return count.toString();
 }
 
-/**
- * Returns a display string for navigation-group configuration properties (e.g., "High" for thinking effort).
- */
-export function getModelConfigurationDescription(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService: ILanguageModelsService): string | undefined {
-	const schema = model.metadata.configurationSchema;
-	if (!schema?.properties) {
-		return undefined;
-	}
-
-	const currentConfig = languageModelsService.getModelConfiguration(model.identifier) ?? {};
-	const parts: string[] = [];
-
-	for (const [key, propSchema] of Object.entries(schema.properties)) {
-		if (typeof propSchema === 'boolean' || propSchema.group !== 'navigation') {
-			continue;
-		}
-		const value = currentConfig[key] ?? propSchema.default;
-		if (value !== undefined) {
-			const enumIndex = propSchema.enum?.indexOf(value) ?? -1;
-			const displayValue = (enumIndex >= 0 && propSchema.enumItemLabels?.[enumIndex]) ?? String(value);
-			parts.push(displayValue);
-		}
-	}
-
-	return parts.length > 0 ? parts.join(' · ') : undefined;
-}

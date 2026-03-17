@@ -106,18 +106,14 @@ export class ModelConfigPickerActionItem extends BaseActionViewItem {
 		}
 
 		const navProps = this._getNavigationProperties();
-		const model = this.delegate.currentModel.get();
-		const hasActions = model ? this._languageModelsService.getModelConfigurationActions(model.identifier).length > 0 : false;
-		const disabled = navProps.length === 0 || !hasActions;
-
 		if (navProps.length === 0) {
 			this._domNode.style.display = 'none';
 			return;
 		}
 
 		this._domNode.style.display = '';
-		this._domNode.classList.toggle('disabled', disabled);
-		this._domNode.setAttribute('aria-disabled', String(disabled));
+		this._domNode.classList.remove('disabled');
+		this._domNode.removeAttribute('aria-disabled');
 
 		const parts: string[] = [];
 		for (const prop of navProps) {
@@ -138,9 +134,6 @@ export class ModelConfigPickerActionItem extends BaseActionViewItem {
 	}
 
 	private _showPicker(): void {
-		if (this._domNode?.classList.contains('disabled')) {
-			return;
-		}
 		const model = this.delegate.currentModel.get();
 		if (!model) {
 			return;
