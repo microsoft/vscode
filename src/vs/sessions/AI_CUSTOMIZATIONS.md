@@ -14,9 +14,10 @@ src/vs/workbench/contrib/chat/browser/aiCustomization/
 ├── aiCustomizationManagement.ts                # IDs + context keys
 ├── aiCustomizationManagementEditor.ts          # SplitView list/editor
 ├── aiCustomizationManagementEditorInput.ts     # Singleton input
-├── aiCustomizationListWidget.ts                # Search + grouped list
+├── aiCustomizationListWidget.ts                # Search + grouped list + harness toggle
 ├── aiCustomizationDebugPanel.ts                # Debug diagnostics panel
 ├── aiCustomizationWorkspaceService.ts          # Core VS Code workspace service impl
+├── customizationHarnessService.ts              # Core harness service impl (VS Code harness)
 ├── customizationCreatorService.ts              # AI-guided creation flow
 ├── mcpListWidget.ts                            # MCP servers section
 ├── aiCustomizationIcons.ts                     # Icons
@@ -24,7 +25,8 @@ src/vs/workbench/contrib/chat/browser/aiCustomization/
     └── aiCustomizationManagement.css
 
 src/vs/workbench/contrib/chat/common/
-└── aiCustomizationWorkspaceService.ts          # IAICustomizationWorkspaceService + IStorageSourceFilter
+├── aiCustomizationWorkspaceService.ts          # IAICustomizationWorkspaceService + IStorageSourceFilter
+└── customizationHarnessService.ts              # ICustomizationHarnessService + CustomizationHarness enum
 ```
 
 The tree view and overview live in `vs/sessions` (sessions window only):
@@ -44,6 +46,7 @@ Sessions-specific overrides:
 ```
 src/vs/sessions/contrib/chat/browser/
 ├── aiCustomizationWorkspaceService.ts          # Sessions workspace service override
+├── customizationHarnessService.ts              # Sessions harness service (CLI + Claude harnesses)
 └── promptsService.ts                           # AgenticPromptsService (CLI user roots)
 src/vs/sessions/contrib/sessions/browser/
 ├── customizationCounts.ts                      # Source count utilities (type-aware)
@@ -57,9 +60,25 @@ The `IAICustomizationWorkspaceService` interface controls per-window behavior:
 | Property / Method | Core VS Code | Sessions Window |
 |----------|-------------|----------|
 | `managementSections` | All sections except Models | Same minus MCP |
-| `getStorageSourceFilter(type)` | All sources, no user root filter | Per-type (see below) |
+| `getStorageSourceFilter(type)` | Delegates to `ICustomizationHarnessService` | Delegates to `ICustomizationHarnessService` |
 | `isSessionsWindow` | `false` | `true` |
 | `activeProjectRoot` | First workspace folder | Active session worktree |
+
+### ICustomizationHarnessService
+
+A harness represents the AI execution environment that consumes customizations.
+Storage answers "where did this come from?"; harness answers "who consumes it?".
+
+Available harnesses:
+
+| Harness | Label | Description |
+|---------|-------|-------------|
+| `vscode` | VS Code | Shows all storage sources (default in core) |
+| `cli` | Copilot CLI | Restricts user roots to `~/.copilot`, `~/.claude`, `~/.agents` |
+| `claude` | Claude | Restricts user roots to `~/.claude` |
+
+In core VS Code, only the `vscode` harness is registered (toggle hidden).
+In sessions, `cli` and `claude` harnesses are registered with a toggle bar above the list.
 
 ### IStorageSourceFilter
 
@@ -75,13 +94,23 @@ interface IStorageSourceFilter {
 
 The shared `applyStorageSourceFilter()` helper applies this filter to any `{uri, storage}` array.
 
-**Sessions filter behavior by type:**
+**Sessions filter behavior by harness and type:**
+
+CLI harness:
 
 | Type | sources | includedUserFileRoots |
 |------|---------|----------------------|
-| Hooks | `[local]` | N/A |
-| Prompts | `[local, user]` | `undefined` (all roots) |
-| Agents, Skills, Instructions | `[local, user]` | `[~/.copilot, ~/.claude, ~/.agents]` |
+| Hooks | `[local, plugin]` | N/A |
+| Prompts | `[local, user, plugin, builtin]` | `undefined` (all roots) |
+| Agents, Skills, Instructions | `[local, user, plugin, builtin]` | `[~/.copilot, ~/.claude, ~/.agents]` |
+
+Claude harness:
+
+| Type | sources | includedUserFileRoots |
+|------|---------|----------------------|
+| Hooks | `[local, plugin]` | N/A |
+| Prompts | `[local, user, plugin, builtin]` | `undefined` (all roots) |
+| Agents, Skills, Instructions | `[local, user, plugin, builtin]` | `[~/.claude]` |
 
 **Core VS Code:** All types use `[local, user, extension, plugin]` with no user root filter.
 

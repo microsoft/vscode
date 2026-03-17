@@ -172,6 +172,49 @@
 	height: 100%;
 }
 
+/* Harness toggle bar */
+.ai-customization-list-widget .harness-toggle-container {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+	padding: 6px 0 2px;
+}
+
+.ai-customization-list-widget .harness-toggle-pill {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 10px;
+	border: 1px solid var(--vscode-widget-border, transparent);
+	border-radius: 16px;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	font-size: 12px;
+	transition: background-color 0.1s ease, color 0.1s ease, border-color 0.1s ease;
+}
+
+.ai-customization-list-widget .harness-toggle-pill:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-list-widget .harness-toggle-pill.active {
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	border-color: var(--vscode-badge-background);
+}
+
+.ai-customization-list-widget .harness-toggle-pill .harness-toggle-icon {
+	font-size: 14px;
+	flex-shrink: 0;
+}
+
+.ai-customization-list-widget .harness-toggle-pill .harness-toggle-label {
+	white-space: nowrap;
+}
+
 /* Search and button container - consistent with Models view */
 .ai-customization-list-widget .list-search-and-button-container,
 .mcp-list-widget .list-search-and-button-container {
