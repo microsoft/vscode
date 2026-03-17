@@ -120,7 +120,7 @@
     "minimist": "^1.2.8",
     "native-is-elevated": "0.9.0",
     "native-keymap": "^3.3.5",
-    "node-pty": "^1.2.0-beta.10",
+    "node-pty": "^1.2.0-beta.12",
     "open": "^10.1.2",
     "playwright-core": "1.59.0-alpha-2026-02-20",
     "tas-client": "0.3.1",
