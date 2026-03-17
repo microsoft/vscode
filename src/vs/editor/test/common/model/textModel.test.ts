@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../common/languages/modesRegistry.js';
-import { EndOfLinePreference } from '../../../common/model.js';
+import { EndOfLinePreference, EndOfLineSequence } from '../../../common/model.js';
 import { TextModel, createTextBuffer } from '../../../common/model/textModel.js';
 import { createModelServices, createTextModel } from '../testTextModel.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -238,7 +238,51 @@ suite('Editor Model - TextModel', () => {
 		m.dispose();
 	});
 
-	test('guess indentation 1', () => {
+	test('getValueLengthInRange with CR EOL', () => {
+		const m = createTextModel('My First Line\rMy Second Line\rMy Third Line');
+		assert.strictEqual(m.getEOL(), '\r');
+		assert.strictEqual(m.getEndOfLineSequence(), EndOfLineSequence.CR);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.TextDefined), 'My First Line\r'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.CR), 'My First Line\r'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.LF), 'My First Line\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.CRLF), 'My First Line\r\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.TextDefined), 'My First Line\rMy Second Line\rMy Third Line'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.CR), 'My First Line\rMy Second Line\rMy Third Line'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.LF), 'My First Line\nMy Second Line\nMy Third Line'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.CRLF), 'My First Line\r\nMy Second Line\r\nMy Third Line'.length);
+		m.dispose();
+	});
+
+	test('setEOL and getEndOfLineSequence with CR', () => {
+		const m = createTextModel('line1\nline2\nline3');
+		assert.strictEqual(m.getEndOfLineSequence(), EndOfLineSequence.LF);
+
+		m.setEOL(EndOfLineSequence.CR);
+		assert.strictEqual(m.getEOL(), '\r');
+		assert.strictEqual(m.getEndOfLineSequence(), EndOfLineSequence.CR);
+
+		m.setEOL(EndOfLineSequence.CRLF);
+		assert.strictEqual(m.getEOL(), '\r\n');
+		assert.strictEqual(m.getEndOfLineSequence(), EndOfLineSequence.CRLF);
+
+		m.setEOL(EndOfLineSequence.LF);
+		assert.strictEqual(m.getEOL(), '\n');
+		assert.strictEqual(m.getEndOfLineSequence(), EndOfLineSequence.LF);
+
+		m.dispose();
+	});
+
+	test('pushEOL with CR', () => {
+		const m = createTextModel('line1\nline2\nline3');
+		assert.strictEqual(m.getEndOfLineSequence(), EndOfLineSequence.LF);
+
+		m.pushEOL(EndOfLineSequence.CR);
+		assert.strictEqual(m.getEOL(), '\r');
+		assert.strictEqual(m.getEndOfLineSequence(), EndOfLineSequence.CR);
+		assert.strictEqual(m.getValue(), 'line1\rline2\rline3');
+
+		m.dispose();
+	});
 
 		assertGuess(undefined, undefined, [
 			'x',

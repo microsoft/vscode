@@ -7,7 +7,7 @@ import { CharCode } from '../../../../base/common/charCode.js';
 
 export const enum StringEOL {
 	Unknown = 0,
-	Invalid = 3,
+	CR = 3,
 	LF = 1,
 	CRLF = 2
 }
@@ -31,7 +31,7 @@ export function countEOL(text: string): [number, number, number, StringEOL] {
 				i++; // skip \n
 			} else {
 				// \r... case
-				eol |= StringEOL.Invalid;
+				eol |= StringEOL.CR;
 			}
 			lastLineStart = i + 1;
 		} else if (chr === CharCode.LineFeed) {

@@ -218,11 +218,13 @@ configurationRegistry.registerConfiguration({
 			'enum': [
 				'\n',
 				'\r\n',
+				'\r',
 				'auto'
 			],
 			'enumDescriptions': [
 				nls.localize('eol.LF', "LF"),
 				nls.localize('eol.CRLF', "CRLF"),
+				nls.localize('eol.CR', "CR"),
 				nls.localize('eol.auto', "Uses operating system specific end of line character.")
 			],
 			'default': 'auto',
