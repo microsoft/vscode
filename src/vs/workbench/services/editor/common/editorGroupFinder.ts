@@ -98,6 +98,11 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 	const editor = isEditorInputWithOptions(input) ? input.editor : input;
 	const options = input.options;
 
+	// Group: Force modal if the editor has the RequiresModal capability
+	if ((isEditorInput(editor) && (editor.hasCapability(EditorInputCapabilities.RequiresModal) || editor.hasCapability(EditorInputCapabilities.RequiresModal)))) {
+		preferredGroup = MODAL_GROUP;
+	}
+
 	// Group: Instance of Group
 	if (preferredGroup && typeof preferredGroup !== 'number') {
 		group = preferredGroup;
@@ -179,13 +184,10 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 		}
 	}
 
-	// Force modal editor part: redirect to the modal group when setting is 'all'
-	// or when the editor has the RequiresModal capability
-	if (!group) {
-		if (configurationService.getValue<string>('workbench.editor.useModal') === 'all' || (isEditorInput(editor) && (editor.hasCapability(EditorInputCapabilities.RequiresModal) || editor.hasCapability(EditorInputCapabilities.RequiresModal)))) {
-			group = editorGroupService.createModalEditorPart(options?.modal)
-				.then(part => part.activeGroup);
-		}
+	// Force modal editor part: redirect to the modal group when setting is 'on'
+	if (!group && configurationService.getValue<string>('workbench.editor.useModal') === 'all') {
+		group = editorGroupService.createModalEditorPart(options?.modal)
+			.then(part => part.activeGroup);
 	}
 
 	// Fallback to active group if target not valid but avoid
