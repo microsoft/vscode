@@ -88,13 +88,23 @@ export class IssueFormService implements IIssueFormService {
 			this.closeOverlay();
 		}));
 
-		// Handle screenshot request — hide overlay first so it's not in the capture
+		// Handle screenshot request — capture only the workbench area, not the wizard
 		this.overlayDisposables.add(this.overlay.onDidRequestScreenshot(async () => {
 			this.overlay?.hideForCapture();
 			try {
 				// Small delay to let the UI hide before capture
 				await new Promise(r => setTimeout(r, 100));
-				const dataUrl = await this.screenshotService.captureScreenshot();
+				// Capture only the workbench container region, excluding the wizard panel
+				const container = this.layoutService.mainContainer;
+				const bounds = container.getBoundingClientRect();
+				const dpr = container.ownerDocument.defaultView?.devicePixelRatio ?? 1;
+				const rect = {
+					x: Math.round(bounds.x * dpr),
+					y: Math.round(bounds.y * dpr),
+					width: Math.round(bounds.width * dpr),
+					height: Math.round(bounds.height * dpr),
+				};
+				const dataUrl = await this.screenshotService.captureScreenshot(rect);
 				if (dataUrl && this.overlay) {
 					const img = new Image();
 					img.onload = () => {

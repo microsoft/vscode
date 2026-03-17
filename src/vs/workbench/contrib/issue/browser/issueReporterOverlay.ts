@@ -57,6 +57,8 @@ export class IssueReporterOverlay {
 	// Step 3: Screenshots
 	private screenshotContainer!: HTMLElement;
 	private screenshotDelay = 0;
+	private captureBtn!: HTMLElement;
+	private captureLabel!: HTMLElement;
 
 	// Step 4: Review
 	private titleInput!: HTMLInputElement;
@@ -232,7 +234,7 @@ export class IssueReporterOverlay {
 		heading.textContent = localize('screenshotsHeading', "Add screenshots for better context?");
 
 		const subtitle = append(page, $('p.wizard-subtitle'));
-		subtitle.textContent = localize('screenshotsSubtitle', "You'll be able to navigate VS Code and choose when to take a screenshot");
+		subtitle.textContent = localize('screenshotsSubtitle', "You can add up to {0} screenshots. Navigate VS Code and choose when to capture.", MAX_SCREENSHOTS);
 
 		this.screenshotContainer = append(page, $('div.wizard-screenshots'));
 
@@ -259,34 +261,34 @@ export class IssueReporterOverlay {
 			this.screenshotDelay = parseInt(delaySelect.value);
 		}));
 
-		const captureBtn = append(actions, $('div.wizard-nav-btn.wizard-capture-btn.primary'));
-		captureBtn.setAttribute('role', 'button');
-		captureBtn.setAttribute('tabindex', '0');
-		const cameraIcon = append(captureBtn, $('span.wizard-capture-icon'));
+		this.captureBtn = append(actions, $('div.wizard-nav-btn.wizard-capture-btn.primary'));
+		this.captureBtn.setAttribute('role', 'button');
+		this.captureBtn.setAttribute('tabindex', '0');
+		const cameraIcon = append(this.captureBtn, $('span.wizard-capture-icon'));
 		cameraIcon.appendChild(renderIcon(Codicon.deviceCamera));
-		const captureLabel = append(captureBtn, $('span.wizard-capture-label'));
-		captureLabel.textContent = localize('addScreenshot', "Add screenshot");
+		this.captureLabel = append(this.captureBtn, $('span.wizard-capture-label'));
+		this.captureLabel.textContent = localize('addScreenshot', "Add screenshot");
 
-		this.disposables.add(addDisposableListener(captureBtn, EventType.CLICK, () => {
+		this.disposables.add(addDisposableListener(this.captureBtn, EventType.CLICK, () => {
 			if (this.screenshots.length >= MAX_SCREENSHOTS) {
 				return;
 			}
-			if (captureBtn.classList.contains('disabled')) {
+			if (this.captureBtn.classList.contains('disabled')) {
 				return;
 			}
 			if (this.screenshotDelay > 0) {
-				captureBtn.classList.add('disabled');
-				const origText = captureLabel.textContent;
+				this.captureBtn.classList.add('disabled');
+				const origText = this.captureLabel.textContent;
 				let remaining = this.screenshotDelay;
-				captureLabel.textContent = `${remaining}...`;
+				this.captureLabel.textContent = `${remaining}...`;
 				const interval = setInterval(() => {
 					remaining--;
 					if (remaining > 0) {
-						captureLabel.textContent = `${remaining}...`;
+						this.captureLabel.textContent = `${remaining}...`;
 					} else {
 						clearInterval(interval);
-						captureLabel.textContent = origText;
-						captureBtn.classList.remove('disabled');
+						this.captureLabel.textContent = origText;
+						this.captureBtn.classList.remove('disabled');
 						this._onDidRequestScreenshot.fire();
 					}
 				}, 1000);
@@ -608,7 +610,18 @@ export class IssueReporterOverlay {
 		}
 		this.screenshots.push(screenshot);
 		this.updateScreenshotThumbnails();
+		this.updateCaptureButton();
 		this.updateStepUI();
+	}
+
+	private updateCaptureButton(): void {
+		const atMax = this.screenshots.length >= MAX_SCREENSHOTS;
+		this.captureBtn.classList.toggle('disabled', atMax);
+		if (atMax) {
+			this.captureLabel.textContent = localize('maxScreenshotsReached', "Max screenshots reached");
+		} else {
+			this.captureLabel.textContent = localize('addScreenshot', "Add screenshot");
+		}
 	}
 
 	private updateScreenshotThumbnails(): void {
@@ -640,6 +653,7 @@ export class IssueReporterOverlay {
 				e.stopPropagation();
 				this.screenshots.splice(i, 1);
 				this.updateScreenshotThumbnails();
+				this.updateCaptureButton();
 				this.updateStepUI();
 			}));
 		}

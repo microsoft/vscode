@@ -273,10 +273,11 @@ body.issue-reporter-active {
 /* ── Screenshot Cards (Step 3) ── */
 .wizard-screenshots {
 	display: flex;
-	gap: 12px;
+	gap: 10px;
 	flex-wrap: wrap;
 	margin-top: 8px;
-	min-height: 60px;
+	min-height: 50px;
+	flex-shrink: 0;
 }
 
 .wizard-screenshots-empty {
@@ -288,13 +289,14 @@ body.issue-reporter-active {
 
 .wizard-screenshot-card {
 	position: relative;
-	width: 160px;
-	height: 100px;
+	width: 120px;
+	height: 75px;
 	border-radius: 6px;
 	overflow: hidden;
 	border: 1px solid var(--vscode-input-border, #555);
 	cursor: pointer;
 	transition: border-color 0.15s;
+	flex-shrink: 0;
 }
 
 .wizard-screenshot-card:hover {
@@ -353,6 +355,7 @@ body.issue-reporter-active {
 	align-items: center;
 	gap: 12px;
 	margin-top: 8px;
+	flex-shrink: 0;
 }
 
 .wizard-delay-group {
