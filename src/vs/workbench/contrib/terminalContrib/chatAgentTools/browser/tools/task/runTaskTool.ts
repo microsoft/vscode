@@ -58,8 +58,11 @@ export class RunTaskTool implements IToolImpl {
 		const preRunResources = this._tasksService.getTerminalsForTasks(dependencyTasks ?? task);
 		const preRunTerminals = this._terminalService.instances.filter(t => preRunResources?.some(r => r.path === t.resource.path && r.scheme === t.resource.scheme));
 		const startMarkersByTerminalInstanceId = new Map<number, ReturnType<(typeof preRunTerminals)[number]['registerMarker']>>();
+		const startMarkersDisposableStore = new DisposableStore();
 		for (const terminal of preRunTerminals) {
-			startMarkersByTerminalInstanceId.set(terminal.instanceId, terminal.registerMarker());
+			const marker = terminal.registerMarker();
+			startMarkersByTerminalInstanceId.set(terminal.instanceId, marker);
+			startMarkersDisposableStore.add(marker);
 		}
 
 		const raceResult = await Promise.race([this._tasksService.run(task, undefined, TaskRunSource.ChatAgent), timeout(3000)]);
@@ -67,10 +70,12 @@ export class RunTaskTool implements IToolImpl {
 
 		const resources = this._tasksService.getTerminalsForTasks(dependencyTasks ?? task);
 		if (!resources || resources.length === 0) {
+			startMarkersDisposableStore.dispose();
 			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('chat.noTerminal', 'Task started but no terminal was found for: \`{0}\`', taskLabel)) };
 		}
 		const terminals = this._terminalService.instances.filter(t => resources.some(r => r.path === t.resource.path && r.scheme === t.resource.scheme));
 		if (terminals.length === 0) {
+			startMarkersDisposableStore.dispose();
 			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('chat.noTerminal', 'Task started but no terminal was found for: \`{0}\`', taskLabel)) };
 		}
 
