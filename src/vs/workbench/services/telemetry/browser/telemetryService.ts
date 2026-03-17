@@ -14,7 +14,7 @@ import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } fro
 import { ITelemetryData, ITelemetryService, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryLogAppender } from '../../../../platform/telemetry/common/telemetryLogAppender.js';
 import { ITelemetryServiceConfig, TelemetryService as BaseTelemetryService } from '../../../../platform/telemetry/common/telemetryService.js';
-import { getTelemetryLevel, isInternalTelemetry, isLoggingOnly, ITelemetryAppender, NullTelemetryService, supportsTelemetry } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { getBrowserPiiPaths, getTelemetryLevel, isInternalTelemetry, isLoggingOnly, ITelemetryAppender, NullTelemetryService, supportsTelemetry } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
@@ -115,6 +115,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				commonProperties: resolveWorkbenchCommonProperties(storageService, productService, isInternal, environmentService.remoteAuthority, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
+				piiPaths: getBrowserPiiPaths(typeof window !== 'undefined' ? window.location.origin : undefined),
 				sendErrorTelemetry: this.sendErrorTelemetry,
 				waitForExperimentProperties: experimentsEnabled(configurationService, productService, environmentService),
 				meteredConnectionService,
