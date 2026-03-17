@@ -59,7 +59,8 @@ import { BranchPicker } from './branchPicker.js';
 import { SyncIndicator } from './syncIndicator.js';
 import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
 import { CloudModelPicker } from './modelPicker.js';
-import { IProjectSelection, ProjectPicker } from './projectPicker.js';
+import { ProjectPicker } from './projectPicker.js';
+import { SessionProject } from '../../sessions/common/types.js';
 import { ModePicker } from './modePicker.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { SlashCommandHandler } from './slashCommands.js';
@@ -79,7 +80,6 @@ interface IDraftState extends IChatModelInputState {
 	target?: AgentSessionProviders;
 	targetMode?: TargetMode;
 	branch?: string;
-	projectKind?: 'folder' | 'repo';
 	projectUri?: UriComponents;
 }
 
@@ -249,8 +249,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	private _updateTargetPickerState(): void {
-		const isLocal = this._currentTarget === AgentSessionProviders.Background;
-		this._targetPicker.setProject(isLocal ? { kind: 'folder' } : { kind: 'repo' });
+		this._targetPicker.setProject(this._projectPicker.selectedProject);
 		this._targetPicker.setVisible(true);
 	}
 
@@ -334,7 +333,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		const project = this._projectPicker.selectedProject;
 		if (project) {
-			if (project.kind === 'folder') {
+			if (project.isFolder) {
 				// For local targets, request workspace trust before creating the session
 				const trusted = await this._requestFolderTrust(project.uri);
 				if (trusted) {
@@ -425,8 +424,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._repositoryLoading = true;
 		this._updateInputLoadingState();
 		this._branchPicker.setRepository(undefined);
-		this._targetPicker.setProject({ kind: 'folder', repository: undefined });
-		this._updateTargetPickerState();
+		this._targetPicker.setProject(new SessionProject(folderUri));
 		this._syncIndicator.setRepository(undefined);
 		this._modePicker.setRepository(undefined);
 
@@ -436,8 +434,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			}
 			this._repositoryLoading = false;
 			this._updateInputLoadingState();
-			this._targetPicker.setProject({ kind: 'folder', repository: repository });
-			this._updateTargetPickerState();
+			this._targetPicker.setProject(new SessionProject(folderUri, repository));
 			this._branchPicker.setRepository(repository);
 			this._branchPicker.setVisible(!!repository && this._targetPicker.isWorktree);
 			this._syncIndicator.setRepository(repository);
@@ -450,8 +447,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this.logService.warn(`Failed to open repository at ${folderUri.toString()}`, getErrorMessage(e));
 			this._repositoryLoading = false;
 			this._updateInputLoadingState();
-			this._targetPicker.setProject({ kind: 'folder', repository: undefined });
-			this._updateTargetPickerState();
+			this._targetPicker.setProject(new SessionProject(folderUri));
 			this._branchPicker.setRepository(undefined);
 			this._branchPicker.setVisible(false);
 			this._syncIndicator.setRepository(undefined);
@@ -892,7 +888,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			target: this._currentTarget,
 			targetMode: this._targetPicker.targetMode,
 			branch: this._branchPicker.selectedBranch,
-			projectKind: this._projectPicker.selectedProject?.kind,
 			projectUri: this._projectPicker.selectedProject?.uri.toJSON(),
 		};
 	}
@@ -1003,7 +998,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._projectPicker.showPicker();
 	}
 
-	private async _requestFolderTrust(folderUri: URI, previousProject?: IProjectSelection): Promise<boolean> {
+	private async _requestFolderTrust(folderUri: URI, previousProject?: SessionProject): Promise<boolean> {
 		const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
 			uri: folderUri,
 			message: localize('trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
@@ -1041,11 +1036,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			if (draft.branch) {
 				this._branchPicker.setPreferredBranch(draft.branch);
 			}
-			if (draft.projectKind && draft.projectUri) {
+			if (draft.projectUri) {
 				try {
-					const uri = URI.revive(draft.projectUri);
-					this._projectPicker.setSelectedProject({ kind: draft.projectKind, uri }, false);
-					this._currentTarget = draft.projectKind === 'folder' ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
+					const project = new SessionProject(URI.revive(draft.projectUri));
+					this._projectPicker.setSelectedProject(project, false);
+					this._currentTarget = project.isFolder ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
 				} catch { /* ignore */ }
 			}
 		}
@@ -1078,7 +1073,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			target,
 			targetMode: isLocal ? this._targetPicker.targetMode : undefined,
 			branch: isLocal ? this._branchPicker.selectedBranch : undefined,
-			projectKind: project?.kind,
 			projectUri: project?.uri.toJSON(),
 		};
 		this._draftState = preserved;
@@ -1108,7 +1102,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	 * Infers the session target from the selection kind, creates a new session,
 	 * and shows/hides pickers accordingly.
 	 */
-	private async _onProjectSelected(project: IProjectSelection): Promise<void> {
+	private async _onProjectSelected(project: SessionProject): Promise<void> {
 		// Cancel any in-flight project selection
 		this._projectSelectionCts.value?.cancel();
 		const cts = this._projectSelectionCts.value = new CancellationTokenSource();
@@ -1117,7 +1111,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const previousProject = this._projectPicker.selectedProject;
 		const previousTarget = this._currentTarget;
 
-		const newTarget = project.kind === 'folder' ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
+		const newTarget = project.isFolder ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
 		const targetChanged = this._currentTarget !== newTarget;
 		this._currentTarget = newTarget;
 		const isLocal = newTarget === AgentSessionProviders.Background;

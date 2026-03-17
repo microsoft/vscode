@@ -12,7 +12,7 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ISessionProject } from '../../sessions/common/types.js';
+import { SessionProject } from '../../sessions/common/types.js';
 
 // #region --- Target Picker ---
 
@@ -32,7 +32,7 @@ export class TargetPicker extends Disposable {
 
 	private _targetMode: TargetMode = 'worktree';
 	private _preferredLocalMode: TargetMode | undefined;
-	private _project: ISessionProject | undefined;
+	private _project: SessionProject | undefined;
 	private _isolationOptionEnabled: boolean = true;
 
 	private readonly _onDidChange = this._register(new Emitter<TargetMode>());
@@ -83,10 +83,10 @@ export class TargetPicker extends Disposable {
 	 * - Folder without git repo → worktree disabled, keeps current mode
 	 * - No project → retains current mode
 	 */
-	setProject(project: ISessionProject | undefined): void {
+	setProject(project: SessionProject | undefined): void {
 		this._project = project;
 
-		if (project?.kind === 'repo') {
+		if (project?.isRepo) {
 			// Cloud project — switch to cloud mode
 			if (this._targetMode !== 'cloud') {
 				this._preferredLocalMode = this._targetMode;

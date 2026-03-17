@@ -18,7 +18,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
-import { ISessionProject } from '../../sessions/common/types.js';
+import { SessionProject } from '../../sessions/common/types.js';
 
 const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
 const STORAGE_KEY_LAST_PROJECT = 'sessions.lastPickedProject';
@@ -42,7 +42,6 @@ const COMMAND_BROWSE_REPOS = 'command:browseRepos';
  * Serializable form of a project entry for storage.
  */
 interface IStoredProject {
-	readonly kind: ISessionProject['kind'];
 	readonly uri: UriComponents;
 	readonly label: string;
 	readonly checked?: boolean;
@@ -57,21 +56,18 @@ interface IStoredProject {
  * - "Browse Folders..." — opens a folder dialog
  * - "Browse Repositories..." — runs the cloud repository picker command
  */
-/** A project selection with a required URI — used by the picker for concrete selections. */
-export type IProjectSelection = Required<Pick<ISessionProject, 'kind' | 'uri'>>;
-
 export class ProjectPicker extends Disposable {
 
-	private readonly _onDidSelectProject = this._register(new Emitter<IProjectSelection>());
-	readonly onDidSelectProject: Event<IProjectSelection> = this._onDidSelectProject.event;
+	private readonly _onDidSelectProject = this._register(new Emitter<SessionProject>());
+	readonly onDidSelectProject: Event<SessionProject> = this._onDidSelectProject.event;
 
-	private _selectedProject: IProjectSelection | undefined;
+	private _selectedProject: SessionProject | undefined;
 	private _recentProjects: IStoredProject[] = [];
 
 	private _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 
-	get selectedProject(): IProjectSelection | undefined {
+	get selectedProject(): SessionProject | undefined {
 		return this._selectedProject;
 	}
 
@@ -124,7 +120,7 @@ export class ProjectPicker extends Disposable {
 				const folderUris: string[] = JSON.parse(storedFolders);
 				for (const uriStr of folderUris) {
 					const uri = URI.parse(uriStr);
-					migrated.push({ kind: 'folder', uri: uri.toJSON(), label: basename(uri) });
+					migrated.push({ uri: uri.toJSON(), label: basename(uri) });
 				}
 			}
 		} catch { /* ignore */ }
@@ -136,7 +132,7 @@ export class ProjectPicker extends Disposable {
 				const repos: { id: string; name: string }[] = JSON.parse(storedRepos);
 				for (const repo of repos) {
 					const uri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repo.id}/HEAD` });
-					migrated.push({ kind: 'repo', uri: uri.toJSON(), label: repo.name });
+					migrated.push({ uri: uri.toJSON(), label: repo.name });
 				}
 			}
 		} catch { /* ignore */ }
@@ -155,8 +151,7 @@ export class ProjectPicker extends Disposable {
 		try {
 			const lastFolder = this.storageService.get(LEGACY_STORAGE_KEY_LAST_FOLDER, StorageScope.PROFILE);
 			if (lastFolder) {
-				const uri = URI.parse(lastFolder);
-				this._selectedProject = { kind: 'folder', uri };
+				this._selectedProject = new SessionProject(URI.parse(lastFolder));
 				return;
 			}
 		} catch { /* ignore */ }
@@ -166,8 +161,7 @@ export class ProjectPicker extends Disposable {
 			const lastRepo = this.storageService.get(LEGACY_STORAGE_KEY_LAST_REPO, StorageScope.PROFILE);
 			if (lastRepo) {
 				const repo: { id: string; name: string } = JSON.parse(lastRepo);
-				const uri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repo.id}/HEAD` });
-				this._selectedProject = { kind: 'repo', uri };
+				this._selectedProject = new SessionProject(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repo.id}/HEAD` }));
 			}
 		} catch { /* ignore */ }
 	}
@@ -253,7 +247,7 @@ export class ProjectPicker extends Disposable {
 	 * Programmatically set the selected project.
 	 * @param fireEvent Whether to fire the onDidSelectProject event. Defaults to true.
 	 */
-	setSelectedProject(project: IProjectSelection, fireEvent = true): void {
+	setSelectedProject(project: SessionProject, fireEvent = true): void {
 		this._selectProject(project, fireEvent);
 	}
 
@@ -278,7 +272,7 @@ export class ProjectPicker extends Disposable {
 		}
 	}
 
-	private _selectProject(project: IProjectSelection, fireEvent = true): void {
+	private _selectProject(project: SessionProject, fireEvent = true): void {
 		this._selectedProject = project;
 		const stored = this._toStored(project);
 		this._addToRecents(stored);
@@ -298,10 +292,7 @@ export class ProjectPicker extends Disposable {
 				title: localize('selectFolder', "Select Folder"),
 			});
 			if (selected?.[0]) {
-				this._selectProject({
-					kind: 'folder',
-					uri: selected[0],
-				});
+				this._selectProject(new SessionProject(selected[0]));
 			}
 		} catch {
 			// dialog was cancelled or failed
@@ -312,10 +303,7 @@ export class ProjectPicker extends Disposable {
 		try {
 			const result: string | undefined = await this.commandService.executeCommand(OPEN_REPO_COMMAND);
 			if (result) {
-				this._selectProject({
-					kind: 'repo',
-					uri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${result}/HEAD` }),
-				});
+				this._selectProject(new SessionProject(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${result}/HEAD` })));
 			}
 		} catch {
 			// command was cancelled or failed
@@ -354,8 +342,9 @@ export class ProjectPicker extends Disposable {
 		}
 
 		// Split into folders and repos, sort each group alphabetically
-		const folders = allProjects.filter(p => p.kind === 'folder').sort((a, b) => a.label.localeCompare(b.label));
-		const repos = allProjects.filter(p => p.kind === 'repo').sort((a, b) => a.label.localeCompare(b.label));
+		const isStoredFolder = (p: IStoredProject) => URI.revive(p.uri).scheme !== GITHUB_REMOTE_FILE_SCHEME;
+		const folders = allProjects.filter(p => isStoredFolder(p)).sort((a, b) => a.label.localeCompare(b.label));
+		const repos = allProjects.filter(p => !isStoredFolder(p)).sort((a, b) => a.label.localeCompare(b.label));
 
 		const selectedKey = this._selectedProject ? this._projectKey(this._toStored(this._selectedProject)) : undefined;
 
@@ -391,13 +380,13 @@ export class ProjectPicker extends Disposable {
 			kind: ActionListItemKind.Action,
 			label: localize('browseFolders', "Browse Folders..."),
 			group: { title: '', icon: Codicon.folderOpened },
-			item: { kind: 'folder', uri: URI.parse(COMMAND_BROWSE_FOLDERS).toJSON(), label: localize('browseFolders', "Browse Folders...") },
+			item: { uri: URI.parse(COMMAND_BROWSE_FOLDERS).toJSON(), label: localize('browseFolders', "Browse Folders...") },
 		});
 		items.push({
 			kind: ActionListItemKind.Action,
 			label: localize('browseRepositories', "Browse Repositories..."),
 			group: { title: '', icon: Codicon.repo },
-			item: { kind: 'repo', uri: URI.parse(COMMAND_BROWSE_REPOS).toJSON(), label: localize('browseRepositories', "Browse Repositories...") },
+			item: { uri: URI.parse(COMMAND_BROWSE_REPOS).toJSON(), label: localize('browseRepositories', "Browse Repositories...") },
 		});
 
 		return items;
@@ -416,7 +405,7 @@ export class ProjectPicker extends Disposable {
 		dom.clearNode(this._triggerElement);
 		const project = this._selectedProject;
 		const label = project ? this._getProjectLabel(project) : localize('pickProject', "Pick a Project");
-		const icon = project ? (project.kind === 'folder' ? Codicon.folder : Codicon.repo) : Codicon.project;
+		const icon = project ? (project.isFolder ? Codicon.folder : Codicon.repo) : Codicon.project;
 
 		dom.append(this._triggerElement, renderIcon(icon));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
@@ -424,34 +413,30 @@ export class ProjectPicker extends Disposable {
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 	}
 
-	private _getProjectLabel(project: IProjectSelection): string {
-		if (project.kind === 'folder') {
+	private _getProjectLabel(project: SessionProject): string {
+		if (project.isFolder) {
 			return basename(project.uri);
 		}
 		// For repos, extract "owner/repo" from the URI path (e.g. "/owner/repo/HEAD" → "owner/repo")
 		return project.uri.path.substring(1).replace(/\/HEAD$/, '');
 	}
 
-	private _toStored(project: IProjectSelection): IStoredProject {
+	private _toStored(project: SessionProject): IStoredProject {
 		return {
-			kind: project.kind,
 			uri: project.uri.toJSON(),
 			label: this._getProjectLabel(project),
 		};
 	}
 
-	private _fromStored(stored: IStoredProject): IProjectSelection {
-		return {
-			kind: stored.kind,
-			uri: URI.revive(stored.uri),
-		};
+	private _fromStored(stored: IStoredProject): SessionProject {
+		return new SessionProject(URI.revive(stored.uri));
 	}
 
 	private _projectKey(project: IStoredProject): string {
-		return `${project.kind}:${URI.revive(project.uri).toString()}`;
+		return URI.revive(project.uri).toString();
 	}
 
 	private _isSameProject(a: IStoredProject, b: IStoredProject): boolean {
-		return a.kind === b.kind && this.uriIdentityService.extUri.isEqual(URI.revive(a.uri), URI.revive(b.uri));
+		return this.uriIdentityService.extUri.isEqual(URI.revive(a.uri), URI.revive(b.uri));
 	}
 }
