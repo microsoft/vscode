@@ -357,6 +357,7 @@ export class AgentFeedbackHover extends Disposable {
 		return {
 			content: hoverElement,
 			style: HoverStyle.Pointer,
+			persistence: { hideOnHover: false },
 			position: { hoverPosition: HoverPosition.ABOVE },
 			trapFocus: true,
 			appearance: { compact: true },
