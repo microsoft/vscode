@@ -1041,7 +1041,7 @@ suite('TelemetryService', () => {
 		sinon.restore();
 	}));
 
-	test('Unexpected Error Telemetry preserves HTTPS URLs in web stack traces when piiPaths includes origin', sinonTestFn(function (this: any) {
+	test('Unexpected Error Telemetry strips web origin but preserves path in web stack traces when piiPaths includes origin', sinonTestFn(function (this: any) {
 		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => { });
 
