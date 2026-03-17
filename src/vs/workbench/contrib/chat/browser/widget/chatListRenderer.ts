@@ -744,6 +744,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
 		const progressMessageAtBottomOfResponse = checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse);
 		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length && !progressMessageAtBottomOfResponse);
+
+		// Toggle show-checkmarks class at the container level for the accessibility setting,
+		// so child content parts can use CSS descendant selectors instead of each subscribing individually.
+		const updateContainerCheckmarks = () => templateData.rowContainer.classList.toggle('show-checkmarks', !!this.configService.getValue<boolean>(AccessibilityWorkbenchSettingId.ShowChatCheckmarks));
+		updateContainerCheckmarks();
+		templateData.elementDisposables.add(this.configService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityWorkbenchSettingId.ShowChatCheckmarks)) {
+				updateContainerCheckmarks();
+			}
+		}));
+
 		if (!this.rendererOptions.noHeader) {
 			this.renderAvatar(element, templateData);
 		}
@@ -928,14 +939,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			dom.append(templateData.detail, $('span.confirmation-text', undefined, localize('chatConfirmationAction', 'Selected "{0}"', element.confirmation)));
 			templateData.header?.classList.remove('header-disabled');
 			templateData.header?.classList.add('partially-disabled');
-
-			const updateCheckmarks = () => templateData.detail.classList.toggle('show-checkmarks', !!this.configService.getValue<boolean>(AccessibilityWorkbenchSettingId.ShowChatCheckmarks));
-			updateCheckmarks();
-			templateData.elementDisposables.add(this.configService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(AccessibilityWorkbenchSettingId.ShowChatCheckmarks)) {
-					updateCheckmarks();
-				}
-			}));
 		}
 	}
 
