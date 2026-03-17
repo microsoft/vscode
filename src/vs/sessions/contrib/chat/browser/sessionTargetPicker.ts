@@ -103,7 +103,15 @@ export class TargetPicker extends Disposable {
 			// Switching back from cloud to a local project
 			this._targetMode = this._preferredLocalMode ?? 'worktree';
 			this._preferredLocalMode = undefined;
-		} else if (project?.repository) {
+		}
+
+		if (project?.isFolder && !project.repository) {
+			// Folder without git repo — force to folder mode
+			if (this._targetMode !== 'workspace') {
+				this._preferredLocalMode ??= this._targetMode;
+				this._targetMode = 'workspace';
+			}
+		} else if (project?.isFolder && project.repository) {
 			// Folder with git repo — restore preferred mode
 			const preferred = this._preferredLocalMode;
 			this._preferredLocalMode = undefined;
@@ -112,6 +120,7 @@ export class TargetPicker extends Disposable {
 				return;
 			}
 		}
+
 		this._updateTriggerLabel();
 	}
 
@@ -143,6 +152,11 @@ export class TargetPicker extends Disposable {
 
 	private _showPicker(): void {
 		if (!this._triggerElement || this.actionWidgetService.isVisible || this._targetMode === 'cloud') {
+			return;
+		}
+
+		// No picker when there's no git repo — only Folder mode is available
+		if (!this._project?.repository) {
 			return;
 		}
 
@@ -216,7 +230,7 @@ export class TargetPicker extends Disposable {
 			case 'workspace':
 				modeIcon = Codicon.folder;
 				modeLabel = localize('targetMode.folder', "Folder");
-				isDisabled = false;
+				isDisabled = !this._project?.repository;
 				break;
 			case 'worktree':
 			default:
