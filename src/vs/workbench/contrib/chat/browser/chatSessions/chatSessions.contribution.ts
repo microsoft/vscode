@@ -906,6 +906,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}));
 	}
 
+	getRegisteredChatSessionItemProviders(): readonly string[] {
+		return Array.from(this._itemControllers.keys()).map(key => this._resolveToPrimaryType(key) ?? key);
+	}
+
 	registerChatSessionItemController(chatSessionType: string, controller: IChatSessionItemController): IDisposable {
 		const disposables = new DisposableStore();
 

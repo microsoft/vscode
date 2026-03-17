@@ -468,9 +468,27 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			? provider
 			: provider !== undefined
 				? [provider]
-				: this.chatSessionsService.getAllChatSessionContributions().map(contribution => contribution.type);
+				: this.getAllKnownProviders();
 
 		await Promise.all(providers.map(provider => this.resolveProvider(provider, { refreshProvider: true })));
+	}
+
+	private getAllKnownProviders(): string[] {
+		const providers = new Set<string>();
+
+		for (const type of this.chatSessionsService.getRegisteredChatSessionItemProviders()) {
+			providers.add(type);
+		}
+
+		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
+			providers.add(contribution.type);
+		}
+
+		for (const [, session] of this._sessions) {
+			providers.add(session.providerType);
+		}
+
+		return Array.from(providers);
 	}
 
 	private resolveProvider(provider: string, options: { refreshProvider: boolean }): Promise<void> {
