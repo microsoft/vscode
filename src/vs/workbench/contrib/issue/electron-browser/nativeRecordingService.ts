@@ -145,7 +145,7 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 			};
 		}
 
-		this.mediaRecorder.start(1000); // Collect data every second
+		this.mediaRecorder.start(); // No timeslice — collect all data at stop for reliable short recordings
 		this.setState(RecordingState.Recording);
 
 		// Enforce max duration
@@ -172,6 +172,8 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 				recorder.onstop = () => {
 					resolve();
 				};
+				// Flush any buffered data before stopping
+				recorder.requestData();
 				recorder.stop();
 			});
 		}

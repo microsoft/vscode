@@ -225,14 +225,12 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Allow getDisplayMedia() calls from the core window (e.g. issue reporter recording).
-		// Auto-grant access to the requesting window's own content — no picker UI needed.
+		// Use frame-level capture so Region Capture (CropTarget) can crop to the workbench.
 		session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
 			const frame = request.frame;
 			if (frame && isUrlFromWindow(frame.url)) {
-				// Grant the requesting window itself as the video source
 				callback({ video: frame });
 			} else {
-				// Deny all other origins
 				callback({});
 			}
 		});

@@ -333,8 +333,15 @@ body.issue-reporter-active {
 }
 
 @keyframes recording-pulse {
-	0%, 100% { opacity: 1; }
-	50% { opacity: 0.3; }
+
+	0%,
+	100% {
+		opacity: 1;
+	}
+
+	50% {
+		opacity: 0.3;
+	}
 }
 
 .recording-elapsed {
@@ -360,15 +367,20 @@ body.issue-reporter-active {
 }
 
 /* ── Recording Disabled State ── */
-.issue-reporter-header.recording-disabled,
-.issue-reporter-footer.recording-disabled {
+/* Dim all children except the recording row. Cannot use opacity on the parent
+   because it creates a stacking context that dims all descendants regardless
+   of per-child opacity overrides. */
+.issue-reporter-header.recording-disabled {
+	pointer-events: none;
+	opacity: 0.5;
+}
+
+.issue-reporter-footer.recording-disabled > *:not(.issue-reporter-recording-row) {
 	opacity: 0.5;
 	pointer-events: none;
 }
 
-/* Keep the recording row interactive during recording */
-.issue-reporter-footer.recording-disabled .issue-reporter-recording-row {
-	opacity: 1;
+.issue-reporter-footer.recording-disabled > .issue-reporter-recording-row {
 	pointer-events: auto;
 }
 
