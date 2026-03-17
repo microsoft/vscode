@@ -191,7 +191,7 @@ export class RemoteNewSession extends Disposable implements INewSession {
 	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
 
 	get repoUri(): URI | undefined { return this._repoUri; }
-	get targetMode(): TargetMode { return 'worktree'; }
+	get targetMode(): TargetMode { return 'cloud'; }
 	get branch(): string | undefined { return undefined; }
 	get modelId(): string | undefined { return this._modelId; }
 	get mode(): IChatMode | undefined { return undefined; }
