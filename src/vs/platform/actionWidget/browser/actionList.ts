@@ -572,6 +572,20 @@ export class ActionList<T> extends Disposable {
 				}
 			}));
 		}
+
+		// Right arrow on a focused item with submenu actions opens the hover with focus
+		this._register(dom.addDisposableListener(this.domNode, 'keydown', (e: KeyboardEvent) => {
+			if (e.key === 'ArrowRight') {
+				const focused = this._list.getFocus();
+				if (focused.length > 0) {
+					const element = this._list.element(focused[0]);
+					if (element?.submenuActions?.length) {
+						dom.EventHelper.stop(e, true);
+						this._showHoverForElement(element, focused[0], true);
+					}
+				}
+			}
+		}));
 	}
 
 	private _toggleSection(section: string): void {
@@ -1093,7 +1107,7 @@ export class ActionList<T> extends Disposable {
 		return this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
 	}
 
-	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
+	private _showHoverForElement(element: IActionListItem<T>, index: number, focus?: boolean): void {
 		this._submenuDisposables.clear();
 
 		const rowElement = this._getRowElement(index);
@@ -1120,22 +1134,42 @@ export class ActionList<T> extends Disposable {
 				this.hide();
 			}));
 
-			this._hover.value = this._hoverService.showDelayedHover({
-				content: hoverContent.domNode,
-				target: rowElement,
-				additionalClasses: ['action-widget-hover'],
-				position: {
-					hoverPosition: HoverPosition.RIGHT,
-					forcePosition: false,
-					...element.hover?.position,
-				},
-				appearance: {
-					showPointer: true,
-				},
-				persistence: {
-					hideOnHover: false,
-				},
-			}, { groupId: `actionListHover` });
+			if (focus) {
+				this._hover.value = this._hoverService.showInstantHover({
+					content: hoverContent.domNode,
+					target: rowElement,
+					additionalClasses: ['action-widget-hover'],
+					position: {
+						hoverPosition: HoverPosition.RIGHT,
+						forcePosition: false,
+						...element.hover?.position,
+					},
+					appearance: {
+						showPointer: true,
+					},
+					persistence: {
+						hideOnHover: false,
+					},
+					trapFocus: true,
+				}, true);
+			} else {
+				this._hover.value = this._hoverService.showDelayedHover({
+					content: hoverContent.domNode,
+					target: rowElement,
+					additionalClasses: ['action-widget-hover'],
+					position: {
+						hoverPosition: HoverPosition.RIGHT,
+						forcePosition: false,
+						...element.hover?.position,
+					},
+					appearance: {
+						showPointer: true,
+					},
+					persistence: {
+						hideOnHover: false,
+					},
+				}, { groupId: `actionListHover` });
+			}
 		} else if (hasHoverContent) {
 			const markdown = typeof element.hover!.content === 'string' ? new MarkdownString(element.hover!.content) : element.hover!.content;
 			this._hover.value = this._hoverService.showDelayedHover({
@@ -1251,6 +1285,8 @@ class ActionListHoverGroup extends Disposable {
 	constructor(group: SubmenuAction) {
 		super();
 		this.domNode = document.createElement('div');
+		this.domNode.setAttribute('role', 'group');
+		this.domNode.setAttribute('aria-label', group.label);
 
 		const headerRow = dom.append(this.domNode, dom.$('.action-list-submenu-group-header'));
 		const headerLabel = dom.append(headerRow, dom.$('span.action-list-submenu-group-label'));
@@ -1259,6 +1295,10 @@ class ActionListHoverGroup extends Disposable {
 
 		for (const child of group.actions) {
 			const item = dom.append(this.domNode, dom.$('.action-list-submenu-item'));
+			item.tabIndex = 0;
+			item.setAttribute('role', 'menuitemradio');
+			item.setAttribute('aria-checked', child.checked ? 'true' : 'false');
+			item.setAttribute('aria-label', child.label);
 			const checkIcon = dom.append(item, dom.$('.check-icon'));
 			if (child.checked) {
 				checkIcon.classList.add('codicon', 'codicon-check');
@@ -1278,6 +1318,23 @@ class ActionListHoverGroup extends Disposable {
 				dom.EventHelper.stop(e, true);
 				child.run();
 				this._onDidSelect.fire();
+			}));
+			this._register(dom.addDisposableListener(item, dom.EventType.KEY_DOWN, (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					dom.EventHelper.stop(e, true);
+					child.run();
+					this._onDidSelect.fire();
+				} else if (e.key === 'ArrowDown') {
+					dom.EventHelper.stop(e, true);
+					const next = item.nextElementSibling as HTMLElement | null;
+					next?.focus();
+				} else if (e.key === 'ArrowUp') {
+					dom.EventHelper.stop(e, true);
+					const prev = item.previousElementSibling as HTMLElement | null;
+					if (prev?.classList.contains('action-list-submenu-item')) {
+						prev.focus();
+					}
+				}
 			}));
 		}
 	}
