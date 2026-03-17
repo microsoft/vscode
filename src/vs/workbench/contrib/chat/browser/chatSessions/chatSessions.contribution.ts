@@ -871,13 +871,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public async refreshChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken): Promise<void> {
-		const normalizedProvidersToResolve = providersToResolve?.map(providerId => this._resolveToPrimaryType(providerId) ?? providerId);
-
 		await this.tryActivateControllers(providersToResolve);
 
 		await Promise.all(Array.from(this._itemControllers).map(async ([chatSessionType, controllerEntry]) => {
 			const resolvedType = this._resolveToPrimaryType(chatSessionType) ?? chatSessionType;
-			if (normalizedProvidersToResolve && !normalizedProvidersToResolve.includes(resolvedType)) {
+			if (providersToResolve && !providersToResolve.includes(resolvedType)) {
 				return; // skip: not considered for resolving
 			}
 
