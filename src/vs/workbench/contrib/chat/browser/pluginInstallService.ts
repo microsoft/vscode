@@ -6,7 +6,6 @@
 import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -18,7 +17,7 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService, IUpdateAllPluginsOptions, IUpdateAllPluginsResult } from '../common/plugins/pluginInstallService.js';
-import { IMarketplacePlugin, IPluginMarketplaceService, MarketplaceReferenceKind, MarketplaceType, hasSourceChanged, parseMarketplaceReference, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, MarketplaceReferenceKind, MarketplaceType, hasSourceChanged, parseMarketplaceReference, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
 
 export class PluginInstallService implements IPluginInstallService {
 	declare readonly _serviceBrand: undefined;
@@ -73,6 +72,45 @@ export class PluginInstallService implements IPluginInstallService {
 			return;
 		}
 
+		const result = await this._doInstallFromSource(reference);
+		if (!result.success && result.message) {
+			this._notificationService.notify({
+				severity: Severity.Error,
+				message: result.message,
+			});
+		}
+	}
+
+	validatePluginSource(source: string): string | undefined {
+		const reference = parseMarketplaceReference(source);
+		if (!reference) {
+			return localize('invalidSource', "'{0}' is not a valid plugin source. Enter a GitHub repository (owner/repo) or a git clone URL.", source);
+		}
+		if (reference.kind === MarketplaceReferenceKind.LocalFileUri) {
+			return localize('localSourceNotSupported', "Local file paths are not supported. Enter a GitHub repository (owner/repo) or a git clone URL.");
+		}
+		return undefined;
+	}
+
+	async installPluginFromValidatedSource(source: string): Promise<{ success: boolean; message?: string }> {
+		const reference = parseMarketplaceReference(source);
+		if (!reference) {
+			return {
+				success: false,
+				message: localize('invalidSource', "'{0}' is not a valid plugin source. Enter a GitHub repository (owner/repo) or a git clone URL.", source),
+			};
+		}
+		if (reference.kind === MarketplaceReferenceKind.LocalFileUri) {
+			return {
+				success: false,
+				message: localize('localSourceNotSupported', "Local file paths are not supported. Enter a GitHub repository (owner/repo) or a git clone URL."),
+			};
+		}
+
+		return this._doInstallFromSource(reference);
+	}
+
+	private async _doInstallFromSource(reference: IMarketplaceReference): Promise<{ success: boolean; message?: string }> {
 		// Build a source descriptor for the git clone.
 		const sourceDescriptor = reference.kind === MarketplaceReferenceKind.GitHubShorthand
 			? { kind: PluginSourceKind.GitHub as const, repo: reference.githubRepo! }
@@ -91,7 +129,7 @@ export class PluginInstallService implements IPluginInstallService {
 		};
 
 		if (!await this._ensureMarketplaceTrusted(tempPlugin)) {
-			return;
+			return { success: false };
 		}
 
 		// Clone the repository.
@@ -102,44 +140,38 @@ export class PluginInstallService implements IPluginInstallService {
 				failureLabel: reference.displayLabel,
 				marketplaceType: MarketplaceType.OpenPlugin,
 			});
-		} catch {
-			return;
+		} catch (e) {
+			const detail = e instanceof Error ? e.message : String(e);
+			return {
+				success: false,
+				message: localize('cloneFailedDetail', "Failed to clone plugin source '{0}': {1}", reference.displayLabel, detail),
+			};
 		}
 
 		const repoExists = await this._fileService.exists(repoDir);
 		if (!repoExists) {
-			this._notificationService.notify({
-				severity: Severity.Error,
+			return {
+				success: false,
 				message: localize('cloneFailed', "Failed to clone plugin source '{0}'.", reference.displayLabel),
-			});
-			return;
+			};
 		}
 
 		// Scan for marketplace.json to discover plugins.
 		const discoveredPlugins = await this._pluginMarketplaceService.readPluginsFromDirectory(repoDir, reference);
 
 		if (discoveredPlugins.length === 0) {
-			// No marketplace.json — treat the repo root as a single plugin.
-			const repoName = basename(URI.parse(reference.cloneUrl));
-			const plugin: IMarketplacePlugin = {
-				name: repoName.replace(/\.git$/i, ''),
-				description: '',
-				version: '',
-				source: '',
-				sourceDescriptor,
-				marketplace: reference.displayLabel,
-				marketplaceReference: reference,
-				marketplaceType: MarketplaceType.OpenPlugin,
+			void this._pluginRepositoryService.cleanupPluginSource(tempPlugin);
+			return {
+				success: false,
+				message: localize('noPluginsFound', "No plugins found in '{0}'. This does not appear to be a valid plugin marketplace.", reference.displayLabel),
 			};
-			this._pluginMarketplaceService.addInstalledPlugin(repoDir, plugin);
-			return;
 		}
 
 		if (discoveredPlugins.length === 1) {
 			const plugin = discoveredPlugins[0];
 			const pluginDir = plugin.source ? URI.joinPath(repoDir, plugin.source) : repoDir;
 			this._pluginMarketplaceService.addInstalledPlugin(pluginDir, plugin);
-			return;
+			return { success: true };
 		}
 
 		// Multiple plugins — let the user choose.
@@ -155,12 +187,13 @@ export class PluginInstallService implements IPluginInstallService {
 		});
 
 		if (!selected) {
-			return;
+			return { success: false };
 		}
 
 		const plugin = selected.plugin;
 		const pluginDir = plugin.source ? URI.joinPath(repoDir, plugin.source) : repoDir;
 		this._pluginMarketplaceService.addInstalledPlugin(pluginDir, plugin);
+		return { success: true };
 	}
 
 	async updatePlugin(plugin: IMarketplacePlugin, silent?: boolean): Promise<boolean> {

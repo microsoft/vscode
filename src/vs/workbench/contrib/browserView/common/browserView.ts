@@ -74,6 +74,15 @@ type IntegratedBrowserShareWithAgentClassification = {
 	comment: 'Tracks user choices around sharing browser content with agents';
 };
 
+/**
+ * View state stored in editor options when opening a browser view.
+ */
+export interface IBrowserEditorViewState {
+	readonly url?: string;
+	readonly title?: string;
+	readonly favicon?: string;
+}
+
 export const IBrowserViewWorkbenchService = createDecorator<IBrowserViewWorkbenchService>('browserViewWorkbenchService');
 
 /**

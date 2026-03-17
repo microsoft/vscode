@@ -5,7 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { URI } from '../../../base/common/uri.js';
+import { UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 
 const commandPrefix = 'workbench.action.browser';
@@ -132,7 +132,8 @@ export enum BrowserNewPageLocation {
 	NewWindow = 'newWindow'
 }
 export interface IBrowserViewNewPageRequest {
-	resource: URI;
+	resource: UriComponents;
+	url: string;
 	location: BrowserNewPageLocation;
 	// Only applicable if location is NewWindow
 	position?: { x?: number; y?: number; width?: number; height?: number };

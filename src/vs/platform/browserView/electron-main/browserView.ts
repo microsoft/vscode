@@ -138,11 +138,12 @@ export class BrowserView extends Disposable implements ICDPTarget {
 				action: 'allow',
 				createWindow: (options) => {
 					const childView = createChildView(options);
-					const resource = BrowserViewUri.forUrl(details.url, childView.id);
+					const resource = BrowserViewUri.forId(childView.id);
 
 					// Fire event for the workbench to open this view
 					this._onDidRequestNewPage.fire({
 						resource,
+						url: details.url,
 						location,
 						position: { x: options.x, y: options.y, width: options.width, height: options.height }
 					});
