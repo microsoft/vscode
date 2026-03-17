@@ -953,7 +953,6 @@
 		"--reveal-button-size",
 		"--part-background",
 		"--part-border-color",
-		"--vscode-font-family",
 		"--vscode-chat-list-background",
 		"--vscode-editorCodeLens-fontFamily",
 		"--vscode-editorCodeLens-fontFamilyDefault",

@@ -155,7 +155,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private readonly _permissionPicker: NewChatPermissionPicker;
 	private readonly _repoPicker: RepoPicker;
 	private _repoPickerContainer: HTMLElement | undefined;
-	private _remoteFolderInputContainer: HTMLElement | undefined;
+	private _pickersRightHalf: HTMLElement | undefined;
 	private _remoteFolderPickerContainer: HTMLElement | undefined;
 	private readonly _remoteFolderPickerDisposables = this._register(new DisposableStore());
 	private readonly _cloudModelPicker: CloudModelPicker;
@@ -789,7 +789,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._targetPicker.render(targetDropdownContainer);
 
 		// Right half: separator + pickers (left-justified within its half)
-		const rightHalf = dom.append(pickersRow, dom.$('.sessions-chat-pickers-right-half'));
+		const rightHalf = this._pickersRightHalf = dom.append(pickersRow, dom.$('.sessions-chat-pickers-right-half'));
 		this._extensionPickersLeftContainer = dom.append(rightHalf, dom.$('.sessions-chat-pickers-left-separator'));
 		this._extensionPickersLeftContainer.style.display = 'none';
 
@@ -797,29 +797,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._repoPickerContainer = dom.append(rightHalf, dom.$('.sessions-chat-extension-pickers-right'));
 		this._repoPickerContainer.style.display = 'none';
 		this._repoPicker.render(this._repoPickerContainer);
-
-		// Remote folder path input (rendered once, shown/hidden based on target)
-		this._remoteFolderInputContainer = dom.append(rightHalf, dom.$('.sessions-chat-remote-folder-input'));
-		this._remoteFolderInputContainer.style.display = 'none';
-		const remoteFolderInput = dom.append(this._remoteFolderInputContainer, dom.$<HTMLInputElement>('input.sessions-chat-remote-folder-text', {
-			type: 'text',
-			placeholder: localize('remoteFolderPath', "Enter folder path..."),
-		}));
-		const applyRemoteFolderPath = () => {
-			const value = remoteFolderInput.value.trim();
-			if (value && this._newSession.value instanceof RemoteNewSession) {
-				this._newSession.value.setRepoUri(URI.file(value));
-			}
-		};
-		this._register(dom.addDisposableListener(remoteFolderInput, 'keydown', e => {
-			if (e.key === 'Enter') {
-				applyRemoteFolderPath();
-				this._focusEditor();
-			}
-		}));
-		this._register(dom.addDisposableListener(remoteFolderInput, 'blur', () => {
-			applyRemoteFolderPath();
-		}));
 
 		// Folder picker for local (rendered once, shown/hidden based on target)
 		this._folderPickerContainer = this._folderPicker.render(rightHalf);
@@ -895,9 +872,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Cloud remote: show repo picker, hide folder pickers
 		this._clearRemoteFolderPicker();
-		if (this._remoteFolderInputContainer) {
-			this._remoteFolderInputContainer.style.display = 'none';
-		}
 		this._repoPickerContainer.style.display = '';
 
 		// Render toolbar pickers (other groups)
@@ -949,10 +923,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._focusEditor();
 		}));
 
-		// Render into the existing container (reuse the remote folder input area)
-		if (this._remoteFolderInputContainer?.parentElement) {
-			const container = this._remoteFolderInputContainer.parentElement;
-			this._remoteFolderPickerContainer = picker.render(container);
+		// Render into the right-half pickers container
+		if (this._pickersRightHalf) {
+			this._remoteFolderPickerContainer = picker.render(this._pickersRightHalf);
 			this._remoteFolderPickerDisposables.add(toDisposable(() => {
 				this._remoteFolderPickerContainer?.remove();
 				this._remoteFolderPickerContainer = undefined;
@@ -1073,9 +1046,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}
 		if (this._repoPickerContainer) {
 			this._repoPickerContainer.style.display = 'none';
-		}
-		if (this._remoteFolderInputContainer) {
-			this._remoteFolderInputContainer.style.display = 'none';
 		}
 		this._clearRemoteFolderPicker();
 		if (this._extensionPickersLeftContainer) {
