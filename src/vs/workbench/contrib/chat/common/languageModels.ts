@@ -1074,7 +1074,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined {
 		const metadata = this._modelCache.get(modelId);
 		return this._resolveModelConfigurationWithDefaults(modelId, metadata);
-<<<<<<< ours
 	}
 
 	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
@@ -1314,7 +1313,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const parts: string[] = [];
 
 		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (typeof propSchema === 'boolean' || !propSchema.isVisible) {
+			if (typeof propSchema === 'boolean' || !propSchema.isPrimary) {
 				continue;
 			}
 			const value = currentConfig[key] ?? propSchema.default;
