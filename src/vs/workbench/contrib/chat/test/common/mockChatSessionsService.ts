@@ -73,6 +73,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 		};
 	}
 
+	getRegisteredChatSessionItemProviders(): readonly string[] {
+		return Array.from(this.sessionItemControllers.keys());
+	}
+
 	getAllChatSessionContributions(): ResolvedChatSessionsExtensionPoint[] {
 		return this.contributions.map(contribution => this.resolveContribution(contribution));
 	}

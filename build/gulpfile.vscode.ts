@@ -714,14 +714,13 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 }
 
 /**
- * Copies VS Code's own node-pty and ripgrep binaries into the copilot SDK's
+ * Copies VS Code's own node-pty binaries into the copilot SDK's
  * expected locations so the copilot CLI subprocess can find them at runtime.
- * The copilot-bundled prebuilds and ripgrep are stripped by .moduleignore;
+ * The copilot-bundled prebuilds are stripped by .moduleignore;
  * this replaces them with the same binaries VS Code already ships, avoiding
  * new system dependency requirements.
  *
  * node-pty: `prebuilds/{platform}-{arch}/` (pty.node + spawn-helper)
- * ripgrep:  `ripgrep/bin/{platform}-{arch}/` (rg binary)
  */
 function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFolderName: string) {
 	const outputDir = path.join(path.dirname(root), destinationFolderName);
@@ -749,15 +748,10 @@ function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFo
 		const platformArch = `${platform === 'win32' ? 'win32' : platform}-${arch}`;
 
 		const nodePtySource = path.join(nodeModulesDir, 'node-pty', 'build', 'Release');
-		const rgBinary = platform === 'win32' ? 'rg.exe' : 'rg';
-		const ripgrepSource = path.join(nodeModulesDir, '@vscode', 'ripgrep', 'bin', rgBinary);
 
 		// Fail-fast: source binaries must exist on non-stable builds.
 		if (!fs.existsSync(nodePtySource)) {
 			throw new Error(`[copyCopilotNativeDeps] node-pty source not found at ${nodePtySource}`);
-		}
-		if (!fs.existsSync(ripgrepSource)) {
-			throw new Error(`[copyCopilotNativeDeps] ripgrep source not found at ${ripgrepSource}`);
 		}
 
 		// Copy node-pty (pty.node + spawn-helper) into copilot prebuilds
@@ -765,12 +759,6 @@ function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFo
 		fs.mkdirSync(copilotPrebuildsDir, { recursive: true });
 		fs.cpSync(nodePtySource, copilotPrebuildsDir, { recursive: true });
 		console.log(`[copyCopilotNativeDeps] Copied node-pty from ${nodePtySource} to ${copilotPrebuildsDir}`);
-
-		// Copy ripgrep (rg binary) into copilot ripgrep
-		const copilotRipgrepDir = path.join(copilotBase, 'ripgrep', 'bin', platformArch);
-		fs.mkdirSync(copilotRipgrepDir, { recursive: true });
-		fs.copyFileSync(ripgrepSource, path.join(copilotRipgrepDir, rgBinary));
-		console.log(`[copyCopilotNativeDeps] Copied ripgrep from ${ripgrepSource} to ${copilotRipgrepDir}`);
 	};
 }
 

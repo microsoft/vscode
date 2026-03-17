@@ -173,7 +173,6 @@ export function buildModelPickerItems(
 	}
 
 	if (useGroupedModelPicker) {
-		const isPro = isProUser(chatEntitlementService.entitlement);
 		let otherModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 		if (models.length) {
 			// Collect all available models into lookup maps
@@ -196,7 +195,8 @@ export function buildModelPickerItems(
 			const resolveModel = (id: string) => allModelsMap.get(id) ?? modelsByMetadataId.get(id);
 
 			const getUnavailableReason = (entry: IModelControlEntry): 'upgrade' | 'update' | 'admin' => {
-				if (!isPro) {
+				const isBusinessOrEnterpriseUser = chatEntitlementService.entitlement === ChatEntitlement.Business || chatEntitlementService.entitlement === ChatEntitlement.Enterprise;
+				if (!isBusinessOrEnterpriseUser) {
 					return 'upgrade';
 				}
 				if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
