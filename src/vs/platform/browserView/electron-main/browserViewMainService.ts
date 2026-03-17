@@ -417,7 +417,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		// Request the workbench to open the editor
 		window.sendWhenReady('vscode:runAction', CancellationToken.None, {
 			id: '_workbench.open',
-			args: [BrowserViewUri.forUrl(url, targetId), [undefined, editorOptions], undefined]
+			args: [BrowserViewUri.forId(targetId), [undefined, { ...editorOptions, viewState: { url } }], undefined]
 		});
 
 		return view;
