@@ -396,7 +396,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 			this._statusBarCommands.set(features.statusBarCommands, undefined);
 		}
 
-		if (typeof features.branchName !== 'undefined') {
+		if ('branchName' in features) {
 			this._branchName.set(features.branchName, undefined);
 		}
 
