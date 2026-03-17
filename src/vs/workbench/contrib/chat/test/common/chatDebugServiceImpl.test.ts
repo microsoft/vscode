@@ -21,7 +21,7 @@ suite('ChatDebugServiceImpl', () => {
 	const sessionA = LocalChatSessionUri.forSession('a');
 	const sessionB = LocalChatSessionUri.forSession('b');
 	const sessionGeneric = URI.parse('vscode-chat-session://local/session');
-	const nonLocalSession = URI.parse('vscode-chat-session://remote-provider/session-1');
+	const nonLocalSession = URI.parse('some-other-scheme://authority/session-1');
 
 	setup(() => {
 		service = disposables.add(new ChatDebugServiceImpl());
@@ -148,14 +148,14 @@ suite('ChatDebugServiceImpl', () => {
 			assert.strictEqual(event.parentEventId, 'parent-1');
 		});
 
-		test('should not log events for non-local sessions', () => {
+		test('should log events for any session URI scheme', () => {
 			const firedEvents: IChatDebugEvent[] = [];
 			disposables.add(service.onDidAddEvent(e => firedEvents.push(e)));
 
-			service.log(nonLocalSession, 'should-be-skipped', 'details');
+			service.log(nonLocalSession, 'should-be-logged', 'details');
 
-			assert.strictEqual(firedEvents.length, 0);
-			assert.strictEqual(service.getEvents(nonLocalSession).length, 0);
+			assert.strictEqual(firedEvents.length, 1);
+			assert.strictEqual(service.getEvents(nonLocalSession).length, 1);
 		});
 	});
 
@@ -435,7 +435,7 @@ suite('ChatDebugServiceImpl', () => {
 			assert.strictEqual(tokenA.isCancellationRequested, false, 'session-a token should not be cancelled');
 		});
 
-		test('should not invoke providers for non-local sessions', async () => {
+		test('should invoke providers for any session URI scheme', async () => {
 			let providerCalled = false;
 
 			const provider: IChatDebugLogProvider = {
@@ -445,7 +445,7 @@ suite('ChatDebugServiceImpl', () => {
 						kind: 'generic',
 						sessionResource: nonLocalSession,
 						created: new Date(),
-						name: 'should-not-appear',
+						name: 'from-non-local',
 						level: ChatDebugLogLevel.Info,
 					}];
 				},
@@ -454,8 +454,8 @@ suite('ChatDebugServiceImpl', () => {
 			disposables.add(service.registerProvider(provider));
 			await service.invokeProviders(nonLocalSession);
 
-			assert.strictEqual(providerCalled, false);
-			assert.strictEqual(service.getEvents(nonLocalSession).length, 0);
+			assert.strictEqual(providerCalled, true);
+			assert.ok(service.getEvents(nonLocalSession).length > 0);
 		});
 
 		test('newly registered provider should be invoked for active sessions', async () => {

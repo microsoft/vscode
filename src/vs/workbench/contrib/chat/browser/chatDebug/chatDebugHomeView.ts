@@ -119,17 +119,13 @@ export class ChatDebugHomeView extends Disposable {
 					sessionTitle = rawTitle;
 				} else if (LocalChatSessionUri.isLocalSession(sessionResource)) {
 					sessionTitle = localize('chatDebug.newSession', "New Chat");
+				} else if (this.chatDebugService.getImportedSessionTitle(sessionResource)) {
+					sessionTitle = localize('chatDebug.importedSession', "Imported: {0}", this.chatDebugService.getImportedSessionTitle(sessionResource)!);
+				} else if (sessionResource.scheme === 'copilotcli') {
+					const shortId = sessionResource.path.replace(/^\//, '').split('-')[0] || '';
+					sessionTitle = localize('chatDebug.copilotCliSessionWithId', "Copilot CLI: {0}", shortId);
 				} else {
-					// For imported/external sessions, use the stored title if available
-					const importedTitle = this.chatDebugService.getImportedSessionTitle(sessionResource);
-					if (importedTitle) {
-						sessionTitle = localize('chatDebug.importedSession', "Imported: {0}", importedTitle);
-					} else {
-						// Fall back to URI segment
-						const uriLabel = sessionResource.path || sessionResource.fragment || sessionResource.toString();
-						const segment = uriLabel.replace(/^\/+/, '').split('/').pop() || uriLabel;
-						sessionTitle = localize('chatDebug.importedSession', "Imported: {0}", segment);
-					}
+					sessionTitle = localize('chatDebug.newSession', "New Chat");
 				}
 				const isActive = activeSessionResource !== undefined && sessionResource.toString() === activeSessionResource.toString();
 
