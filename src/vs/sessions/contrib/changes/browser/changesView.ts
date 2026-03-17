@@ -52,13 +52,12 @@ import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browse
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { chatEditingWidgetFileStateContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, ModifiedFileEntryState } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { IActivityService, NumberBadge } from '../../../../workbench/services/activity/common/activity.js';
 import { IEditorService, MODAL_GROUP, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
@@ -115,13 +114,6 @@ interface IChangesFolderItem {
 	readonly type: 'folder';
 	readonly uri: URI;
 	readonly name: string;
-}
-
-interface IActiveSession {
-	readonly resource: URI;
-	readonly sessionType: string;
-	readonly repository: URI | undefined;
-	readonly worktree: URI | undefined;
 }
 
 type ChangesTreeElement = IChangesFileItem | IChangesFolderItem;
@@ -261,7 +253,7 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	// Track the active session used by this view
-	private readonly activeSession: IObservableWithChange<IActiveSession | undefined>;
+	private readonly activeSession: IObservableWithChange<IActiveSessionItem | undefined>;
 	private readonly activeSessionFileCountObs: IObservableWithChange<number>;
 	private readonly activeSessionHasChangesObs: IObservableWithChange<boolean>;
 	private readonly activeSessionRepositoryChangesObs: IObservableWithChange<IChangesFileItem[] | undefined>;
@@ -310,7 +302,7 @@ export class ChangesViewPane extends ViewPane {
 		this.versionModeContextKey.set(ChangesVersionMode.AllChanges);
 
 		// Track active session from sessions management service
-		this.activeSession = derivedOpts<IActiveSession | undefined>({
+		this.activeSession = derivedOpts<IActiveSessionItem | undefined>({
 			equalsFn: (a, b) => isEqual(a?.resource, b?.resource),
 		}, reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
@@ -318,12 +310,7 @@ export class ChangesViewPane extends ViewPane {
 				return undefined;
 			}
 
-			return {
-				resource: activeSession.resource,
-				repository: activeSession.repository,
-				worktree: activeSession.worktree,
-				sessionType: getChatSessionType(activeSession.resource),
-			};
+			return activeSession;
 		}).recomputeInitiallyAndOnChange(this._store);
 
 		// Track active session repository changes
@@ -381,7 +368,7 @@ export class ChangesViewPane extends ViewPane {
 		const viewSessionTypeKey = this.scopedContextKeyService.createKey<string>(ChatContextKeys.agentSessionType.key, '');
 		this._register(autorun(reader => {
 			const activeSession = this.activeSession.read(reader);
-			viewSessionTypeKey.set(activeSession?.sessionType ?? '');
+			viewSessionTypeKey.set(activeSession?.providerType ?? '');
 		}));
 	}
 
@@ -411,10 +398,8 @@ export class ChangesViewPane extends ViewPane {
 				return 0;
 			}
 
-			const isBackgroundSession = activeSession.sessionType === AgentSessionProviders.Background;
-
 			let editingSessionCount = 0;
-			if (!isBackgroundSession) {
+			if (activeSession.providerType !== AgentSessionProviders.Background) {
 				const sessions = this.chatEditingService.editingSessionsObs.read(reader);
 				const session = sessions.find(candidate => isEqual(candidate.chatSessionResource, activeSession.resource));
 				editingSessionCount = session ? session.entries.read(reader).length : 0;
@@ -473,6 +458,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// CI Status widget beneath the card
 		this.ciStatusWidget = this._register(this.instantiationService.createInstance(CIStatusWidget, this.bodyContainer));
+		this._register(this.ciStatusWidget.onDidChangeHeight(() => this.layoutTree()));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
@@ -509,7 +495,7 @@ export class ChangesViewPane extends ViewPane {
 			const activeSession = this.activeSession.read(reader);
 
 			// Background chat sessions render the working set based on the session files, not the editing session
-			if (activeSession?.sessionType === AgentSessionProviders.Background) {
+			if (activeSession?.providerType === AgentSessionProviders.Background) {
 				return [];
 			}
 
@@ -720,7 +706,7 @@ export class ChangesViewPane extends ViewPane {
 			const chatSessionTypeKey = this.scopedContextKeyService.createKey<string>(ChatContextKeys.agentSessionType.key, '');
 			this.renderDisposables.add(autorun(reader => {
 				const activeSession = this.activeSession.read(reader);
-				chatSessionTypeKey.set(activeSession?.sessionType ?? '');
+				chatSessionTypeKey.set(activeSession?.providerType ?? '');
 			}));
 
 			// Bind required context keys for the menu buttons
@@ -757,8 +743,8 @@ export class ChangesViewPane extends ViewPane {
 			this.renderDisposables.add(bindContextKey(hasUncommittedChangesContextKey, this.scopedContextKeyService, r => hasUncommittedChangesObs.read(r)));
 
 			const isMergeBaseBranchProtectedObs = derived(reader => {
-				const state = this.activeSessionRepositoryObs.read(reader)?.state.read(reader);
-				return state?.HEAD?.base?.isProtected === true;
+				const activeSession = this.activeSession.read(reader);
+				return activeSession?.worktreeBaseBranchProtected === true;
 			});
 
 			this.renderDisposables.add(bindContextKey(isMergeBaseBranchProtectedContextKey, this.scopedContextKeyService, r => isMergeBaseBranchProtectedObs.read(r)));
@@ -1068,15 +1054,53 @@ export class ChangesViewPane extends ViewPane {
 		const overviewHeight = this.overviewContainer?.offsetHeight ?? 0;
 		const containerPadding = 8; // 4px top + 4px bottom from .chat-editing-session-container
 		const containerBorder = 2; // 1px top + 1px bottom border
-		const ciWidgetHeight = this.ciStatusWidget?.element.offsetHeight ?? 0;
-		const ciWidgetMargin = ciWidgetHeight > 0 ? 8 : 0; // margin-top on CI widget
 
-		const usedHeight = bodyPadding + actionsHeight + actionsMargin + overviewHeight + containerPadding + containerBorder + ciWidgetHeight + ciWidgetMargin;
-		const availableHeight = Math.max(0, bodyHeight - usedHeight);
+		const fixedUsed = bodyPadding + actionsHeight + actionsMargin + overviewHeight + containerPadding + containerBorder;
 
-		// Limit height to the content so the tree doesn't exceed its items
-		const contentHeight = this.tree.contentHeight;
-		const treeHeight = Math.min(availableHeight, contentHeight);
+		// Determine CI widget space needs
+		const ciWidget = this.ciStatusWidget;
+		const ciVisible = ciWidget?.visible ?? false;
+		const ciHeaderHeight = ciVisible ? CIStatusWidget.HEADER_HEIGHT : 0;
+		const ciMargin = ciVisible ? 8 : 0; // margin-top on CI widget
+		const ciDesiredHeight = ciWidget?.desiredHeight ?? 0;
+
+		const spaceForTreeAndCI = Math.max(0, bodyHeight - fixedUsed - ciMargin);
+
+		// Give the tree priority, then CI gets the rest (with min/max on CI body)
+		const treeContentHeight = this.tree.contentHeight;
+		let treeHeight: number;
+		let ciBodyHeight = 0;
+
+		if (!ciVisible) {
+			treeHeight = Math.min(spaceForTreeAndCI, treeContentHeight);
+		} else {
+			// Reserve space for the CI header
+			const spaceAfterCIHeader = Math.max(0, spaceForTreeAndCI - ciHeaderHeight);
+
+			// Give the tree what it needs first, up to available space
+			treeHeight = Math.min(spaceAfterCIHeader, treeContentHeight);
+
+			// Remaining goes to CI body
+			const remainingForCIBody = Math.max(0, spaceAfterCIHeader - treeHeight);
+			const ciDesiredBodyHeight = Math.max(0, ciDesiredHeight - ciHeaderHeight);
+
+			ciBodyHeight = Math.min(ciDesiredBodyHeight, remainingForCIBody);
+
+			// Ensure CI body gets at least MIN_BODY_HEIGHT if there's content
+			if (ciDesiredBodyHeight > 0 && ciBodyHeight < CIStatusWidget.MIN_BODY_HEIGHT) {
+				const minCIBody = Math.min(CIStatusWidget.MIN_BODY_HEIGHT, ciDesiredBodyHeight);
+				const needed = minCIBody - ciBodyHeight;
+				const canTake = Math.max(0, treeHeight - 0); // tree can shrink to 0
+				const taken = Math.min(needed, canTake);
+				treeHeight -= taken;
+				ciBodyHeight += taken;
+			}
+
+			// Cap CI body at MAX_BODY_HEIGHT
+			ciBodyHeight = Math.min(ciBodyHeight, CIStatusWidget.MAX_BODY_HEIGHT);
+
+			ciWidget!.layout(ciBodyHeight);
+		}
 
 		this.tree.layout(treeHeight, this.currentBodyWidth);
 		this.tree.getHTMLElement().style.height = `${treeHeight}px`;

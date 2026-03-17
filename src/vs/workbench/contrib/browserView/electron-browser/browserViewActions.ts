@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize2 } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -20,9 +20,11 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
+import { BrowserEditorInput } from '../common/browserEditorInput.js';
+import { ToggleTitleBarConfigAction } from '../../../browser/parts/titlebar/titlebarActions.js';
 
 // Context key expression to check if browser editor is active
-const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditor.ID);
+const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditorInput.EDITOR_ID);
 
 const BrowserCategory = localize2('browserCategory', "Browser");
 const ActionGroupTabs = '1_tabs';
@@ -41,7 +43,14 @@ class OpenIntegratedBrowserAction extends Action2 {
 			id: BrowserViewCommandId.Open,
 			title: localize2('browser.openAction', "Open Integrated Browser"),
 			category: BrowserCategory,
-			f1: true
+			icon: Codicon.globe,
+			f1: true,
+			menu: {
+				id: MenuId.TitleBar,
+				group: 'navigation',
+				order: 10,
+				when: ContextKeyExpr.equals('config.workbench.browser.showInTitleBar', true)
+			}
 		});
 	}
 
@@ -506,8 +515,9 @@ class ZoomInAction extends Action2 {
 			keybinding: {
 				when: CONTEXT_BROWSER_FOCUSED,
 				weight: KeybindingWeight.WorkbenchContrib + 75,
+				// Same shortcuts as 'workbench.action.zoomIn'
 				primary: KeyMod.CtrlCmd | KeyCode.Equal,
-				secondary: [KeyMod.CtrlCmd | KeyCode.NumpadAdd],
+				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Equal, KeyMod.CtrlCmd | KeyCode.NumpadAdd],
 			},
 		});
 	}
@@ -539,8 +549,13 @@ class ZoomOutAction extends Action2 {
 			keybinding: {
 				when: CONTEXT_BROWSER_FOCUSED,
 				weight: KeybindingWeight.WorkbenchContrib + 75,
+				// Same shortcuts as 'workbench.action.zoomOut'
 				primary: KeyMod.CtrlCmd | KeyCode.Minus,
-				secondary: [KeyMod.CtrlCmd | KeyCode.NumpadSubtract],
+				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, KeyMod.CtrlCmd | KeyCode.NumpadSubtract],
+				linux: {
+					primary: KeyMod.CtrlCmd | KeyCode.Minus,
+					secondary: [KeyMod.CtrlCmd | KeyCode.NumpadSubtract]
+				}
 			},
 		});
 	}
@@ -571,7 +586,8 @@ class ResetZoomAction extends Action2 {
 			keybinding: {
 				when: CONTEXT_BROWSER_FOCUSED,
 				weight: KeybindingWeight.WorkbenchContrib + 75,
-				// We use Numpad0 and not Digit0 here to match the workbench zoom reset keybinding, and to avoid conflicts with keybinding to focus sidebar.
+				// Same shortcuts as 'workbench.action.zoomReset'
+				// (note: both workbench and here use Numpad0 instead of Digit0 to avoid conflicts with keybinding to focus sidebar.)
 				primary: KeyMod.CtrlCmd | KeyCode.Numpad0,
 			},
 		});
@@ -725,3 +741,9 @@ registerAction2(ShowBrowserFindAction);
 registerAction2(HideBrowserFindAction);
 registerAction2(BrowserFindNextAction);
 registerAction2(BrowserFindPreviousAction);
+
+registerAction2(class ToggleBrowserTitleBarButton extends ToggleTitleBarConfigAction {
+	constructor() {
+		super('workbench.browser.showInTitleBar', localize('toggle.browser', 'Integrated Browser'), localize('toggle.browserDescription', "Toggle visibility of the Integrated Browser button in title bar"), 8);
+	}
+});

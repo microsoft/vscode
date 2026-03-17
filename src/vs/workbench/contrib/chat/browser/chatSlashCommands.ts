@@ -195,8 +195,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				sortText: 'z1_autoApprove',
 				executeImmediately: true,
 				silent: true,
-				locations: [ChatAgentLocation.Chat],
-				target: Target.VSCode
+				locations: [ChatAgentLocation.Chat]
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
 			}));
@@ -206,8 +205,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				sortText: 'z1_disableAutoApprove',
 				executeImmediately: true,
 				silent: true,
-				locations: [ChatAgentLocation.Chat],
-				target: Target.VSCode
+				locations: [ChatAgentLocation.Chat]
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
 			}));
@@ -217,8 +215,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				sortText: 'z1_yolo',
 				executeImmediately: true,
 				silent: true,
-				locations: [ChatAgentLocation.Chat],
-				target: Target.VSCode
+				locations: [ChatAgentLocation.Chat]
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
 			}));
@@ -228,8 +225,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				sortText: 'z1_disableYolo',
 				executeImmediately: true,
 				silent: true,
-				locations: [ChatAgentLocation.Chat],
-				target: Target.VSCode
+				locations: [ChatAgentLocation.Chat]
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
 			}));
@@ -240,8 +236,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 					sortText: 'z1_autopilot',
 					executeImmediately: true,
 					silent: true,
-					locations: [ChatAgentLocation.Chat],
-					target: Target.VSCode
+					locations: [ChatAgentLocation.Chat]
 				}, async (_prompt, _progress, _history, _location, sessionResource) => {
 					setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Autopilot);
 				}));
@@ -251,8 +246,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 					sortText: 'z1_exitAutopilot',
 					executeImmediately: true,
 					silent: true,
-					locations: [ChatAgentLocation.Chat],
-					target: Target.VSCode
+					locations: [ChatAgentLocation.Chat]
 				}, async (_prompt, _progress, _history, _location, sessionResource) => {
 					setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
 				}));

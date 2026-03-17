@@ -21,6 +21,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'chat.implicitContext.enabled': { 'panel': 'never' },
 		'chat.tools.terminal.enableAutoApprove': true,
 		'github.copilot.chat.githubMcpServer.enabled': true,
+		'github.copilot.chat.cli.isolationOption.enabled': false,
 
 		'breadcrumbs.enabled': false,
 
@@ -57,7 +58,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'workbench.layoutControl.type': 'toggles',
 		'workbench.editor.useModal': 'all',
 		'workbench.panel.showLabels': false,
-		'workbench.colorTheme': 'Experimental Dark',
+		'workbench.colorTheme': 'VS Code Dark',
 		'search.quickOpen.includeHistory': false,
 
 		'window.menuStyle': 'custom',

@@ -32,6 +32,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public parameters: unknown;
 	public generatedTitle?: string;
 	public readonly chatRequestId?: string;
+	public isAttachedToThinking: boolean = false;
 
 	public toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatModifiedFilesConfirmationData;
 

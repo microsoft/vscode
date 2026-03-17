@@ -16,6 +16,8 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import product from '../../../../../platform/product/common/product.js';
 import { CHAT_INTERNAL_SCHEME } from '../../common/promptSyntax/internalCustomizations/internalPromptFileSystem.js';
 
+const _remoteImageDisallowed = () => false;
+
 export const allowedChatMarkdownHtmlTags = Object.freeze([
 	'b',
 	'blockquote',
@@ -79,8 +81,8 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 					override: allowedChatMarkdownHtmlTags,
 				},
 				...options?.sanitizerConfig,
-				allowedLinkSchemes: { augment: [product.urlProtocol, CHAT_INTERNAL_SCHEME] },
-				remoteImageIsAllowed: (_uri) => false,
+				allowedLinkSchemes: { augment: [product.urlProtocol, CHAT_INTERNAL_SCHEME, 'copilot-skill'] },
+				remoteImageIsAllowed: _remoteImageDisallowed,
 			}
 		};
 

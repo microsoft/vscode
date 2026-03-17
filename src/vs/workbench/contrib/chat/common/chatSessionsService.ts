@@ -196,11 +196,18 @@ export interface IChatSessionContentProvider {
 export interface IChatNewSessionRequest {
 	readonly prompt: string;
 	readonly command?: string;
+
+	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>;
+}
+
+export interface IChatSessionItemsDelta {
+	readonly addedOrUpdated?: readonly IChatSessionItem[];
+	readonly removed?: readonly URI[];
 }
 
 export interface IChatSessionItemController {
 
-	readonly onDidChangeChatSessionItems: Event<void>;
+	readonly onDidChangeChatSessionItems: Event<IChatSessionItemsDelta>;
 
 	get items(): readonly IChatSessionItem[];
 
@@ -229,7 +236,7 @@ export interface IChatSessionsService {
 
 	// #region Chat session item provider support
 	readonly onDidChangeItemsProviders: Event<{ readonly chatSessionType: string }>;
-	readonly onDidChangeSessionItems: Event<{ readonly chatSessionType: string }>;
+	readonly onDidChangeSessionItems: Event<IChatSessionItemsDelta>;
 
 	readonly onDidChangeAvailability: Event<void>;
 	readonly onDidChangeInProgress: Event<void>;
@@ -237,7 +244,14 @@ export interface IChatSessionsService {
 	getChatSessionContribution(chatSessionType: string): ResolvedChatSessionsExtensionPoint | undefined;
 	getAllChatSessionContributions(): ResolvedChatSessionsExtensionPoint[];
 
+	/**
+	 * Programmatically register a chat session contribution (for internal session types
+	 * that don't go through the extension point).
+	 */
+	registerChatSessionContribution(contribution: IChatSessionsExtensionPoint): IDisposable;
+
 	registerChatSessionItemController(chatSessionType: string, controller: IChatSessionItemController): IDisposable;
+	getRegisteredChatSessionItemProviders(): readonly string[];
 	activateChatSessionItemProvider(chatSessionType: string): Promise<void>;
 
 	/**
@@ -269,6 +283,7 @@ export interface IChatSessionsService {
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 
 	hasAnySessionOptions(sessionResource: URI): boolean;
+	getSessionOptions(sessionResource: URI): Map<string, string> | undefined;
 	getSessionOption(sessionResource: URI, optionId: string): string | IChatSessionProviderOptionItem | undefined;
 	setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean;
 
