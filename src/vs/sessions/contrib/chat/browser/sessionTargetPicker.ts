@@ -87,11 +87,7 @@ export class TargetPicker extends Disposable {
 
 		if (project?.isRepo) {
 			this._targetMode = 'cloud';
-		} else if (project?.isFolder && !project.repository && this._isolationOptionEnabled) {
-			// No git repo but isolation option is enabled — force to folder mode
-			this._targetMode = 'workspace';
 		} else if (project?.isFolder && this._targetMode === 'cloud') {
-			// Switching from cloud to folder — default to worktree
 			this._targetMode = 'worktree';
 		}
 
