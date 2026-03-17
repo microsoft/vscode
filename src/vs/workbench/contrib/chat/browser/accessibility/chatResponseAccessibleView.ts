@@ -305,17 +305,20 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					let text: string;
 					if (URI.isUri(ref)) {
 						const name = part.name || basename(ref);
-						const path = ref.fsPath || ref.path;
+						const isFileUri = ref.scheme === 'file';
+						const path = isFileUri ? (ref.fsPath || ref.path) : ref.toString(true);
 						text = name !== path ? `${name} (${path})` : path;
 					} else if (isLocation(ref)) {
 						const name = part.name || basename(ref.uri);
-						const path = ref.uri.fsPath || ref.uri.path;
-						const location = `${path}:${ref.range.startLineNumber}`;
+						const isFileUri = ref.uri.scheme === 'file';
+						const basePath = isFileUri ? (ref.uri.fsPath || ref.uri.path) : ref.uri.toString(true);
+						const location = `${basePath}:${ref.range.startLineNumber}`;
 						text = `${name} (${location})`;
 					} else {
 						// IWorkspaceSymbol
-						const path = ref.location.uri.fsPath || ref.location.uri.path;
-						text = `${ref.name} (${path}:${ref.location.range.startLineNumber})`;
+						const isFileUri = ref.location.uri.scheme === 'file';
+						const basePath = isFileUri ? (ref.location.uri.fsPath || ref.location.uri.path) : ref.location.uri.toString(true);
+						text = `${ref.name} (${basePath}:${ref.location.range.startLineNumber})`;
 					}
 					contentParts.push(text);
 					break;
