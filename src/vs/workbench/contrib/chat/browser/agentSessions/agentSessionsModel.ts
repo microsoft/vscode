@@ -446,7 +446,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			}
 
 			for (const chatSessionType of changedChatSessionTypes) {
-				this.resolveProvider(chatSessionType, { refreshProvider: false /* already handled by delta */ });
+				this.resolveProvider(chatSessionType, { refreshProvider: false /* skip because we react on an event already */ });
 			}
 		}));
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.resolve(undefined)));
@@ -468,27 +468,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			? provider
 			: provider !== undefined
 				? [provider]
-				: this.getAllKnownProviders();
+				: this.chatSessionsService.getRegisteredChatSessionItemProviders();
 
 		await Promise.all(providers.map(provider => this.resolveProvider(provider, { refreshProvider: true })));
-	}
-
-	private getAllKnownProviders(): string[] {
-		const providers = new Set<string>();
-
-		for (const type of this.chatSessionsService.getRegisteredChatSessionItemProviders()) {
-			providers.add(type);
-		}
-
-		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
-			providers.add(contribution.type);
-		}
-
-		for (const [, session] of this._sessions) {
-			providers.add(session.providerType);
-		}
-
-		return Array.from(providers);
 	}
 
 	private resolveProvider(provider: string, options: { refreshProvider: boolean }): Promise<void> {
