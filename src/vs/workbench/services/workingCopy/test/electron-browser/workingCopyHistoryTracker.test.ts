@@ -166,8 +166,8 @@ suite('WorkingCopyHistoryTracker', () => {
 			affectsConfiguration: (key: string) => key === 'workbench.localHistory.enabled'
 		});
 
-		// Wait for any pending async operations to complete
-		await timeout(100);
+		// Allow pending async operations (microtasks) to settle
+		await timeout(0);
 
 		// No history entry should have been added
 		const entries = await workingCopyHistoryService.getEntries(workingCopy.resource, CancellationToken.None);
