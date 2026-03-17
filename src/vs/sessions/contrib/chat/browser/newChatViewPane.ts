@@ -315,8 +315,14 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Restore draft input state from storage
 		this._restoreState();
 
-		// Create initial session
-		this._createNewSession();
+		// Create initial session — if a project was restored, go through
+		// _onProjectSelected to handle trust and target consistently
+		const restoredProject = this._projectPicker.selectedProject;
+		if (restoredProject) {
+			this._onProjectSelected(restoredProject);
+		} else {
+			this._createNewSession();
+		}
 
 		// Reveal
 		welcomeElement.classList.add('revealed');
@@ -329,20 +335,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private async _createNewSession(): Promise<void> {
 		const target = this._currentTarget;
-		let defaultRepoUri: URI | undefined;
-
-		const project = this._projectPicker.selectedProject;
-		if (project) {
-			if (project.isFolder) {
-				// For local targets, request workspace trust before creating the session
-				const trusted = await this._requestFolderTrust(project.uri);
-				if (trusted) {
-					defaultRepoUri = project.uri;
-				}
-			} else {
-				defaultRepoUri = project.uri;
-			}
-		}
 
 		const resource = getResourceForNewChatSession({
 			type: target,
@@ -351,7 +343,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		});
 
 		try {
-			const session = await this.sessionsManagementService.createNewSessionForTarget(target, resource, defaultRepoUri);
+			const session = await this.sessionsManagementService.createNewSessionForTarget(target, resource);
 			this._setNewSession(session);
 		} catch (e) {
 			this.logService.error('Failed to create new session:', e);
@@ -1102,12 +1094,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Capture previous state for revert on trust denial
 		const previousProject = this._projectPicker.selectedProject;
-		const previousTarget = this._currentTarget;
 
 		// Update target picker with new project (determines target mode)
 		this._updateTargetPickerState();
 		const isLocal = this._currentTarget === AgentSessionProviders.Background;
-		const targetChanged = previousTarget !== this._currentTarget;
 
 		// Show/hide local-only pickers
 		this._permissionPicker.setVisible(isLocal);
@@ -1131,12 +1121,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			return;
 		}
 
-		// Recreate session if target type changed, otherwise just update the project
-		if (targetChanged) {
-			await this._createNewSession();
-		} else {
-			this._newSession.value?.setProject(project);
-		}
+		// Create a new session and set the project on it
+		await this._createNewSession();
+		this._newSession.value?.setProject(project);
 	}
 
 	prefillInput(text: string): void {
