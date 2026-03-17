@@ -332,7 +332,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					inSessions: true,
 				};
 
-				if (taskConfiguration.command && 'command' in existingTask.task) {
+				if (taskConfiguration.command && existingTask.task.command !== undefined) {
 					updatedTask = {
 						...updatedTask,
 						command: taskConfiguration.command,
@@ -542,12 +542,12 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 
 	private _getPrimaryActionTooltip(state: IRunScriptActionContext | undefined): string {
 		if (!state || state.tasks.length === 0) {
-			return localize('runPrimaryTask', "Run Primary Task");
+			return localize('runPrimaryTaskTooltip', "Run Primary Task");
 		}
 
 		const primaryTask = getPrimaryTask(state.tasks, state.pinnedTaskLabel)?.task;
 		if (!primaryTask) {
-			return localize('runPrimaryTask', "Run Primary Task");
+			return localize('runPrimaryTaskTooltip', "Run Primary Task");
 		}
 
 		const keybindingLabel = this._keybindingService.lookupKeybinding(RUN_SCRIPT_ACTION_PRIMARY_ID)?.getLabel();
