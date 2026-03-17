@@ -13,11 +13,12 @@ import { WorkingCopyHistoryTracker } from '../../common/workingCopyHistoryTracke
 import { WorkingCopyService } from '../../common/workingCopyService.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { TestFileService, TestPathService } from '../../../../test/browser/workbenchTestServices.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { UndoRedoService } from '../../../../../platform/undoRedo/common/undoRedoService.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
@@ -138,6 +139,39 @@ suite('WorkingCopyHistoryTracker', () => {
 		configurationService.setUserConfiguration('workbench.localHistory.enabled', false, testFile1Path);
 
 		return assertNoLocalHistoryEntryAddedWithSettingsConfigured();
+	});
+
+	test('history entry skipped when setting disabled after save event', async () => {
+
+		// Simulate the scenario where saving settings.json triggers a save event
+		// before the configuration service has processed the change that disables
+		// local history (https://github.com/microsoft/vscode/issues/247498)
+
+		const workingCopy = disposables.add(new TestWorkingCopy(testFile1Path));
+		const stat = await fileService.resolve(workingCopy.resource, { resolveMetadata: true });
+
+		disposables.add(workingCopyService.registerWorkingCopy(workingCopy));
+
+		// Save (with local history still enabled, queues limiter task)
+		await workingCopy.save(undefined, stat);
+
+		// Now disable local history and fire the configuration change event
+		// (this simulates the configuration service processing the change
+		// after the save event has already fired)
+		configurationService.setUserConfiguration('workbench.localHistory.enabled', false);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set(['workbench.localHistory.enabled']),
+			change: { keys: ['workbench.localHistory.enabled'], overrides: [] },
+			affectsConfiguration: (key: string) => key === 'workbench.localHistory.enabled'
+		});
+
+		// Wait for any pending async operations to complete
+		await timeout(100);
+
+		// No history entry should have been added
+		const entries = await workingCopyHistoryService.getEntries(workingCopy.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 0);
 	});
 
 	test('history entry skipped when setting disabled (exclude)', () => {

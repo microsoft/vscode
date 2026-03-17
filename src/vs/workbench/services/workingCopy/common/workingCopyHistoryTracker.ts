@@ -9,7 +9,7 @@ import { GlobalIdleValue, Limiter } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -76,6 +76,27 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 		// Working Copy Events
 		this._register(this.workingCopyService.onDidChangeContent(workingCopy => this.onDidChangeContent(workingCopy)));
 		this._register(this.workingCopyService.onDidSave(e => this.onDidSave(e)));
+
+		// Configuration Changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
+	}
+
+	private onDidChangeConfiguration(e: IConfigurationChangeEvent): void {
+		if (e.affectsConfiguration(WorkingCopyHistoryTracker.SETTINGS.ENABLED)) {
+
+			// Cancel pending add-history-entry operations for resources
+			// where tracking is now disabled. This is needed because the
+			// save event that triggers local history may fire before the
+			// configuration service has processed the change (e.g. when
+			// disabling local history and settings.json is saved as part
+			// of the change itself).
+			for (const [resource, cts] of this.pendingAddHistoryEntryOperations) {
+				if (this.configurationService.getValue(WorkingCopyHistoryTracker.SETTINGS.ENABLED, { resource }) === false) {
+					cts.dispose(true);
+					this.pendingAddHistoryEntryOperations.delete(resource);
+				}
+			}
+		}
 	}
 
 	private async onDidRunFileOperation(e: FileOperationEvent): Promise<void> {
