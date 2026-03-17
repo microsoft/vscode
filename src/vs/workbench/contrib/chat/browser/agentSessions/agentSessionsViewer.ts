@@ -278,7 +278,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return false;
 		}
 
-		// No badge when grouped by repositroy to avoid repitition (unless archived)
+		// No badge when grouped by repository to avoid repitition (unless archived)
 		if (this.options.isGroupedByRepository?.() && !session.element.isArchived()) {
 			return false;
 		}
@@ -1177,10 +1177,10 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 
 export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
-	compare(sessionA: IAgentSession, sessionB: IAgentSession, prioritizeInputNeeded = false): number {
+	compare(sessionA: IAgentSession, sessionB: IAgentSession, prioritizeActiveSessions = false): number {
 
-		// Sessions asking for input come first when enabled
-		if (prioritizeInputNeeded) {
+		// Special sorting if enabled
+		if (prioritizeActiveSessions) {
 			const aNeedsInput = sessionA.status === AgentSessionStatus.NeedsInput;
 			const bNeedsInput = sessionB.status === AgentSessionStatus.NeedsInput;
 
@@ -1204,7 +1204,14 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 		}
 
 		// Sort by creation time (most recent first)
-		return sessionB.timing.created - sessionA.timing.created;
+		let sessionATime = sessionA.timing.created;
+		let sessionBTime = sessionB.timing.created;
+		if (prioritizeActiveSessions) {
+			sessionATime = sessionA.timing.lastRequestStarted ?? sessionATime;
+			sessionBTime = sessionB.timing.lastRequestStarted ?? sessionBTime;
+		}
+
+		return sessionBTime - sessionATime;
 	}
 }
 
