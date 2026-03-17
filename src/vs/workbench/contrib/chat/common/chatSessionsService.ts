@@ -94,6 +94,7 @@ export interface IChatSessionsExtensionPoint {
 	 */
 	readonly customAgentTarget?: Target;
 	readonly requiresCustomModels?: boolean;
+	readonly autoAttachReferences?: boolean;
 }
 
 export interface IChatSessionItem {

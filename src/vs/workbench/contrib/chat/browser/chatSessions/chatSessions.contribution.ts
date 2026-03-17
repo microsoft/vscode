@@ -216,6 +216,11 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					description: localize('chatSessionsExtPoint.requiresCustomModels', 'When set, the chat session will show a filtered model picker that prefers custom models. This enables the use of standard model picker with contributed sessions.'),
 					type: 'boolean',
 					default: false
+				},
+				autoAttachReferences: {
+					description: localize('chatSessionsExtPoint.autoAttachReferences', 'Whether to automatically attach references (instruction files, implicit context) to chat requests for this session type. Defaults to false when not specified.'),
+					type: 'boolean',
+					default: false
 				}
 			},
 			required: ['type', 'name', 'displayName', 'description'],
