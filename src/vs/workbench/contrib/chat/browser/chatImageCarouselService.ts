@@ -95,10 +95,18 @@ export async function collectCarouselSections(
 		const requestImages = request ? extractImagesFromChatRequest(request) : [];
 
 		const allImages = [...requestImages, ...responseImages];
-		if (allImages.length > 0) {
+		// Deduplicate consecutive images with the same URI within this section
+		const dedupedImages = allImages.filter((img, index) => {
+			if (index === 0) {
+				return true;
+			}
+			const prev = allImages[index - 1];
+			return !prev.uri || !img.uri || !isEqual(prev.uri, img.uri);
+		});
+		if (dedupedImages.length > 0) {
 			sections.push({
 				title: request?.messageText ?? extractedTitle,
-				images: allImages.map(({ id, name, mimeType, data }) => ({ id, name, mimeType, data: data.buffer }))
+				images: dedupedImages.map(({ id, name, mimeType, data }) => ({ id, name, mimeType, data: data.buffer }))
 			});
 		}
 	}
@@ -187,12 +195,13 @@ export function buildCollectionArgs(
 	sessionResource: URI,
 ): ICarouselCollectionArgs {
 	const collectionId = sessionResource.toString() + '_carousel';
+	const defaultTitle = localize('chatImageCarousel.allImages', "Conversation Images");
 	return {
 		collection: {
 			id: collectionId,
 			title: sections.length === 1
-				? sections[0].title
-				: localize('chatImageCarousel.allImages', "Conversation Images"),
+				? (sections[0].title || defaultTitle)
+				: defaultTitle,
 			sections,
 		},
 		startIndex: clickedGlobalIndex,

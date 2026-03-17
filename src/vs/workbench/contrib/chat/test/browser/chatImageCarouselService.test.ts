@@ -223,6 +223,55 @@ suite('ChatImageCarouselService helpers', () => {
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].images.length, 1);
 		});
+
+		test('deduplicates consecutive images with the same URI', async () => {
+			const uri = URI.file('/screenshot.png');
+			const request = makeRequest('req-1', [
+				makeImageVariableEntry({
+					value: new Uint8Array([1, 2, 3]),
+					references: [{ reference: uri }],
+				}),
+				makeImageVariableEntry({
+					id: 'img-2',
+					value: new Uint8Array([1, 2, 3]),
+					references: [{ reference: uri }],
+				}),
+			], 'Two same images');
+			const response = makeResponse('req-1');
+
+			const result = await collectCarouselSections([request, response], async () => new Uint8Array());
+
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].images.length, 1);
+		});
+
+		test('keeps non-consecutive images with the same URI', async () => {
+			const uri = URI.file('/screenshot.png');
+			const otherUri = URI.file('/other.png');
+			const request = makeRequest('req-1', [
+				makeImageVariableEntry({
+					value: new Uint8Array([1, 2, 3]),
+					references: [{ reference: uri }],
+				}),
+				makeImageVariableEntry({
+					id: 'img-2',
+					name: 'other.png',
+					value: new Uint8Array([4, 5, 6]),
+					references: [{ reference: otherUri }],
+				}),
+				makeImageVariableEntry({
+					id: 'img-3',
+					value: new Uint8Array([1, 2, 3]),
+					references: [{ reference: uri }],
+				}),
+			], 'Non-consecutive duplicates');
+			const response = makeResponse('req-1');
+
+			const result = await collectCarouselSections([request, response], async () => new Uint8Array());
+
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].images.length, 3);
+		});
 	});
 
 });
