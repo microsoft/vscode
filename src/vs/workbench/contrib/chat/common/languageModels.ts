@@ -1313,7 +1313,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const parts: string[] = [];
 
 		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (typeof propSchema === 'boolean' || !propSchema.showInModelPicker) {
+			if (typeof propSchema === 'boolean' || !propSchema.pinToModelPicker) {
 				continue;
 			}
 			const value = currentConfig[key] ?? propSchema.default;
