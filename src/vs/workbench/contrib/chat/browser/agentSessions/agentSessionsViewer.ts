@@ -279,9 +279,21 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return false;
 		}
 
-		// No badge when grouped by repository to avoid repetition (unless archived)
+		// When grouped by repository, hide the badge only if the name it shows
+		// matches the section header (i.e. the repository name for this session).
+		// Badges with a different name (e.g. worktree name) are still shown.
+		// Archived sessions always keep their badge since they are grouped under
+		// the "Archived" section, not a repository section.
 		if (this.options.isGroupedByRepository?.() && !session.element.isArchived()) {
-			return false;
+			const raw = typeof badge === 'string' ? badge : badge.value;
+			const match = raw.match(/^\$\((?:repo|folder|worktree)\)\s*(.+)/);
+			if (match) {
+				const badgeName = match[1].trim();
+				const repoName = getRepositoryName(session.element);
+				if (badgeName === repoName) {
+					return false;
+				}
+			}
 		}
 
 		this.renderMarkdownOrText(this.stripCodicons(badge), template.badge, template.elementDisposable);
