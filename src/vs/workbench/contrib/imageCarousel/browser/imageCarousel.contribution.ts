@@ -41,7 +41,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'imageCarousel.explorerContextMenu.enabled': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: localize('imageCarousel.explorerContextMenu.enabled', "Controls whether the **Open Images in Carousel** option appears in the Explorer context menu. This is an experimental feature."),
+			markdownDescription: localize('imageCarousel.explorerContextMenu.enabled', "Controls whether the **Open in Image Carousel** option appears in the Explorer context menu. This is an experimental feature."),
 			tags: ['experimental'],
 		},
 	}
@@ -201,7 +201,7 @@ class OpenImagesInCarouselFromExplorerAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openImagesInCarousel',
-			title: localize2('openImagesInCarousel', "Open Images in Carousel"),
+			title: localize2('openImagesInCarousel', "Open in Image Carousel"),
 			f1: false,
 			menu: [{
 				id: MenuId.ExplorerContext,

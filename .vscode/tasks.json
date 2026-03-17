@@ -407,9 +407,9 @@
 		{
 			"label": "Install & Watch",
 			"type": "shell",
-			"command": "npm install && npm run watch",
+			"command": "npm ci && npm run watch",
 			"windows": {
-				"command": "cmd /d /c \"npm install && npm run watch\""
+				"command": "cmd /d /c \"npm ci && npm run watch\""
 			},
 			"inSessions": true,
 			"runOptions": {
