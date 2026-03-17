@@ -11,6 +11,7 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { Event } from '../../../../base/common/event.js';
 import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from '../../../../editor/common/editorCommon.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
@@ -27,7 +28,7 @@ import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { getSessionForResource } from './agentFeedbackEditorUtils.js';
+import { createAgentFeedbackContext, getSessionForResource } from './agentFeedbackEditorUtils.js';
 import { ICodeReviewService, IPRReviewState } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments, groupNearbySessionEditorComments, ISessionEditorComment, SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -67,6 +68,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 	) {
 		super();
 
@@ -298,7 +300,14 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			return;
 		}
 
-		const feedback = this._agentFeedbackService.addFeedback(this._sessionResource, comment.resourceUri, comment.range, comment.text, comment.suggestion);
+		const feedback = this._agentFeedbackService.addFeedback(
+			this._sessionResource,
+			comment.resourceUri,
+			comment.range,
+			comment.text,
+			comment.suggestion,
+			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
+		);
 		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedback.id));
 		if (comment.source === SessionEditorCommentSource.CodeReview) {
 			this._codeReviewService.removeComment(this._sessionResource, comment.sourceId);
