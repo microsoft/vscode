@@ -330,6 +330,8 @@ export interface IToolConfirmationMessages {
 	confirmationNotNeededReason?: string | IMarkdownString;
 	/** Custom button labels to display instead of the default Allow/Skip buttons. */
 	customButtons?: string[];
+	/** When set, shows an additional approval option to approve this particular combination of tool and arguments */
+	approveCombination?: string | IMarkdownString;
 }
 
 export interface IToolConfirmationAction {

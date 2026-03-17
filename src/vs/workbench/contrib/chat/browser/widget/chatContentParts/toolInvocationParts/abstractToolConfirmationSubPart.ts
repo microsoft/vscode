@@ -81,7 +81,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 			const additionalActions = this.additionalPrimaryActions();
 
 			// find session scoped action
-			const sessionAction = additionalActions.find(
+			const sessionAction = this.useAllowOnceAsPrimary() ? undefined : additionalActions.find(
 				(action): action is IAbstractToolPrimaryAction => 'scope' in action && action.scope === 'session'
 			);
 
@@ -155,6 +155,16 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 
 	protected additionalPrimaryActions(): AbstractToolPrimaryAction[] {
 		return [];
+	}
+
+	/**
+	 * When true, "Allow Once" stays the primary button even when a
+	 * session-scoped action is available. Subclasses override this
+	 * to keep the simple allow-once default (e.g. when combination
+	 * approval options are present).
+	 */
+	protected useAllowOnceAsPrimary(): boolean {
+		return false;
 	}
 
 	protected abstract createContentElement(): HTMLElement | string;

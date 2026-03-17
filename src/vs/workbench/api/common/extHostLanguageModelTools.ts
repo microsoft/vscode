@@ -304,10 +304,15 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				checkProposedApiEnabled(item.extension, 'chatParticipantPrivate');
 			}
 
+			if (result.confirmationMessages?.approveCombination !== undefined) {
+				checkProposedApiEnabled(item.extension, 'toolInvocationApproveCombination');
+			}
+
 			return {
 				confirmationMessages: result.confirmationMessages ? {
 					title: typeof result.confirmationMessages.title === 'string' ? result.confirmationMessages.title : typeConvert.MarkdownString.from(result.confirmationMessages.title),
 					message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
+					approveCombination: typeConvert.MarkdownString.fromStrict(result.confirmationMessages.approveCombination),
 				} : undefined,
 				invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
 				pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),

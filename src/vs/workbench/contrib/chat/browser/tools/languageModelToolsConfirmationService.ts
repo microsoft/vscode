@@ -19,6 +19,14 @@ import { IToolData, ToolDataSource } from '../../common/tools/languageModelTools
 const RUN_WITHOUT_APPROVAL = localize('runWithoutApproval', "without approval");
 const CONTINUE_WITHOUT_REVIEWING_RESULTS = localize('continueWithoutReviewingResults', "without reviewing result");
 
+/**
+ * Computes a stable key for a tool+parameters combination, used for
+ * combination-level auto-approval.
+ */
+function computeCombinationKey(toolId: string, parameters: unknown): string {
+	return toolId + ':combination:' + JSON.stringify(parameters);
+}
+
 
 class GenericConfirmStore extends Disposable {
 	private _workspaceStore: Lazy<ToolConfirmStore>;
@@ -168,6 +176,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 	private _postExecutionToolConfirmStore: GenericConfirmStore;
 	private _preExecutionServerConfirmStore: GenericConfirmStore;
 	private _postExecutionServerConfirmStore: GenericConfirmStore;
+	private _combinationConfirmStore: GenericConfirmStore;
 
 	private _contributions = new Map<string, ILanguageModelToolConfirmationContribution>();
 
@@ -181,6 +190,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		this._postExecutionToolConfirmStore = this._register(new GenericConfirmStore('chat/autoconfirm-post', this._instantiationService));
 		this._preExecutionServerConfirmStore = this._register(new GenericConfirmStore('chat/servers/autoconfirm', this._instantiationService));
 		this._postExecutionServerConfirmStore = this._register(new GenericConfirmStore('chat/servers/autoconfirm-post', this._instantiationService));
+		this._combinationConfirmStore = this._register(new GenericConfirmStore('chat/autoconfirm-combination', this._instantiationService));
 	}
 
 	getPreConfirmAction(ref: ILanguageModelToolConfirmationRef): ConfirmedReason | undefined {
@@ -196,6 +206,15 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		// If contribution disables default approvals, don't check default stores
 		if (contribution && contribution.canUseDefaultApprovals === false) {
 			return undefined;
+		}
+
+		// Check combination-level confirmation
+		if (ref.combinationLabel) {
+			const combinationKey = computeCombinationKey(ref.toolId, ref.parameters);
+			const combinationResult = this._combinationConfirmStore.checkAutoConfirmation(combinationKey);
+			if (combinationResult) {
+				return combinationResult;
+			}
 		}
 
 		// Check tool-level confirmation
@@ -259,6 +278,41 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		// If contribution disables default approvals, only return contribution actions
 		if (contribution && contribution.canUseDefaultApprovals === false) {
 			return actions;
+		}
+
+		// Add combination-level actions when approveCombination is provided
+		if (ref.combinationLabel) {
+			const combinationKey = computeCombinationKey(ref.toolId, ref.parameters);
+			actions.push(
+				{
+					label: localize('allowCombinationSession', '{0} in this Session', ref.combinationLabel),
+					detail: localize('allowCombinationSessionTooltip', 'Allow this particular combination of tool and arguments in this session without confirmation.'),
+					divider: !!actions.length,
+					scope: 'session',
+					select: async () => {
+						this._combinationConfirmStore.setAutoConfirmation(combinationKey, 'session');
+						return true;
+					}
+				},
+				{
+					label: localize('allowCombinationWorkspace', '{0} in this Workspace', ref.combinationLabel),
+					detail: localize('allowCombinationWorkspaceTooltip', 'Allow this particular combination of tool and arguments in this workspace without confirmation.'),
+					scope: 'workspace',
+					select: async () => {
+						this._combinationConfirmStore.setAutoConfirmation(combinationKey, 'workspace');
+						return true;
+					}
+				},
+				{
+					label: localize('allowCombinationGlobally', 'Always {0}', ref.combinationLabel),
+					detail: localize('allowCombinationGloballyTooltip', 'Always allow this particular combination of tool and arguments without confirmation.'),
+					scope: 'profile',
+					select: async () => {
+						this._combinationConfirmStore.setAutoConfirmation(combinationKey, 'profile');
+						return true;
+					}
+				},
+			);
 		}
 
 		// Add default tool-level actions
@@ -819,6 +873,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		this._postExecutionToolConfirmStore.reset();
 		this._preExecutionServerConfirmStore.reset();
 		this._postExecutionServerConfirmStore.reset();
+		this._combinationConfirmStore.reset();
 
 		// Reset all contributions
 		for (const contribution of this._contributions.values()) {

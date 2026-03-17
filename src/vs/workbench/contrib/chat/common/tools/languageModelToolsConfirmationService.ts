@@ -28,6 +28,8 @@ export interface ILanguageModelToolConfirmationRef {
 	source: ToolDataSource;
 	parameters: unknown;
 	chatSessionResource?: URI;
+	/** When set, the confirmation service will offer combination-level approval actions */
+	combinationLabel?: string;
 }
 
 export interface ILanguageModelToolConfirmationActionProducer {

@@ -87,12 +87,19 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		}
 
 		if (state.confirmationMessages?.allowAutoConfirm !== false) {
+			// Get combination label if present
+			const approveCombination = state.confirmationMessages?.approveCombination;
+			const combinationLabel = approveCombination
+				? (typeof approveCombination === 'string' ? approveCombination : approveCombination.value)
+				: undefined;
+
 			// Get actions from confirmation service
 			const confirmActions = this.confirmationService.getPreConfirmActions({
 				toolId: this.toolInvocation.toolId,
 				source: this.toolInvocation.source,
 				parameters: state.parameters,
-				chatSessionResource: this.context.element.sessionResource
+				chatSessionResource: this.context.element.sessionResource,
+				combinationLabel,
 			});
 
 			for (const action of confirmActions) {
@@ -126,6 +133,14 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		}
 
 		return actions;
+	}
+
+	protected override useAllowOnceAsPrimary(): boolean {
+		const state = this.toolInvocation.state.get();
+		if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			return !!state.confirmationMessages?.approveCombination;
+		}
+		return false;
 	}
 
 	protected createContentElement(): HTMLElement | string {
