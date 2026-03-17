@@ -158,6 +158,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'debugRenderer': { type: 'boolean' },
 	'inspect-ptyhost': { type: 'string', allowEmptyValue: true },
 	'inspect-brk-ptyhost': { type: 'string', allowEmptyValue: true },
+	'inspect-agenthost': { type: 'string', allowEmptyValue: true },
+	'inspect-brk-agenthost': { type: 'string', allowEmptyValue: true },
 	'inspect-search': { type: 'string', deprecates: ['debugSearch'], allowEmptyValue: true },
 	'inspect-brk-search': { type: 'string', deprecates: ['debugBrkSearch'], allowEmptyValue: true },
 	'inspect-sharedprocess': { type: 'string', allowEmptyValue: true },

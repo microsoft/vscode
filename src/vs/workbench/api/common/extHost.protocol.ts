@@ -3587,6 +3587,10 @@ export interface ChatSessionOptionUpdateDto2 {
 	readonly value: string | IChatSessionProviderOptionItem;
 }
 
+export interface ChatSessionContentContextDto {
+	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string }>;
+}
+
 export interface ChatSessionDto {
 	id: string;
 	resource: UriComponents;
@@ -3629,7 +3633,7 @@ export interface ExtHostChatSessionsShape {
 	$onDidChangeChatSessionItemState(providerHandle: number, sessionResource: UriComponents, archived: boolean): void;
 	$newChatSessionItem(controllerHandle: number, request: IChatNewSessionRequest, token: CancellationToken): Promise<Dto<IChatSessionItem> | undefined>;
 
-	$provideChatSessionContent(providerHandle: number, sessionResource: UriComponents, token: CancellationToken): Promise<ChatSessionDto>;
+	$provideChatSessionContent(providerHandle: number, sessionResource: UriComponents, context: ChatSessionContentContextDto, token: CancellationToken): Promise<ChatSessionDto>;
 	$interruptChatSessionActiveResponse(providerHandle: number, sessionResource: UriComponents, requestId: string): Promise<void>;
 	$disposeChatSessionContent(providerHandle: number, sessionResource: UriComponents): Promise<void>;
 	$invokeChatSessionRequestHandler(providerHandle: number, sessionResource: UriComponents, request: IChatAgentRequest, history: any[], token: CancellationToken): Promise<IChatAgentResult>;

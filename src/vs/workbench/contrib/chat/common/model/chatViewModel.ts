@@ -7,6 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, dispose } from '../../../../../base/common/lifecycle.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -645,11 +646,13 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			this.liveUpdateTracker = this.instantiationService.createInstance(ChatStreamStatsTracker);
 		}
 
+		const wordCountScheduler = this.liveUpdateTracker ? this._register(new RunOnceScheduler(() => {
+			const wordCount = countWords(_model.entireResponse.getMarkdown());
+			this.liveUpdateTracker!.update({ totalWordCount: wordCount });
+		}, 0)) : undefined;
+
 		this._register(_model.onDidChange(() => {
-			if (this.liveUpdateTracker) {
-				const wordCount = countWords(_model.entireResponse.getMarkdown());
-				this.liveUpdateTracker.update({ totalWordCount: wordCount });
-			}
+			wordCountScheduler?.schedule();
 
 			// new data -> new id, new content to render
 			this._modelChangeCount++;

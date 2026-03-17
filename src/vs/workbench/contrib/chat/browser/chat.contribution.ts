@@ -8,6 +8,7 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../../base/com
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
+import { AgentHostEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -97,6 +98,7 @@ import { ChatTransferContribution } from './actions/chatTransfer.js';
 import { registerChatOpenAgentDebugPanelAction } from './actions/chatOpenAgentDebugPanelAction.js';
 import { IChatDebugService } from '../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../common/chatDebugServiceImpl.js';
+import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
 import { ChatDebugEditor } from './chatDebug/chatDebugEditor.js';
 import { PromptsDebugContribution } from './promptsDebugContribution.js';
 import { ChatDebugEditorInput, ChatDebugEditorInputSerializer } from './chatDebug/chatDebugEditorInput.js';
@@ -706,6 +708,13 @@ configurationRegistry.registerConfiguration({
 					}
 				}
 			}
+		},
+		[AgentHostEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process."),
+			default: false,
+			tags: ['experimental'],
+			included: product.quality !== 'stable',
 		},
 		[ChatConfiguration.PlanAgentDefaultModel]: {
 			type: 'string',
@@ -1863,5 +1872,6 @@ registerSingleton(IChatOutputRendererService, ChatOutputRendererService, Instant
 registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
 registerSingleton(IChatTipService, ChatTipService, InstantiationType.Delayed);
 registerSingleton(IChatDebugService, ChatDebugServiceImpl, InstantiationType.Delayed);
+registerSingleton(IChatImageCarouselService, ChatImageCarouselService, InstantiationType.Delayed);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

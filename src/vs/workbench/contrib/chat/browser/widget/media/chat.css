@@ -282,7 +282,7 @@
 }
 
 .interactive-item-container > .value .chat-used-context {
-	margin-bottom: 16px;
+	margin-bottom: 14px;
 }
 
 .interactive-item-container > .value .chat-used-context .chat-used-context-list {
@@ -624,7 +624,7 @@
 	}
 
 	&:not(:last-child) {
-		margin-bottom: 16px;
+		margin-bottom: 14px;
 	}
 }
 

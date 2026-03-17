@@ -410,6 +410,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			const workspaceSkills = cached.skills.filter(s => s.storage === PromptsStorage.local);
 			const userSkills = cached.skills.filter(s => s.storage === PromptsStorage.user);
 			const extensionSkills = cached.skills.filter(s => s.storage === PromptsStorage.extension);
+			const builtinSkills = cached.skills.filter(s => s.storage === BUILTIN_STORAGE);
 
 			if (workspaceSkills.length > 0) {
 				groups.push(this.createGroupItem(promptType, PromptsStorage.local, workspaceSkills.length));
@@ -419,6 +420,9 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			}
 			if (extensionSkills.length > 0) {
 				groups.push(this.createGroupItem(promptType, PromptsStorage.extension, extensionSkills.length));
+			}
+			if (builtinSkills.length > 0) {
+				groups.push(this.createGroupItem(promptType, BUILTIN_STORAGE, builtinSkills.length));
 			}
 
 			return groups;
