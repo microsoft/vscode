@@ -333,7 +333,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}, { once: true }));
 	}
 
-	private async _createNewSession(): Promise<void> {
+	private async _createNewSession(project?: SessionProject): Promise<void> {
 		const target = this._currentTarget;
 
 		const resource = getResourceForNewChatSession({
@@ -344,6 +344,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		try {
 			const session = await this.sessionsManagementService.createNewSessionForTarget(target, resource);
+			if (project) {
+				session.setProject(project);
+			}
 			this._setNewSession(session);
 		} catch (e) {
 			this.logService.error('Failed to create new session:', e);
@@ -360,12 +363,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			if (this._branchPicker.selectedBranch) {
 				session.setBranch(this._branchPicker.selectedBranch);
 			}
-		}
-
-		// Set the repo URI from the project picker on the session
-		const project = this._projectPicker.selectedProject;
-		if (project && !session.project) {
-			session.setProject(project);
 		}
 
 		// Set the current model on the session (for local sessions)
@@ -1120,9 +1117,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			return;
 		}
 
-		// Create a new session and set the project on it
-		await this._createNewSession();
-		this._newSession.value?.setProject(project);
+		// Create a new session with the project
+		await this._createNewSession(project);
 	}
 
 	prefillInput(text: string): void {
