@@ -296,7 +296,7 @@ export async function collectTerminalResults(
 		const activeInstanceIds = new Set(terminals.map(instance => instance.instanceId));
 		for (const [instanceId, marker] of startMarkersByTerminalInstanceId) {
 			if (!activeInstanceIds.has(instanceId)) {
-				marker.dispose();
+				marker?.dispose();
 				startMarkersByTerminalInstanceId.delete(instanceId);
 			}
 		}

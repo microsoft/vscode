@@ -102,7 +102,10 @@ suite('Task Helpers', () => {
 			dispose: () => { defaultMarkerDisposed = true; }
 		};
 		const preRunMarker = {
+			id: 1,
 			line: 1,
+			isDisposed: false,
+			onDispose: new Emitter<void>().event,
 			dispose: () => { preRunMarkerDisposed = true; }
 		};
 		const terminal = {
@@ -156,7 +159,7 @@ suite('Task Helpers', () => {
 		} as unknown as IInstantiationService;
 
 		const startMarkersByTerminalInstanceId = new Map<number, ReturnType<ITerminalInstance['registerMarker']>>();
-		startMarkersByTerminalInstanceId.set(terminal.instanceId, preRunMarker);
+		startMarkersByTerminalInstanceId.set(terminal.instanceId, preRunMarker as ReturnType<ITerminalInstance['registerMarker']>);
 
 		const disposableStore = new DisposableStore();
 		const results = await collectTerminalResults(

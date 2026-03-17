@@ -98,6 +98,8 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		}
 
 		const preRunMarkersStore = new DisposableStore();
+		let result: ITaskSummary | undefined;
+		let terminalResults: Awaited<ReturnType<typeof collectTerminalResults>> = [];
 		try {
 			const dependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
 			const preRunResources = this._tasksService.getTerminalsForTasks(dependencyTasks ?? task);
@@ -106,12 +108,14 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			for (const terminal of preRunTerminals ?? []) {
 				const marker = terminal.registerMarker();
 				startMarkersByTerminalInstanceId.set(terminal.instanceId, marker);
-				preRunMarkersStore.add(marker);
+				if (marker) {
+					preRunMarkersStore.add(marker);
+				}
 			}
 
 			_progress.report({ message: new MarkdownString(localize('copilotChat.runningTask', 'Running task `{0}`', args.task.label)) });
 			const raceResult = await Promise.race([this._tasksService.run(task, undefined, TaskRunSource.ChatAgent), timeout(3000)]);
-			const result: ITaskSummary | undefined = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
+			result = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
 
 			const resources = this._tasksService.getTerminalsForTasks(dependencyTasks ?? task);
 			const terminals = resources?.map(resource => this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme)).filter(Boolean) as ITerminalInstance[];
@@ -119,23 +123,26 @@ export class CreateAndRunTaskTool implements IToolImpl {
 				return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${args.task.label}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', args.task.label)) };
 			}
 			const store = new DisposableStore();
-			const terminalResults = await collectTerminalResults(
-				terminals,
-				task,
-				this._instantiationService,
-				invocation.context!,
-				_progress,
-				token,
-				store,
-				(terminalTask) => this._isTaskActive(terminalTask),
-				dependencyTasks,
-				this._tasksService,
-				startMarkersByTerminalInstanceId
-			);
+			try {
+				terminalResults = await collectTerminalResults(
+					terminals,
+					task,
+					this._instantiationService,
+					invocation.context!,
+					_progress,
+					token,
+					store,
+					(terminalTask) => this._isTaskActive(terminalTask),
+					dependencyTasks,
+					this._tasksService,
+					startMarkersByTerminalInstanceId
+				);
+			} finally {
+				store.dispose();
+			}
 		} finally {
 			preRunMarkersStore.dispose();
 		}
-		store.dispose();
 		for (const r of terminalResults) {
 			this._telemetryService.publicLog2?.<TaskToolEvent, TaskToolClassification>('copilotChat.runTaskTool.createAndRunTask', {
 				taskId: args.task.label,
