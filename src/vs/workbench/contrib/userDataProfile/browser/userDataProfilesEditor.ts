@@ -16,7 +16,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUserDataProfile, IUserDataProfilesService, ProfileResourceType } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
-import { IEditorOpenContext, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInputCapabilities, IEditorOpenContext, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IUserDataProfilesEditor } from '../common/userDataProfile.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
@@ -2241,6 +2241,10 @@ export class UserDataProfilesEditorInput extends EditorInput {
 	readonly resource = undefined;
 
 	private readonly model: UserDataProfilesEditorModel;
+
+	override get capabilities(): EditorInputCapabilities {
+		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
+	}
 
 	private _dirty: boolean = false;
 	get dirty(): boolean { return this._dirty; }

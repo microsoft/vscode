@@ -38,8 +38,12 @@ export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOpt
 function handleGroupResult(group: IEditorGroup, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, editorGroupService: IEditorGroupsService, configurationService: IConfigurationService): [IEditorGroup, EditorActivation | undefined] {
 	const modalEditorPart = editorGroupService.activeModalEditorPart;
 	const modalEditorMode = configurationService.getValue<string>('workbench.editor.useModal');
-	if (modalEditorPart && preferredGroup !== MODAL_GROUP && modalEditorMode !== 'all') {
+	const editorInput = isEditorInputWithOptions(editor) ? editor.editor : isEditorInput(editor) ? editor : undefined;
+	const requiresModal = editorInput instanceof EditorInput && editorInput.hasCapability(EditorInputCapabilities.RequiresModal);
+	if (modalEditorPart && preferredGroup !== MODAL_GROUP && modalEditorMode !== 'all' && !requiresModal) {
 		// Only allow to open in modal group if MODAL_GROUP is explicitly requested
+		// or when the setting is configured to open all editors modal or when the
+		// editor has the RequiresModal capability.
 		group = handleModalEditorPart(group, editor, modalEditorPart, editorGroupService);
 	}
 
@@ -175,10 +179,13 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 		}
 	}
 
-	// Force modal editor part: redirect to the modal group when setting is 'on'
-	if (!group && configurationService.getValue<string>('workbench.editor.useModal') === 'all') {
-		group = editorGroupService.createModalEditorPart(options?.modal)
-			.then(part => part.activeGroup);
+	// Force modal editor part: redirect to the modal group when setting is 'all'
+	// or when the editor has the RequiresModal capability
+	if (!group) {
+		if (configurationService.getValue<string>('workbench.editor.useModal') === 'all' || (isEditorInput(editor) && (editor.hasCapability(EditorInputCapabilities.RequiresModal) || editor.hasCapability(EditorInputCapabilities.RequiresModal)))) {
+			group = editorGroupService.createModalEditorPart(options?.modal)
+				.then(part => part.activeGroup);
+		}
 	}
 
 	// Fallback to active group if target not valid but avoid
