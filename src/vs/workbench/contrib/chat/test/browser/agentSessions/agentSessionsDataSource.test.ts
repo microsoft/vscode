@@ -6,47 +6,13 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName } from '../../../browser/agentSessions/agentSessionsViewer.js';
+import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName, AgentSessionsSorter } from '../../../browser/agentSessions/agentSessionsViewer.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSessionSection } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { ChatSessionStatus } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { AgentSessionsGrouping } from '../../../browser/agentSessions/agentSessionsFilter.js';
-import { getAgentSessionTime } from '../../../browser/agentSessions/agentSessions.js';
-import { IChatSessionTiming } from '../../../common/chatService/chatService.js';
-
-suite('getAgentSessionTime', () => {
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('returns lastRequestStarted when available', () => {
-		const timing: IChatSessionTiming = {
-			created: 1000,
-			lastRequestStarted: 2000,
-			lastRequestEnded: 3000,
-		};
-		assert.strictEqual(getAgentSessionTime(timing), 2000);
-	});
-
-	test('returns lastRequestStarted even when lastRequestEnded is undefined', () => {
-		const timing: IChatSessionTiming = {
-			created: 1000,
-			lastRequestStarted: 2000,
-			lastRequestEnded: undefined,
-		};
-		assert.strictEqual(getAgentSessionTime(timing), 2000);
-	});
-
-	test('returns created when lastRequestStarted is undefined', () => {
-		const timing: IChatSessionTiming = {
-			created: 1000,
-			lastRequestStarted: undefined,
-			lastRequestEnded: undefined,
-		};
-		assert.strictEqual(getAgentSessionTime(timing), 1000);
-	});
-});
 
 suite('sessionDateFromNow', () => {
 
@@ -90,6 +56,22 @@ suite('sessionDateFromNow', () => {
 		// Should return "5 days ago" from fromNow, not our special handling
 		assert.ok(result.includes('day'), `Expected days ago, got: ${result}`);
 		assert.ok(!result.includes('1 day') && !result.includes('2 days'), `Should not be 1 or 2 days ago, got: ${result}`);
+	});
+
+	test('appends "ago" when appendAgoLabel is true', () => {
+		const now = Date.now();
+		const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+
+		const yesterday = startOfToday - ONE_DAY / 2;
+		assert.strictEqual(sessionDateFromNow(yesterday, true), '1 day ago');
+
+		const startOfYesterday = startOfToday - ONE_DAY;
+		const twoDaysAgo = startOfYesterday - ONE_DAY / 2;
+		assert.strictEqual(sessionDateFromNow(twoDaysAgo, true), '2 days ago');
+
+		const fiveDaysAgo = startOfToday - 5 * ONE_DAY;
+		const result = sessionDateFromNow(fiveDaysAgo, true);
+		assert.ok(result.includes('ago'), `Expected "ago" in result, got: ${result}`);
 	});
 });
 
@@ -166,9 +148,9 @@ suite('AgentSessionsDataSource', () => {
 	function createMockSorter(): ITreeSorter<IAgentSession> {
 		return {
 			compare: (a, b) => {
-				// Sort by end time, most recent first
-				const aTime = getAgentSessionTime(a.timing);
-				const bTime = getAgentSessionTime(b.timing);
+				// Sort by creation time, most recent first
+				const aTime = a.timing.created;
+				const bTime = b.timing.created;
 				return bTime - aTime;
 			}
 		};
@@ -873,5 +855,94 @@ suite('AgentSessionsDataSource', () => {
 			});
 			assert.strictEqual(getRepositoryName(session), 'vscode');
 		});
+	});
+});
+
+suite('AgentSessionsSorter', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createSession(overrides: Partial<{
+		id: string;
+		status: ChatSessionStatus;
+		isArchived: boolean;
+		created: number;
+		lastRequestStarted: number;
+	}>): IAgentSession {
+		const now = Date.now();
+		return {
+			providerType: 'test',
+			providerLabel: 'Test',
+			resource: URI.parse(`test://session/${overrides.id ?? 'default'}`),
+			status: overrides.status ?? ChatSessionStatus.Completed,
+			label: `Session ${overrides.id ?? 'default'}`,
+			icon: Codicon.terminal,
+			timing: {
+				created: overrides.created ?? now,
+				lastRequestEnded: undefined,
+				lastRequestStarted: overrides.lastRequestStarted,
+			},
+			changes: undefined,
+			metadata: undefined,
+			isArchived: () => overrides.isArchived ?? false,
+			setArchived: () => { },
+			isRead: () => true,
+			isMarkedUnread: () => false,
+			setRead: () => { },
+		};
+	}
+
+	test('default: sorts by creation time (most recent first)', () => {
+		const sorter = new AgentSessionsSorter();
+		const old = createSession({ id: 'old', created: 1000 });
+		const recent = createSession({ id: 'recent', created: 2000 });
+
+		const sorted = [old, recent].sort((a, b) => sorter.compare(a, b));
+		assert.deepStrictEqual(sorted.map(s => s.label), ['Session recent', 'Session old']);
+	});
+
+	test('default: archived sessions come last', () => {
+		const sorter = new AgentSessionsSorter();
+		const archived = createSession({ id: 'archived', isArchived: true, created: 3000 });
+		const active = createSession({ id: 'active', created: 1000 });
+
+		const sorted = [archived, active].sort((a, b) => sorter.compare(a, b));
+		assert.deepStrictEqual(sorted.map(s => s.label), ['Session active', 'Session archived']);
+	});
+
+	test('default: does NOT prioritize needs-input sessions', () => {
+		const sorter = new AgentSessionsSorter();
+		const needsInput = createSession({ id: 'needs', status: ChatSessionStatus.NeedsInput, created: 1000 });
+		const completed = createSession({ id: 'done', status: ChatSessionStatus.Completed, created: 2000 });
+
+		const sorted = [needsInput, completed].sort((a, b) => sorter.compare(a, b));
+		assert.deepStrictEqual(sorted.map(s => s.label), ['Session done', 'Session needs']);
+	});
+
+	test('prioritizeActive: needs-input sessions come first', () => {
+		const sorter = new AgentSessionsSorter();
+		const needsInput = createSession({ id: 'needs', status: ChatSessionStatus.NeedsInput, created: 1000 });
+		const completed = createSession({ id: 'done', status: ChatSessionStatus.Completed, created: 2000 });
+
+		const sorted = [completed, needsInput].sort((a, b) => sorter.compare(a, b, true));
+		assert.deepStrictEqual(sorted.map(s => s.label), ['Session needs', 'Session done']);
+	});
+
+	test('prioritizeActive: archived still come last when not active', () => {
+		const sorter = new AgentSessionsSorter();
+		const archived = createSession({ id: 'archived', isArchived: true, created: 3000 });
+		const active = createSession({ id: 'active', created: 1000 });
+
+		const sorted = [archived, active].sort((a, b) => sorter.compare(a, b, true));
+		assert.deepStrictEqual(sorted.map(s => s.label), ['Session active', 'Session archived']);
+	});
+
+	test('prioritizeActive: uses lastRequestStarted for time sorting', () => {
+		const sorter = new AgentSessionsSorter();
+		const recentlyActive = createSession({ id: 'recent-active', created: 1000, lastRequestStarted: 5000 });
+		const recentlyCreated = createSession({ id: 'recent-created', created: 3000 });
+
+		const sorted = [recentlyCreated, recentlyActive].sort((a, b) => sorter.compare(a, b, true));
+		assert.deepStrictEqual(sorted.map(s => s.label), ['Session recent-active', 'Session recent-created']);
 	});
 });
