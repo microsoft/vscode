@@ -1041,5 +1041,44 @@ suite('TelemetryService', () => {
 		sinon.restore();
 	}));
 
+	test('Unexpected Error Telemetry strips web origin but preserves path in web stack traces when piiPaths includes origin', sinonTestFn(function (this: any) {
+		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		Errors.setUnexpectedErrorHandler(() => { });
+
+		try {
+			const testAppender = new TestTelemetryAppender();
+			const webOrigin = 'https://codespace-host.github.dev';
+			const service = new TestErrorTelemetryService({ appenders: [testAppender], piiPaths: [webOrigin] });
+			const errorTelemetry = new ErrorTelemetry(service);
+
+			const bundlePath = '/static/build/bundle.js';
+			const stack = [
+				`Error: Something failed`,
+				`    at x3t._delegate (${webOrigin}${bundlePath}:1:200953)`,
+				`    at y4u.run (${webOrigin}${bundlePath}:1:304822)`,
+				`    at DedicatedWorkerGlobalScope.self.onmessage`,
+			];
+
+			const webError: any = new Error('Something failed');
+			webError.stack = stack.join('\n');
+
+			Errors.onUnexpectedError(webError);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+			assert.strictEqual(testAppender.getEventsCount(), 1);
+			const cs = testAppender.events[0].data.callstack;
+			// Verify the web origin is stripped (not leaked as PII)
+			assert.strictEqual(cs.indexOf(webOrigin), -1, 'Web origin should be stripped');
+			assert.strictEqual(cs.indexOf('https://'), -1, 'HTTPS scheme should be stripped');
+			// Verify the bundle path is preserved for debugging
+			assert.notStrictEqual(cs.indexOf(bundlePath), -1, 'Bundle path should be preserved');
+
+			errorTelemetry.dispose();
+			service.dispose();
+		} finally {
+			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		}
+	}));
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

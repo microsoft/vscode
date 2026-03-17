@@ -8,7 +8,9 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../base/common/network.js';
+import { delimiter, dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
+import { rgPath } from '@vscode/ripgrep';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession, IAgentDescriptor, IAgentAttachment } from '../../common/agentService.js';
@@ -101,11 +103,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 			}
 			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
+			env['USE_BUILTIN_RIPGREP'] = '0';
 
 			// Resolve the CLI entry point from node_modules. We can't use require.resolve()
 			// because @github/copilot's exports map blocks direct subpath access.
 			// FileAccess.asFileUri('') points to the `out/` directory; node_modules is one level up.
 			const cliPath = URI.joinPath(FileAccess.asFileUri(''), '..', 'node_modules', '@github', 'copilot', 'index.js').fsPath;
+
+			// Add VS Code's built-in ripgrep to PATH so the CLI subprocess can find it.
+			// If @vscode/ripgrep is in an .asar file, the binary is unpacked.
+			const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
+			const rgDir = dirname(rgDiskPath);
+			const currentPath = env['PATH'];
+			env['PATH'] = currentPath ? `${currentPath}${delimiter}${rgDir}` : rgDir;
 			this._logService.info(`[Copilot] Resolved CLI path: ${cliPath}`);
 
 			const client = new CopilotClient({
