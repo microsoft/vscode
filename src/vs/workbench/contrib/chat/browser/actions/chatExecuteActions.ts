@@ -1028,8 +1028,7 @@ export const GetHandoffsActionId = 'workbench.action.chat.getHandoffs';
 interface IGetHandoffsArgs {
 	/**
 	 * Name of the custom agent (defined in an `.agent.md` file) whose handoffs
-	 * you want to retrieve. This is the source agent — the one that *declares*
-	 * the handoffs, not the target they point to. If omitted, all
+	 * you want to retrieve. If omitted, all
 	 * handoffs from all agents and built-in modes are returned.
 	 */
 	sourceCustomAgent?: string;
@@ -1138,8 +1137,7 @@ class ExecuteHandoffAction extends Action2 {
 			return { success: false, error: 'No chat widget found. Provide sessionResource or focus a chat widget.' };
 		}
 
-		// Resolve the source custom agent whose handoffs we search (case-insensitive,
-		// consistent with GetHandoffsAction which also filters case-insensitively).
+		// Resolve the source custom agent whose handoffs we search (case-insensitive)
 		let sourceMode: IChatMode | undefined;
 		if (arg.sourceCustomAgent) {
 			const filterName = arg.sourceCustomAgent.toLowerCase();
