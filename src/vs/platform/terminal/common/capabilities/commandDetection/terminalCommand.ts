@@ -141,7 +141,7 @@ export class TerminalCommand implements ITerminalCommand {
 			}
 			// NOTE: xterm stores wrapping state on the *next* line, not the current one.
 			// Use next line's `isWrapped` to determine whether this line should be joined.
-			const isWrapped = !!buffer.getLine(i + 1)?.isWrapped;
+			const isWrapped = i + 1 < endLine ? !!buffer.getLine(i + 1)?.isWrapped : false;
 			currentLine += line.translateToString(!isWrapped);
 			if (!isWrapped) {
 				output += currentLine + '\n';
