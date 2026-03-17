@@ -142,7 +142,14 @@ export function isLocalAgentSessionItem(session: IAgentSession): boolean {
 export function isAgentSession(obj: unknown): obj is IAgentSession {
 	const session = obj as IAgentSession | undefined;
 
-	return URI.isUri(session?.resource) && typeof session.setArchived === 'function' && typeof session.setPinned === 'function' && typeof session.setRead === 'function';
+	return URI.isUri(session?.resource)
+		&& typeof session.isArchived === 'function'
+		&& typeof session.setArchived === 'function'
+		&& typeof session.isPinned === 'function'
+		&& typeof session.setPinned === 'function'
+		&& typeof session.isRead === 'function'
+		&& typeof session.isMarkedUnread === 'function'
+		&& typeof session.setRead === 'function';
 }
 
 export function isAgentSessionsModel(obj: unknown): obj is IAgentSessionsModel {
