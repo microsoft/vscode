@@ -802,7 +802,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async sendRequest(sessionResource: URI, request: string, options?: IChatSendRequestOptions): Promise<ChatSendResult> {
-		mark('code/chat/didEnterSendRequest');
+		mark('code/chat/willSendRequest');
 		this.trace('sendRequest', `sessionResource: ${sessionResource.toString()}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 
 
@@ -890,7 +890,7 @@ export class ChatService extends Disposable implements IChatService {
 		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 
 		// This method is only returning whether the request was accepted - don't block on the actual request
-		return {
+		const result = {
 			kind: 'sent',
 			newSessionResource,
 			data: {
@@ -898,7 +898,10 @@ export class ChatService extends Disposable implements IChatService {
 				agent,
 				slashCommand: agentSlashCommandPart?.command,
 			},
-		};
+		} as const;
+
+		mark('code/chat/didSendRequest');
+		return result;
 	}
 
 	private parseChatRequest(sessionResource: URI, request: string, location: ChatAgentLocation, options: IChatSendRequestOptions | undefined): IParsedChatRequest {
@@ -1036,8 +1039,6 @@ export class ChatService extends Disposable implements IChatService {
 				}
 			}
 
-			mark('code/chat/willCollectCustomizations');
-
 			// Collect hooks from hook .json files
 			let collectedHooks: ChatRequestHooks | undefined;
 			let hasDisabledClaudeHooks = false;
@@ -1064,8 +1065,6 @@ export class ChatService extends Disposable implements IChatService {
 					this.logService.warn('[ChatService] Failed to collect agent hooks:', error);
 				}
 			}
-
-			mark('code/chat/didCollectCustomizations');
 
 			const stopWatch = new StopWatch(false);
 			store.add(token.onCancellationRequested(() => {

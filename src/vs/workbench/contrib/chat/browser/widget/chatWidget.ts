@@ -2301,13 +2301,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		mark('code/chat/willCollectCustomizations');
-
 		// process the prompt command
 		await this._applyPromptFileIfSet(requestInputs);
 		await this._autoAttachInstructions(requestInputs);
-
-		mark('code/chat/didCollectCustomizations');
 
 		if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit) {
 			const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
@@ -2356,7 +2352,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const resolvedImageVariables = await this._resolveDirectoryImageAttachments(requestInputs.attachedContext.asArray());
 		const submittedSessionResource = this.viewModel.sessionResource;
 
-		mark('code/chat/willSendRequest');
 		const result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
 			userSelectedModelId: this.input.currentLanguageModel,
 			location: this.location,
@@ -2371,7 +2366,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			queue: options?.queue,
 			pauseQueue: options?.alwaysQueue,
 		});
-		mark('code/chat/didSendRequest');
+
+		mark('code/chat/willUpdateChatViewVisibility');
 
 		if (ChatSendResult.isRejected(result)) {
 			return;
