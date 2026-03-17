@@ -824,13 +824,14 @@ export class ChatService extends Disposable implements IChatService {
 			const parsedRequest = this.parseChatRequest(sessionResource, request, options?.location ?? model.initialLocation, options);
 			const commandPart = parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
 			const requestText = getPromptText(parsedRequest).message;
-			const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(sessionResource), { prompt: requestText, command: commandPart?.text }, CancellationToken.None);
+
+			// Capture session options before loading the remote session,
+			// since the alias registration below may change the lookup.
+			const sessionOptions = this.chatSessionService.getSessionOptions(sessionResource);
+			const initialSessionOptions = sessionOptions ? [...sessionOptions].map(([optionId, value]) => ({ optionId, value })) : undefined;
+
+			const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(sessionResource), { prompt: requestText, command: commandPart?.text, initialSessionOptions }, CancellationToken.None);
 			if (newItem) {
-
-				// Capture session options before loading the remote session,
-				// since the alias registration below may change the lookup.
-				const sessionOptions = this.chatSessionService.getSessionOptions(sessionResource);
-
 				model = (await this.loadRemoteSession(newItem.resource, model.initialLocation, CancellationToken.None))?.object as ChatModel | undefined;
 				if (!model) {
 					throw new Error(`Failed to load session for resource: ${newItem.resource}`);
@@ -1199,13 +1200,13 @@ export class ChatService extends Disposable implements IChatService {
 					}
 					completeResponseCreated();
 
-					// Check for disabled Claude Code hooks and notify the user once per workspace
+					// Check for disabled Claude Code hooks and notify the user once per workspace.
+					// Only set the flag when actually showing the hint, so the setup agent flow
+					// (which may resend requests) doesn't consume the flag before the real request runs.
 					const disabledClaudeHooksDismissedKey = 'chat.disabledClaudeHooks.notification';
-					if (!this.storageService.getBoolean(disabledClaudeHooksDismissedKey, StorageScope.WORKSPACE)) {
+					if (hasDisabledClaudeHooks && !this.storageService.getBoolean(disabledClaudeHooksDismissedKey, StorageScope.WORKSPACE)) {
 						this.storageService.store(disabledClaudeHooksDismissedKey, true, StorageScope.WORKSPACE, StorageTarget.USER);
-						if (hasDisabledClaudeHooks) {
-							progressCallback([{ kind: 'disabledClaudeHooks' }]);
-						}
+						progressCallback([{ kind: 'disabledClaudeHooks' }]);
 					}
 
 					// MCP autostart: only run for native VS Code sessions (sidebar, new editors) but not for extension contributed sessions that have inputType set.

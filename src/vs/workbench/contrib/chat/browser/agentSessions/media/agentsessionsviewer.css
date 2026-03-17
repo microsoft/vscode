@@ -73,6 +73,10 @@
 		.agent-session-title {
 			margin-right: 8px;
 		}
+
+		.agent-session-status .agent-session-status-provider-icon {
+			display: inline;
+		}
 	}
 
 	.agent-session-item {
@@ -112,16 +116,23 @@
 					color: var(--vscode-errorForeground);
 				}
 
-				&.codicon.codicon-report {
-					color: var(--vscode-textLink-foreground);
-				}
-
 				&.codicon.codicon-circle-filled {
 					color: var(--vscode-textLink-foreground);
 				}
 
+				&.codicon.codicon-circle-filled.needs-input {
+					color: var(--vscode-list-warningForeground);
+					animation: agent-session-needs-input-pulse 2s ease-in-out infinite;
+				}
+
 				&.codicon.codicon-circle-small-filled {
 					color: var(--vscode-agentSessionReadIndicator-foreground);
+				}
+
+				@media (prefers-reduced-motion: reduce) {
+					&.codicon.codicon-circle-filled.needs-input {
+						animation: none;
+					}
 				}
 			}
 		}
@@ -207,10 +218,6 @@
 				&:not(.has-badge) {
 					display: none;
 				}
-
-				.codicon {
-					font-size: 11px;
-				}
 			}
 		}
 
@@ -223,17 +230,17 @@
 			text-overflow: ellipsis;
 		}
 
-		.agent-session-title {
-			font-size: 13px;
+		.agent-session-description:empty {
+			display: none;
 		}
 
-		.agent-session-details-right {
-			display: flex;
-			align-items: center;
-			gap: 4px;
-			margin-left: auto;
-			white-space: nowrap;
-			flex-shrink: 0;
+		.agent-session-description.has-separator::before {
+			content: '\00B7';
+			margin-right: 4px;
+		}
+
+		.agent-session-title {
+			font-size: 13px;
 		}
 
 		.agent-session-status {
@@ -242,13 +249,19 @@
 			font-variant-numeric: tabular-nums;
 			white-space: nowrap;
 
+			&.has-separator::before {
+				content: '\00B7';
+				margin-right: 4px;
+			}
+
+			&.hidden {
+				display: none;
+			}
+
 			.agent-session-status-provider-icon {
 				font-size: 11px;
 				margin-right: 4px;
-
-				&.hidden {
-					display: none;
-				}
+				display: none;
 			}
 		}
 		.agent-session-approval-row {
@@ -365,5 +378,14 @@
 				outline-offset: 1px;
 			}
 		}
+	}
+}
+
+@keyframes agent-session-needs-input-pulse {
+	0%, 100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.4;
 	}
 }

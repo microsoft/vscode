@@ -8,13 +8,11 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { isSandboxFilesystemError } from '../../../../../../platform/sandbox/common/sandboxErrorAnalysis.js';
 import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
 import type { IOutputAnalyzer, IOutputAnalyzerOptions } from './outputAnalyzer.js';
-import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 
 export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer {
-	private static readonly _filesystemPermissionPattern = /(?:\b(?:EACCES|EPERM|ENOENT|EROFS|fail(?:ed|ure)?)\b|not accessible|read[- ]only|fatal:)/i;
-
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
 		@ITerminalSandboxService private readonly _sandboxService: ITerminalSandboxService,
@@ -30,7 +28,7 @@ export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer
 			return undefined;
 		}
 
-		const filesystemPermissionLine = options.exitResult.split(/\r?\n/).find(line => SandboxOutputAnalyzer._filesystemPermissionPattern.test(line));
+		const filesystemPermissionLine = options.exitResult.split(/\r?\n/).find(line => isSandboxFilesystemError(line));
 		const sandboxPath = filesystemPermissionLine ? await this._getSandboxPathToAllow(filesystemPermissionLine) : undefined;
 
 		if (sandboxPath && await this._sandboxService.promptToAllowWritePath(sandboxPath)) {
@@ -44,10 +42,7 @@ export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer
 
 		return localize(
 			'runInTerminalTool.sandboxCommandFailed',
-			"Command failed while running in sandboxed mode. Use the command result to determine the scenario. If the issue is filesystem permissions, update allowWrite in {0} (Linux) or {1} (macOS). If the issue is domain/network related, add the required domains to {2}.allowedDomains.",
-			TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem,
-			TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem,
-			TerminalChatAgentToolsSettingId.TerminalSandboxNetwork
+			"Command failed while running in sandboxed mode. Do not switch to other tools. Retry the command in sandboxed mode at most once, and only if the result suggests the failure was transient."
 		);
 	}
 

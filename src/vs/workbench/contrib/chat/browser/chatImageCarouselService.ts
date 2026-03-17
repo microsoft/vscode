@@ -11,8 +11,8 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { extractImagesFromChatResponse } from '../common/chatImageExtraction.js';
-import { IChatResponseViewModel, isResponseVM } from '../common/model/chatViewModel.js';
+import { extractImagesFromChatRequest, extractImagesFromChatResponse } from '../common/chatImageExtraction.js';
+import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/model/chatViewModel.js';
 import { IChatWidgetService } from './chat.js';
 
 export const IChatImageCarouselService = createDecorator<IChatImageCarouselService>('chatImageCarouselService');
@@ -65,23 +65,57 @@ export interface ICarouselSingleImageArgs {
 //#region Testable helper functions
 
 /**
- * Collects all carousel image sections from chat response items.
- * Each response with images becomes one section containing both
- * tool invocation images and inline reference images (file URIs).
+ * Collects all carousel image sections from chat items.
+ * Each request/response pair with images becomes one section containing
+ * user attachment images, tool invocation images, and inline reference images.
  */
 export async function collectCarouselSections(
-	responses: IChatResponseViewModel[],
+	items: (IChatRequestViewModel | IChatResponseViewModel)[],
 	readFile: (uri: URI) => Promise<Uint8Array>,
 ): Promise<ICarouselSection[]> {
 	const sections: ICarouselSection[] = [];
 
-	for (const response of responses) {
-		const { title, images } = await extractImagesFromChatResponse(response, async uri => VSBuffer.wrap(await readFile(uri)));
+	// Build a map from request id to request VM for pairing
+	const requestMap = new Map<string, IChatRequestViewModel>();
+	for (const item of items) {
+		if (isRequestVM(item)) {
+			requestMap.set(item.id, item);
+		}
+	}
 
-		if (images.length > 0) {
+	for (const item of items) {
+		if (!isResponseVM(item)) {
+			continue;
+		}
+
+		const { title: extractedTitle, images: responseImages } = await extractImagesFromChatResponse(item, async uri => VSBuffer.wrap(await readFile(uri)));
+
+		// Also collect images from the corresponding user request
+		const request = requestMap.get(item.requestId);
+		const requestImages = request ? extractImagesFromChatRequest(request) : [];
+
+		const allImages = [...requestImages, ...responseImages];
+		if (allImages.length > 0) {
 			sections.push({
-				title,
-				images: images.map(({ id, name, mimeType, data }) => ({ id, name, mimeType, data: data.buffer }))
+				title: request?.messageText ?? extractedTitle,
+				images: allImages.map(({ id, name, mimeType, data }) => ({ id, name, mimeType, data: data.buffer }))
+			});
+		}
+	}
+
+	// Handle requests that have no response yet (e.g. pending requests with image attachments)
+	const respondedRequestIds = new Set(
+		items.filter(isResponseVM).map(r => r.requestId)
+	);
+	for (const item of items) {
+		if (!isRequestVM(item) || respondedRequestIds.has(item.id)) {
+			continue;
+		}
+		const requestImages = extractImagesFromChatRequest(item);
+		if (requestImages.length > 0) {
+			sections.push({
+				title: item.messageText,
+				images: requestImages.map(({ id, name, mimeType, data }) => ({ id, name, mimeType, data: data.buffer }))
 			});
 		}
 	}
@@ -195,9 +229,11 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 			return;
 		}
 
-		const responses = widget.viewModel.getItems().filter((item): item is IChatResponseViewModel => isResponseVM(item));
+		const items = widget.viewModel.getItems().filter(
+			(item): item is IChatRequestViewModel | IChatResponseViewModel => isRequestVM(item) || isResponseVM(item)
+		);
 		const readFile = async (uri: URI) => (await this.fileService.readFile(uri)).value.buffer;
-		const sections = await collectCarouselSections(responses, readFile);
+		const sections = await collectCarouselSections(items, readFile);
 		const clickedGlobalIndex = findClickedImageIndex(sections, resource, data);
 
 		if (clickedGlobalIndex === -1 || sections.length === 0) {

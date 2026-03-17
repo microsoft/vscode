@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -23,38 +24,37 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUserDataProfilesService, toUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
-import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { InMemoryTestFileService, mock, TestChatEntitlementService, TestContextService, TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
-import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { IChatEditingService, IChatEditingSession } from '../../../common/editing/chatEditingService.js';
-import { ChatModel, IChatModel, ISerializableChatData } from '../../../common/model/chatModel.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
-import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
-import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
-import { MockChatService } from './mockChatService.js';
-import { MockChatVariablesService } from '../mockChatVariables.js';
-import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
+import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
+import { IChatEditingService, IChatEditingSession } from '../../../common/editing/chatEditingService.js';
+import { ChatModel, IChatModel, ISerializableChatData } from '../../../common/model/chatModel.js';
+import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
+import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
+import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { MockChatVariablesService } from '../mockChatVariables.js';
+import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
+import { MockChatService } from './mockChatService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { MockChatSessionsService } from '../mockChatSessionsService.js';
 
@@ -537,6 +537,97 @@ suite('ChatService', () => {
 		assert.ok(invokedRequests[1].includes('steering2'), 'Combined message should include steering2');
 		assert.ok(invokedRequests[1].includes('steering3'), 'Combined message should include steering3');
 		assert.ok(invokedRequests[1].includes('\n\n'), 'Combined message should use \\n\\n as separator');
+	});
+
+	test('disabled Claude hooks hint is shown once per workspace (fix for #295079)', async () => {
+		// Set up a prompts service that reports disabled Claude hooks
+		const mockPromptsService = new class extends MockPromptsService {
+			override getHooks(_token: CancellationToken, _sessionResource?: URI): Promise<IConfiguredHooksInfo> {
+				return Promise.resolve({ hooks: {}, hasDisabledClaudeHooks: true });
+			}
+		}();
+		instantiationService.stub(IPromptsService, mockPromptsService);
+
+		const storageService = instantiationService.get(IStorageService);
+		const disabledHintsKey = 'chat.disabledClaudeHooks.notification';
+
+		// Before any request, the storage key should not be set
+		assert.strictEqual(storageService.getBoolean(disabledHintsKey, StorageScope.WORKSPACE), undefined);
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		// Disabled hooks are reported for every request, but the hint should only be shown once per workspace.
+		const response = await testService.sendRequest(model.sessionResource, 'test request');
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		// The hint should have been shown, and the key set to true
+		assert.strictEqual(storageService.getBoolean(disabledHintsKey, StorageScope.WORKSPACE), true, 'Flag should be set after showing the hint');
+
+		// Verify the response contains the disabledClaudeHooks part
+		const requests = model.getRequests();
+		assert.strictEqual(requests.length, 1);
+		const responseParts = requests[0].response?.response.value ?? [];
+		const hasHookHint = responseParts.some(part => part.kind === 'disabledClaudeHooks');
+		assert.ok(hasHookHint, 'Response should contain the disabledClaudeHooks hint');
+
+		// Sending another request should NOT show the hint again (shown only once per workspace)
+		const response2 = await testService.sendRequest(model.sessionResource, 'second request');
+		ChatSendResult.assertSent(response2);
+		await response2.data.responseCompletePromise;
+
+		const requests2 = model.getRequests();
+		assert.strictEqual(requests2.length, 2);
+		const responseParts2 = requests2[1].response?.response.value ?? [];
+		const hasHookHint2 = responseParts2.some(part => part.kind === 'disabledClaudeHooks');
+		assert.ok(!hasHookHint2, 'Response should NOT contain the disabledClaudeHooks hint on second request');
+	});
+
+	test('disabled Claude hooks hint is not consumed when no disabled hooks (fix for #295079)', async () => {
+		// Set up a prompts service that simulates the setup agent first pass (no disabled hooks)
+		// followed by the real resent request (with disabled hooks).
+		const mockPromptsService = new class extends MockPromptsService {
+			private _callCount = 0;
+			override getHooks(_token: CancellationToken, _sessionResource?: URI): Promise<IConfiguredHooksInfo> {
+				this._callCount++;
+				// First call (setup agent): no disabled hooks
+				// Second call (real request after resend): disabled hooks present
+				return Promise.resolve({ hooks: {}, hasDisabledClaudeHooks: this._callCount > 1 });
+			}
+		}();
+		instantiationService.stub(IPromptsService, mockPromptsService);
+
+		const storageService = instantiationService.get(IStorageService);
+		const disabledHintsKey = 'chat.disabledClaudeHooks.notification';
+
+		// First request: no disabled hooks (simulates setup agent pass)
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		const response = await testService.sendRequest(model.sessionResource, 'first request');
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		// Flag should NOT be set because no hint was shown
+		assert.strictEqual(storageService.getBoolean(disabledHintsKey, StorageScope.WORKSPACE), undefined, 'Flag should not be set when no disabled hooks');
+
+		const firstRequest = model.getRequests()[0];
+		assert.ok(firstRequest, 'Expected the initial request to exist before resend');
+
+		// Resend the original request: now disabled hooks are present (simulates resend after setup)
+		await testService.resendRequest(firstRequest);
+
+		// Now the flag should be set and the hint shown
+		assert.strictEqual(storageService.getBoolean(disabledHintsKey, StorageScope.WORKSPACE), true, 'Flag should be set after showing the hint');
+
+		const requests = model.getRequests();
+		assert.strictEqual(requests.length, 1, 'Resend should replace the original request');
+		const responseParts2 = requests[0].response?.response.value ?? [];
+		const hasHookHint2 = responseParts2.some(part => part.kind === 'disabledClaudeHooks');
+		assert.ok(hasHookHint2, 'Response should contain the disabledClaudeHooks hint on second request');
 	});
 	test('cancelCurrentRequestForSession waits for response completion', async () => {
 		const requestStarted = new DeferredPromise<void>();

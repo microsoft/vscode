@@ -31,6 +31,7 @@ import { getContextMenuActions } from '../../../../contrib/mcp/browser/mcpServer
 import { LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { workspaceIcon, userIcon, mcpServerIcon, builtinIcon } from './aiCustomizationIcons.js';
 import { formatDisplayName, truncateToFirstSentence } from './aiCustomizationListWidget.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
@@ -377,10 +378,16 @@ export class McpListWidget extends Disposable {
 			this.toggleBrowseMode(!this.browseMode);
 		}));
 
-		const addButtonContainer = DOM.append(buttonContainer, $('.list-add-button-container'));
-		this.addButton = this._register(new Button(addButtonContainer, { ...defaultButtonStyles, supportIcons: true }));
-		this.addButton.label = `$(${Codicon.add.id}) ${localize('addServer', "Add Server")}`;
-		this.addButton.element.classList.add('list-add-button');
+		this.addButton = this._register(new Button(buttonContainer, {
+			...defaultButtonStyles,
+			secondary: true,
+			supportIcons: true,
+			title: localize('addServer', "Add Server"),
+			ariaLabel: localize('addServer', "Add Server")
+		}));
+		this.addButton.label = `$(${Codicon.add.id})`;
+		this.addButton.element.classList.add('list-icon-button');
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.addButton.element, localize('addServerTooltip', "Add Server")));
 		this._register(this.addButton.onDidClick(() => {
 			this.commandService.executeCommand(McpCommandIds.AddConfiguration);
 		}));
@@ -521,7 +528,7 @@ export class McpListWidget extends Disposable {
 
 		// Update UI for browse vs installed mode
 		this.backLink.style.display = browse ? '' : 'none';
-		this.addButton.element.parentElement!.style.display = browse ? 'none' : '';
+		this.addButton.element.style.display = browse ? 'none' : '';
 		this.browseButton.element.parentElement!.style.display = browse ? 'none' : '';
 
 		this.searchInput.setPlaceHolder(browse
