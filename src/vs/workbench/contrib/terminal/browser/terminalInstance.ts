@@ -475,8 +475,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					capabilityListeners.set(e.id, e.capability.onDidChangeCwd(e => {
 						this._cwd = e;
 						this._setTitle(this.title, TitleEventSource.Config);
-						// Subscribe to branch name changes for the new cwd
-						this._subscribeToBranchNameChanges(e);
+						// If the cwd was already known before the CwdDetection capability started
+						// emitting events (for example, via initialCwd or process properties),
+						// ensure we still subscribe to branch name changes for that cwd so that
+						// ${branch} in the tab label will update correctly.
+						if (this._cwd) {
+							this._subscribeToBranchNameChanges(this._cwd);
+						}
 					}));
 					break;
 				}
@@ -2486,7 +2491,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		try {
-			const cwdUri = URI.file(cwd);
+			let cwdUri: URI | undefined;
+			// Prefer a URI that matches the workspace folder's scheme/authority (for remote workspaces)
+			const workspace = this._workspaceContextService.getWorkspace();
+			for (const folder of workspace.folders) {
+				if (folder.uri.scheme !== Schemas.file && cwd.startsWith(folder.uri.path)) {
+					const relativePath = cwd.substring(folder.uri.path.length);
+					cwdUri = folder.uri.with({ path: folder.uri.path + relativePath });
+					break;
+				}
+			}
+			if (!cwdUri) {
+				// Fallback for local workspaces or when no matching remote folder is found
+				cwdUri = URI.file(cwd);
+			}
+
 			const repository = this._scmService.getRepository(cwdUri);
 			if (!repository) {
 				return;
@@ -2765,7 +2784,22 @@ export class TerminalLabelComputer extends Disposable {
 		}
 
 		try {
-			const cwdUri = URI.file(cwd);
+			let cwdUri: URI | undefined;
+			// Try to build a URI for cwd that matches the workspace folder's scheme/authority
+			// so that SCM repositories can be resolved correctly in remote workspaces.
+			const workspace = this._workspaceContextService.getWorkspace();
+			for (const folder of workspace.folders) {
+				const folderPath = folder.uri.path;
+				if (cwd.startsWith(folderPath)) {
+					cwdUri = folder.uri.with({ path: cwd });
+					break;
+				}
+			}
+			// Fallback to a local file URI if no matching workspace folder was found
+			if (!cwdUri) {
+				cwdUri = URI.file(cwd);
+			}
+
 			const repository = this._scmService.getRepository(cwdUri);
 			if (!repository) {
 				return undefined;
