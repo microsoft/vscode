@@ -649,16 +649,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.editorDisposables.add(this.mcpListWidget.onDidChangeItemCount(count => {
 				this.updateSectionCount(AICustomizationManagementSection.McpServers, count);
 			}));
+			// Seed initial count (the widget may have already loaded before we subscribed)
+			this.updateSectionCount(AICustomizationManagementSection.McpServers, this.mcpListWidget.itemCount);
 		}
 		if (this.pluginListWidget) {
 			this.editorDisposables.add(this.pluginListWidget.onDidChangeItemCount(count => {
 				this.updateSectionCount(AICustomizationManagementSection.Plugins, count);
 			}));
+			this.updateSectionCount(AICustomizationManagementSection.Plugins, this.pluginListWidget.itemCount);
 		}
 		if (this.modelsWidget) {
 			this.editorDisposables.add(this.modelsWidget.onDidChangeItemCount(count => {
 				this.updateSectionCount(AICustomizationManagementSection.Models, count);
 			}));
+			this.updateSectionCount(AICustomizationManagementSection.Models, this.modelsWidget.itemCount);
 		}
 
 		// Listen for data changes and refresh counts for non-active prompts sections
@@ -759,15 +763,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.isPromptsSection(section.id)) {
 				promises.push(this.refreshPromptsSectionCount(section.id));
 			}
-		}
-		if (this.mcpListWidget) {
-			this.updateSectionCount(AICustomizationManagementSection.McpServers, this.mcpListWidget.itemCount);
-		}
-		if (this.pluginListWidget) {
-			this.updateSectionCount(AICustomizationManagementSection.Plugins, this.pluginListWidget.itemCount);
-		}
-		if (this.modelsWidget) {
-			this.updateSectionCount(AICustomizationManagementSection.Models, this.modelsWidget.itemCount);
 		}
 		await Promise.all(promises);
 	}
