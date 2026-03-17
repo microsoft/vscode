@@ -37,12 +37,13 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { AgentSessionProviders, isAgentHostTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessionPickerActionItem.js';
 import { SearchableOptionPickerActionItem } from '../../../../workbench/contrib/chat/browser/chatSessions/searchableOptionPickerActionItem.js';
-import { IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IModelPickerDelegate } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
 import { EnhancedModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem2.js';
@@ -56,11 +57,13 @@ import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 import { FolderPicker } from './folderPicker.js';
+import { agentHostAuthority } from '../../remoteAgentHost/browser/remoteAgentHost.contribution.js';
+import { AGENT_HOST_FS_SCHEME, agentHostRemotePath, agentHostUri } from '../../remoteAgentHost/browser/agentHostFileSystemProvider.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { IsolationMode, IsolationModePicker, SessionTargetPicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
 import { SyncIndicator } from './syncIndicator.js';
-import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
+import { AgentHostNewSession, INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
 import { RepoPicker } from './repoPicker.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { ModePicker } from './modePicker.js';
@@ -94,6 +97,7 @@ interface IDraftState extends IChatModelInputState {
 interface INewChatWidgetOptions {
 	readonly allowedTargets: AgentSessionProviders[];
 	readonly defaultTarget: AgentSessionProviders;
+	readonly targetLabels?: ReadonlyMap<string, string>;
 	readonly sessionPosition?: ChatSessionPosition;
 }
 
@@ -151,6 +155,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private readonly _permissionPicker: NewChatPermissionPicker;
 	private readonly _repoPicker: RepoPicker;
 	private _repoPickerContainer: HTMLElement | undefined;
+	private _pickersRightHalf: HTMLElement | undefined;
+	private _remoteFolderPickerContainer: HTMLElement | undefined;
+	private readonly _remoteFolderPickerDisposables = this._register(new DisposableStore());
 	private readonly _cloudModelPicker: CloudModelPicker;
 	private readonly _modePicker: ModePicker;
 	private readonly _toolbarPickerWidgets = new Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem>();
@@ -192,16 +199,17 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		@IGitService private readonly gitService: IGitService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 	) {
 		super();
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
-		this._folderPicker = this._register(this.instantiationService.createInstance(FolderPicker));
+		this._folderPicker = this._register(this.instantiationService.createInstance(FolderPicker, undefined));
 		this._permissionPicker = this._register(this.instantiationService.createInstance(NewChatPermissionPicker));
 		this._repoPicker = this._register(this.instantiationService.createInstance(RepoPicker));
 		this._cloudModelPicker = this._register(this.instantiationService.createInstance(CloudModelPicker));
 		this._modePicker = this._register(this.instantiationService.createInstance(ModePicker));
-		this._targetPicker = this._register(new SessionTargetPicker(options.allowedTargets, this._resolveDefaultTarget(options)));
+		this._targetPicker = this._register(new SessionTargetPicker(options.allowedTargets, this._resolveDefaultTarget(options), options.targetLabels));
 		this._isolationModePicker = this._register(this.instantiationService.createInstance(IsolationModePicker));
 		this._branchPicker = this._register(this.instantiationService.createInstance(BranchPicker));
 		this._syncIndicator = this._register(this.instantiationService.createInstance(SyncIndicator));
@@ -209,6 +217,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// When target changes, create new session
 		this._register(this._targetPicker.onDidChangeTarget((target) => {
+			this._initDefaultModel();
 			this._createNewSession();
 			const isLocal = target === AgentSessionProviders.Background;
 			this._updateIsolationPickerVisibility();
@@ -408,7 +417,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			if (this._branchPicker.selectedBranch) {
 				session.setBranch(this._branchPicker.selectedBranch);
 			}
-		} else {
+		} else if (!isAgentHostTarget(target)) {
 			const selectedRepo = this._repoPicker.selectedRepo;
 			if (selectedRepo) {
 				session.setRepoUri(this._getRepoUri(selectedRepo));
@@ -448,6 +457,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			listeners.add(session.onDidChangeOptionGroups(() => {
 				this._renderRemoteSessionPickers(session);
 			}));
+		} else if (session instanceof AgentHostNewSession) {
+			this._renderAgentHostSessionPickers(session);
 		} else {
 			this._renderLocalSessionPickers();
 		}
@@ -751,12 +762,13 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	private _getAvailableModels(): ILanguageModelChatMetadataAndIdentifier[] {
+		const target = this._targetPicker.selectedTarget;
 		return this.languageModelsService.getLanguageModelIds()
 			.map(id => {
 				const metadata = this.languageModelsService.lookupLanguageModel(id);
 				return metadata ? { metadata, identifier: id } : undefined;
 			})
-			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m && m.metadata.targetChatSessionType === AgentSessionProviders.Background);
+			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m && m.metadata.targetChatSessionType === target);
 	}
 
 	// --- Welcome: Target & option pickers (dropdown row below input) ---
@@ -777,7 +789,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._targetPicker.render(targetDropdownContainer);
 
 		// Right half: separator + pickers (left-justified within its half)
-		const rightHalf = dom.append(pickersRow, dom.$('.sessions-chat-pickers-right-half'));
+		const rightHalf = this._pickersRightHalf = dom.append(pickersRow, dom.$('.sessions-chat-pickers-right-half'));
 		this._extensionPickersLeftContainer = dom.append(rightHalf, dom.$('.sessions-chat-pickers-left-separator'));
 		this._extensionPickersLeftContainer.style.display = 'none';
 
@@ -809,6 +821,31 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._cloudModelPicker.setVisible(false);
 	}
 
+	// --- Agent Host session pickers ---
+
+	/**
+	 * Agent Host sessions use the standard model picker and mode picker
+	 * but don't need repo, folder, isolation, or cloud option pickers.
+	 */
+	private _renderAgentHostSessionPickers(session: AgentHostNewSession): void {
+		this._clearAllPickers();
+		// Show local model and mode pickers
+		if (this._localModelPickerContainer) {
+			this._localModelPickerContainer.style.display = '';
+		}
+		this._modePicker.setVisible(true);
+		this._cloudModelPicker.setVisible(false);
+
+		// Show the remote folder picker for browsing the agent host filesystem
+		const address = this._getRemoteAgentHostAddress(session.target);
+		if (address) {
+			if (this._extensionPickersLeftContainer) {
+				this._extensionPickersLeftContainer.style.display = 'block';
+			}
+			this._ensureRemoteFolderPicker(address, session);
+		}
+	}
+
 	// --- Remote session pickers ---
 
 	private _renderRemoteSessionPickers(session: RemoteNewSession, force?: boolean): void {
@@ -829,14 +866,75 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._cloudModelPicker.setSession(session);
 		this._cloudModelPicker.setVisible(true);
 
-		// Show repo picker and separator
 		if (this._extensionPickersLeftContainer) {
 			this._extensionPickersLeftContainer.style.display = 'block';
 		}
+
+		// Cloud remote: show repo picker, hide folder pickers
+		this._clearRemoteFolderPicker();
 		this._repoPickerContainer.style.display = '';
 
 		// Render toolbar pickers (other groups)
 		this._renderToolbarPickers(session, force);
+	}
+
+	/**
+	 * Returns the remote agent host address if the given target corresponds
+	 * to a remote agent host connection, or `undefined` otherwise.
+	 */
+	private _getRemoteAgentHostAddress(target: string): string | undefined {
+		if (!target.startsWith('remote-')) {
+			return undefined;
+		}
+		for (const conn of this.remoteAgentHostService.connections) {
+			const prefix = agentHostAuthority(conn.address);
+			if (target.startsWith(`remote-${prefix}-`)) {
+				return conn.address;
+			}
+		}
+		return undefined;
+	}
+
+	private _ensureRemoteFolderPicker(address: string, session: INewSession): void {
+		this._remoteFolderPickerDisposables.clear();
+
+		const authority = agentHostAuthority(address);
+
+		// Use the home directory from the connection handshake as the default browse location
+		const conn = this.remoteAgentHostService.connections.find(c => c.address === address);
+		const defaultUri = conn?.defaultDirectory
+			? agentHostUri(authority, conn.defaultDirectory.path)
+			: agentHostUri(authority, '/');
+
+		const picker = this._remoteFolderPickerDisposables.add(
+			this.instantiationService.createInstance(FolderPicker, {
+				availableFileSystems: [AGENT_HOST_FS_SCHEME],
+				defaultUri,
+				storageKeyPrefix: 'remote.',
+			})
+		);
+
+		// Wire folder selection to session
+		this._remoteFolderPickerDisposables.add(picker.onDidSelectFolder(folderUri => {
+			// Convert agenthost://authority/path to a file URI with just the path,
+			// which is the remote filesystem path the server understands
+			session.setRepoUri(URI.from({ scheme: 'file', path: agentHostRemotePath(folderUri) }));
+			this._updateDraftState();
+			this._focusEditor();
+		}));
+
+		// Render into the right-half pickers container
+		if (this._pickersRightHalf) {
+			this._remoteFolderPickerContainer = picker.render(this._pickersRightHalf);
+			this._remoteFolderPickerDisposables.add(toDisposable(() => {
+				this._remoteFolderPickerContainer?.remove();
+				this._remoteFolderPickerContainer = undefined;
+			}));
+		}
+	}
+
+	private _clearRemoteFolderPicker(): void {
+		this._remoteFolderPickerDisposables.clear();
 	}
 
 	private _renderToolbarPickers(session: RemoteNewSession, force?: boolean): void {
@@ -949,6 +1047,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		if (this._repoPickerContainer) {
 			this._repoPickerContainer.style.display = 'none';
 		}
+		this._clearRemoteFolderPicker();
 		if (this._extensionPickersLeftContainer) {
 			this._extensionPickersLeftContainer.style.display = 'none';
 		}
@@ -1238,8 +1337,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}
 	}
 
-	updateAllowedTargets(targets: AgentSessionProviders[]): void {
-		this._targetPicker.updateAllowedTargets(targets);
+	updateAllowedTargets(targets: AgentSessionProviders[], targetLabels?: ReadonlyMap<string, string>): void {
+		this._targetPicker.updateAllowedTargets(targets, targetLabels);
 	}
 }
 
@@ -1268,6 +1367,8 @@ export class NewChatViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
@@ -1275,11 +1376,14 @@ export class NewChatViewPane extends ViewPane {
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
+		const { targets, targetLabels } = this.computeAllowedTargets();
+
 		this._widget = this._register(this.instantiationService.createInstance(
 			NewChatWidget,
 			{
-				allowedTargets: this.computeAllowedTargets(),
+				allowedTargets: targets,
 				defaultTarget: AgentSessionProviders.Background,
+				targetLabels,
 			} satisfies INewChatWidgetOptions,
 		));
 
@@ -1287,13 +1391,40 @@ export class NewChatViewPane extends ViewPane {
 		this._widget.focusInput();
 
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => {
-			this._widget?.updateAllowedTargets(this.computeAllowedTargets());
+			const result = this.computeAllowedTargets();
+			this._widget?.updateAllowedTargets(result.targets, result.targetLabels);
+		}));
+
+		this._register(this.remoteAgentHostService.onDidChangeConnections(() => {
+			const result = this.computeAllowedTargets();
+			this._widget?.updateAllowedTargets(result.targets, result.targetLabels);
+		}));
+
+		this._register(this.chatSessionsService.onDidChangeItemsProviders(() => {
+			const result = this.computeAllowedTargets();
+			this._widget?.updateAllowedTargets(result.targets, result.targetLabels);
+		}));
+
+		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
+			const result = this.computeAllowedTargets();
+			this._widget?.updateAllowedTargets(result.targets, result.targetLabels);
 		}));
 	}
 
-	private computeAllowedTargets(): AgentSessionProviders[] {
+	private computeAllowedTargets(): { targets: AgentSessionProviders[]; targetLabels: Map<string, string> } {
 		const targets: AgentSessionProviders[] = [AgentSessionProviders.Background, AgentSessionProviders.Cloud];
-		return targets;
+		const targetLabels = new Map<string, string>();
+
+		// Add remote agent host session types (dynamically registered
+		// by RemoteAgentHostContribution with a `remote-` prefix)
+		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
+			if (contribution.type.startsWith('remote-')) {
+				targets.push(contribution.type as AgentSessionProviders);
+				targetLabels.set(contribution.type, contribution.displayName);
+			}
+		}
+
+		return { targets, targetLabels };
 	}
 
 	protected override layoutBody(height: number, width: number): void {

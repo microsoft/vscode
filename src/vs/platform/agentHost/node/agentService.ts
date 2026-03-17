@@ -8,9 +8,10 @@ import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
+import { IFileService } from '../../files/common/files.js';
 import { AgentProvider, IAgentCreateSessionConfig, IAgent, IAgentService, IAgentSessionMetadata, AgentSession, IAgentDescriptor } from '../common/agentService.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
-import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
+import type { IBrowseDirectoryResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionSummary } from '../common/state/sessionState.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { SessionStateManager } from './sessionStateManager.js';
@@ -34,6 +35,9 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Authoritative state manager for the sessions process protocol. */
 	private readonly _stateManager: SessionStateManager;
 
+	/** Exposes the state manager for co-hosting a WebSocket protocol server. */
+	get stateManager(): SessionStateManager { return this._stateManager; }
+
 	/** Registered providers keyed by their {@link AgentProvider} id. */
 	private readonly _providers = new Map<AgentProvider, IAgent>();
 	/** Maps each active session URI (toString) to its owning provider. */
@@ -49,6 +53,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	constructor(
 		private readonly _logService: ILogService,
+		private readonly _fileService: IFileService,
 	) {
 		super();
 		this._logService.info('AgentService initialized');
@@ -58,7 +63,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sideEffects = this._register(new AgentSideEffects(this._stateManager, {
 			getAgent: session => this._findProviderForSession(session),
 			agents: this._agents,
-		}, this._logService));
+		}, this._logService, this._fileService));
 	}
 
 	// ---- provider registration ----------------------------------------------
@@ -175,6 +180,10 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.trace(`[AgentService] resulting state:`, state);
 
 		this._sideEffects.handleAction(action);
+	}
+
+	async browseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
+		return this._sideEffects.handleBrowseDirectory(uri);
 	}
 
 	async shutdown(): Promise<void> {

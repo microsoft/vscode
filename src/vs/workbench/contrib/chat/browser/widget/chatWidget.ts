@@ -1047,7 +1047,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			tip,
 			renderer,
 		));
-		tipContainer.appendChild(tipPart.domNode);
 		this._gettingStartedTipPartRef = tipPart;
 
 		store.add(tipPart.onDidHide(() => {
@@ -1058,7 +1057,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.focusInput();
 		}));
 
+		// Set the guard before appending to DOM so that any re-entrant calls
+		// triggered by context-key changes during construction see the guard
+		// and return early without adding a duplicate tip node.
 		this._gettingStartedTipPart.value = store;
+		// Clear any stale nodes left from a previous tip that was not properly
+		// removed (e.g. if re-entrancy bypassed the guard above).
+		dom.clearNode(tipContainer);
+		tipContainer.appendChild(tipPart.domNode);
 		dom.setVisibility(true, tipContainer);
 	}
 
@@ -1980,7 +1986,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this._lockedAgent) {
 			let placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder;
 			if (!placeholder) {
-				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.id);
+				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
 			}
 			this.viewModel.setInputPlaceholder(placeholder);
 			this.inputEditor.updateOptions({ placeholder });
@@ -2719,6 +2725,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * - instructions referenced in an already included instruction file
 	 */
 	private async _autoAttachInstructions({ attachedContext }: IChatRequestInputOptions): Promise<void> {
+		const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
+		if (!contribution?.autoAttachReferences) {
+			this.logService.debug(`ChatWidget#_autoAttachInstructions: skipped, autoAttachReferences is disabled`);
+			return;
+		}
 		this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are always enabled`);
 		const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined;
 		const enabledSubAgents = this.input.currentModeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined;

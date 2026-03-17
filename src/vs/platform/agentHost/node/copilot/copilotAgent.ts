@@ -65,7 +65,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async setAuthToken(token: string): Promise<void> {
 		const tokenChanged = this._githubToken !== token;
 		this._githubToken = token;
-		this._logService.info(`[Copilot] Auth token ${tokenChanged ? 'updated' : 'unchanged'} (${token.substring(0, 4)}...)`);
+		this._logService.info(`[Copilot] Auth token ${tokenChanged ? 'updated' : 'unchanged'}`);
 		if (tokenChanged && this._client && this._sessions.size === 0) {
 			this._logService.info('[Copilot] Restarting CopilotClient with new token');
 			const client = this._client;
@@ -85,7 +85,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return this._clientStarting;
 		}
 		this._clientStarting = (async () => {
-			this._logService.info(`[Copilot] Starting CopilotClient... ${this._githubToken ? '(with token)' : '(using logged-in user)'}`);
+			this._logService.info(`[Copilot] Starting CopilotClient... ${this._githubToken ? '(with token)' : '(no token)'}`);
 
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.

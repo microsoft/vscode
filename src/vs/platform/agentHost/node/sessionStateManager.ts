@@ -41,6 +41,9 @@ export class SessionStateManager extends Disposable {
 		super();
 		this._rootState = createRootState();
 	}
+	get hasActiveSessions(): boolean {
+		return this._activeTurnToSession.size > 0;
+	}
 
 	// ---- State accessors ----------------------------------------------------
 
@@ -189,12 +192,14 @@ export class SessionStateManager extends Disposable {
 				// Track active turn for turn lifecycle
 				if (sessionAction.type === 'session/turnStarted') {
 					this._activeTurnToSession.set(sessionAction.turnId, key);
+					this.dispatchServerAction({ type: 'root/activeSessionsChanged', activeSessions: this._activeTurnToSession.size });
 				} else if (
 					sessionAction.type === 'session/turnComplete' ||
 					sessionAction.type === 'session/turnCancelled' ||
 					sessionAction.type === 'session/error'
 				) {
 					this._activeTurnToSession.delete(sessionAction.turnId);
+					this.dispatchServerAction({ type: 'root/activeSessionsChanged', activeSessions: this._activeTurnToSession.size });
 				}
 
 				resultingState = newState;

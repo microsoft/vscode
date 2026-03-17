@@ -22,15 +22,24 @@ import type {
 	IDeltaAction,
 	IPermissionRequestAction,
 	IReasoningAction,
+	ISessionAction,
 	ISessionErrorAction,
 	ITitleChangedAction,
-	IToolCompleteAction,
-	IToolStartAction,
+	IToolCallCompleteAction,
+	IToolCallReadyAction,
+	IToolCallStartAction,
 	ITurnCompleteAction,
 	IUsageAction,
 } from '../../common/state/sessionActions.js';
-import { ToolCallStatus } from '../../common/state/sessionState.js';
-import { mapProgressEventToAction } from '../../node/agentEventMapper.js';
+import { mapProgressEventToActions } from '../../node/agentEventMapper.js';
+
+/** Helper: flatten the result of mapProgressEventToActions into an array. */
+function mapToArray(result: ISessionAction | ISessionAction[] | undefined): ISessionAction[] {
+	if (!result) {
+		return [];
+	}
+	return Array.isArray(result) ? result : [result];
+}
 
 suite('AgentEventMapper', () => {
 
@@ -47,8 +56,9 @@ suite('AgentEventMapper', () => {
 			content: 'hello world',
 		};
 
-		const action = mapProgressEventToAction(event, session, turnId);
-		assert.ok(action);
+		const actions = mapToArray(mapProgressEventToActions(event, session, turnId));
+		assert.strictEqual(actions.length, 1);
+		const action = actions[0];
 		assert.strictEqual(action.type, 'session/delta');
 		const delta = action as IDeltaAction;
 		assert.strictEqual(delta.content, 'hello world');
@@ -56,7 +66,7 @@ suite('AgentEventMapper', () => {
 		assert.strictEqual(delta.turnId, turnId);
 	});
 
-	test('tool_start event maps to session/toolStart action', () => {
+	test('tool_start event maps to toolCallStart + toolCallReady actions', () => {
 		const event: IAgentToolStartEvent = {
 			session,
 			type: 'tool_start',
@@ -69,21 +79,26 @@ suite('AgentEventMapper', () => {
 			language: 'shellscript',
 		};
 
-		const action = mapProgressEventToAction(event, session, turnId);
-		assert.ok(action);
-		assert.strictEqual(action.type, 'session/toolStart');
-		const toolCall = (action as IToolStartAction).toolCall;
-		assert.strictEqual(toolCall.toolCallId, 'tc-1');
-		assert.strictEqual(toolCall.toolName, 'readFile');
-		assert.strictEqual(toolCall.displayName, 'Read File');
-		assert.strictEqual(toolCall.invocationMessage, 'Reading file...');
-		assert.strictEqual(toolCall.toolInput, '/src/foo.ts');
-		assert.strictEqual(toolCall.toolKind, 'terminal');
-		assert.strictEqual(toolCall.language, 'shellscript');
-		assert.strictEqual(toolCall.status, ToolCallStatus.Running);
+		const actions = mapToArray(mapProgressEventToActions(event, session, turnId));
+		assert.strictEqual(actions.length, 2);
+
+		const startAction = actions[0] as IToolCallStartAction;
+		assert.strictEqual(startAction.type, 'session/toolCallStart');
+		assert.strictEqual(startAction.toolCallId, 'tc-1');
+		assert.strictEqual(startAction.toolName, 'readFile');
+		assert.strictEqual(startAction.displayName, 'Read File');
+		assert.strictEqual(startAction.toolKind, 'terminal');
+		assert.strictEqual(startAction.language, 'shellscript');
+
+		const readyAction = actions[1] as IToolCallReadyAction;
+		assert.strictEqual(readyAction.type, 'session/toolCallReady');
+		assert.strictEqual(readyAction.toolCallId, 'tc-1');
+		assert.strictEqual(readyAction.invocationMessage, 'Reading file...');
+		assert.strictEqual(readyAction.toolInput, '/src/foo.ts');
+		assert.strictEqual(readyAction.confirmed, 'not-needed');
 	});
 
-	test('tool_complete event maps to session/toolComplete action', () => {
+	test('tool_complete event maps to session/toolCallComplete action', () => {
 		const event: IAgentToolCompleteEvent = {
 			session,
 			type: 'tool_complete',
@@ -93,10 +108,10 @@ suite('AgentEventMapper', () => {
 			toolOutput: 'file contents here',
 		};
 
-		const action = mapProgressEventToAction(event, session, turnId);
-		assert.ok(action);
-		assert.strictEqual(action.type, 'session/toolComplete');
-		const complete = action as IToolCompleteAction;
+		const actions = mapToArray(mapProgressEventToActions(event, session, turnId));
+		assert.strictEqual(actions.length, 1);
+		const complete = actions[0] as IToolCallCompleteAction;
+		assert.strictEqual(complete.type, 'session/toolCallComplete');
 		assert.strictEqual(complete.toolCallId, 'tc-1');
 		assert.strictEqual(complete.result.success, true);
 		assert.strictEqual(complete.result.pastTenseMessage, 'Read file successfully');
@@ -109,10 +124,10 @@ suite('AgentEventMapper', () => {
 			type: 'idle',
 		};
 
-		const action = mapProgressEventToAction(event, session, turnId);
-		assert.ok(action);
-		assert.strictEqual(action.type, 'session/turnComplete');
-		const turnComplete = action as ITurnCompleteAction;
+		const actions = mapToArray(mapProgressEventToActions(event, session, turnId));
+		assert.strictEqual(actions.length, 1);
+		const turnComplete = actions[0] as ITurnCompleteAction;
+		assert.strictEqual(turnComplete.type, 'session/turnComplete');
 		assert.strictEqual(turnComplete.session.toString(), session.toString());
 		assert.strictEqual(turnComplete.turnId, turnId);
 	});
@@ -126,10 +141,10 @@ suite('AgentEventMapper', () => {
 			stack: 'Error: Something went wrong\n    at foo.ts:1',
 		};
 
-		const action = mapProgressEventToAction(event, session, turnId);
-		assert.ok(action);
-		assert.strictEqual(action.type, 'session/error');
-		const errorAction = action as ISessionErrorAction;
+		const actions = mapToArray(mapProgressEventToActions(event, session, turnId));
+		assert.strictEqual(actions.length, 1);
+		const errorAction = actions[0] as ISessionErrorAction;
+		assert.strictEqual(errorAction.type, 'session/error');
 		assert.strictEqual(errorAction.error.errorType, 'runtime');
 		assert.strictEqual(errorAction.error.message, 'Something went wrong');
 		assert.strictEqual(errorAction.error.stack, 'Error: Something went wrong\n    at foo.ts:1');
@@ -145,10 +160,10 @@ suite('AgentEventMapper', () => {
 			cacheReadTokens: 25,
 		};
 
-		const action = mapProgressEventToAction(event, session, turnId);
-		assert.ok(action);
-		assert.strictEqual(action.type, 'session/usage');
-		const usageAction = action as IUsageAction;
+		const actions = mapToArray(mapProgressEventToActions(event, session, turnId));
+		assert.strictEqual(actions.length, 1);
+		const usageAction = actions[0] as IUsageAction;
+		assert.strictEqual(usageAction.type, 'session/usage');
 		assert.strictEqual(usageAction.usage.inputTokens, 100);
 		assert.strictEqual(usageAction.usage.outputTokens, 50);
 		assert.strictEqual(usageAction.usage.model, 'gpt-4');
@@ -162,10 +177,10 @@ suite('AgentEventMapper', () => {
 			title: 'New Title',
 		};
 
-		const action = mapProgressEventToAction(event, session, turnId);
-		assert.ok(action);
-		assert.strictEqual(action.type, 'session/titleChanged');
-		assert.strictEqual((action as ITitleChangedAction).title, 'New Title');
+		const actions = mapToArray(mapProgressEventToActions(event, session, turnId));
+		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions[0].type, 'session/titleChanged');
+		assert.strictEqual((actions[0] as ITitleChangedAction).title, 'New Title');
 	});
 
 	test('permission_request event maps to session/permissionRequest action', () => {
@@ -180,10 +195,10 @@ suite('AgentEventMapper', () => {
 			rawRequest: '{}',
 		};
 
-		const action = mapProgressEventToAction(event, session, turnId);
-		assert.ok(action);
-		assert.strictEqual(action.type, 'session/permissionRequest');
-		const req = (action as IPermissionRequestAction).request;
+		const actions = mapToArray(mapProgressEventToActions(event, session, turnId));
+		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions[0].type, 'session/permissionRequest');
+		const req = (actions[0] as IPermissionRequestAction).request;
 		assert.strictEqual(req.requestId, 'perm-1');
 		assert.strictEqual(req.permissionKind, 'shell');
 		assert.strictEqual(req.toolCallId, 'tc-2');
@@ -198,10 +213,10 @@ suite('AgentEventMapper', () => {
 			content: 'Let me think about this...',
 		};
 
-		const action = mapProgressEventToAction(event, session, turnId);
-		assert.ok(action);
-		assert.strictEqual(action.type, 'session/reasoning');
-		const reasoning = action as IReasoningAction;
+		const actions = mapToArray(mapProgressEventToActions(event, session, turnId));
+		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions[0].type, 'session/reasoning');
+		const reasoning = actions[0] as IReasoningAction;
 		assert.strictEqual(reasoning.content, 'Let me think about this...');
 		assert.strictEqual(reasoning.turnId, turnId);
 	});
@@ -215,7 +230,7 @@ suite('AgentEventMapper', () => {
 			content: 'Some full message',
 		};
 
-		const action = mapProgressEventToAction(event, session, turnId);
-		assert.strictEqual(action, undefined);
+		const result = mapProgressEventToActions(event, session, turnId);
+		assert.strictEqual(result, undefined);
 	});
 });

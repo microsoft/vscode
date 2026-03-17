@@ -1981,7 +1981,7 @@ export default tseslint.config(
 					'target': 'src/vs/sessions/sessions.web.main.ts',
 					'layer': 'browser',
 					'restrictions': [
-						'vs/base/*/~',
+						'vs/base/~',
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
 						'vs/editor/~',
