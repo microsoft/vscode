@@ -1039,7 +1039,7 @@ interface IGetHandoffsArgs {
  * Discovers the handoffs available across custom agents (and built-in modes).
  *
  * **Return value**: `ICustomAgentInfo[]` — an array where each element
- * represents an agent/mode with its `id`, `name`, `isBuiltin`, `kind`,
+ * represents an agent/mode with its `id`, `name`, `isBuiltin`,
  * `visibility`, and `handoffs` list.
  *
  * @see ICustomAgentInfo
@@ -1077,7 +1077,12 @@ class GetHandoffsAction extends Action2 {
 export const ExecuteHandoffActionId = 'workbench.action.chat.executeHandoff';
 
 interface IExecuteHandoffArgs {
-	/** The stable handoff ID (from getHandoffs). Primary match key. */
+	/**
+	 * The stable handoff ID (from getHandoffs). Primary match key.
+	 * IDs are unique within a given source agent; when handoffs from
+	 * multiple source agents share the same target+label, also provide
+	 * `sourceCustomAgent` to disambiguate.
+	 */
 	id?: string;
 	/** Fallback: handoff label to match. Case-insensitive. */
 	label?: string;
@@ -1133,10 +1138,13 @@ class ExecuteHandoffAction extends Action2 {
 			return { success: false, error: 'No chat widget found. Provide sessionResource or focus a chat widget.' };
 		}
 
-		// Resolve the source custom agent whose handoffs we search
+		// Resolve the source custom agent whose handoffs we search (case-insensitive,
+		// consistent with GetHandoffsAction which also filters case-insensitively).
 		let sourceMode: IChatMode | undefined;
 		if (arg.sourceCustomAgent) {
-			sourceMode = modeService.findModeByName(arg.sourceCustomAgent) ?? modeService.findModeById(arg.sourceCustomAgent);
+			const filterName = arg.sourceCustomAgent.toLowerCase();
+			const { builtin, custom } = modeService.getModes();
+			sourceMode = [...builtin, ...custom].find(m => m.name.get().toLowerCase() === filterName || m.id.toLowerCase() === filterName);
 		}
 		if (!sourceMode) {
 			sourceMode = widget.input.currentModeObs.get();

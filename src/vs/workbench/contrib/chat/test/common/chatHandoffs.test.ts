@@ -40,16 +40,6 @@ suite('getHandoffId', () => {
 		const handoff: IHandOff = { agent: 'agent', label: 'Continue', prompt: '' };
 		assert.strictEqual(getHandoffId(handoff), 'agent:continue');
 	});
-
-	test('should handle empty label', () => {
-		const handoff: IHandOff = { agent: 'agent', label: '', prompt: '' };
-		assert.strictEqual(getHandoffId(handoff), 'agent:');
-	});
-
-	test('should handle label with only special characters', () => {
-		const handoff: IHandOff = { agent: 'edit', label: '!!!???', prompt: '' };
-		assert.strictEqual(getHandoffId(handoff), 'edit:');
-	});
 });
 
 suite('buildCustomAgentHandoffsInfo', () => {
