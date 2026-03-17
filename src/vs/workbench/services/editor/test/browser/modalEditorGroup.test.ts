@@ -412,7 +412,7 @@ suite('Modal Editor Group', () => {
 
 		// findGroup without MODAL_GROUP should return main part group, not modal group
 		const newInput = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
-		const [group] = instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: newInput.resource }, undefined));
+		const [group] = await instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: newInput.resource }, undefined));
 
 		assert.strictEqual(group.id, mainGroup.id);
 	});
@@ -432,7 +432,7 @@ suite('Modal Editor Group', () => {
 
 		// findGroup without MODAL_GROUP and without preserveFocus should close the modal
 		const newInput = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
-		instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: newInput.resource }, undefined));
+		await instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: newInput.resource }, undefined));
 
 		assert.strictEqual(parts.activeModalEditorPart, undefined);
 	});
@@ -452,7 +452,7 @@ suite('Modal Editor Group', () => {
 
 		// findGroup with preserveFocus should keep the modal open
 		const newInput = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
-		instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: newInput.resource, options: { preserveFocus: true } }, undefined));
+		await instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: newInput.resource, options: { preserveFocus: true } }, undefined));
 
 		assert.strictEqual(parts.activeModalEditorPart, modalPart);
 
