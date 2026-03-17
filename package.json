@@ -175,7 +175,7 @@
     "chromium-pickle-js": "^0.2.0",
     "cookie": "^0.7.2",
     "debounce": "^1.0.0",
-    "deemon": "^1.13.6",
+    "deemon": "^1.13.7",
     "electron": "39.8.2",
     "eslint": "^9.36.0",
     "eslint-formatter-compact": "^8.40.0",
