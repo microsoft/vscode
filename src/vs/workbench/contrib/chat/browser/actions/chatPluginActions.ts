@@ -60,11 +60,11 @@ class InstallFromSourceAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, args?: { source?: string; sha?: string }): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const pluginInstallService = accessor.get(IPluginInstallService);
 
-		const source = await quickInputService.input({
+		const source = args?.source ?? await quickInputService.input({
 			placeHolder: localize('pluginSourcePlaceholder', "owner/repo or git clone URL"),
 			prompt: localize('pluginSourcePrompt', "Enter a GitHub repository or git URL to install a plugin from"),
 		});
@@ -73,7 +73,7 @@ class InstallFromSourceAction extends Action2 {
 			return;
 		}
 
-		await pluginInstallService.installPluginFromSource(source.trim());
+		await pluginInstallService.installPluginFromSource(source.trim(), args?.sha);
 	}
 }
 
