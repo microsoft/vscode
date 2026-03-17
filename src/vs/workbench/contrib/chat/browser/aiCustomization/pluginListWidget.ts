@@ -677,6 +677,14 @@ export class PluginListWidget extends Disposable {
 			.reduce((sum, g) => sum + g.count, 0);
 	}
 
+	/**
+	 * Re-fires the current item count. Call after subscribing to onDidChangeItemCount
+	 * to ensure the subscriber receives the latest count.
+	 */
+	fireItemCount(): void {
+		this._onDidChangeItemCount.fire(this.itemCount);
+	}
+
 	private toggleGroup(entry: IPluginGroupHeaderEntry): void {
 		if (this.collapsedGroups.has(entry.group)) {
 			this.collapsedGroups.delete(entry.group);

@@ -651,19 +651,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.editorDisposables.add(this.mcpListWidget.onDidChangeItemCount(count => {
 				this.updateSectionCount(AICustomizationManagementSection.McpServers, count);
 			}));
-			this.updateSectionCount(AICustomizationManagementSection.McpServers, this.mcpListWidget.itemCount);
+			this.mcpListWidget.fireItemCount();
 		}
 		if (this.pluginListWidget) {
 			this.editorDisposables.add(this.pluginListWidget.onDidChangeItemCount(count => {
 				this.updateSectionCount(AICustomizationManagementSection.Plugins, count);
 			}));
-			this.updateSectionCount(AICustomizationManagementSection.Plugins, this.pluginListWidget.itemCount);
+			this.pluginListWidget.fireItemCount();
 		}
 		if (this.modelsWidget) {
 			this.editorDisposables.add(this.modelsWidget.onDidChangeItemCount(count => {
 				this.updateSectionCount(AICustomizationManagementSection.Models, count);
 			}));
-			this.updateSectionCount(AICustomizationManagementSection.Models, this.modelsWidget.itemCount);
+			this.modelsWidget.fireItemCount();
 		}
 
 		// Any prompts data change → refresh ALL prompts section counts

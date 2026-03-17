@@ -1347,4 +1347,12 @@ export class ChatModelsWidget extends Disposable {
 			.length;
 	}
 
+	/**
+	 * Re-fires the current item count. Call after subscribing to onDidChangeItemCount
+	 * to ensure the subscriber receives the latest count.
+	 */
+	fireItemCount(): void {
+		this._onDidChangeItemCount.fire(this.itemCount);
+	}
+
 }

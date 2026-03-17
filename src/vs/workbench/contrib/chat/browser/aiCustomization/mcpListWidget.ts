@@ -720,6 +720,14 @@ export class McpListWidget extends Disposable {
 	}
 
 	/**
+	 * Re-fires the current item count. Call after subscribing to onDidChangeItemCount
+	 * to ensure the subscriber receives the latest count.
+	 */
+	fireItemCount(): void {
+		this._onDidChangeItemCount.fire(this.itemCount);
+	}
+
+	/**
 	 * Toggles the collapsed state of a group.
 	 */
 	private toggleGroup(entry: IMcpGroupHeaderEntry): void {
