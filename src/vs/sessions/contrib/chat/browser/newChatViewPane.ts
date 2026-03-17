@@ -250,7 +250,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private _updateTargetPickerState(): void {
 		this._targetPicker.setProject(this._projectPicker.selectedProject);
-		this._targetPicker.setVisible(true);
 	}
 
 	// --- Rendering ---

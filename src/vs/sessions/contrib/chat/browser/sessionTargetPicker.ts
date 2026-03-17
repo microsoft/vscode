@@ -141,12 +141,6 @@ export class TargetPicker extends Disposable {
 		}));
 	}
 
-	setVisible(visible: boolean): void {
-		if (this._slotElement) {
-			this._slotElement.style.display = visible ? '' : 'none';
-		}
-	}
-
 	private _showPicker(): void {
 		if (!this._triggerElement || this.actionWidgetService.isVisible || this._targetMode === 'cloud') {
 			return;
