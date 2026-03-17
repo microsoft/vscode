@@ -64,16 +64,34 @@ class InstallFromSourceAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const pluginInstallService = accessor.get(IPluginInstallService);
 
-		const source = await quickInputService.input({
-			placeHolder: localize('pluginSourcePlaceholder', "owner/repo or git clone URL"),
-			prompt: localize('pluginSourcePrompt', "Enter a GitHub repository or git URL to install a plugin from"),
+		const inputBox = quickInputService.createInputBox();
+		inputBox.placeholder = localize('pluginSourcePlaceholder', "owner/repo or git clone URL");
+		inputBox.prompt = localize('pluginSourcePrompt', "Enter a GitHub repository or git URL to install a plugin from");
+		inputBox.show();
+
+		inputBox.onDidAccept(async () => {
+			const source = inputBox.value.trim();
+			if (!source) {
+				return;
+			}
+
+			// Quick format validation keeps the input box open for correction.
+			const validationError = pluginInstallService.validatePluginSource(source);
+			if (validationError) {
+				inputBox.validationMessage = validationError;
+				return;
+			}
+
+			// Hide the input box so it doesn't conflict with trust/progress dialogs.
+			inputBox.hide();
+
+			const result = await pluginInstallService.installPluginFromValidatedSource(source);
+			if (result.message) {
+				// Re-open with the error so the user can correct their input.
+				inputBox.validationMessage = result.message;
+				inputBox.show();
+			}
 		});
-
-		if (!source) {
-			return;
-		}
-
-		await pluginInstallService.installPluginFromSource(source.trim());
 	}
 }
 
