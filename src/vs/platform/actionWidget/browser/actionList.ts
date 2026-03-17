@@ -10,10 +10,9 @@ import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/con
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
-import { IAction, SubmenuAction, toAction } from '../../../base/common/actions.js';
+import { IAction, toAction } from '../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
-import { Emitter } from '../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
@@ -102,12 +101,6 @@ export interface IActionListItem<T> {
 	 * When set, a close button is automatically added to the item toolbar.
 	 */
 	readonly onRemove?: () => void;
-	/**
-	 * Optional actions shown in the hover popup alongside the hover content.
-	 * When set, the hover displays actionable items (e.g., configuration options)
-	 * that the user can interact with.
-	 */
-	readonly submenuActions?: IAction[];
 }
 
 interface IActionMenuTemplateData {
@@ -420,7 +413,6 @@ export class ActionList<T> extends Disposable {
 	private _cachedMaxWidth: number | undefined;
 	private _hasLaidOut = false;
 	private _showAbove: boolean | undefined;
-	private readonly _submenuDisposables = this._register(new DisposableStore());
 
 	/**
 	 * Returns the resolved anchor position after the first layout.
@@ -572,20 +564,6 @@ export class ActionList<T> extends Disposable {
 				}
 			}));
 		}
-
-		// Right arrow on a focused item with submenu actions opens the hover with focus
-		this._register(dom.addDisposableListener(this.domNode, 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'ArrowRight') {
-				const focused = this._list.getFocus();
-				if (focused.length > 0) {
-					const element = this._list.element(focused[0]);
-					if (element?.submenuActions?.length) {
-						dom.EventHelper.stop(e, true);
-						this._showHoverForElement(element, focused[0], true);
-					}
-				}
-			}
-		}));
 	}
 
 	private _toggleSection(section: string): void {
@@ -1107,85 +1085,33 @@ export class ActionList<T> extends Disposable {
 		return this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
 	}
 
-	private _showHoverForElement(element: IActionListItem<T>, index: number, focus?: boolean): void {
-		this._submenuDisposables.clear();
+	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
+		let newHover: IHoverWidget | undefined;
 
-		const rowElement = this._getRowElement(index);
-		if (!rowElement) {
-			this._hover.clear();
-			return;
-		}
-
-		const hasSubmenu = !!element.submenuActions?.length;
-		const hasHoverContent = !!element.hover?.content;
-
-		if (!hasSubmenu && !hasHoverContent) {
-			this._hover.clear();
-			return;
-		}
-
-		if (hasSubmenu) {
-			const hoverContent = this._submenuDisposables.add(new ActionListHoverContent(
-				element.hover?.content,
-				element.submenuActions!,
-			));
-			this._submenuDisposables.add(hoverContent.onDidSelect(() => {
-				this._hover.clear();
-				this.hide();
-			}));
-
-			if (focus) {
-				this._hover.value = this._hoverService.showInstantHover({
-					content: hoverContent.domNode,
+		// Show hover if the element has hover content
+		if (element.hover?.content) {
+			// The List widget separates data models from DOM elements, so we need to
+			// look up the actual DOM node to use as the hover target.
+			const rowElement = this._getRowElement(index);
+			if (rowElement) {
+				const markdown = typeof element.hover.content === 'string' ? new MarkdownString(element.hover.content) : element.hover.content;
+				newHover = this._hoverService.showDelayedHover({
+					content: markdown ?? '',
 					target: rowElement,
 					additionalClasses: ['action-widget-hover'],
 					position: {
-						hoverPosition: HoverPosition.RIGHT,
+						hoverPosition: HoverPosition.LEFT,
 						forcePosition: false,
-						...element.hover?.position,
+						...element.hover.position,
 					},
 					appearance: {
 						showPointer: true,
-					},
-					persistence: {
-						hideOnHover: false,
-					},
-					trapFocus: true,
-				}, true);
-			} else {
-				this._hover.value = this._hoverService.showDelayedHover({
-					content: hoverContent.domNode,
-					target: rowElement,
-					additionalClasses: ['action-widget-hover'],
-					position: {
-						hoverPosition: HoverPosition.RIGHT,
-						forcePosition: false,
-						...element.hover?.position,
-					},
-					appearance: {
-						showPointer: true,
-					},
-					persistence: {
-						hideOnHover: false,
 					},
 				}, { groupId: `actionListHover` });
 			}
-		} else if (hasHoverContent) {
-			const markdown = typeof element.hover!.content === 'string' ? new MarkdownString(element.hover!.content) : element.hover!.content;
-			this._hover.value = this._hoverService.showDelayedHover({
-				content: markdown ?? '',
-				target: rowElement,
-				additionalClasses: ['action-widget-hover'],
-				position: {
-					hoverPosition: HoverPosition.LEFT,
-					forcePosition: false,
-					...element.hover!.position,
-				},
-				appearance: {
-					showPointer: true,
-				},
-			}, { groupId: `actionListHover` });
 		}
+
+		this._hover.value = newHover;
 	}
 
 	private async onListHover(e: IListMouseEvent<IActionListItem<T>>) {
@@ -1234,108 +1160,4 @@ export class ActionList<T> extends Disposable {
 
 function stripNewlines(str: string): string {
 	return str.replace(/\r\n|\r|\n/g, ' ');
-}
-
-/**
- * Renders the combined hover content with optional markdown description and actionable items.
- */
-class ActionListHoverContent extends Disposable {
-
-	private readonly _onDidSelect = this._register(new Emitter<void>());
-	readonly onDidSelect = this._onDidSelect.event;
-
-	readonly domNode: HTMLElement;
-
-	constructor(
-		hoverContent: string | MarkdownString | undefined,
-		actions: readonly IAction[],
-	) {
-		super();
-		this.domNode = document.createElement('div');
-		this.domNode.className = 'action-list-submenu';
-
-		if (hoverContent) {
-			const hoverSection = dom.append(this.domNode, dom.$('.action-list-submenu-hover'));
-			const markdown = typeof hoverContent === 'string' ? new MarkdownString(hoverContent) : hoverContent;
-			const rendered = renderMarkdown(markdown);
-			this._register(rendered);
-			hoverSection.appendChild(rendered.element);
-		}
-
-		for (const action of actions) {
-			if (action instanceof SubmenuAction) {
-				const group = this._register(new ActionListHoverGroup(action));
-				this._register(group.onDidSelect(() => this._onDidSelect.fire()));
-				this.domNode.appendChild(group.domNode);
-			}
-		}
-	}
-}
-
-/**
- * Renders a group of actionable items with a labeled header and separator line.
- */
-class ActionListHoverGroup extends Disposable {
-
-	private readonly _onDidSelect = this._register(new Emitter<void>());
-	readonly onDidSelect = this._onDidSelect.event;
-
-	readonly domNode: HTMLElement;
-
-	constructor(group: SubmenuAction) {
-		super();
-		this.domNode = document.createElement('div');
-		this.domNode.setAttribute('role', 'group');
-		this.domNode.setAttribute('aria-label', group.label);
-
-		const headerRow = dom.append(this.domNode, dom.$('.action-list-submenu-group-header'));
-		const headerLabel = dom.append(headerRow, dom.$('span.action-list-submenu-group-label'));
-		headerLabel.textContent = group.label;
-		dom.append(headerRow, dom.$('.action-list-submenu-group-line'));
-
-		for (const child of group.actions) {
-			const item = dom.append(this.domNode, dom.$('.action-list-submenu-item'));
-			item.tabIndex = 0;
-			item.setAttribute('role', 'menuitemradio');
-			item.setAttribute('aria-checked', child.checked ? 'true' : 'false');
-			item.setAttribute('aria-label', child.label);
-			const checkIcon = dom.append(item, dom.$('.check-icon'));
-			if (child.checked) {
-				checkIcon.classList.add('codicon', 'codicon-check');
-			}
-			const content = dom.append(item, dom.$('.action-list-submenu-content'));
-			const labelRow = dom.append(content, dom.$('.action-list-submenu-label-row'));
-			const label = dom.append(labelRow, dom.$('span.action-list-submenu-label'));
-			label.textContent = child.label;
-			if (child.tooltip) {
-				const desc = dom.append(content, dom.$('span.action-list-submenu-description'));
-				desc.textContent = child.tooltip;
-			}
-			this._register(dom.addDisposableListener(item, dom.EventType.MOUSE_DOWN, (e) => {
-				dom.EventHelper.stop(e, true);
-			}));
-			this._register(dom.addDisposableListener(item, dom.EventType.CLICK, (e) => {
-				dom.EventHelper.stop(e, true);
-				child.run();
-				this._onDidSelect.fire();
-			}));
-			this._register(dom.addDisposableListener(item, dom.EventType.KEY_DOWN, (e) => {
-				if (e.key === 'Enter' || e.key === ' ') {
-					dom.EventHelper.stop(e, true);
-					child.run();
-					this._onDidSelect.fire();
-				} else if (e.key === 'ArrowDown') {
-					dom.EventHelper.stop(e, true);
-					const next = item.nextElementSibling as HTMLElement | null;
-					next?.focus();
-				} else if (e.key === 'ArrowUp') {
-					dom.EventHelper.stop(e, true);
-					const prev = item.previousElementSibling as HTMLElement | null;
-					if (prev?.classList.contains('action-list-submenu-item')) {
-						prev.focus();
-					}
-				}
-			}));
-		}
-	}
 }
