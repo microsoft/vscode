@@ -123,7 +123,8 @@ suite('Workbench - TerminalInstance', () => {
 
 	suite('TerminalInstance', () => {
 		let terminalInstance: ITerminalInstance;
-		test('should create an instance of TerminalInstance with env from default profile', async () => {
+
+		async function createTerminalInstance(): Promise<TerminalInstance> {
 			const instantiationService = workbenchInstantiationService({
 				configurationService: () => new TestConfigurationService({
 					files: {},
@@ -146,9 +147,13 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
 			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
 			instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
-			terminalInstance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
-			// //Wait for the teminalInstance._xtermReadyPromise to resolve
+			const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
 			await new Promise(resolve => setTimeout(resolve, 100));
+			return instance;
+		}
+
+		test('should create an instance of TerminalInstance with env from default profile', async () => {
+			terminalInstance = await createTerminalInstance();
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
 		});
 
@@ -191,6 +196,30 @@ suite('Workbench - TerminalInstance', () => {
 
 			// Verify that the task name is preserved
 			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title');
+		});
+
+		test('should use bracketed paste mode for multiline executed text when available', async () => {
+			const instance = await createTerminalInstance();
+			const writes: string[] = [];
+
+			instance.xterm = {
+				raw: {
+					modes: {
+						bracketedPasteMode: true
+					}
+				},
+				scrollToBottom: () => { }
+			} as TerminalInstance['xterm'];
+			(instance as unknown as { _processManager: { write(data: string): Promise<void> } })._processManager = {
+				write: async (data: string) => {
+					writes.push(data);
+				}
+			};
+
+			await instance.sendText('echo hello\nworld', true);
+
+			strictEqual(writes.length, 1);
+			strictEqual(writes[0], '\x1b[200~echo hello\rworld\x1b[201~\r');
 		});
 	});
 	suite('parseExitResult', () => {
