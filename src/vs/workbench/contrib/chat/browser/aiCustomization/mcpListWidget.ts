@@ -685,11 +685,11 @@ export class McpListWidget extends Disposable {
 				type: 'group-header',
 				id: 'mcp-group-builtin',
 				scope: 'builtin',
-				label: localize('builtInGroup', "Built-in"),
+				label: localize('extensionsGroup', "Extensions"),
 				icon: builtinIcon,
 				count: builtinServers.length,
 				isFirst,
-				description: localize('builtInGroupDescription', "MCP servers built into VS Code. These are available automatically."),
+				description: localize('extensionsGroupDescription', "MCP servers provided by installed extensions. These are available automatically."),
 				collapsed,
 			});
 			if (!collapsed) {
