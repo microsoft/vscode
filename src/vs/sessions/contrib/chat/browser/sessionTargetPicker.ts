@@ -82,9 +82,16 @@ export class TargetPicker extends Disposable {
 	 * - Folder with git repo → worktree/folder modes available
 	 * - Folder without git repo → worktree disabled, keeps current mode
 	 * - No project → retains current mode
+	 *
+	 * @param preferredMode Optional preferred local mode to apply when switching
+	 *   from cloud to a local project or when a git repo becomes available.
 	 */
-	setProject(project: SessionProject | undefined): void {
+	setProject(project: SessionProject | undefined, preferredMode?: TargetMode): void {
 		this._project = project;
+
+		if (preferredMode) {
+			this._preferredLocalMode = preferredMode;
+		}
 
 		if (project?.isRepo) {
 			// Cloud project — switch to cloud mode
@@ -132,14 +139,6 @@ export class TargetPicker extends Disposable {
 				this._showPicker();
 			}
 		}));
-	}
-
-	setPreferredMode(mode: TargetMode): void {
-		this._preferredLocalMode = mode;
-	}
-
-	setMode(mode: TargetMode): void {
-		this._setMode(mode);
 	}
 
 	setVisible(visible: boolean): void {

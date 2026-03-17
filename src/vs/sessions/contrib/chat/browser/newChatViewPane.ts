@@ -1029,10 +1029,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 					this._currentLanguageModel.set(model, undefined);
 				}
 			}
-			if (draft.targetMode) {
-				this._targetPicker.setPreferredMode(draft.targetMode);
-				this._targetPicker.setMode(draft.targetMode);
-			}
 			if (draft.branch) {
 				this._branchPicker.setPreferredBranch(draft.branch);
 			}
@@ -1040,6 +1036,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 				try {
 					const project = new SessionProject(URI.revive(draft.projectUri));
 					this._projectPicker.setSelectedProject(project, false);
+					this._targetPicker.setProject(project, draft.targetMode);
 					this._currentTarget = project.isFolder ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
 				} catch { /* ignore */ }
 			}
