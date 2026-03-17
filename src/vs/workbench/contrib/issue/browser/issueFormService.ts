@@ -91,20 +91,23 @@ export class IssueFormService implements IIssueFormService {
 		// Handle screenshot request — hide overlay first so it's not in the capture
 		this.overlayDisposables.add(this.overlay.onDidRequestScreenshot(async () => {
 			this.overlay?.hideForCapture();
-			// Small delay to let the UI hide before capture
-			await new Promise(r => setTimeout(r, 100));
-			const dataUrl = await this.screenshotService.captureScreenshot();
-			this.overlay?.showAfterCapture();
-			if (dataUrl && this.overlay) {
-				const img = new Image();
-				img.onload = () => {
-					this.overlay?.addScreenshot({
-						dataUrl,
-						width: img.naturalWidth,
-						height: img.naturalHeight,
-					});
-				};
-				img.src = dataUrl;
+			try {
+				// Small delay to let the UI hide before capture
+				await new Promise(r => setTimeout(r, 100));
+				const dataUrl = await this.screenshotService.captureScreenshot();
+				if (dataUrl && this.overlay) {
+					const img = new Image();
+					img.onload = () => {
+						this.overlay?.addScreenshot({
+							dataUrl,
+							width: img.naturalWidth,
+							height: img.naturalHeight,
+						});
+					};
+					img.src = dataUrl;
+				}
+			} finally {
+				this.overlay?.showAfterCapture();
 			}
 		}));
 

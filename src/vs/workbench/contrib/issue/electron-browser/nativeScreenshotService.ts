@@ -20,8 +20,15 @@ export class NativeScreenshotService implements IScreenshotService {
 			return undefined;
 		}
 
-		// Convert VSBuffer to base64 data URL (JPEG from Electron's capturePage)
-		const base64 = btoa(String.fromCharCode(...buffer.buffer));
+		// Convert VSBuffer to base64 data URL (JPEG from Electron's capturePage).
+		// Process in chunks to avoid stack overflow from spread on large arrays.
+		const bytes = buffer.buffer;
+		let binary = '';
+		const chunkSize = 32768;
+		for (let i = 0; i < bytes.length; i += chunkSize) {
+			binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + chunkSize, bytes.length)));
+		}
+		const base64 = btoa(binary);
 		return `data:image/jpeg;base64,${base64}`;
 	}
 }
