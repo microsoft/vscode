@@ -487,6 +487,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		let rewrittenCommand: string | undefined = args.command;
 		let forDisplayCommand: string | undefined = undefined;
+		let isSandboxWrapped = false;
 		for (const rewriter of this._commandLineRewriters) {
 			const rewriteResult = await rewriter.rewrite({
 				commandLine: rewrittenCommand,
@@ -497,6 +498,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (rewriteResult) {
 				rewrittenCommand = rewriteResult.rewritten;
 				forDisplayCommand = rewriteResult.forDisplay;
+				if (rewriteResult.isSandboxWrapped === true) {
+					isSandboxWrapped = true;
+				}
 				this._logService.info(`RunInTerminalTool: Command rewritten by ${rewriter.constructor.name}: ${rewriteResult.reasoning}`);
 			}
 		}
@@ -509,6 +513,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				original: args.command,
 				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand,
 				forDisplay: forDisplayCommand ?? normalizeTerminalCommandForDisplay(rewrittenCommand ?? args.command),
+				isSandboxWrapped,
 			},
 			cwd,
 			language,
@@ -780,6 +785,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolSpecificData.commandLine.toolEdited !== undefined &&
 			toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original
 		);
+		const didSandboxEditCommand = didToolEditCommand && toolSpecificData.commandLine.isSandboxWrapped === true;
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
@@ -927,9 +933,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				let resultText = (
 					didUserEditCommand
 						? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
-						: didToolEditCommand
+						: didToolEditCommand && !didSandboxEditCommand
 							? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
-							: `Command is running in terminal with ID=${termId}`
+							: didSandboxEditCommand
+								? `Note: The tool wrapped the command for sandboxing and it is now running in terminal with ID=${termId}`
+								: `Command is running in terminal with ID=${termId}`
 				);
 				if (pollingResult && pollingResult.modelOutputEvalResponse) {
 					resultText += `\n\ The command became idle with output:\n${pollingResult.modelOutputEvalResponse}`;
@@ -1101,8 +1109,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const resultText: string[] = [];
 		if (didUserEditCommand) {
 			resultText.push(`Note: The user manually edited the command to \`${command}\`, and this is the output of running that command instead:\n`);
-		} else if (didToolEditCommand) {
+		} else if (didToolEditCommand && !didSandboxEditCommand) {
 			resultText.push(`Note: The tool simplified the command to \`${command}\`, and this is the output of running that command instead:\n`);
+		} else if (didSandboxEditCommand) {
+			resultText.push(`Note: The tool wrapped the command for sandboxing and executed in a secure sandbox environment:\n`);
 		}
 		if (didMoveToBackground && !args.isBackground) {
 			resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);

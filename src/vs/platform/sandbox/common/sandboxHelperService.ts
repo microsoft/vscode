@@ -15,5 +15,5 @@ export interface ISandboxHelperService {
 
 	resetSandbox(): Promise<void>;
 	resolveSandboxPermissionRequest(requestId: string, allowed: boolean): Promise<void>;
-	wrapWithSandbox(runtimeConfig: ISandboxRuntimeConfig, command: string): Promise<string>;
+	wrapWithSandbox(runtimeConfig: ISandboxRuntimeConfig, command: string, envDetails?: string): Promise<string>;
 }
