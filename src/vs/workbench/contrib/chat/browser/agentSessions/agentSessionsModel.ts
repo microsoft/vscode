@@ -25,7 +25,7 @@ import { IWorkspaceTrustManagementService } from '../../../../../platform/worksp
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
-import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
@@ -501,9 +501,13 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			await this.chatSessionsService.refreshChatSessionItems([provider], token);
 		}
 
-		const mapSessionContributionToType = new Map<string, ResolvedChatSessionsExtensionPoint>();
+
+		let contributedProviderLabel: string | undefined;
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
-			mapSessionContributionToType.set(contribution.type, contribution);
+			if (contribution.type === provider) {
+				contributedProviderLabel = contribution.name;
+				break;
+			}
 		}
 
 		// Phase 1: Fetch new items for this provider (async, may interleave with other providers)
@@ -521,7 +525,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					providerLabel = getAgentSessionProviderName(agentSessionProvider);
 					icon = getAgentSessionProviderIcon(agentSessionProvider);
 				} else {
-					providerLabel = mapSessionContributionToType.get(chatSessionType)?.name ?? chatSessionType;
+					providerLabel = contributedProviderLabel ?? chatSessionType;
 					icon = session.iconPath ?? Codicon.terminal;
 				}
 
