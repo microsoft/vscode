@@ -153,8 +153,8 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 							]),
 						h('div.agent-session-description@description'),
 						h('div.agent-session-status@statusContainer', [
-							h('span.agent-session-status-provider-icon@statusProviderIcon'),
-							h('span.agent-session-status-time@statusTime')
+							h('span.agent-session-status-time@statusTime'),
+							h('span.agent-session-status-provider-icon@statusProviderIcon')
 						]),
 					]),
 					h('div.agent-session-approval-row@approvalRow', [
@@ -217,6 +217,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		// Title Actions - Update context keys
 		ChatContextKeys.isArchivedAgentSession.bindTo(template.contextKeyService).set(session.element.isArchived());
+		ChatContextKeys.isPinnedAgentSession.bindTo(template.contextKeyService).set(session.element.isPinned());
 		ChatContextKeys.isReadAgentSession.bindTo(template.contextKeyService).set(session.element.isRead());
 		ChatContextKeys.agentSessionType.bindTo(template.contextKeyService).set(session.element.providerType);
 		template.titleToolbar.context = session.element;
@@ -894,6 +895,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 	private groupSessionsByRepository(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
 		const repoMap = new Map<string, { label: string; sessions: IAgentSession[] }>();
+		const pinnedSessions: IAgentSession[] = [];
 		const archivedSessions: IAgentSession[] = [];
 		const unknownKey = '\x00unknown';
 		const unknownLabel = localize('agentSessions.noRepository', "Other");
@@ -901,6 +903,11 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		for (const session of sortedSessions) {
 			if (session.isArchived()) {
 				archivedSessions.push(session);
+				continue;
+			}
+
+			if (session.isPinned()) {
+				pinnedSessions.push(session);
 				continue;
 			}
 
@@ -920,6 +927,15 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		}
 
 		const result: AgentSessionListItem[] = [];
+
+		if (pinnedSessions.length > 0) {
+			result.push({
+				section: AgentSessionSection.Pinned,
+				label: AgentSessionSectionLabels[AgentSessionSection.Pinned],
+				sessions: pinnedSessions,
+			});
+		}
+
 		for (const [, { label, sessions }] of repoMap) {
 			result.push({
 				section: AgentSessionSection.Repository,
@@ -1088,6 +1104,7 @@ function extractRepoNameFromPath(dirPath: string): string | undefined {
 }
 
 export const AgentSessionSectionLabels = {
+	[AgentSessionSection.Pinned]: localize('agentSessions.pinnedSection', "Pinned"),
 	[AgentSessionSection.Today]: localize('agentSessions.todaySection', "Today"),
 	[AgentSessionSection.Yesterday]: localize('agentSessions.yesterdaySection', "Yesterday"),
 	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last 7 days"),
@@ -1105,6 +1122,7 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;
 	const weekThreshold = now - WEEK_THRESHOLD;
 
+	const pinnedSessions: IAgentSession[] = [];
 	const todaySessions: IAgentSession[] = [];
 	const yesterdaySessions: IAgentSession[] = [];
 	const weekSessions: IAgentSession[] = [];
@@ -1114,6 +1132,8 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 	for (const session of sessions) {
 		if (session.isArchived()) {
 			archivedSessions.push(session);
+		} else if (session.isPinned()) {
+			pinnedSessions.push(session);
 		} else {
 			const sessionTime = session.timing.created;
 			if (sessionTime >= startOfToday) {
@@ -1129,6 +1149,7 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 	}
 
 	return new Map<AgentSessionSection, IAgentSessionSection>([
+		[AgentSessionSection.Pinned, { section: AgentSessionSection.Pinned, label: AgentSessionSectionLabels[AgentSessionSection.Pinned], sessions: pinnedSessions }],
 		[AgentSessionSection.Today, { section: AgentSessionSection.Today, label: AgentSessionSectionLabels[AgentSessionSection.Today], sessions: todaySessions }],
 		[AgentSessionSection.Yesterday, { section: AgentSessionSection.Yesterday, label: AgentSessionSectionLabels[AgentSessionSection.Yesterday], sessions: yesterdaySessions }],
 		[AgentSessionSection.Week, { section: AgentSessionSection.Week, label: AgentSessionSectionLabels[AgentSessionSection.Week], sessions: weekSessions }],
@@ -1219,6 +1240,17 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 		}
 		if (aArchived && !bArchived) {
 			return 1; // a (archived) comes after b (non-archived)
+		}
+
+		// Pinned (non-archived pinned sessions come before non-pinned)
+		const aPinned = !aArchived && sessionA.isPinned();
+		const bPinned = !bArchived && sessionB.isPinned();
+
+		if (aPinned && !bPinned) {
+			return -1;
+		}
+		if (!aPinned && bPinned) {
+			return 1;
 		}
 
 		// Sort by time

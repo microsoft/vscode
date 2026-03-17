@@ -73,10 +73,6 @@
 		.agent-session-title {
 			margin-right: 8px;
 		}
-
-		.agent-session-status .agent-session-status-provider-icon {
-			display: inline;
-		}
 	}
 
 	.agent-session-item {
@@ -260,8 +256,7 @@
 
 			.agent-session-status-provider-icon {
 				font-size: 11px;
-				margin-right: 4px;
-				display: none;
+				margin-left: 4px;
 			}
 		}
 		.agent-session-approval-row {
