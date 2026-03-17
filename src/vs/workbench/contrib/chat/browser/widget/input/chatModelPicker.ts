@@ -101,7 +101,7 @@ function createModelAction(
 	languageModelsService?: ILanguageModelsService,
 ): IActionWidgetDropdownAction & { section?: string } {
 	const toolbarActions = languageModelsService?.getModelConfigurationActions(model.identifier);
-	const configDescription = languageModelsService?.getModelConfigurationDescription(model.identifier);
+	const configDescription = languageModelsService ? getModelConfigurationDescription(model, languageModelsService) : undefined;
 	const baseDescription = model.metadata.multiplier ?? model.metadata.detail;
 	const description = configDescription && baseDescription
 		? `${configDescription} · ${baseDescription}`
@@ -692,7 +692,7 @@ export class ModelPickerWidget extends Disposable {
 		}
 
 		const modelLabel = name ?? localize('chat.modelPicker.auto', "Auto");
-		const configDescription = this._selectedModel ? this._languageModelsService.getModelConfigurationDescription(this._selectedModel.identifier) : undefined;
+		const configDescription = this._selectedModel ? getModelConfigurationDescription(this._selectedModel, this._languageModelsService) : undefined;
 		const fullLabel = configDescription ? `${modelLabel} · ${configDescription}` : modelLabel;
 		domChildren.push(dom.$('span.chat-input-picker-label', undefined, fullLabel));
 
@@ -749,4 +749,31 @@ function formatTokenCount(count: number): string {
 		return `${(count / 1000).toFixed(0)}K`;
 	}
 	return count.toString();
+}
+
+/**
+ * Returns a display string for navigation-group configuration properties (e.g., "High" for thinking effort).
+ */
+export function getModelConfigurationDescription(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService: ILanguageModelsService): string | undefined {
+	const schema = model.metadata.configurationSchema;
+	if (!schema?.properties) {
+		return undefined;
+	}
+
+	const currentConfig = languageModelsService.getModelConfiguration(model.identifier) ?? {};
+	const parts: string[] = [];
+
+	for (const [key, propSchema] of Object.entries(schema.properties)) {
+		if (typeof propSchema === 'boolean' || propSchema.group !== 'navigation') {
+			continue;
+		}
+		const value = currentConfig[key] ?? propSchema.default;
+		if (value !== undefined) {
+			const enumIndex = propSchema.enum?.indexOf(value) ?? -1;
+			const displayValue = (enumIndex >= 0 && propSchema.enumItemLabels?.[enumIndex]) ?? String(value);
+			parts.push(displayValue);
+		}
+	}
+
+	return parts.length > 0 ? parts.join(' · ') : undefined;
 }

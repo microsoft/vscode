@@ -24,6 +24,7 @@ import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../../common/widget/input/modelPickerWidget.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
+import { getModelConfigurationDescription } from './chatModelPicker.js';
 
 export interface IModelPickerDelegate {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
@@ -224,7 +225,7 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 		}
 
 		const modelLabel = name ?? localize('chat.modelPicker.auto', "Auto");
-		const configDescription = this.currentModel ? this._languageModelsService.getModelConfigurationDescription(this.currentModel.identifier) : undefined;
+		const configDescription = this.currentModel ? getModelConfigurationDescription(this.currentModel, this._languageModelsService) : undefined;
 		const fullLabel = configDescription ? `${modelLabel} · ${configDescription}` : modelLabel;
 		domChildren.push(dom.$('span.chat-input-picker-label', undefined, fullLabel));
 		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
