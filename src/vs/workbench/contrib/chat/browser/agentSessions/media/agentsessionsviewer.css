@@ -128,6 +128,12 @@
 				&.codicon.codicon-circle-small-filled {
 					color: var(--vscode-agentSessionReadIndicator-foreground);
 				}
+
+				@media (prefers-reduced-motion: reduce) {
+					&.codicon.codicon-circle-filled.needs-input {
+						animation: none;
+					}
+				}
 			}
 		}
 
