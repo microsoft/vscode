@@ -249,8 +249,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}));
 	}
 
-	private _updateTargetPickerState(): void {
-		this._targetPicker.setProject(this._newSession.value?.project ?? this._projectPicker.selectedProject);
+	private _updateTargetPickerState(project?: SessionProject): void {
+		this._targetPicker.setProject(project ?? this._newSession.value?.project);
 	}
 
 	// --- Rendering ---
@@ -1090,7 +1090,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const previousProject = this._projectPicker.selectedProject;
 
 		// Update target picker with new project (determines target mode)
-		this._updateTargetPickerState();
+		this._updateTargetPickerState(project);
 		const isLocal = this._currentTarget === AgentSessionProviders.Background;
 
 		// Show/hide local-only pickers
