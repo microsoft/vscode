@@ -344,7 +344,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 			.pipe(filter(['**', '!**/package-lock.json', '!**/*.{js,css}.map']))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)))
-			.pipe(filter(getCopilotExcludeFilter(platform, arch, quality)))
+			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.stripSourceMappingURL())
 			.pipe(jsFilter.restore);
@@ -465,9 +465,8 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 
 function copyCopilotNativeDepsTaskREH(platform: string, arch: string, destinationFolderName: string) {
 	return async () => {
-		const quality = (product as { quality?: string }).quality;
 		const nodeModulesDir = path.join(BUILD_ROOT, destinationFolderName, 'node_modules');
-		copyCopilotNativeDeps(platform, arch, quality, nodeModulesDir);
+		copyCopilotNativeDeps(platform, arch, nodeModulesDir);
 	};
 }
 

@@ -15,9 +15,8 @@ export const copilotPlatforms = [
 /**
  * Returns a glob filter that strips @github/copilot platform packages and
  * prebuilt native modules for architectures other than the build target.
- * On stable builds, all copilot SDK dependencies are stripped entirely.
  */
-export function getCopilotExcludeFilter(platform: string, arch: string, quality: string | undefined): string[] {
+export function getCopilotExcludeFilter(platform: string, arch: string): string[] {
 	const targetPlatformArch = `${platform}-${arch}`;
 	const nonTargetPlatforms = copilotPlatforms.filter(p => p !== targetPlatformArch);
 
@@ -25,15 +24,6 @@ export function getCopilotExcludeFilter(platform: string, arch: string, quality:
 	// All copilot prebuilds are stripped by .moduleignore; VS Code's own
 	// node-pty is copied into the prebuilds location by a post-packaging task.
 	const excludes = nonTargetPlatforms.map(p => `!**/node_modules/@github/copilot-${p}/**`);
-
-	// Strip agent host SDK dependencies entirely from stable builds
-	if (quality === 'stable') {
-		excludes.push(
-			'!**/node_modules/@github/copilot/**',
-			'!**/node_modules/@github/copilot-sdk/**',
-			'!**/node_modules/@github/copilot-*/**',
-		);
-	}
 
 	return ['**', ...excludes];
 }
@@ -51,19 +41,12 @@ export function getCopilotExcludeFilter(platform: string, arch: string, quality:
  *   contains both the source binaries (node-pty) and the copilot SDK
  *   target directories.
  */
-export function copyCopilotNativeDeps(platform: string, arch: string, quality: string | undefined, nodeModulesDir: string): void {
-	// On stable builds the copilot SDK is stripped entirely -- nothing to copy into.
-	if (quality === 'stable') {
-		console.log(`[copyCopilotNativeDeps] Skipping -- stable build`);
-		return;
-	}
-
+export function copyCopilotNativeDeps(platform: string, arch: string, nodeModulesDir: string): void {
 	const copilotBase = path.join(nodeModulesDir, '@github', 'copilot');
 	const platformArch = `${platform === 'win32' ? 'win32' : platform}-${arch}`;
 
 	const nodePtySource = path.join(nodeModulesDir, 'node-pty', 'build', 'Release');
 
-	// Fail-fast: source binaries must exist on non-stable builds.
 	if (!fs.existsSync(nodePtySource)) {
 		throw new Error(`[copyCopilotNativeDeps] node-pty source not found at ${nodePtySource}`);
 	}

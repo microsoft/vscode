@@ -438,7 +438,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(filter(depFilterPattern))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)))
-			.pipe(filter(getCopilotExcludeFilter(platform, arch, quality)))
+			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)
@@ -686,8 +686,6 @@ function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFo
 	const outputDir = path.join(path.dirname(root), destinationFolderName);
 
 	return async () => {
-		const quality = (product as { quality?: string }).quality;
-
 		// On Windows with win32VersionedUpdate, app resources live under a
 		// commit-hash prefix: {output}/{commitHash}/resources/app/
 		const versionedResourcesFolder = util.getVersionedResourcesFolder(platform, commit!);
@@ -695,7 +693,7 @@ function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFo
 			? path.join(outputDir, `${product.nameLong}.app`, 'Contents', 'Resources', 'app')
 			: path.join(outputDir, versionedResourcesFolder, 'resources', 'app');
 
-		copyCopilotNativeDeps(platform, arch, quality, path.join(appBase, 'node_modules'));
+		copyCopilotNativeDeps(platform, arch, path.join(appBase, 'node_modules'));
 	};
 }
 
