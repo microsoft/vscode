@@ -35,7 +35,7 @@ workbench.registerWorkbenchContribution(UpdateStatusBarContribution, LifecyclePh
 workbench.registerWorkbenchContribution(UpdateTitleBarContribution, LifecyclePhase.Restored);
 
 // Dev-only: test commands for simulating update states (gitignored)
-import('./update.test.contribution.js').catch(() => { });
+import(/* @vite-ignore */ `${'./update.test.contribution.js'}`).catch(() => { });
 
 // Release notes
 
