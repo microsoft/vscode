@@ -249,10 +249,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}));
 	}
 
-	private _updateTargetPickerState(project?: SessionProject): void {
-		this._targetPicker.setProject(project ?? this._newSession.value?.project);
-	}
-
 	// --- Rendering ---
 
 	render(container: HTMLElement): void {
@@ -300,7 +296,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Set initial visibility based on inferred target and isolation mode
 		const isLocal = this._currentTarget === AgentSessionProviders.Background;
-		this._updateTargetPickerState();
+		this._targetPicker.setProject(this._newSession.value?.project);
 		this._permissionPicker.setVisible(isLocal);
 		const isWorktree = this._targetPicker.isWorktree;
 		this._branchPicker.setVisible(isLocal && isWorktree);
@@ -1090,7 +1086,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const previousProject = this._projectPicker.selectedProject;
 
 		// Update target picker with new project (determines target mode)
-		this._updateTargetPickerState(project);
+		this._targetPicker.setProject(project);
 		const isLocal = this._currentTarget === AgentSessionProviders.Background;
 
 		// Show/hide local-only pickers
