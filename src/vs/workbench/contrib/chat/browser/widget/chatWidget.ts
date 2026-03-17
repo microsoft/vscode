@@ -2301,12 +2301,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		mark('code/chat/willCollectCustomizations');
+
 		// process the prompt command
 		await this._applyPromptFileIfSet(requestInputs);
-
-		mark('code/chat/willAutoAttachInstructions');
 		await this._autoAttachInstructions(requestInputs);
-		mark('code/chat/didAutoAttachInstructions');
+
+		mark('code/chat/didCollectCustomizations');
 
 		if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit) {
 			const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
