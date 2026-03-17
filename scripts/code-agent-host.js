@@ -11,8 +11,8 @@ const minimist = require('minimist');
 
 async function main() {
 	const args = minimist(process.argv.slice(2), {
-		boolean: ['help', 'enable-mock-agent', 'quiet'],
-		string: ['port', 'log'],
+		boolean: ['help', 'enable-mock-agent', 'quiet', 'without-connection-token'],
+		string: ['port', 'log', 'connection-token', 'connection-token-file'],
 	});
 
 	if (args.help) {
@@ -20,11 +20,14 @@ async function main() {
 			'Usage: ./scripts/code-agent-host.sh [options]\n' +
 			'\n' +
 			'Options:\n' +
-			'  --port <number>        Port to listen on (default: 8081, or VSCODE_AGENT_HOST_PORT env)\n' +
-			'  --enable-mock-agent    Enable the mock agent for testing\n' +
-			'  --quiet                Suppress logging output\n' +
-			'  --log <level>          Log level to use (trace, debug, info, warning, error, off)\n' +
-			'  --help                 Show this help message',
+			'  --port <number>                Port to listen on (default: 8081, or VSCODE_AGENT_HOST_PORT env)\n' +
+			'  --connection-token <token>      A secret that must be included with all requests\n' +
+			'  --connection-token-file <path>  Path to a file containing the connection token\n' +
+			'  --without-connection-token      Run without a connection token\n' +
+			'  --enable-mock-agent            Enable the mock agent for testing\n' +
+			'  --quiet                        Suppress logging output\n' +
+			'  --log <level>                  Log level to use (trace, debug, info, warning, error, off)\n' +
+			'  --help                         Show this help message',
 		);
 		return;
 	}
@@ -41,6 +44,15 @@ async function main() {
 	}
 	if (args.log) {
 		serverArgs.push('--log', String(args.log));
+	}
+	if (args['connection-token']) {
+		serverArgs.push('--connection-token', String(args['connection-token']));
+	}
+	if (args['connection-token-file']) {
+		serverArgs.push('--connection-token-file', String(args['connection-token-file']));
+	}
+	if (args['without-connection-token']) {
+		serverArgs.push('--without-connection-token');
 	}
 
 	const addr = await startServer(serverArgs);

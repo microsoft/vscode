@@ -189,7 +189,7 @@ class TestProtocolClient {
 async function startServer(): Promise<{ process: ChildProcess; port: number }> {
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../node/agentHostServerMain.js', import.meta.url));
-		const child = fork(serverPath, ['--enable-mock-agent', '--quiet', '--port', '0'], {
+		const child = fork(serverPath, ['--enable-mock-agent', '--quiet', '--port', '0', '--without-connection-token'], {
 			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
 		});
 

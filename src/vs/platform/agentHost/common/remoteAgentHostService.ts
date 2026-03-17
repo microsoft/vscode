@@ -15,6 +15,7 @@ export const RemoteAgentHostsSettingId = 'chat.remoteAgentHosts';
 export interface IRemoteAgentHostEntry {
 	readonly address: string;
 	readonly name: string;
+	readonly connectionToken?: string;
 }
 
 export const IRemoteAgentHostService = createDecorator<IRemoteAgentHostService>('remoteAgentHostService');

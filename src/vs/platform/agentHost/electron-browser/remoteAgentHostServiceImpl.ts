@@ -114,7 +114,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// Add new connections
 		for (const entry of entries) {
 			if (!this._entries.has(entry.address)) {
-				this._connectTo(entry.address);
+				this._connectTo(entry.address, entry.connectionToken);
 			}
 		}
 
@@ -124,9 +124,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 	}
 
-	private _connectTo(address: string): void {
+	private _connectTo(address: string, connectionToken?: string): void {
 		const store = new DisposableStore();
-		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address));
+		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, connectionToken));
 		const entry: IConnectionEntry = { store, client, connected: false };
 		this._entries.set(address, entry);
 

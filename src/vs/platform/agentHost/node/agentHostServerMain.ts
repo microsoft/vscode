@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Standalone agent host server with WebSocket protocol transport.
-// Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--enable-mock-agent] [--quiet] [--log <level>]
+// Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--connection-token <token>] [--connection-token-file <path>] [--without-connection-token] [--enable-mock-agent] [--quiet] [--log <level>]
 
 import { fileURLToPath } from 'url';
 
@@ -13,8 +13,10 @@ import { fileURLToPath } from 'url';
 // This file lives at out/vs/platform/agentHost/node/ - the root is `out/`.
 globalThis._VSCODE_FILE_ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
 
+import * as fs from 'fs';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { observableValue } from '../../../base/common/observable.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
@@ -40,10 +42,14 @@ function log(msg: string): void {
 
 // ---- Options ----------------------------------------------------------------
 
+const connectionTokenRegex = /^[0-9A-Za-z_-]+$/;
+
 interface IServerOptions {
 	readonly port: number;
 	readonly enableMockAgent: boolean;
 	readonly quiet: boolean;
+	/** Connection token string, or `undefined` when `--without-connection-token`. */
+	readonly connectionToken: string | undefined;
 }
 
 function parseServerOptions(): IServerOptions {
@@ -53,7 +59,48 @@ function parseServerOptions(): IServerOptions {
 	const port = portIdx >= 0 ? parseInt(argv[portIdx + 1], 10) : envPort;
 	const enableMockAgent = argv.includes('--enable-mock-agent');
 	const quiet = argv.includes('--quiet');
-	return { port, enableMockAgent, quiet };
+
+	// Connection token
+	const withoutConnectionToken = argv.includes('--without-connection-token');
+	const connectionTokenIdx = argv.indexOf('--connection-token');
+	const connectionTokenFileIdx = argv.indexOf('--connection-token-file');
+	const rawToken = connectionTokenIdx >= 0 ? argv[connectionTokenIdx + 1] : undefined;
+	const tokenFilePath = connectionTokenFileIdx >= 0 ? argv[connectionTokenFileIdx + 1] : undefined;
+
+	let connectionToken: string | undefined;
+	if (withoutConnectionToken) {
+		if (rawToken !== undefined || tokenFilePath !== undefined) {
+			log('Error: --without-connection-token cannot be used with --connection-token or --connection-token-file');
+			process.exit(1);
+		}
+		connectionToken = undefined;
+	} else if (tokenFilePath !== undefined) {
+		if (rawToken !== undefined) {
+			log('Error: --connection-token cannot be used with --connection-token-file');
+			process.exit(1);
+		}
+		try {
+			connectionToken = fs.readFileSync(tokenFilePath).toString().replace(/\r?\n$/, '');
+		} catch {
+			log(`Error: Unable to read connection token file at '${tokenFilePath}'`);
+			process.exit(1);
+		}
+		if (!connectionTokenRegex.test(connectionToken!)) {
+			log(`Error: The connection token in '${tokenFilePath}' does not adhere to the characters 0-9, a-z, A-Z, _, or -.`);
+			process.exit(1);
+		}
+	} else if (rawToken !== undefined) {
+		if (!connectionTokenRegex.test(rawToken)) {
+			log(`Error: The connection token '${rawToken}' does not adhere to the characters 0-9, a-z, A-Z, _, or -.`);
+			process.exit(1);
+		}
+		connectionToken = rawToken;
+	} else {
+		// Default: generate a random token (secure by default)
+		connectionToken = generateUuid();
+	}
+
+	return { port, enableMockAgent, quiet, connectionToken };
 }
 
 // ---- Main -------------------------------------------------------------------
@@ -136,25 +183,37 @@ async function main(): Promise<void> {
 	}
 
 	// WebSocket server
-	const wsServer = disposables.add(await WebSocketProtocolServer.create(options.port, logService));
+	const wsServer = disposables.add(await WebSocketProtocolServer.create({
+		port: options.port,
+		connectionTokenValidate: options.connectionToken
+			? token => token === options.connectionToken
+			: undefined,
+	}, logService));
 
 	// Wire up protocol handler
 	disposables.add(new ProtocolServerHandler(stateManager, wsServer, sideEffects, logService));
 
 	// Report ready
+	function reportReady(addr: string): void {
+		const listeningPort = addr.split(':').pop();
+		let wsUrl = `ws://${addr}`;
+		if (options.connectionToken) {
+			wsUrl += `?tkn=${options.connectionToken}`;
+		}
+		process.stdout.write(`READY:${listeningPort}\n`);
+		log(`WebSocket server listening on ${wsUrl}`);
+		logService.info(`[AgentHostServer] WebSocket server listening on ${wsUrl}`);
+	}
+
 	const address = wsServer.address;
 	if (address) {
-		const listeningPort = address.split(':').pop();
-		process.stdout.write(`READY:${listeningPort}\n`);
-		logService.info(`[AgentHostServer] WebSocket server listening on ws://${address}`);
+		reportReady(address);
 	} else {
 		const interval = setInterval(() => {
 			const addr = wsServer.address;
 			if (addr) {
 				clearInterval(interval);
-				const listeningPort = addr.split(':').pop();
-				process.stdout.write(`READY:${listeningPort}\n`);
-				logService.info(`[AgentHostServer] WebSocket server listening on ws://${addr}`);
+				reportReady(addr);
 			}
 		}, 10);
 	}

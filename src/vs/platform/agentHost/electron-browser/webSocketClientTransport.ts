@@ -8,6 +8,7 @@
 
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { connectionTokenQueryName } from '../../../base/common/network.js';
 import type { IProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolTransport } from '../common/state/sessionTransport.js';
 import { protocolReplacer, protocolReviver } from '../common/state/jsonSerialization.js';
@@ -36,7 +37,10 @@ export class WebSocketClientTransport extends Disposable implements IProtocolTra
 		return this._ws?.readyState === WebSocket.OPEN;
 	}
 
-	constructor(private readonly _address: string) {
+	constructor(
+		private readonly _address: string,
+		private readonly _connectionToken?: string,
+	) {
 		super();
 	}
 
@@ -51,9 +55,14 @@ export class WebSocketClientTransport extends Disposable implements IProtocolTra
 				return;
 			}
 
-			const url = this._address.startsWith('ws://') || this._address.startsWith('wss://')
+			let url = this._address.startsWith('ws://') || this._address.startsWith('wss://')
 				? this._address
 				: `ws://${this._address}`;
+
+			if (this._connectionToken) {
+				const separator = url.includes('?') ? '&' : '?';
+				url += `${separator}${connectionTokenQueryName}=${encodeURIComponent(this._connectionToken)}`;
+			}
 
 			const ws = new WebSocket(url);
 			this._ws = ws;
