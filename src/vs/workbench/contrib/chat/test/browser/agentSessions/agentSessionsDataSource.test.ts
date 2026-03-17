@@ -535,6 +535,46 @@ suite('AgentSessionsDataSource', () => {
 			assert.strictEqual(archivedSection.sessions.length, 1);
 			assert.strictEqual(archivedSection.sessions[0].label, 'Session archived-pinned');
 		});
+
+		test('pinned sessions are not capped into More section with capped grouping', () => {
+			const now = Date.now();
+			const sessions = [
+				// Two pinned sessions that should always appear in the Pinned section
+				createMockSession({ id: 'pinned1', isPinned: true, startTime: now }),
+				createMockSession({ id: 'pinned2', isPinned: true, startTime: now - ONE_DAY }),
+				// Additional unpinned sessions to exceed the cap and populate the More section
+				createMockSession({ id: 's1', startTime: now }),
+				createMockSession({ id: 's2', startTime: now - ONE_DAY }),
+				createMockSession({ id: 's3', startTime: now - 2 * ONE_DAY }),
+			];
+
+			const filter = createMockFilter({
+				groupBy: AgentSessionsGrouping.Capped,
+				excludeRead: false
+			});
+			const sorter = createMockSorter();
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+			const sections = getSectionsFromResult(result);
+
+			const pinnedSection = sections.find(s => s.section === AgentSessionSection.Pinned);
+			const moreSection = sections.find(s => s.section === AgentSessionSection.More);
+
+			assert.ok(pinnedSection);
+			assert.strictEqual(pinnedSection.sessions.length, 2);
+			const pinnedLabels = pinnedSection.sessions.map(s => s.label).sort();
+			assert.deepStrictEqual(pinnedLabels, ['Session pinned1', 'Session pinned2'].sort());
+
+			assert.ok(moreSection);
+			// Ensure that pinned sessions did not get moved into the More section
+			const moreLabels = moreSection.sessions.map(s => s.label);
+			for (const label of moreLabels) {
+				assert.notStrictEqual(label, 'Session pinned1');
+				assert.notStrictEqual(label, 'Session pinned2');
+			}
+		});
 	});
 
 	suite('groupSessionsByRepository', () => {
