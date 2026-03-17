@@ -460,6 +460,15 @@ export class CodeBlockPart extends Disposable {
 
 	reset() {
 		this.clearWidgets();
+		this.toolbar.context = undefined;
+		this.resourceContextKey.reset();
+		this.editor.setModel(null);
+		dom.clearNode(this.vulnsListElement);
+		this.vulnsButton.label = '';
+		this.element.classList.add('no-vulns');
+		this.element.classList.remove('chat-vulnerabilities-collapsed', 'focused');
+		this.currentScrollWidth = 0;
+		this.lastLayoutWidth = undefined;
 		this.currentCodeBlockData = undefined;
 	}
 
@@ -830,6 +839,15 @@ export class CodeCompareBlockPart extends Disposable {
 
 	reset() {
 		this.clearWidgets();
+		this.toolbar.context = undefined;
+		this._lastDiffEditorViewModel.clear();
+		this.diffEditor.setModel(null);
+		this.resourceLabel.element.clear();
+		this.messageElement.textContent = '';
+		this.element.classList.remove('focused', 'no-diff');
+		this.currentScrollWidth = 0;
+		this.currentHorizontalPadding = 0;
+		this.lastLayoutWidth = undefined;
 	}
 
 	private clearWidgets() {
