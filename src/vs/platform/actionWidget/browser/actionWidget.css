@@ -349,6 +349,12 @@
 	color: var(--vscode-list-hoverForeground);
 }
 
+.action-list-submenu-item:focus {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+	outline: none;
+}
+
 .action-widget-delegate-label {
 	display: flex;
 	align-items: center;
