@@ -47,8 +47,11 @@ export interface IPluginInstallService {
 	 * GitHub shorthand (`owner/repo`) or a full git clone URL. Clones the
 	 * repository, reads marketplace metadata to discover plugins, and
 	 * registers the selected plugin.
+	 *
+	 * @param source A GitHub shorthand (`owner/repo`) or full git clone URL.
+	 * @param sha Optional commit SHA to pin the installation to a specific revision.
 	 */
-	installPluginFromSource(source: string): Promise<void>;
+	installPluginFromSource(source: string, sha?: string): Promise<void>;
 
 	/**
 	 * Pulls the latest changes for an already-cloned marketplace repository.

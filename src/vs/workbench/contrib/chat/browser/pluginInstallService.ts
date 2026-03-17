@@ -55,7 +55,7 @@ export class PluginInstallService implements IPluginInstallService {
 		return this._installGitPlugin(plugin);
 	}
 
-	async installPluginFromSource(source: string): Promise<void> {
+	async installPluginFromSource(source: string, sha?: string): Promise<void> {
 		const reference = parseMarketplaceReference(source);
 		if (!reference) {
 			this._notificationService.notify({
@@ -75,8 +75,8 @@ export class PluginInstallService implements IPluginInstallService {
 
 		// Build a source descriptor for the git clone.
 		const sourceDescriptor = reference.kind === MarketplaceReferenceKind.GitHubShorthand
-			? { kind: PluginSourceKind.GitHub as const, repo: reference.githubRepo! }
-			: { kind: PluginSourceKind.GitUrl as const, url: reference.cloneUrl };
+			? { kind: PluginSourceKind.GitHub as const, repo: reference.githubRepo!, sha }
+			: { kind: PluginSourceKind.GitUrl as const, url: reference.cloneUrl, sha };
 
 		// Build a temporary plugin object for the trust gate and clone step.
 		const tempPlugin: IMarketplacePlugin = {
