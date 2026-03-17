@@ -5,7 +5,8 @@
 
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -14,6 +15,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IssueFormService } from '../browser/issueFormService.js';
+import { IRecordingService } from '../browser/recordingService.js';
 import { IScreenshotService } from '../browser/screenshotService.js';
 import { IIssueFormService, IssueReporterData } from '../common/issue.js';
 
@@ -30,9 +32,12 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		@ILayoutService layoutService: ILayoutService,
 		@IScreenshotService screenshotService: IScreenshotService,
 		@IOpenerService openerService: IOpenerService,
+		@IRecordingService recordingService: IRecordingService,
+		@IFileDialogService fileDialogService: IFileDialogService,
+		@IFileService fileService: IFileService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 	) {
-		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, layoutService, screenshotService, openerService);
+		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, layoutService, screenshotService, openerService, recordingService, fileDialogService, fileService);
 	}
 
 	// override to grab platform info

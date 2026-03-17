@@ -691,3 +691,110 @@ body.issue-reporter-active {
 .issue-reporter-annotation-overlay .annotation-toolbar .toolbar-select:focus {
 	border-color: var(--vscode-focusBorder, #007acc);
 }
+
+/* ═══════════════════════════════════════════════
+   Recording UI
+   ═══════════════════════════════════════════════ */
+
+.wizard-record-btn {
+	gap: 6px;
+	border-color: #c33 !important;
+	color: #c33 !important;
+}
+
+.wizard-record-btn:hover {
+	background: rgba(204, 51, 51, 0.1) !important;
+}
+
+.wizard-record-btn .wizard-record-icon {
+	display: flex;
+	font-size: 14px;
+	color: #c33;
+}
+
+.wizard-record-btn.recording {
+	background: #c33 !important;
+	border-color: #c33 !important;
+	color: #fff !important;
+	animation: recording-pulse 1.5s ease-in-out infinite;
+}
+
+.wizard-record-btn.recording .wizard-record-icon {
+	color: #fff;
+}
+
+.wizard-record-btn.recording:hover {
+	background: #a22 !important;
+}
+
+.wizard-recording-elapsed {
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	opacity: 0.9;
+}
+
+@keyframes recording-pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.7; }
+}
+
+/* When recording, dim everything except the record button */
+.wizard-recording .wizard-toolbar,
+.wizard-recording .wizard-nav {
+	pointer-events: none;
+	opacity: 0.3;
+}
+
+.wizard-recording .wizard-step-container {
+	pointer-events: none;
+	opacity: 0.3;
+}
+
+/* But keep the record button clickable */
+.wizard-recording .wizard-record-btn {
+	pointer-events: auto !important;
+	opacity: 1 !important;
+}
+
+/* Also keep the screenshot actions row visible */
+.wizard-recording .wizard-screenshot-actions {
+	pointer-events: none;
+	opacity: 0.3;
+}
+
+.wizard-recording .wizard-screenshot-actions .wizard-record-btn {
+	pointer-events: auto;
+	opacity: 1;
+}
+
+/* ── Recording card ── */
+.wizard-recording-card {
+	background: #1a1a1a;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.wizard-recording-play {
+	font-size: 28px;
+	color: #fff;
+	opacity: 0.8;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.wizard-recording-card:hover .wizard-recording-play {
+	opacity: 1;
+}
+
+.wizard-recording-duration {
+	position: absolute;
+	bottom: 4px;
+	right: 6px;
+	font-size: 10px;
+	color: #fff;
+	background: rgba(0, 0, 0, 0.7);
+	padding: 1px 4px;
+	border-radius: 2px;
+}

@@ -11,7 +11,7 @@ import Severity from '../../../../base/common/severity.js';
 import { localize } from '../../../../nls.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier, ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
@@ -25,7 +25,10 @@ import { IIssueFormService, IssueReporterData } from '../common/issue.js';
 import { IssueReporterOverlay } from './issueReporterOverlay.js';
 import BaseHtml from './issueReporterPage.js';
 import { IssueWebReporter } from './issueReporterService.js';
+import { IRecordingService, RecordingState } from './recordingService.js';
 import { IScreenshotService } from './screenshotService.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import './media/issueReporter.css';
 
@@ -61,6 +64,9 @@ export class IssueFormService implements IIssueFormService {
 		@ILayoutService protected readonly layoutService: ILayoutService,
 		@IScreenshotService protected readonly screenshotService: IScreenshotService,
 		@IOpenerService protected readonly openerService: IOpenerService,
+		@IRecordingService protected readonly recordingService: IRecordingService,
+		@IFileDialogService protected readonly fileDialogService: IFileDialogService,
+		@IFileService protected readonly fileService: IFileService,
 	) { }
 
 	async openReporter(data: IssueReporterData): Promise<void> {
@@ -80,6 +86,7 @@ export class IssueFormService implements IIssueFormService {
 		this.overlay = new IssueReporterOverlay(
 			data,
 			this.layoutService as import('../../../services/layout/browser/layoutService.js').IWorkbenchLayoutService,
+			this.recordingService.isSupported,
 		);
 		this.overlayDisposables.add(this.overlay);
 
@@ -118,6 +125,38 @@ export class IssueFormService implements IIssueFormService {
 				}
 			} finally {
 				this.overlay?.showAfterCapture();
+			}
+		}));
+
+		// Handle recording start
+		this.overlayDisposables.add(this.overlay.onDidRequestStartRecording(async () => {
+			try {
+				await this.recordingService.startRecording('video/mp4', this.layoutService.mainContainer);
+				this.overlay?.setRecordingState(RecordingState.Recording);
+			} catch (err) {
+				this.logService.error('[IssueFormService] Failed to start recording:', err);
+				this.overlay?.setRecordingState(RecordingState.Idle);
+			}
+		}));
+
+		// Handle recording stop
+		this.overlayDisposables.add(this.overlay.onDidRequestStopRecording(async () => {
+			const recordingData = await this.recordingService.stopRecording();
+			if (recordingData) {
+				await this.saveRecordingToUserData(recordingData);
+			}
+			this.overlay?.setRecordingState(RecordingState.Idle);
+		}));
+
+		// Handle external recording stop (max duration / OS stop sharing)
+		this.overlayDisposables.add(this.recordingService.onDidChangeState(state => {
+			if (state === RecordingState.Stopped) {
+				this.recordingService.stopRecording().then(d => {
+					if (d) {
+						this.saveRecordingToUserData(d);
+					}
+					this.overlay?.setRecordingState(RecordingState.Idle);
+				});
 			}
 		}));
 
@@ -211,9 +250,30 @@ export class IssueFormService implements IIssueFormService {
 	}
 
 	private closeOverlay(): void {
+		if (this.recordingService.state === RecordingState.Recording) {
+			this.recordingService.discardRecording();
+		}
 		this.overlayDisposables?.dispose();
 		this.overlayDisposables = undefined;
 		this.overlay = undefined;
+	}
+
+	private async saveRecordingToUserData(data: import('./recordingService.js').IRecordingData): Promise<void> {
+		try {
+			const extension = data.mimeType.includes('mp4') ? 'mp4' : 'webm';
+			const fileName = `vscode-recording-${new Date().toISOString().replace(/[:.]/g, '-')}.${extension}`;
+			// Save to a temp-like path in user data dir
+			const userHome = URI.file(process.env.USERPROFILE ?? process.env.HOME ?? '.');
+			const target = URI.joinPath(userHome, '.vscode-issue-recordings', fileName);
+
+			const arrayBuffer = await data.blob.arrayBuffer();
+			await this.fileService.writeFile(target, VSBuffer.wrap(new Uint8Array(arrayBuffer)));
+			this.logService.info(`[IssueFormService] Recording saved to ${target.toString()}`);
+
+			this.overlay?.addRecording(target.fsPath, data.durationMs);
+		} catch (err) {
+			this.logService.error('[IssueFormService] Failed to save recording:', err);
+		}
 	}
 
 	/** @deprecated Use openOverlayReporter instead. Kept for web fallback. */

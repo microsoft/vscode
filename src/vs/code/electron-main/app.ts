@@ -224,6 +224,17 @@ export class CodeApplication extends Disposable {
 			return false;
 		});
 
+		// Allow getDisplayMedia() calls from the core window (e.g. issue reporter recording).
+		// Use frame-level capture so Region Capture (CropTarget) can crop to the workbench.
+		session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+			const frame = request.frame;
+			if (frame && isUrlFromWindow(frame.url)) {
+				callback({ video: frame });
+			} else {
+				callback({});
+			}
+		});
+
 		//#endregion
 
 		//#region Request filtering

@@ -13,6 +13,7 @@ import { localize } from '../../../../nls.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IssueReporterData, IssueType } from '../common/issue.js';
 import { IssueReporterModel } from './issueReporterModel.js';
+import { RecordingState } from './recordingService.js';
 import { ScreenshotAnnotationEditor } from './screenshotAnnotation.js';
 
 const MAX_SCREENSHOTS = 3;
@@ -42,6 +43,10 @@ export class IssueReporterOverlay {
 	readonly onDidSubmit: Event<{ title: string; body: string; shouldCreate: boolean; isPrivate: boolean }> = this._onDidSubmit.event;
 	private readonly _onDidRequestScreenshot = new Emitter<void>();
 	readonly onDidRequestScreenshot: Event<void> = this._onDidRequestScreenshot.event;
+	private readonly _onDidRequestStartRecording = new Emitter<void>();
+	readonly onDidRequestStartRecording: Event<void> = this._onDidRequestStartRecording.event;
+	private readonly _onDidRequestStopRecording = new Emitter<void>();
+	readonly onDidRequestStopRecording: Event<void> = this._onDidRequestStopRecording.event;
 
 	private wizardPanel!: HTMLElement;
 	private stepContainer!: HTMLElement;
@@ -54,11 +59,18 @@ export class IssueReporterOverlay {
 	private readonly issueTypeButtons: HTMLElement[] = [];
 	private selectedIssueType: IssueType = IssueType.Bug;
 
-	// Step 3: Screenshots
+	// Step 3: Screenshots & Recording
 	private screenshotContainer!: HTMLElement;
 	private screenshotDelay = 0;
 	private captureBtn!: HTMLElement;
 	private captureLabel!: HTMLElement;
+	private recordBtn!: HTMLElement;
+	private recordLabel!: HTMLElement;
+	private recordingElapsedLabel!: HTMLElement;
+	private recordingElapsedTimer: ReturnType<typeof setInterval> | undefined;
+	private recordingStartTime = 0;
+	private currentRecordingState = RecordingState.Idle;
+	private readonly recordings: { filePath: string; durationMs: number }[] = [];
 
 	// Step 4: Review
 	private titleInput!: HTMLInputElement;
@@ -82,6 +94,7 @@ export class IssueReporterOverlay {
 	constructor(
 		private readonly data: IssueReporterData,
 		private readonly layoutService: IWorkbenchLayoutService,
+		private readonly recordingSupported: boolean = false,
 	) {
 		this.model = new IssueReporterModel({
 			...data,
@@ -296,6 +309,28 @@ export class IssueReporterOverlay {
 				this._onDidRequestScreenshot.fire();
 			}
 		}));
+
+		// Record video button (only when supported)
+		if (this.recordingSupported) {
+			this.recordBtn = append(actions, $('div.wizard-nav-btn.wizard-record-btn'));
+			this.recordBtn.setAttribute('role', 'button');
+			this.recordBtn.setAttribute('tabindex', '0');
+			const recordIcon = append(this.recordBtn, $('span.wizard-record-icon'));
+			recordIcon.appendChild(renderIcon(Codicon.record));
+			this.recordLabel = append(this.recordBtn, $('span.wizard-record-label'));
+			this.recordLabel.textContent = localize('recordVideo', "Record video");
+
+			this.recordingElapsedLabel = append(this.recordBtn, $('span.wizard-recording-elapsed'));
+			this.recordingElapsedLabel.style.display = 'none';
+
+			this.disposables.add(addDisposableListener(this.recordBtn, EventType.CLICK, () => {
+				if (this.currentRecordingState === RecordingState.Recording) {
+					this._onDidRequestStopRecording.fire();
+				} else if (this.currentRecordingState === RecordingState.Idle) {
+					this._onDidRequestStartRecording.fire();
+				}
+			}));
+		}
 	}
 
 	// ── Step 4: Review & Submit ──
@@ -627,9 +662,9 @@ export class IssueReporterOverlay {
 	private updateScreenshotThumbnails(): void {
 		this.screenshotContainer.textContent = '';
 
-		if (this.screenshots.length === 0) {
+		if (this.screenshots.length === 0 && this.recordings.length === 0) {
 			const empty = append(this.screenshotContainer, $('div.wizard-screenshots-empty'));
-			empty.textContent = localize('noScreenshots', "No screenshots added yet");
+			empty.textContent = localize('noScreenshots', "No screenshots or recordings added yet");
 			return;
 		}
 
@@ -654,6 +689,40 @@ export class IssueReporterOverlay {
 				this.screenshots.splice(i, 1);
 				this.updateScreenshotThumbnails();
 				this.updateCaptureButton();
+				this.updateStepUI();
+			}));
+		}
+
+		// Recording thumbnails
+		for (let i = 0; i < this.recordings.length; i++) {
+			const rec = this.recordings[i];
+			const card = append(this.screenshotContainer, $('div.wizard-screenshot-card.wizard-recording-card'));
+
+			// Dark overlay with play icon
+			const playOverlay = append(card, $('div.wizard-recording-play'));
+			playOverlay.appendChild(renderIcon(Codicon.play));
+
+			const durSec = Math.floor(rec.durationMs / 1000);
+			const durLabel = append(card, $('div.wizard-recording-duration'));
+			durLabel.textContent = `${Math.floor(durSec / 60)}:${(durSec % 60).toString().padStart(2, '0')}`;
+
+			// Click to open from OS
+			this.disposables.add(addDisposableListener(card, EventType.CLICK, () => {
+				const targetWindow = getWindow(this.wizardPanel);
+				// Use shell.openPath equivalent — open the file with the OS default app
+				const link = targetWindow.document.createElement('a');
+				link.href = `file:///${rec.filePath.replace(/\\/g, '/')}`;
+				link.click();
+			}));
+
+			const deleteBtn = append(card, $('div.wizard-screenshot-delete'));
+			deleteBtn.setAttribute('role', 'button');
+			deleteBtn.setAttribute('aria-label', localize('deleteRecording', "Remove recording"));
+			deleteBtn.appendChild(renderIcon(Codicon.close));
+			this.disposables.add(addDisposableListener(deleteBtn, EventType.CLICK, e => {
+				e.stopPropagation();
+				this.recordings.splice(i, 1);
+				this.updateScreenshotThumbnails();
 				this.updateStepUI();
 			}));
 		}
@@ -719,10 +788,55 @@ export class IssueReporterOverlay {
 		this.wizardPanel.style.visibility = '';
 	}
 
+	setRecordingState(state: RecordingState): void {
+		this.currentRecordingState = state;
+
+		if (state === RecordingState.Recording) {
+			// Switch to recording mode: disable all wizard UI except stop button
+			this.wizardPanel.classList.add('wizard-recording');
+			if (this.recordBtn) {
+				this.recordBtn.classList.add('recording');
+				this.recordLabel.textContent = localize('stopRecording', "Stop recording");
+				this.recordingElapsedLabel.style.display = '';
+				this.recordingStartTime = Date.now();
+				this.recordingElapsedLabel.textContent = '0:00';
+				this.recordingElapsedTimer = setInterval(() => {
+					const elapsed = Math.floor((Date.now() - this.recordingStartTime) / 1000);
+					const mins = Math.floor(elapsed / 60);
+					const secs = elapsed % 60;
+					this.recordingElapsedLabel.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+				}, 1000);
+			}
+		} else {
+			// Back to idle
+			this.wizardPanel.classList.remove('wizard-recording');
+			if (this.recordBtn) {
+				this.recordBtn.classList.remove('recording');
+				this.recordLabel.textContent = localize('recordVideo', "Record video");
+				this.recordingElapsedLabel.style.display = 'none';
+			}
+			if (this.recordingElapsedTimer !== undefined) {
+				clearInterval(this.recordingElapsedTimer);
+				this.recordingElapsedTimer = undefined;
+			}
+		}
+	}
+
+	addRecording(filePath: string, durationMs: number): void {
+		this.recordings.push({ filePath, durationMs });
+		this.updateScreenshotThumbnails();
+		this.updateStepUI();
+	}
+
 	dispose(): void {
+		if (this.recordingElapsedTimer !== undefined) {
+			clearInterval(this.recordingElapsedTimer);
+		}
 		this.disposables.dispose();
 		this._onDidClose.dispose();
 		this._onDidSubmit.dispose();
 		this._onDidRequestScreenshot.dispose();
+		this._onDidRequestStartRecording.dispose();
+		this._onDidRequestStopRecording.dispose();
 	}
 }
