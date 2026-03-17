@@ -82,7 +82,7 @@ declare module 'vscode' {
 		 * configuration file. The configured values are merged into the request options
 		 * when sending chat requests to this model.
 		 */
-		readonly configurationSchema?: object;
+		readonly configurationSchema?: LanguageModelConfigurationSchema;
 
 		/**
 		 * When set, this model is only shown in the model picker for the specified chat session type.
@@ -114,6 +114,39 @@ declare module 'vscode' {
 	}
 
 	export type LanguageModelResponsePart2 = LanguageModelResponsePart | LanguageModelDataPart | LanguageModelThinkingPart;
+
+	/**
+	 * Describes a single configuration property for a language model.
+	 */
+	export interface LanguageModelConfigurationSchemaProperty {
+		/** The data type of this property. */
+		readonly type?: 'string' | 'number' | 'boolean' | 'integer';
+		/** A human-readable title for this property. */
+		readonly title?: string;
+		/** A description of what this property controls. */
+		readonly description?: string;
+		/** The default value for this property. */
+		readonly default?: any;
+		/** The allowed values for this property. */
+		readonly enum?: any[];
+		/** Human-readable descriptions for each enum value. */
+		readonly enumDescriptions?: string[];
+		/** Human-readable labels for each enum value, shown instead of the raw values. */
+		readonly enumItemLabels?: string[];
+		/**
+		 * The group this property belongs to. When set to `'navigation'`, the property
+		 * is shown as a primary action in the model picker.
+		 */
+		readonly group?: string;
+	}
+
+	/**
+	 * A JSON schema describing configuration options for a language model.
+	 */
+	export interface LanguageModelConfigurationSchema {
+		/** The configuration properties keyed by property name. */
+		readonly properties?: { readonly [key: string]: LanguageModelConfigurationSchemaProperty };
+	}
 
 	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
 		provideLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
