@@ -9,7 +9,6 @@ import { Position } from '../core/position.js';
 import { ICoordinatesConverter, IdentityCoordinatesConverter } from '../coordinatesConverter.js';
 import { isModelDecorationVisible, ViewModelDecoration } from './viewModelDecoration.js';
 import { filterFontDecorations, filterValidationDecorations, IComputedEditorOptions } from '../config/editorOptions.js';
-import { LineInjectedText } from '../textModelEvents.js';
 
 export const enum InlineDecorationType {
 	Regular = 0,
@@ -24,6 +23,20 @@ export class InlineDecoration {
 		public readonly inlineClassName: string,
 		public readonly type: InlineDecorationType
 	) { }
+}
+
+/**
+ * Object containing view inline decorations for a specific model line
+ */
+export interface LineInlineDecorations {
+	/**
+	 * Inline decorations for each view line in the model line
+	 */
+	decorations: InlineDecoration[][];
+	/**
+	 * Whether the decorations affect the fonts for each view line in the model line
+	 */
+	hasVariableFonts: boolean[];
 }
 
 /**
@@ -48,7 +61,7 @@ export interface IInlineDecorationsComputer {
 	/**
 	 * Get the inline decorations for a specific model line number, split by view line number
 	 */
-	getInlineDecorations(modelLineNumber: number): InlineDecoration[][];
+	getInlineDecorations(modelLineNumber: number): LineInlineDecorations;
 }
 
 export interface IInlineModelDecorationsComputerContext {
@@ -70,11 +83,14 @@ export class InlineModelDecorationsComputer implements IInlineDecorationsCompute
 		this._decorationsCache = Object.create(null);
 	}
 
-	public getInlineDecorations(modelLineNumber: number): InlineDecoration[][] {
+	public getInlineDecorations(modelLineNumber: number): LineInlineDecorations {
 		const modelRange = new Range(modelLineNumber, 1, modelLineNumber, this.model.getLineMaxColumn(modelLineNumber));
 		const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(modelRange);
 		const decorationsViewportData = this.getDecorations(viewRange, false, false);
-		return decorationsViewportData.inlineDecorations;
+		return {
+			decorations: decorationsViewportData.inlineDecorations,
+			hasVariableFonts: decorationsViewportData.hasVariableFonts
+		};
 	}
 
 	public getDecorations(viewRange: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IViewDecorationsCollection {
@@ -212,12 +228,13 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 
 	constructor(private readonly context: IInjectedTextInlineDecorationsComputerContext) { }
 
-	public getInlineDecorations(modelLineNumber: number): InlineDecoration[][] {
+	public getInlineDecorations(modelLineNumber: number): LineInlineDecorations {
 		const injectionOffsets = this.context.getInjectionOffsets(modelLineNumber);
 		if (!injectionOffsets) {
-			return [];
+			return { decorations: [], hasVariableFonts: [] };
 		}
 		const lineInlineDecorations = [];
+		const hasVariableFonts = [];
 		let totalInjectedTextLengthBefore = 0;
 		let currentInjectedOffset = 0;
 
@@ -227,6 +244,7 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 		for (let outputLineIndex = 0; outputLineIndex < breakOffsets.length; outputLineIndex++) {
 			const inlineDecorations = new Array<InlineDecoration>();
 			lineInlineDecorations[outputLineIndex] = inlineDecorations;
+			hasVariableFonts[outputLineIndex] = false;
 
 			const lineStartOffsetInInputWithInjections = outputLineIndex > 0 ? breakOffsets[outputLineIndex - 1] : 0;
 			const lineEndOffsetInInputWithInjections = breakOffsets[outputLineIndex];
@@ -266,10 +284,13 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 				}
 			}
 		}
-		return lineInlineDecorations;
+		return { decorations: lineInlineDecorations, hasVariableFonts };
 	}
 }
 
+/*
+ * Inline decorations computer for a model where model line numbers are 1:1 mapped to view line numbers.
+ */
 export class IdentityInlineDecorationsComputer {
 
 	private readonly _inlineDecorationsComputer: IInlineDecorationsComputer;
@@ -285,8 +306,8 @@ export class IdentityInlineDecorationsComputer {
 			getModelDecorations: (range: Range) => this.model.getDecorationsInRange(range, this.editorId, filterValidationDecorations(this.options), filterFontDecorations(this.options), false, false),
 		};
 		const injectedContext: IInjectedTextInlineDecorationsComputerContext = {
-			getInjectionOptions: (lineNumber: number) => this._getLineInjectedText(lineNumber).map(t => t.options),
-			getInjectionOffsets: (lineNumber: number) => this._getLineInjectedText(lineNumber).map(text => text.column - 1),
+			getInjectionOptions: (lineNumber: number) => this.model.getLineInjectedText(lineNumber).map(t => t.options),
+			getInjectionOffsets: (lineNumber: number) => this.model.getLineInjectedText(lineNumber).map(text => text.column - 1),
 			getBreakOffsets: () => [],
 			getWrappedTextIndentLength: () => 0,
 			getBaseViewLineNumber: (lineNumber: number) => lineNumber
@@ -296,17 +317,15 @@ export class IdentityInlineDecorationsComputer {
 	}
 
 	public getLineInlineDecorations(lineNumber: number): InlineDecoration[] {
-		const inlineDecorations = this._inlineDecorationsComputer.getInlineDecorations(lineNumber);
-		const injectedTextInlineDecorations = this._injectedTextInlineDecorationsComputer.getInlineDecorations(lineNumber);
-		const mergedInlineDecorations = [...inlineDecorations[0], ...injectedTextInlineDecorations[0]];
+		// Mirroring _getViewLineRenderingData which merge inline decorations and injected text inline decorations together.
+		const inlineDecorations = this._inlineDecorationsComputer.getInlineDecorations(lineNumber).decorations;
+		const injectedTextInlineDecorations = this._injectedTextInlineDecorationsComputer.getInlineDecorations(lineNumber).decorations;
+		const mergedInlineDecorations = [...inlineDecorations[0], ...injectedTextInlineDecorations[0] ?? []];
 		return mergedInlineDecorations;
 	}
 
 	public hasVariableFonts(lineNumber: number): boolean {
-		return false;
-	}
-
-	private _getLineInjectedText(lineNumber: number): LineInjectedText[] {
-		return this.model.getLineInjectedText(lineNumber);
+		const inlineDecorationsHasVariableFonts = this._inlineDecorationsComputer.getInlineDecorations(lineNumber).hasVariableFonts;
+		return inlineDecorationsHasVariableFonts[0];
 	}
 }

@@ -175,13 +175,13 @@ export class DiffEditorViewZones extends Disposable {
 				getLineInjectedText: (lineNumber: number) => {
 					return null;
 				},
-				getLineInlineDecorations: (_lineNumber: number) => {
+				getLineInlineDecorations: (lineNumber: number) => {
 					return [];
 				},
 				getLineTokens: (lineNumber: number) => {
 					return originalModel.getLineTokens(lineNumber);
 				},
-				hasVariableFonts: (_lineNumber: number) => {
+				hasVariableFonts: (lineNumber: number) => {
 					return false;
 				}
 			};

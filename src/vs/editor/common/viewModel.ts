@@ -86,9 +86,7 @@ export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 	getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): { sourceRanges: Range[]; sourceText: string | string[] };
 	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string; mode: string } | null;
 
-	onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void;
 	onFontChanged(e: ModelFontChangedEvent): void;
-
 	onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void;
 	emitContentChangeEvent(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void;
 

@@ -47,7 +47,7 @@ function toAnnotatedText(text: string, lineBreakData: ModelLineProjectionData | 
 	return actualAnnotatedText;
 }
 
-function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, _wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null): ModelLineProjectionData | null {
+function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null): ModelLineProjectionData | null {
 	const fontInfo = new FontInfo({
 		pixelRatio: 1,
 		fontFamily: 'testFontFamily',
@@ -66,21 +66,6 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 		wsmiddotWidth: 7,
 		maxDigitWidth: 7
 	}, false);
-	let wrappingIndent: 'none' | 'same' | 'indent' | 'deepIndent' | undefined;
-	switch (_wrappingIndent) {
-		case WrappingIndent.None:
-			wrappingIndent = 'none';
-			break;
-		case WrappingIndent.Same:
-			wrappingIndent = 'same';
-			break;
-		case WrappingIndent.Indent:
-			wrappingIndent = 'indent';
-			break;
-		case WrappingIndent.DeepIndent:
-			wrappingIndent = 'deepIndent';
-			break;
-	}
 	const context: ILineBreaksComputerContext = {
 		getLineMaxColumn(lineNumber) {
 			return text.length;

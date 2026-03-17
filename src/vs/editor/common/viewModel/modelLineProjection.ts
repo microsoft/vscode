@@ -173,7 +173,7 @@ class ModelLineProjection implements IModelLineProjection {
 			getBaseViewLineNumber: () => baseViewLineNumber
 		};
 		const computer = new InjectedTextInlineDecorationsComputer(context);
-		const lineInlineDecorations = computer.getInlineDecorations(modelLineNumber);
+		const lineInlineDecorations = computer.getInlineDecorations(modelLineNumber).decorations;
 		const lineTokens = model.tokenization.getLineTokens(modelLineNumber);
 		const lineWithInjections = getLineTokensWithInjections(lineTokens, injectionOptions, injectionOffsets);
 
