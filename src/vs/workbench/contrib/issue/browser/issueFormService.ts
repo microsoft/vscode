@@ -162,6 +162,11 @@ export class IssueFormService implements IIssueFormService {
 			}
 		}));
 
+		// Handle open recording — use openerService to open with OS default player
+		this.overlayDisposables.add(this.overlay.onDidRequestOpenRecording(filePath => {
+			this.openerService.open(URI.file(filePath));
+		}));
+
 		// Handle submit
 		this.overlayDisposables.add(this.overlay.onDidSubmit(async ({ title, body, shouldCreate, isPrivate }) => {
 			const screenshots = this.overlay?.getScreenshots() ?? [];

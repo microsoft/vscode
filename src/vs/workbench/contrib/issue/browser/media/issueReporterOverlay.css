@@ -765,24 +765,26 @@ body.wizard-resizing {
 	opacity: 0.3;
 }
 
-.wizard-recording .wizard-step-container {
+/* Dim step content individually so the actions row stays full opacity */
+.wizard-recording .wizard-step .wizard-heading,
+.wizard-recording .wizard-step .wizard-subtitle,
+.wizard-recording .wizard-step .wizard-textarea,
+.wizard-recording .wizard-step .wizard-screenshots,
+.wizard-recording .wizard-step .wizard-field,
+.wizard-recording .wizard-step .wizard-review-details,
+.wizard-recording .wizard-step .wizard-type-buttons {
 	pointer-events: none;
 	opacity: 0.3;
 }
 
-/* But keep the record button clickable */
-.wizard-recording .wizard-record-btn {
-	pointer-events: auto !important;
-	opacity: 1 !important;
-}
-
-/* Also keep the screenshot actions row usable — dim children individually, not the container */
+/* Dim screenshot actions children individually, not the container */
 .wizard-recording .wizard-screenshot-actions .wizard-delay-group,
 .wizard-recording .wizard-screenshot-actions .wizard-capture-btn {
 	pointer-events: none;
 	opacity: 0.3;
 }
 
+/* Record button stays bright and clickable */
 .wizard-recording .wizard-screenshot-actions .wizard-record-btn {
 	pointer-events: auto;
 	opacity: 1;

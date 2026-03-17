@@ -47,6 +47,8 @@ export class IssueReporterOverlay {
 	readonly onDidRequestStartRecording: Event<void> = this._onDidRequestStartRecording.event;
 	private readonly _onDidRequestStopRecording = new Emitter<void>();
 	readonly onDidRequestStopRecording: Event<void> = this._onDidRequestStopRecording.event;
+	private readonly _onDidRequestOpenRecording = new Emitter<string>();
+	readonly onDidRequestOpenRecording: Event<string> = this._onDidRequestOpenRecording.event;
 
 	private wizardPanel!: HTMLElement;
 	private stepContainer!: HTMLElement;
@@ -746,11 +748,7 @@ export class IssueReporterOverlay {
 
 			// Click to open from OS
 			this.disposables.add(addDisposableListener(card, EventType.CLICK, () => {
-				const targetWindow = getWindow(this.wizardPanel);
-				// Use shell.openPath equivalent — open the file with the OS default app
-				const link = targetWindow.document.createElement('a');
-				link.href = `file:///${rec.filePath.replace(/\\/g, '/')}`;
-				link.click();
+				this._onDidRequestOpenRecording.fire(rec.filePath);
 			}));
 
 			const deleteBtn = append(card, $('div.wizard-screenshot-delete'));
@@ -878,5 +876,6 @@ export class IssueReporterOverlay {
 		this._onDidRequestScreenshot.dispose();
 		this._onDidRequestStartRecording.dispose();
 		this._onDidRequestStopRecording.dispose();
+		this._onDidRequestOpenRecording.dispose();
 	}
 }
