@@ -558,7 +558,7 @@ export class PinAgentSessionAction extends BaseAgentSessionAction {
 				),
 			}, {
 				id: MenuId.AgentSessionsContext,
-				group: '1_edit',
+				group: '0_pin',
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
@@ -593,7 +593,7 @@ export class UnpinAgentSessionAction extends BaseAgentSessionAction {
 				),
 			}, {
 				id: MenuId.AgentSessionsContext,
-				group: '1_edit',
+				group: '0_pin',
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
