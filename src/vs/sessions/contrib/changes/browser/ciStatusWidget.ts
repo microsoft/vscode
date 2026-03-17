@@ -18,7 +18,6 @@ import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -500,7 +499,7 @@ function buildFixChecksPrompt(failedChecks: ReadonlyArray<{ check: IGitHubCIChec
 function getHeaderIconAndClass(checks: readonly IGitHubCICheck[], overallStatus: GitHubCIOverallStatus): { icon: ThemeIcon; className: string } {
 	const counts = getCheckCounts(checks);
 	if (counts.running > 0) {
-		return { icon: spinningLoading, className: 'ci-status-running' };
+		return { icon: Codicon.loading, className: 'ci-status-running' };
 	}
 
 	switch (overallStatus) {
@@ -518,7 +517,7 @@ function getHeaderIconAndClass(checks: readonly IGitHubCICheck[], overallStatus:
 function getCheckIcon(check: IGitHubCICheck): ThemeIcon {
 	switch (check.status) {
 		case GitHubCheckStatus.InProgress:
-			return spinningLoading;
+			return Codicon.loading;
 		case GitHubCheckStatus.Queued:
 			return Codicon.circleFilled;
 		case GitHubCheckStatus.Completed:
