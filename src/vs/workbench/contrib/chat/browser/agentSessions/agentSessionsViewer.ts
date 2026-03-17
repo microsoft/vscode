@@ -211,7 +211,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		template.element.classList.toggle('archived', session.element.isArchived());
 
 		// Icon
-		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}`;
+		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}${session.element.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
 
 		// Title
 		const markdownTitle = new MarkdownString(session.element.label);
@@ -342,7 +342,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		}
 
 		if (session.status === AgentSessionStatus.NeedsInput) {
-			return Codicon.report;
+			return Codicon.circleFilled;
 		}
 
 		if (session.status === AgentSessionStatus.Failed) {

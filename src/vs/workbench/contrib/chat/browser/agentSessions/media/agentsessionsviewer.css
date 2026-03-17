@@ -112,12 +112,13 @@
 					color: var(--vscode-errorForeground);
 				}
 
-				&.codicon.codicon-report {
+				&.codicon.codicon-circle-filled {
 					color: var(--vscode-textLink-foreground);
 				}
 
-				&.codicon.codicon-circle-filled {
-					color: var(--vscode-textLink-foreground);
+				&.codicon.codicon-circle-filled.needs-input {
+					color: var(--vscode-list-warningForeground);
+					animation: agent-session-needs-input-pulse 2s ease-in-out infinite;
 				}
 
 				&.codicon.codicon-circle-small-filled {
@@ -365,5 +366,14 @@
 				outline-offset: 1px;
 			}
 		}
+	}
+}
+
+@keyframes agent-session-needs-input-pulse {
+	0%, 100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.4;
 	}
 }
