@@ -1037,9 +1037,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (lastPart.isAttachedToThinking) {
 				return false;
 			}
-			if (isMcpToolInvocation(lastPart) && element.isComplete) {
-				return false;
-			}
 			const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
 			if (collapsedToolsMode !== CollapsedToolsDisplayMode.Off && this.shouldPinPart(lastPart, isResponseVM(element) ? element : undefined)) {
 				return false;
