@@ -178,27 +178,27 @@
 }
 
 /* Prominent project picker button */
-.sessions-chat-project-picker .action-label {
-	height: auto !important;
-	padding: 8px 20px !important;
-	font-size: 15px !important;
-	border: 1px solid var(--vscode-button-secondaryBorder, var(--vscode-contrastBorder, transparent)) !important;
-	background-color: var(--vscode-button-secondaryBackground) !important;
-	color: var(--vscode-button-secondaryForeground) !important;
-	border-radius: 6px !important;
+.sessions-chat-picker-slot.sessions-chat-project-picker .action-label {
+	height: auto;
+	padding: 8px 20px;
+	font-size: 15px;
+	border: 1px solid var(--vscode-button-secondaryBorder, var(--vscode-contrastBorder, transparent));
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border-radius: 6px;
 }
 
-.sessions-chat-project-picker .action-label:hover {
-	background-color: var(--vscode-toolbar-hoverBackground) !important;
-	color: var(--vscode-foreground) !important;
+.sessions-chat-picker-slot.sessions-chat-project-picker .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
 }
 
-.sessions-chat-project-picker .action-label .codicon {
-	font-size: 18px !important;
+.sessions-chat-picker-slot.sessions-chat-project-picker .action-label .codicon {
+	font-size: 18px;
 	margin-right: 6px;
 }
 
-.sessions-chat-project-picker .action-label .sessions-chat-dropdown-label {
+.sessions-chat-picker-slot.sessions-chat-project-picker .action-label .sessions-chat-dropdown-label {
 	font-size: 15px;
 }
 
