@@ -208,10 +208,6 @@
 				&:not(.has-badge) {
 					display: none;
 				}
-
-				.codicon {
-					font-size: 11px;
-				}
 			}
 		}
 
@@ -222,6 +218,10 @@
 			overflow: hidden;
 			white-space: nowrap;
 			text-overflow: ellipsis;
+		}
+
+		.agent-session-description:empty {
+			display: none;
 		}
 
 		.agent-session-title {

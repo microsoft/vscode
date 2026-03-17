@@ -144,6 +144,8 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 						h('div.agent-session-title-toolbar@titleToolbar'),
 					]),
 					h('div.agent-session-details-row', [
+						h('div.agent-session-badge@badge'),
+						h('span.agent-session-separator@separator'),
 						h('div.agent-session-diff-container@diffContainer',
 							[
 								h('span.agent-session-diff-added@addedSpan'),
@@ -151,8 +153,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 							]),
 						h('div.agent-session-description@description'),
 						h('div.agent-session-details-right', [
-							h('div.agent-session-badge@badge'),
-							h('span.agent-session-separator@separator'),
 							h('div.agent-session-status@statusContainer', [
 								h('span.agent-session-status-provider-icon@statusProviderIcon'),
 								h('span.agent-session-status-time@statusTime')
@@ -180,11 +180,11 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			icon: elements.icon,
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
 			titleToolbar,
+			badge: elements.badge,
+			separator: elements.separator,
 			diffContainer: elements.diffContainer,
 			diffAddedSpan: elements.addedSpan,
 			diffRemovedSpan: elements.removedSpan,
-			badge: elements.badge,
-			separator: elements.separator,
 			description: elements.description,
 			statusContainer: elements.statusContainer,
 			statusProviderIcon: elements.statusProviderIcon,
@@ -223,6 +223,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		ChatContextKeys.agentSessionType.bindTo(template.contextKeyService).set(session.element.providerType);
 		template.titleToolbar.context = session.element;
 
+		// Badge
+		const hasBadge = this.renderBadge(session, template);
+		template.badge.classList.toggle('has-badge', hasBadge);
+
 		// Diff information
 		let hasDiff = false;
 		const { changes: diff } = session.element;
@@ -248,17 +252,12 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(hasAgentSessionChanges);
 
-		// Badge
-		const hasBadge = this.renderBadge(session, template);
-		template.badge.classList.toggle('has-badge', hasBadge);
 
-		// Description (unless diff is shown)
-		if (!hasDiff) {
-			this.renderDescription(session, template);
-		}
+		// Separator (dot between badge and diff)
+		template.separator.classList.toggle('has-separator', hasBadge && hasDiff);
 
-		// Separator (dot between badge and timestamp)
-		template.separator.classList.toggle('has-separator', hasBadge);
+		// Description
+		this.renderDescription(session, template);
 
 		// Status
 		this.renderStatus(session, template);
@@ -295,8 +294,19 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			}
 		}
 
-		this.renderMarkdownOrText(badge, template.badge, template.elementDisposable);
+		this.renderMarkdownOrText(this.stripCodicons(badge), template.badge, template.elementDisposable);
+
 		return true;
+	}
+
+	private stripCodicons(content: string | IMarkdownString): string | IMarkdownString {
+		const raw = typeof content === 'string' ? content : content.value;
+		const stripped = raw.replace(/\$\([a-z0-9\-]+\)\s*/gi, '').trim();
+		if (typeof content === 'string') {
+			return stripped;
+		}
+
+		return new MarkdownString(stripped);
 	}
 
 	private renderMarkdownOrText(content: string | IMarkdownString, container: HTMLElement, disposables: DisposableStore): void {
