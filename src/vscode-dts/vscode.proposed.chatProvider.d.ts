@@ -116,37 +116,16 @@ declare module 'vscode' {
 	export type LanguageModelResponsePart2 = LanguageModelResponsePart | LanguageModelDataPart | LanguageModelThinkingPart;
 
 	/**
-	 * Describes a single configuration property for a language model.
+	 * A [JSON Schema](https://json-schema.org) describing configuration options for a language model.
+	 * Each property in `properties` defines a configurable option with standard JSON Schema fields
+	 * (`type`, `title`, `description`, `default`, `enum`, `enumDescriptions`) plus additional
+	 * display hints:
+	 * - `enumItemLabels`: Human-readable labels for enum values shown instead of raw values
+	 * - `group`: When set to `'navigation'`, the property is shown as a primary action in the model picker
 	 */
-	export interface LanguageModelConfigurationSchemaProperty {
-		/** The data type of this property. */
-		readonly type?: 'string' | 'number' | 'boolean' | 'integer';
-		/** A human-readable title for this property. */
-		readonly title?: string;
-		/** A description of what this property controls. */
-		readonly description?: string;
-		/** The default value for this property. */
-		readonly default?: any;
-		/** The allowed values for this property. */
-		readonly enum?: any[];
-		/** Human-readable descriptions for each enum value. */
-		readonly enumDescriptions?: string[];
-		/** Human-readable labels for each enum value, shown instead of the raw values. */
-		readonly enumItemLabels?: string[];
-		/**
-		 * The group this property belongs to. When set to `'navigation'`, the property
-		 * is shown as a primary action in the model picker.
-		 */
-		readonly group?: string;
-	}
-
-	/**
-	 * A JSON schema describing configuration options for a language model.
-	 */
-	export interface LanguageModelConfigurationSchema {
-		/** The configuration properties keyed by property name. */
-		readonly properties?: { readonly [key: string]: LanguageModelConfigurationSchemaProperty };
-	}
+	export type LanguageModelConfigurationSchema = {
+		readonly properties?: { readonly [key: string]: Record<string, any> };
+	};
 
 	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
 		provideLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
