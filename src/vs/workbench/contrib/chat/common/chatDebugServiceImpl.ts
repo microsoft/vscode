@@ -109,7 +109,7 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	/** Events that were returned by providers (not internally logged). */
 	private readonly _providerEvents = new WeakSet<IChatDebugEvent>();
 
-	/** Session URIs created via import, allowed through the invokeProviders guard. */
+	/** Session URIs created via import. */
 	private readonly _importedSessions = new ResourceMap<boolean>();
 
 	/** Human-readable titles for imported sessions. */
@@ -117,8 +117,19 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 
 	activeSessionResource: URI | undefined;
 
+	/** Schemes eligible for debug logging and provider invocation. */
+	private static readonly _debugEligibleSchemes = new Set([
+		LocalChatSessionUri.scheme,	// vscode-chat-session (local sessions)
+		'copilotcli',				// Copilot CLI background sessions
+	]);
+
+	private _isDebugEligibleSession(sessionResource: URI): boolean {
+		return ChatDebugServiceImpl._debugEligibleSchemes.has(sessionResource.scheme)
+			|| this._importedSessions.has(sessionResource);
+	}
+
 	log(sessionResource: URI, name: string, details?: string, level: ChatDebugLogLevel = ChatDebugLogLevel.Info, options?: { id?: string; category?: string; parentEventId?: string }): void {
-		if (!LocalChatSessionUri.isLocalSession(sessionResource)) {
+		if (!this._isDebugEligibleSession(sessionResource)) {
 			return;
 		}
 		this.addEvent({
@@ -226,7 +237,7 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 
 	async invokeProviders(sessionResource: URI): Promise<void> {
 
-		if (!LocalChatSessionUri.isLocalSession(sessionResource) && !this._importedSessions.has(sessionResource)) {
+		if (!this._isDebugEligibleSession(sessionResource)) {
 			return;
 		}
 		// Cancel only the previous invocation for THIS session, not others.
