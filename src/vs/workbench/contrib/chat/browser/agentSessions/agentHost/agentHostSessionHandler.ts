@@ -15,7 +15,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { IAgentAttachment, AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentAttachment, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
 import { TurnState, type IMessageAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -79,7 +79,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 // =============================================================================
 
 export interface IAgentHostSessionHandlerConfig {
-	readonly provider: AgentProvider;
+	readonly provider: string;
 	readonly agentId: string;
 	readonly sessionType: string;
 	readonly fullName: string;

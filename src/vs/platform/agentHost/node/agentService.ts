@@ -38,13 +38,13 @@ export class AgentService extends Disposable implements IAgentService {
 	get stateManager(): SessionStateManager { return this._stateManager; }
 
 	/** Registered providers keyed by their {@link AgentProvider} id. */
-	private readonly _providers = new Map<AgentProvider, IAgent>();
+	private readonly _providers = new Map<string, IAgent>();
 	/** Maps each active session URI (toString) to its owning provider. */
-	private readonly _sessionToProvider = new Map<string, AgentProvider>();
+	private readonly _sessionToProvider = new Map<string, string>();
 	/** Subscriptions to provider progress events; cleared when providers change. */
 	private readonly _providerSubscriptions = this._register(new DisposableStore());
 	/** Default provider used when no explicit provider is specified. */
-	private _defaultProvider: AgentProvider | undefined;
+	private _defaultProvider: string | undefined;
 	/** Observable registered agents, drives `root/agentsChanged` via {@link AgentSideEffects}. */
 	private readonly _agents = observableValue<readonly IAgent[]>('agents', []);
 	/** Shared side-effect handler for action dispatch and session lifecycle. */

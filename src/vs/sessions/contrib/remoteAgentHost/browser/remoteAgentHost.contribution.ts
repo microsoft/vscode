@@ -11,7 +11,7 @@ import { IOutputService } from '../../../../workbench/services/output/common/out
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { type AgentProvider, type IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
+import { type IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../platform/agentHost/common/state/sessionClientState.js';
 import { ROOT_STATE_URI, type IAgentInfo, type IRootState } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -45,8 +45,8 @@ export function agentHostAuthority(address: string): string {
 class ConnectionState extends Disposable {
 	readonly store = this._register(new DisposableStore());
 	readonly clientState: SessionClientState;
-	readonly agents = this._register(new DisposableMap<AgentProvider, DisposableStore>());
-	readonly modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
+	readonly agents = this._register(new DisposableMap<string, DisposableStore>());
+	readonly modelProviders = new Map<string, AgentHostLanguageModelProvider>();
 
 	constructor(
 		clientId: string,

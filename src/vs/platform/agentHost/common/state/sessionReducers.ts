@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Pure reducer functions for the sessions process protocol.
-// See protocol.md -> Reducers for the full design.
 //
 // Both the server and clients run the same reducers. This is what makes
 // write-ahead possible: the client can locally predict the result of its
@@ -30,71 +29,52 @@ import {
 
 // ---- Root reducer -----------------------------------------------------------
 
-/**
- * Reduces root-level actions into a new RootState.
- * Root actions are server-only (clients observe but cannot produce them).
- */
 export function rootReducer(state: IRootState, action: IRootAction): IRootState {
 	switch (action.type) {
-		case 'root/agentsChanged': {
+		case 'root/agentsChanged':
 			return { ...state, agents: action.agents };
-		}
-		case 'root/activeSessionsChanged': {
+		case 'root/activeSessionsChanged':
 			return { ...state, activeSessions: action.activeSessions };
-		}
+		default:
+			return state;
 	}
 }
 
 // ---- Session reducer --------------------------------------------------------
 
-/**
- * Reduces session-level actions into a new SessionState.
- * Handles lifecycle, turn lifecycle, streaming deltas, tool calls, permissions.
- */
 export function sessionReducer(state: ISessionState, action: ISessionAction): ISessionState {
 	switch (action.type) {
-		case 'session/ready': {
+		case 'session/ready':
 			return { ...state, lifecycle: SessionLifecycle.Ready };
-		}
-		case 'session/creationFailed': {
-			return {
-				...state,
-				lifecycle: SessionLifecycle.CreationFailed,
-				creationError: action.error,
-			};
-		}
+
+		case 'session/creationFailed':
+			return { ...state, lifecycle: SessionLifecycle.CreationFailed, creationError: action.error };
+
 		case 'session/turnStarted': {
 			const activeTurn = createActiveTurn(action.turnId, action.userMessage);
-			return {
-				...state,
-				activeTurn,
-				summary: { ...state.summary, status: SessionStatus.InProgress },
-			};
+			return { ...state, activeTurn, summary: { ...state.summary, status: SessionStatus.InProgress } };
 		}
+
 		case 'session/delta': {
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
 				return state;
 			}
 			return {
 				...state,
-				activeTurn: {
-					...state.activeTurn,
-					streamingText: state.activeTurn.streamingText + action.content,
-				},
+				activeTurn: { ...state.activeTurn, streamingText: state.activeTurn.streamingText + action.content },
 			};
 		}
+
 		case 'session/responsePart': {
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
 				return state;
 			}
 			return {
 				...state,
-				activeTurn: {
-					...state.activeTurn,
-					responseParts: [...state.activeTurn.responseParts, action.part],
-				},
+				activeTurn: { ...state.activeTurn, responseParts: [...state.activeTurn.responseParts, action.part] },
 			};
 		}
+
 		case 'session/toolCallStart': {
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
 				return state;
@@ -110,13 +90,14 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 							toolCallId: action.toolCallId,
 							toolName: action.toolName,
 							displayName: action.displayName,
-							toolKind: action.toolKind,
-							language: action.language,
+							toolClientId: action.toolClientId,
+							_meta: action._meta,
 						},
 					},
 				},
 			};
 		}
+
 		case 'session/toolCallDelta': {
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
 				return state;
@@ -135,11 +116,13 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 							...tc,
 							partialInput: (tc.partialInput ?? '') + action.content,
 							invocationMessage: action.invocationMessage ?? tc.invocationMessage,
+							_meta: action._meta ?? tc._meta,
 						},
 					},
 				},
 			};
 		}
+
 		case 'session/toolCallReady': {
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
 				return state;
@@ -148,28 +131,18 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 			if (!tc) {
 				return state;
 			}
+			const base = {
+				toolCallId: tc.toolCallId,
+				toolName: tc.toolName,
+				displayName: tc.displayName,
+				toolClientId: tc.toolClientId,
+				_meta: action._meta ?? tc._meta,
+				invocationMessage: action.invocationMessage,
+				toolInput: action.toolInput,
+			};
 			const updated: IToolCallState = action.confirmed
-				? {
-					status: 'running',
-					toolCallId: tc.toolCallId,
-					toolName: tc.toolName,
-					displayName: tc.displayName,
-					toolKind: tc.toolKind,
-					language: tc.language,
-					invocationMessage: action.invocationMessage,
-					toolInput: action.toolInput,
-					confirmed: action.confirmed,
-				}
-				: {
-					status: 'pending-confirmation',
-					toolCallId: tc.toolCallId,
-					toolName: tc.toolName,
-					displayName: tc.displayName,
-					toolKind: tc.toolKind,
-					language: tc.language,
-					invocationMessage: action.invocationMessage,
-					toolInput: action.toolInput,
-				};
+				? { status: 'running', ...base, confirmed: action.confirmed }
+				: { status: 'pending-confirmation', ...base };
 			return {
 				...state,
 				activeTurn: {
@@ -178,6 +151,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 				},
 			};
 		}
+
 		case 'session/toolCallConfirmed': {
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
 				return state;
@@ -186,31 +160,18 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 			if (!tc || tc.status !== 'pending-confirmation') {
 				return state;
 			}
+			const base = {
+				toolCallId: tc.toolCallId,
+				toolName: tc.toolName,
+				displayName: tc.displayName,
+				toolClientId: tc.toolClientId,
+				_meta: tc._meta,
+				invocationMessage: tc.invocationMessage,
+				toolInput: tc.toolInput,
+			};
 			const updated: IToolCallState = action.approved
-				? {
-					status: 'running',
-					toolCallId: tc.toolCallId,
-					toolName: tc.toolName,
-					displayName: tc.displayName,
-					toolKind: tc.toolKind,
-					language: tc.language,
-					invocationMessage: tc.invocationMessage,
-					toolInput: tc.toolInput,
-					confirmed: action.confirmed,
-				}
-				: {
-					status: 'cancelled',
-					toolCallId: tc.toolCallId,
-					toolName: tc.toolName,
-					displayName: tc.displayName,
-					toolKind: tc.toolKind,
-					language: tc.language,
-					invocationMessage: tc.invocationMessage,
-					toolInput: tc.toolInput,
-					reason: action.reason,
-					reasonMessage: action.reasonMessage,
-					userSuggestion: action.userSuggestion,
-				};
+				? { status: 'running', ...base, confirmed: action.confirmed }
+				: { status: 'cancelled', ...base, reason: action.reason, reasonMessage: action.reasonMessage, userSuggestion: action.userSuggestion };
 			return {
 				...state,
 				activeTurn: {
@@ -219,6 +180,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 				},
 			};
 		}
+
 		case 'session/toolCallComplete': {
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
 				return state;
@@ -228,31 +190,20 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 				return state;
 			}
 			const confirmed = tc.status === 'running' ? tc.confirmed : 'not-needed';
+			const base = {
+				toolCallId: tc.toolCallId,
+				toolName: tc.toolName,
+				displayName: tc.displayName,
+				toolClientId: tc.toolClientId,
+				_meta: tc._meta,
+				invocationMessage: tc.invocationMessage,
+				toolInput: tc.toolInput,
+				confirmed,
+				...action.result,
+			};
 			const updated: IToolCallState = action.requiresResultConfirmation
-				? {
-					status: 'pending-result-confirmation',
-					toolCallId: tc.toolCallId,
-					toolName: tc.toolName,
-					displayName: tc.displayName,
-					toolKind: tc.toolKind,
-					language: tc.language,
-					invocationMessage: tc.invocationMessage,
-					toolInput: tc.toolInput,
-					confirmed,
-					...action.result,
-				}
-				: {
-					status: 'completed',
-					toolCallId: tc.toolCallId,
-					toolName: tc.toolName,
-					displayName: tc.displayName,
-					toolKind: tc.toolKind,
-					language: tc.language,
-					invocationMessage: tc.invocationMessage,
-					toolInput: tc.toolInput,
-					confirmed,
-					...action.result,
-				};
+				? { status: 'pending-result-confirmation', ...base }
+				: { status: 'completed', ...base };
 			return {
 				...state,
 				activeTurn: {
@@ -261,6 +212,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 				},
 			};
 		}
+
 		case 'session/toolCallResultConfirmed': {
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
 				return state;
@@ -269,33 +221,26 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 			if (!tc || tc.status !== 'pending-result-confirmation') {
 				return state;
 			}
+			const base = {
+				toolCallId: tc.toolCallId,
+				toolName: tc.toolName,
+				displayName: tc.displayName,
+				toolClientId: tc.toolClientId,
+				_meta: tc._meta,
+				invocationMessage: tc.invocationMessage,
+				toolInput: tc.toolInput,
+			};
 			const updated: IToolCallState = action.approved
 				? {
-					status: 'completed',
-					toolCallId: tc.toolCallId,
-					toolName: tc.toolName,
-					displayName: tc.displayName,
-					toolKind: tc.toolKind,
-					language: tc.language,
-					invocationMessage: tc.invocationMessage,
-					toolInput: tc.toolInput,
+					status: 'completed', ...base,
 					confirmed: tc.confirmed,
 					success: tc.success,
 					pastTenseMessage: tc.pastTenseMessage,
-					toolOutput: tc.toolOutput,
+					content: tc.content,
+					structuredContent: tc.structuredContent,
 					error: tc.error,
 				}
-				: {
-					status: 'cancelled',
-					toolCallId: tc.toolCallId,
-					toolName: tc.toolName,
-					displayName: tc.displayName,
-					toolKind: tc.toolKind,
-					language: tc.language,
-					invocationMessage: tc.invocationMessage,
-					toolInput: tc.toolInput,
-					reason: 'result-denied',
-				};
+				: { status: 'cancelled', ...base, reason: 'result-denied' };
 			return {
 				...state,
 				activeTurn: {
@@ -304,6 +249,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 				},
 			};
 		}
+
 		case 'session/permissionRequest': {
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
 				return state;
@@ -328,6 +274,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 				activeTurn: { ...state.activeTurn, pendingPermissions, toolCalls },
 			};
 		}
+
 		case 'session/permissionResolved': {
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
 				return state;
@@ -344,8 +291,8 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 							toolCallId: toolCall.toolCallId,
 							toolName: toolCall.toolName,
 							displayName: toolCall.displayName,
-							toolKind: toolCall.toolKind,
-							language: toolCall.language,
+							toolClientId: toolCall.toolClientId,
+							_meta: toolCall._meta,
 							invocationMessage: toolCall.invocationMessage,
 							toolInput: toolCall.toolInput,
 							confirmed: 'user-action',
@@ -355,8 +302,8 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 							toolCallId: toolCall.toolCallId,
 							toolName: toolCall.toolName,
 							displayName: toolCall.displayName,
-							toolKind: toolCall.toolKind,
-							language: toolCall.language,
+							toolClientId: toolCall.toolClientId,
+							_meta: toolCall._meta,
 							invocationMessage: toolCall.invocationMessage,
 							toolInput: toolCall.toolInput,
 							reason: 'denied',
@@ -369,59 +316,56 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 				activeTurn: { ...state.activeTurn, pendingPermissions, toolCalls },
 			};
 		}
-		case 'session/turnComplete': {
+
+		case 'session/turnComplete':
 			return finalizeTurn(state, action.turnId, TurnState.Complete);
-		}
-		case 'session/turnCancelled': {
+
+		case 'session/turnCancelled':
 			return finalizeTurn(state, action.turnId, TurnState.Cancelled);
-		}
-		case 'session/error': {
+
+		case 'session/error':
 			return finalizeTurn(state, action.turnId, TurnState.Error, action.error);
-		}
-		case 'session/titleChanged': {
-			return {
-				...state,
-				summary: { ...state.summary, title: action.title, modifiedAt: Date.now() },
-			};
-		}
-		case 'session/modelChanged': {
-			return {
-				...state,
-				summary: { ...state.summary, model: action.model, modifiedAt: Date.now() },
-			};
-		}
+
+		case 'session/titleChanged':
+			return { ...state, summary: { ...state.summary, title: action.title, modifiedAt: Date.now() } };
+
+		case 'session/modelChanged':
+			return { ...state, summary: { ...state.summary, model: action.model, modifiedAt: Date.now() } };
+
 		case 'session/usage': {
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
 				return state;
 			}
-			return {
-				...state,
-				activeTurn: {
-					...state.activeTurn,
-					usage: action.usage,
-				},
-			};
+			return { ...state, activeTurn: { ...state.activeTurn, usage: action.usage } };
 		}
+
 		case 'session/reasoning': {
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
 				return state;
 			}
-			return {
-				...state,
-				activeTurn: {
-					...state.activeTurn,
-					reasoning: state.activeTurn.reasoning + action.content,
-				},
-			};
+			return { ...state, activeTurn: { ...state.activeTurn, reasoning: state.activeTurn.reasoning + action.content } };
 		}
+
+		case 'session/serverToolsChanged':
+			return { ...state, serverTools: action.tools };
+
+		case 'session/activeClientChanged':
+			return { ...state, activeClient: action.activeClient ?? undefined };
+
+		case 'session/activeClientToolsChanged': {
+			if (!state.activeClient) {
+				return state;
+			}
+			return { ...state, activeClient: { ...state.activeClient, tools: action.tools } };
+		}
+
+		default:
+			return state;
 	}
 }
 
 // ---- Helpers ----------------------------------------------------------------
 
-/**
- * Moves the active turn into the completed turns array and clears `activeTurn`.
- */
 function finalizeTurn(state: ISessionState, turnId: string, turnState: TurnState, error?: IErrorInfo): ISessionState {
 	if (!state.activeTurn || state.activeTurn.id !== turnId) {
 		return state;
@@ -430,21 +374,16 @@ function finalizeTurn(state: ISessionState, turnId: string, turnState: TurnState
 
 	const completedToolCalls: ICompletedToolCall[] = [];
 	for (const tc of Object.values(active.toolCalls)) {
-		if (tc.status === 'completed') {
-			completedToolCalls.push(tc);
-		} else if (tc.status === 'cancelled') {
+		if (tc.status === 'completed' || tc.status === 'cancelled') {
 			completedToolCalls.push(tc);
 		} else {
-			// For tool calls that are not in a terminal state when the turn
-			// finishes (e.g. still streaming or running), force them into
-			// a cancelled state so they are persisted properly.
 			completedToolCalls.push({
 				status: 'cancelled',
 				toolCallId: tc.toolCallId,
 				toolName: tc.toolName,
 				displayName: tc.displayName,
-				toolKind: tc.toolKind,
-				language: tc.language,
+				toolClientId: tc.toolClientId,
+				_meta: tc._meta,
 				invocationMessage: tc.status === 'streaming' ? (tc.invocationMessage ?? '') : tc.invocationMessage,
 				toolInput: tc.status === 'streaming' ? undefined : tc.toolInput,
 				reason: 'skipped',

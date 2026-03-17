@@ -6,7 +6,7 @@
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IAgentHostService, AgentHostEnabledSettingId, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostService, AgentHostEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
 import { ROOT_STATE_URI, type IAgentInfo, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -42,9 +42,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private _outputChannel: IOutputChannel | undefined;
 	private _isChannelRegistered = false;
 	private _clientState: SessionClientState | undefined;
-	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
+	private readonly _agentRegistrations = this._register(new DisposableMap<string, DisposableStore>());
 	/** Model providers keyed by agent provider, for pushing model updates. */
-	private readonly _modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
+	private readonly _modelProviders = new Map<string, AgentHostLanguageModelProvider>();
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,

@@ -44,7 +44,7 @@ export interface IAgentDescriptor {
 }
 
 export interface IAgentCreateSessionConfig {
-	readonly provider?: AgentProvider;
+	readonly provider?: string;
 	readonly model?: string;
 	readonly session?: URI;
 	readonly workingDirectory?: string;
@@ -233,7 +233,7 @@ export namespace AgentSession {
 	 * Creates a session URI from a provider name and raw session ID.
 	 * The URI scheme is the provider name (e.g., `copilot:/<rawId>`).
 	 */
-	export function uri(provider: AgentProvider, rawSessionId: string): URI {
+	export function uri(provider: string, rawSessionId: string): URI {
 		return URI.from({ scheme: provider, path: `/${rawSessionId}` });
 	}
 
