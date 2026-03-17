@@ -25,7 +25,6 @@ import { IChatProgress } from '../../workbench/contrib/chat/common/chatService/c
 import { IChatSessionsService, IChatSessionItem, IChatSessionFileChange, ChatSessionStatus, IChatSessionHistoryItem, IChatSessionItemsDelta } from '../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IGitService, IGitExtensionDelegate, IGitRepository } from '../../workbench/contrib/git/common/gitService.js';
 import { IFileService } from '../../platform/files/common/files.js';
-import { IRemoteAgentHostService } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ITerminalService } from '../../workbench/contrib/terminal/browser/terminal.js';
 import { ITerminalBackend, ITerminalBackendRegistry, IProcessReadyEvent, IProcessProperty, ProcessPropertyType, TerminalExtensions, ITerminalProcessOptions, IShellLaunchConfig } from '../../platform/terminal/common/terminal.js';
 import { IProcessEnvironment } from '../../base/common/platform.js';
@@ -537,14 +536,6 @@ export class TestSessionsBrowserMain extends SessionsBrowserMain {
 
 		// Override git service so openRepository resolves instantly (no 10s barrier wait)
 		serviceCollection.set(IGitService, new MockGitService());
-
-		// Mock remote agent host service (not available in web tests)
-		serviceCollection.set(IRemoteAgentHostService, {
-			_serviceBrand: undefined,
-			onDidChangeConnections: Event.None,
-			connections: [],
-			getConnection() { return undefined; },
-		} satisfies IRemoteAgentHostService);
 
 		console.log('[Sessions Web Test] Creating Sessions workbench with mocks');
 		return new SessionsWorkbench(domElement, undefined, serviceCollection, logService);
