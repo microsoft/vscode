@@ -17,10 +17,13 @@ async function pathExists(filePath: string) {
 	return true;
 }
 
-async function lockfileExists(filePath: string, pkgPath: string) {
+async function lockfileExists(lockfile: string, pkgPath: string) {
+	const filePath = path.join(pkgPath, lockfile);
 	const pkgExists = await pathExists(filePath);
-	if(pkgExists) return true;
-	const lockfileExists = await findUp(filePath, { cwd: pkgPath });
+	if (pkgExists) {
+		return true;
+	}
+	const lockfileExists = await findUp(lockfile, { cwd: pkgPath });
 	return !!lockfileExists;
 }
 
@@ -54,7 +57,7 @@ export async function findPreferredPM(pkgPath: string): Promise<{ name: string; 
 	const lockFiles: string[] = []
 
 	for (const [pmName, lockfile] of LOCKFILE_CANDIDATES) {
-		if (await lockfileExists(path.join(pkgPath, lockfile), pkgPath)) {
+		if (await lockfileExists(lockfile, pkgPath)) {
 			lockFiles.push(pmName);
 			if (lockFiles.length > 1) {
 				return {
