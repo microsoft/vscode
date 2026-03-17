@@ -476,7 +476,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private resolveProvider(provider: string, options: { refreshProvider: boolean }): Promise<void> {
 		let resolver = this.resolvers.get(provider);
 		if (!resolver) {
-			resolver = new ThrottledDelayer<void>(300);
+			resolver = new ThrottledDelayer<void>(500);
 			this.resolvers.set(provider, resolver);
 		}
 
