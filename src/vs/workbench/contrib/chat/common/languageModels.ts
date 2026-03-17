@@ -172,9 +172,9 @@ export type IExtendedChatResponsePart = IChatResponsePullRequestPart;
 
 export interface ILanguageModelConfigurationSchemaProperty extends IJSONSchema {
 	/**
-	 * When true, the current value of this property is shown in the model picker.
+	 * When true, the current value of this property is shown in the model description.
 	 */
-	isPrimary?: boolean;
+	showInDescription?: boolean;
 	/**
 	 * Labels for enum values. If provided, these are shown instead of the raw enum values.
 	 * Must have the same length and order as {@link IJSONSchema.enum}.
@@ -1202,7 +1202,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const parts: string[] = [];
 
 		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (typeof propSchema === 'boolean' || !propSchema.isPrimary) {
+			if (typeof propSchema === 'boolean' || !propSchema.showInDescription) {
 				continue;
 			}
 			const value = currentConfig[key] ?? propSchema.default;
