@@ -16,40 +16,51 @@ import { IGitRepository } from '../../../../workbench/contrib/git/common/gitServ
 
 // #region --- Target Picker ---
 
-export type IsolationMode = 'worktree' | 'workspace';
-
 export type TargetMode = 'worktree' | 'workspace' | 'cloud';
+
+/**
+ * Input for {@link TargetPicker.setProject}. Carries the project selection
+ * and optionally the resolved git repository for the selected folder.
+ */
+export interface ITargetPickerProject {
+	readonly kind: 'folder' | 'repo';
+	readonly repository?: IGitRepository;
+}
 
 /**
  * A self-contained widget for selecting the session target mode.
  *
  * Options:
- * - **Worktree** (`worktree`) — always shown
+ * - **Worktree** (`worktree`) — shown when a folder with a git repo is selected
  * - **Folder** (`workspace`) — shown only when isolation option is enabled
  * - **Cloud** (`cloud`) — shown and auto-selected when a repository is picked; disabled
  *
- * Emits `onDidChange` with the underlying `IsolationMode` (`'worktree' | 'workspace'`)
- * when the user selects a local option. Cloud mode is informational only.
+ * Emits `onDidChange` with the selected `TargetMode` when the user picks an option.
  */
 export class TargetPicker extends Disposable {
 
 	private _targetMode: TargetMode = 'worktree';
-	private _preferredLocalMode: IsolationMode | undefined;
-	private _repository: IGitRepository | undefined;
+	private _preferredLocalMode: TargetMode | undefined;
+	private _project: ITargetPickerProject | undefined;
 	private _isolationOptionEnabled: boolean = true;
 
-	private readonly _onDidChange = this._register(new Emitter<IsolationMode>());
-	readonly onDidChange: Event<IsolationMode> = this._onDidChange.event;
+	private readonly _onDidChange = this._register(new Emitter<TargetMode>());
+	readonly onDidChange: Event<TargetMode> = this._onDidChange.event;
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private _slotElement: HTMLElement | undefined;
 	private _triggerElement: HTMLElement | undefined;
 
-	get isolationMode(): IsolationMode {
-		if (this._targetMode === 'cloud') {
-			return 'worktree';
-		}
+	get targetMode(): TargetMode {
 		return this._targetMode;
+	}
+
+	get isWorktree(): boolean {
+		return this._targetMode === 'worktree';
+	}
+
+	get isFolder(): boolean {
+		return this._targetMode === 'workspace';
 	}
 
 	get isCloud(): boolean {
@@ -75,15 +86,33 @@ export class TargetPicker extends Disposable {
 	}
 
 	/**
-	 * Sets the git repository. When undefined, the picker is disabled
-	 * but retains its current mode.
+	 * Sets the current project context. Determines the available target modes:
+	 * - Repo project → cloud mode (disabled picker)
+	 * - Folder with git repo → worktree/folder modes available
+	 * - Folder without git repo → worktree disabled, keeps current mode
+	 * - No project → retains current mode
 	 */
-	setRepository(repository: IGitRepository | undefined): void {
-		this._repository = repository;
-		if (repository && this._targetMode !== 'cloud') {
+	setProject(project: ITargetPickerProject | undefined): void {
+		this._project = project;
+
+		if (project?.kind === 'repo') {
+			// Cloud project — switch to cloud mode
+			if (this._targetMode !== 'cloud') {
+				this._preferredLocalMode = this._targetMode;
+			}
+			this._targetMode = 'cloud';
+		} else if (this._targetMode === 'cloud') {
+			// Switching back from cloud to a local project
+			this._targetMode = this._preferredLocalMode ?? 'worktree';
+			this._preferredLocalMode = undefined;
+		} else if (project?.repository) {
+			// Folder with git repo — restore preferred mode
 			const preferred = this._preferredLocalMode;
 			this._preferredLocalMode = undefined;
-			this._setMode(preferred ?? this._targetMode);
+			if (preferred && preferred !== 'cloud') {
+				this._setMode(preferred);
+				return;
+			}
 		}
 		this._updateTriggerLabel();
 	}
@@ -114,31 +143,12 @@ export class TargetPicker extends Disposable {
 		}));
 	}
 
-	setPreferredIsolationMode(mode: IsolationMode): void {
+	setPreferredMode(mode: TargetMode): void {
 		this._preferredLocalMode = mode;
 	}
 
-	setIsolationMode(mode: IsolationMode): void {
-		if (this._targetMode !== 'cloud') {
-			this._setMode(mode);
-		}
-	}
-
-	/**
-	 * Sets cloud mode. When true, the picker shows "Cloud" and is disabled.
-	 * When false, reverts to the last local mode.
-	 */
-	setCloudMode(cloud: boolean): void {
-		if (cloud) {
-			if (this._targetMode !== 'cloud') {
-				this._preferredLocalMode = this._targetMode as IsolationMode;
-			}
-			this._targetMode = 'cloud';
-		} else if (this._targetMode === 'cloud') {
-			this._targetMode = this._preferredLocalMode ?? 'worktree';
-			this._preferredLocalMode = undefined;
-		}
-		this._updateTriggerLabel();
+	setMode(mode: TargetMode): void {
+		this._setMode(mode);
 	}
 
 	setVisible(visible: boolean): void {
@@ -198,9 +208,7 @@ export class TargetPicker extends Disposable {
 		if (this._targetMode !== mode) {
 			this._targetMode = mode;
 			this._updateTriggerLabel();
-			if (mode !== 'cloud') {
-				this._onDidChange.fire(mode);
-			}
+			this._onDidChange.fire(mode);
 		}
 	}
 
@@ -230,7 +238,7 @@ export class TargetPicker extends Disposable {
 			default:
 				modeIcon = Codicon.worktree;
 				modeLabel = localize('targetMode.worktree', "Worktree");
-				isDisabled = !this._repository;
+				isDisabled = !this._project?.repository;
 				break;
 		}
 

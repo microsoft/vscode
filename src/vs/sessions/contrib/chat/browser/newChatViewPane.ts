@@ -54,7 +54,7 @@ import { ContextMenuController } from '../../../../editor/contrib/contextmenu/br
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { IsolationMode, TargetPicker } from './sessionTargetPicker.js';
+import { TargetMode, TargetPicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
 import { SyncIndicator } from './syncIndicator.js';
 import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
@@ -77,7 +77,7 @@ const MAX_EDITOR_HEIGHT = 200;
 
 interface IDraftState extends IChatModelInputState {
 	target?: AgentSessionProviders;
-	isolationMode?: IsolationMode;
+	targetMode?: TargetMode;
 	branch?: string;
 	projectKind?: 'folder' | 'repo';
 	projectUri?: UriComponents;
@@ -219,7 +219,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}));
 
 		this._register(this._targetPicker.onDidChange((mode) => {
-			this._newSession.value?.setIsolationMode(mode);
+			this._newSession.value?.setTargetMode(mode);
 			this._branchPicker.setVisible(mode === 'worktree');
 			this._syncIndicator.setVisible(mode === 'worktree');
 			this._updateDraftState();
@@ -250,7 +250,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private _updateTargetPickerState(): void {
 		const isLocal = this._currentTarget === AgentSessionProviders.Background;
-		this._targetPicker.setCloudMode(!isLocal);
+		this._targetPicker.setProject(isLocal ? { kind: 'folder' } : { kind: 'repo' });
 		this._targetPicker.setVisible(true);
 	}
 
@@ -303,7 +303,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const isLocal = this._currentTarget === AgentSessionProviders.Background;
 		this._updateTargetPickerState();
 		this._permissionPicker.setVisible(isLocal);
-		const isWorktree = this._targetPicker.isolationMode === 'worktree';
+		const isWorktree = this._targetPicker.isWorktree;
 		this._branchPicker.setVisible(isLocal && isWorktree);
 		this._syncIndicator.setVisible(isLocal && isWorktree);
 
@@ -365,7 +365,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Wire pickers to the new session and disconnect inactive ones
 		const target = this._currentTarget;
 		if (target === AgentSessionProviders.Background) {
-			session.setIsolationMode(this._targetPicker.isolationMode);
+			session.setTargetMode(this._targetPicker.targetMode);
 			if (this._branchPicker.selectedBranch) {
 				session.setBranch(this._branchPicker.selectedBranch);
 			}
@@ -397,8 +397,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			if (changeType === 'repoUri' && session.repoUri) {
 				this._openRepository(session.repoUri);
 			}
-			if (changeType === 'isolationMode') {
-				this._branchPicker.setVisible(session.isolationMode === 'worktree');
+			if (changeType === 'targetMode') {
+				this._branchPicker.setVisible(session.targetMode === 'worktree');
 			}
 			if (changeType === 'disabled') {
 				this._updateSendButtonState();
@@ -425,7 +425,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._repositoryLoading = true;
 		this._updateInputLoadingState();
 		this._branchPicker.setRepository(undefined);
-		this._targetPicker.setRepository(undefined);
+		this._targetPicker.setProject({ kind: 'folder', repository: undefined });
 		this._updateTargetPickerState();
 		this._syncIndicator.setRepository(undefined);
 		this._modePicker.setRepository(undefined);
@@ -436,12 +436,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			}
 			this._repositoryLoading = false;
 			this._updateInputLoadingState();
-			this._targetPicker.setRepository(repository);
+			this._targetPicker.setProject({ kind: 'folder', repository: repository });
 			this._updateTargetPickerState();
 			this._branchPicker.setRepository(repository);
-			this._branchPicker.setVisible(!!repository && this._targetPicker.isolationMode === 'worktree');
+			this._branchPicker.setVisible(!!repository && this._targetPicker.isWorktree);
 			this._syncIndicator.setRepository(repository);
-			this._syncIndicator.setVisible(!!repository && this._targetPicker.isolationMode === 'worktree');
+			this._syncIndicator.setVisible(!!repository && this._targetPicker.isWorktree);
 			this._modePicker.setRepository(repository);
 		}).catch(e => {
 			if (cts.token.isCancellationRequested) {
@@ -450,7 +450,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this.logService.warn(`Failed to open repository at ${folderUri.toString()}`, getErrorMessage(e));
 			this._repositoryLoading = false;
 			this._updateInputLoadingState();
-			this._targetPicker.setRepository(undefined);
+			this._targetPicker.setProject({ kind: 'folder', repository: undefined });
 			this._updateTargetPickerState();
 			this._branchPicker.setRepository(undefined);
 			this._branchPicker.setVisible(false);
@@ -890,7 +890,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			selections: this._editor?.getSelections() ?? [],
 			contrib: {},
 			target: this._currentTarget,
-			isolationMode: this._targetPicker.isolationMode,
+			targetMode: this._targetPicker.targetMode,
 			branch: this._branchPicker.selectedBranch,
 			projectKind: this._projectPicker.selectedProject?.kind,
 			projectUri: this._projectPicker.selectedProject?.uri.toJSON(),
@@ -1034,9 +1034,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 					this._currentLanguageModel.set(model, undefined);
 				}
 			}
-			if (draft.isolationMode) {
-				this._targetPicker.setPreferredIsolationMode(draft.isolationMode);
-				this._targetPicker.setIsolationMode(draft.isolationMode);
+			if (draft.targetMode) {
+				this._targetPicker.setPreferredMode(draft.targetMode);
+				this._targetPicker.setMode(draft.targetMode);
 			}
 			if (draft.branch) {
 				this._branchPicker.setPreferredBranch(draft.branch);
@@ -1076,7 +1076,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			selections: [],
 			contrib: {},
 			target,
-			isolationMode: isLocal ? this._targetPicker.isolationMode : undefined,
+			targetMode: isLocal ? this._targetPicker.targetMode : undefined,
 			branch: isLocal ? this._branchPicker.selectedBranch : undefined,
 			projectKind: project?.kind,
 			projectUri: project?.uri.toJSON(),
@@ -1125,7 +1125,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Show/hide local-only pickers
 		this._updateTargetPickerState();
 		this._permissionPicker.setVisible(isLocal);
-		const isWorktree = this._targetPicker.isolationMode === 'worktree';
+		const isWorktree = this._targetPicker.isWorktree;
 		this._branchPicker.setVisible(isLocal && isWorktree);
 		this._syncIndicator.setVisible(isLocal && isWorktree);
 
