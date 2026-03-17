@@ -1258,6 +1258,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			autoSend: Boolean(handoff.send)
 		});
 
+		this.executeHandoff(handoff, agentId);
+	}
+
+	async executeHandoff(handoff: IHandOff, agentId?: string): Promise<void> {
+		this.chatSuggestNextWidget.hide();
+
+		const promptToUse = handoff.prompt;
+
 		// If agentId is provided (from chevron dropdown), delegate to that chat session
 		// Otherwise, switch to the handoff agent
 		if (agentId) {
