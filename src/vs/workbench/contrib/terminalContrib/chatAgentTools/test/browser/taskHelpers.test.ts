@@ -182,4 +182,84 @@ suite('Task Helpers', () => {
 		assert.strictEqual(preRunMarkerDisposed, true);
 		assert.strictEqual(defaultMarkerDisposed, false);
 	});
+
+	test('collectTerminalResults reads full output when pre-run marker map has no marker for terminal', async () => {
+		const lines = ['new output line 1', 'new output line 2', '* Terminal will be reused by tasks, press any key to close it.'];
+		let defaultMarkerDisposed = false;
+		const defaultMarker = {
+			line: 1,
+			dispose: () => { defaultMarkerDisposed = true; }
+		};
+		const terminal = {
+			instanceId: 1,
+			title: 'task-terminal',
+			shellLaunchConfig: { name: 'task-terminal' },
+			registerMarker: () => defaultMarker,
+			xterm: {
+				raw: {
+					buffer: {
+						active: {
+							length: lines.length,
+							getLine: (y: number) => ({ translateToString: () => lines[y] })
+						}
+					}
+				}
+			}
+		} as unknown as ITerminalInstance;
+		const task = {
+			_label: 'my-task',
+			configurationProperties: {}
+		} as Task;
+		const invocationContext: IToolInvocationContext = {
+			sessionResource: URI.parse('vscode-chat-session://test')
+		};
+		const instantiationService = {
+			createInstance: (_ctor: unknown, execution: IExecution) => {
+				const didFinishEmitter = new Emitter<void>();
+				const monitor = {
+					onDidFinishCommand: didFinishEmitter.event,
+					pollingResult: {
+						output: execution.getOutput(),
+						pollDurationMs: 1,
+						state: OutputMonitorState.Idle
+					},
+					outputMonitorTelemetryCounters: {
+						inputToolManualAcceptCount: 0,
+						inputToolManualRejectCount: 0,
+						inputToolManualChars: 0,
+						inputToolAutoAcceptCount: 0,
+						inputToolAutoChars: 0,
+						inputToolManualShownCount: 0,
+						inputToolFreeFormInputShownCount: 0,
+						inputToolFreeFormInputCount: 0,
+					},
+					dispose: () => didFinishEmitter.dispose()
+				};
+				setTimeout(() => didFinishEmitter.fire(), 0);
+				return monitor;
+			}
+		} as unknown as IInstantiationService;
+
+		const startMarkersByTerminalInstanceId = new Map<number, ReturnType<ITerminalInstance['registerMarker']>>();
+
+		const disposableStore = new DisposableStore();
+		const results = await collectTerminalResults(
+			[terminal],
+			task,
+			instantiationService,
+			invocationContext,
+			{ report: () => { } },
+			CancellationToken.None,
+			disposableStore,
+			undefined,
+			undefined,
+			undefined,
+			startMarkersByTerminalInstanceId
+		);
+		disposableStore.dispose();
+
+		assert.strictEqual(results.length, 1);
+		assert.strictEqual(results[0].output, 'new output line 1\nnew output line 2\n* Terminal will be reused by tasks, press any key to close it.');
+		assert.strictEqual(defaultMarkerDisposed, false);
+	});
 });

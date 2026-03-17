@@ -102,10 +102,8 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		let terminalResults: Awaited<ReturnType<typeof collectTerminalResults>> = [];
 		try {
 			const dependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
-			const preRunResources = this._tasksService.getTerminalsForTasks(dependencyTasks ?? task);
-			const preRunTerminals = preRunResources?.map(resource => this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme)).filter(Boolean) as ITerminalInstance[] | undefined;
 			const startMarkersByTerminalInstanceId = new Map<number, ReturnType<ITerminalInstance['registerMarker']>>();
-			for (const terminal of preRunTerminals ?? []) {
+			for (const terminal of this._terminalService.instances) {
 				const marker = terminal.registerMarker();
 				startMarkersByTerminalInstanceId.set(terminal.instanceId, marker);
 				if (marker) {

@@ -216,7 +216,9 @@ export async function collectTerminalResults(
 	progress.report({ message: new MarkdownString(`Checking output for ${terminalNames.map(n => `\`${n}\``).join(', ')}`) });
 
 	const terminalPromises = terminals.map(async (instance) => {
-		const startMarker = startMarkersByTerminalInstanceId?.get(instance.instanceId) ?? instance.registerMarker();
+		const startMarker = startMarkersByTerminalInstanceId
+			? startMarkersByTerminalInstanceId.get(instance.instanceId)
+			: instance.registerMarker();
 		let terminalTask = task;
 
 		// For composite tasks, find the actual dependency task running in this terminal

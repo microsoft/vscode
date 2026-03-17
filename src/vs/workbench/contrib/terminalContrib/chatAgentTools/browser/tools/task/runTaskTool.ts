@@ -10,7 +10,7 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import { ITaskService, ITaskSummary, Task, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { TaskRunSource } from '../../../../../tasks/common/tasks.js';
-import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
+import { ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks, tasksMatch } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -55,11 +55,9 @@ export class RunTaskTool implements IToolImpl {
 		}
 
 		const dependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
-		const preRunResources = this._tasksService.getTerminalsForTasks(dependencyTasks ?? task);
-		const preRunTerminals = this._terminalService.instances.filter(t => preRunResources?.some(r => r.path === t.resource.path && r.scheme === t.resource.scheme));
-		const startMarkersByTerminalInstanceId = new Map<number, ReturnType<(typeof preRunTerminals)[number]['registerMarker']>>();
+		const startMarkersByTerminalInstanceId = new Map<number, ReturnType<ITerminalInstance['registerMarker']>>();
 		const startMarkersDisposableStore = new DisposableStore();
-		for (const terminal of preRunTerminals) {
+		for (const terminal of this._terminalService.instances) {
 			const marker = terminal.registerMarker();
 			startMarkersByTerminalInstanceId.set(terminal.instanceId, marker);
 			if (marker) {
