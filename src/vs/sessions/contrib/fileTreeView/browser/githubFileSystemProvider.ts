@@ -14,8 +14,6 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionProject.js';
 
-export { GITHUB_REMOTE_FILE_SCHEME };
-
 /**
  * Derives a display name from a github-remote-file URI.
  * Returns "repo (branch)" or just "repo" when on HEAD.
