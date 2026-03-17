@@ -254,9 +254,17 @@
 				display: none;
 			}
 
-			.agent-session-status-provider-icon {
-				font-size: 11px;
-				margin-left: 4px;
+			.agent-session-status-time.codicon {
+				font: inherit;
+				display: inline-flex;
+				align-items: center;
+				flex-direction: row-reverse;
+				gap: 4px;
+
+				&::before {
+					font-family: 'codicon';
+					font-size: 11px;
+				}
 			}
 		}
 		.agent-session-approval-row {

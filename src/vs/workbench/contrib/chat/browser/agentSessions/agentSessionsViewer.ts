@@ -65,7 +65,6 @@ interface IAgentSessionItemTemplate {
 	// Column 2 Row 1
 	readonly title: IconLabel;
 	readonly statusContainer: HTMLElement;
-	readonly statusProviderIcon: HTMLElement;
 	readonly statusTime: HTMLElement;
 	readonly titleToolbar: MenuWorkbenchToolBar;
 
@@ -154,7 +153,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 						h('div.agent-session-description@description'),
 						h('div.agent-session-status@statusContainer', [
 							h('span.agent-session-status-time@statusTime'),
-							h('span.agent-session-status-provider-icon@statusProviderIcon')
 						]),
 					]),
 					h('div.agent-session-approval-row@approvalRow', [
@@ -185,7 +183,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			diffRemovedSpan: elements.removedSpan,
 			description: elements.description,
 			statusContainer: elements.statusContainer,
-			statusProviderIcon: elements.statusProviderIcon,
 			statusTime: elements.statusTime,
 			approvalRow: elements.approvalRow,
 			approvalLabel: elements.approvalLabel,
@@ -422,23 +419,30 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return timeLabel;
 		};
 
-		// Provider icon (only shown for non-local sessions)
+		// Provider icon (rendered as codicon on the time span for alignment)
 		// When showIsolationIcon is enabled for background sessions, show worktree/folder icon instead
 		const isLocal = session.element.providerType === AgentSessionProviders.Local;
-		if (isLocal) {
-			template.statusProviderIcon.className = '';
-		} else if (this.options.showIsolationIcon && session.element.providerType === AgentSessionProviders.Background) {
-			const hasWorktree = typeof session.element.metadata?.worktreePath === 'string';
-			const isolationIcon = hasWorktree ? Codicon.worktree : Codicon.folder;
-			template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(isolationIcon)}`;
-		} else {
-			template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
+		let providerIconClass = '';
+		if (!isLocal) {
+			if (this.options.showIsolationIcon && session.element.providerType === AgentSessionProviders.Background) {
+				const hasWorktree = typeof session.element.metadata?.worktreePath === 'string';
+				const isolationIcon = hasWorktree ? Codicon.worktree : Codicon.folder;
+				providerIconClass = ThemeIcon.asClassName(isolationIcon);
+			} else {
+				providerIconClass = ThemeIcon.asClassName(session.element.icon);
+			}
 		}
 
-		// Time label
-		template.statusTime.textContent = getTimeLabel(session.element);
+		// Time label (with optional provider icon rendered inline via codicon class)
+		const updateTimeLabel = () => {
+			template.statusTime.className = providerIconClass
+				? `agent-session-status-time ${providerIconClass}`
+				: 'agent-session-status-time';
+			template.statusTime.textContent = getTimeLabel(session.element);
+		};
+		updateTimeLabel();
 		const timer = template.elementDisposable.add(new IntervalTimer());
-		timer.cancelAndSet(() => template.statusTime.textContent = getTimeLabel(session.element), session.element.status === AgentSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
+		timer.cancelAndSet(() => updateTimeLabel(), session.element.status === AgentSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
 
 		return true;
 	}
