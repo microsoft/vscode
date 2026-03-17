@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.113.0",
-  "distro": "e5f18aa9c30af482492789ea8994f33f94e09a7d",
+  "distro": "8e1b88497cd18a2b9c2a74ec3e41b71598c671f2",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -81,6 +81,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "0.0.23",
+    "@github/copilot": "^1.0.4-0",
+    "@github/copilot-sdk": "^0.1.32",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "^2.5.6",
@@ -118,7 +120,7 @@
     "minimist": "^1.2.8",
     "native-is-elevated": "0.9.0",
     "native-keymap": "^3.3.5",
-    "node-pty": "^1.2.0-beta.10",
+    "node-pty": "^1.2.0-beta.12",
     "open": "^10.1.2",
     "playwright-core": "1.59.0-alpha-2026-02-20",
     "tas-client": "0.3.1",
@@ -127,6 +129,7 @@
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "^9.3.2",
+    "ws": "^8.19.0",
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
   },
@@ -150,6 +153,7 @@
     "@types/wicg-file-system-access": "^2023.10.7",
     "@types/windows-foreground-love": "^0.3.0",
     "@types/winreg": "^1.2.30",
+    "@types/ws": "^8.18.1",
     "@types/yauzl": "^2.10.0",
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/utils": "^8.45.0",
@@ -172,7 +176,7 @@
     "cookie": "^0.7.2",
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
-    "electron": "39.8.1",
+    "electron": "39.8.2",
     "eslint": "^9.36.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",

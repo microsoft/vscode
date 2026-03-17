@@ -11,6 +11,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IChatSessionTiming } from '../../common/chatService/chatService.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 
 export enum AgentSessionProviders {
 	Local = 'local',
@@ -19,6 +20,7 @@ export enum AgentSessionProviders {
 	Claude = 'claude-code',
 	Codex = 'openai-codex',
 	Growth = 'copilot-growth',
+	AgentHostCopilot = 'agent-host-copilot',
 }
 
 export function isBuiltInAgentSessionProvider(provider: string): boolean {
@@ -36,6 +38,7 @@ export function getAgentSessionProvider(sessionResource: URI | string): AgentSes
 		case AgentSessionProviders.Cloud:
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
+		case AgentSessionProviders.AgentHostCopilot:
 			return type;
 		default:
 			return undefined;
@@ -56,6 +59,8 @@ export function getAgentSessionProviderName(provider: AgentSessionProviders): st
 			return 'Codex';
 		case AgentSessionProviders.Growth:
 			return 'Growth';
+		case AgentSessionProviders.AgentHostCopilot:
+			return 'Agent Host - Copilot';
 	}
 }
 
@@ -73,7 +78,16 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 			return Codicon.claude;
 		case AgentSessionProviders.Growth:
 			return Codicon.lightbulb;
+		case AgentSessionProviders.AgentHostCopilot:
+			return Codicon.vscodeInsiders; // default; use getAgentHostIcon() for quality-aware icon
 	}
+}
+
+/**
+ * Returns the VS Code or VS Code Insiders icon depending on product quality.
+ */
+export function getAgentHostIcon(productService: IProductService): ThemeIcon {
+	return productService.quality === 'stable' ? Codicon.vscode : Codicon.vscodeInsiders;
 }
 
 export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders): boolean {
@@ -81,6 +95,7 @@ export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders
 		case AgentSessionProviders.Local:
 		case AgentSessionProviders.Background:
 		case AgentSessionProviders.Cloud:
+		case AgentSessionProviders.AgentHostCopilot:
 			return true;
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
@@ -98,6 +113,7 @@ export function getAgentCanContinueIn(provider: AgentSessionProviders): boolean 
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
 		case AgentSessionProviders.Growth:
+		case AgentSessionProviders.AgentHostCopilot:
 			return false;
 	}
 }
@@ -116,6 +132,8 @@ export function getAgentSessionProviderDescription(provider: AgentSessionProvide
 			return localize('chat.session.providerDescription.codex', "Opens a new Codex session in the editor. Codex sessions can be managed from the chat sessions view.");
 		case AgentSessionProviders.Growth:
 			return localize('chat.session.providerDescription.growth', "Learn about Copilot features.");
+		case AgentSessionProviders.AgentHostCopilot:
+			return 'Run a Copilot SDK agent in a dedicated process.';
 	}
 }
 

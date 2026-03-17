@@ -21,6 +21,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'chat.implicitContext.enabled': { 'panel': 'never' },
 		'chat.tools.terminal.enableAutoApprove': true,
 		'github.copilot.chat.githubMcpServer.enabled': true,
+		'github.copilot.chat.cli.isolationOption.enabled': false,
 
 		'breadcrumbs.enabled': false,
 
