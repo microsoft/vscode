@@ -13,7 +13,6 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { basename } from '../../../../base/common/resources.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -1045,8 +1044,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			if (draft.projectKind && draft.projectUri) {
 				try {
 					const uri = URI.revive(draft.projectUri);
-					const label = draft.projectKind === 'folder' ? basename(uri) : uri.path.substring(1).replace(/\/HEAD$/, '');
-					this._projectPicker.setSelectedProject({ kind: draft.projectKind, uri, label }, false);
+					this._projectPicker.setSelectedProject({ kind: draft.projectKind, uri }, false);
 					this._currentTarget = draft.projectKind === 'folder' ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
 				} catch { /* ignore */ }
 			}

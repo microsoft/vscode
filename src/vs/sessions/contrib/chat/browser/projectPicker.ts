@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { basename, isEqual } from '../../../../base/common/resources.js';
+import { basename } from '../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -15,6 +15,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 
@@ -42,8 +43,6 @@ export interface IProjectSelection {
 	readonly kind: ProjectSelectionKind;
 	/** For folders: the folder URI. For repos: a URI constructed from the repo path. */
 	readonly uri: URI;
-	/** Display label (folder basename or repo name). */
-	readonly label: string;
 }
 
 /**
@@ -85,6 +84,7 @@ export class ProjectPicker extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -160,7 +160,7 @@ export class ProjectPicker extends Disposable {
 			const lastFolder = this.storageService.get(LEGACY_STORAGE_KEY_LAST_FOLDER, StorageScope.PROFILE);
 			if (lastFolder) {
 				const uri = URI.parse(lastFolder);
-				this._selectedProject = { kind: 'folder', uri, label: basename(uri) };
+				this._selectedProject = { kind: 'folder', uri };
 				return;
 			}
 		} catch { /* ignore */ }
@@ -171,7 +171,7 @@ export class ProjectPicker extends Disposable {
 			if (lastRepo) {
 				const repo: { id: string; name: string } = JSON.parse(lastRepo);
 				const uri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repo.id}/HEAD` });
-				this._selectedProject = { kind: 'repo', uri, label: repo.name };
+				this._selectedProject = { kind: 'repo', uri };
 			}
 		} catch { /* ignore */ }
 	}
@@ -273,10 +273,9 @@ export class ProjectPicker extends Disposable {
 	 * Removes a project from the recently picked list by URI.
 	 */
 	removeFromRecents(uri: URI): void {
-		const uriKey = uri.toString();
-		this._recentProjects = this._recentProjects.filter(p => URI.revive(p.uri).toString() !== uriKey);
+		this._recentProjects = this._recentProjects.filter(p => !this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), uri));
 		this._persistRecents();
-		if (this._selectedProject && isEqual(this._selectedProject.uri, uri)) {
+		if (this._selectedProject && this.uriIdentityService.extUri.isEqual(this._selectedProject.uri, uri)) {
 			this._selectedProject = undefined;
 			this.storageService.remove(STORAGE_KEY_LAST_PROJECT, StorageScope.PROFILE);
 			this._updateTriggerLabel();
@@ -306,7 +305,6 @@ export class ProjectPicker extends Disposable {
 				this._selectProject({
 					kind: 'folder',
 					uri: selected[0],
-					label: basename(selected[0]),
 				});
 			}
 		} catch {
@@ -321,7 +319,6 @@ export class ProjectPicker extends Disposable {
 				this._selectProject({
 					kind: 'repo',
 					uri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${result}/HEAD` }),
-					label: result,
 				});
 			}
 		} catch {
@@ -422,7 +419,7 @@ export class ProjectPicker extends Disposable {
 
 		dom.clearNode(this._triggerElement);
 		const project = this._selectedProject;
-		const label = project?.label ?? localize('pickProject', "Pick a Project");
+		const label = project ? this._getProjectLabel(project) : localize('pickProject', "Pick a Project");
 		const icon = project ? (project.kind === 'folder' ? Codicon.folder : Codicon.repo) : Codicon.project;
 
 		dom.append(this._triggerElement, renderIcon(icon));
@@ -431,11 +428,19 @@ export class ProjectPicker extends Disposable {
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 	}
 
+	private _getProjectLabel(project: IProjectSelection): string {
+		if (project.kind === 'folder') {
+			return basename(project.uri);
+		}
+		// For repos, extract "owner/repo" from the URI path (e.g. "/owner/repo/HEAD" → "owner/repo")
+		return project.uri.path.substring(1).replace(/\/HEAD$/, '');
+	}
+
 	private _toStored(project: IProjectSelection): IStoredProject {
 		return {
 			kind: project.kind,
 			uri: project.uri.toJSON(),
-			label: project.label,
+			label: this._getProjectLabel(project),
 		};
 	}
 
@@ -443,7 +448,6 @@ export class ProjectPicker extends Disposable {
 		return {
 			kind: stored.kind,
 			uri: URI.revive(stored.uri),
-			label: stored.label,
 		};
 	}
 
@@ -452,6 +456,6 @@ export class ProjectPicker extends Disposable {
 	}
 
 	private _isSameProject(a: IStoredProject, b: IStoredProject): boolean {
-		return a.kind === b.kind && URI.revive(a.uri).toString() === URI.revive(b.uri).toString();
+		return a.kind === b.kind && this.uriIdentityService.extUri.isEqual(URI.revive(a.uri), URI.revive(b.uri));
 	}
 }
