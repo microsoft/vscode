@@ -1,0 +1,29 @@
+name: Terrapin Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  login:
+    name: Azure OIDC Login
+    runs-on: ubuntu-latest
+    environment: terrapin
+    steps:
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify login
+        run: |
+          echo "=== Azure account details ==="
+          az account show
+          echo ""
+          echo "=== Signed-in subscription list ==="
+          az account list --output table
