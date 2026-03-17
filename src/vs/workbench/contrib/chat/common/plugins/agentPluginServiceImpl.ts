@@ -144,12 +144,13 @@ export function shellQuotePluginRootInCommand(command: string, fsPath: string, t
  * Returns `undefined` when the input is not a usable object.
  */
 export function resolveMcpServersMap(raw: unknown): Record<string, unknown> | undefined {
-	if (!raw || typeof raw !== 'object') {
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
 		return undefined;
 	}
-	return raw.hasOwnProperty('mcpServers')
-		? (raw as { mcpServers: Record<string, unknown> }).mcpServers
-		: raw as Record<string, unknown>;
+	const obj = raw as Record<string, unknown>;
+	return Object.hasOwn(obj, 'mcpServers')
+		? (obj.mcpServers as Record<string, unknown>)
+		: obj;
 }
 
 /**
