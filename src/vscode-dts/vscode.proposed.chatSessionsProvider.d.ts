@@ -100,13 +100,35 @@ declare module 'vscode' {
 			readonly command?: string;
 		};
 
+		/**
+		 * @deprecated Use `inputState` instead
+		 */
 		readonly sessionOptions: ReadonlyArray<{ optionId: string; value: string | ChatSessionProviderOptionItem }>;
+
+		readonly inputState: ChatSessionInputState;
 	}
 
 	/**
 	 * Extension callback invoked when a new chat session is started.
 	 */
 	export type ChatSessionItemControllerNewItemHandler = (context: ChatSessionItemControllerNewItemHandlerContext, token: CancellationToken) => Thenable<ChatSessionItem>;
+
+	/**
+	 * Extension callback invoked to get the input state for a chat session.
+	 *
+	 * @param sessionResource The resource of the chat session to get the input state for. `undefined` indicates this is
+	 * for a blank chat editor that is not yet associated with a session.
+	 * @param context Additional context
+	 * @param token Cancellation token.
+	 *
+	 * @return A new chat session input state. This should be created using {@link ChatSessionItemController.createChatSessionInputState}.
+	 */
+	export type ChatSessionControllerProvideInputState = (sessionResource: Uri | undefined, context: {
+		/**
+		 * The previous options for the session.
+		 */
+		readonly previousOptions: readonly ChatSessionProviderOptionGroup[] | undefined;
+	}, token: CancellationToken) => ProviderResult<ChatSessionInputState>;
 
 	/**
 	 * Manages chat sessions for a specific chat session type
@@ -137,6 +159,11 @@ declare module 'vscode' {
 		readonly refreshHandler: ChatSessionItemControllerRefreshHandler;
 
 		/**
+		 * Fired when an item's archived state changes.
+		 */
+		readonly onDidChangeChatSessionItemState: Event<ChatSessionItem>;
+
+		/**
 		 * Invoked when a new chat session is started.
 		 *
 		 * This allows the controller to initialize the chat session item with information from the initial request.
@@ -146,9 +173,14 @@ declare module 'vscode' {
 		newChatSessionItemHandler?: ChatSessionItemControllerNewItemHandler;
 
 		/**
-		 * Fired when an item's archived state changes.
+		 * Gets the input state for a chat session.
 		 */
-		readonly onDidChangeChatSessionItemState: Event<ChatSessionItem>;
+		provideChatSessionInputState?: ChatSessionControllerProvideInputState;
+
+		/**
+		 * Create a new managed ChatSessionInputState object.
+		 */
+		createChatSessionInputState(options: ChatSessionProviderOptionItem[]): ChatSessionInputState;
 	}
 
 	/**
@@ -299,6 +331,9 @@ declare module 'vscode' {
 		metadata?: { readonly [key: string]: any };
 	}
 
+	/**
+	 * @deprecated Use `ChatSessionChangedFile2` instead
+	 */
 	export class ChatSessionChangedFile {
 		/**
 		 * URI of the file.
@@ -430,11 +465,15 @@ declare module 'vscode' {
 	 */
 	export interface ChatSessionContentProvider {
 		/**
+		 * @deprecated
+		 *
 		 * Event that the provider can fire to signal that the options for a chat session have changed.
 		 */
 		readonly onDidChangeChatSessionOptions?: Event<ChatSessionOptionChangeEvent>;
 
 		/**
+		 * @deprecated
+		 *
 		 * Event that the provider can fire to signal that the available provider options have changed.
 		 *
 		 * When fired, the editor will re-query {@link ChatSessionContentProvider.provideChatSessionProviderOptions}
@@ -454,10 +493,17 @@ declare module 'vscode' {
 		 * @return The {@link ChatSession chat session} associated with the given URI.
 		 */
 		provideChatSessionContent(resource: Uri, token: CancellationToken, context: {
+			readonly inputState: ChatSessionInputState;
+
+			/**
+			 * @deprecated Use `inputState` instead
+			 */
 			readonly sessionOptions: ReadonlyArray<{ optionId: string; value: string | ChatSessionProviderOptionItem }>;
 		}): Thenable<ChatSession> | ChatSession;
 
 		/**
+		 * @deprecated
+		 *
 		 * @param resource Identifier of the chat session being updated.
 		 * @param updates Collection of option identifiers and their new values. Only the options that changed are included.
 		 * @param token A cancellation token that can be used to cancel the notification if the session is disposed.
@@ -465,6 +511,8 @@ declare module 'vscode' {
 		provideHandleOptionsChange?(resource: Uri, updates: ReadonlyArray<ChatSessionOptionUpdate>, token: CancellationToken): void;
 
 		/**
+		 * @deprecated
+		 *
 		 * Called as soon as you register (call me once)
 		 */
 		provideChatSessionProviderOptions?(token: CancellationToken): Thenable<ChatSessionProviderOptions>;
@@ -576,10 +624,12 @@ declare module 'vscode' {
 		 */
 		readonly description?: string;
 
+		readonly selected?: ChatSessionProviderOptionItem;
+
 		/**
 		 * The selectable items within this option group.
 		 */
-		readonly items: ChatSessionProviderOptionItem[];
+		readonly items: readonly ChatSessionProviderOptionItem[];
 
 		/**
 		 * A context key expression that controls when this option group picker is visible.
@@ -616,6 +666,9 @@ declare module 'vscode' {
 		 * Optional commands.
 		 *
 		 * These commands will be displayed at the bottom of the group.
+		 *
+		 * For extensions that use the new `provideChatSessionInputState` API, these commands are passed a context object
+		 * `{ inputState: ChatSessionInputState; sessionResource: Uri | undefined }` that they can use to determine which session and options they are being invoked for.
 		 */
 		readonly commands?: Command[];
 	}
@@ -633,5 +686,12 @@ declare module 'vscode' {
 		 * Keys correspond to option group IDs (e.g., 'models', 'subagents').
 		 */
 		readonly newSessionOptions?: Record<string, string | ChatSessionProviderOptionItem>;
+	}
+
+	/**
+	 * Represents the current state of user inputs for a chat session.
+	 */
+	export interface ChatSessionInputState {
+		options: readonly ChatSessionProviderOptionGroup[];
 	}
 }
