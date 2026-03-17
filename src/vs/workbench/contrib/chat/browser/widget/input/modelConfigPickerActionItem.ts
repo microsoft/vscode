@@ -51,10 +51,12 @@ export class ModelConfigPickerActionItem extends BaseActionViewItem {
 	}
 
 	override render(container: HTMLElement): void {
-		this._domNode = dom.append(container, dom.$('a.action-label.chat-input-picker-item'));
+		container.classList.add('chat-input-picker-item');
+		this._domNode = dom.append(container, dom.$('a.action-label'));
 		this._domNode.tabIndex = 0;
 		this._domNode.setAttribute('role', 'button');
 		this._domNode.setAttribute('aria-haspopup', 'true');
+		this.element = this._domNode;
 
 		this._register(dom.addDisposableListener(this._domNode, dom.EventType.MOUSE_DOWN, (e) => {
 			if (e.button !== 0) {
