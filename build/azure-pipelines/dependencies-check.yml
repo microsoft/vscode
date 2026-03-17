@@ -20,7 +20,7 @@ variables:
 
 jobs:
   - job: ValidateNpmPackages
-    displayName: Ensure new packages are available in Terrapin
+    displayName: Validate package-lock.json, Cargo.lock changes via Azure DevOps pipeline
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux
@@ -123,7 +123,7 @@ jobs:
         displayName: Check clean git state
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
 
-      - script: node build/azure-pipelines/update-terrapin-check.ts
+      - script: node build/azure-pipelines/update-dependencies-check.ts
         displayName: Update GitHub check run
         condition: always()
         env:
