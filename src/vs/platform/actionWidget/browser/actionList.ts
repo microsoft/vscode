@@ -1225,12 +1225,27 @@ class ActionListHoverContent {
 
 		for (const action of actions) {
 			if (action instanceof SubmenuAction) {
-				this._renderGroup(action, onSelect, disposables);
+				const group = new ActionListHoverGroup(action, onSelect, disposables);
+				this.domNode.appendChild(group.domNode);
 			}
 		}
 	}
+}
 
-	private _renderGroup(group: SubmenuAction, onSelect: () => void, disposables: DisposableStore): void {
+/**
+ * Renders a group of actionable items with a labeled header and separator line.
+ */
+class ActionListHoverGroup {
+
+	readonly domNode: DocumentFragment;
+
+	constructor(
+		group: SubmenuAction,
+		onSelect: () => void,
+		disposables: DisposableStore,
+	) {
+		this.domNode = document.createDocumentFragment();
+
 		const headerRow = dom.append(this.domNode, dom.$('.action-list-submenu-group-header'));
 		const headerLabel = dom.append(headerRow, dom.$('span.action-list-submenu-group-label'));
 		headerLabel.textContent = group.label;
