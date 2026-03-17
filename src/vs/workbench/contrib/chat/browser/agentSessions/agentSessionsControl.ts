@@ -78,6 +78,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	get element(): HTMLElement | undefined { return this.sessionsContainer; }
 
 	private emptyFilterMessage: HTMLElement | undefined;
+	private listWrapper: HTMLElement | undefined;
+	private moreArchivedButton: HTMLElement | undefined;
 
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore> | undefined;
 	private sessionsListFindIsOpen = false;
@@ -156,8 +158,13 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	private create(container: HTMLElement): void {
 		this.sessionsContainer = append(container, $('.agent-sessions-viewer'));
 
-		this.createEmptyFilterMessage(this.sessionsContainer);
-		this.createList(this.sessionsContainer);
+		// List wrapper takes remaining flex space (allows "More" footer below)
+		this.listWrapper = append(this.sessionsContainer, $('.agent-sessions-list-wrapper'));
+		this.createEmptyFilterMessage(this.listWrapper);
+		this.createList(this.listWrapper);
+
+		// "More" button for showing archived sessions when they are collapsed
+		this.createMoreArchivedButton(this.sessionsContainer);
 	}
 
 	private createEmptyFilterMessage(container: HTMLElement): void {
@@ -179,6 +186,72 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				this.options.filter.reset();
 			}
 		}));
+	}
+
+	private createMoreArchivedButton(container: HTMLElement): void {
+		this.moreArchivedButton = append(container, $('button.agent-sessions-archived-more'));
+		hide(this.moreArchivedButton);
+		this.moreArchivedButton.setAttribute('aria-label', localize('agentSessions.showArchived', "Show archived sessions"));
+		this._register(addDisposableListener(this.moreArchivedButton, EventType.CLICK, () => {
+			this.expandArchivedSection();
+		}));
+		this._register(addDisposableListener(this.moreArchivedButton, EventType.KEY_DOWN, (e) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
+				EventHelper.stop(e, true);
+				this.expandArchivedSection();
+			}
+		}));
+	}
+
+	private expandArchivedSection(): void {
+		if (!this.sessionsList) {
+			return;
+		}
+		const model = this.agentSessionsService.model;
+		try {
+			for (const child of this.sessionsList.getNode(model).children) {
+				if (isAgentSessionSection(child.element) && child.element.section === AgentSessionSection.Archived) {
+					this.sessionsList.expand(child.element);
+					break;
+				}
+			}
+		} catch {
+			// getNode() may throw if the model node hasn't been rendered into the tree yet
+			// (e.g., called before the first updateChildren completes). Safe to ignore.
+		}
+	}
+
+	private updateMoreArchivedButton(): void {
+		if (!this.moreArchivedButton || !this.sessionsList) {
+			return;
+		}
+
+		const hasArchived = this.agentSessionsService.model.sessions.some(s => s.isArchived());
+		let isArchivedCollapsed = false;
+
+		if (hasArchived) {
+			const model = this.agentSessionsService.model;
+			try {
+				for (const child of this.sessionsList.getNode(model).children) {
+					if (isAgentSessionSection(child.element) && child.element.section === AgentSessionSection.Archived) {
+						isArchivedCollapsed = child.collapsed;
+						break;
+					}
+				}
+			} catch {
+				// getNode() may throw if the model node hasn't been rendered into the tree yet
+				// (e.g., called before the first updateChildren completes). Safe to ignore.
+			}
+		}
+
+		const showButton = hasArchived && isArchivedCollapsed;
+		setVisibility(showButton, this.moreArchivedButton);
+
+		if (showButton) {
+			const archivedCount = this.agentSessionsService.model.sessions.filter(s => s.isArchived()).length;
+			this.moreArchivedButton.textContent = localize('agentSessions.moreArchived', "{0} archived", archivedCount);
+		}
 	}
 
 	private static readonly SECTION_COLLAPSE_STATE_KEY = 'agentSessions.sectionCollapseState';
@@ -349,6 +422,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			const element = e.node.element?.element;
 			if (element && isAgentSessionSection(element)) {
 				this.saveSectionCollapseState(element.section, e.node.collapsed);
+				if (element.section === AgentSessionSection.Archived) {
+					this.updateMoreArchivedButton();
+				}
 			}
 		}));
 	}
@@ -469,6 +545,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		} finally {
 			this._isProgrammaticCollapseChange = false;
 		}
+
+		this.updateMoreArchivedButton();
 	}
 
 	private _updateSectionCollapseStatesCore(): void {
@@ -513,6 +591,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		return this.updateSessionsListThrottler.queue(async () => {
 			await this.sessionsList?.updateChildren();
 
+			this.updateMoreArchivedButton();
 			this._onDidUpdate.fire();
 		});
 	}
@@ -530,7 +609,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	}
 
 	layout(height: number, width: number): void {
-		this.sessionsList?.layout(height, width);
+		// Use the listWrapper's actual height if available (leaves room for the "More" footer)
+		const listHeight = this.listWrapper ? this.listWrapper.offsetHeight : height;
+		this.sessionsList?.layout(listHeight, width);
 	}
 
 	focus(): void {
