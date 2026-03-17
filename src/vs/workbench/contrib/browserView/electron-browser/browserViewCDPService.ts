@@ -53,7 +53,7 @@ export class BrowserViewCDPService extends Disposable implements IBrowserViewCDP
 	}
 
 	private _getWindowIdForBrowser(browserId: string): number {
-		const browserUri = BrowserViewUri.forUrl(undefined, browserId);
+		const browserUri = BrowserViewUri.forId(browserId);
 		const editors = this.editorService.findEditors(browserUri);
 		if (editors.length > 0) {
 			const group = this.editorGroupsService.getGroup(editors[0].groupId);
