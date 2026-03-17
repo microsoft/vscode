@@ -20,7 +20,7 @@ variables:
 
 jobs:
   - job: ValidateNpmPackages
-    displayName: Valiate NPM packages against Terrapin
+    displayName: Ensure new packages are available in Terrapin
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux
@@ -123,7 +123,7 @@ jobs:
         displayName: Check clean git state
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
 
-      - script: node build/azure-pipelines/github-check-run.js
+      - script: node build/azure-pipelines/update-terrapin-check.ts
         displayName: Update GitHub check run
         condition: always()
         env:
