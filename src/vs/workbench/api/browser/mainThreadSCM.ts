@@ -337,6 +337,9 @@ class MainThreadSCMProvider implements ISCMProvider {
 	private readonly _actionButton = observableValue<ISCMActionButtonDescriptor | undefined>(this, undefined);
 	get actionButton(): IObservable<ISCMActionButtonDescriptor | undefined> { return this._actionButton; }
 
+	private readonly _branchName = observableValue<string | undefined>(this, undefined);
+	get branchName() { return this._branchName; }
+
 	private _quickDiff: IDisposable | undefined;
 	private _stagedQuickDiff: IDisposable | undefined;
 
@@ -391,6 +394,10 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 		if (typeof features.statusBarCommands !== 'undefined') {
 			this._statusBarCommands.set(features.statusBarCommands, undefined);
+		}
+
+		if (typeof features.branchName !== 'undefined') {
+			this._branchName.set(features.branchName, undefined);
 		}
 
 		if (features.hasQuickDiffProvider && !this._quickDiff) {
