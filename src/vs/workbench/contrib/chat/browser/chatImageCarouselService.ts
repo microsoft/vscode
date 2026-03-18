@@ -11,7 +11,7 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { extractImagesFromChatRequest, extractImagesFromChatResponse } from '../common/chatImageExtraction.js';
+import { extractImagesFromChatRequest, extractImagesFromChatResponse, IChatExtractedImage } from '../common/chatImageExtraction.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/model/chatViewModel.js';
 import { IChatWidgetService } from './chat.js';
 
@@ -95,14 +95,7 @@ export async function collectCarouselSections(
 		const requestImages = request ? extractImagesFromChatRequest(request) : [];
 
 		const allImages = [...requestImages, ...responseImages];
-		// Deduplicate consecutive images with the same URI within this section
-		const dedupedImages = allImages.filter((img, index) => {
-			if (index === 0) {
-				return true;
-			}
-			const prev = allImages[index - 1];
-			return !prev.uri || !img.uri || !isEqual(prev.uri, img.uri);
-		});
+		const dedupedImages = deduplicateConsecutiveImages(allImages);
 		if (dedupedImages.length > 0) {
 			sections.push({
 				title: request?.messageText ?? extractedTitle,
@@ -120,15 +113,29 @@ export async function collectCarouselSections(
 			continue;
 		}
 		const requestImages = extractImagesFromChatRequest(item);
-		if (requestImages.length > 0) {
+		const dedupedImages = deduplicateConsecutiveImages(requestImages);
+		if (dedupedImages.length > 0) {
 			sections.push({
 				title: item.messageText,
-				images: requestImages.map(({ id, name, mimeType, data }) => ({ id, name, mimeType, data: data.buffer }))
+				images: dedupedImages.map(({ id, name, mimeType, data }) => ({ id, name, mimeType, data: data.buffer }))
 			});
 		}
 	}
 
 	return sections;
+}
+
+/**
+ * Removes consecutive images with the same URI, keeping only the first occurrence
+ * of each run of duplicates.
+ */
+function deduplicateConsecutiveImages(images: IChatExtractedImage[]): IChatExtractedImage[] {
+	return images.filter((img, index) => {
+		if (index === 0) {
+			return true;
+		}
+		return !isEqual(images[index - 1].uri, img.uri);
+	});
 }
 
 /**

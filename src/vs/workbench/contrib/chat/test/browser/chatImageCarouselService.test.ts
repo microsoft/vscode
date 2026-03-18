@@ -42,6 +42,7 @@ suite('ChatImageCarouselService helpers', () => {
 			sessionResource: URI.parse('chat-session://test/session'),
 			response: { value: [] },
 			session: { getItems: () => [] },
+			setVote: () => { },
 		} as unknown as IChatResponseViewModel;
 	}
 
@@ -128,6 +129,15 @@ suite('ChatImageCarouselService helpers', () => {
 			const result = buildCollectionArgs(sections, 1, URI.file('/session'));
 			assert.strictEqual(result.collection.title, 'Conversation Images');
 			assert.strictEqual(result.startIndex, 1);
+		});
+
+		test('falls back to default title when single section has empty title', () => {
+			const sections: ICarouselSection[] = [{
+				title: '',
+				images: [makeImage(URI.file('/img.png').toString())],
+			}];
+			const result = buildCollectionArgs(sections, 0, URI.file('/session'));
+			assert.strictEqual(result.collection.title, 'Conversation Images');
 		});
 	});
 
@@ -229,12 +239,12 @@ suite('ChatImageCarouselService helpers', () => {
 			const request = makeRequest('req-1', [
 				makeImageVariableEntry({
 					value: new Uint8Array([1, 2, 3]),
-					references: [{ reference: uri }],
+					references: [{ reference: uri, kind: 'reference' }],
 				}),
 				makeImageVariableEntry({
 					id: 'img-2',
 					value: new Uint8Array([1, 2, 3]),
-					references: [{ reference: uri }],
+					references: [{ reference: uri, kind: 'reference' }],
 				}),
 			], 'Two same images');
 			const response = makeResponse('req-1');
@@ -251,18 +261,18 @@ suite('ChatImageCarouselService helpers', () => {
 			const request = makeRequest('req-1', [
 				makeImageVariableEntry({
 					value: new Uint8Array([1, 2, 3]),
-					references: [{ reference: uri }],
+					references: [{ reference: uri, kind: 'reference' }],
 				}),
 				makeImageVariableEntry({
 					id: 'img-2',
 					name: 'other.png',
 					value: new Uint8Array([4, 5, 6]),
-					references: [{ reference: otherUri }],
+					references: [{ reference: otherUri, kind: 'reference' }],
 				}),
 				makeImageVariableEntry({
 					id: 'img-3',
 					value: new Uint8Array([1, 2, 3]),
-					references: [{ reference: uri }],
+					references: [{ reference: uri, kind: 'reference' }],
 				}),
 			], 'Non-consecutive duplicates');
 			const response = makeResponse('req-1');
