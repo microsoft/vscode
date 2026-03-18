@@ -117,9 +117,9 @@ export class QuickInputTreeController extends Disposable {
 				identityProvider: new QuickInputTreeIdentityProvider()
 			}
 		));
-		this._renderer.onDidDisposeFocusedElement(() => {
+		this._register(this._renderer.onDidDisposeFocusedElement(() => {
 			this._tree.domFocus();
-		});
+		}));
 		this.registerCheckboxStateListeners();
 		this.registerOnDidChangeFocus();
 	}
