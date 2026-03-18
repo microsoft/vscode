@@ -197,9 +197,18 @@ export interface IChatSession extends IDisposable {
 		history: any[], // TODO: Nail down types
 		token: CancellationToken
 	) => Promise<void>;
+
+	/**
+	 * Forks the session from the given request point.
+	 * @param requestId The request ID to fork from, or undefined to fork from the end.
+	 * @param token Cancellation token.
+	 * @returns The forked session item, or undefined if forking failed.
+	 */
+	forkSession?: (requestId: string | undefined, token: CancellationToken) => Promise<IChatSessionItem>;
 }
 
 export interface IChatSessionContentProvider {
+	readonly supportsFork?: boolean;
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 }
 
@@ -323,6 +332,20 @@ export interface IChatSessionsService {
 	 * Defaults to true when not explicitly set.
 	 */
 	supportsDelegationForSessionType(chatSessionType: string): boolean;
+
+	/**
+	 * Returns whether the loaded session supports forking conversations.
+	 */
+	sessionSupportsFork(sessionResource: URI): boolean;
+
+	/**
+	 * Forks a contributed chat session from the given request point.
+	 * @param sessionResource The session resource to fork.
+	 * @param requestId The request ID to fork from, or undefined to fork from the end.
+	 * @param token Cancellation token.
+	 * @returns The forked session item, or undefined if forking failed.
+	 */
+	forkChatSession(sessionResource: URI, requestId: string | undefined, token: CancellationToken): Promise<IChatSessionItem>;
 
 	readonly onDidChangeOptionGroups: Event<string>;
 

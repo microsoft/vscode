@@ -67,6 +67,7 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 		history: any[],
 		token: CancellationToken
 	) => Promise<void>;
+	forkSession?: (requestId: string | undefined, token: CancellationToken) => Promise<IChatSessionItem>;
 
 	private readonly _proxy: ExtHostChatSessionsShape;
 	private readonly _providerHandle: number;
@@ -236,6 +237,13 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 						// Ensure progress observation is cleaned up
 						progressDisposable.dispose();
 					}
+				};
+			}
+
+			if (sessionContent.hasForkHandler && !this.forkSession) {
+				this.forkSession = async (requestId: string | undefined, token: CancellationToken) => {
+					const result = await this._proxy.$forkChatSession(this._providerHandle, this.sessionResource, requestId, token);
+					return revive(result) as IChatSessionItem;
 				};
 			}
 
@@ -694,8 +702,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._itemControllerRegistrations.deleteAndDispose(handle);
 	}
 
-	$registerChatSessionContentProvider(handle: number, chatSessionScheme: string): void {
+	$registerChatSessionContentProvider(handle: number, chatSessionScheme: string, supportsFork?: boolean): void {
 		const provider: IChatSessionContentProvider = {
+			supportsFork,
 			provideChatSessionContent: (resource, token) => this._provideChatSessionContent(handle, resource, token)
 		};
 

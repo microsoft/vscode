@@ -1214,6 +1214,26 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return contribution?.supportsDelegation !== false;
 	}
 
+	public sessionSupportsFork(sessionResource: URI): boolean {
+		const resolved = this._resolveResource(sessionResource);
+		const session = this._sessions.get(resolved);
+		if (session?.session.forkSession) {
+			return true;
+		}
+		// Fall back to the content provider's capability for sessions not yet fully loaded
+		const resolvedType = this._resolveToPrimaryType(resolved.scheme) || resolved.scheme;
+		const provider = this._contentProviders.get(resolvedType);
+		return !!provider?.supportsFork;
+	}
+
+	public async forkChatSession(sessionResource: URI, requestId: string | undefined, token: CancellationToken): Promise<IChatSessionItem> {
+		const session = this._sessions.get(this._resolveResource(sessionResource));
+		if (!session?.session.forkSession) {
+			throw new Error(`Session ${sessionResource.toString()} does not support forking`);
+		}
+		return session.session.forkSession(requestId, token);
+	}
+
 	public getContentProviderSchemes(): string[] {
 		return Array.from(this._contentProviders.keys());
 	}

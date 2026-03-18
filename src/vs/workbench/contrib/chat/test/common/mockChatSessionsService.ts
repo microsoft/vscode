@@ -222,6 +222,14 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return this.contributions.find(c => c.type === chatSessionType)?.supportsDelegation !== false;
 	}
 
+	sessionSupportsFork(_sessionResource: URI): boolean {
+		return false;
+	}
+
+	async forkChatSession(_sessionResource: URI, _requestId: string | undefined, _token: CancellationToken): Promise<IChatSessionItem> {
+		throw new Error('Not implemented');
+	}
+
 	getContentProviderSchemes(): string[] {
 		return Array.from(this.contentProviders.keys());
 	}

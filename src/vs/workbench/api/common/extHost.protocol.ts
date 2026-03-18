@@ -3599,6 +3599,7 @@ export interface ChatSessionDto {
 	history: Array<IChatSessionHistoryItemDto>;
 	hasActiveResponseCallback: boolean;
 	hasRequestHandler: boolean;
+	hasForkHandler: boolean;
 	supportsInterruption: boolean;
 	options?: Record<string, string | IChatSessionProviderOptionItem>;
 }
@@ -3619,7 +3620,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$updateChatSessionItems(controllerHandle: number, change: IChatSessionItemsChange): Promise<void>;
 	$addOrUpdateChatSessionItem(controllerHandle: number, item: Dto<IChatSessionItem>): Promise<void>;
 	$onDidCommitChatSessionItem(controllerHandle: number, original: UriComponents, modified: UriComponents): void;
-	$registerChatSessionContentProvider(handle: number, chatSessionScheme: string): void;
+	$registerChatSessionContentProvider(handle: number, chatSessionScheme: string, supportsFork?: boolean): void;
 	$unregisterChatSessionContentProvider(handle: number): void;
 	$onDidChangeChatSessionOptions(handle: number, sessionResource: UriComponents, updates: ReadonlyArray<ChatSessionOptionUpdateDto2>): void;
 	$onDidChangeChatSessionProviderOptions(handle: number): void;
@@ -3641,6 +3642,7 @@ export interface ExtHostChatSessionsShape {
 	$provideChatSessionProviderOptions(providerHandle: number, token: CancellationToken): Promise<IChatSessionProviderOptions | undefined>;
 	$invokeOptionGroupSearch(providerHandle: number, optionGroupId: string, query: string, token: CancellationToken): Promise<IChatSessionProviderOptionItem[]>;
 	$provideHandleOptionsChange(providerHandle: number, sessionResource: UriComponents, updates: ReadonlyArray<ChatSessionOptionUpdateDto>, token: CancellationToken): Promise<void>;
+	$forkChatSession(providerHandle: number, sessionResource: UriComponents, requestId: string | undefined, token: CancellationToken): Promise<Dto<IChatSessionItem>>;
 }
 
 export interface GitRefQueryDto {

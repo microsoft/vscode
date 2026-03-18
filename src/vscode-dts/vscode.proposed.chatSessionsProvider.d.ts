@@ -399,6 +399,18 @@ declare module 'vscode' {
 		// TODO: Revisit this to align with code.
 		// TODO: pass in options?
 		readonly requestHandler: ChatRequestHandler | undefined;
+
+		/**
+		 * Handles a request to fork the session.
+		 *
+		 * The handler should create a new session on the provider's backend and
+		 * return the new {@link ChatSessionItem} representing the forked session.
+		 *
+		 * @param request The request turn to fork from. If undefined, fork from the end of the session.
+		 * @param token A cancellation token.
+		 * @returns The forked session item.
+		 */
+		readonly forkHandler?: (request: ChatRequestTurn2 | undefined, token: CancellationToken) => Thenable<ChatSessionItem> | ChatSessionItem;
 	}
 
 	/**
@@ -517,6 +529,13 @@ declare module 'vscode' {
 		 * Whether sessions can be interrupted and resumed without side-effects.
 		 */
 		supportsInterruptions?: boolean;
+
+		/**
+		 * Whether sessions support forking conversations from a given point.
+		 * When true, the fork button is shown on checkpoints and the
+		 * {@link ChatSession.forkHandler} will be called when the user forks.
+		 */
+		supportsFork?: boolean;
 	}
 
 	/**

@@ -478,7 +478,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		const disposables = new DisposableStore();
 
 		this._chatSessionContentProviders.set(handle, { provider, extension, capabilities, disposable: disposables });
-		this._proxy.$registerChatSessionContentProvider(handle, chatSessionScheme);
+		this._proxy.$registerChatSessionContentProvider(handle, chatSessionScheme, capabilities?.supportsFork);
 
 		if (provider.onDidChangeChatSessionOptions) {
 			disposables.add(provider.onDidChangeChatSessionOptions(evt => {
@@ -550,6 +550,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			title: session.title,
 			hasActiveResponseCallback: !!session.activeResponseCallback,
 			hasRequestHandler: !!session.requestHandler,
+			hasForkHandler: !!session.forkHandler,
 			supportsInterruption: !!capabilities?.supportsInterruptions,
 			options: session.options,
 			history: session.history.map(turn => {
@@ -647,6 +648,28 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		// TODO: do we need to dispose the stream object?
 		return {};
+	}
+
+	async $forkChatSession(handle: number, sessionResourceComponents: UriComponents, requestId: string | undefined, token: CancellationToken): Promise<ReturnType<typeof typeConvert.ChatSessionItem.from>> {
+		const sessionResource = URI.revive(sessionResourceComponents);
+		const entry = this._extHostChatSessions.get(sessionResource);
+		if (!entry || !entry.sessionObj.session.forkHandler) {
+			throw new Error(`No fork handler for session ${sessionResource.toString()}`);
+		}
+
+		// Find the request turn matching the requestId in history
+		let requestTurn: extHostTypes.ChatRequestTurn | undefined;
+		if (requestId) {
+			for (const turn of entry.sessionObj.session.history) {
+				if (turn instanceof extHostTypes.ChatRequestTurn && turn.id === requestId) {
+					requestTurn = turn;
+					break;
+				}
+			}
+		}
+
+		const item = await entry.sessionObj.session.forkHandler(requestTurn, token);
+		return typeConvert.ChatSessionItem.from(item);
 	}
 
 	private async getModelForRequest(request: IChatAgentRequest, extension: IExtensionDescription): Promise<vscode.LanguageModelChat> {

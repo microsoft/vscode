@@ -63,6 +63,7 @@ suite('ObservableChatSession', function () {
 			$refreshChatSessionItems: sinon.stub(),
 			$onDidChangeChatSessionItemState: sinon.stub(),
 			$newChatSessionItem: sinon.stub().resolves(undefined),
+			$forkChatSession: sinon.stub().resolves(undefined),
 		};
 	});
 
@@ -398,6 +399,7 @@ suite('MainThreadChatSessions', function () {
 			$refreshChatSessionItems: sinon.stub(),
 			$onDidChangeChatSessionItemState: sinon.stub(),
 			$newChatSessionItem: sinon.stub().resolves(undefined),
+			$forkChatSession: sinon.stub().resolves(undefined),
 		};
 
 		const extHostContext = new class implements IExtHostContext {
