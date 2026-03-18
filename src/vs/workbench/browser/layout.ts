@@ -601,7 +601,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private updateShadows(): void {
 		const noShadows = this.isShadowsDisabled();
 
-		for (const container of this.containers.values()) {
+		for (const container of Array.from(this.containers)) {
 			container.classList.toggle(LayoutClasses.NO_SHADOWS, noShadows);
 		}
 	}
