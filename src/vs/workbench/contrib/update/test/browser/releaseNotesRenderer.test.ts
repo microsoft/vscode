@@ -186,7 +186,6 @@ suite('Conditional blocks', () => {
 	});
 
 	test('renderReleaseNotesMarkdown passes stable quality correctly', async function () {
-		const store = ensureNoDisposablesAreLeakedInTestSuite();
 		const instantiationService = store.add(new TestInstantiationService());
 		const extensionService = instantiationService.get(IExtensionService);
 		const languageService = instantiationService.get(ILanguageService);
@@ -208,7 +207,6 @@ suite('Conditional blocks', () => {
 	});
 
 	test('renderReleaseNotesMarkdown passes insider quality correctly', async function () {
-		const store = ensureNoDisposablesAreLeakedInTestSuite();
 		const instantiationService = store.add(new TestInstantiationService());
 		const extensionService = instantiationService.get(IExtensionService);
 		const languageService = instantiationService.get(ILanguageService);
