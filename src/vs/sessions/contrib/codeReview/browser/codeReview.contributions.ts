@@ -166,16 +166,16 @@ class CodeReviewToolbarContribution extends Disposable implements IWorkbenchCont
 				canRunCodeReview = false;
 				tooltip = localize('sessions.runCodeReview.tooltip.loading', "Creating code review...");
 				icon = Codicon.commentDraft;
-			} else if (reviewCount >= MAX_CODE_REVIEWS_PER_SESSION_VERSION) {
-				canRunCodeReview = false;
-				tooltip = localize('sessions.runCodeReview.tooltip.limitReached', "Maximum of {0} code reviews reached for this session version.", MAX_CODE_REVIEWS_PER_SESSION_VERSION);
-				icon = Codicon.codeReview;
 			} else if (totalCommentCount > 0) {
 				canRunCodeReview = true;
 				icon = Codicon.commentUnresolved;
 				tooltip = totalCommentCount === 1
 					? localize('sessions.runCodeReview.tooltip.oneUnresolved', "1 review comment unresolved.")
 					: localize('sessions.runCodeReview.tooltip.manyUnresolved', "{0} review comments unresolved.", totalCommentCount);
+			} else if (reviewCount >= MAX_CODE_REVIEWS_PER_SESSION_VERSION) {
+				canRunCodeReview = false;
+				tooltip = localize('sessions.runCodeReview.tooltip.limitReached', "Maximum of {0} code reviews reached for this session version.", MAX_CODE_REVIEWS_PER_SESSION_VERSION);
+				icon = Codicon.codeReview;
 			} else if (reviewState.kind === CodeReviewStateKind.Result && reviewState.version === version) {
 				canRunCodeReview = true;
 				tooltip = reviewState.didProduceComments
