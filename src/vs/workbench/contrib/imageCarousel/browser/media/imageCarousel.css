@@ -127,9 +127,10 @@
 	color: var(--vscode-foreground);
 }
 
-.image-carousel-editor .nav-arrow:focus,
-.image-carousel-editor .nav-arrow:focus-visible {
-	outline: none !important;
+.image-carousel-editor .nav-arrow:focus-visible:not(:disabled) {
+	opacity: 1 !important;
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .image-carousel-editor .nav-arrow:disabled {
