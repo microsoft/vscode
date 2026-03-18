@@ -57,9 +57,31 @@ export function commandMatchesRequestedId(command: ICommandLike, commandId?: str
 
 /**
  * Waits briefly for terminal output to settle before reading output from xterm markers.
+ *
+ * The wait is bounded by {@link maxWaitMs} and can be cancelled via {@link token}.
  */
-export async function waitForOutputFlush(onData: Event<unknown>): Promise<void> {
-	await waitForIdle(onData, 50);
+export async function waitForOutputFlush(onData: Event<unknown>, token?: CancellationToken, maxWaitMs: number = 2000): Promise<void> {
+	if (token?.isCancellationRequested) {
+		return;
+	}
+
+	const waitForIdlePromise = waitForIdle(onData, 50);
+	const maxWaitPromise = timeout(maxWaitMs);
+
+	if (!token) {
+		await Promise.race([waitForIdlePromise, maxWaitPromise]);
+	} else {
+		const store = new DisposableStore();
+		try {
+			const cancellationPromise = new Promise<void>(resolve => {
+				store.add(token.onCancellationRequested(() => resolve()));
+			});
+			await Promise.race([waitForIdlePromise, maxWaitPromise, cancellationPromise]);
+		} finally {
+			store.dispose();
+		}
+	}
+
 	await timeout(0);
 }
 
