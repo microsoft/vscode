@@ -88,25 +88,64 @@ function createModelItem(
 		hideIcon: false,
 		section: action.section,
 		hover: model ? { content: getModelHoverContent(model), position: hoverPosition } : undefined,
+		submenuActions: action.toolbarActions,
 	};
+}
+
+/**
+ * Returns a short description summarizing the model's current configuration values
+ * for properties marked with group 'navigation' (e.g., "High", "Medium").
+ */
+function getModelConfigurationDescription(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService: ILanguageModelsService): string | undefined {
+	const schema = model.metadata.configurationSchema;
+	if (!schema?.properties) {
+		return undefined;
+	}
+
+	const currentConfig = languageModelsService.getModelConfiguration(model.identifier) ?? {};
+	const parts: string[] = [];
+
+	for (const [key, propSchema] of Object.entries(schema.properties)) {
+		if (propSchema.group !== 'navigation') {
+			continue;
+		}
+		const value = currentConfig[key] ?? propSchema.default;
+		if (value === undefined) {
+			continue;
+		}
+		const enumItemLabels = propSchema.enumItemLabels;
+		const enumIndex = propSchema.enum?.indexOf(value) ?? -1;
+		const label = enumItemLabels?.[enumIndex] ?? String(value);
+		parts.push(label);
+	}
+
+	return parts.length > 0 ? parts.join(', ') : undefined;
 }
 
 function createModelAction(
 	model: ILanguageModelChatMetadataAndIdentifier,
 	selectedModelId: string | undefined,
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
+	languageModelsService: ILanguageModelsService,
 	section?: string,
 ): IActionWidgetDropdownAction & { section?: string } {
+	const toolbarActions = languageModelsService.getModelConfigurationActions(model.identifier);
+	const configDescription = getModelConfigurationDescription(model, languageModelsService);
+	const baseDescription = model.metadata.multiplier ?? model.metadata.detail;
+	const description = configDescription && baseDescription
+		? `${configDescription} · ${baseDescription}`
+		: configDescription ?? baseDescription;
 	return {
 		id: model.identifier,
 		enabled: true,
 		icon: model.metadata.statusIcon,
 		checked: model.identifier === selectedModelId,
 		class: undefined,
-		description: model.metadata.multiplier ?? model.metadata.detail,
+		description,
 		tooltip: model.metadata.name,
 		label: model.metadata.name,
 		section,
+		toolbarActions: toolbarActions && toolbarActions.length > 0 ? toolbarActions : undefined,
 		run: () => onSelect(model),
 	};
 }
@@ -158,6 +197,7 @@ export function buildModelPickerItems(
 	showUnavailableFeatured: boolean,
 	showFeatured: boolean,
 	hoverPosition?: IHoverPositionOptions,
+	languageModelsService?: ILanguageModelsService,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
@@ -209,7 +249,7 @@ export function buildModelPickerItems(
 			const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
 			if (autoModel) {
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
-				items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect), autoModel, hoverPosition));
+				items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!), autoModel, hoverPosition));
 			}
 
 			// --- 2. Promoted section (selected + recently used + featured) ---
@@ -297,7 +337,7 @@ export function buildModelPickerItems(
 
 				for (const item of promotedItems) {
 					if (item.kind === 'available') {
-						items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect), item.model, hoverPosition));
+						items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect, languageModelsService!), item.model, hoverPosition));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, undefined, hoverPosition));
 					}
@@ -350,7 +390,7 @@ export function buildModelPickerItems(
 					if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
 						items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other, hoverPosition));
 					} else {
-						items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, ModelPickerSection.Other), model, hoverPosition));
+						items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other), model, hoverPosition));
 					}
 				}
 			}
@@ -372,7 +412,7 @@ export function buildModelPickerItems(
 		// Flat list: auto first, then all models sorted alphabetically
 		const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
 		if (autoModel) {
-			items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect), autoModel, hoverPosition));
+			items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!), autoModel, hoverPosition));
 		}
 		const sortedModels = models
 			.filter(m => m !== autoModel)
@@ -381,7 +421,7 @@ export function buildModelPickerItems(
 				return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
 			});
 		for (const model of sortedModels) {
-			items.push(createModelItem(createModelAction(model, selectedModelId, onSelect), model, hoverPosition));
+			items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, languageModelsService!), model, hoverPosition));
 		}
 	}
 
@@ -503,6 +543,10 @@ export class ModelPickerWidget extends Disposable {
 		@IUpdateService private readonly _updateService: IUpdateService,
 	) {
 		super();
+
+		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
+			this._renderLabel();
+		}));
 	}
 
 	setHideChevrons(hideChevrons: IObservable<boolean>): void {
@@ -602,6 +646,7 @@ export class ModelPickerWidget extends Disposable {
 			this._delegate.showUnavailableFeatured(),
 			this._delegate.showFeatured(),
 			this._hoverPosition,
+			this._languageModelsService,
 		);
 
 		const listOptions = {
@@ -674,7 +719,14 @@ export class ModelPickerWidget extends Disposable {
 			domChildren.push(iconElement);
 		}
 
-		domChildren.push(dom.$('span.chat-input-picker-label', undefined, name ?? localize('chat.modelPicker.auto', "Auto")));
+		const modelLabel = name ?? localize('chat.modelPicker.auto', "Auto");
+		const configDescription = this._selectedModel
+			? getModelConfigurationDescription(this._selectedModel, this._languageModelsService)
+			: undefined;
+		const fullLabel = configDescription
+			? `${modelLabel} · ${configDescription}`
+			: modelLabel;
+		domChildren.push(dom.$('span.chat-input-picker-label', undefined, fullLabel));
 
 		// Badge icon between label and chevron
 		if (this._badgeIcon) {
@@ -686,8 +738,7 @@ export class ModelPickerWidget extends Disposable {
 		dom.reset(this._domNode, ...domChildren);
 
 		// Aria
-		const modelName = this._selectedModel?.metadata.name ?? localize('chat.modelPicker.auto', "Auto");
-		this._domNode.ariaLabel = localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", modelName);
+		this._domNode.ariaLabel = localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", fullLabel);
 	}
 }
 
