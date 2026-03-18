@@ -478,6 +478,7 @@ export class AICustomizationListWidget extends Disposable {
 		// Re-filter when the active harness changes
 		this._register(autorun(reader => {
 			this.harnessService.activeHarness.read(reader);
+			this.updateAddButton();
 			this.refresh();
 		}));
 
@@ -774,6 +775,8 @@ export class AICustomizationListWidget extends Disposable {
 
 	/**
 	 * Gets the dropdown actions for the add button.
+	 * Respects the active harness filter — user-scoped creation is only
+	 * offered when the harness shows all user roots (i.e. "Local").
 	 */
 	private getDropdownActions(): Action[] {
 		this.dropdownActionDisposables.clear();
@@ -796,11 +799,22 @@ export class AICustomizationListWidget extends Disposable {
 			return actions;
 		}
 
+		// User-scoped creation: in core VS Code, only when the harness shows
+		// all user roots (no includedUserFileRoots restriction). Restricted
+		// harnesses like CLI/Claude filter user roots, so creating in the
+		// VS Code profile directory wouldn't be visible in the current view.
+		// In sessions, user creation always targets CLI-accessible paths
+		// (AgenticPromptsService routes to ~/.copilot/...) so it's always valid.
+		const filter = this.harnessService.getStorageSourceFilter(promptType);
+		const showUserCreate = this.workspaceService.isSessionsWindow || !filter.includedUserFileRoots;
+
 		if (this.workspaceService.isSessionsWindow) {
 			// Sessions: primary is workspace, dropdown has user
-			actions.push(this.dropdownActionDisposables.add(new Action('createUser', `$(${Codicon.account.id}) New ${typeLabel} (User)`, undefined, true, () => {
-				this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
-			})));
+			if (showUserCreate) {
+				actions.push(this.dropdownActionDisposables.add(new Action('createUser', `$(${Codicon.account.id}) New ${typeLabel} (User)`, undefined, true, () => {
+					this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
+				})));
+			}
 			// For instructions: offer AGENTS.md at workspace root
 			if (promptType === PromptsType.instructions && this.hasActiveWorkspace()) {
 				actions.push(this.dropdownActionDisposables.add(new Action('createAgentsMd', `$(${Codicon.file.id}) New ${AGENT_MD_FILENAME}`, undefined, true, () => {
@@ -814,9 +828,11 @@ export class AICustomizationListWidget extends Disposable {
 					this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' });
 				})));
 			}
-			actions.push(this.dropdownActionDisposables.add(new Action('createUser', `$(${Codicon.account.id}) New ${typeLabel} (User)`, undefined, true, () => {
-				this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
-			})));
+			if (showUserCreate) {
+				actions.push(this.dropdownActionDisposables.add(new Action('createUser', `$(${Codicon.account.id}) New ${typeLabel} (User)`, undefined, true, () => {
+					this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
+				})));
+			}
 		}
 
 		return actions;
