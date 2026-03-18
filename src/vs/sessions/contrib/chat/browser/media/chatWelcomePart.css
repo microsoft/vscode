@@ -197,6 +197,10 @@
 	margin-right: 2px;
 }
 
+.sessions-chat-picker-slot.sessions-chat-project-picker .action-label .codicon-chevron-down {
+	margin-right: 0;
+}
+
 .sessions-chat-picker-slot.sessions-chat-project-picker .action-label .sessions-chat-dropdown-label {
 	font-size: 15px;
 }
