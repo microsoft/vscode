@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -205,14 +205,16 @@ export function createClaudeHarnessDescriptor(claudeRoots: readonly URI[], extra
 export class CustomizationHarnessServiceBase implements ICustomizationHarnessService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _activeHarness = observableValue<CustomizationHarness>(this, this._defaultHarness);
-	readonly activeHarness: IObservable<CustomizationHarness> = this._activeHarness;
+	private readonly _activeHarness: ISettableObservable<CustomizationHarness>;
+	readonly activeHarness: IObservable<CustomizationHarness>;
 	readonly availableHarnesses: IObservable<readonly IHarnessDescriptor[]>;
 
 	constructor(
 		private readonly _harnesses: readonly IHarnessDescriptor[],
-		private readonly _defaultHarness: CustomizationHarness,
+		defaultHarness: CustomizationHarness,
 	) {
+		this._activeHarness = observableValue<CustomizationHarness>(this, defaultHarness);
+		this.activeHarness = this._activeHarness;
 		this.availableHarnesses = constObservable(this._harnesses);
 	}
 
