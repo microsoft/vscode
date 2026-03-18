@@ -400,7 +400,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				target: existingTask?.target,
 				targetDisabledReason: existingTask && !isConfigureMode ? localize('existingTaskTargetLocked', "This existing task cannot be moved between workspace and user storage.") : workspaceTargetDisabledReason,
 				runOn: existingTask?.task.runOptions?.runOn === 'worktreeCreated' ? 'worktreeCreated' : undefined,
-				submitLabel: isConfigureMode ? localize('confirmConfigureAction', "Save Changes") : undefined,
+				isExistingTask: isConfigureMode,
 			}));
 			quickWidget.widget = widget.domNode;
 
