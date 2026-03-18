@@ -225,7 +225,7 @@
 	padding: 3px 3px 3px 6px;
 	background-color: transparent;
 	border: none;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-icon-foreground);
 	font-size: 13px;
 	cursor: pointer;
 	white-space: nowrap;
@@ -247,7 +247,7 @@
 
 .sessions-chat-picker-slot.disabled .action-label:hover {
 	background-color: transparent;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-icon-foreground);
 }
 
 .sessions-chat-picker-slot.loading .action-label {
