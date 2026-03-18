@@ -2030,7 +2030,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._terminalShellTypeContextKey.set(shellType?.toString());
 		}
 		this._onDidChangeShellType.fire(shellType);
-
+		this._labelComputer?.refreshLabel(this);
 	}
 
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
@@ -2630,6 +2630,13 @@ export class TerminalLabelComputer extends Disposable {
 	private readonly _onDidChangeLabel = this._register(new Emitter<{ title: string; description: string }>());
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 
+	/**
+	 * Shell types that are agent CLIs. When a terminal has one of these shell types, the title
+	 * template is overridden to `${sequence}` so the CLI's own title (set via escape sequences)
+	 * is used as the tab title.
+	 */
+	private static readonly _agentCliShellTypes: ReadonlySet<string> = new Set(['claude', 'codex', 'copilot', 'gemini']);
+
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
@@ -2639,7 +2646,9 @@ export class TerminalLabelComputer extends Disposable {
 	}
 
 	refreshLabel(instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>, reset?: boolean): void {
-		const titleTemplate = instance.shellLaunchConfig.titleTemplate ?? this._terminalConfigurationService.config.tabs.title;
+		const titleTemplate = instance.shellLaunchConfig.titleTemplate
+			?? (TerminalLabelComputer._agentCliShellTypes.has(instance.shellType ?? '') ? '${sequence}' : undefined)
+			?? this._terminalConfigurationService.config.tabs.title;
 		this._title = this.computeLabel(instance, titleTemplate, TerminalLabelType.Title, reset);
 		this._description = this.computeLabel(instance, this._terminalConfigurationService.config.tabs.description, TerminalLabelType.Description);
 		if (this._title !== instance.title || this._description !== instance.description || reset) {
