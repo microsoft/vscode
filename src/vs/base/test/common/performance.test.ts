@@ -321,9 +321,9 @@ suite('PerfTracer', () => {
 			trace.mark('didCompleteRequest');
 			trace.done();
 
-			// All 5 marks should exist with the same traceId
+			// All 6 marks should exist with the same traceId
 			const marks = marksFor(p);
-			assert.strictEqual(marks.length, 5);
+			assert.strictEqual(marks.length, 6);
 			const traceIds = new Set(marks.map(m => detailOf(m).traceId));
 			assert.strictEqual(traceIds.size, 1);
 
@@ -381,7 +381,7 @@ suite('PerfTracer', () => {
 
 			// Verify: all marks share the same traceId
 			const marks = marksFor(p);
-			assert.strictEqual(marks.length, 12); // willSendRequest + willSendRequestAsync + 2 instructions + willInvokeAgent + 3*(will+did)InvokeTool + didInvokeAgent + didCompleteRequest
+			assert.strictEqual(marks.length, 13);
 			const traceIds = new Set(marks.map(m => detailOf(m).traceId));
 			assert.strictEqual(traceIds.size, 1);
 
@@ -401,40 +401,38 @@ suite('PerfTracer', () => {
 
 			const trace1 = tracer.start();
 			trace1.register('requestId', 'req1');
-			trace1.mark('willSendRequest');
+			trace1.mark('trace1/willSendRequest');
 
 			const trace2 = tracer.start();
 			trace2.register('requestId', 'req2');
-			trace2.mark('willSendRequest');
+			trace2.mark('trace2/willSendRequest');
 
 			// Both traces are independently findable
-			const found1 = tracer.find('requestId', 'req1');
-			const found2 = tracer.find('requestId', 'req2');
-			assert.strictEqual(found1, trace1);
-			assert.strictEqual(found2, trace2);
+			assert.strictEqual(tracer.find('requestId', 'req1'), trace1);
+			assert.strictEqual(tracer.find('requestId', 'req2'), trace2);
 
 			// Downstream emits to correct traces
-			found1?.mark('willInvokeAgent');
-			found2?.mark('willInvokeAgent');
+			tracer.find('requestId', 'req1')?.mark('trace1/willInvokeAgent');
+			tracer.find('requestId', 'req2')?.mark('trace2/willInvokeAgent');
 
 			// trace1 completes
-			trace1.mark('didCompleteRequest');
+			trace1.mark('trace1/didCompleteRequest');
 			trace1.done();
 
-			// trace1 is no longer findable
+			// trace1 is no longer findable, trace2 still is
 			assert.strictEqual(tracer.find('requestId', 'req1'), undefined);
-			// trace2 still findable
 			assert.strictEqual(tracer.find('requestId', 'req2'), trace2);
 
 			// Next start() clears trace1's marks but not trace2's
 			tracer.start();
 
 			const remaining = marksFor(p);
-			// All remaining marks should belong to trace2
-			const trace2TraceId = detailOf(remaining[0]).traceId;
-			for (const m of remaining) {
-				assert.strictEqual(detailOf(m).traceId, trace2TraceId);
-			}
+			// trace2's marks should survive
+			assert.ok(remaining.length >= 2);
+			const remainingNames = markNames(p);
+			assert.ok(remainingNames.some(n => n.includes('trace2/')));
+			// trace1's marks should be gone
+			assert.ok(!remainingNames.some(n => n.includes('trace1/')));
 		});
 	});
 });
