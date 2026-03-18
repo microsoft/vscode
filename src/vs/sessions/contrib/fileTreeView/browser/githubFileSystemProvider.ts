@@ -12,7 +12,7 @@ import { IAuthenticationService } from '../../../../workbench/services/authentic
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 
-export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionProject.js';
 
 /**
  * Derives a display name from a github-remote-file URI.

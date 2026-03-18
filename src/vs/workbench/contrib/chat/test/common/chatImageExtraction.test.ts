@@ -7,11 +7,12 @@ import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatProgressResponseContent } from '../../common/model/chatModel.js';
-import { IChatResponseViewModel } from '../../common/model/chatViewModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel } from '../../common/model/chatViewModel.js';
 import { IChatContentInlineReference, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from '../../common/chatService/chatService.js';
 import { IToolResultInputOutputDetails } from '../../common/tools/languageModelToolsService.js';
-import { extractImagesFromChatResponse, extractImagesFromToolInvocationMessages } from '../../common/chatImageExtraction.js';
+import { extractImagesFromChatRequest, extractImagesFromChatResponse, extractImagesFromToolInvocationMessages } from '../../common/chatImageExtraction.js';
 
 function makeToolInvocation(overrides: Partial<IChatToolInvocationSerialized> = {}): IChatToolInvocationSerialized {
 	return {
@@ -66,6 +67,39 @@ function makeResponse(items: ReadonlyArray<IChatProgressResponseContent>, opts: 
 }
 
 const fakeReadFile = (uri: URI) => Promise.resolve(VSBuffer.fromString(`data-for-${uri.path}`));
+
+function makeRequest(variables: IChatRequestViewModel['variables'], opts: { id?: string; messageText?: string } = {}): IChatRequestViewModel {
+	return {
+		id: opts.id ?? 'req-1',
+		sessionResource: URI.parse('chat-session://test/session'),
+		dataId: 'data-1',
+		username: 'test-user',
+		message: { text: opts.messageText ?? 'Show me images', parts: [] },
+		messageText: opts.messageText ?? 'Show me images',
+		attempt: 0,
+		variables,
+		currentRenderedHeight: undefined,
+		shouldBeRemovedOnSend: undefined,
+		isComplete: true,
+		isCompleteAddedRequest: true,
+		slashCommand: undefined,
+		agentOrSlashCommandDetected: false,
+		shouldBeBlocked: undefined!,
+		timestamp: 0,
+	} as unknown as IChatRequestViewModel;
+}
+
+function makeImageVariableEntry(overrides: Partial<IImageVariableEntry> & Pick<IImageVariableEntry, 'value'>): IImageVariableEntry {
+	const { value, ...rest } = overrides;
+	return {
+		id: 'img-1',
+		kind: 'image',
+		name: 'cat.png',
+		value,
+		mimeType: 'image/png',
+		...rest,
+	};
+}
 
 suite('extractImagesFromChatResponse', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -390,5 +424,67 @@ suite('extractImagesFromToolInvocationMessages', () => {
 
 		assert.strictEqual(result.length, 1);
 		assert.strictEqual(result[0].caption, 'Running tool');
+	});
+});
+
+suite('extractImagesFromChatRequest', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('extracts image attachment from Uint8Array', () => {
+		const request = makeRequest([
+			makeImageVariableEntry({ value: new Uint8Array([1, 2, 3]) }),
+		]);
+
+		const result = extractImagesFromChatRequest(request);
+
+		assert.strictEqual(result.length, 1);
+		assert.strictEqual(result[0].name, 'cat.png');
+		assert.strictEqual(result[0].mimeType, 'image/png');
+		assert.deepStrictEqual([...result[0].data.buffer], [1, 2, 3]);
+	});
+
+	test('extracts image attachment from ArrayBuffer', () => {
+		const request = makeRequest([
+			makeImageVariableEntry({ value: new Uint8Array([4, 5, 6]).buffer }),
+		]);
+
+		const result = extractImagesFromChatRequest(request);
+
+		assert.strictEqual(result.length, 1);
+		assert.deepStrictEqual([...result[0].data.buffer], [4, 5, 6]);
+	});
+
+	test('extracts restored image attachment from plain object bytes', () => {
+		const request = makeRequest([
+			makeImageVariableEntry({ value: { 0: 7, 1: 8, 2: 9 } }),
+		]);
+
+		const result = extractImagesFromChatRequest(request);
+
+		assert.strictEqual(result.length, 1);
+		assert.deepStrictEqual([...result[0].data.buffer], [7, 8, 9]);
+	});
+
+	test('extracts restored image attachment from reordered plain object bytes', () => {
+		const request = makeRequest([
+			makeImageVariableEntry({ value: { 2: 9, 0: 7, 1: 8 } }),
+		]);
+
+		const result = extractImagesFromChatRequest(request);
+
+		assert.strictEqual(result.length, 1);
+		assert.deepStrictEqual([...result[0].data.buffer], [7, 8, 9]);
+	});
+
+	test('uses attachment resource URI when available', () => {
+		const uri = URI.file('/tmp/cat.png');
+		const request = makeRequest([
+			makeImageVariableEntry({ value: new Uint8Array([1]), references: [{ kind: 'reference', reference: uri }] }),
+		]);
+
+		const result = extractImagesFromChatRequest(request);
+
+		assert.strictEqual(result.length, 1);
+		assert.strictEqual(result[0].uri.toString(), uri.toString());
 	});
 });

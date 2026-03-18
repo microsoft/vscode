@@ -14,11 +14,12 @@ import { IChatEditingService } from '../../../../workbench/contrib/chat/common/e
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { agentSessionContainsResource, editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
-import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
+import { IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -29,6 +30,8 @@ export interface IAgentFeedback {
 	readonly range: IRange;
 	readonly sessionResource: URI;
 	readonly suggestion?: ICodeReviewSuggestion;
+	readonly codeSelection?: string;
+	readonly diffHunks?: string;
 }
 
 export interface INavigableSessionComment {
@@ -58,7 +61,7 @@ export interface IAgentFeedbackService {
 	/**
 	 * Add a feedback item for the given session.
 	 */
-	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion): IAgentFeedback;
+	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext): IAgentFeedback;
 
 	/**
 	 * Remove a single feedback item.
@@ -107,7 +110,7 @@ export interface IAgentFeedbackService {
 	 * Add a feedback item and then submit the feedback. Waits for the
 	 * attachment to be updated in the chat widget before submitting.
 	 */
-	addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion): Promise<void>;
+	addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext): Promise<void>;
 }
 
 // --- Implementation -----------------------------------------------------------
@@ -138,7 +141,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		super();
 	}
 
-	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion): IAgentFeedback {
+	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext): IAgentFeedback {
 		const key = sessionResource.toString();
 		let feedbackItems = this._feedbackBySession.get(key);
 		if (!feedbackItems) {
@@ -153,6 +156,8 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			range,
 			sessionResource,
 			suggestion,
+			codeSelection: context?.codeSelection,
+			diffHunks: context?.diffHunks,
 		};
 
 		// Insert at the correct sorted position.
@@ -294,7 +299,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 					revealIfVisible: true,
 					selection,
 				}
-			}, MODAL_GROUP);
+			});
 		} else if (sessionChange?.originalUri) {
 			await this._editorService.openEditor({
 				original: { resource: sessionChange.originalUri },
@@ -305,7 +310,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 					revealIfVisible: true,
 					selection,
 				}
-			}, MODAL_GROUP);
+			});
 		} else {
 			await this._editorService.openEditor({
 				resource: sessionChange?.modifiedUri ?? resourceUri,
@@ -315,7 +320,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 					revealIfVisible: true,
 					selection,
 				}
-			}, MODAL_GROUP);
+			});
 		}
 
 		this.setNavigationAnchor(sessionResource, commentId);
@@ -414,8 +419,8 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems: [] });
 	}
 
-	async addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion): Promise<void> {
-		this.addFeedback(sessionResource, resourceUri, range, text, suggestion);
+	async addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext): Promise<void> {
+		this.addFeedback(sessionResource, resourceUri, range, text, suggestion, context);
 
 		// Wait for the attachment contribution to update the chat widget's attachment model
 		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);

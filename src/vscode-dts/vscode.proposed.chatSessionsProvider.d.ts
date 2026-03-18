@@ -99,6 +99,8 @@ declare module 'vscode' {
 			readonly prompt: string;
 			readonly command?: string;
 		};
+
+		readonly sessionOptions: ReadonlyArray<{ optionId: string; value: string | ChatSessionProviderOptionItem }>;
 	}
 
 	/**
@@ -447,10 +449,13 @@ declare module 'vscode' {
 		 *
 		 * @param resource The URI of the chat session to resolve.
 		 * @param token A cancellation token that can be used to cancel the operation.
+		 * @param context Additional context for the chat session.
 		 *
 		 * @return The {@link ChatSession chat session} associated with the given URI.
 		 */
-		provideChatSessionContent(resource: Uri, token: CancellationToken): Thenable<ChatSession> | ChatSession;
+		provideChatSessionContent(resource: Uri, token: CancellationToken, context: {
+			readonly sessionOptions: ReadonlyArray<{ optionId: string; value: string | ChatSessionProviderOptionItem }>;
+		}): Thenable<ChatSession> | ChatSession;
 
 		/**
 		 * @param resource Identifier of the chat session being updated.
@@ -483,10 +488,11 @@ declare module 'vscode' {
 		 *
 		 * @param scheme The uri-scheme to register for. This must be unique.
 		 * @param provider The provider to register.
+		 * @param defaultChatParticipant The default {@link ChatParticipant chat participant} used in sessions provided by this provider.
 		 *
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerChatSessionContentProvider(scheme: string, provider: ChatSessionContentProvider, chatParticipant: ChatParticipant, capabilities?: ChatSessionCapabilities): Disposable;
+		export function registerChatSessionContentProvider(scheme: string, provider: ChatSessionContentProvider, defaultChatParticipant: ChatParticipant, capabilities?: ChatSessionCapabilities): Disposable;
 	}
 
 	export interface ChatContext {

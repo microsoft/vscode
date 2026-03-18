@@ -28,6 +28,7 @@ export interface IRunScriptCustomTaskWidgetState {
 	readonly target?: TaskStorageTarget;
 	readonly targetDisabledReason?: string;
 	readonly runOn?: typeof WORKTREE_CREATED_RUN_ON;
+	readonly submitLabel?: string;
 }
 
 export interface IRunScriptCustomTaskWidgetResult {
@@ -134,7 +135,7 @@ export class RunScriptCustomTaskWidget extends Disposable {
 		this._cancelButton = this._register(new Button(buttonRow, { ...defaultButtonStyles, secondary: true }));
 		this._cancelButton.label = localize('cancelAddAction', "Cancel");
 		this._submitButton = this._register(new Button(buttonRow, defaultButtonStyles));
-		this._submitButton.label = localize('confirmAddAction', "Add Action");
+		this._submitButton.label = state.submitLabel ?? localize('confirmAddAction', "Add Action");
 
 		this._register(this._labelInput.onDidChange(() => this._updateButtonEnablement()));
 		this._register(this._commandInput.onDidChange(() => this._updateButtonEnablement()));

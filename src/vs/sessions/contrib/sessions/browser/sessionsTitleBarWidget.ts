@@ -341,6 +341,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 		const contextOverlay: Array<[string, boolean | string]> = [
 			[ChatContextKeys.isArchivedAgentSession.key, agentSession.isArchived()],
+			[ChatContextKeys.isPinnedAgentSession.key, agentSession.isPinned()],
 			[ChatContextKeys.isReadAgentSession.key, agentSession.isRead()],
 			[ChatContextKeys.agentSessionType.key, agentSession.providerType],
 		];

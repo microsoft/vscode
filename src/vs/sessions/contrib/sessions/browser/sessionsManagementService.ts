@@ -26,7 +26,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { isBuiltinChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionProject.js';
 import { IGitHubSessionContext } from '../../github/common/types.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 
@@ -251,8 +251,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async openSession(sessionResource: URI, openOptions?: ISessionOpenOptions): Promise<void> {
 		const existingSession = this.agentSessionsService.model.getSession(sessionResource);
 		if (!existingSession) {
+			this.logService.warn(`[SessionsManagement] openSession: session not found in model: ${sessionResource.toString()}, model has ${this.agentSessionsService.model.sessions.length} sessions with types: ${[...new Set(this.agentSessionsService.model.sessions.map(s => s.providerType))].join(', ')}`);
 			throw new Error(`Session with resource ${sessionResource.toString()} not found`);
 		}
+		this.logService.info(`[SessionsManagement] openSession: ${sessionResource.toString()} provider=${existingSession.providerType}`);
 		this.isNewChatSessionContext.set(false);
 		this.setActiveSession(existingSession);
 		await this.instantiationService.invokeFunction(openSessionDefault, existingSession, openOptions);
@@ -479,7 +481,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					isUntitled: true,
 					label: undefined,
 					resource: session.resource,
-					repository: session.repoUri,
+					repository: session.project?.uri,
 					worktree: undefined,
 					worktreeBranchName: undefined,
 					worktreeBaseBranchProtected: undefined,
@@ -492,7 +494,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 							isUntitled: true,
 							label: undefined,
 							resource: session.resource,
-							repository: session.repoUri,
+							repository: session.project?.uri,
 							worktree: undefined,
 							worktreeBranchName: undefined,
 							worktreeBaseBranchProtected: undefined,
