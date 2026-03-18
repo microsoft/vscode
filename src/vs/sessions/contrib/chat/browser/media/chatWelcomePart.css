@@ -194,7 +194,7 @@
 
 .sessions-chat-picker-slot.sessions-chat-project-picker .action-label .codicon {
 	font-size: 18px;
-	margin-right: 6px;
+	margin-right: 2px;
 }
 
 .sessions-chat-picker-slot.sessions-chat-project-picker .action-label .sessions-chat-dropdown-label {
@@ -279,7 +279,7 @@
 
 .sessions-chat-picker-slot .action-label .codicon-chevron-down {
 	font-size: 12px;
-	margin-left: 2px;
+	margin-left: 6px;
 }
 
 .sessions-chat-picker-slot .action-label .chat-session-option-label {
