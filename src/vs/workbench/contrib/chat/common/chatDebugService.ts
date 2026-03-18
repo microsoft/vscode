@@ -332,9 +332,25 @@ export interface IChatDebugEventModelTurnContent {
 }
 
 /**
+ * Structured hook execution content for a resolved debug event.
+ * Contains the hook type, command, input, output, and result for rich rendering.
+ */
+export interface IChatDebugEventHookContent {
+	readonly kind: 'hook';
+	readonly hookType: string;
+	readonly command?: string;
+	readonly result?: string;
+	readonly durationInMillis?: number;
+	readonly input?: string;
+	readonly output?: string;
+	readonly exitCode?: number;
+	readonly errorMessage?: string;
+}
+
+/**
  * Union of all resolved event content types.
  */
-export type IChatDebugResolvedEventContent = IChatDebugEventTextContent | IChatDebugEventFileListContent | IChatDebugEventMessageContent | IChatDebugEventToolCallContent | IChatDebugEventModelTurnContent;
+export type IChatDebugResolvedEventContent = IChatDebugEventTextContent | IChatDebugEventFileListContent | IChatDebugEventMessageContent | IChatDebugEventToolCallContent | IChatDebugEventModelTurnContent | IChatDebugEventHookContent;
 
 /**
  * Provider interface for debug events.

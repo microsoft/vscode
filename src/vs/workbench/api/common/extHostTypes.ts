@@ -3756,6 +3756,22 @@ export class ChatDebugEventModelTurnContent {
 	}
 }
 
+export class ChatDebugEventHookContent {
+	readonly _kind = 'hookContent';
+	hookType: string;
+	command?: string;
+	result?: string;
+	durationInMillis?: number;
+	input?: string;
+	output?: string;
+	exitCode?: number;
+	errorMessage?: string;
+
+	constructor(hookType: string) {
+		this.hookType = hookType;
+	}
+}
+
 export class ChatSessionChangedFile {
 	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
 }

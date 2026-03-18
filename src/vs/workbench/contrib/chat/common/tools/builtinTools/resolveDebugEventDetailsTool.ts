@@ -97,6 +97,31 @@ function formatResolvedContent(content: IChatDebugResolvedEventContent): string 
 			}
 			return lines.join('\n');
 		}
+		case 'hook': {
+			const lines: string[] = [`Hook: ${content.hookType}`];
+			if (content.command) {
+				lines.push(`Command: ${content.command}`);
+			}
+			if (content.result) {
+				lines.push(`Result: ${content.result}`);
+			}
+			if (content.exitCode !== undefined) {
+				lines.push(`Exit Code: ${content.exitCode}`);
+			}
+			if (content.durationInMillis !== undefined) {
+				lines.push(`Duration: ${content.durationInMillis}ms`);
+			}
+			if (content.input) {
+				lines.push(`Input:\n${content.input}`);
+			}
+			if (content.output) {
+				lines.push(`Output:\n${content.output}`);
+			}
+			if (content.errorMessage) {
+				lines.push(`Error: ${content.errorMessage}`);
+			}
+			return lines.join('\n');
+		}
 		default: {
 			const _: never = content;
 			return JSON.stringify(_);

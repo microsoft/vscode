@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 3
+// version: 4
 
 declare module 'vscode' {
 	/**
@@ -596,12 +596,64 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Structured hook execution content for a resolved chat debug event,
+	 * containing the hook type, command, input, output, and result for rich rendering.
+	 */
+	export class ChatDebugEventHookContent {
+		/**
+		 * The type of hook that was executed (e.g., "PreToolUse", "PostToolUse", "Stop").
+		 */
+		hookType: string;
+
+		/**
+		 * The shell command that was executed.
+		 */
+		command?: string;
+
+		/**
+		 * The outcome of the hook execution (e.g., "success", "error", "non_blocking_error").
+		 */
+		result?: string;
+
+		/**
+		 * How long the hook took to complete, in milliseconds.
+		 */
+		durationInMillis?: number;
+
+		/**
+		 * The serialized JSON input passed to the hook via stdin.
+		 */
+		input?: string;
+
+		/**
+		 * The serialized output (stdout/stderr) returned by the hook.
+		 */
+		output?: string;
+
+		/**
+		 * An error message, if the hook failed.
+		 */
+		errorMessage?: string;
+
+		/**
+		 * The raw exit code from the hook process, if it failed.
+		 */
+		exitCode?: number;
+
+		/**
+		 * Create a new ChatDebugEventHookContent.
+		 * @param hookType The type of hook that was executed.
+		 */
+		constructor(hookType: string);
+	}
+
+	/**
 	 * Union of all resolved event content types.
 	 * Extensions may also return {@link ChatDebugUserMessageEvent} or
 	 * {@link ChatDebugAgentResponseEvent} from resolve, which will be
 	 * automatically converted to structured message content.
 	 */
-	export type ChatDebugResolvedEventContent = ChatDebugEventTextContent | ChatDebugEventMessageContent | ChatDebugEventToolCallContent | ChatDebugEventModelTurnContent | ChatDebugUserMessageEvent | ChatDebugAgentResponseEvent;
+	export type ChatDebugResolvedEventContent = ChatDebugEventTextContent | ChatDebugEventMessageContent | ChatDebugEventToolCallContent | ChatDebugEventModelTurnContent | ChatDebugEventHookContent | ChatDebugUserMessageEvent | ChatDebugAgentResponseEvent;
 
 	/**
 	 * Union of all chat debug event types. Each type is a class,
