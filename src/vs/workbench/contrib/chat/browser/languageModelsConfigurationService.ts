@@ -318,29 +318,27 @@ export class ChatLanguageModelsDataContribution extends Disposable implements IW
 
 		// Build per-model configuration schemas
 		const modelSchemas: IJSONSchema[] = [];
-		for (const vendor of vendors) {
-			const modelIds = this.languageModelsService.getLanguageModelIds();
-			for (const modelId of modelIds) {
-				const metadata = this.languageModelsService.lookupLanguageModel(modelId);
-				if (metadata?.vendor === vendor.vendor && metadata.configurationSchema) {
-					modelSchemas.push({
-						if: {
-							properties: {
-								vendor: { const: vendor.vendor }
-							}
-						},
-						then: {
-							properties: {
-								settings: {
-									type: 'object',
-									properties: {
-										[metadata.id]: metadata.configurationSchema
-									}
+		const modelIds = this.languageModelsService.getLanguageModelIds();
+		for (const modelId of modelIds) {
+			const metadata = this.languageModelsService.lookupLanguageModel(modelId);
+			if (metadata?.configurationSchema) {
+				modelSchemas.push({
+					if: {
+						properties: {
+							vendor: { const: metadata.vendor }
+						}
+					},
+					then: {
+						properties: {
+							settings: {
+								type: 'object',
+								properties: {
+									[metadata.id]: metadata.configurationSchema
 								}
 							}
 						}
-					});
-				}
+					}
+				});
 			}
 		}
 
