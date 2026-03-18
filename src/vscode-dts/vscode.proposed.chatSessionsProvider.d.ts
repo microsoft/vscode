@@ -100,7 +100,7 @@ declare module 'vscode' {
 			readonly command?: string;
 		};
 
-		readonly sessionOptions: ReadonlyArray<{ optionId: string; value: string | ChatSessionProviderOptionItem }>;
+		readonly sessionOptions: ReadonlyArray<{ optionId: string; value: ChatSessionProviderOptionItem }>;
 	}
 
 	/**
@@ -396,12 +396,9 @@ declare module 'vscode' {
 		/**
 		 * Options configured for this session as key-value pairs.
 		 * Keys correspond to option group IDs (e.g., 'models', 'subagents').
-		 * Values can be either:
-		 * - A string (the option item ID) for backwards compatibility
-		 * - A ChatSessionProviderOptionItem object to include metadata like locked state
 		 * TODO: Strongly type the keys
 		 */
-		readonly options?: Record<string, string | ChatSessionProviderOptionItem>;
+		readonly options?: Record<string, ChatSessionProviderOptionItem>;
 
 		/**
 		 * Callback invoked by the editor for a currently running response. This allows the session to push items for the
@@ -459,7 +456,7 @@ declare module 'vscode' {
 			/**
 			 * The new value assigned to the option. When `undefined`, the option is cleared.
 			 */
-			readonly value: string | ChatSessionProviderOptionItem;
+			readonly value: ChatSessionProviderOptionItem;
 		}>;
 	}
 
@@ -492,7 +489,7 @@ declare module 'vscode' {
 		 * @return The {@link ChatSession chat session} associated with the given URI.
 		 */
 		provideChatSessionContent(resource: Uri, token: CancellationToken, context: {
-			readonly sessionOptions: ReadonlyArray<{ optionId: string; value: string | ChatSessionProviderOptionItem }>;
+			readonly sessionOptions: ReadonlyArray<{ optionId: string; value: ChatSessionProviderOptionItem }>;
 		}): Thenable<ChatSession> | ChatSession;
 
 		/**
@@ -517,7 +514,7 @@ declare module 'vscode' {
 		/**
 		 * The new value assigned to the option. When `undefined`, the option is cleared.
 		 */
-		readonly value: string | undefined;
+		readonly value: ChatSessionProviderOptionItem | undefined;
 	}
 
 	export namespace chat {
@@ -547,7 +544,7 @@ declare module 'vscode' {
 		 * The initial option selections for the session, provided with the first request.
 		 * Contains the options the user selected (or defaults) before the session was created.
 		 */
-		readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | ChatSessionProviderOptionItem }>;
+		readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: ChatSessionProviderOptionItem }>;
 	}
 
 	export interface ChatSessionCapabilities {
@@ -670,6 +667,6 @@ declare module 'vscode' {
 		 *
 		 * Keys correspond to option group IDs (e.g., 'models', 'subagents').
 		 */
-		readonly newSessionOptions?: Record<string, string | ChatSessionProviderOptionItem>;
+		readonly newSessionOptions?: Record<string, ChatSessionProviderOptionItem>;
 	}
 }

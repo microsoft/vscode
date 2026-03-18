@@ -899,8 +899,8 @@ suite('ChatService', () => {
 		}));
 
 		// Set session options for the untitled resource
-		mockSessionsService.setSessionOption(untitledResource, 'model', 'claude-3.5-sonnet');
-		mockSessionsService.setSessionOption(untitledResource, 'repo', 'my-repo');
+		mockSessionsService.setSessionOption(untitledResource, 'model', { name: 'claude 3.5', id: 'claude-3.5-sonnet' });
+		mockSessionsService.setSessionOption(untitledResource, 'repo', { name: 'my repo', id: 'my-repo' });
 
 		// Override createNewChatSessionItem to return a real resource
 		mockSessionsService.createNewChatSessionItem = async () => ({
@@ -939,8 +939,8 @@ suite('ChatService', () => {
 		assert.deepStrictEqual(
 			newModel.contributedChatSession?.initialSessionOptions?.map(o => ({ optionId: o.optionId, value: o.value })),
 			[
-				{ optionId: 'model', value: 'claude-3.5-sonnet' },
-				{ optionId: 'repo', value: 'my-repo' },
+				{ optionId: 'model', value: { name: 'claude 3.5', id: 'claude-3.5-sonnet' } },
+				{ optionId: 'repo', value: { name: 'my repo', id: 'my-repo' } },
 			]
 		);
 	});

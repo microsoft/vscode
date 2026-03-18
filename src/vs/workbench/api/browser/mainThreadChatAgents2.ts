@@ -253,10 +253,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						chatSessionContext = {
 							chatSessionResource,
 							isUntitled,
-							initialSessionOptions: contributedSession.initialSessionOptions?.map(o => ({
-								optionId: o.optionId,
-								value: typeof o.value === 'string' ? o.value : o.value.id,
-							})),
+							initialSessionOptions: contributedSession.initialSessionOptions,
 						};
 					}
 					return await this._proxy.$invokeAgent(handle, request, {
