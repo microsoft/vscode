@@ -599,8 +599,8 @@ export class ModelPickerWidget extends Disposable {
 			this._delegate.useGroupedModelPicker(),
 			!showFilter ? manageModelsAction : undefined,
 			this._entitlementService,
-			this._delegate.showUnavailableFeatured(),
-			this._delegate.showFeatured(),
+			this._delegate.showUnavailableFeatured?.() ?? true,
+			this._delegate.showFeatured?.() ?? true,
 			this._hoverPosition,
 		);
 

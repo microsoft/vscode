@@ -31,8 +31,8 @@ export interface IModelPickerDelegate {
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
 	useGroupedModelPicker(): boolean;
 	showManageModelsAction(): boolean;
-	showUnavailableFeatured(): boolean;
-	showFeatured(): boolean;
+	showUnavailableFeatured?(): boolean;
+	showFeatured?(): boolean;
 }
 
 type ChatModelChangeClassification = {
