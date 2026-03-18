@@ -27,7 +27,7 @@ import { AICustomizationManagementEditor } from '../../../../workbench/contrib/c
 import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 
@@ -213,7 +213,7 @@ export class AICustomizationOverviewView extends ViewPane {
 
 	private async openSection(sectionId: AICustomizationManagementSection): Promise<void> {
 		const input = AICustomizationManagementEditorInput.getOrCreate();
-		const editor = await this.editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
+		const editor = await this.editorService.openEditor(input, { pinned: true });
 
 		// Deep-link to the section
 		if (editor instanceof AICustomizationManagementEditor) {

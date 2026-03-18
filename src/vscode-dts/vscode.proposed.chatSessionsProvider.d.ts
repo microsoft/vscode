@@ -488,10 +488,11 @@ declare module 'vscode' {
 		 *
 		 * @param scheme The uri-scheme to register for. This must be unique.
 		 * @param provider The provider to register.
+		 * @param defaultChatParticipant The default {@link ChatParticipant chat participant} used in sessions provided by this provider.
 		 *
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerChatSessionContentProvider(scheme: string, provider: ChatSessionContentProvider, chatParticipant: ChatParticipant, capabilities?: ChatSessionCapabilities): Disposable;
+		export function registerChatSessionContentProvider(scheme: string, provider: ChatSessionContentProvider, defaultChatParticipant: ChatParticipant, capabilities?: ChatSessionCapabilities): Disposable;
 	}
 
 	export interface ChatContext {

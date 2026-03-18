@@ -504,4 +504,23 @@
 		padding-left: 2px;
 	}
 
+	/* shimmer animation for collapsible tool widgets (e.g. MCP tools) */
+	.chat-confirmation-widget.shimmer-progress .chat-confirmation-widget-title > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
+		display: none;
+	}
+
+	.chat-confirmation-widget.shimmer-progress .chat-confirmation-widget-title-inner > .rendered-markdown > p {
+		background: linear-gradient(90deg,
+				var(--vscode-descriptionForeground) 0%,
+				var(--vscode-descriptionForeground) 30%,
+				var(--vscode-chat-thinkingShimmer) 50%,
+				var(--vscode-descriptionForeground) 70%,
+				var(--vscode-descriptionForeground) 100%);
+		background-size: 400% 100%;
+		background-clip: text;
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		animation: chat-thinking-shimmer 2s linear infinite;
+	}
+
 }

@@ -11,7 +11,7 @@
 			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
 			"light_modern": "keyword: #0000FF",
-			"2026-dark": "keyword: #F47067",
+			"2026-dark": "keyword: #FF7B72",
 			"2026-light": "keyword: #CF222E"
 		}
 	},
@@ -43,7 +43,7 @@
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -187,7 +187,7 @@
 			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
 			"light_modern": "comment: #008000",
-			"2026-dark": "punctuation.definition.comment: #768390",
+			"2026-dark": "punctuation.definition.comment: #8B949E",
 			"2026-light": "punctuation.definition.comment: #6E7781"
 		}
 	},
@@ -203,7 +203,7 @@
 			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
 			"light_modern": "comment: #008000",
-			"2026-dark": "comment: #768390",
+			"2026-dark": "comment: #8B949E",
 			"2026-light": "comment: #6E7781"
 		}
 	}

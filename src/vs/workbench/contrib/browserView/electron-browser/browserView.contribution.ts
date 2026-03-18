@@ -11,6 +11,7 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import { BrowserEditor } from './browserEditor.js';
 import { BrowserEditorInput, BrowserEditorSerializer } from '../common/browserEditorInput.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -83,8 +84,8 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 					}
 
 					const browserInput = instantiationService.createInstance(BrowserEditorInput, {
-						id: parsed.id,
-						url: parsed.url
+						...options?.viewState,
+						id: parsed.id
 					});
 
 					// Start resolving the input right away. This will create the browser view.
@@ -95,7 +96,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 						editor: browserInput,
 						options: {
 							...options,
-							pinned: !!parsed.url // pin if navigated
+							pinned: !!browserInput.url // pin if navigated
 						}
 					};
 				}
@@ -142,8 +143,8 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 
 		logBrowserOpen(this.telemetryService, 'localhostLinkOpener');
 
-		const browserUri = BrowserViewUri.forUrl(href);
-		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true } });
+		const browserUri = BrowserViewUri.forId(generateUuid());
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href } } });
 		return true;
 	}
 }

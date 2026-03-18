@@ -11,7 +11,7 @@
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -43,7 +43,7 @@
 			"dark_modern": "entity.name.function: #DCDCAA",
 			"hc_light": "entity.name.function: #5E2CBC",
 			"light_modern": "entity.name.function: #795E26",
-			"2026-dark": "entity.name.function: #DCBDFB",
+			"2026-dark": "entity.name.function: #D2A8FF",
 			"2026-light": "entity.name.function: #8250DF"
 		}
 	},
@@ -75,7 +75,7 @@
 			"dark_modern": "entity.name.function: #DCDCAA",
 			"hc_light": "entity.name.function: #5E2CBC",
 			"light_modern": "entity.name.function: #795E26",
-			"2026-dark": "entity.name.function: #DCBDFB",
+			"2026-dark": "entity.name.function: #D2A8FF",
 			"2026-light": "entity.name.function: #8250DF"
 		}
 	},
@@ -139,7 +139,7 @@
 			"dark_modern": "entity.name.function: #DCDCAA",
 			"hc_light": "entity.name.function: #5E2CBC",
 			"light_modern": "entity.name.function: #795E26",
-			"2026-dark": "entity.name.function: #DCBDFB",
+			"2026-dark": "entity.name.function: #D2A8FF",
 			"2026-light": "entity.name.function: #8250DF"
 		}
 	},
@@ -171,7 +171,7 @@
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},
@@ -219,7 +219,7 @@
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080",
-			"2026-dark": "variable.other: #ADBAC7",
+			"2026-dark": "variable.other: #C9D1D9",
 			"2026-light": "variable.other: #1F2328"
 		}
 	},

@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IMcpGatewayService, McpGatewayChannelName } from '../../../../platform/mcp/common/mcpGateway.js';
+import { IMcpGatewayServerInfo, IMcpGatewayService, McpGatewayChannelName } from '../../../../platform/mcp/common/mcpGateway.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
-import { IMcpGatewayResult, IWorkbenchMcpGatewayService } from '../common/mcpGatewayService.js';
+import { IMcpGatewayResult, IMcpGatewayResultServer, IWorkbenchMcpGatewayService } from '../common/mcpGatewayService.js';
 
 /**
  * Browser implementation of the MCP Gateway Service.
@@ -47,11 +48,20 @@ export class BrowserMcpGatewayService implements IWorkbenchMcpGatewayService {
 		return connection.withChannel(McpGatewayChannelName, async channel => {
 			const service = ProxyChannel.toService<IMcpGatewayService>(channel);
 			const info = await service.createGateway(undefined);
-			const address = URI.revive(info.address);
-			this._logService.info(`[McpGateway][BrowserWorkbench] Remote gateway created: ${address}`);
+			const servers = reviveServers(info.servers);
+			this._logService.info(`[McpGateway][BrowserWorkbench] Remote gateway created with ${servers.length} server(s)`);
+
+			const onDidChangeServers = Event.map(
+				Event.filter(
+					channel.listen<{ gatewayId: string; servers: readonly IMcpGatewayServerInfo[] }>('onDidChangeGatewayServers'),
+					e => e.gatewayId === info.gatewayId,
+				),
+				e => reviveServers(e.servers),
+			);
 
 			return {
-				address,
+				servers,
+				onDidChangeServers,
 				dispose: () => {
 					this._logService.info(`[McpGateway][BrowserWorkbench] Disposing remote gateway: ${info.gatewayId}`);
 					service.disposeGateway(info.gatewayId);
@@ -59,4 +69,8 @@ export class BrowserMcpGatewayService implements IWorkbenchMcpGatewayService {
 			};
 		});
 	}
+}
+
+function reviveServers(servers: readonly IMcpGatewayServerInfo[]): IMcpGatewayResultServer[] {
+	return servers.map(s => ({ label: s.label, address: URI.revive(s.address) }));
 }

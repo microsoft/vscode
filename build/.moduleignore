@@ -188,3 +188,28 @@ zone.js/dist/**
 @xterm/xterm-addon-*/fixtures/**
 @xterm/xterm-addon-*/out/**
 @xterm/xterm-addon-*/out-test/**
+
+# @github/copilot - strip unneeded binaries and files
+@github/copilot/sdk/index.js
+@github/copilot/prebuilds/**
+@github/copilot/clipboard/**
+@github/copilot/ripgrep/**
+@github/copilot/**/keytar.node
+
+# @github/copilot platform binaries - not needed
+@github/copilot-darwin-arm64/**
+@github/copilot-darwin-x64/**
+@github/copilot-linux-arm64/**
+@github/copilot-linux-x64/**
+@github/copilot-win32-arm64/**
+@github/copilot-win32-x64/**
+
+# @github/copilot-sdk - strip the nested @github/copilot CLI runtime
+# The SDK only needs its own dist/ files; the CLI is resolved via cliPath at runtime
+@github/copilot-sdk/node_modules/@github/copilot/**
+@github/copilot-sdk/node_modules/@github/copilot-darwin-arm64/**
+@github/copilot-sdk/node_modules/@github/copilot-darwin-x64/**
+@github/copilot-sdk/node_modules/@github/copilot-linux-arm64/**
+@github/copilot-sdk/node_modules/@github/copilot-linux-x64/**
+@github/copilot-sdk/node_modules/@github/copilot-win32-arm64/**
+@github/copilot-sdk/node_modules/@github/copilot-win32-x64/**

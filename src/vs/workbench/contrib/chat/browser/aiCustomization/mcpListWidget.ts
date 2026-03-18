@@ -26,11 +26,14 @@ import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Delayer } from '../../../../../base/common/async.js';
-import { IAction, Separator } from '../../../../../base/common/actions.js';
+import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { getContextMenuActions } from '../../../../contrib/mcp/browser/mcpServerActions.js';
 import { LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { workspaceIcon, userIcon, mcpServerIcon, builtinIcon } from './aiCustomizationIcons.js';
 import { formatDisplayName, truncateToFirstSentence } from './aiCustomizationListWidget.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
@@ -55,13 +58,14 @@ interface IMcpServerItemEntry {
 }
 
 /**
- * Represents a built-in MCP server provided by an extension.
+ * Represents a built-in MCP server provided by an extension or plugin.
  */
 interface IMcpBuiltinItemEntry {
 	readonly type: 'builtin-item';
 	readonly id: string;
 	readonly label: string;
 	readonly description: string;
+	readonly collectionId?: string;
 }
 
 type IMcpListEntry = IMcpGroupHeaderEntry | IMcpServerItemEntry | IMcpBuiltinItemEntry;
@@ -301,6 +305,9 @@ export class McpListWidget extends Disposable {
 	private readonly _onDidSelectServer = this._register(new Emitter<IWorkbenchMcpServer>());
 	readonly onDidSelectServer = this._onDidSelectServer.event;
 
+	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
+	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
+
 	private sectionHeader!: HTMLElement;
 	private sectionDescription!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
@@ -316,6 +323,7 @@ export class McpListWidget extends Disposable {
 	private backLink!: HTMLElement;
 
 	private filteredServers: IWorkbenchMcpServer[] = [];
+	private filteredBuiltinCount = 0;
 	private displayEntries: IMcpListEntry[] = [];
 	private galleryServers: IWorkbenchMcpServer[] = [];
 	private searchQuery: string = '';
@@ -334,6 +342,8 @@ export class McpListWidget extends Disposable {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget');
@@ -377,10 +387,16 @@ export class McpListWidget extends Disposable {
 			this.toggleBrowseMode(!this.browseMode);
 		}));
 
-		const addButtonContainer = DOM.append(buttonContainer, $('.list-add-button-container'));
-		this.addButton = this._register(new Button(addButtonContainer, { ...defaultButtonStyles, supportIcons: true }));
-		this.addButton.label = `$(${Codicon.add.id}) ${localize('addServer', "Add Server")}`;
-		this.addButton.element.classList.add('list-add-button');
+		this.addButton = this._register(new Button(buttonContainer, {
+			...defaultButtonStyles,
+			secondary: true,
+			supportIcons: true,
+			title: localize('addServer', "Add Server"),
+			ariaLabel: localize('addServer', "Add Server")
+		}));
+		this.addButton.label = `$(${Codicon.add.id})`;
+		this.addButton.element.classList.add('list-icon-button');
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.addButton.element, localize('addServerTooltip', "Add Server")));
 		this._register(this.addButton.onDidClick(() => {
 			this.commandService.executeCommand(McpCommandIds.AddConfiguration);
 		}));
@@ -521,7 +537,7 @@ export class McpListWidget extends Disposable {
 
 		// Update UI for browse vs installed mode
 		this.backLink.style.display = browse ? '' : 'none';
-		this.addButton.element.parentElement!.style.display = browse ? 'none' : '';
+		this.addButton.element.style.display = browse ? 'none' : '';
 		this.browseButton.element.parentElement!.style.display = browse ? 'none' : '';
 
 		this.searchInput.setPlaceHolder(browse
@@ -692,6 +708,7 @@ export class McpListWidget extends Disposable {
 						id: `builtin-${server.definition.id}`,
 						label: server.definition.label,
 						description: '',
+						collectionId: server.collection.id,
 					});
 				}
 			}
@@ -699,6 +716,26 @@ export class McpListWidget extends Disposable {
 
 		this.displayEntries = entries;
 		this.list.splice(0, this.list.length, this.displayEntries);
+
+		// Compute sidebar badge directly from the data arrays (same source as group headers)
+		this.filteredBuiltinCount = builtinServers.length;
+		this._onDidChangeItemCount.fire(this.itemCount);
+	}
+
+	/**
+	 * Gets the total item count from the underlying data arrays
+	 * (the same source used to build group headers).
+	 */
+	get itemCount(): number {
+		return this.filteredServers.length + this.filteredBuiltinCount;
+	}
+
+	/**
+	 * Re-fires the current item count. Call after subscribing to onDidChangeItemCount
+	 * to ensure the subscriber receives the latest count.
+	 */
+	fireItemCount(): void {
+		this._onDidChangeItemCount.fire(this.itemCount);
 	}
 
 	/**
@@ -763,7 +800,50 @@ export class McpListWidget extends Disposable {
 	 * Handles context menu for MCP server items.
 	 */
 	private onContextMenu(e: IListContextMenuEvent<IMcpListEntry>): void {
-		if (!e.element || e.element.type !== 'server-item') {
+		if (!e.element) {
+			return;
+		}
+
+		// Plugin-provided builtin items get an "Uninstall Plugin" context menu
+		if (e.element.type === 'builtin-item') {
+			const collectionId = e.element.collectionId;
+			if (!collectionId?.startsWith('plugin.')) {
+				return;
+			}
+			const pluginUriStr = collectionId.slice('plugin.'.length);
+			const plugin = this.agentPluginService.plugins.get().find(p => p.uri.toString() === pluginUriStr);
+			if (!plugin) {
+				return;
+			}
+
+			const disposables = new DisposableStore();
+			const uninstallAction = disposables.add(new Action(
+				'mcpServer.uninstallPlugin',
+				localize('uninstallPlugin', "Uninstall Plugin"),
+				undefined,
+				true,
+				async () => {
+					const result = await this.dialogService.confirm({
+						message: localize('confirmUninstallPluginMcp', "This MCP server is provided by the plugin '{0}'", plugin.label),
+						detail: localize('confirmUninstallPluginMcpDetail', "Individual MCP servers from a plugin cannot be removed separately. Would you like to uninstall the entire plugin?"),
+						primaryButton: localize('uninstallPluginBtn', "Uninstall Plugin"),
+						type: 'question',
+					});
+					if (result.confirmed) {
+						plugin.remove();
+					}
+				}
+			));
+
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => [uninstallAction],
+				onHide: () => disposables.dispose(),
+			});
+			return;
+		}
+
+		if (e.element.type !== 'server-item') {
 			return;
 		}
 

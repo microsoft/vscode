@@ -11,7 +11,7 @@
 			"dark_modern": "storage.type: #569CD6",
 			"hc_light": "storage.type: #0F4A85",
 			"light_modern": "storage.type: #0000FF",
-			"2026-dark": "storage.type: #F47067",
+			"2026-dark": "storage.type: #FF7B72",
 			"2026-light": "storage.type: #CF222E"
 		}
 	},
@@ -27,7 +27,7 @@
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080",
-			"2026-dark": "variable: #F69D50",
+			"2026-dark": "variable: #FFA657",
 			"2026-light": "variable: #953800"
 		}
 	},
@@ -59,7 +59,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -75,7 +75,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -91,7 +91,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -123,7 +123,7 @@
 			"dark_modern": "storage.type: #569CD6",
 			"hc_light": "storage.type: #0F4A85",
 			"light_modern": "storage.type: #0000FF",
-			"2026-dark": "storage.type: #F47067",
+			"2026-dark": "storage.type: #FF7B72",
 			"2026-light": "storage.type: #CF222E"
 		}
 	},
@@ -139,7 +139,7 @@
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080",
-			"2026-dark": "variable: #F69D50",
+			"2026-dark": "variable: #FFA657",
 			"2026-light": "variable: #953800"
 		}
 	},
@@ -171,7 +171,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -187,7 +187,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -203,7 +203,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -235,7 +235,7 @@
 			"dark_modern": "storage.type: #569CD6",
 			"hc_light": "storage.type: #0F4A85",
 			"light_modern": "storage.type: #0000FF",
-			"2026-dark": "storage.type: #F47067",
+			"2026-dark": "storage.type: #FF7B72",
 			"2026-light": "storage.type: #CF222E"
 		}
 	},
@@ -251,7 +251,7 @@
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080",
-			"2026-dark": "variable: #F69D50",
+			"2026-dark": "variable: #FFA657",
 			"2026-light": "variable: #953800"
 		}
 	},
@@ -283,7 +283,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -299,7 +299,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -315,7 +315,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -347,7 +347,7 @@
 			"dark_modern": "storage.type: #569CD6",
 			"hc_light": "storage.type: #0F4A85",
 			"light_modern": "storage.type: #0000FF",
-			"2026-dark": "storage.type: #F47067",
+			"2026-dark": "storage.type: #FF7B72",
 			"2026-light": "storage.type: #CF222E"
 		}
 	},
@@ -363,7 +363,7 @@
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080",
-			"2026-dark": "variable: #F69D50",
+			"2026-dark": "variable: #FFA657",
 			"2026-light": "variable: #953800"
 		}
 	},
@@ -395,7 +395,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -411,7 +411,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -427,7 +427,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -459,7 +459,7 @@
 			"dark_modern": "storage.type: #569CD6",
 			"hc_light": "storage.type: #0F4A85",
 			"light_modern": "storage.type: #0000FF",
-			"2026-dark": "storage.type: #F47067",
+			"2026-dark": "storage.type: #FF7B72",
 			"2026-light": "storage.type: #CF222E"
 		}
 	},
@@ -475,7 +475,7 @@
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080",
-			"2026-dark": "variable: #F69D50",
+			"2026-dark": "variable: #FFA657",
 			"2026-light": "variable: #953800"
 		}
 	},
@@ -507,7 +507,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -523,7 +523,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -539,7 +539,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -571,7 +571,7 @@
 			"dark_modern": "storage.type: #569CD6",
 			"hc_light": "storage.type: #0F4A85",
 			"light_modern": "storage.type: #0000FF",
-			"2026-dark": "storage.type: #F47067",
+			"2026-dark": "storage.type: #FF7B72",
 			"2026-light": "storage.type: #CF222E"
 		}
 	},
@@ -587,7 +587,7 @@
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080",
-			"2026-dark": "variable: #F69D50",
+			"2026-dark": "variable: #FFA657",
 			"2026-light": "variable: #953800"
 		}
 	},
@@ -619,7 +619,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -635,7 +635,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -651,7 +651,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -683,7 +683,7 @@
 			"dark_modern": "storage.type: #569CD6",
 			"hc_light": "storage.type: #0F4A85",
 			"light_modern": "storage.type: #0000FF",
-			"2026-dark": "storage.type: #F47067",
+			"2026-dark": "storage.type: #FF7B72",
 			"2026-light": "storage.type: #CF222E"
 		}
 	},
@@ -699,7 +699,7 @@
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080",
-			"2026-dark": "variable: #F69D50",
+			"2026-dark": "variable: #FFA657",
 			"2026-light": "variable: #953800"
 		}
 	},
@@ -731,7 +731,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -747,7 +747,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -763,7 +763,7 @@
 			"dark_modern": "string.regexp: #D16969",
 			"hc_light": "string.regexp: #811F3F",
 			"light_modern": "string.regexp: #811F3F",
-			"2026-dark": "string.regexp: #96D0FF",
+			"2026-dark": "string.regexp: #A5D6FF",
 			"2026-light": "string.regexp: #0A3069"
 		}
 	},
@@ -779,7 +779,7 @@
 			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
 			"light_modern": "keyword: #0000FF",
-			"2026-dark": "keyword: #F47067",
+			"2026-dark": "keyword: #FF7B72",
 			"2026-light": "keyword: #CF222E"
 		}
 	},

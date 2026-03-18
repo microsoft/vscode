@@ -1,13 +1,14 @@
 name: Sessions E2E Tests
 
-on:
-  pull_request:
-    branches:
-      - main
-      - 'release/*'
-    paths:
-      - 'src/vs/sessions/**'
-      - 'scripts/code-sessions-web.*'
+# Disabled: Flaky
+# on:
+#   pull_request:
+#     branches:
+#       - main
+#       - 'release/*'
+#     paths:
+#       - 'src/vs/sessions/**'
+#       - 'scripts/code-sessions-web.*'
 
 permissions:
   contents: read

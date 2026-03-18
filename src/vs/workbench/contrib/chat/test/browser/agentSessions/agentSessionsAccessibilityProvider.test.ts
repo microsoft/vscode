@@ -39,6 +39,8 @@ suite('AgentSessionsAccessibilityProvider', () => {
 			changes: undefined,
 			isArchived: () => false,
 			setArchived: () => { },
+			isPinned: () => false,
+			setPinned: () => { },
 			isRead: () => true,
 			isMarkedUnread: () => false,
 			setRead: () => { },

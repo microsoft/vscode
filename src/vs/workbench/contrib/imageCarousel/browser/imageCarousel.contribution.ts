@@ -10,7 +10,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../common/editor.js';
-import { IEditorService, MODAL_GROUP } from '../../../services/editor/common/editorService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ImageCarouselEditor } from './imageCarouselEditor.js';
@@ -41,7 +41,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'imageCarousel.explorerContextMenu.enabled': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: localize('imageCarousel.explorerContextMenu.enabled', "Controls whether the **Open Images in Carousel** option appears in the Explorer context menu. This is an experimental feature."),
+			markdownDescription: localize('imageCarousel.explorerContextMenu.enabled', "Controls whether the **Open in Image Carousel** option appears in the Explorer context menu. This is an experimental feature."),
 			tags: ['experimental'],
 		},
 	}
@@ -146,7 +146,7 @@ class OpenImageInCarouselAction extends Action2 {
 		}
 
 		const input = new ImageCarouselEditorInput(collection, startIndex);
-		await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
+		await editorService.openEditor(input, { pinned: true });
 	}
 }
 
@@ -201,7 +201,7 @@ class OpenImagesInCarouselFromExplorerAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openImagesInCarousel',
-			title: localize2('openImagesInCarousel', "Open Images in Carousel"),
+			title: localize2('openImagesInCarousel', "Open in Image Carousel"),
 			f1: false,
 			menu: [{
 				id: MenuId.ExplorerContext,
@@ -316,7 +316,7 @@ class OpenImagesInCarouselFromExplorerAction extends Action2 {
 		};
 
 		const input = new ImageCarouselEditorInput(collection, startIndex);
-		await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
+		await editorService.openEditor(input, { pinned: true });
 	}
 }
 

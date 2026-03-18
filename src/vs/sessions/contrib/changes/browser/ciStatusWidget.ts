@@ -9,6 +9,7 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -17,7 +18,6 @@ import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -141,6 +141,10 @@ class CICheckListRenderer implements IListRenderer<ICICheckListItem, ICICheckTem
  */
 export class CIStatusWidget extends Disposable {
 
+	static readonly HEADER_HEIGHT = 30;
+	static readonly MIN_BODY_HEIGHT = 72; // at least 3 checks (3 * 24)
+	static readonly MAX_BODY_HEIGHT = 240; // at most 10 checks (10 * 24)
+
 	private readonly _domNode: HTMLElement;
 	private readonly _headerNode: HTMLElement;
 	private readonly _titleNode: HTMLElement;
@@ -153,12 +157,32 @@ export class CIStatusWidget extends Disposable {
 	private readonly _labels: ResourceLabels;
 	private readonly _headerActionDisposables = this._register(new DisposableStore());
 
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	readonly onDidChangeHeight = this._onDidChangeHeight.event;
+
 	private _collapsed = true;
+	private _checkCount = 0;
 	private _model: GitHubPullRequestCIModel | undefined;
 	private _sessionResource: URI | undefined;
 
 	get element(): HTMLElement {
 		return this._domNode;
+	}
+
+	/** The full content height the widget would like (header + all checks). */
+	get desiredHeight(): number {
+		if (this._checkCount === 0) {
+			return 0;
+		}
+		if (this._collapsed) {
+			return CIStatusWidget.HEADER_HEIGHT;
+		}
+		return CIStatusWidget.HEADER_HEIGHT + this._checkCount * CICheckListDelegate.ITEM_HEIGHT;
+	}
+
+	/** Whether the widget is currently visible (has checks to show). */
+	get visible(): boolean {
+		return this._checkCount > 0;
 	}
 
 	constructor(
@@ -225,9 +249,11 @@ export class CIStatusWidget extends Disposable {
 			this._sessionResource = sessionResource.read(reader);
 			this._model = model;
 			if (!model) {
+				this._checkCount = 0;
 				this._renderBody([]);
 				this._renderHeaderActions([]);
 				this._domNode.style.display = 'none';
+				this._onDidChangeHeight.fire();
 				return;
 			}
 
@@ -235,16 +261,26 @@ export class CIStatusWidget extends Disposable {
 			const overallStatus = model.overallStatus.read(reader);
 
 			if (checks.length === 0) {
+				this._checkCount = 0;
 				this._renderBody([]);
 				this._renderHeaderActions([]);
 				this._domNode.style.display = 'none';
+				this._onDidChangeHeight.fire();
 				return;
 			}
+
+			const sorted = sortChecks(checks);
+			const oldCount = this._checkCount;
+			this._checkCount = sorted.length;
 
 			this._domNode.style.display = '';
 			this._renderHeader(checks, overallStatus);
 			this._renderHeaderActions(getFailedChecks(checks));
-			this._renderBody(sortChecks(checks));
+			this._renderBody(sorted);
+
+			if (this._checkCount !== oldCount) {
+				this._onDidChangeHeight.fire();
+			}
 		});
 	}
 
@@ -252,6 +288,7 @@ export class CIStatusWidget extends Disposable {
 		this._collapsed = !this._collapsed;
 		this._bodyNode.style.display = this._collapsed ? 'none' : '';
 		this._updateTwistie();
+		this._onDidChangeHeight.fire();
 	}
 
 	private _updateTwistie(): void {
@@ -286,7 +323,7 @@ export class CIStatusWidget extends Disposable {
 		const fixChecksAction = this._headerActionDisposables.add(new Action(
 			'ci.fixChecks',
 			localize('ci.fixChecks', "Fix Checks"),
-			ThemeIcon.asClassName(Codicon.sparkle),
+			ThemeIcon.asClassName(Codicon.lightbulbAutofix),
 			true,
 			async () => {
 				await this._sendFixChecksPrompt(failedChecks);
@@ -297,10 +334,25 @@ export class CIStatusWidget extends Disposable {
 		this._headerActionBarContainer.style.display = 'flex';
 	}
 
+	/**
+	 * Layout the widget body list to the given height.
+	 * Called by the parent view after computing available space.
+	 */
+	layout(maxBodyHeight: number): void {
+		if (this._collapsed || this._checkCount === 0) {
+			return;
+		}
+		const contentHeight = this._checkCount * CICheckListDelegate.ITEM_HEIGHT;
+		const bodyHeight = Math.min(contentHeight, maxBodyHeight);
+		this._list.getHTMLElement().style.height = `${bodyHeight}px`;
+		this._list.layout(bodyHeight);
+	}
+
 	private _renderBody(checks: readonly ICICheckListItem[]): void {
-		const height = checks.length * CICheckListDelegate.ITEM_HEIGHT;
-		this._list.getHTMLElement().style.height = `${height}px`;
-		this._list.layout(height);
+		const contentHeight = checks.length * CICheckListDelegate.ITEM_HEIGHT;
+		const bodyHeight = Math.min(contentHeight, CIStatusWidget.MAX_BODY_HEIGHT);
+		this._list.getHTMLElement().style.height = `${bodyHeight}px`;
+		this._list.layout(bodyHeight);
 		this._list.splice(0, this._list.length, checks);
 	}
 
@@ -447,7 +499,7 @@ function buildFixChecksPrompt(failedChecks: ReadonlyArray<{ check: IGitHubCIChec
 function getHeaderIconAndClass(checks: readonly IGitHubCICheck[], overallStatus: GitHubCIOverallStatus): { icon: ThemeIcon; className: string } {
 	const counts = getCheckCounts(checks);
 	if (counts.running > 0) {
-		return { icon: spinningLoading, className: 'ci-status-running' };
+		return { icon: Codicon.loading, className: 'ci-status-running' };
 	}
 
 	switch (overallStatus) {
@@ -456,7 +508,7 @@ function getHeaderIconAndClass(checks: readonly IGitHubCICheck[], overallStatus:
 		case GitHubCIOverallStatus.Failure:
 			return { icon: Codicon.error, className: 'ci-status-failure' };
 		case GitHubCIOverallStatus.Pending:
-			return { icon: Codicon.circle, className: 'ci-status-pending' };
+			return { icon: Codicon.circleFilled, className: 'ci-status-pending' };
 		default:
 			return { icon: Codicon.circleFilled, className: 'ci-status-neutral' };
 	}
@@ -465,9 +517,9 @@ function getHeaderIconAndClass(checks: readonly IGitHubCICheck[], overallStatus:
 function getCheckIcon(check: IGitHubCICheck): ThemeIcon {
 	switch (check.status) {
 		case GitHubCheckStatus.InProgress:
-			return spinningLoading;
+			return Codicon.loading;
 		case GitHubCheckStatus.Queued:
-			return Codicon.circle;
+			return Codicon.circleFilled;
 		case GitHubCheckStatus.Completed:
 			switch (check.conclusion) {
 				case GitHubCheckConclusion.Success:
@@ -483,6 +535,8 @@ function getCheckIcon(check: IGitHubCICheck): ThemeIcon {
 				default:
 					return Codicon.circleFilled;
 			}
+		default:
+			return Codicon.circleFilled;
 	}
 }
 

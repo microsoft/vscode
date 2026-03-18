@@ -33,6 +33,8 @@ import { toAction } from '../../../../base/common/actions.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { getInternalOrg } from '../../../../platform/assignment/common/assignment.js';
 import { IVersion, preprocessError, tryParseVersion } from '../common/updateUtils.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
@@ -227,13 +229,14 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		@IProductService private readonly productService: IProductService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super();
 		this.state = updateService.state;
 		this.updateStateContextKey = CONTEXT_UPDATE_STATE.bindTo(this.contextKeyService);
 		this.majorMinorUpdateAvailableContextKey = MAJOR_MINOR_UPDATE_AVAILABLE.bindTo(this.contextKeyService);
-		this.titleBarEnabled = this.configurationService.getValue<string>('update.titleBar') !== 'none';
+		this.titleBarEnabled = this.isTitleBarEnabled();
 
 		this._register(updateService.onStateChange(this.onUpdateStateChange, this));
 		this.onUpdateStateChange(this.updateService.state);
@@ -257,12 +260,24 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('update.titleBar')) {
-				this.titleBarEnabled = this.configurationService.getValue<string>('update.titleBar') !== 'none';
+				this.titleBarEnabled = this.isTitleBarEnabled();
+				this.onUpdateStateChange(this.updateService.state);
+			}
+		}));
+
+		this._register(this.layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.TITLEBAR_PART) {
+				this.titleBarEnabled = this.isTitleBarEnabled();
 				this.onUpdateStateChange(this.updateService.state);
 			}
 		}));
 
 		this.registerGlobalActivityActions();
+	}
+
+	private isTitleBarEnabled(): boolean {
+		return this.configurationService.getValue<string>('update.titleBar') !== 'none'
+			&& this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow);
 	}
 
 	private async onUpdateStateChange(state: UpdateState): Promise<void> {
@@ -465,36 +480,43 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 					})
 				]
 			});
-		} else if ((isWindows && this.productService.target !== 'user') || this.shouldShowNotification()) {
-
-			const actions = [{
-				label: nls.localize('updateNow', "Update Now"),
-				run: () => this.updateService.quitAndInstall()
-			}, {
-				label: nls.localize('later', "Later"),
-				run: () => { }
-			}];
-
-			const productVersion = state.update.productVersion;
-			if (productVersion) {
-				actions.push({
-					label: nls.localize('releaseNotes', "Release Notes"),
-					run: () => {
-						this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
-					}
-				});
+		} else {
+			// Dismiss stale overwrite notification if the overwrite resolved without finding a newer update.
+			if (this.overwriteNotificationHandle) {
+				this.overwriteNotificationHandle.close();
+				this.overwriteNotificationHandle = undefined;
 			}
 
-			// windows user fast updates and mac
-			this.notificationService.prompt(
-				severity.Info,
-				nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", this.productService.nameLong),
-				actions,
-				{
-					sticky: true,
-					priority: NotificationPriority.OPTIONAL
+			if ((isWindows && this.productService.target !== 'user') || this.shouldShowNotification()) {
+				const actions = [{
+					label: nls.localize('updateNow', "Update Now"),
+					run: () => this.updateService.quitAndInstall()
+				}, {
+					label: nls.localize('later', "Later"),
+					run: () => { }
+				}];
+
+				const productVersion = state.update.productVersion;
+				if (productVersion) {
+					actions.push({
+						label: nls.localize('releaseNotes', "Release Notes"),
+						run: () => {
+							this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
+						}
+					});
 				}
-			);
+
+				// windows user fast updates and mac
+				this.notificationService.prompt(
+					severity.Info,
+					nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", this.productService.nameLong),
+					actions,
+					{
+						sticky: true,
+						priority: NotificationPriority.OPTIONAL
+					}
+				);
+			}
 		}
 	}
 

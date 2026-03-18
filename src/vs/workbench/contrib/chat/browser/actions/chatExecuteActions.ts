@@ -608,6 +608,7 @@ export class OpenDelegationPickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
+						ChatContextKeys.chatSessionSupportsDelegation,
 						ChatContextKeys.chatSessionIsEmpty.negate()
 					),
 					group: 'navigation',

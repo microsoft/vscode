@@ -1017,10 +1017,12 @@ export function formatRule(c: ThemeIcon) {
 }
 
 export function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): string {
+	const borderColor = style.borderColor ?? 'var(--vscode-menu-border)';
 	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
 	border-radius: var(--vscode-cornerRadius-large);
+	border: 1px solid ${borderColor};
 	min-width: 160px;
 }
 

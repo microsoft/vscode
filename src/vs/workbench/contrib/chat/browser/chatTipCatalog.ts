@@ -374,6 +374,25 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
 	},
 	{
+		id: 'tip.autoAcceptDelay',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize(
+					'tip.autoAcceptDelay',
+					"Configure [{0}](command:workbench.action.openSettings?%5B%22chat.editing.autoAcceptDelay%22%5D \"Open Settings\") to automatically accept changes from the agent after a short countdown.",
+					'auto-accept delay'
+				)
+			);
+		},
+		when: ContextKeyExpr.or(
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
+		),
+		excludeWhenSettingsChanged: ['chat.editing.autoAcceptDelay'],
+		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
+	},
+	{
 		id: 'tip.troubleshoot',
 		tier: ChatTipTier.Qol,
 		buildMessage(ctx) {

@@ -138,6 +138,22 @@ export function shellQuotePluginRootInCommand(command: string, fsPath: string, t
 }
 
 /**
+ * Extracts the MCP server map from a raw JSON value. Accepts both the
+ * wrapped format `{ mcpServers: { … } }` (Claude `.mcp.json`) and the
+ * flat format where server entries are at the top level.
+ * Returns `undefined` when the input is not a usable object.
+ */
+export function resolveMcpServersMap(raw: unknown): Record<string, unknown> | undefined {
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+		return undefined;
+	}
+	const obj = raw as Record<string, unknown>;
+	return Object.hasOwn(obj, 'mcpServers')
+		? (obj.mcpServers as Record<string, unknown>)
+		: obj;
+}
+
+/**
  * Replaces `${token}` references in MCP server definition string fields
  * (command, args, cwd, env values, url, envFile, headers) with the plugin
  * root filesystem path. No shell quoting is needed because args are already
@@ -671,12 +687,13 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 	}
 
 	private _parseMcpServerDefinitionMap(raw: unknown, pluginFsPath: string, adapter: IAgentPluginFormatAdapter): IAgentPluginMcpServerDefinition[] {
-		if (!raw || typeof raw !== 'object' || !raw.hasOwnProperty('mcpServers')) {
+		const mcpServers = resolveMcpServersMap(raw);
+		if (!mcpServers) {
 			return [];
 		}
 
 		const definitions: IAgentPluginMcpServerDefinition[] = [];
-		for (const [name, configValue] of Object.entries((raw as { mcpServers: Record<string, unknown> }).mcpServers)) {
+		for (const [name, configValue] of Object.entries(mcpServers)) {
 			const configuration = this._normalizeMcpServerConfiguration(configValue);
 			if (!configuration) {
 				continue;
@@ -1101,6 +1118,7 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 				uri: stat.resource,
 				fromMarketplace: entry.plugin,
 				remove: () => {
+					this._enablementModel.remove(stat.resource.toString());
 					this._pluginMarketplaceService.removeInstalledPlugin(entry.pluginUri);
 					this._pluginRepositoryService.cleanupPluginSource(entry.plugin).catch(error => {
 						this._logService.error('[MarketplaceAgentPluginDiscovery] Failed to clean up plugin source', error);

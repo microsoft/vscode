@@ -109,6 +109,7 @@ import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { isMcpToolInvocation } from './chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 
 const $ = dom.$;
 
@@ -1043,7 +1044,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 
-
 		const hasRenderedThinkingPart = (templateData.renderedParts ?? []).some(part => part instanceof ChatThinkingContentPart);
 		const hasEditPillMarkdown = partsToRender.some(part => part.kind === 'markdownContent' && this.hasEditCodeblockUri(part));
 		if (hasRenderedThinkingPart && hasEditPillMarkdown) {
@@ -1550,7 +1550,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		// Don't pin MCP tools + for CLI specficially, we parse tool name since CLI tools are "external" tools.
-		const isMcpTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && (part.source?.type === 'mcp' || part.toolId.toLowerCase().includes('mcp'));
+		const isMcpTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && isMcpToolInvocation(part);
 		if (isMcpTool) {
 			return false;
 		}
@@ -2054,6 +2054,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				templateData.value.appendChild(domNode);
 			}
 			this.finalizeCurrentThinkingPart(context, templateData);
+
+			// if the thinking part is now completely empty (no tools, no thinking text)
+			if (thinkingPart.isEffectivelyEmpty()) {
+				thinkingPart.domNode?.remove();
+				thinkingPart.dispose();
+			}
 		};
 
 		const currentState = toolInvocation.state.get();

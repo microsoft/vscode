@@ -13,6 +13,7 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/edit
 import { Codicon } from '../../../../base/common/codicons.js';
 import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_CAN_ZOOM_IN, CONTEXT_BROWSER_CAN_ZOOM_OUT, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewCommandId, BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
@@ -60,12 +61,12 @@ class OpenIntegratedBrowserAction extends Action2 {
 
 		// Parse arguments
 		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
-		const resource = BrowserViewUri.forUrl(options.url);
+		const resource = BrowserViewUri.forId(generateUuid());
 		const group = options.openToSide ? SIDE_GROUP : ACTIVE_GROUP;
 
 		logBrowserOpen(telemetryService, options.url ? 'commandWithUrl' : 'commandWithoutUrl');
 
-		const editorPane = await editorService.openEditor({ resource }, group);
+		const editorPane = await editorService.openEditor({ resource, options: { viewState: { url: options.url } } }, group);
 
 		// Lock the group when opening to the side
 		if (options.openToSide && editorPane?.group) {
@@ -98,7 +99,7 @@ class NewTabAction extends Action2 {
 	async run(accessor: ServicesAccessor, _browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
-		const resource = BrowserViewUri.forUrl(undefined);
+		const resource = BrowserViewUri.forId(generateUuid());
 
 		logBrowserOpen(telemetryService, 'newTabCommand');
 

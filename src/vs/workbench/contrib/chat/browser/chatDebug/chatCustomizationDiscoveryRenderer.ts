@@ -136,7 +136,7 @@ function setupFileListNavigation(listEl: HTMLElement, rows: { element: HTMLEleme
 /**
  * Render a file list resolved content as a rich HTML element.
  */
-export function renderCustomizationDiscoveryContent(content: IChatDebugEventFileListContent, openerService: IOpenerService, modelService: IModelService, languageService: ILanguageService, hoverService: IHoverService, labelService: ILabelService): { element: HTMLElement; disposables: DisposableStore } {
+export function renderCustomizationDiscoveryContent(content: IChatDebugEventFileListContent, openerService: IOpenerService, modelService: IModelService, languageService: ILanguageService, hoverService: IHoverService, labelService: ILabelService, scrollable?: { scanDomNode(): void }): { element: HTMLElement; disposables: DisposableStore } {
 	const disposables = new DisposableStore();
 	const container = $('div.chat-debug-file-list');
 	container.tabIndex = 0;
@@ -308,7 +308,7 @@ export function renderCustomizationDiscoveryContent(content: IChatDebugEventFile
 			DOM.append(row, $('span.chat-debug-source-folder-label', undefined, folder.uri.path));
 		}
 
-		setupCollapsibleToggle(chevron, header, contentEl, disposables, /* initiallyCollapsed */ true);
+		setupCollapsibleToggle(chevron, header, contentEl, disposables, /* initiallyCollapsed */ true, scrollable);
 	}
 
 	return { element: container, disposables };

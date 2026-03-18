@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { basename, extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -34,6 +35,26 @@ interface IFolderItem {
  * folder and recently picked folders in storage. Enables a filter input when
  * there are more than 10 items.
  */
+export interface IFolderPickerOptions {
+	/**
+	 * Filesystem schemes to pass to `showOpenDialog`. When set, the dialog
+	 * browses the given scheme(s) instead of the default local filesystem.
+	 * This is used to browse a remote agent host's filesystem.
+	 */
+	readonly availableFileSystems?: readonly string[];
+
+	/**
+	 * Default URI to pass to `showOpenDialog` as the starting location.
+	 */
+	readonly defaultUri?: URI;
+
+	/**
+	 * Optional prefix for storage keys, so that different picker instances
+	 * (e.g. local vs remote) don't share the same last-picked and recents.
+	 */
+	readonly storageKeyPrefix?: string;
+}
+
 export class FolderPicker extends Disposable {
 
 	private readonly _onDidSelectFolder = this._register(new Emitter<URI>());
@@ -44,12 +65,15 @@ export class FolderPicker extends Disposable {
 
 	private _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _storageKeyLastFolder: string;
+	private readonly _storageKeyRecentFolders: string;
 
 	get selectedFolderUri(): URI | undefined {
 		return this._selectedFolderUri;
 	}
 
 	constructor(
+		private readonly _options: IFolderPickerOptions | undefined,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
@@ -57,17 +81,31 @@ export class FolderPicker extends Disposable {
 	) {
 		super();
 
-		// Restore last picked folder
-		const lastFolder = this.storageService.get(STORAGE_KEY_LAST_FOLDER, StorageScope.PROFILE);
+		const prefix = this._options?.storageKeyPrefix ?? '';
+		this._storageKeyLastFolder = prefix + STORAGE_KEY_LAST_FOLDER;
+		this._storageKeyRecentFolders = prefix + STORAGE_KEY_RECENT_FOLDERS;
+
+		// The set of schemes this picker is allowed to browse
+		const allowedSchemes = new Set(this._options?.availableFileSystems ?? [Schemas.file]);
+
+		// Restore last picked folder (skip URIs with schemes this picker can't handle)
+		const lastFolder = this.storageService.get(this._storageKeyLastFolder, StorageScope.PROFILE);
 		if (lastFolder) {
-			try { this._selectedFolderUri = URI.parse(lastFolder); } catch { /* ignore */ }
+			try {
+				const parsed = URI.parse(lastFolder);
+				if (allowedSchemes.has(parsed.scheme)) {
+					this._selectedFolderUri = parsed;
+				}
+			} catch { /* ignore */ }
 		}
 
-		// Restore recently picked folders
+		// Restore recently picked folders (filter out URIs with foreign schemes)
 		try {
-			const stored = this.storageService.get(STORAGE_KEY_RECENT_FOLDERS, StorageScope.PROFILE);
+			const stored = this.storageService.get(this._storageKeyRecentFolders, StorageScope.PROFILE);
 			if (stored) {
-				this._recentlyPickedFolders = JSON.parse(stored).map((s: string) => URI.parse(s));
+				this._recentlyPickedFolders = JSON.parse(stored)
+					.map((s: string) => URI.parse(s))
+					.filter((u: URI) => allowedSchemes.has(u.scheme));
 			}
 		} catch { /* ignore */ }
 	}
@@ -167,7 +205,7 @@ export class FolderPicker extends Disposable {
 	private _selectFolder(folderUri: URI): void {
 		this._selectedFolderUri = folderUri;
 		this._addToRecentlyPickedFolders(folderUri);
-		this.storageService.store(STORAGE_KEY_LAST_FOLDER, folderUri.toString(), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.store(this._storageKeyLastFolder, folderUri.toString(), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._updateTriggerLabel(this._triggerElement);
 		this._onDidSelectFolder.fire(folderUri);
 	}
@@ -179,6 +217,8 @@ export class FolderPicker extends Disposable {
 				canSelectFolders: true,
 				canSelectMany: false,
 				title: localize('selectFolder', "Select Folder"),
+				availableFileSystems: this._options?.availableFileSystems?.slice(),
+				defaultUri: this._options?.defaultUri,
 			});
 			if (selected?.[0]) {
 				this._selectFolder(selected[0]);
@@ -201,7 +241,7 @@ export class FolderPicker extends Disposable {
 
 	private _addToRecentlyPickedFolders(folderUri: URI): void {
 		this._recentlyPickedFolders = [folderUri, ...this._recentlyPickedFolders.filter(f => !isEqual(f, folderUri))].slice(0, MAX_RECENT_FOLDERS);
-		this.storageService.store(STORAGE_KEY_RECENT_FOLDERS, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.store(this._storageKeyRecentFolders, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private _buildItems(currentFolderUri: URI | undefined): IActionListItem<IFolderItem>[] {
@@ -248,12 +288,14 @@ export class FolderPicker extends Disposable {
 			group: { title: '', icon: Codicon.search },
 			item: { uri: URI.from({ scheme: 'command', path: 'browse' }), label: localize('browseFolder', "Browse...") },
 		});
-		items.push({
-			kind: ActionListItemKind.Action,
-			label: localize('cloneRepository', "Clone..."),
-			group: { title: '', icon: Codicon.repoClone },
-			item: { uri: URI.from({ scheme: 'command', path: 'clone' }), label: localize('cloneRepository', "Clone...") },
-		});
+		if (!this._options?.availableFileSystems?.length) {
+			items.push({
+				kind: ActionListItemKind.Action,
+				label: localize('cloneRepository', "Clone..."),
+				group: { title: '', icon: Codicon.repoClone },
+				item: { uri: URI.from({ scheme: 'command', path: 'clone' }), label: localize('cloneRepository', "Clone...") },
+			});
+		}
 
 		return items;
 	}
@@ -263,18 +305,18 @@ export class FolderPicker extends Disposable {
 	 */
 	removeFromRecents(folderUri: URI): void {
 		this._recentlyPickedFolders = this._recentlyPickedFolders.filter(f => !isEqual(f, folderUri));
-		this.storageService.store(STORAGE_KEY_RECENT_FOLDERS, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.store(this._storageKeyRecentFolders, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
 		// If this was the last picked folder, clear it
 		if (this._selectedFolderUri && isEqual(this._selectedFolderUri, folderUri)) {
 			this._selectedFolderUri = undefined;
-			this.storageService.remove(STORAGE_KEY_LAST_FOLDER, StorageScope.PROFILE);
+			this.storageService.remove(this._storageKeyLastFolder, StorageScope.PROFILE);
 			this._updateTriggerLabel(this._triggerElement);
 		}
 	}
 
 	private _removeFolder(folderUri: URI): void {
 		this._recentlyPickedFolders = this._recentlyPickedFolders.filter(f => !isEqual(f, folderUri));
-		this.storageService.store(STORAGE_KEY_RECENT_FOLDERS, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.store(this._storageKeyRecentFolders, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private _updateTriggerLabel(trigger: HTMLElement | undefined): void {

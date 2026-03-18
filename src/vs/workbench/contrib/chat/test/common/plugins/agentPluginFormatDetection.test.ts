@@ -85,6 +85,7 @@ suite('AgentPlugin format detection', () => {
 	const mockEnablementModel: IEnablementModel = {
 		readEnabled: () => ContributionEnablementState.EnabledProfile,
 		setEnabled: () => { },
+		remove: () => { },
 	};
 
 	function createDiscovery(): TestPluginDiscovery {

@@ -18,6 +18,7 @@ import { getTelemetryLevel, isInternalTelemetry, isLoggingOnly, ITelemetryAppend
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { resolveWorkbenchCommonProperties } from './workbenchCommonProperties.js';
 import { experimentsEnabled } from '../common/workbenchTelemetryUtils.js';
 import { IRequestService, NO_FETCH_TELEMETRY } from '../../../../platform/request/common/request.js';
@@ -58,7 +59,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		}));
 
 		this._register(requestService.onDidCompleteRequest(e => {
-			if (e.callSite === NO_FETCH_TELEMETRY) {
+			if (e.callSite === NO_FETCH_TELEMETRY || productService.quality === 'stable') {
 				return;
 			}
 			type FetchCallClassification = {
@@ -115,6 +116,11 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				commonProperties: resolveWorkbenchCommonProperties(storageService, productService, isInternal, environmentService.remoteAuthority, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
+				// Use the web origin as a cleanup pattern (analogous to appRoot on desktop).
+				// This strips the origin from web URLs in stack traces so the useful
+				// relative path (e.g. /static/build/bundle.js:1:200953) is preserved
+				// for debugging, while the origin itself is removed.
+				piiPaths: [mainWindow.location.origin],
 				sendErrorTelemetry: this.sendErrorTelemetry,
 				waitForExperimentProperties: experimentsEnabled(configurationService, productService, environmentService),
 				meteredConnectionService,

@@ -1456,7 +1456,7 @@ export default tseslint.config(
 					// - electron-main
 					'when': 'hasNode',
 					'allow': [
-						'@anthropic-ai/sandbox-runtime',
+						'@github/copilot-sdk',
 						'@parcel/watcher',
 						'@vscode/sqlite3',
 						'@vscode/vscode-languagedetection',
@@ -1499,6 +1499,7 @@ export default tseslint.config(
 						'vscode-regexpp',
 						'vscode-textmate',
 						'worker_threads',
+						'ws',
 						'@xterm/addon-clipboard',
 						'@xterm/addon-image',
 						'@xterm/addon-ligatures',
@@ -1979,7 +1980,7 @@ export default tseslint.config(
 					'target': 'src/vs/sessions/sessions.web.main.ts',
 					'layer': 'browser',
 					'restrictions': [
-						'vs/base/*/~',
+						'vs/base/~',
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
 						'vs/editor/~',

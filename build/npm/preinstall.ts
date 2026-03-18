@@ -29,10 +29,10 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	const requiredMinor = parseInt(requiredVersionMatch[2]);
 	const requiredPatch = parseInt(requiredVersionMatch[3]);
 
-	if (majorNodeVersion < requiredMajor ||
-		(majorNodeVersion === requiredMajor && minorNodeVersion < requiredMinor) ||
-		(majorNodeVersion === requiredMajor && minorNodeVersion === requiredMinor && patchNodeVersion < requiredPatch)) {
-		console.error(`\x1b[1;31m*** Please use Node.js v${requiredVersion} or later for development. Currently using v${process.versions.node}.\x1b[0;0m`);
+	if (majorNodeVersion !== requiredMajor ||
+		minorNodeVersion < requiredMinor ||
+		(minorNodeVersion === requiredMinor && patchNodeVersion < requiredPatch)) {
+		console.error(`\x1b[1;31m*** Please use Node.js v${requiredVersion} or newer with the same major version (${requiredMajor}) as specified in .nvmrc. Currently using v${process.versions.node}.\x1b[0;0m`);
 		throw new Error();
 	}
 }

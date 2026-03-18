@@ -5,7 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { URI } from '../../../base/common/uri.js';
+import { UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 
 const commandPrefix = 'workbench.action.browser';
@@ -58,6 +58,7 @@ export interface IBrowserViewState {
 	lastScreenshot: VSBuffer | undefined;
 	lastFavicon: string | undefined;
 	lastError: IBrowserViewLoadError | undefined;
+	certificateError: IBrowserViewCertificateError | undefined;
 	storageScope: BrowserViewStorageScope;
 	browserZoomIndex: number;
 }
@@ -67,6 +68,7 @@ export interface IBrowserViewNavigationEvent {
 	title: string;
 	canGoBack: boolean;
 	canGoForward: boolean;
+	certificateError: IBrowserViewCertificateError | undefined;
 }
 
 export interface IBrowserViewLoadingEvent {
@@ -78,6 +80,19 @@ export interface IBrowserViewLoadError {
 	url: string;
 	errorCode: number;
 	errorDescription: string;
+	certificateError?: IBrowserViewCertificateError;
+}
+
+export interface IBrowserViewCertificateError {
+	host: string;
+	fingerprint: string;
+	error: string;
+	url: string;
+	hasTrustedException: boolean;
+	issuerName: string;
+	subjectName: string;
+	validStart: number;
+	validExpiry: number;
 }
 
 export interface IBrowserViewFocusEvent {
@@ -117,7 +132,8 @@ export enum BrowserNewPageLocation {
 	NewWindow = 'newWindow'
 }
 export interface IBrowserViewNewPageRequest {
-	resource: URI;
+	resource: UriComponents;
+	url: string;
 	location: BrowserNewPageLocation;
 	// Only applicable if location is NewWindow
 	position?: { x?: number; y?: number; width?: number; height?: number };
@@ -327,6 +343,24 @@ export interface IBrowserViewService {
 
 	/** Set the browser zoom index (independent from VS Code zoom). */
 	setBrowserZoomIndex(id: string, zoomIndex: number): Promise<void>;
+
+	/**
+	 * Trust a certificate for a given host in the browser view's session.
+	 * The page will be automatically reloaded after trusting.
+	 * @param id The browser view identifier
+	 * @param host The hostname that presented the certificate
+	 * @param fingerprint The SHA-256 fingerprint of the certificate to trust
+	 */
+	trustCertificate(id: string, host: string, fingerprint: string): Promise<void>;
+
+	/**
+	 * Revoke trust for a previously trusted certificate.
+	 * The browser view will be automatically closed after revoking.
+	 * @param id The browser view identifier
+	 * @param host The hostname to revoke the certificate for
+	 * @param fingerprint The SHA-256 fingerprint of the certificate to revoke
+	 */
+	untrustCertificate(id: string, host: string, fingerprint: string): Promise<void>;
 
 	/**
 	 * Update the keybinding accelerators used in browser view context menus.

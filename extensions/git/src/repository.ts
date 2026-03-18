@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import picomatch from 'picomatch';
-import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, CustomExecution, Disposable, Event, EventEmitter, ExcludeSettingOptions, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProcessExecution, ProgressLocation, ProgressOptions, RelativePattern, scm, ShellExecution, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, Task, TaskRevealKind, TaskRunOn, tasks, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit, WorkspaceFolder } from 'vscode';
+import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, CustomExecution, Disposable, Event, EventEmitter, ExcludeSettingOptions, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProcessExecution, ProgressLocation, ProgressOptions, RelativePattern, scm, ShellExecution, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, Task, TaskPanelKind, TaskRevealKind, TaskRunOn, tasks, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit, WorkspaceFolder } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
 import type { Branch, BranchQuery, Change, CommitOptions, DiffChange, FetchOptions, LogOptions, Ref, Remote, RepositoryKind } from './api/git';
@@ -1224,6 +1224,14 @@ export class Repository implements Disposable {
 
 		return this.run(Operation.Diff, () =>
 			this.repository.diffBetweenWithStats(`${ref1}...${ref2}`, { path, similarityThreshold }));
+	}
+
+	diffBetweenWithStats2(ref: string, path?: string): Promise<DiffChange[]> {
+		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.root));
+		const similarityThreshold = scopedConfig.get<number>('similarityThreshold', 50);
+
+		return this.run(Operation.Diff, () =>
+			this.repository.diffBetweenWithStats(ref, { path, similarityThreshold }));
 	}
 
 	diffTrees(treeish1: string, treeish2?: string): Promise<DiffChange[]> {
@@ -3410,7 +3418,7 @@ function retargetTaskToWorktree(task: Task, worktreePath: string): Task | undefi
 	worktreeTask.detail = task.detail;
 	worktreeTask.group = task.group;
 	worktreeTask.isBackground = task.isBackground;
-	worktreeTask.presentationOptions = { reveal: TaskRevealKind.Never, ...task.presentationOptions };
+	worktreeTask.presentationOptions = { reveal: TaskRevealKind.Never, panel: TaskPanelKind.New, ...task.presentationOptions };
 	worktreeTask.runOptions = { ...task.runOptions };
 
 	return worktreeTask;

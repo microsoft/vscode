@@ -94,6 +94,16 @@ export interface IChatSessionsExtensionPoint {
 	 */
 	readonly customAgentTarget?: Target;
 	readonly requiresCustomModels?: boolean;
+	/**
+	 * When false, the delegation picker is hidden for this session type.
+	 * Defaults to true.
+	 */
+	readonly supportsDelegation?: boolean;
+	/**
+	 * Decides whether to automatically attach instruction files to chat requests
+	 * for this session type. Defaults to false when not specified.
+	 */
+	readonly autoAttachReferences?: boolean;
 }
 
 export interface IChatSessionItem {
@@ -244,7 +254,14 @@ export interface IChatSessionsService {
 	getChatSessionContribution(chatSessionType: string): ResolvedChatSessionsExtensionPoint | undefined;
 	getAllChatSessionContributions(): ResolvedChatSessionsExtensionPoint[];
 
+	/**
+	 * Programmatically register a chat session contribution (for internal session types
+	 * that don't go through the extension point).
+	 */
+	registerChatSessionContribution(contribution: IChatSessionsExtensionPoint): IDisposable;
+
 	registerChatSessionItemController(chatSessionType: string, controller: IChatSessionItemController): IDisposable;
+	getRegisteredChatSessionItemProviders(): readonly string[];
 	activateChatSessionItemProvider(chatSessionType: string): Promise<void>;
 
 	/**
@@ -300,6 +317,13 @@ export interface IChatSessionsService {
 	 * Returns whether the session type requires custom models. When true, the model picker should show filtered custom models.
 	 */
 	requiresCustomModelsForSessionType(chatSessionType: string): boolean;
+
+	/**
+	 * Returns whether the session type supports delegation.
+	 * Defaults to true when not explicitly set.
+	 */
+	supportsDelegationForSessionType(chatSessionType: string): boolean;
+
 	readonly onDidChangeOptionGroups: Event<string>;
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
@@ -338,4 +362,3 @@ export function isIChatSessionFileChange2(obj: unknown): obj is IChatSessionFile
 	const candidate = obj as IChatSessionFileChange2;
 	return candidate && candidate.uri instanceof URI && typeof candidate.insertions === 'number' && typeof candidate.deletions === 'number';
 }
-

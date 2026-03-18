@@ -43,7 +43,7 @@ export class ReadBrowserTool implements IToolImpl {
 	) { }
 
 	async prepareToolInvocation(_context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		const link = `[browser page](${BrowserViewUri.forUrl('', _context.parameters.pageId).toString()})`;
+		const link = `[browser page](${BrowserViewUri.forId(_context.parameters.pageId).toString()})`;
 		return {
 			invocationMessage: new MarkdownString(localize('browser.read.invocation', "Reading {0}", link)),
 			pastTenseMessage: new MarkdownString(localize('browser.read.past', "Read {0}", link)),

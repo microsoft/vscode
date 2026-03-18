@@ -25,16 +25,18 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { OS } from '../../../../base/common/platform.js';
 import { IEditorPane } from '../../../common/editor.js';
 import { launchSchemaId } from '../../../services/configuration/common/configuration.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { CONTEXT_DEBUG_CONFIGURATION_TYPE, DebugConfigurationProviderTriggerKind, IAdapterManager, ICompound, IConfig, IConfigPresentation, IConfigurationManager, IDebugConfigurationProvider, IGlobalConfig, IGuessedDebugger, ILaunch } from '../common/debug.js';
+import { CONTEXT_DEBUG_CONFIGURATION_TYPE, DebugConfigurationProviderTriggerKind, IAdapterManager, ICompound, IConfig, IConfigPresentation, IConfigurationManager, IDebugConfigurationProvider, IGlobalConfig, IGuessedDebugger, ILaunch, isDebugConfig } from '../common/debug.js';
 import { launchSchema } from '../common/debugSchemas.js';
-import { getVisibleAndSorted } from '../common/debugUtils.js';
+import { getEffectiveConfigForPlatform, getVisibleAndSorted } from '../common/debugUtils.js';
 import { debugConfigure } from './debugIcons.js';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
@@ -62,6 +64,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	private debugConfigurationTypeContext: IContextKey<string>;
 	private readonly _onDidChangeConfigurationProviders = new Emitter<void>();
 	public readonly onDidChangeConfigurationProviders = this._onDidChangeConfigurationProviders.event;
+	private targetOperatingSystem = OS;
 
 	constructor(
 		private readonly adapterManager: IAdapterManager,
@@ -73,6 +76,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -92,6 +96,23 @@ export class ConfigurationManager implements IConfigurationManager {
 		} else if (this.launches.length > 0) {
 			this.selectConfiguration(undefined, previousSelectedName, undefined, dynamicConfig);
 		}
+		this.resolveTargetOperatingSystem();
+	}
+
+	private resolveTargetOperatingSystem(): void {
+		this.remoteAgentService.getEnvironment().then(environment => {
+			const targetOperatingSystem = environment?.os ?? OS;
+			if (this.targetOperatingSystem !== targetOperatingSystem) {
+				this.targetOperatingSystem = targetOperatingSystem;
+				this._onDidSelectConfigurationName.fire();
+			}
+		}, () => {
+			// Ignore remote environment failures and fall back to the local OS.
+		});
+	}
+
+	getTargetOperatingSystem() {
+		return this.targetOperatingSystem;
 	}
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable {
@@ -533,7 +554,8 @@ abstract class AbstractLaunch implements ILaunch {
 			if (config.compounds) {
 				configurations.push(...config.compounds.filter(compound => typeof compound.name === 'string' && compound.configurations && compound.configurations.length));
 			}
-			return getVisibleAndSorted(configurations).map(c => c.name);
+			const resolved = configurations.map(c => isDebugConfig(c) ? getEffectiveConfigForPlatform(c, this.configurationManager.getTargetOperatingSystem()) : c);
+			return getVisibleAndSorted(resolved).map(c => c.name);
 		}
 	}
 
@@ -548,12 +570,14 @@ abstract class AbstractLaunch implements ILaunch {
 			return;
 		}
 
+		const effectiveConfiguration = getEffectiveConfigForPlatform(configuration, this.configurationManager.getTargetOperatingSystem());
+
 		if (this instanceof UserLaunch) {
-			return { ...configuration, __configurationTarget: ConfigurationTarget.USER };
+			return { ...effectiveConfiguration, __configurationTarget: ConfigurationTarget.USER };
 		} else if (this instanceof WorkspaceLaunch) {
-			return { ...configuration, __configurationTarget: ConfigurationTarget.WORKSPACE };
+			return { ...effectiveConfiguration, __configurationTarget: ConfigurationTarget.WORKSPACE };
 		} else {
-			return { ...configuration, __configurationTarget: ConfigurationTarget.WORKSPACE_FOLDER };
+			return { ...effectiveConfiguration, __configurationTarget: ConfigurationTarget.WORKSPACE_FOLDER };
 		}
 	}
 

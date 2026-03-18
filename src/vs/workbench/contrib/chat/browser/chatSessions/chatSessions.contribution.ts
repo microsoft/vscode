@@ -8,7 +8,7 @@ import { AsyncIterableProducer, raceCancellationError } from '../../../../../bas
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { AsyncEmitter, Emitter, Event } from '../../../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import * as resources from '../../../../../base/common/resources.js';
@@ -216,6 +216,11 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					description: localize('chatSessionsExtPoint.requiresCustomModels', 'When set, the chat session will show a filtered model picker that prefers custom models. This enables the use of standard model picker with contributed sessions.'),
 					type: 'boolean',
 					default: false
+				},
+				autoAttachReferences: {
+					description: localize('chatSessionsExtPoint.autoAttachReferences', 'Whether to automatically attach instruction files to chat requests for this session type.'),
+					type: 'boolean',
+					default: false
 				}
 			},
 			required: ['type', 'name', 'displayName', 'description'],
@@ -269,7 +274,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly _itemControllers = new Map</* type */ string, { readonly controller: IChatSessionItemController; readonly initialRefresh: Promise<void> }>();
 
-	private readonly _contributions: Map</* type */ string, { readonly contribution: IChatSessionsExtensionPoint; readonly extension: IRelaxedExtensionDescription }> = new Map();
+	private readonly _contributions: Map</* type */ string, { readonly contribution: IChatSessionsExtensionPoint; readonly extension: IRelaxedExtensionDescription | undefined }> = new Map();
 	private readonly _contributionDisposables = this._register(new DisposableMap</* type */ string>());
 
 	private readonly _contentProviders: Map</* scheme */ string, IChatSessionContentProvider> = new Map();
@@ -632,7 +637,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				newlyDisabledChatSessionTypes.add(contribution.type);
 			} else if (!isCurrentlyRegistered && shouldBeRegistered) {
 				// Enable the contribution by registering it
-				this._enableContribution(contribution, extension);
+				if (extension) {
+					this._enableContribution(contribution, extension);
+				}
 				newlyEnabledChatSessionTypes.add(contribution.type);
 			}
 		}
@@ -748,14 +755,14 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this.resolveChatSessionContribution(entry.extension, entry.contribution);
 	}
 
-	private resolveChatSessionContribution(ext: IRelaxedExtensionDescription, contribution: IChatSessionsExtensionPoint) {
+	private resolveChatSessionContribution(ext: IRelaxedExtensionDescription | undefined, contribution: IChatSessionsExtensionPoint) {
 		return {
 			...contribution,
 			icon: this.resolveIconForCurrentColorTheme(this.getContributionIcon(ext, contribution)),
 		};
 	}
 
-	private getContributionIcon(ext: IRelaxedExtensionDescription, contribution: IChatSessionsExtensionPoint): ThemeIcon | { light: URI; dark: URI } | undefined {
+	private getContributionIcon(ext: IRelaxedExtensionDescription | undefined, contribution: IChatSessionsExtensionPoint): ThemeIcon | { light: URI; dark: URI } | undefined {
 		if (!contribution.icon) {
 			return undefined;
 		}
@@ -765,8 +772,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				: ThemeIcon.fromId(contribution.icon);
 		}
 		return {
-			dark: resources.joinPath(ext.extensionLocation, contribution.icon.dark),
-			light: resources.joinPath(ext.extensionLocation, contribution.icon.light)
+			dark: ext ? resources.joinPath(ext.extensionLocation, contribution.icon.dark) : URI.parse(contribution.icon.dark),
+			light: ext ? resources.joinPath(ext.extensionLocation, contribution.icon.light) : URI.parse(contribution.icon.light)
 		};
 	}
 
@@ -784,6 +791,20 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 	}
 
+
+	registerChatSessionContribution(contribution: IChatSessionsExtensionPoint): IDisposable {
+		if (this._contributions.has(contribution.type)) {
+			return { dispose: () => { } };
+		}
+
+		this._contributions.set(contribution.type, { contribution, extension: undefined });
+		this._onDidChangeAvailability.fire();
+
+		return toDisposable(() => {
+			this._contributions.delete(contribution.type);
+			this._onDidChangeAvailability.fire();
+		});
+	}
 
 	async activateChatSessionItemProvider(chatViewType: string): Promise<void> {
 		await this.doActivateChatSessionItemController(chatViewType);
@@ -874,15 +895,24 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		await this.tryActivateControllers(providersToResolve);
 
 		await Promise.all(Array.from(this._itemControllers).map(async ([chatSessionType, controllerEntry]) => {
+			const resolvedType = this._resolveToPrimaryType(chatSessionType) ?? chatSessionType;
+			if (providersToResolve && !providersToResolve.includes(resolvedType)) {
+				return; // skip: not considered for resolving
+			}
+
 			try {
 				await controllerEntry.controller.refresh(token);
 			} catch (err) {
 				if (!isCancellationError(err)) {
 					// Log error but continue with other providers
-					this._logService.error(`[ChatSessionsService] Failed to resolve sessions for provider ${chatSessionType}`, err);
+					this._logService.error(`[ChatSessionsService] Failed to resolve sessions for provider ${resolvedType}`, err);
 				}
 			}
 		}));
+	}
+
+	getRegisteredChatSessionItemProviders(): readonly string[] {
+		return [...new Set(Array.from(this._itemControllers.keys()).map(key => this._resolveToPrimaryType(key) ?? key))];
 	}
 
 	registerChatSessionItemController(chatSessionType: string, controller: IChatSessionItemController): IDisposable {
@@ -1179,6 +1209,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return !!contribution?.requiresCustomModels;
 	}
 
+	public supportsDelegationForSessionType(chatSessionType: string): boolean {
+		const contribution = this._contributions.get(chatSessionType)?.contribution;
+		return contribution?.supportsDelegation !== false;
+	}
+
 	public getContentProviderSchemes(): string[] {
 		return Array.from(this._contentProviders.keys());
 	}
@@ -1343,4 +1378,3 @@ export function getResourceForNewChatSession(options: NewChatSessionOpenOptions)
 function isAgentSessionProviderType(type: string): boolean {
 	return Object.values(AgentSessionProviders).includes(type as AgentSessionProviders);
 }
-

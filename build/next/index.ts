@@ -101,6 +101,7 @@ const desktopEntryPoints = [
 	'vs/workbench/contrib/debug/node/telemetryApp',
 	'vs/platform/files/node/watcher/watcherMain',
 	'vs/platform/terminal/node/ptyHostMain',
+	'vs/platform/agentHost/node/agentHostMain',
 	'vs/workbench/api/node/extensionHostProcess',
 ];
 
@@ -280,8 +281,9 @@ const desktopResourcePatterns = [
 	'vs/workbench/browser/parts/editor/media/*.png',
 	'vs/workbench/contrib/debug/browser/media/*.png',
 
-	// Sessions - built-in prompts
+	// Sessions - built-in prompts and skills
 	'vs/sessions/prompts/*.prompt.md',
+	'vs/sessions/skills/**/SKILL.md',
 ];
 
 // Resources for server target (minimal - no UI)

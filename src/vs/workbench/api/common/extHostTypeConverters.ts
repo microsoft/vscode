@@ -3664,6 +3664,8 @@ export namespace ChatAgentResult {
 				return new types.LanguageModelThinkingPart(value.value, value.id, value.metadata);
 			} else if (value.$mid === MarshalledId.LanguageModelPromptTsxPart) {
 				return new types.LanguageModelPromptTsxPart(value.value);
+			} else if (value.$mid === MarshalledId.LanguageModelDataPart) {
+				return new types.LanguageModelDataPart(value.data, value.mimeType, value.audience);
 			}
 
 			return undefined;

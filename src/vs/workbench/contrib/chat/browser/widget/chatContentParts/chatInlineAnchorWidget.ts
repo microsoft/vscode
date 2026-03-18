@@ -280,14 +280,6 @@ export class InlineAnchorWidget extends Disposable {
 		const relativeLabel = labelService.getUriLabel(location.uri, { relative: true });
 		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, relativeLabel));
 
-		// Apply link-style if configured
-		this.updateAppearance();
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.InlineReferencesStyle)) {
-				this.updateAppearance();
-			}
-		}));
-
 		// Drag and drop
 		if (this.data.kind !== 'symbol') {
 			element.draggable = true;
@@ -330,12 +322,6 @@ export class InlineAnchorWidget extends Disposable {
 
 	getHTMLElement(): HTMLElement {
 		return this.element;
-	}
-
-	private updateAppearance(): void {
-		const style = this.configurationService.getValue<string>(ChatConfiguration.InlineReferencesStyle);
-		const useLinkStyle = style === 'link';
-		this.element.classList.toggle('link-style', useLinkStyle);
 	}
 
 	private getCellIndex(location: URI) {

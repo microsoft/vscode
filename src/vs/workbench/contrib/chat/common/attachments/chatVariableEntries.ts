@@ -306,6 +306,7 @@ export interface IAgentFeedbackVariableEntry extends IBaseChatRequestVariableEnt
 		readonly resourceUri: URI;
 		readonly range: IRange;
 		readonly codeSelection?: string;
+		readonly diffHunks?: string;
 	}>;
 }
 

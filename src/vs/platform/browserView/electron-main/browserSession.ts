@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { session } from 'electron';
-import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
+import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { BrowserViewStorageScope } from '../common/browserView.js';
+import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust.js';
 
 // Same as webviews
 const allowedPermissions = new Set([
@@ -32,19 +33,37 @@ const allowedPermissions = new Set([
  * an internal registry of live sessions. Use the static methods to
  * obtain instances.
  */
-export class BrowserSession extends Disposable {
+export class BrowserSession {
 
 	// #region Static registry
 
 	/**
-	 * All live sessions keyed by their unique id.
+	 * Primary store — keyed by Electron session so entries are
+	 * automatically removed when the Electron session is GC'd.
+	 *
+	 * The goal is to ensure that BrowserSessions have the exact same lifespan as their Electron sessions.
+	 */
+	private static readonly _bySession = new WeakMap<Electron.Session, BrowserSession>();
+
+	/**
+	 * String-keyed lookup for {@link get} and {@link getBrowserContextIds}.
+	 * Values are weak references so they don't prevent GC of the
+	 * {@link BrowserSession} (and transitively the Electron session).
 	 *
 	 * ID derivation rules (one-to-one with Electron sessions):
 	 *  - Global scope         -> `"global"`
 	 *  - Workspace scope      -> `"workspace:${workspaceId}"`
 	 *  - Ephemeral scope      -> `"ephemeral:${viewId}"` or `"${type}:${viewId}"` for custom types
 	 */
-	private static readonly _sessions = new Map<string, BrowserSession>();
+	private static readonly _byId = new Map<string, WeakRef<BrowserSession>>();
+
+	/**
+	 * Cleans up stale {@link _byId} entries when the Electron session
+	 * they point to is garbage-collected.
+	 */
+	private static readonly _finalizer = new FinalizationRegistry<string>((id) => {
+		BrowserSession._byId.delete(id);
+	});
 
 	/**
 	 * Weak set mirroring the Electron sessions owned by any BrowserSession.
@@ -65,38 +84,49 @@ export class BrowserSession extends Disposable {
 	 * Return an existing session for the given id, or `undefined`.
 	 */
 	static get(id: string): BrowserSession | undefined {
-		return BrowserSession._sessions.get(id);
+		const ref = BrowserSession._byId.get(id);
+		if (!ref) {
+			return undefined;
+		}
+		const bs = ref.deref();
+		if (!bs) {
+			BrowserSession._byId.delete(id);
+		}
+		return bs;
 	}
 
 	/**
 	 * Return all live browser context IDs (i.e. all session {@link id}s).
 	 */
 	static getBrowserContextIds(): string[] {
-		return [...BrowserSession._sessions.keys()];
+		const ids: string[] = [];
+		for (const [id, ref] of BrowserSession._byId) {
+			if (ref.deref()) {
+				ids.push(id);
+			} else {
+				BrowserSession._byId.delete(id);
+			}
+		}
+		return ids;
 	}
 
 	/**
 	 * Get or create the singleton global-scope session.
 	 */
 	static getOrCreateGlobal(): BrowserSession {
-		const existing = BrowserSession._sessions.get('global');
-		if (existing) {
-			return existing;
-		}
-		return new BrowserSession('global', session.fromPartition('persist:vscode-browser'), BrowserViewStorageScope.Global);
+		const electronSession = session.fromPartition('persist:vscode-browser');
+		return BrowserSession._bySession.get(electronSession)
+			?? new BrowserSession('global', electronSession, BrowserViewStorageScope.Global);
 	}
 
 	/**
 	 * Get or create a workspace-scope session for the given workspace.
 	 */
 	static getOrCreateWorkspace(workspaceId: string, workspaceStorageHome: URI): BrowserSession {
-		const sessionId = `workspace:${workspaceId}`;
-		const existing = BrowserSession._sessions.get(sessionId);
-		if (existing) {
-			return existing;
-		}
 		const storage = joinPath(workspaceStorageHome, workspaceId, 'browserStorage');
-		return new BrowserSession(sessionId, session.fromPath(storage.fsPath), BrowserViewStorageScope.Workspace);
+		const electronSession = session.fromPath(storage.fsPath);
+		return BrowserSession._bySession.get(electronSession)
+			?? new BrowserSession(`workspace:${workspaceId}`, electronSession, BrowserViewStorageScope.Workspace);
 	}
 
 	/**
@@ -108,11 +138,9 @@ export class BrowserSession extends Disposable {
 		}
 
 		const sessionId = `${type ?? 'ephemeral'}:${viewId}`;
-		const existing = BrowserSession._sessions.get(sessionId);
-		if (existing) {
-			return existing;
-		}
-		return new BrowserSession(sessionId, session.fromPartition(`vscode-browser-${type}${viewId}`), BrowserViewStorageScope.Ephemeral);
+		const electronSession = session.fromPartition(`vscode-browser-${type}${viewId}`);
+		return BrowserSession._bySession.get(electronSession)
+			?? new BrowserSession(sessionId, electronSession, BrowserViewStorageScope.Ephemeral);
 	}
 
 	/**
@@ -153,9 +181,7 @@ export class BrowserSession extends Disposable {
 
 	// #region Instance
 
-	// Reference count how many browser views are currently using this session.
-	// When the count drops to zero, the session is removed from the registry.
-	private refs = 0;
+	private readonly _trust: BrowserSessionTrust;
 
 	private constructor(
 		/**
@@ -169,21 +195,33 @@ export class BrowserSession extends Disposable {
 		/** Resolved storage scope. */
 		readonly storageScope: BrowserViewStorageScope,
 	) {
-		super();
-
-		if (BrowserSession._sessions.has(id)) {
-			throw new Error(`BrowserSession with id '${id}' already exists`);
-		}
-
-		this.configureSession();
+		this._trust = new BrowserSessionTrust(this);
+		this.configurePermissions();
 		BrowserSession.knownSessions.add(electronSession);
-		BrowserSession._sessions.set(id, this);
+		BrowserSession._bySession.set(electronSession, this);
+		BrowserSession._byId.set(id, new WeakRef(this));
+		BrowserSession._finalizer.register(electronSession, id);
+	}
+
+	/** Public trust interface for consumers that need cert operations. */
+	get trust(): IBrowserSessionTrust {
+		return this._trust;
+	}
+
+	/**
+	 * Connect application storage to this session so that preferences
+	 * (trusted certificates, permissions, etc.) are persisted across
+	 * restarts. Restores any previously-saved data on first call;
+	 * subsequent calls are no-ops.
+	 */
+	connectStorage(storage: IApplicationStorageMainService): void {
+		this._trust.connectStorage(storage);
 	}
 
 	/**
 	 * Apply the standard permission policy to the session.
 	 */
-	private configureSession(): void {
+	private configurePermissions(): void {
 		this.electronSession.setPermissionRequestHandler((_webContents, permission, callback) => {
 			return callback(allowedPermissions.has(permission));
 		});
@@ -192,23 +230,12 @@ export class BrowserSession extends Disposable {
 		});
 	}
 
-	public acquire(): IDisposable {
-		this.refs++;
-		return toDisposable(() => {
-			this.refs--;
-			if (this.refs === 0) {
-				this.dispose();
-			}
-		});
-	}
-
-	override dispose(): void {
-		if (this.refs > 0) {
-			throw new Error(`Cannot dispose BrowserSession because it is still in use`);
-		}
-
-		BrowserSession._sessions.delete(this.id);
-		super.dispose();
+	/**
+	 * Clear all session data including trust state and all browsing data.
+	 */
+	async clearData(): Promise<void> {
+		await this._trust.clear();
+		await this.electronSession.clearData();
 	}
 
 	// #endregion

@@ -27,6 +27,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { buildPhrasePool } from './chatThinkingContentPart.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -174,9 +175,13 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService
 	) {
+		const defaultLabel = localize('workingMessage', "Working");
+		const pool = buildPhrasePool([defaultLabel], configurationService);
+		const label = pool[Math.floor(Math.random() * pool.length)];
+
 		const progressMessage: IChatProgressMessage = {
 			kind: 'progressMessage',
-			content: new MarkdownString().appendText(localize('workingMessage', "Working"))
+			content: new MarkdownString().appendText(label)
 		};
 		super(progressMessage, chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, true, instantiationService, chatMarkdownAnchorService, configurationService);
 		this._register(languageModelToolsService.onDidPrepareToolCallBecomeUnresponsive(e => {

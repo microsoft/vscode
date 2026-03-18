@@ -35,6 +35,7 @@ suite('PluginMarketplaceService', () => {
 		assert.strictEqual(parsed.canonicalId, 'github:microsoft/vscode');
 		assert.strictEqual(parsed.displayLabel, 'microsoft/vscode');
 		assert.deepStrictEqual(parsed.cacheSegments, ['github.com', 'microsoft', 'vscode']);
+		assert.strictEqual(parsed.githubRepo, 'microsoft/vscode');
 	});
 
 	test('parses direct HTTPS and SSH marketplaces ending in .git', () => {
@@ -66,6 +67,33 @@ suite('PluginMarketplaceService', () => {
 		assert.strictEqual(parsed.cloneUrl, 'git@example.com:org/repo.git');
 		assert.strictEqual(parsed.canonicalId, 'git:example.com/org/repo.git');
 		assert.deepStrictEqual(parsed.cacheSegments, ['example.com', 'org', 'repo']);
+		assert.strictEqual(parsed.githubRepo, undefined);
+	});
+
+	test('populates githubRepo for GitHub HTTPS URLs', () => {
+		const withGit = parseMarketplaceReference('https://github.com/owner/repo.git');
+		assert.ok(withGit);
+		assert.strictEqual(withGit?.githubRepo, 'owner/repo');
+
+		const withoutGit = parseMarketplaceReference('https://github.com/owner/repo');
+		assert.ok(withoutGit);
+		assert.strictEqual(withoutGit?.githubRepo, 'owner/repo');
+	});
+
+	test('populates githubRepo for GitHub SCP-style URLs', () => {
+		const parsed = parseMarketplaceReference('git@github.com:owner/repo.git');
+		assert.ok(parsed);
+		assert.strictEqual(parsed?.githubRepo, 'owner/repo');
+	});
+
+	test('does not populate githubRepo for non-GitHub URLs', () => {
+		const https = parseMarketplaceReference('https://example.com/org/repo.git');
+		assert.ok(https);
+		assert.strictEqual(https?.githubRepo, undefined);
+
+		const scp = parseMarketplaceReference('git@gitlab.com:org/repo.git');
+		assert.ok(scp);
+		assert.strictEqual(scp?.githubRepo, undefined);
 	});
 
 	test('parses local file marketplace references', () => {

@@ -42,10 +42,11 @@ import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEn
 import { IVariableReference } from '../../common/chatModes.js';
 import { ConfirmedReason, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
 import { ChatConfiguration, isAutoApproveLevel } from '../../common/constants.js';
+import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { IChatModel, IChatRequestModel } from '../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { chatSessionResourceToId } from '../../common/model/chatUri.js';
+import { chatSessionResourceToId, getChatSessionType } from '../../common/model/chatUri.js';
 import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { CountTokensCallback, createToolSchemaUri, IBeginToolCallOptions, IExternalPreToolUseHookResult, ILanguageModelToolsService, IPreparedToolInvocation, isToolSet, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolInvokedEvent, IToolResult, IToolResultInputOutputDetails, IToolSet, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolInvocationPresentation, toolMatchesModel, ToolSet, ToolSetForModel, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
@@ -1124,7 +1125,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			const model = this._chatService.getSession(chatSessionResource);
 			const request = model?.getRequests().at(-1);
 			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel) || this._isSessionLiveAutoApproveLevel(chatSessionResource)) {
-				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
+				// CLI sessions must always show their multi-option confirmation dialogs
+				// (e.g. uncommitted-changes prompt) even under Bypass Approvals
+				if (!(toolIdsThatCannotBeAutoApproved.has(tool.data.id) && getChatSessionType(chatSessionResource) !== localChatSessionType)) {
+					return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
+				}
 			}
 		}
 
@@ -1167,7 +1172,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			const model = this._chatService.getSession(chatSessionResource);
 			const request = model?.getRequests().at(-1);
 			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel) || this._isSessionLiveAutoApproveLevel(chatSessionResource)) {
-				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
+				if (!(toolIdsThatCannotBeAutoApproved.has(toolId) && getChatSessionType(chatSessionResource) !== localChatSessionType)) {
+					return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
+				}
 			}
 		}
 

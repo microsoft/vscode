@@ -136,6 +136,10 @@ function parseUriMarketplaceReference(rawValue: string): IMarketplaceReference |
 	const pathSegments = pathWithoutGit.split('/').map(sanitizePathSegment);
 	// Always normalize the canonical path to include .git so that URLs with and without the suffix deduplicate.
 	const canonicalPath = pathHasGitSuffix ? normalizedPath.slice(1).toLowerCase() : `${normalizedPath.slice(1).toLowerCase()}${gitSuffix}`;
+
+	// Extract githubRepo for GitHub URLs so the editor can render a clickable link
+	const githubRepo = extractGitHubRepo(uri.authority, pathWithoutGit);
+
 	return {
 		rawValue,
 		displayLabel: rawValue,
@@ -143,6 +147,7 @@ function parseUriMarketplaceReference(rawValue: string): IMarketplaceReference |
 		canonicalId: `git:${uri.authority.toLowerCase()}/${canonicalPath}`,
 		cacheSegments: [sanitizedAuthority, ...pathSegments],
 		kind: MarketplaceReferenceKind.GitUri,
+		githubRepo,
 	};
 }
 
@@ -152,13 +157,17 @@ function parseScpMarketplaceReference(rawValue: string): IMarketplaceReference |
 		return undefined;
 	}
 
+	const gitSuffix = '.git';
 	const authority = match[2];
 	const pathWithGit = match[3].replace(/^\/+/, '');
-	if (!pathWithGit.toLowerCase().endsWith('.git')) {
+	if (!pathWithGit.toLowerCase().endsWith(gitSuffix)) {
 		return undefined;
 	}
 
-	const pathSegments = pathWithGit.slice(0, -4).split('/').map(sanitizePathSegment);
+	const pathWithoutGit = pathWithGit.slice(0, -gitSuffix.length);
+	const pathSegments = pathWithoutGit.split('/').map(sanitizePathSegment);
+	const githubRepo = extractGitHubRepo(authority, pathWithoutGit);
+
 	return {
 		rawValue,
 		displayLabel: rawValue,
@@ -166,6 +175,7 @@ function parseScpMarketplaceReference(rawValue: string): IMarketplaceReference |
 		canonicalId: `git:${authority.toLowerCase()}/${pathWithGit.toLowerCase()}`,
 		cacheSegments: [sanitizePathSegment(authority.toLowerCase()), ...pathSegments],
 		kind: MarketplaceReferenceKind.GitUri,
+		githubRepo,
 	};
 }
 
@@ -189,6 +199,17 @@ function normalizeGitRepoPath(path: string): string | undefined {
 	}
 
 	return withLeadingSlash;
+}
+
+function extractGitHubRepo(authority: string, pathWithoutGit: string): string | undefined {
+	if (authority.toLowerCase() !== 'github.com') {
+		return undefined;
+	}
+	const parts = pathWithoutGit.split('/');
+	if (parts.length >= 2 && parts[0] && parts[1]) {
+		return `${parts[0]}/${parts[1]}`;
+	}
+	return undefined;
 }
 
 function getGitHubCanonicalId(owner: string, repo: string): string {

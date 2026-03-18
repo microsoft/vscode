@@ -13,7 +13,7 @@ import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { Event } from '../../base/common/event.js';
 import { parse } from '../../base/common/jsonc.js';
 import { getPathLabel } from '../../base/common/labels.js';
-import { Disposable, DisposableStore } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../base/common/lifecycle.js';
 import { Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
 import { join, posix } from '../../base/common/path.js';
 import { INodeProcess, IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
@@ -121,6 +121,9 @@ import { ipcUtilityProcessWorkerChannelName } from '../../platform/utilityProces
 import { ILocalPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from '../../platform/terminal/common/terminal.js';
 import { ElectronPtyHostStarter } from '../../platform/terminal/electron-main/electronPtyHostStarter.js';
 import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
+import { ElectronAgentHostStarter } from '../../platform/agentHost/electron-main/electronAgentHostStarter.js';
+import { AgentHostProcessManager } from '../../platform/agentHost/node/agentHostService.js';
+import { AgentHostEnabledSettingId } from '../../platform/agentHost/common/agentService.js';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from '../../platform/remote/common/electronRemoteResources.js';
 import { Lazy } from '../../base/common/lazy.js';
 import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindows.js';
@@ -132,9 +135,6 @@ import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeM
 import { IMcpGatewayService, McpGatewayChannelName } from '../../platform/mcp/common/mcpGateway.js';
 import { McpGatewayService } from '../../platform/mcp/node/mcpGatewayService.js';
 import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js';
-import { SandboxHelperChannelName } from '../../platform/sandbox/common/sandboxHelperIpc.js';
-import { ISandboxHelperService } from '../../platform/sandbox/common/sandboxHelperService.js';
-import { SandboxHelperService } from '../../platform/sandbox/node/sandboxHelperService.js';
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
@@ -1108,6 +1108,12 @@ export class CodeApplication extends Disposable {
 		);
 		services.set(ILocalPtyService, ptyHostService);
 
+		// Agent Host
+		if (this.configurationService.getValue(AgentHostEnabledSettingId)) {
+			const agentHostStarter = new ElectronAgentHostStarter(this.environmentMainService, this.lifecycleMainService, this.logService);
+			this._register(new AgentHostProcessManager(agentHostStarter, this.logService, this.loggerService));
+		}
+
 		// External terminal
 		if (isWindows) {
 			services.set(IExternalTerminalMainService, new SyncDescriptor(WindowsExternalTerminalService));
@@ -1135,7 +1141,7 @@ export class CodeApplication extends Disposable {
 			const isInternal = isInternalTelemetry(this.productService, this.configurationService);
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, sqmId, devDeviceId, isInternal, this.productService.date);
+			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, sqmId, devDeviceId, isInternal, this.productService.date, this.productService.telemetryAppName);
 			const piiPaths = getPiiPathsFromEnvironment(this.environmentMainService);
 			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
 
@@ -1153,9 +1159,6 @@ export class CodeApplication extends Disposable {
 
 		// Proxy Auth
 		services.set(IProxyAuthService, new SyncDescriptor(ProxyAuthService));
-
-		// Sandbox
-		services.set(ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
 
 		// MCP
 		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
@@ -1288,10 +1291,6 @@ export class CodeApplication extends Disposable {
 		// External Terminal
 		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService), disposables);
 		mainProcessElectronServer.registerChannel('externalTerminal', externalTerminalChannel);
-
-		// Sandbox
-		const sandboxHelperChannel = ProxyChannel.fromService(accessor.get(ISandboxHelperService), disposables);
-		mainProcessElectronServer.registerChannel(SandboxHelperChannelName, sandboxHelperChannel);
 
 		// MCP
 		const mcpDiscoveryChannel = ProxyChannel.fromService(accessor.get(INativeMcpDiscoveryHelperService), disposables);
@@ -1520,41 +1519,76 @@ export class CodeApplication extends Disposable {
 				const initialGpuFeatureStatus = app.getGPUFeatureStatus() as GPUFeatureStatusWithSkiaGraphite;
 				const skiaGraphiteEnabled: string = initialGpuFeatureStatus['skia_graphite'];
 				if (skiaGraphiteEnabled === 'enabled') {
+					const gpuInfoUpdate = Event.fromNodeEventEmitter(app, 'gpu-info-update');
+					const pendingGpuInfoListener = this._register(new MutableDisposable());
 					this._register(Event.fromNodeEventEmitter<{ details: Details }>(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
 						if (details.type === 'GPU' && details.reason === 'crashed') {
-							const currentGpuFeatureStatus = app.getGPUFeatureStatus();
-							const currentRasterizationStatus: string = currentGpuFeatureStatus['rasterization'];
-							if (currentRasterizationStatus !== 'enabled') {
-								// Get last 10 GPU log messages (only the message field)
-								let gpuLogMessages: string[] = [];
-								type AppWithGPULogMethod = typeof app & {
-									getGPULogMessages(): IGPULogMessage[];
-								};
-								const customApp = app as AppWithGPULogMethod;
-								if (typeof customApp.getGPULogMessages === 'function') {
-									gpuLogMessages = customApp.getGPULogMessages().slice(-10).map(log => log.message);
+							// Wait for gpu-info-update which fires after the GPU process
+							// restarts and the feature status is refreshed. At the time
+							// child-process-gone fires, getGPUFeatureStatus() still
+							// returns the pre-crash status.
+							pendingGpuInfoListener.value = Event.once(gpuInfoUpdate)(() => {
+								const currentGpuFeatureStatus = app.getGPUFeatureStatus();
+								const currentRasterizationStatus: string = currentGpuFeatureStatus['rasterization'];
+								if (currentRasterizationStatus !== 'enabled') {
+									// Get last 10 GPU log messages (only the message field)
+									let gpuLogMessages: string[] = [];
+									type AppWithGPULogMethod = typeof app & {
+										getGPULogMessages(): IGPULogMessage[];
+									};
+									const customApp = app as AppWithGPULogMethod;
+									if (typeof customApp.getGPULogMessages === 'function') {
+										gpuLogMessages = customApp.getGPULogMessages().slice(-10).map(log => log.message);
+									}
+
+									type GpuCrashEvent = {
+										readonly gpuFeatureStatus: string;
+										readonly gpuLogMessages: string;
+									};
+									type GpuCrashClassification = {
+										gpuFeatureStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Current GPU feature status.' };
+										gpuLogMessages: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Last 10 GPU log messages collected after the crash and GPU process restart.' };
+										owner: 'deepak1556';
+										comment: 'Tracks GPU process crashes that would result in fallback mode.';
+									};
+
+									telemetryService.publicLog2<GpuCrashEvent, GpuCrashClassification>('gpu.crash.fallback', {
+										gpuFeatureStatus: JSON.stringify(currentGpuFeatureStatus),
+										gpuLogMessages: JSON.stringify(gpuLogMessages)
+									});
 								}
-
-								type GpuCrashEvent = {
-									readonly gpuFeatureStatus: string;
-									readonly gpuLogMessages: string;
-								};
-								type GpuCrashClassification = {
-									gpuFeatureStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Current GPU feature status.' };
-									gpuLogMessages: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Last 10 GPU log messages before crash.' };
-									owner: 'deepak1556';
-									comment: 'Tracks GPU process crashes that would result in fallback mode.';
-								};
-
-								telemetryService.publicLog2<GpuCrashEvent, GpuCrashClassification>('gpu.crash.fallback', {
-									gpuFeatureStatus: JSON.stringify(currentGpuFeatureStatus),
-									gpuLogMessages: JSON.stringify(gpuLogMessages)
-								});
-							}
+							});
 						}
 					}));
 				}
 			});
+		}
+
+		{
+			interface NetworkProcessLaunchedDetails {
+				readonly pid: number;
+			}
+			interface NetworkProcessGoneDetails {
+				readonly pid: number;
+				readonly exitCode: number;
+				readonly crashed: boolean;
+				readonly crashedPreIPC: boolean;
+			}
+
+			type AppWithNetworkProcessEvents = typeof app & {
+				on(event: 'network-process-launched', listener: (event: Electron.Event, details: NetworkProcessLaunchedDetails) => void): typeof app;
+				on(event: 'network-process-gone', listener: (event: Electron.Event, details: NetworkProcessGoneDetails) => void): typeof app;
+			};
+
+			const customApp = app as AppWithNetworkProcessEvents;
+
+			this._register(Event.fromNodeEventEmitter<NetworkProcessLaunchedDetails>(customApp, 'network-process-launched', (_event, details) => details)(details => {
+				this.logService.info(`[network process] launched with pid ${details.pid}`);
+			}));
+
+			this._register(Event.fromNodeEventEmitter<NetworkProcessGoneDetails>(customApp, 'network-process-gone', (_event, details) => details)(details => {
+				this.logService.info(`[network process] gone - pid: ${details.pid}, exitCode: ${details.exitCode}, crashed: ${details.crashed}, crashedPreIPC: ${details.crashedPreIPC}`);
+			}));
 		}
 	}
 

@@ -48,8 +48,8 @@ registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
 			title: localize('updateIndicatorTitleBarAction', 'Update'),
 			f1: false,
 			menu: [{
-				id: MenuId.CommandCenter,
-				order: 10003,
+				id: MenuId.TitleBarAdjacentCenter,
+				order: 0,
 				when: UPDATE_TITLE_BAR_CONTEXT,
 			}]
 		});
@@ -104,7 +104,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		}));
 
 		this._register(actionViewItemService.register(
-			MenuId.CommandCenter,
+			MenuId.TitleBarAdjacentCenter,
 			UPDATE_TITLE_BAR_ACTION_ID,
 			(action, options) => {
 				this.entry = instantiationService.createInstance(UpdateTitleBarEntry, action, options, this.tooltip, () => {
@@ -138,28 +138,26 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		}
 	}
 
-	private async onStateChange(detectVersionChange = false) {
+	private async onStateChange(startup = false) {
 		this.updateContext();
 		if (this.mode === 'none' || this.tooltipVisible || !await this.hostService.hadLastFocus()) {
 			return;
 		}
 
-		let showTooltip = detectVersionChange && this.detectVersionChange();
+		let showTooltip = startup && this.detectVersionChange();
 		if (showTooltip) {
 			this.tooltip.renderPostInstall();
 		} else {
 			this.tooltip.renderState(this.state);
 			switch (this.state.type) {
 				case StateType.Disabled:
-					showTooltip = this.state.reason === DisablementReason.InvalidConfiguration || this.state.reason === DisablementReason.RunningAsAdmin;
+					if (startup) {
+						const reason = this.state.reason;
+						showTooltip = reason === DisablementReason.InvalidConfiguration || reason === DisablementReason.RunningAsAdmin;
+					}
 					break;
 				case StateType.Idle:
 					showTooltip = !!this.state.error || !!this.state.notAvailable;
-					break;
-				case StateType.AvailableForDownload:
-				case StateType.Downloaded:
-				case StateType.Ready:
-					showTooltip = true;
 					break;
 			}
 		}

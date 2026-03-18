@@ -175,6 +175,16 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 			const packagedDependencyFileNames = packagedDependencies.flatMap(dependency =>
 				glob.sync(path.join(extensionPath, 'node_modules', dependency, '**'), { nodir: true, dot: true })
 					.map(filePath => path.relative(extensionPath, filePath))
+					.filter(filePath => {
+						// Exclude non-.node files from build directories to avoid timestamp-sensitive
+						// artifacts (e.g. Makefile) that break macOS universal builds due to SHA mismatches.
+						const parts = filePath.split(path.sep);
+						const buildIndex = parts.indexOf('build');
+						if (buildIndex !== -1) {
+							return filePath.endsWith('.node');
+						}
+						return true;
+					})
 			);
 
 			fileNames = Array.from(new Set([...fileNames, ...packagedDependencyFileNames]));

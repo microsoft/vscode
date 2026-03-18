@@ -109,7 +109,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: SessionsViewFilterSubMenu,
 			groupResults: () => this.currentGrouping,
-			allowedProviders: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
+			allowedProviders: undefined, // TODO: restore to [AgentSessionProviders.Background, AgentSessionProviders.Cloud]
 			providerLabelOverrides: new Map([
 				[AgentSessionProviders.Background, localize('chat.session.providerLabel.local', "Local")],
 			]),
@@ -141,7 +141,6 @@ export class AgenticSessionsViewPane extends ViewPane {
 			filter: sessionsFilter,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			disableHover: true,
-			showIsolationIcon: true,
 			enableApprovalRow: true,
 			getHoverPosition: () => this.getSessionHoverPosition(),
 			trackActiveEditorSession: () => true,

@@ -17,6 +17,7 @@ import { join } from 'node:path';
 // SEE https://nodejs.org/docs/latest/api/module.html#initialize
 
 const _specifierToUrl: Record<string, string> = {};
+const _specifierToFormat: Record<string, string> = {};
 
 export async function initialize(injectPath: string): Promise<void> {
 	// populate mappings
@@ -27,16 +28,37 @@ export async function initialize(injectPath: string): Promise<void> {
 	for (const [name] of Object.entries(packageJSON.dependencies)) {
 		try {
 			const path = join(injectPackageJSONPath, `../node_modules/${name}/package.json`);
-			let { main } = JSON.parse(String(await promises.readFile(path)));
+			const pkgJson = JSON.parse(String(await promises.readFile(path)));
+
+			// Determine the entry point: prefer exports["."].import for ESM, then main
+			let main: string | undefined;
+			if (pkgJson.exports?.['.']) {
+				const dotExport = pkgJson.exports['.'];
+				if (typeof dotExport === 'string') {
+					main = dotExport;
+				} else if (typeof dotExport === 'object' && dotExport !== null) {
+					main = dotExport.import ?? dotExport.default;
+				}
+			}
+			if (typeof main !== 'string') {
+				main = typeof pkgJson.main === 'string' ? pkgJson.main : undefined;
+			}
 
 			if (!main) {
 				main = 'index.js';
 			}
-			if (!main.endsWith('.js')) {
+			if (!main.endsWith('.js') && !main.endsWith('.mjs') && !main.endsWith('.cjs')) {
 				main += '.js';
 			}
 			const mainPath = join(injectPackageJSONPath, `../node_modules/${name}/${main}`);
 			_specifierToUrl[name] = pathToFileURL(mainPath).href;
+			// Determine module format: .mjs is always ESM, .cjs always CJS, otherwise check type field
+			const isModule = main.endsWith('.mjs')
+				? true
+				: main.endsWith('.cjs')
+					? false
+					: pkgJson.type === 'module';
+			_specifierToFormat[name] = isModule ? 'module' : 'commonjs';
 
 		} catch (err) {
 			console.error(name);
@@ -52,6 +74,7 @@ export async function resolve(specifier: string | number, context: unknown, next
 	const newSpecifier = _specifierToUrl[specifier];
 	if (newSpecifier !== undefined) {
 		return {
+			format: _specifierToFormat[specifier] ?? 'commonjs',
 			shortCircuit: true,
 			url: newSpecifier
 		};

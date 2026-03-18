@@ -27,7 +27,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string.comment.buffered.block.pug: #0F4A85",
 			"light_modern": "string.comment.buffered.block.pug: #0000FF",
-			"2026-dark": "string.comment: #768390",
+			"2026-dark": "string.comment: #8B949E",
 			"2026-light": "string.comment.buffered.block.pug: #0000FF"
 		}
 	}

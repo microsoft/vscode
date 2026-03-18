@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { IPCServer, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { ILoggerService } from '../../log/common/log.js';
-import { IGatewayCallToolResult, IGatewayServerResources, IGatewayServerResourceTemplates, IMcpGatewayService, McpGatewayToolBrokerChannelName } from '../common/mcpGateway.js';
+import { IMcpGatewayServerDescriptor, IMcpGatewayServerInfo, IMcpGatewayService, McpGatewayToolBrokerChannelName } from '../common/mcpGateway.js';
 import { MCP } from '../common/modelContextProtocol.js';
 
 /**
@@ -18,6 +18,11 @@ import { MCP } from '../common/modelContextProtocol.js';
  */
 export class McpGatewayChannel<TContext> extends Disposable implements IServerChannel<TContext> {
 
+	private readonly _onDidChangeGatewayServers = this._register(new Emitter<{ gatewayId: string; servers: readonly IMcpGatewayServerInfo[] }>());
+	private readonly _gatewayDisposables = this._register(new DisposableMap<string, DisposableStore>());
+	/** Tracks which gateways belong to which client for cleanup on disconnect */
+	private readonly _clientGateways = new Map<TContext, Set<string>>();
+
 	constructor(
 		private readonly _ipcServer: IPCServer<TContext>,
 		@IMcpGatewayService private readonly mcpGatewayService: IMcpGatewayService,
@@ -27,11 +32,23 @@ export class McpGatewayChannel<TContext> extends Disposable implements IServerCh
 		this._register(_ipcServer.onDidRemoveConnection(c => {
 			this._loggerService.getLogger('mcpGateway')?.info(`[McpGateway][Channel] Client disconnected: ${c.ctx}, cleaning up gateways`);
 			mcpGatewayService.disposeGatewaysForClient(c.ctx);
+
+			// Clean up per-gateway change-event forwarders for this client
+			const gatewaysForClient = this._clientGateways.get(c.ctx);
+			if (gatewaysForClient) {
+				for (const gatewayId of gatewaysForClient) {
+					this._gatewayDisposables.deleteAndDispose(gatewayId);
+				}
+				this._clientGateways.delete(c.ctx);
+			}
 		}));
 	}
 
-	listen<T>(_ctx: TContext, _event: string): Event<T> {
-		throw new Error('Invalid listen');
+	listen<T>(_ctx: TContext, event: string): Event<T> {
+		if (event === 'onDidChangeGatewayServers') {
+			return this._onDidChangeGatewayServers.event as Event<T>;
+		}
+		throw new Error(`Invalid listen: ${event}`);
 	}
 
 	async call<T>(ctx: TContext, command: string, args?: unknown): Promise<T> {
@@ -41,21 +58,59 @@ export class McpGatewayChannel<TContext> extends Disposable implements IServerCh
 		switch (command) {
 			case 'createGateway': {
 				const brokerChannel = ipcChannelForContext(this._ipcServer, ctx);
+
+				// Fetch initial server list before creating the gateway (IPC is async, but the invoker interface is sync)
+				let currentServers = await brokerChannel.call<readonly IMcpGatewayServerDescriptor[]>('listServers');
+				const onDidChangeServersListener = brokerChannel.listen<readonly IMcpGatewayServerDescriptor[]>('onDidChangeServers');
+
 				const result = await this.mcpGatewayService.createGateway(ctx, {
+					onDidChangeServers: Event.map(onDidChangeServersListener, servers => {
+						currentServers = servers;
+						return servers;
+					}),
 					onDidChangeTools: brokerChannel.listen<void>('onDidChangeTools'),
 					onDidChangeResources: brokerChannel.listen<void>('onDidChangeResources'),
-					listTools: () => brokerChannel.call<readonly MCP.Tool[]>('listTools'),
-					callTool: (name, callArgs) => brokerChannel.call<IGatewayCallToolResult>('callTool', { name, args: callArgs }),
-					listResources: () => brokerChannel.call<readonly IGatewayServerResources[]>('listResources'),
-					readResource: (serverIndex, uri) => brokerChannel.call<MCP.ReadResourceResult>('readResource', { serverIndex, uri }),
-					listResourceTemplates: () => brokerChannel.call<readonly IGatewayServerResourceTemplates[]>('listResourceTemplates'),
+					listServers: () => currentServers,
+					listToolsForServer: serverId => brokerChannel.call<readonly MCP.Tool[]>('listToolsForServer', { serverId }),
+					callToolForServer: (serverId, name, callArgs) => brokerChannel.call<MCP.CallToolResult>('callToolForServer', { serverId, name, args: callArgs }),
+					listResourcesForServer: serverId => brokerChannel.call<readonly MCP.Resource[]>('listResourcesForServer', { serverId }),
+					readResourceForServer: (serverId, uri) => brokerChannel.call<MCP.ReadResourceResult>('readResourceForServer', { serverId, uri }),
+					listResourceTemplatesForServer: serverId => brokerChannel.call<readonly MCP.ResourceTemplate[]>('listResourceTemplatesForServer', { serverId }),
 				});
-				logger?.info(`[McpGateway][Channel] Gateway created: ${result.gatewayId} for client ${ctx}`);
-				return result as T;
+				// Forward server change events via IPC
+				const gatewayStore = new DisposableStore();
+				gatewayStore.add(result.onDidChangeServers(servers => {
+					this._onDidChangeGatewayServers.fire({ gatewayId: result.gatewayId, servers });
+				}));
+				this._gatewayDisposables.set(result.gatewayId, gatewayStore);
+
+				// Track client → gateway for disconnect cleanup
+				let gatewaysForClient = this._clientGateways.get(ctx);
+				if (!gatewaysForClient) {
+					gatewaysForClient = new Set<string>();
+					this._clientGateways.set(ctx, gatewaysForClient);
+				}
+				gatewaysForClient.add(result.gatewayId);
+
+				logger?.info(`[McpGateway][Channel] Gateway created: ${result.gatewayId} with ${result.servers.length} server(s) for client ${ctx}`);
+				// eslint-disable-next-line local/code-no-dangerous-type-assertions
+				return { gatewayId: result.gatewayId, servers: result.servers } as T;
 			}
 			case 'disposeGateway': {
-				logger?.info(`[McpGateway][Channel] Disposing gateway: ${args as string} for client ${ctx}`);
-				await this.mcpGatewayService.disposeGateway(args as string);
+				const gatewayId = args as string;
+				logger?.info(`[McpGateway][Channel] Disposing gateway: ${gatewayId} for client ${ctx}`);
+				this._gatewayDisposables.deleteAndDispose(gatewayId);
+
+				// Remove from client tracking
+				const gatewaysForClient = this._clientGateways.get(ctx);
+				if (gatewaysForClient) {
+					gatewaysForClient.delete(gatewayId);
+					if (gatewaysForClient.size === 0) {
+						this._clientGateways.delete(ctx);
+					}
+				}
+
+				await this.mcpGatewayService.disposeGateway(gatewayId);
 				return undefined as T;
 			}
 		}

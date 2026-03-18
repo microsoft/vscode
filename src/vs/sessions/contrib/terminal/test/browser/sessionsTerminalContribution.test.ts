@@ -37,8 +37,10 @@ function makeAgentSession(opts: {
 		worktree: opts.worktree,
 		providerType: opts.providerType ?? AgentSessionProviders.Local,
 		setArchived: () => { },
+		setPinned: () => { },
 		setRead: () => { },
 		isArchived: () => opts.isArchived ?? false,
+		isPinned: () => false,
 		isRead: () => true,
 		metadata: opts.worktreePath ? { worktreePath: opts.worktreePath } : undefined,
 	} as unknown as IActiveSessionItem & IAgentSession;

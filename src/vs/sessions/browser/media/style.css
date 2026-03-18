@@ -82,3 +82,9 @@
 	padding: 4px 8px 6px 8px !important;
 	box-sizing: border-box;
 }
+
+/* ---- Session List ---- */
+
+.agent-sessions-workbench .agent-session-title {
+	color: var(--vscode-list-activeSelectionForeground);
+}
