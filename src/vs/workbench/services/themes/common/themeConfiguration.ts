@@ -286,12 +286,13 @@ export class ThemeConfiguration {
 	}
 
 	private shouldAutoDetectColorScheme(): boolean {
-		const { value, userValue } = this.configurationService.inspect<boolean>(ThemeSettings.DETECT_COLOR_SCHEME);
+		const { value, userValue, userLocalValue, userRemoteValue } = this.configurationService.inspect<boolean>(ThemeSettings.DETECT_COLOR_SCHEME);
 		if (value) {
 			return true;
 		}
 		if (this.isNewUser) {
-			return userValue === undefined;
+			const hasUserScopedValue = userValue !== undefined || userLocalValue !== undefined || userRemoteValue !== undefined;
+			return !hasUserScopedValue;
 		}
 		return false;
 	}
