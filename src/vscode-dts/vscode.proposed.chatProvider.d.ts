@@ -133,7 +133,7 @@ declare module 'vscode' {
 				 * is shown as a primary action in the model picker.
 				 */
 				readonly group?: string;
-			}
+			};
 		};
 	};
 
