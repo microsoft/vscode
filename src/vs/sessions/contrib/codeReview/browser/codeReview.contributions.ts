@@ -180,7 +180,7 @@ class CodeReviewToolbarContribution extends Disposable implements IWorkbenchCont
 				canRunCodeReview = true;
 				tooltip = reviewState.didProduceComments
 					? localize('sessions.runCodeReview.tooltip.runAgain', "Run another code review.")
-					: localize('sessions.runCodeReview.tooltip.noCommentsRunAgain', "Previous code review did not produce any comments, run code review again.");
+					: localize('sessions.runCodeReview.tooltip.noCommentsRunAgain', "Previous code review produced no comments. Run code review again.");
 				icon = reviewState.didProduceComments ? Codicon.comment : Codicon.codeReview;
 			}
 
