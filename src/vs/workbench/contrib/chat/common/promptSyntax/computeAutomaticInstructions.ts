@@ -24,12 +24,13 @@ import { ILanguageModelToolsService, IToolData, VSCodeToolReference } from '../t
 import { PromptsConfig } from './config/config.js';
 import { isInClaudeAgentsFolder, isInClaudeRulesFolder, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { ParsedPromptFile } from './promptFileParser.js';
-import { AgentFileType, ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
+import { AgentFileType, IAgentSkill, ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
 import { AGENT_DEBUG_LOG_ENABLED_SETTING, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_SKILL_PATH } from './promptTypes.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ChatConfiguration, ChatModeKind } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
 import { mark } from '../../../../../base/common/performance.js';
+import { hashAsync } from '../../../../../base/common/hash.js';
 
 export type InstructionsCollectionEvent = {
 	applyingInstructionsCount: number;
@@ -128,6 +129,43 @@ export class ComputeAutomaticInstructions {
 		// Emit telemetry
 		telemetryEvent.totalInstructionsCount = telemetryEvent.agentInstructionsCount + telemetryEvent.referencedInstructionsCount + telemetryEvent.applyingInstructionsCount + telemetryEvent.listedInstructionsCount;
 		this._telemetryService.publicLog2<InstructionsCollectionEvent, InstructionsCollectionClassification>('instructionsCollected', telemetryEvent);
+	}
+
+	private _logSkillLoadedTelemetry(skills: readonly IAgentSkill[]): void {
+		type SkillLoadedIntoContextEvent = {
+			skillName: string;
+			skillStorage: string;
+			skillMdHash: string;
+		};
+
+		type SkillLoadedIntoContextClassification = {
+			skillName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the skill loaded into the agent context.' };
+			skillStorage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The storage source of the skill (local, user, extension, plugin, internal).' };
+			skillMdHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the SKILL.md file content to detect modifications.' };
+			owner: 'anthropic-skills-telemetry';
+			comment: 'Tracks individual skill loading into agent context. Unrestricted telemetry fired when a skill is loaded into context by any agent.';
+		};
+
+		for (const skill of skills) {
+			// Compute hash of the SKILL.md content asynchronously; fire-and-forget
+			this._fileService.readFile(skill.uri).then(
+				content => hashAsync(content.value.toString()).then(hash => {
+					this._telemetryService.publicLog2<SkillLoadedIntoContextEvent, SkillLoadedIntoContextClassification>('skillLoadedIntoContext', {
+						skillName: skill.name,
+						skillStorage: skill.storage,
+						skillMdHash: hash,
+					});
+				}),
+				() => {
+					// If file read fails, still log the event without the hash
+					this._telemetryService.publicLog2<SkillLoadedIntoContextEvent, SkillLoadedIntoContextClassification>('skillLoadedIntoContext', {
+						skillName: skill.name,
+						skillStorage: skill.storage,
+						skillMdHash: '',
+					});
+				}
+			);
+		}
 	}
 
 	/** public for testing */
@@ -379,6 +417,9 @@ export class ComputeAutomaticInstructions {
 				return true;
 			});
 			if (modelInvocableSkills && modelInvocableSkills.length > 0) {
+				// Log per-skill telemetry for each skill loaded into context
+				this._logSkillLoadedTelemetry(modelInvocableSkills);
+
 				const useSkillAdherencePrompt = this._configurationService.getValue(PromptsConfig.USE_SKILL_ADHERENCE_PROMPT);
 				entries.push('<skills>');
 				if (useSkillAdherencePrompt) {
