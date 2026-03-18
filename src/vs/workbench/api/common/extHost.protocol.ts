@@ -3590,6 +3590,8 @@ export type IChatSessionHistoryItemDto = {
 	participant: string;
 };
 
+export type IChatSessionRequestHistoryItemDto = Extract<IChatSessionHistoryItemDto, { type: 'request' }>;
+
 export interface ChatSessionOptionUpdateDto {
 	readonly optionId: string;
 	readonly value: string | IChatSessionProviderOptionItem | undefined;
@@ -3611,6 +3613,7 @@ export interface ChatSessionDto {
 	history: Array<IChatSessionHistoryItemDto>;
 	hasActiveResponseCallback: boolean;
 	hasRequestHandler: boolean;
+	hasForkHandler: boolean;
 	supportsInterruption: boolean;
 	options?: Record<string, string | IChatSessionProviderOptionItem>;
 }
@@ -3653,6 +3656,7 @@ export interface ExtHostChatSessionsShape {
 	$provideChatSessionProviderOptions(providerHandle: number, token: CancellationToken): Promise<IChatSessionProviderOptions | undefined>;
 	$invokeOptionGroupSearch(providerHandle: number, optionGroupId: string, query: string, token: CancellationToken): Promise<IChatSessionProviderOptionItem[]>;
 	$provideHandleOptionsChange(providerHandle: number, sessionResource: UriComponents, updates: ReadonlyArray<ChatSessionOptionUpdateDto>, token: CancellationToken): Promise<void>;
+	$forkChatSession(providerHandle: number, sessionResource: UriComponents, request: IChatSessionRequestHistoryItemDto | undefined, token: CancellationToken): Promise<Dto<IChatSessionItem>>;
 }
 
 export interface GitRefQueryDto {
