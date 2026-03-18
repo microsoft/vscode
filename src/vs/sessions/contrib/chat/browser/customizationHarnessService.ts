@@ -7,9 +7,7 @@ import {
 	CustomizationHarness,
 	CustomizationHarnessServiceBase,
 	createCliHarnessDescriptor,
-	createClaudeHarnessDescriptor,
 	getCliUserRoots,
-	getClaudeUserRoots,
 } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { BUILTIN_STORAGE } from '../common/builtinPromptsStorage.js';
@@ -17,8 +15,8 @@ import { BUILTIN_STORAGE } from '../common/builtinPromptsStorage.js';
 /**
  * Sessions-window override of the customization harness service.
  *
- * Exposes CLI and Claude harnesses with restricted user-root filters
- * so the customizations UI only shows items accessible to each harness.
+ * Only the CLI harness is registered because sessions always run via
+ * the Copilot CLI. With a single harness the toggle bar is hidden.
  */
 export class SessionsCustomizationHarnessService extends CustomizationHarnessServiceBase {
 	constructor(
@@ -27,10 +25,7 @@ export class SessionsCustomizationHarnessService extends CustomizationHarnessSer
 		const userHome = pathService.userHome({ preferLocal: true });
 		const extras = [BUILTIN_STORAGE];
 		super(
-			[
-				createCliHarnessDescriptor(getCliUserRoots(userHome), extras),
-				createClaudeHarnessDescriptor(getClaudeUserRoots(userHome), extras),
-			],
+			[createCliHarnessDescriptor(getCliUserRoots(userHome), extras)],
 			CustomizationHarness.CLI,
 		);
 	}

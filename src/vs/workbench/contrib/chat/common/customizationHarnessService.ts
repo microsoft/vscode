@@ -10,7 +10,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IStorageSourceFilter } from './aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, IStorageSourceFilter } from './aiCustomizationWorkspaceService.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
 import { PromptsStorage } from './promptSyntax/service/promptsService.js';
 
@@ -34,6 +34,12 @@ export interface IHarnessDescriptor {
 	readonly id: CustomizationHarness;
 	readonly label: string;
 	readonly icon: ThemeIcon;
+	/**
+	 * Management sections that should be hidden when this harness is active.
+	 * For example, Claude does not support custom agents so the Agents
+	 * section is hidden.
+	 */
+	readonly hiddenSections?: readonly string[];
 	/**
 	 * Returns the storage source filter that should be applied to customization
 	 * items of the given type when this harness is active.
@@ -130,8 +136,8 @@ export function createVSCodeHarnessDescriptor(extras: readonly string[]): IHarne
 	const filter: IStorageSourceFilter = { sources: buildAllSources(extras) };
 	return {
 		id: CustomizationHarness.VSCode,
-		label: localize('harness.vscode', "VS Code"),
-		icon: ThemeIcon.fromId(Codicon.copilot.id),
+		label: localize('harness.local', "Local"),
+		icon: ThemeIcon.fromId(Codicon.vm.id),
 		getStorageSourceFilter: () => filter,
 	};
 }
@@ -147,6 +153,7 @@ function createRestrictedHarnessDescriptor(
 	icon: ThemeIcon,
 	restrictedUserRoots: readonly URI[],
 	extras: readonly string[],
+	hiddenSections?: readonly string[],
 ): IHarnessDescriptor {
 	const allSources = buildAllSources(extras);
 	const allRootsFilter: IStorageSourceFilter = { sources: allSources };
@@ -155,6 +162,7 @@ function createRestrictedHarnessDescriptor(
 		id,
 		label,
 		icon,
+		hiddenSections,
 		getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
 			if (type === PromptsType.hook) {
 				return HOOKS_FILTER;
@@ -174,7 +182,7 @@ export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras:
 	return createRestrictedHarnessDescriptor(
 		CustomizationHarness.CLI,
 		localize('harness.cli', "Copilot CLI"),
-		ThemeIcon.fromId(Codicon.terminal.id),
+		ThemeIcon.fromId(Codicon.worktree.id),
 		cliUserRoots,
 		extras,
 	);
@@ -182,14 +190,16 @@ export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras:
 
 /**
  * Creates a "Claude" harness descriptor.
+ * Claude does not support custom agents or hooks.
  */
 export function createClaudeHarnessDescriptor(claudeRoots: readonly URI[], extras: readonly string[]): IHarnessDescriptor {
 	return createRestrictedHarnessDescriptor(
 		CustomizationHarness.Claude,
 		localize('harness.claude', "Claude"),
-		ThemeIcon.fromId(Codicon.sparkle.id),
+		ThemeIcon.fromId(Codicon.claude.id),
 		claudeRoots,
 		extras,
+		[AICustomizationManagementSection.Agents, AICustomizationManagementSection.Hooks],
 	);
 }
 

@@ -51,7 +51,7 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { CustomizationHarness, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 
 export { truncateToFirstSentence } from './aiCustomizationListWidgetUtils.js';
 
@@ -425,10 +425,6 @@ export class AICustomizationListWidget extends Disposable {
 	private emptyStateText!: HTMLElement;
 	private emptyStateSubtext!: HTMLElement;
 
-	private harnessToggleContainer!: HTMLElement;
-	private harnessToggleButtons: Map<CustomizationHarness, HTMLElement> = new Map();
-	private readonly harnessToggleDisposables = this._register(new DisposableStore());
-
 	private currentSection: AICustomizationManagementSection = AICustomizationManagementSection.Agents;
 	private allItems: IAICustomizationListItem[] = [];
 	private displayEntries: IListEntry[] = [];
@@ -482,17 +478,12 @@ export class AICustomizationListWidget extends Disposable {
 		// Re-filter when the active harness changes
 		this._register(autorun(reader => {
 			this.harnessService.activeHarness.read(reader);
-			this.updateHarnessToggle();
 			this.refresh();
 		}));
 
 	}
 
 	private create(): void {
-		// Harness toggle bar (shown when multiple harnesses available)
-		this.harnessToggleContainer = DOM.append(this.element, $('.harness-toggle-container'));
-		this.createHarnessToggle();
-
 		// Search and button container
 		this.searchAndButtonContainer = DOM.append(this.element, $('.list-search-and-button-container'));
 
@@ -619,80 +610,6 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		}));
 		this.updateSectionHeader();
-	}
-
-	/**
-	 * Creates the harness toggle pill buttons with proper tablist semantics.
-	 */
-	private createHarnessToggle(): void {
-		this.harnessToggleDisposables.clear();
-		this.harnessToggleButtons.clear();
-		DOM.clearNode(this.harnessToggleContainer);
-
-		const harnesses = this.harnessService.availableHarnesses.get();
-		if (harnesses.length <= 1) {
-			this.harnessToggleContainer.style.display = 'none';
-			return;
-		}
-
-		this.harnessToggleContainer.style.display = '';
-		this.harnessToggleContainer.setAttribute('role', 'tablist');
-		this.harnessToggleContainer.setAttribute('aria-label', localize('harnessToggleLabel', "Customization filter"));
-
-		const activeId = this.harnessService.activeHarness.get();
-
-		for (const harness of harnesses) {
-			const pill = DOM.append(this.harnessToggleContainer, $('button.harness-toggle-pill'));
-			pill.setAttribute('role', 'tab');
-			pill.setAttribute('aria-selected', harness.id === activeId ? 'true' : 'false');
-			pill.tabIndex = harness.id === activeId ? 0 : -1;
-
-			const iconEl = DOM.append(pill, $('span.harness-toggle-icon'));
-			iconEl.classList.add(...ThemeIcon.asClassNameArray(harness.icon));
-
-			const labelEl = DOM.append(pill, $('span.harness-toggle-label'));
-			labelEl.textContent = harness.label;
-
-			if (harness.id === activeId) {
-				pill.classList.add('active');
-			}
-
-			this.harnessToggleDisposables.add(DOM.addDisposableListener(pill, 'click', () => {
-				this.harnessService.setActiveHarness(harness.id);
-			}));
-
-			this.harnessToggleDisposables.add(DOM.addDisposableListener(pill, 'keydown', (e: KeyboardEvent) => {
-				const pills = Array.from(this.harnessToggleButtons.values());
-				const index = pills.indexOf(pill);
-				let next: number | undefined;
-				if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-					next = (index + 1) % pills.length;
-				} else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-					next = (index - 1 + pills.length) % pills.length;
-				}
-				if (next !== undefined) {
-					e.preventDefault();
-					pills[next].focus();
-					const ids = Array.from(this.harnessToggleButtons.keys());
-					this.harnessService.setActiveHarness(ids[next]);
-				}
-			}));
-
-			this.harnessToggleButtons.set(harness.id, pill);
-		}
-	}
-
-	/**
-	 * Updates the visual state of the harness toggle pills.
-	 */
-	private updateHarnessToggle(): void {
-		const activeId = this.harnessService.activeHarness.get();
-		for (const [id, pill] of this.harnessToggleButtons) {
-			const isActive = id === activeId;
-			pill.classList.toggle('active', isActive);
-			pill.setAttribute('aria-selected', isActive ? 'true' : 'false');
-			pill.tabIndex = isActive ? 0 : -1;
-		}
 	}
 
 	/**

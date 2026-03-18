@@ -172,52 +172,54 @@
 	height: 100%;
 }
 
-/* Harness toggle bar */
-.ai-customization-list-widget .harness-toggle-container {
-	display: flex;
-	align-items: center;
-	gap: 4px;
+/* Harness dropdown in sidebar */
+.ai-customization-management-editor .sidebar-harness-dropdown {
 	flex-shrink: 0;
-	padding: 6px 0 2px;
+	padding: 6px 4px 4px;
 }
 
-.ai-customization-list-widget .harness-toggle-pill {
+.ai-customization-management-editor .harness-dropdown-button {
 	display: flex;
 	align-items: center;
-	gap: 4px;
-	padding: 4px 10px;
-	border: 1px solid var(--vscode-widget-border, transparent);
-	border-radius: 16px;
-	background: transparent;
-	color: var(--vscode-descriptionForeground);
+	gap: 6px;
+	width: 100%;
+	padding: 5px 8px;
+	border: 1px solid var(--vscode-dropdown-border, transparent);
+	border-radius: 4px;
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
 	cursor: pointer;
 	font-size: 12px;
-	transition: background-color 0.1s ease, color 0.1s ease, border-color 0.1s ease;
+	text-align: left;
 }
 
-.ai-customization-list-widget .harness-toggle-pill:hover {
-	background-color: var(--vscode-list-hoverBackground);
-	color: var(--vscode-foreground);
+.ai-customization-management-editor .harness-dropdown-button:hover {
+	background: var(--vscode-dropdown-background);
+	border-color: var(--vscode-focusBorder);
 }
 
-.ai-customization-list-widget .harness-toggle-pill:focus-visible {
+.ai-customization-management-editor .harness-dropdown-button:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
 
-.ai-customization-list-widget .harness-toggle-pill.active {
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
-	border-color: var(--vscode-badge-background);
-}
-
-.ai-customization-list-widget .harness-toggle-pill .harness-toggle-icon {
+.ai-customization-management-editor .harness-dropdown-icon {
 	font-size: 14px;
 	flex-shrink: 0;
+	color: inherit;
 }
 
-.ai-customization-list-widget .harness-toggle-pill .harness-toggle-label {
+.ai-customization-management-editor .harness-dropdown-label {
+	flex: 1;
 	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.ai-customization-management-editor .harness-dropdown-chevron {
+	font-size: 12px;
+	flex-shrink: 0;
+	opacity: 0.7;
 }
 
 /* Search and button container - consistent with Models view */
