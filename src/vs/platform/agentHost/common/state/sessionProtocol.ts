@@ -6,174 +6,119 @@
 // Protocol messages using JSON-RPC 2.0 framing for the sessions process.
 // See protocol.md for the full design.
 //
-// Client → Server messages are either:
-//   - Notifications (fire-and-forget): initialize, reconnect, unsubscribe, dispatchAction
-//   - Requests (expect a correlated response): subscribe, createSession, disposeSession,
-//     listSessions, fetchTurns, fetchContent
-//
-// Server → Client messages are either:
-//   - Notifications (pushed to clients): serverHello, reconnectResponse, action, notification
-//   - Responses (correlated to a client request by id)
+// Most types are re-exported from the auto-generated protocol layer.
+// This file adds VS Code-specific additions (ISetAuthTokenParams, ProtocolError)
+// and backward-compatible aliases.
 
-import { hasKey } from '../../../../base/common/types.js';
-import { URI } from '../../../../base/common/uri.js';
-import type { IActionEnvelope, INotification, ISessionAction, IStateAction } from './sessionActions.js';
-import type { IRootState, ISessionState, ISessionSummary } from './sessionState.js';
+// ---- Re-exports from protocol -----------------------------------------------
 
-// ---- JSON-RPC 2.0 base types -----------------------------------------------
+// JSON-RPC base types
+export type {
+	IJsonRpcErrorResponse,
+	IJsonRpcNotification,
+	IJsonRpcRequest,
+	IJsonRpcResponse,
+	IJsonRpcSuccessResponse,
+} from './protocol/messages.js';
 
-/** A JSON-RPC notification: has `method` but no `id`. */
-export interface IProtocolNotification {
-	readonly jsonrpc: '2.0';
-	readonly method: string;
-	readonly params?: unknown;
-}
+// Typed message unions
+export type {
+	IAhpClientNotification,
+	IAhpNotification,
+	IAhpRequest,
+	IAhpResponse,
+	IAhpServerNotification,
+	IAhpSuccessResponse,
+	ICommandMap,
+	IClientNotificationMap,
+	INotificationMap,
+	INotificationMethodParams,
+	IProtocolMessage,
+	IServerNotificationMap,
+} from './protocol/messages.js';
 
-/** A JSON-RPC request: has both `method` and `id`. */
-export interface IProtocolRequest {
-	readonly jsonrpc: '2.0';
-	readonly id: number;
-	readonly method: string;
-	readonly params?: unknown;
-}
+// Command params and results
+export type {
+	IBrowseDirectoryParams,
+	IBrowseDirectoryResult,
+	ICreateSessionParams,
+	IDirectoryEntry,
+	IDispatchActionParams,
+	IDisposeSessionParams,
+	IFetchContentParams,
+	IFetchContentResult,
+	IFetchTurnsParams,
+	IFetchTurnsResult,
+	IInitializeParams,
+	IInitializeResult,
+	IListSessionsParams,
+	IListSessionsResult,
+	IReconnectParams,
+	IReconnectReplayResult,
+	IReconnectResult,
+	IReconnectSnapshotResult,
+	ISubscribeParams,
+	IUnsubscribeParams,
+} from './protocol/commands.js';
 
-/** A JSON-RPC success response. */
-export interface IJsonRpcSuccessResponse {
-	readonly jsonrpc: '2.0';
-	readonly id: number;
-	readonly result: unknown;
-}
+export { ContentEncoding, ReconnectResultType } from './protocol/commands.js';
 
-/** A JSON-RPC error response. */
-export interface IJsonRpcErrorResponse {
-	readonly jsonrpc: '2.0';
-	readonly id: number;
-	readonly error: {
-		readonly code: number;
-		readonly message: string;
-		readonly data?: unknown;
-	};
-}
+// Error codes
+export { AhpErrorCodes, JsonRpcErrorCodes } from './protocol/errors.js';
+export type { AhpErrorCode, JsonRpcErrorCode } from './protocol/errors.js';
 
-export type IJsonRpcResponse = IJsonRpcSuccessResponse | IJsonRpcErrorResponse;
+// Snapshot type (re-exported from state)
+export type { ISnapshot as IStateSnapshot } from './protocol/state.js';
 
-/** Any message that flows over the protocol transport. */
-export type IProtocolMessage = IProtocolNotification | IProtocolRequest | IJsonRpcResponse;
+// ---- Backward-compatible error code aliases ---------------------------------
+
+export const JSON_RPC_PARSE_ERROR = -32700 as const;
+export const JSON_RPC_INTERNAL_ERROR = -32603 as const;
+export const AHP_SESSION_NOT_FOUND = -32001 as const;
+export const AHP_PROVIDER_NOT_FOUND = -32002 as const;
+export const AHP_SESSION_ALREADY_EXISTS = -32003 as const;
+export const AHP_TURN_IN_PROGRESS = -32004 as const;
+export const AHP_UNSUPPORTED_PROTOCOL_VERSION = -32005 as const;
+export const AHP_CONTENT_NOT_FOUND = -32006 as const;
 
 // ---- Type guards -----------------------------------------------------------
 
-export function isJsonRpcRequest(msg: IProtocolMessage): msg is IProtocolRequest {
-	return hasKey(msg, { id: true, method: true });
+import type { IAhpRequest, IAhpNotification, IAhpSuccessResponse, IProtocolMessage, IJsonRpcErrorResponse } from './protocol/messages.js';
+
+export function isJsonRpcRequest(msg: IProtocolMessage): msg is IAhpRequest {
+	return 'method' in msg && 'id' in msg;
 }
 
-export function isJsonRpcNotification(msg: IProtocolMessage): msg is IProtocolNotification {
-	return hasKey(msg, { method: true }) && !hasKey(msg, { id: true });
+export function isJsonRpcNotification(msg: IProtocolMessage): msg is IAhpNotification {
+	return 'method' in msg && !('id' in msg);
 }
 
-export function isJsonRpcResponse(msg: IProtocolMessage): msg is IJsonRpcResponse {
-	return hasKey(msg, { id: true }) && !hasKey(msg, { method: true });
+export function isJsonRpcResponse(msg: IProtocolMessage): msg is IAhpSuccessResponse | IJsonRpcErrorResponse {
+	return 'id' in msg && !('method' in msg);
 }
 
-// ---- JSON-RPC error codes ---------------------------------------------------
+// ---- VS Code-specific types ------------------------------------------------
 
-export const JSON_RPC_INTERNAL_ERROR = -32603;
-
-// ---- Shared data types ------------------------------------------------------
-
-/** State snapshot returned by subscribe and included in handshake/reconnect. */
-export interface IStateSnapshot {
-	readonly resource: URI;
-	readonly state: IRootState | ISessionState;
-	readonly fromSeq: number;
+/**
+ * Error with a JSON-RPC error code for protocol-level failures.
+ */
+export class ProtocolError extends Error {
+	constructor(readonly code: number, message: string) {
+		super(message);
+	}
 }
 
-// ---- Client → Server: Notification params -----------------------------------
-
-export interface IInitializeParams {
-	readonly protocolVersion: number;
-	readonly clientId: string;
-	readonly initialSubscriptions?: readonly URI[];
+/**
+ * VS Code-specific extension: set the auth token on the server.
+ * Not yet part of the official protocol.
+ */
+export interface ISetAuthTokenParams {
+	readonly token: string;
 }
 
-export interface IReconnectParams {
-	readonly clientId: string;
-	readonly lastSeenServerSeq: number;
-	readonly subscriptions: readonly URI[];
-}
+// ---- Server → Client notification param aliases (backward compat) -----------
 
-export interface IUnsubscribeParams {
-	readonly resource: URI;
-}
-
-export interface IDispatchActionParams {
-	readonly clientSeq: number;
-	readonly action: ISessionAction;
-}
-
-// ---- Client → Server: Request params and results ----------------------------
-
-export interface ISubscribeParams {
-	readonly resource: URI;
-}
-// Result: IStateSnapshot
-
-export interface ICreateSessionParams {
-	readonly session: URI;
-	readonly provider?: string;
-	readonly model?: string;
-	readonly workingDirectory?: string;
-}
-// Result: void (null)
-
-export interface IDisposeSessionParams {
-	readonly session: URI;
-}
-// Result: void (null)
-
-// listSessions: no params
-export interface IListSessionsResult {
-	readonly sessions: readonly ISessionSummary[];
-}
-
-export interface IFetchTurnsParams {
-	readonly session: URI;
-	readonly startTurn: number;
-	readonly count: number;
-}
-
-export interface IFetchTurnsResult {
-	readonly session: URI;
-	readonly startTurn: number;
-	readonly turns: ISessionState['turns'];
-	readonly totalTurns: number;
-}
-
-export interface IFetchContentParams {
-	readonly uri: URI;
-}
-
-export interface IFetchContentResult {
-	readonly uri: URI;
-	readonly data: string; // base64-encoded for binary safety
-	readonly mimeType?: string;
-}
-
-// ---- Server → Client: Notification params -----------------------------------
-
-export interface IServerHelloParams {
-	readonly protocolVersion: number;
-	readonly serverSeq: number;
-	readonly snapshots: readonly IStateSnapshot[];
-}
-
-export interface IReconnectResponseParams {
-	readonly serverSeq: number;
-	readonly snapshots: readonly IStateSnapshot[];
-}
-
-export interface IActionBroadcastParams {
-	readonly envelope: IActionEnvelope<IStateAction>;
-}
+import type { INotification } from './sessionActions.js';
 
 export interface INotificationBroadcastParams {
 	readonly notification: INotification;

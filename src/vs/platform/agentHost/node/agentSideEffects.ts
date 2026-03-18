@@ -6,15 +6,17 @@
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import * as os from 'os';
+import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, IAgentAttachment, IAgent } from '../common/agentService.js';
-import type { ISessionAction } from '../common/state/sessionActions.js';
-import type { ICreateSessionParams } from '../common/state/sessionProtocol.js';
+import { IAgent, IAgentAttachment } from '../common/agentService.js';
+import { ActionType, type ISessionAction } from '../common/state/sessionActions.js';
+import { IBrowseDirectoryResult, ICreateSessionParams, AHP_PROVIDER_NOT_FOUND, JSON_RPC_INTERNAL_ERROR, ProtocolError, IDirectoryEntry } from '../common/state/sessionProtocol.js';
 import {
-	ISessionModelInfo,
-	SessionStatus, type ISessionSummary
+	type ISessionModelInfo,
+	SessionStatus, type ISessionSummary, type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
-import { mapProgressEventToAction } from './agentEventMapper.js';
+import { mapProgressEventToActions } from './agentEventMapper.js';
 import type { IProtocolSideEffectHandler } from './protocolServerHandler.js';
 import { SessionStateManager } from './sessionStateManager.js';
 
@@ -23,7 +25,7 @@ import { SessionStateManager } from './sessionStateManager.js';
  */
 export interface IAgentSideEffectsOptions {
 	/** Resolve the agent responsible for a given session URI. */
-	readonly getAgent: (session: URI) => IAgent | undefined;
+	readonly getAgent: (session: ProtocolURI) => IAgent | undefined;
 	/** Observable set of registered agents. Triggers `root/agentsChanged` when it changes. */
 	readonly agents: IObservable<readonly IAgent[]>;
 }
@@ -41,12 +43,13 @@ export interface IAgentSideEffectsOptions {
 export class AgentSideEffects extends Disposable implements IProtocolSideEffectHandler {
 
 	/** Maps pending permission request IDs to the provider that issued them. */
-	private readonly _pendingPermissions = new Map<string, AgentProvider>();
+	private readonly _pendingPermissions = new Map<string, string>();
 
 	constructor(
 		private readonly _stateManager: SessionStateManager,
 		private readonly _options: IAgentSideEffectsOptions,
 		private readonly _logService: ILogService,
+		private readonly _fileService: IFileService,
 	) {
 		super();
 
@@ -76,7 +79,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			}
 			return { provider: d.provider, displayName: d.displayName, description: d.description, models };
 		}));
-		this._stateManager.dispatchServerAction({ type: 'root/agentsChanged', agents: infos });
+		this._stateManager.dispatchServerAction({ type: ActionType.RootAgentsChanged, agents: infos });
 	}
 
 	// ---- Agent registration -------------------------------------------------
@@ -95,11 +98,17 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				this._pendingPermissions.set(e.requestId, agent.id);
 			}
 
-			const turnId = this._stateManager.getActiveTurnId(e.session);
+			const turnId = this._stateManager.getActiveTurnId(e.session.toString());
 			if (turnId) {
-				const action = mapProgressEventToAction(e, e.session, turnId);
-				if (action) {
-					this._stateManager.dispatchServerAction(action);
+				const actions = mapProgressEventToActions(e, e.session.toString(), turnId);
+				if (actions) {
+					if (Array.isArray(actions)) {
+						for (const action of actions) {
+							this._stateManager.dispatchServerAction(action);
+						}
+					} else {
+						this._stateManager.dispatchServerAction(actions);
+					}
 				}
 			}
 		}));
@@ -110,11 +119,11 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 
 	handleAction(action: ISessionAction): void {
 		switch (action.type) {
-			case 'session/turnStarted': {
+			case ActionType.SessionTurnStarted: {
 				const agent = this._options.getAgent(action.session);
 				if (!agent) {
 					this._stateManager.dispatchServerAction({
-						type: 'session/error',
+						type: ActionType.SessionError,
 						session: action.session,
 						turnId: action.turnId,
 						error: { errorType: 'noAgent', message: 'No agent found for session' },
@@ -126,10 +135,10 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 					path: a.path,
 					displayName: a.displayName,
 				}));
-				agent.sendMessage(action.session, action.userMessage.text, attachments).catch(err => {
+				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments).catch(err => {
 					this._logService.error('[AgentSideEffects] sendMessage failed', err);
 					this._stateManager.dispatchServerAction({
-						type: 'session/error',
+						type: ActionType.SessionError,
 						session: action.session,
 						turnId: action.turnId,
 						error: { errorType: 'sendFailed', message: String(err) },
@@ -137,7 +146,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				});
 				break;
 			}
-			case 'session/permissionResolved': {
+			case ActionType.SessionPermissionResolved: {
 				const providerId = this._pendingPermissions.get(action.requestId);
 				if (providerId) {
 					this._pendingPermissions.delete(action.requestId);
@@ -148,16 +157,16 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				}
 				break;
 			}
-			case 'session/turnCancelled': {
+			case ActionType.SessionTurnCancelled: {
 				const agent = this._options.getAgent(action.session);
-				agent?.abortSession(action.session).catch(err => {
+				agent?.abortSession(URI.parse(action.session)).catch(err => {
 					this._logService.error('[AgentSideEffects] abortSession failed', err);
 				});
 				break;
 			}
-			case 'session/modelChanged': {
+			case ActionType.SessionModelChanged: {
 				const agent = this._options.getAgent(action.session);
-				agent?.changeModel?.(action.session, action.model).catch(err => {
+				agent?.changeModel?.(URI.parse(action.session), action.model).catch(err => {
 					this._logService.error('[AgentSideEffects] changeModel failed', err);
 				});
 				break;
@@ -166,18 +175,21 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 	}
 
 	async handleCreateSession(command: ICreateSessionParams): Promise<void> {
-		const provider = command.provider as AgentProvider | undefined;
+		const provider = command.provider;
 		if (!provider) {
-			throw new Error('No provider specified for session creation');
+			throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, 'No provider specified for session creation');
 		}
 		const agent = this._options.agents.get().find(a => a.id === provider);
 		if (!agent) {
-			throw new Error(`No agent registered for provider: ${provider}`);
+			throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, `No agent registered for provider: ${provider}`);
 		}
-		const session = await agent.createSession({
+		// Use the client-provided session URI per the protocol spec
+		const session = command.session;
+		await agent.createSession({
 			provider,
 			model: command.model,
 			workingDirectory: command.workingDirectory,
+			session: URI.parse(session),
 		});
 		const summary: ISessionSummary = {
 			resource: session,
@@ -188,12 +200,12 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			modifiedAt: Date.now(),
 		};
 		this._stateManager.createSession(summary);
-		this._stateManager.dispatchServerAction({ type: 'session/ready', session });
+		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session });
 	}
 
-	handleDisposeSession(session: URI): void {
+	handleDisposeSession(session: ProtocolURI): void {
 		const agent = this._options.getAgent(session);
-		agent?.disposeSession(session).catch(() => { });
+		agent?.disposeSession(URI.parse(session)).catch(() => { });
 		this._stateManager.removeSession(session);
 	}
 
@@ -204,7 +216,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			const provider = agent.id;
 			for (const s of sessions) {
 				allSessions.push({
-					resource: s.session,
+					resource: s.session.toString(),
 					provider,
 					title: s.summary ?? 'Session',
 					status: SessionStatus.Idle,
@@ -214,6 +226,37 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			}
 		}
 		return allSessions;
+	}
+
+	handleSetAuthToken(token: string): void {
+		for (const agent of this._options.agents.get()) {
+			agent.setAuthToken(token).catch(err => {
+				this._logService.error('[AgentSideEffects] setAuthToken failed', err);
+			});
+		}
+	}
+
+	async handleBrowseDirectory(uri: ProtocolURI): Promise<IBrowseDirectoryResult> {
+		let stat;
+		try {
+			stat = await this._fileService.resolve(URI.parse(uri));
+		} catch {
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Directory not found: ${uri.toString()}`);
+		}
+
+		if (!stat.isDirectory) {
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Not a directory: ${uri.toString()}`);
+		}
+
+		const entries: IDirectoryEntry[] = (stat.children ?? []).map(child => ({
+			name: child.name,
+			type: child.isDirectory ? 'directory' : 'file',
+		}));
+		return { entries };
+	}
+
+	getDefaultDirectory(): ProtocolURI {
+		return URI.file(os.homedir()).toString();
 	}
 
 	override dispose(): void {

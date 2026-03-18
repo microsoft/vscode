@@ -33,9 +33,4 @@ suite('AgentSession namespace', () => {
 		const session = AgentSession.uri('copilot', 'sess-1');
 		assert.strictEqual(AgentSession.provider(session), 'copilot');
 	});
-
-	test('provider returns undefined for an unknown scheme', () => {
-		const session = URI.from({ scheme: 'agent-host-copilot', path: '/sess-1' });
-		assert.strictEqual(AgentSession.provider(session), undefined);
-	});
 });

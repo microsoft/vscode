@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentHostService, AgentHostEnabledSettingId, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -42,7 +42,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private _outputChannel: IOutputChannel | undefined;
 	private _isChannelRegistered = false;
 	private _clientState: SessionClientState | undefined;
-	private readonly _agentRegistrations = new Map<AgentProvider, DisposableStore>();
+	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	/** Model providers keyed by agent provider, for pushing model updates. */
 	private readonly _modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
 
@@ -66,7 +66,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._setupIpcLogging();
 
 		// Shared client state for protocol reconciliation
-		this._clientState = this._register(new SessionClientState(this._agentHostService.clientId));
+		this._clientState = this._register(new SessionClientState(this._agentHostService.clientId, this._logService));
 
 		// Forward action envelopes from the host to client state
 		this._register(this._agentHostService.onDidAction(envelope => {
@@ -156,7 +156,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	private async _initializeAndSubscribe(): Promise<void> {
 		try {
-			const snapshot = await this._agentHostService.subscribe(ROOT_STATE_URI);
+			const snapshot = await this._agentHostService.subscribe(URI.parse(ROOT_STATE_URI));
 			if (this._store.isDisposed) {
 				return;
 			}
@@ -171,10 +171,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const incoming = new Set(rootState.agents.map(a => a.provider));
 
 		// Remove agents that are no longer present
-		for (const [provider, store] of this._agentRegistrations) {
+		for (const [provider] of this._agentRegistrations) {
 			if (!incoming.has(provider)) {
-				store.dispose();
-				this._agentRegistrations.delete(provider);
+				this._agentRegistrations.deleteAndDispose(provider);
 				this._modelProviders.delete(provider);
 			}
 		}
@@ -194,7 +193,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private _registerAgent(agent: IAgentInfo): void {
 		const store = new DisposableStore();
 		this._agentRegistrations.set(agent.provider, store);
-		this._register(store);
 		const sessionType = `agent-host-${agent.provider}`;
 		const agentId = sessionType;
 		const vendor = sessionType;
@@ -210,7 +208,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}));
 
 		// Session list controller
-		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider));
+		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._agentHostService, undefined));
 		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
 
 		// Session handler
@@ -220,6 +218,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			sessionType,
 			fullName: agent.displayName,
 			description: agent.description,
+			connection: this._agentHostService,
 		}));
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 

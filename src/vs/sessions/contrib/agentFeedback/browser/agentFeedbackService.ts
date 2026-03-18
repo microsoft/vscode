@@ -14,7 +14,7 @@ import { IChatEditingService } from '../../../../workbench/contrib/chat/common/e
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { agentSessionContainsResource, editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
-import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -67,6 +67,11 @@ export interface IAgentFeedbackService {
 	 * Remove a single feedback item.
 	 */
 	removeFeedback(sessionResource: URI, feedbackId: string): void;
+
+	/**
+	 * Update the text of an existing feedback item.
+	 */
+	updateFeedback(sessionResource: URI, feedbackId: string, newText: string): void;
 
 	/**
 	 * Get all feedback items for a session.
@@ -220,6 +225,25 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}
 	}
 
+	updateFeedback(sessionResource: URI, feedbackId: string, newText: string): void {
+		const key = sessionResource.toString();
+		const feedbackItems = this._feedbackBySession.get(key);
+		if (!feedbackItems) {
+			return;
+		}
+
+		const idx = feedbackItems.findIndex(f => f.id === feedbackId);
+		if (idx >= 0) {
+			const existing = feedbackItems[idx];
+			feedbackItems[idx] = {
+				...existing,
+				text: newText,
+			};
+			this._sessionUpdatedOrder.set(key, ++this._sessionUpdatedSequence);
+			this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
+		}
+	}
+
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[] {
 		return this._feedbackBySession.get(sessionResource.toString()) ?? [];
 	}
@@ -299,7 +323,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 					revealIfVisible: true,
 					selection,
 				}
-			}, MODAL_GROUP);
+			});
 		} else if (sessionChange?.originalUri) {
 			await this._editorService.openEditor({
 				original: { resource: sessionChange.originalUri },
@@ -310,7 +334,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 					revealIfVisible: true,
 					selection,
 				}
-			}, MODAL_GROUP);
+			});
 		} else {
 			await this._editorService.openEditor({
 				resource: sessionChange?.modifiedUri ?? resourceUri,
@@ -320,7 +344,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 					revealIfVisible: true,
 					selection,
 				}
-			}, MODAL_GROUP);
+			});
 		}
 
 		this.setNavigationAnchor(sessionResource, commentId);

@@ -244,7 +244,7 @@ export async function createRunInTerminalToolData(
 				},
 				timeout: {
 					type: 'number',
-					description: 'An optional timeout in milliseconds. When provided, the tool will stop tracking the command after this duration and return the output collected so far. Be conservative with the timeout duration, give enough time that the command would complete on a low-end machine. Use 0 for no timeout. If it\'s not clear how long the command will take then use 0 to avoid prematurely terminating it, never guess too low.',
+					description: 'An optional timeout in milliseconds. When provided, the tool will stop tracking the command after this duration and return the output collected so far with a timeout indicator. Be conservative with the timeout duration, give enough time that the command would complete on a low-end machine. Use 0 for no timeout. If it\'s not clear how long the command will take then use 0 to avoid prematurely terminating it, never guess too low.',
 				},
 			},
 			required: [
@@ -487,6 +487,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		let rewrittenCommand: string | undefined = args.command;
 		let forDisplayCommand: string | undefined = undefined;
+		let isSandboxWrapped = false;
 		for (const rewriter of this._commandLineRewriters) {
 			const rewriteResult = await rewriter.rewrite({
 				commandLine: rewrittenCommand,
@@ -497,6 +498,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (rewriteResult) {
 				rewrittenCommand = rewriteResult.rewritten;
 				forDisplayCommand = rewriteResult.forDisplay;
+				if (rewriteResult.isSandboxWrapped) {
+					isSandboxWrapped = true;
+				}
 				this._logService.info(`RunInTerminalTool: Command rewritten by ${rewriter.constructor.name}: ${rewriteResult.reasoning}`);
 			}
 		}
@@ -509,6 +513,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				original: args.command,
 				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand,
 				forDisplay: forDisplayCommand ?? normalizeTerminalCommandForDisplay(rewrittenCommand ?? args.command),
+				isSandboxWrapped,
 			},
 			cwd,
 			language,
@@ -781,6 +786,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original
 		);
 
+		const didSandboxWrapCommand = toolSpecificData.commandLine.isSandboxWrapped === true;
+
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -826,6 +833,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let didTimeout = false;
 		let didMoveToBackground = args.isBackground;
 		let timeoutPromise: CancelablePromise<void> | undefined;
+		let timeoutRacePromise: Promise<{ type: 'timeout' }> | undefined;
 		let outputMonitor: OutputMonitor | undefined;
 		let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 		const executeCancellation = store.add(new CancellationTokenSource(token));
@@ -836,12 +844,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const shouldEnforceTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel) === true;
 			if (shouldEnforceTimeout) {
 				timeoutPromise = timeout(timeoutValue);
-				timeoutPromise.then(() => {
-					if (!executeCancellation.token.isCancellationRequested) {
-						didTimeout = true;
-						executeCancellation.cancel();
-					}
-				});
+				timeoutRacePromise = timeoutPromise.then(
+					() => ({ type: 'timeout' as const })
+				).catch(() => ({ type: 'timeout' as const }));
 			}
 		}
 
@@ -924,12 +929,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				state.timestamp = state.timestamp ?? timingStart;
 				toolSpecificData.terminalCommandState = state;
 
+				// if the command is wrapped in a sandbox, we will not show the command. This is because the sandbox may add additional commands that are not relevant to the user, and the output will provide more context about what is running.
 				let resultText = (
-					didUserEditCommand
-						? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
-						: didToolEditCommand
-							? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
-							: `Command is running in terminal with ID=${termId}`
+					didSandboxWrapCommand ? `Command is now running in terminal with ID=${termId}`
+						: didUserEditCommand
+							? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
+							: didToolEditCommand
+								? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
+								: `Command is running in terminal with ID=${termId}`
 				);
 				if (pollingResult && pollingResult.modelOutputEvalResponse) {
 					resultText += `\n\ The command became idle with output:\n${pollingResult.modelOutputEvalResponse}`;
@@ -951,10 +958,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				};
 			} else {
 				// Foreground mode: race execution completion against continue in background
-				const raceResult = await Promise.race([
+				const raceCandidates: Promise<{ type: 'completed'; result: ITerminalExecuteStrategyResult } | { type: 'background' } | { type: 'timeout' }>[] = [
 					executionPromise.then(result => ({ type: 'completed' as const, result })),
 					continueInBackgroundPromise.then(() => ({ type: 'background' as const }))
-				]);
+				];
+				if (timeoutRacePromise) {
+					raceCandidates.push(timeoutRacePromise);
+				}
+				const raceResult = await Promise.race(raceCandidates);
 
 				if (raceResult.type === 'background') {
 					// Moved to background - execution continues running, just return current output
@@ -963,6 +974,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					const backgroundOutput = execution.getOutput();
 					outputLineCount = backgroundOutput ? count(backgroundOutput.trim(), '\n') + 1 : 0;
 					terminalResult = backgroundOutput;
+				} else if (raceResult.type === 'timeout') {
+					// Timeout reached - return partial output and keep terminal alive as background.
+					this._logService.debug(`RunInTerminalTool: Timeout reached, returning output collected so far`);
+					error = 'timeout';
+					didTimeout = true;
+					didMoveToBackground = true;
+					toolTerminal.isBackground = true;
+					this._sessionTerminalAssociations.delete(chatSessionResource);
+					await this._associateProcessIdWithSession(toolTerminal.instance, chatSessionResource, termId, toolTerminal.shellIntegrationQuality, true);
+					const timeoutOutput = execution.getOutput();
+					outputLineCount = timeoutOutput ? count(timeoutOutput.trim(), '\n') + 1 : 0;
+					terminalResult = timeoutOutput ?? '';
 				} else {
 					const executeResult = raceResult.result;
 					// Reset user input state after command execution completes
@@ -1026,6 +1049,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (didTimeout && e instanceof CancellationError) {
 				this._logService.debug(`RunInTerminalTool: Timeout reached, returning output collected so far`);
 				error = 'timeout';
+				didMoveToBackground = true;
+				toolTerminal.isBackground = true;
+				this._sessionTerminalAssociations.delete(chatSessionResource);
 				const timeoutOutput = getOutput(toolTerminal.instance, undefined);
 				outputLineCount = timeoutOutput ? count(timeoutOutput.trim(), '\n') + 1 : 0;
 				terminalResult = timeoutOutput ?? '';
@@ -1099,13 +1125,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const resultText: string[] = [];
-		if (didUserEditCommand) {
-			resultText.push(`Note: The user manually edited the command to \`${command}\`, and this is the output of running that command instead:\n`);
-		} else if (didToolEditCommand) {
-			resultText.push(`Note: The tool simplified the command to \`${command}\`, and this is the output of running that command instead:\n`);
+		if (!didSandboxWrapCommand) {
+			if (didUserEditCommand) {
+				resultText.push(`Note: The user manually edited the command to \`${command}\`, and this is the output of running that command instead:\n`);
+			} else if (didToolEditCommand) {
+				resultText.push(`Note: The tool simplified the command to \`${command}\`, and this is the output of running that command instead:\n`);
+			}
+			if (didMoveToBackground && !args.isBackground) {
+				resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
+			}
 		}
-		if (didMoveToBackground && !args.isBackground) {
-			resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
+		if (didTimeout && timeoutValue !== undefined && timeoutValue > 0) {
+			resultText.push(`Note: Command timed out after ${timeoutValue}ms. Output collected so far is shown below and the command may still be running in terminal ID ${termId}.\n\n`);
 		}
 		let outputAnalyzerMessage: string | undefined;
 		for (const analyzer of this._outputAnalyzers) {
@@ -1131,6 +1162,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				exitCode: exitCode,
 				id: termId,
 				cwd: endCwd?.toString(),
+				timedOut: didTimeout || undefined,
+				timeoutMs: didTimeout ? timeoutValue : undefined,
 			},
 			toolResultDetails: isError ? {
 				input: command,

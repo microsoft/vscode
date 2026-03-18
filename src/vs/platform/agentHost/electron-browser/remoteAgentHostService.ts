@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerMainProcessRemoteService } from '../../ipc/electron-browser/services.js';
-import { SandboxHelperChannelName } from '../common/sandboxHelperIpc.js';
-import { ISandboxHelperService } from '../common/sandboxHelperService.js';
+import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
+import { IRemoteAgentHostService } from '../common/remoteAgentHostService.js';
+import { RemoteAgentHostService } from './remoteAgentHostServiceImpl.js';
 
-registerMainProcessRemoteService(ISandboxHelperService, SandboxHelperChannelName);
+registerSingleton(IRemoteAgentHostService, RemoteAgentHostService, InstantiationType.Delayed);

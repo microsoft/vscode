@@ -7,7 +7,8 @@ import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IActionEnvelope, INotification, ISessionAction } from './state/sessionActions.js';
-import type { IStateSnapshot } from './state/sessionProtocol.js';
+import type { IBrowseDirectoryResult, IStateSnapshot } from './state/sessionProtocol.js';
+import { AttachmentType, PermissionKind, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -32,7 +33,7 @@ export interface IAgentSessionMetadata {
 	readonly summary?: string;
 }
 
-export type AgentProvider = 'copilot' | 'mock';
+export type AgentProvider = string;
 
 /** Metadata describing an agent backend, discovered over IPC. */
 export interface IAgentDescriptor {
@@ -52,7 +53,7 @@ export interface IAgentCreateSessionConfig {
 
 /** Serializable attachment passed alongside a message to the agent host. */
 export interface IAgentAttachment {
-	readonly type: 'file' | 'directory' | 'selection';
+	readonly type: AttachmentType;
 	readonly path: string;
 	readonly displayName?: string;
 	/** For selections: the selected text. */
@@ -74,7 +75,7 @@ export interface IAgentModelInfo {
 	readonly supportsReasoningEffort: boolean;
 	readonly supportedReasoningEfforts?: readonly string[];
 	readonly defaultReasoningEffort?: string;
-	readonly policyState?: 'enabled' | 'disabled' | 'unconfigured';
+	readonly policyState?: PolicyState;
 	readonly billingMultiplier?: number;
 }
 
@@ -190,7 +191,7 @@ export interface IAgentPermissionRequestEvent extends IAgentProgressEventBase {
 	/** Unique ID for correlating the response. */
 	readonly requestId: string;
 	/** The kind of permission being requested. */
-	readonly permissionKind: 'shell' | 'write' | 'mcp' | 'read' | 'url';
+	readonly permissionKind: PermissionKind;
 	/** The tool call ID that triggered this permission request. */
 	readonly toolCallId?: string;
 	/** File path involved (for read/write). */
@@ -239,20 +240,20 @@ export namespace AgentSession {
 
 	/**
 	 * Extracts the raw session ID from a session URI (the path without leading slash).
+	 * Accepts both a URI object and a URI string.
 	 */
-	export function id(session: URI): string {
-		return session.path.substring(1);
+	export function id(session: URI | string): string {
+		const parsed = typeof session === 'string' ? URI.parse(session) : session;
+		return parsed.path.substring(1);
 	}
 
 	/**
 	 * Extracts the provider name from a session URI scheme.
+	 * Accepts both a URI object and a URI string.
 	 */
-	export function provider(session: URI): AgentProvider | undefined {
-		const scheme = session.scheme;
-		if (scheme === 'copilot' || scheme === 'mock') {
-			return scheme;
-		}
-		return undefined;
+	export function provider(session: URI | string): AgentProvider | undefined {
+		const parsed = typeof session === 'string' ? URI.parse(session) : session;
+		return parsed.scheme || undefined;
 	}
 }
 
@@ -380,6 +381,24 @@ export interface IAgentService {
 	 * {@link onDidAction} with the client's origin for reconciliation.
 	 */
 	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void;
+
+	/**
+	 * List the contents of a directory on the agent host's filesystem.
+	 * Used by the client to drive a remote folder picker before session creation.
+	 */
+	browseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
+}
+
+/**
+ * A concrete connection to an agent host - local utility process or remote
+ * WebSocket. Extends the core protocol surface with a `clientId` used for
+ * write-ahead reconciliation. Both {@link IAgentHostService} (local) and
+ * per-connection objects from {@link IRemoteAgentHostService} (remote)
+ * satisfy this contract.
+ */
+export interface IAgentConnection extends IAgentService {
+	/** Unique identifier for this client connection, used as the origin in action envelopes. */
+	readonly clientId: string;
 }
 
 export const IAgentHostService = createDecorator<IAgentHostService>('agentHostService');
@@ -388,10 +407,8 @@ export const IAgentHostService = createDecorator<IAgentHostService>('agentHostSe
  * The local wrapper around the agent host process (manages lifecycle, restart,
  * exposes the proxied service). Consumed by the main process and workbench.
  */
-export interface IAgentHostService extends IAgentService {
+export interface IAgentHostService extends IAgentConnection {
 
-	/** Unique identifier for this client window, used as the origin in action envelopes. */
-	readonly clientId: string;
 	readonly onAgentHostExit: Event<number>;
 	readonly onAgentHostStart: Event<void>;
 

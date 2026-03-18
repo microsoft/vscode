@@ -16,7 +16,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IActionEnvelope, INotification, IPermissionResolvedAction, ISessionAction, ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { SessionLifecycle, SessionStatus, ToolCallStatus, TurnState, createSessionState, type ISessionState, type ISessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionLifecycle, SessionStatus, TurnState, createSessionState, ROOT_STATE_URI, PolicyState, type ISessionState, type ISessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -80,22 +80,24 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public dispatchedActions: { action: ISessionAction; clientId: string; clientSeq: number }[] = [];
 	public sessionStates = new Map<string, ISessionState>();
 	override async subscribe(resource: URI): Promise<IStateSnapshot> {
-		const existingState = this.sessionStates.get(resource.toString());
+		const resourceStr = resource.toString();
+		const existingState = this.sessionStates.get(resourceStr);
 		if (existingState) {
-			return { resource, state: existingState, fromSeq: 0 };
+			return { resource: resourceStr, state: existingState, fromSeq: 0 };
 		}
 		// Root state subscription
-		if (resource.scheme === 'agenthost') {
+		if (resourceStr === ROOT_STATE_URI) {
 			return {
-				resource,
+				resource: resourceStr,
 				state: {
 					agents: this.agents.map(a => ({ provider: a.provider, displayName: a.displayName, description: a.description, models: [] })),
+					activeSessions: 0
 				},
 				fromSeq: 0,
 			};
 		}
 		const summary: ISessionSummary = {
-			resource,
+			resource: resourceStr,
 			provider: 'copilot',
 			title: 'Test',
 			status: SessionStatus.Idle,
@@ -103,7 +105,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			modifiedAt: Date.now(),
 		};
 		return {
-			resource,
+			resource: resourceStr,
 			state: { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready },
 			fromSeq: 0,
 		};
@@ -176,13 +178,14 @@ function createTestServices(disposables: DisposableStore) {
 function createContribution(disposables: DisposableStore) {
 	const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 
-	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot'));
+	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined));
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 		provider: 'copilot' as const,
 		agentId: 'agent-host-copilot',
 		sessionType: 'agent-host-copilot',
 		fullName: 'Agent Host - Copilot',
 		description: 'Copilot SDK agent running in a dedicated process',
+		connection: agentHostService,
 	}));
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
@@ -343,7 +346,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 			assert.strictEqual(agentHostService.dispatchedActions[0].action.type, 'session/turnStarted');
 			assert.strictEqual((agentHostService.dispatchedActions[0].action as ITurnStartedAction).userMessage.text, 'Hello');
-			assert.ok(AgentSession.id(session).startsWith('sdk-session-'));
+			assert.ok(AgentSession.id(URI.parse(session)).startsWith('sdk-session-'));
 		});
 
 		test('reuses SDK session for same resource on second message', async () => {
@@ -395,7 +398,7 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
 
-			assert.strictEqual(AgentSession.id(session), 'existing-session-42');
+			assert.strictEqual(AgentSession.id(URI.parse(session)), 'existing-session-42');
 		});
 
 		test('agent-host scheme with untitled path creates new session via mapping', async () => {
@@ -409,7 +412,7 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			// Should create a new SDK session, not use "untitled-abc123" literally
-			assert.ok(AgentSession.id(session).startsWith('sdk-session-'));
+			assert.ok(AgentSession.id(URI.parse(session)).startsWith('sdk-session-'));
 		});
 		test('passes raw model id extracted from language model identifier', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
@@ -478,10 +481,8 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: { toolCallId: 'tc-1', toolName: 'read_file', displayName: 'Read File', invocationMessage: 'Reading file', status: ToolCallStatus.Running },
-			} as ISessionAction);
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-1', toolName: 'read_file', displayName: 'Read File' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-1', invocationMessage: 'Reading file', confirmed: 'not-needed' } as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
 			await turnPromise;
@@ -495,12 +496,10 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-2', toolName: 'bash', displayName: 'Bash' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-2', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
 			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: { toolCallId: 'tc-2', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command', status: ToolCallStatus.Running },
-			} as ISessionAction);
-			fire({
-				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-2',
+				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-2',
 				result: { success: true, pastTenseMessage: 'Ran Bash command' },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
@@ -519,13 +518,11 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-3', toolName: 'bash', displayName: 'Bash' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-3', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
 			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: { toolCallId: 'tc-3', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command', status: ToolCallStatus.Running },
-			} as ISessionAction);
-			fire({
-				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-3',
-				result: { success: false, pastTenseMessage: '"Bash" failed', toolOutput: 'command not found', error: { message: 'command not found' } },
+				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-3',
+				result: { success: false, pastTenseMessage: '"Bash" failed', content: [{ type: 'text', text: 'command not found' }], error: { message: 'command not found' } },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
@@ -542,10 +539,8 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: { toolCallId: 'tc-bad', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command', status: ToolCallStatus.Running, toolArguments: '{not valid json' },
-			} as ISessionAction);
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-bad', toolName: 'bash', displayName: 'Bash' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-bad', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
 			await turnPromise;
@@ -560,10 +555,8 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
 			// tool_start without tool_complete
-			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: { toolCallId: 'tc-orphan', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command', status: ToolCallStatus.Running },
-			} as ISessionAction);
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-orphan', toolName: 'bash', displayName: 'Bash' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-orphan', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
 			await turnPromise;
@@ -581,7 +574,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Delta from a different session — will be ignored (session not subscribed)
 			agentHostService.fireAction({
-				action: { type: 'session/delta', session: AgentSession.uri('copilot', 'other-session'), turnId, content: 'wrong' } as ISessionAction,
+				action: { type: 'session/delta', session: AgentSession.uri('copilot', 'other-session').toString(), turnId, content: 'wrong' } as ISessionAction,
 				serverSeq: 100,
 				origin: undefined,
 			});
@@ -625,10 +618,8 @@ suite('AgentHostChatContribution', () => {
 				cancellationToken: cts.token,
 			});
 
-			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: { toolCallId: 'tc-cancel', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command', status: ToolCallStatus.Running },
-			} as ISessionAction);
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-cancel', toolName: 'bash', displayName: 'Bash' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-cancel', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
 
 			cts.cancel();
 			await turnPromise;
@@ -800,7 +791,7 @@ suite('AgentHostChatContribution', () => {
 
 			const sessionUri = AgentSession.uri('copilot', 'sess-1');
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
@@ -853,18 +844,11 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-shell', toolName: 'bash', displayName: 'Bash', _meta: { toolKind: 'terminal', language: 'shellscript' } } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-shell', invocationMessage: 'Running `echo hello`', toolInput: 'echo hello', confirmed: 'not-needed' } as ISessionAction);
 			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: {
-					toolCallId: 'tc-shell', toolName: 'bash', displayName: 'Bash',
-					invocationMessage: 'Running `echo hello`', toolInput: 'echo hello',
-					toolKind: 'terminal', status: ToolCallStatus.Running,
-					toolArguments: JSON.stringify({ command: 'echo hello' }),
-				},
-			} as ISessionAction);
-			fire({
-				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-shell',
-				result: { success: true, pastTenseMessage: 'Ran `echo hello`', toolOutput: 'hello\n' },
+				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-shell',
+				result: { success: true, pastTenseMessage: 'Ran `echo hello`', content: [{ type: 'text', text: 'hello\n' }] },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
@@ -898,18 +882,11 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-fail', toolName: 'bash', displayName: 'Bash', _meta: { toolKind: 'terminal', language: 'shellscript' } } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-fail', invocationMessage: 'Running `bad_cmd`', toolInput: 'bad_cmd', confirmed: 'not-needed' } as ISessionAction);
 			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: {
-					toolCallId: 'tc-fail', toolName: 'bash', displayName: 'Bash',
-					invocationMessage: 'Running `bad_cmd`', toolInput: 'bad_cmd',
-					toolKind: 'terminal', status: ToolCallStatus.Running,
-					toolArguments: JSON.stringify({ command: 'bad_cmd' }),
-				},
-			} as ISessionAction);
-			fire({
-				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-fail',
-				result: { success: false, pastTenseMessage: '"Bash" failed', toolOutput: 'command not found: bad_cmd', error: { message: 'command not found: bad_cmd' } },
+				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-fail',
+				result: { success: false, pastTenseMessage: '"Bash" failed', content: [{ type: 'text', text: 'command not found: bad_cmd' }], error: { message: 'command not found: bad_cmd' } },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
@@ -933,16 +910,10 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-gen', toolName: 'custom_tool', displayName: 'custom_tool' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-gen', invocationMessage: 'Using "custom_tool"', confirmed: 'not-needed' } as ISessionAction);
 			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: {
-					toolCallId: 'tc-gen', toolName: 'custom_tool', displayName: 'custom_tool',
-					invocationMessage: 'Using "custom_tool"', status: ToolCallStatus.Running,
-					toolArguments: JSON.stringify({ input: 'data' }),
-				},
-			} as ISessionAction);
-			fire({
-				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-gen',
+				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-gen',
 				result: { success: true, pastTenseMessage: 'Used "custom_tool"' },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
@@ -966,16 +937,10 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-noargs', toolName: 'bash', displayName: 'Bash', toolKind: 'terminal' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-noargs', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
 			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: {
-					toolCallId: 'tc-noargs', toolName: 'bash', displayName: 'Bash',
-					invocationMessage: 'Running Bash command', toolKind: 'terminal',
-					status: ToolCallStatus.Running,
-				},
-			} as ISessionAction);
-			fire({
-				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-noargs',
+				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-noargs',
 				result: { success: true, pastTenseMessage: 'Ran Bash command' },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
@@ -999,16 +964,10 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-view', toolName: 'view', displayName: 'View File' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-view', invocationMessage: 'Reading /tmp/test.txt', confirmed: 'not-needed' } as ISessionAction);
 			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: {
-					toolCallId: 'tc-view', toolName: 'view', displayName: 'View File',
-					invocationMessage: 'Reading /tmp/test.txt', status: ToolCallStatus.Running,
-					toolArguments: JSON.stringify({ file_path: '/tmp/test.txt' }),
-				},
-			} as ISessionAction);
-			fire({
-				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-view',
+				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-view',
 				result: { success: true, pastTenseMessage: 'Read /tmp/test.txt' },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
@@ -1035,7 +994,7 @@ suite('AgentHostChatContribution', () => {
 			const sessionUri = AgentSession.uri('copilot', 'tool-hist');
 
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
@@ -1044,9 +1003,9 @@ suite('AgentHostChatContribution', () => {
 					responseParts: [],
 					usage: undefined,
 					toolCalls: [{
-						toolCallId: 'tc-1', toolName: 'bash', displayName: 'Bash',
-						invocationMessage: 'Running `ls`', toolInput: 'ls', toolKind: 'terminal' as const,
-						success: true, pastTenseMessage: 'Ran `ls`', toolOutput: 'file1\nfile2',
+						status: 'completed' as const, toolCallId: 'tc-1', toolName: 'bash', displayName: 'Bash',
+						invocationMessage: 'Running `ls`', toolInput: 'ls', _meta: { toolKind: 'terminal', language: 'shellscript' },
+						confirmed: 'not-needed' as const, success: true, pastTenseMessage: 'Ran `ls`', content: [{ type: 'text' as const, text: 'file1\nfile2' }],
 					}],
 					responseText: '',
 				}],
@@ -1080,7 +1039,7 @@ suite('AgentHostChatContribution', () => {
 			const sessionUri = AgentSession.uri('copilot', 'orphan-tool');
 
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
@@ -1089,7 +1048,7 @@ suite('AgentHostChatContribution', () => {
 					responseParts: [],
 					responseText: '',
 					usage: undefined,
-					toolCalls: [{ toolCallId: 'tc-orphan', toolName: 'read_file', displayName: 'Read File', invocationMessage: 'Reading file', success: false, pastTenseMessage: 'Reading file' }],
+					toolCalls: [{ status: 'completed' as const, toolCallId: 'tc-orphan', toolName: 'read_file', displayName: 'Read File', invocationMessage: 'Reading file', confirmed: 'not-needed' as const, success: false, pastTenseMessage: 'Reading file' }],
 				}],
 			} as ISessionState);
 
@@ -1111,7 +1070,7 @@ suite('AgentHostChatContribution', () => {
 			const sessionUri = AgentSession.uri('copilot', 'generic-tool');
 
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
@@ -1120,7 +1079,7 @@ suite('AgentHostChatContribution', () => {
 					responseParts: [],
 					usage: undefined,
 					responseText: '',
-					toolCalls: [{ toolCallId: 'tc-g', toolName: 'grep', displayName: 'Grep', invocationMessage: 'Searching...', success: true, pastTenseMessage: 'Searched for pattern' }],
+					toolCalls: [{ status: 'completed' as const, toolCallId: 'tc-g', toolName: 'grep', displayName: 'Grep', invocationMessage: 'Searching...', confirmed: 'not-needed' as const, success: true, pastTenseMessage: 'Searched for pattern' }],
 				}],
 			} as ISessionState);
 
@@ -1141,7 +1100,7 @@ suite('AgentHostChatContribution', () => {
 
 			const sessionUri = AgentSession.uri('copilot', 'empty-sess');
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [],
 			} as ISessionState);
@@ -1222,8 +1181,8 @@ suite('AgentHostChatContribution', () => {
 		test('filters out disabled models', async () => {
 			const provider = disposables.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot'));
 			provider.updateModels([
-				{ provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', maxContextWindow: 128000, supportsVision: false, policyState: 'enabled' },
-				{ provider: 'copilot', id: 'gpt-3.5', name: 'GPT-3.5', maxContextWindow: 16000, supportsVision: false, policyState: 'disabled' },
+				{ provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', maxContextWindow: 128000, supportsVision: false, policyState: PolicyState.Enabled },
+				{ provider: 'copilot', id: 'gpt-3.5', name: 'GPT-3.5', maxContextWindow: 16000, supportsVision: false, policyState: PolicyState.Disabled },
 			]);
 
 			const models = await provider.provideLanguageModelChatInfo({}, CancellationToken.None);
@@ -1406,6 +1365,126 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(contribution);
 			// Let async work settle
 			await timeout(10);
+		});
+	});
+
+	// ---- IAgentConnection unification -------------------------------------
+
+	suite('IAgentConnection config', () => {
+
+		test('handler uses custom extensionId from config', async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+
+			disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'remote-test-copilot',
+				sessionType: 'remote-test-copilot',
+				fullName: 'Remote Copilot',
+				description: 'Remote agent',
+				connection: agentHostService,
+				extensionId: 'vscode.remote-agent-host',
+				extensionDisplayName: 'Remote Agent Host',
+			}));
+
+			const registered = chatAgentService.registeredAgents.get('remote-test-copilot');
+			assert.ok(registered);
+			assert.strictEqual(registered.data.extensionId.value, 'vscode.remote-agent-host');
+			assert.strictEqual(registered.data.extensionDisplayName, 'Remote Agent Host');
+		});
+
+		test('handler defaults extensionId when not provided', async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+
+			disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'default-ext-test',
+				sessionType: 'default-ext-test',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+			}));
+
+			const registered = chatAgentService.registeredAgents.get('default-ext-test');
+			assert.ok(registered);
+			assert.strictEqual(registered.data.extensionId.value, 'vscode.agent-host');
+			assert.strictEqual(registered.data.extensionDisplayName, 'Agent Host');
+		});
+
+		test('handler uses resolveWorkingDirectory callback', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'workdir-test',
+				sessionType: 'workdir-test',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+				resolveWorkingDirectory: () => '/custom/working/dir',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, disposables);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
+			assert.strictEqual(agentHostService.createSessionCalls[0].workingDirectory, '/custom/working/dir');
+		});
+
+		test('list controller includes description in items', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const controller = disposables.add(instantiationService.createInstance(
+				AgentHostSessionListController, 'remote-test', 'copilot', agentHostService, 'My Remote Host'));
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'sess-1'), startTime: 1000, modifiedTime: 2000, summary: 'Test session' });
+			await controller.refresh(CancellationToken.None);
+
+			assert.strictEqual(controller.items.length, 1);
+			assert.strictEqual(controller.items[0].description, 'My Remote Host');
+		});
+
+		test('list controller omits description when undefined', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const controller = disposables.add(instantiationService.createInstance(
+				AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined));
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'sess-2'), startTime: 1000, modifiedTime: 2000, summary: 'Test' });
+			await controller.refresh(CancellationToken.None);
+
+			assert.strictEqual(controller.items.length, 1);
+			assert.strictEqual(controller.items[0].description, undefined);
+		});
+
+		test('handler works with any IAgentConnection, not just IAgentHostService', async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+
+			// Create handler with agentHostService as IAgentConnection (not IAgentHostService)
+			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'connection-test',
+				sessionType: 'connection-test',
+				fullName: 'Connection Test',
+				description: 'test',
+				connection: agentHostService,
+			}));
+
+			// Verify it registered an agent
+			assert.ok(chatAgentService.registeredAgents.has('connection-test'));
+
+			// Verify it can run a turn through the IAgentConnection path
+			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, disposables, {
+				message: 'Test message',
+			});
+
+			fire({ type: 'session/delta', session, turnId, content: 'Response' } as ISessionAction);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+
+			// Turn dispatched via connection.dispatchAction
+			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+			assert.strictEqual((agentHostService.dispatchedActions[0].action as ITurnStartedAction).userMessage.text, 'Test message');
 		});
 	});
 });

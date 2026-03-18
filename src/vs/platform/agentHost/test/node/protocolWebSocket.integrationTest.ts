@@ -8,48 +8,24 @@ import { ChildProcess, fork } from 'child_process';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { URI } from '../../../../base/common/uri.js';
+import { ISubscribeResult } from '../../common/state/protocol/commands.js';
+import type { IActionEnvelope, IDeltaAction, ISessionAddedNotification, ISessionRemovedNotification, IUsageAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
 import {
 	isJsonRpcNotification,
 	isJsonRpcResponse,
-	type IActionBroadcastParams,
+	JSON_RPC_PARSE_ERROR,
+	type IAhpNotification,
 	type IFetchTurnsResult,
+	type IInitializeResult,
 	type IJsonRpcErrorResponse,
 	type IJsonRpcSuccessResponse,
 	type IListSessionsResult,
 	type INotificationBroadcastParams,
 	type IProtocolMessage,
-	type IProtocolNotification,
-	type IServerHelloParams,
-	type IStateSnapshot,
+	type IReconnectResult
 } from '../../common/state/sessionProtocol.js';
-import type { IDeltaAction, ISessionAddedNotification, ISessionRemovedNotification, IUsageAction } from '../../common/state/sessionActions.js';
 import type { ISessionState } from '../../common/state/sessionState.js';
-
-// ---- JSON serialization helpers (mirror webSocketTransport.ts) --------------
-
-function uriReplacer(_key: string, value: unknown): unknown {
-	if (value instanceof URI) {
-		return value.toJSON();
-	}
-	if (value instanceof Map) {
-		return { $type: 'Map', entries: [...value.entries()] };
-	}
-	return value;
-}
-
-function uriReviver(_key: string, value: unknown): unknown {
-	if (value && typeof value === 'object') {
-		const obj = value as Record<string, unknown>;
-		if (obj.$mid === 1) {
-			return URI.revive(value as URI);
-		}
-		if (obj.$type === 'Map' && Array.isArray(obj.entries)) {
-			return new Map(obj.entries as [unknown, unknown][]);
-		}
-	}
-	return value;
-}
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
@@ -62,8 +38,8 @@ class TestProtocolClient {
 	private readonly _ws: WebSocket;
 	private _nextId = 1;
 	private readonly _pendingCalls = new Map<number, IPendingCall>();
-	private readonly _notifications: IProtocolNotification[] = [];
-	private readonly _notifWaiters: { predicate: (n: IProtocolNotification) => boolean; resolve: (n: IProtocolNotification) => void; reject: (err: Error) => void }[] = [];
+	private readonly _notifications: IAhpNotification[] = [];
+	private readonly _notifWaiters: { predicate: (n: IAhpNotification) => boolean; resolve: (n: IAhpNotification) => void; reject: (err: Error) => void }[] = [];
 
 	constructor(port: number) {
 		this._ws = new WebSocket(`ws://127.0.0.1:${port}`);
@@ -74,7 +50,7 @@ class TestProtocolClient {
 			this._ws.on('open', () => {
 				this._ws.on('message', (data: Buffer | string) => {
 					const text = typeof data === 'string' ? data : data.toString('utf-8');
-					const msg = JSON.parse(text, uriReviver);
+					const msg = JSON.parse(text);
 					this._handleMessage(msg);
 				});
 				resolve();
@@ -112,15 +88,13 @@ class TestProtocolClient {
 
 	/** Send a JSON-RPC notification (fire-and-forget). */
 	notify(method: string, params?: unknown): void {
-		const msg: IProtocolMessage = { jsonrpc: '2.0', method, params };
-		this._ws.send(JSON.stringify(msg, uriReplacer));
+		this._ws.send(JSON.stringify({ jsonrpc: '2.0', method, params }));
 	}
 
 	/** Send a JSON-RPC request and await the response. */
 	call<T>(method: string, params?: unknown, timeoutMs = 5000): Promise<T> {
 		const id = this._nextId++;
-		const msg: IProtocolMessage = { jsonrpc: '2.0', id, method, params };
-		this._ws.send(JSON.stringify(msg, uriReplacer));
+		this._ws.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
 
 		return new Promise<T>((resolve, reject) => {
 			const timer = setTimeout(() => {
@@ -136,13 +110,13 @@ class TestProtocolClient {
 	}
 
 	/** Wait for a server notification matching a predicate. */
-	waitForNotification(predicate: (n: IProtocolNotification) => boolean, timeoutMs = 5000): Promise<IProtocolNotification> {
+	waitForNotification(predicate: (n: IAhpNotification) => boolean, timeoutMs = 5000): Promise<IAhpNotification> {
 		const existing = this._notifications.find(predicate);
 		if (existing) {
 			return Promise.resolve(existing);
 		}
 
-		return new Promise<IProtocolNotification>((resolve, reject) => {
+		return new Promise<IAhpNotification>((resolve, reject) => {
 			const timer = setTimeout(() => {
 				const idx = this._notifWaiters.findIndex(w => w.resolve === resolve);
 				if (idx >= 0) {
@@ -160,8 +134,33 @@ class TestProtocolClient {
 	}
 
 	/** Return all received notifications matching a predicate. */
-	receivedNotifications(predicate?: (n: IProtocolNotification) => boolean): IProtocolNotification[] {
+	receivedNotifications(predicate?: (n: IAhpNotification) => boolean): IAhpNotification[] {
 		return predicate ? this._notifications.filter(predicate) : [...this._notifications];
+	}
+
+	/** Send a raw string over the WebSocket without JSON serialization. */
+	sendRaw(data: string): void {
+		this._ws.send(data);
+	}
+
+	/** Wait for the next raw message from the server. */
+	waitForRawMessage(timeoutMs = 5000): Promise<unknown> {
+		return new Promise((resolve, reject) => {
+			const timer = setTimeout(() => {
+				cleanup();
+				reject(new Error(`Timeout waiting for raw message (${timeoutMs}ms)`));
+			}, timeoutMs);
+			const onMsg = (data: Buffer | string) => {
+				cleanup();
+				const text = typeof data === 'string' ? data : data.toString('utf-8');
+				resolve(JSON.parse(text));
+			};
+			const cleanup = () => {
+				clearTimeout(timer);
+				this._ws.removeListener('message', onMsg);
+			};
+			this._ws.on('message', onMsg);
+		});
 	}
 
 	close(): void {
@@ -186,7 +185,7 @@ class TestProtocolClient {
 async function startServer(): Promise<{ process: ChildProcess; port: number }> {
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../node/agentHostServerMain.js', import.meta.url));
-		const child = fork(serverPath, ['--enable-mock-agent', '--quiet', '--port', '0'], {
+		const child = fork(serverPath, ['--enable-mock-agent', '--quiet', '--port', '0', '--without-connection-token'], {
 			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
 		});
 
@@ -204,8 +203,8 @@ async function startServer(): Promise<{ process: ChildProcess; port: number }> {
 			}
 		});
 
-		child.stderr!.on('data', (data: Buffer) => {
-			console.error('[TestServer]', data.toString());
+		child.stderr!.on('data', () => {
+			// Intentionally swallowed - the test runner fails if console.error is used.
 		});
 
 		child.on('error', err => {
@@ -224,26 +223,25 @@ async function startServer(): Promise<{ process: ChildProcess; port: number }> {
 
 let sessionCounter = 0;
 
-function nextSessionUri(): URI {
-	return URI.from({ scheme: 'mock', path: `/test-session-${++sessionCounter}` });
+function nextSessionUri(): string {
+	return URI.from({ scheme: 'mock', path: `/test-session-${++sessionCounter}` }).toString();
 }
 
-function isActionNotification(n: IProtocolNotification, actionType: string): boolean {
+function isActionNotification(n: IAhpNotification, actionType: string): boolean {
 	if (n.method !== 'action') {
 		return false;
 	}
-	const params = n.params as IActionBroadcastParams;
-	return params.envelope.action.type === actionType;
+	const envelope = n.params as unknown as IActionEnvelope;
+	return envelope.action.type === actionType;
 }
 
-function getActionParams(n: IProtocolNotification): IActionBroadcastParams {
-	return n.params as IActionBroadcastParams;
+function getActionEnvelope(n: IAhpNotification): IActionEnvelope {
+	return n.params as unknown as IActionEnvelope;
 }
 
 /** Perform handshake, create a session, subscribe, and return its URI. */
-async function createAndSubscribeSession(c: TestProtocolClient, clientId: string): Promise<URI> {
-	c.notify('initialize', { protocolVersion: PROTOCOL_VERSION, clientId });
-	await c.waitForNotification(n => n.method === 'serverHello');
+async function createAndSubscribeSession(c: TestProtocolClient, clientId: string): Promise<string> {
+	await c.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId });
 
 	await c.call('createSession', { session: nextSessionUri(), provider: 'mock' });
 
@@ -252,13 +250,13 @@ async function createAndSubscribeSession(c: TestProtocolClient, clientId: string
 	);
 	const realSessionUri = ((notif.params as INotificationBroadcastParams).notification as ISessionAddedNotification).summary.resource;
 
-	await c.call<IStateSnapshot>('subscribe', { resource: realSessionUri });
+	await c.call<ISubscribeResult>('subscribe', { resource: realSessionUri });
 	c.clearReceived();
 
 	return realSessionUri;
 }
 
-function dispatchTurnStarted(c: TestProtocolClient, session: URI, turnId: string, text: string, clientSeq: number): void {
+function dispatchTurnStarted(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): void {
 	c.notify('dispatchAction', {
 		clientSeq,
 		action: {
@@ -297,28 +295,25 @@ suite('Protocol WebSocket E2E', function () {
 	});
 
 	// 1. Handshake
-	test('handshake returns serverHello with protocol version', async function () {
+	test('handshake returns initialize response with protocol version', async function () {
 		this.timeout(5_000);
 
-		client.notify('initialize', {
+		const result = await client.call<IInitializeResult>('initialize', {
 			protocolVersion: PROTOCOL_VERSION,
 			clientId: 'test-handshake',
-			initialSubscriptions: [URI.from({ scheme: 'agenthost', path: '/root' })],
+			initialSubscriptions: [URI.from({ scheme: 'agenthost', path: '/root' }).toString()],
 		});
 
-		const hello = await client.waitForNotification(n => n.method === 'serverHello');
-		const params = hello.params as IServerHelloParams;
-		assert.strictEqual(params.protocolVersion, PROTOCOL_VERSION);
-		assert.ok(params.serverSeq >= 0);
-		assert.ok(params.snapshots.length >= 1, 'should have root state snapshot');
+		assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
+		assert.ok(result.serverSeq >= 0);
+		assert.ok(result.snapshots.length >= 1, 'should have root state snapshot');
 	});
 
 	// 2. Create session
 	test('create session triggers sessionAdded notification', async function () {
 		this.timeout(10_000);
 
-		client.notify('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-create-session' });
-		await client.waitForNotification(n => n.method === 'serverHello');
+		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-create-session' });
 
 		await client.call('createSession', { session: nextSessionUri(), provider: 'mock' });
 
@@ -326,7 +321,7 @@ suite('Protocol WebSocket E2E', function () {
 			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
 		);
 		const notification = (notif.params as INotificationBroadcastParams).notification as ISessionAddedNotification;
-		assert.strictEqual(notification.summary.resource.scheme, 'mock');
+		assert.strictEqual(URI.parse(notification.summary.resource).scheme, 'mock');
 		assert.strictEqual(notification.summary.provider, 'mock');
 	});
 
@@ -338,7 +333,7 @@ suite('Protocol WebSocket E2E', function () {
 		dispatchTurnStarted(client, sessionUri, 'turn-1', 'hello', 1);
 
 		const delta = await client.waitForNotification(n => isActionNotification(n, 'session/delta'));
-		const deltaAction = getActionParams(delta).envelope.action;
+		const deltaAction = getActionEnvelope(delta).action;
 		assert.strictEqual(deltaAction.type, 'session/delta');
 		if (deltaAction.type === 'session/delta') {
 			assert.strictEqual(deltaAction.content, 'Hello, world!');
@@ -348,16 +343,17 @@ suite('Protocol WebSocket E2E', function () {
 	});
 
 	// 4. Tool invocation lifecycle
-	test('tool invocation: toolStart → toolComplete → delta → turnComplete', async function () {
+	test('tool invocation: toolCallStart → toolCallComplete → delta → turnComplete', async function () {
 		this.timeout(10_000);
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-tool-invocation');
 		dispatchTurnStarted(client, sessionUri, 'turn-tool', 'use-tool', 1);
 
-		await client.waitForNotification(n => isActionNotification(n, 'session/toolStart'));
-		const toolComplete = await client.waitForNotification(n => isActionNotification(n, 'session/toolComplete'));
-		const tcAction = getActionParams(toolComplete).envelope.action;
-		if (tcAction.type === 'session/toolComplete') {
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
+		const toolComplete = await client.waitForNotification(n => isActionNotification(n, 'session/toolCallComplete'));
+		const tcAction = getActionEnvelope(toolComplete).action;
+		if (tcAction.type === 'session/toolCallComplete') {
 			assert.strictEqual(tcAction.result.success, true);
 		}
 		await client.waitForNotification(n => isActionNotification(n, 'session/delta'));
@@ -372,7 +368,7 @@ suite('Protocol WebSocket E2E', function () {
 		dispatchTurnStarted(client, sessionUri, 'turn-err', 'error', 1);
 
 		const errorNotif = await client.waitForNotification(n => isActionNotification(n, 'session/error'));
-		const errorAction = getActionParams(errorNotif).envelope.action;
+		const errorAction = getActionEnvelope(errorNotif).action;
 		if (errorAction.type === 'session/error') {
 			assert.strictEqual(errorAction.error.message, 'Something went wrong');
 		}
@@ -399,7 +395,7 @@ suite('Protocol WebSocket E2E', function () {
 		});
 
 		const delta = await client.waitForNotification(n => isActionNotification(n, 'session/delta'));
-		const content = (getActionParams(delta).envelope.action as IDeltaAction).content;
+		const content = (getActionEnvelope(delta).action as IDeltaAction).content;
 		assert.strictEqual(content, 'Allowed.');
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
@@ -409,8 +405,7 @@ suite('Protocol WebSocket E2E', function () {
 	test('listSessions returns sessions', async function () {
 		this.timeout(10_000);
 
-		client.notify('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-list-sessions' });
-		await client.waitForNotification(n => n.method === 'serverHello');
+		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-list-sessions' });
 
 		await client.call('createSession', { session: nextSessionUri(), provider: 'mock' });
 		await client.waitForNotification(n =>
@@ -418,8 +413,8 @@ suite('Protocol WebSocket E2E', function () {
 		);
 
 		const result = await client.call<IListSessionsResult>('listSessions');
-		assert.ok(Array.isArray(result.sessions));
-		assert.ok(result.sessions.length >= 1, 'should have at least one session');
+		assert.ok(Array.isArray(result.items));
+		assert.ok(result.items.length >= 1, 'should have at least one session');
 	});
 
 	// 8. Reconnect
@@ -432,25 +427,22 @@ suite('Protocol WebSocket E2E', function () {
 
 		const allActions = client.receivedNotifications(n => n.method === 'action');
 		assert.ok(allActions.length > 0);
-		const missedFromSeq = getActionParams(allActions[0]).envelope.serverSeq - 1;
+		const missedFromSeq = getActionEnvelope(allActions[0]).serverSeq - 1;
 
 		client.close();
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		client2.notify('reconnect', {
+		const result = await client2.call<IReconnectResult>('reconnect', {
 			clientId: 'test-reconnect',
 			lastSeenServerSeq: missedFromSeq,
 			subscriptions: [sessionUri],
 		});
 
-		await new Promise(resolve => setTimeout(resolve, 500));
-
-		const replayed = client2.receivedNotifications();
-		assert.ok(replayed.length > 0, 'should receive replayed actions or reconnect response');
-		const hasActions = replayed.some(n => n.method === 'action');
-		const hasReconnect = replayed.some(n => n.method === 'reconnectResponse');
-		assert.ok(hasActions || hasReconnect);
+		assert.ok(result.type === 'replay' || result.type === 'snapshot', 'should receive replay or snapshot');
+		if (result.type === 'replay') {
+			assert.ok(result.actions.length > 0, 'should have replayed actions');
+		}
 
 		client2.close();
 	});
@@ -464,14 +456,14 @@ suite('Protocol WebSocket E2E', function () {
 		dispatchTurnStarted(client, sessionUri, 'turn-usage', 'with-usage', 1);
 
 		const usageNotif = await client.waitForNotification(n => isActionNotification(n, 'session/usage'));
-		const usageAction = getActionParams(usageNotif).envelope.action as IUsageAction;
+		const usageAction = getActionEnvelope(usageNotif).action as IUsageAction;
 		assert.strictEqual(usageAction.usage.inputTokens, 100);
 		assert.strictEqual(usageAction.usage.outputTokens, 50);
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const snapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
-		const state = snapshot.state as ISessionState;
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
 		assert.ok(state.turns.length >= 1);
 		const turn = state.turns[state.turns.length - 1];
 		assert.ok(turn.usage);
@@ -484,24 +476,23 @@ suite('Protocol WebSocket E2E', function () {
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-modifiedAt');
 
-		const initialSnapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
-		const initialModifiedAt = (initialSnapshot.state as ISessionState).summary.modifiedAt;
+		const initialSnapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const initialModifiedAt = (initialSnapshot.snapshot.state as ISessionState).summary.modifiedAt;
 
 		await new Promise(resolve => setTimeout(resolve, 50));
 
 		dispatchTurnStarted(client, sessionUri, 'turn-mod', 'hello', 1);
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const updatedSnapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
-		const updatedModifiedAt = (updatedSnapshot.state as ISessionState).summary.modifiedAt;
+		const updatedSnapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const updatedModifiedAt = (updatedSnapshot.snapshot.state as ISessionState).summary.modifiedAt;
 		assert.ok(updatedModifiedAt >= initialModifiedAt);
 	});
 
 	test('createSession with invalid provider does not crash server', async function () {
 		this.timeout(10_000);
 
-		client.notify('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-invalid-create' });
-		await client.waitForNotification(n => n.method === 'serverHello');
+		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-invalid-create' });
 
 		// This should return a JSON-RPC error
 		let gotError = false;
@@ -532,9 +523,9 @@ suite('Protocol WebSocket E2E', function () {
 		await new Promise(resolve => setTimeout(resolve, 200));
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const result = await client.call<IFetchTurnsResult>('fetchTurns', { session: sessionUri, startTurn: 0, count: 10 });
+		const result = await client.call<IFetchTurnsResult>('fetchTurns', { session: sessionUri, limit: 10 });
 		assert.ok(result.turns.length >= 2);
-		assert.ok(result.totalTurns >= 2);
+		assert.strictEqual(typeof result.hasMore, 'boolean');
 	});
 
 	// ---- Gap tests: coverage ---------------------------------------------------
@@ -565,8 +556,8 @@ suite('Protocol WebSocket E2E', function () {
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnCancelled'));
 
-		const snapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
-		const state = snapshot.state as ISessionState;
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
 		assert.ok(state.turns.length >= 1);
 		assert.strictEqual(state.turns[state.turns.length - 1].state, 'cancelled');
 	});
@@ -583,8 +574,8 @@ suite('Protocol WebSocket E2E', function () {
 		await new Promise(resolve => setTimeout(resolve, 200));
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const snapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
-		const state = snapshot.state as ISessionState;
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
 		assert.ok(state.turns.length >= 2, `expected >= 2 turns but got ${state.turns.length}`);
 		assert.strictEqual(state.turns[0].id, 'turn-m1');
 		assert.strictEqual(state.turns[1].id, 'turn-m2');
@@ -597,8 +588,7 @@ suite('Protocol WebSocket E2E', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		client2.notify('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-multi-client-2' });
-		await client2.waitForNotification(n => n.method === 'serverHello');
+		await client2.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-multi-client-2' });
 		await client2.call('subscribe', { resource: sessionUri });
 		client2.clearReceived();
 
@@ -625,8 +615,7 @@ suite('Protocol WebSocket E2E', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		client2.notify('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-unsub-helper' });
-		await client2.waitForNotification(n => n.method === 'serverHello');
+		await client2.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-unsub-helper' });
 		await client2.call('subscribe', { resource: sessionUri });
 
 		dispatchTurnStarted(client2, sessionUri, 'turn-unsub', 'hello', 1);
@@ -650,14 +639,31 @@ suite('Protocol WebSocket E2E', function () {
 		});
 
 		const modelChanged = await client.waitForNotification(n => isActionNotification(n, 'session/modelChanged'));
-		const action = getActionParams(modelChanged).envelope.action;
+		const action = getActionEnvelope(modelChanged).action;
 		assert.strictEqual(action.type, 'session/modelChanged');
 		if (action.type === 'session/modelChanged') {
 			assert.strictEqual((action as { model: string }).model, 'new-mock-model');
 		}
 
-		const snapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
-		const state = snapshot.state as ISessionState;
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
 		assert.strictEqual(state.summary.model, 'new-mock-model');
+	});
+
+	test('malformed JSON message returns parse error', async function () {
+		this.timeout(10_000);
+
+		const raw = new TestProtocolClient(server.port);
+		await raw.connect();
+
+		const responsePromise = raw.waitForRawMessage();
+		raw.sendRaw('this is not valid json{{{');
+
+		const response = await responsePromise as IJsonRpcErrorResponse;
+		assert.strictEqual(response.jsonrpc, '2.0');
+		assert.strictEqual(response.id, null);
+		assert.strictEqual(response.error.code, JSON_RPC_PARSE_ERROR);
+
+		raw.close();
 	});
 });

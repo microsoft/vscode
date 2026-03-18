@@ -138,7 +138,7 @@ export class ModalEditorPart {
 				EventHelper.stop(e, true);
 
 				// Close modal when clicking outside the dialog
-				editorPart.close();
+				void editorPart.close();
 			}
 		}));
 
@@ -784,38 +784,37 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 			this.previousMainWindowActiveElement.focus();
 		}
 
-		this.doClose({ mergeConfirmingEditorsToMainPart: false });
+		this._onWillClose.fire();
 	}
 
 	protected override saveState(): void {
 		return; // disabled, modal editor part state is not persisted
 	}
 
-	close(options?: { mergeAllEditorsToMainPart?: boolean }): boolean {
-		return this.doClose({ ...options, mergeConfirmingEditorsToMainPart: true });
-	}
+	async close(options?: { mergeAllEditorsToMainPart?: boolean }): Promise<boolean> {
 
-	private doClose(options?: { mergeAllEditorsToMainPart?: boolean; mergeConfirmingEditorsToMainPart?: boolean }): boolean {
-		let result = true;
-		if (options?.mergeConfirmingEditorsToMainPart) {
-
-			// First close all editors that are non-confirming (unless we merge all)
-			if (!options.mergeAllEditorsToMainPart) {
-				for (const group of this.groups) {
-					group.closeAllEditors({ excludeConfirming: true });
-				}
-			}
-
-			// Then merge remaining to main part
-			result = this.mergeGroupsToMainPart();
+		// Merge all editors to main part (editors stay open, no confirmation needed)
+		if (options?.mergeAllEditorsToMainPart) {
+			const result = this.mergeGroupsToMainPart();
 			if (!result) {
-				return false; // Do not close when editors could not be merged back
+				return false;
+			}
+		}
+
+		// Close all editors in each group, leveraging the existing
+		// confirmation infrastructure for dirty editors
+		else {
+			for (const group of this.groups) {
+				const closed = await group.closeAllEditors();
+				if (!closed) {
+					return false; // user cancelled
+				}
 			}
 		}
 
 		this._onWillClose.fire();
 
-		return result;
+		return true;
 	}
 
 	private mergeGroupsToMainPart(): boolean {
