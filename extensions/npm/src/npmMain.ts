@@ -6,6 +6,7 @@
 import * as httpRequest from 'request-light';
 import * as vscode from 'vscode';
 import { addJSONProviders } from './features/jsonContributions';
+import { addPnpmWorkspaceHoverProvider } from './features/pnpmWorkspaceHover';
 import { runSelectedScript, selectAndRunScriptFromFolder } from './commands';
 import { NpmScriptsTreeDataProvider } from './npmView';
 import { getScriptRunner, getPackageManager, invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
@@ -33,6 +34,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	const npmCommandPath = await getNPMCommandPath();
 	context.subscriptions.push(addJSONProviders(httpRequest.xhr, npmCommandPath));
+	context.subscriptions.push(addPnpmWorkspaceHoverProvider(httpRequest.xhr, npmCommandPath));
 	registerTaskProvider(context);
 
 	treeDataProvider = registerExplorer(context);
