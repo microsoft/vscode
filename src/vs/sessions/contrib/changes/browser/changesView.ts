@@ -606,7 +606,7 @@ export class ChangesViewPane extends ViewPane {
 
 			const checkpointSegments = lastCheckpointRef.split('/');
 			const turnCount = parseInt(checkpointSegments.pop() ?? '-1', 10);
-			if (turnCount === -1) {
+			if (!Number.isFinite(turnCount) || turnCount <= 0) {
 				return undefined;
 			}
 
