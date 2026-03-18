@@ -193,13 +193,11 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			const actionBarContainer = $('div.agent-feedback-widget-item-actions');
 			const actionBar = this._eventStore.add(new ActionBar(actionBarContainer));
 
-			// Edit action — disabled for PR review and code review comments
-			const isEditable = comment.source === SessionEditorCommentSource.AgentFeedback;
+			// Edit action — only disabled for PR review comments
+			const isEditable = comment.source !== SessionEditorCommentSource.PRReview;
 			const editTooltip = isEditable
 				? nls.localize('editComment', "Edit")
-				: comment.source === SessionEditorCommentSource.PRReview
-					? nls.localize('editPRCommentDisabled', "PR review comments cannot be edited")
-					: nls.localize('editReviewCommentDisabled', "Review comments cannot be edited");
+				: nls.localize('editPRCommentDisabled', "PR review comments cannot be edited");
 			actionBar.push(new Action(
 				'agentFeedback.widget.edit',
 				editTooltip,
@@ -313,7 +311,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	}
 
 	private _startEditing(comment: ISessionEditorComment, textContainer: HTMLElement): void {
-		if (comment.source !== SessionEditorCommentSource.AgentFeedback) {
+		if (comment.source === SessionEditorCommentSource.PRReview) {
 			return;
 		}
 
@@ -344,9 +342,9 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 				e.stopPropagation();
 				const newText = textarea.value.trim();
 				if (newText) {
-					this._agentFeedbackService.updateFeedback(this._sessionResource, comment.sourceId, newText);
+					this._saveEdit(comment, newText);
 				}
-				// Widget will be rebuilt by onDidChangeFeedback
+				// Widget will be rebuilt by the change event
 			} else if (e.keyCode === KeyCode.Escape) {
 				e.preventDefault();
 				e.stopPropagation();
@@ -360,6 +358,14 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		}));
 
 		textarea.focus();
+	}
+
+	private _saveEdit(comment: ISessionEditorComment, newText: string): void {
+		if (comment.source === SessionEditorCommentSource.AgentFeedback) {
+			this._agentFeedbackService.updateFeedback(this._sessionResource, comment.sourceId, newText);
+		} else if (comment.source === SessionEditorCommentSource.CodeReview) {
+			this._codeReviewService.updateComment(this._sessionResource, comment.sourceId, newText);
+		}
 	}
 
 	private _stopEditing(comment: ISessionEditorComment, textContainer: HTMLElement, editStore: DisposableStore): void {
