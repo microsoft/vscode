@@ -155,6 +155,54 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	// ---- getResourceMetadata --------------------------------------------
+
+	suite('getResourceMetadata', () => {
+
+		test('aggregates protected resources from all providers', async () => {
+			service.registerProvider(copilotAgent);
+
+			const mockAgent = new MockAgent('other');
+			disposables.add(toDisposable(() => mockAgent.dispose()));
+			service.registerProvider(mockAgent);
+
+			const metadata = await service.getResourceMetadata();
+			// copilot agent returns one resource (https://api.github.com),
+			// generic MockAgent('other') returns empty
+			assert.deepStrictEqual(metadata, {
+				resources: [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'] }],
+			});
+		});
+
+		test('returns empty resources when no providers registered', async () => {
+			const metadata = await service.getResourceMetadata();
+			assert.deepStrictEqual(metadata, { resources: [] });
+		});
+	});
+
+	// ---- authenticate ---------------------------------------------------
+
+	suite('authenticate', () => {
+
+		test('routes token to provider matching the resource', async () => {
+			service.registerProvider(copilotAgent);
+
+			const result = await service.authenticate({ resource: 'https://api.github.com', token: 'ghp_test123' });
+
+			assert.deepStrictEqual(result, { authenticated: true });
+			assert.deepStrictEqual(copilotAgent.authenticateCalls, [{ resource: 'https://api.github.com', token: 'ghp_test123' }]);
+		});
+
+		test('returns not authenticated for unknown resource', async () => {
+			service.registerProvider(copilotAgent);
+
+			const result = await service.authenticate({ resource: 'https://unknown.example.com', token: 'tok' });
+
+			assert.deepStrictEqual(result, { authenticated: false });
+			assert.strictEqual(copilotAgent.authenticateCalls.length, 0);
+		});
+	});
+
 	// ---- shutdown -------------------------------------------------------
 
 	suite('shutdown', () => {

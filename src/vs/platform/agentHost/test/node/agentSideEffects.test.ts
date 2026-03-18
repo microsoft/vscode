@@ -322,4 +322,43 @@ suite('AgentSideEffects', () => {
 			assert.ok(action, 'should dispatch root/agentsChanged');
 		});
 	});
+
+	// ---- handleGetResourceMetadata / handleAuthenticate -----------------
+
+	suite('auth', () => {
+
+		test('handleGetResourceMetadata aggregates resources from agents', () => {
+			agentList.set([agent], undefined);
+
+			const metadata = sideEffects.handleGetResourceMetadata();
+			assert.strictEqual(metadata.resources.length, 0, 'mock agent has no protected resources');
+		});
+
+		test('handleGetResourceMetadata returns resources when agent declares them', () => {
+			const copilotAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => copilotAgent.dispose()));
+			agentList.set([copilotAgent], undefined);
+
+			const metadata = sideEffects.handleGetResourceMetadata();
+			assert.strictEqual(metadata.resources.length, 1);
+			assert.strictEqual(metadata.resources[0].resource, 'https://api.github.com');
+		});
+
+		test('handleAuthenticate returns authenticated for matching resource', async () => {
+			const copilotAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => copilotAgent.dispose()));
+			agentList.set([copilotAgent], undefined);
+
+			const result = await sideEffects.handleAuthenticate({ resource: 'https://api.github.com', token: 'test-token' });
+			assert.deepStrictEqual(result, { authenticated: true });
+			assert.deepStrictEqual(copilotAgent.authenticateCalls, [{ resource: 'https://api.github.com', token: 'test-token' }]);
+		});
+
+		test('handleAuthenticate returns not authenticated for non-matching resource', async () => {
+			agentList.set([agent], undefined);
+
+			const result = await sideEffects.handleAuthenticate({ resource: 'https://unknown.example.com', token: 'test-token' });
+			assert.deepStrictEqual(result, { authenticated: false });
+		});
+	});
 });
