@@ -1586,13 +1586,11 @@ export class CodeApplication extends Disposable {
 				const telemetryService = accessor.get(ITelemetryService);
 
 				type NetworkProcessLaunchedClassification = {
-					pid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The process id of the launched network process.' };
 					owner: 'deepak1556';
 					comment: 'Tracks network process launch events.';
 				};
 
 				type NetworkProcessGoneClassification = {
-					pid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The process id of the gone network process.' };
 					exitCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the network process.' };
 					crashed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the network process crashed.' };
 					crashedPreIPC: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the network process crashed before IPC was established.' };
@@ -1603,16 +1601,13 @@ export class CodeApplication extends Disposable {
 				this._register(Event.fromNodeEventEmitter<NetworkProcessLaunchedDetails>(customApp, 'network-process-launched', (_event, details) => details)(details => {
 					this.logService.info(`[network process] launched with pid ${details.pid}`);
 
-					telemetryService.publicLog2<NetworkProcessLaunchedDetails, NetworkProcessLaunchedClassification>('networkProcess.launched', {
-						pid: details.pid
-					});
+					telemetryService.publicLog2<{}, NetworkProcessLaunchedClassification>('networkProcess.launched', {});
 				}));
 
 				this._register(Event.fromNodeEventEmitter<NetworkProcessGoneDetails>(customApp, 'network-process-gone', (_event, details) => details)(details => {
 					this.logService.info(`[network process] gone - pid: ${details.pid}, exitCode: ${details.exitCode}, crashed: ${details.crashed}, crashedPreIPC: ${details.crashedPreIPC}`);
 
-					telemetryService.publicLog2<NetworkProcessGoneDetails, NetworkProcessGoneClassification>('networkProcess.gone', {
-						pid: details.pid,
+					telemetryService.publicLog2<{ exitCode: number; crashed: boolean; crashedPreIPC: boolean }, NetworkProcessGoneClassification>('networkProcess.gone', {
 						exitCode: details.exitCode,
 						crashed: details.crashed,
 						crashedPreIPC: details.crashedPreIPC
