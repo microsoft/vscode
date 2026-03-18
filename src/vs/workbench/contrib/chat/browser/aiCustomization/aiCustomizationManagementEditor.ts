@@ -81,7 +81,8 @@ import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
 import { AgentPluginEditor } from '../agentPluginEditor/agentPluginEditor.js';
 import { AgentPluginEditorInput } from '../agentPluginEditor/agentPluginEditorInput.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, CustomizationHarness, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { ChatConfiguration } from '../../common/constants.js';
 
 const $ = DOM.$;
 
@@ -463,14 +464,27 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	/**
+	 * Whether the harness selector UI is enabled.
+	 * When disabled, the editor behaves as if "Local" is always selected.
+	 */
+	private get isHarnessSelectorEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled) !== false;
+	}
+
+	/**
 	 * Rebuilds the visible sections list based on the active harness's
 	 * `hiddenSections`. If the current selection falls into a hidden
 	 * section, the first visible section is selected instead.
 	 */
 	private rebuildVisibleSections(): void {
-		const activeId = this.harnessService.activeHarness.get();
-		const descriptor = this.harnessService.availableHarnesses.get().find(h => h.id === activeId);
-		const hidden = new Set(descriptor?.hiddenSections ?? []);
+		let hidden: Set<string>;
+		if (this.isHarnessSelectorEnabled) {
+			const activeId = this.harnessService.activeHarness.get();
+			const descriptor = this.harnessService.availableHarnesses.get().find(h => h.id === activeId);
+			hidden = new Set(descriptor?.hiddenSections ?? []);
+		} else {
+			hidden = new Set(); // Local harness has no hidden sections
+		}
 
 		this.sections.length = 0;
 		for (const s of this.allSections) {
@@ -533,11 +547,27 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.selectSection(e.elements[0].id);
 		}));
 
-		// React to harness changes — rebuild visible sections
+		// React to harness changes — rebuild visible sections and refresh counts
 		this.editorDisposables.add(autorun(reader => {
 			this.harnessService.activeHarness.read(reader);
 			this.rebuildVisibleSections();
 			this.updateHarnessDropdown();
+			this.refreshAllPromptsSectionCounts();
+		}));
+
+		// When the harness selector setting is off, lock to Local harness.
+		// In Sessions (single CLI harness) the dropdown is already hidden and
+		// setActiveHarness(VSCode) is a safe no-op since the CLI harness
+		// remains active — filtering stays correct for that window.
+		if (!this.isHarnessSelectorEnabled) {
+			this.harnessService.setActiveHarness(CustomizationHarness.VSCode);
+		}
+		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled)) {
+				if (!this.isHarnessSelectorEnabled) {
+					this.harnessService.setActiveHarness(CustomizationHarness.VSCode);
+				}
+			}
 		}));
 
 		// Folder picker (sessions window only)
@@ -547,6 +577,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private createHarnessDropdown(sidebarContent: HTMLElement): void {
+		if (!this.isHarnessSelectorEnabled) {
+			return;
+		}
 		const harnesses = this.harnessService.availableHarnesses.get();
 		if (harnesses.length <= 1) {
 			return;
@@ -1053,6 +1086,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private async resolveTargetDirectoryWithPicker(type: PromptsType, target: 'workspace' | 'user'): Promise<URI | undefined | null> {
 		const allFolders = await this.promptsService.getSourceFolders(type);
 		const projectRoot = this.workspaceService.getActiveProjectRoot();
+		const descriptor = this.harnessService.getActiveDescriptor();
+		const subpaths = descriptor.workspaceSubpaths;
 
 		// Partition folders by whether they're under the active project root.
 		// The storage tags from getSourceFolders() are unreliable (tilde-expanded
@@ -1061,7 +1096,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 		let matchingFolders;
 		if (target === 'workspace') {
 			matchingFolders = projectRoot
-				? allFolders.filter(f => isEqualOrParent(f.uri, projectRoot))
+				? allFolders.filter(f => {
+					if (!isEqualOrParent(f.uri, projectRoot)) {
+						return false;
+					}
+					// When the active harness specifies workspaceSubpaths, only offer
+					// directories whose path includes one of those sub-paths.
+					if (subpaths) {
+						return matchesWorkspaceSubpath(f.uri.path, subpaths);
+					}
+					return true;
+				})
 				: [];
 		} else {
 			matchingFolders = projectRoot

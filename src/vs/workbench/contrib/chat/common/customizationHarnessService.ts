@@ -206,7 +206,9 @@ export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras:
 
 /**
  * Creates a "Claude" harness descriptor.
- * Claude does not support custom agents or hooks.
+ * Claude does not support custom agents or prompt files.
+ * It supports instructions (CLAUDE.md/AGENTS.md), skills (.claude/skills/),
+ * and hooks (configured in .claude/settings.json / .claude/settings.local.json).
  */
 export function createClaudeHarnessDescriptor(claudeRoots: readonly URI[], extras: readonly string[]): IHarnessDescriptor {
 	return createRestrictedHarnessDescriptor(
@@ -215,9 +217,23 @@ export function createClaudeHarnessDescriptor(claudeRoots: readonly URI[], extra
 		ThemeIcon.fromId(Codicon.claude.id),
 		claudeRoots,
 		extras,
-		[AICustomizationManagementSection.Agents, AICustomizationManagementSection.Hooks],
+		[AICustomizationManagementSection.Agents, AICustomizationManagementSection.Prompts],
 		['.claude'],
 	);
+}
+
+// #endregion
+
+// #region Helpers
+
+/**
+ * Tests whether a file path belongs to one of the given workspace sub-paths.
+ * Matches on path segment boundaries to avoid false positives
+ * (e.g. `.claude` must appear as `/.claude/` in the path, not as part of
+ * a longer segment like `not.claude`).
+ */
+export function matchesWorkspaceSubpath(filePath: string, subpaths: readonly string[]): boolean {
+	return subpaths.some(sp => filePath.includes(`/${sp}/`) || filePath.endsWith(`/${sp}`));
 }
 
 // #endregion

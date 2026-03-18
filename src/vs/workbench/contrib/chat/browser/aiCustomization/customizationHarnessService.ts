@@ -26,12 +26,15 @@ class CustomizationHarnessService extends CustomizationHarnessServiceBase {
 		@IPathService pathService: IPathService,
 	) {
 		const userHome = pathService.userHome({ preferLocal: true });
-		const extras = [PromptsStorage.extension];
+		// Only the Local harness includes extension-contributed customizations.
+		// CLI and Claude harnesses don't consume extension contributions.
+		const localExtras = [PromptsStorage.extension];
+		const restrictedExtras: readonly string[] = [];
 		super(
 			[
-				createVSCodeHarnessDescriptor(extras),
-				createCliHarnessDescriptor(getCliUserRoots(userHome), extras),
-				createClaudeHarnessDescriptor(getClaudeUserRoots(userHome), extras),
+				createVSCodeHarnessDescriptor(localExtras),
+				createCliHarnessDescriptor(getCliUserRoots(userHome), restrictedExtras),
+				createClaudeHarnessDescriptor(getClaudeUserRoots(userHome), restrictedExtras),
 			],
 			CustomizationHarness.VSCode,
 		);
