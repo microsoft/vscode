@@ -75,12 +75,17 @@ body {
 .monaco-workbench.no-shadows .part.editor .tabs-container > .tab {
 	box-shadow: none;
 }
+.monaco-workbench.no-shadows .part.editor .tabs-container > .tab:hover:not(.active),
+.monaco-workbench.no-shadows .part.editor .tabs-container > .tab.active {
+	box-shadow: none;
+}
 .monaco-workbench.no-shadows {
 	/* Use zero-offset transparent shadows instead of 'none' because these
 	 * variables are interpolated into multi-value box-shadow declarations. */
 	--vscode-shadow-active-tab: 0 0 0 0 transparent;
 	--vscode-shadow-depth-x: 0 0 0 0 transparent;
 	--vscode-shadow-depth-y: 0 0 0 0 transparent;
+	--vscode-shadow-sm: 0 0 0 0 transparent;
 }
 
 .monaco-workbench.web {
