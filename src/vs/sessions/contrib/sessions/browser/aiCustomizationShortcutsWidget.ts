@@ -52,7 +52,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 
 	private _render(parent: HTMLElement, options: IAICustomizationShortcutsWidgetOptions | undefined): void {
 		// Get initial collapsed state
-		const isCollapsed = this.storageService.getBoolean(CUSTOMIZATIONS_COLLAPSED_KEY, StorageScope.PROFILE, false);
+		const isCollapsed = this.storageService.getBoolean(CUSTOMIZATIONS_COLLAPSED_KEY, StorageScope.PROFILE, true);
 
 		const container = DOM.append(parent, $('.ai-customization-toolbar'));
 		if (isCollapsed) {
