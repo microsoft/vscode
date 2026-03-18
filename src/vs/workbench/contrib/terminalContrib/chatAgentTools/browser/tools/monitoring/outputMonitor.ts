@@ -1082,7 +1082,18 @@ const taskFinishMessages = [
 export function detectsVSCodeTaskFinishMessage(cursorLine: string): boolean {
 	// Remove all whitespace to handle line wrapping that splits words mid-word
 	const normalized = cursorLine.replace(/\s/g, '').toLowerCase();
-	return taskFinishMessages.some(msg => normalized.includes(msg.replace(/\s/g, '').toLowerCase()));
+	if (taskFinishMessages.some(msg => normalized.includes(msg.replace(/\s/g, '').toLowerCase()))) {
+		return true;
+	}
+
+	// Be tolerant to punctuation and minor wording variants in the task footer, for example:
+	// - "The terminal will be reused by tasks. Press any key to close."
+	// - "The terminal will be reused by tasks, press any key to close it."
+	// and messages where additional tool text is appended afterwards.
+	const compact = cursorLine.replace(/[\s.,:;!?"'`()[\]{}<>\-_/\\]+/g, '').toLowerCase();
+	const hasReuseByTasks = compact.includes('terminalwillbereusedbytasks');
+	const hasPressAnyKeyToClose = compact.includes('pressanykeytoclose');
+	return hasReuseByTasks && hasPressAnyKeyToClose;
 }
 
 /**
