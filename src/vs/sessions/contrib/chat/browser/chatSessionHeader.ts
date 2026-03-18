@@ -98,15 +98,16 @@ class ChatSessionHeaderContribution extends Disposable implements IWorkbenchCont
 	}
 
 	private tryInject(): boolean {
-		if (this.headerElement.parentElement) {
-			return true; // Already injected
-		}
 		const view = this.viewsService.getViewWithId<ViewPane>(ChatViewId);
-		if (view?.element) {
-			view.element.insertBefore(this.headerElement, view.element.firstChild);
-			return true;
+		if (!view?.element) {
+			return false;
 		}
-		return false;
+		// Re-inject if the header is not a child of the current view element
+		// (view may have been recreated on session switch)
+		if (this.headerElement.parentElement !== view.element) {
+			view.element.insertBefore(this.headerElement, view.element.firstChild);
+		}
+		return true;
 	}
 
 	private ensureInjected(): void {
