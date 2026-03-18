@@ -1266,7 +1266,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const currentConfig = this._modelConfigurations.get(modelId) ?? {};
 
 		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (typeof propSchema === 'boolean' || !propSchema.enum || !Array.isArray(propSchema.enum)) {
+			if (!propSchema.enum || !Array.isArray(propSchema.enum)) {
 				continue;
 			}
 			const currentValue = currentConfig[key] ?? propSchema.default;
@@ -1727,7 +1727,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return result;
 	}
 
-	private async _resolveModelConfiguration(config: IStringDictionary<unknown>, schema: IJSONSchema | undefined): Promise<IStringDictionary<unknown>> {
+	private async _resolveModelConfiguration(config: IStringDictionary<unknown>, schema: ILanguageModelConfigurationSchema | undefined): Promise<IStringDictionary<unknown>> {
 		if (!schema) {
 			return { ...config };
 		}

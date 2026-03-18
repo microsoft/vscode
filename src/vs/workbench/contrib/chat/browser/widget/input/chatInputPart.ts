@@ -95,7 +95,7 @@ import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chat
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { ChatHistoryNavigator } from '../../../common/widget/chatWidgetHistoryService.js';
-import { ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenDelegationPickerAction, OpenModelConfigPickerAction, OpenModelPickerAction, OpenModePickerAction, OpenPermissionPickerAction, OpenSessionTargetPickerAction, OpenWorkspacePickerAction } from '../../actions/chatExecuteActions.js';
+import { ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenDelegationPickerAction, OpenModelPickerAction, OpenModePickerAction, OpenPermissionPickerAction, OpenSessionTargetPickerAction, OpenWorkspacePickerAction } from '../../actions/chatExecuteActions.js';
 import { AgentSessionProviders, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
@@ -128,7 +128,6 @@ import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
 import { ChatContextUsageWidget } from '../../widgetHosts/viewPane/chatContextUsageWidget.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { EnhancedModelPickerActionItem } from './modelPickerActionItem2.js';
-import { IModelConfigPickerDelegate, ModelConfigPickerActionItem } from './modelConfigPickerActionItem.js';
 
 const $ = dom.$;
 
@@ -376,7 +375,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatSessionSupportsDelegationKey: IContextKey<boolean>;
 	private chatSessionHasCustomAgentTarget: IContextKey<boolean>;
 	private chatSessionHasTargetedModels: IContextKey<boolean>;
-	private _chatModelHasNavigationConfig: IContextKey<boolean>;
 	private modelWidget: EnhancedModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
 	private permissionWidget: PermissionPickerActionItem | undefined;
@@ -624,7 +622,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		this.chatSessionHasCustomAgentTarget = ChatContextKeys.chatSessionHasCustomAgentTarget.bindTo(contextKeyService);
 		this.chatSessionHasTargetedModels = ChatContextKeys.chatSessionHasTargetedModels.bindTo(contextKeyService);
-		this._chatModelHasNavigationConfig = ChatContextKeys.chatModelHasNavigationConfig.bindTo(contextKeyService);
 
 		this.history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, this.location));
 
@@ -1051,7 +1048,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
 		this._currentLanguageModel.set(model, undefined);
-		this._updateModelConfigContextKey(model);
 
 		if (this.cachedWidth) {
 			// For quick chat and editor chat, relayout because the input may need to shrink to accomodate the model name
@@ -1064,14 +1060,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Sync to model
 		this._syncInputStateToModel();
-	}
-
-	private _updateModelConfigContextKey(model: ILanguageModelChatMetadataAndIdentifier): void {
-		const schema = model.metadata.configurationSchema;
-		const hasNavConfig = !!schema?.properties && Object.values(schema.properties).some(
-			p => typeof p !== 'boolean' && p.group === 'navigation'
-		);
-		this._chatModelHasNavigationConfig.set(hasNavConfig);
 	}
 
 	private checkModelSupported(): void {
@@ -2260,11 +2248,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						},
 					};
 					return this.modelWidget = this.instantiationService.createInstance(EnhancedModelPickerActionItem, action, itemDelegate, pickerOptions);
-				} else if (action.id === OpenModelConfigPickerAction.ID && action instanceof MenuItemAction) {
-					const configDelegate: IModelConfigPickerDelegate = {
-						currentModel: this._currentLanguageModel,
-					};
-					return this.instantiationService.createInstance(ModelConfigPickerActionItem, action, configDelegate, pickerOptions);
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
 					const delegate: IModePickerDelegate = {
 						currentMode: this._currentModeObservable,
