@@ -97,6 +97,12 @@ export class UpdateTooltip extends Disposable {
 		const headerActions = dom.append(header, dom.$('.header-actions'));
 		const actionBar = this._register(new ActionBar(headerActions, { hoverDelegate: nativeHoverDelegate }));
 		actionBar.push(toAction({
+			id: 'update.snooze',
+			label: localize('updateTooltip.snoozeTooltip', "Snooze"),
+			class: ThemeIcon.asClassName(Codicon.bellSlash),
+			run: () => this.runCommandAndClose('workbench.action.openSettings', '@id:update.titleBar'),
+		}), { icon: true, label: false });
+		actionBar.push(toAction({
 			id: 'update.openSettings',
 			label: localize('updateTooltip.settingsTooltip', "Update Settings"),
 			class: ThemeIcon.asClassName(Codicon.gear),
@@ -450,45 +456,50 @@ export class UpdateTooltip extends Disposable {
 		this.renderMessage(localize('updateTooltip.downloadingNewerPleaseWait', "A newer update was released. Downloading, please wait..."));
 	}
 
-	public async renderPostInstall() {
+	public async renderPostInstall(options?: { markdown?: string; actionLabel?: string; actionCommand?: string; actionArgs?: unknown[] }) {
 		this.hideAll();
 		this.renderTitleAndInfo(localize('updateTooltip.installedDefaultTitle', "New Update Installed"));
+		this.releaseNotesLink.textContent = localize('updateTooltip.viewReleaseNotes', "View Release Notes");
 		this.renderMessage(
 			localize('updateTooltip.installedDefaultMessage', "See release notes for details on what's new in this release."),
 			Codicon.info);
 
-		let text = null;
-		try {
-			const url = getUpdateInfoUrl(this.productService.version);
-			const context = await this.requestService.request({ url, callSite: 'updateTooltip' }, CancellationToken.None);
-			text = await asTextOrError(context);
-		} catch { }
-
+		let text = options?.markdown ?? null;
 		if (!text) {
-			return;
+			try {
+				const url = getUpdateInfoUrl(this.productService.version);
+				const context = await this.requestService.request({ url, callSite: 'updateTooltip' }, CancellationToken.None);
+				text = await asTextOrError(context);
+			} catch { }
 		}
 
-		this.titleNode.textContent = localize('updateTooltip.installedTitle', "New in {0}", this.productService.version);
-		this.productInfoNode.style.display = 'none';
-		this.messageNode.style.display = 'none';
+		if (text) {
+			this.titleNode.textContent = localize('updateTooltip.installedTitle', "New Update Installed");
+			this.productInfoNode.style.display = 'none';
+			this.messageNode.style.display = 'none';
 
-		const rendered = this.markdownRendererService.render(
-			new MarkdownString(text, {
-				isTrusted: true,
-				supportHtml: true,
-				supportThemeIcons: true,
-			}),
-			{
-				actionHandler: (link, mdStr) => {
-					openLinkFromMarkdown(this.openerService, link, mdStr.isTrusted);
-					this.hoverService.hideHover(true);
-				},
-			});
+			const rendered = this.markdownRendererService.render(
+				new MarkdownString(text, {
+					isTrusted: true,
+					supportHtml: true,
+					supportThemeIcons: true,
+				}),
+				{
+					actionHandler: (link, mdStr) => {
+						openLinkFromMarkdown(this.openerService, link, mdStr.isTrusted);
+						this.hoverService.hideHover(true);
+					},
+				});
 
-		this.markdown.value = rendered;
-		dom.clearNode(this.markdownContainer);
-		this.markdownContainer.appendChild(rendered.element);
-		this.markdownContainer.style.display = '';
+			this.markdown.value = rendered;
+			dom.clearNode(this.markdownContainer);
+			this.markdownContainer.appendChild(rendered.element);
+			this.markdownContainer.style.display = '';
+		}
+
+		if (options?.actionLabel && options.actionCommand) {
+			this.showAction(options.actionLabel, () => this.runCommandAndClose(options.actionCommand!, ...(options.actionArgs ?? [])));
+		}
 	}
 
 	private renderTitleAndInfo(title: string, update?: IUpdate) {
