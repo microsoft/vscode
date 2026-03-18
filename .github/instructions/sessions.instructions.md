@@ -11,3 +11,4 @@ When working on files under `src/vs/sessions/`, use these skills for detailed gu
 
 - **`sessions`** skill — covers the full architecture: layering, folder structure, chat widget, menus, contributions, entry points, and development guidelines
 - **`agent-sessions-layout`** skill — covers the fixed layout structure, grid configuration, part visibility, editor modal, titlebar, sidebar footer, and implementation requirements
+- **`chat-customizations-editor`** skill — covers shared core + sessions customization architecture, storage scoping, and customization editor UI/service boundaries

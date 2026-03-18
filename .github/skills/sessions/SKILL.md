@@ -13,7 +13,7 @@ The `src/vs/sessions/` directory contains authoritative specification documents.
 |----------|------|--------|
 | Layer spec | `src/vs/sessions/README.md` | Layering rules, dependency constraints, folder conventions |
 | Layout spec | `src/vs/sessions/LAYOUT.md` | Grid structure, part positions, sizing, CSS classes, API reference |
-| AI Customizations | `src/vs/sessions/AI_CUSTOMIZATIONS.md` | AI customization editor and tree view design |
+| Chat Customizations Editor | `../chat-customizations-editor/SKILL.md` | Shared guidance for customization discovery, UI, and sessions-specific overrides |
 | Chat Widget | `src/vs/sessions/browser/widget/AGENTS_CHAT_WIDGET.md` | Chat widget wrapper architecture, deferred session creation, option delivery |
 
 If you modify the implementation, you **must** update the corresponding spec to keep it in sync. Update the Revision History table at the bottom of `LAYOUT.md` with a dated entry.
@@ -57,7 +57,7 @@ vs/sessions      ← Agent Sessions window (this layer)
 src/vs/sessions/
 ├── README.md                               # Layer specification (read first)
 ├── LAYOUT.md                               # Authoritative layout specification
-├── AI_CUSTOMIZATIONS.md                    # AI customization design document
+├── AI_CUSTOMIZATIONS.md                    # Sessions note pointing to the shared AI/chat customizations skill
 ├── sessions.common.main.ts                 # Common (browser + desktop) entry point
 ├── sessions.desktop.main.ts                # Desktop entry point (imports all contributions)
 ├── common/                                 # Shared types, context keys, and theme
@@ -234,6 +234,7 @@ The agent sessions window registers its own implementations for:
 - `IPaneCompositePartService` → `AgenticPaneCompositePartService` (creates agent-specific parts)
 - `IPromptsService` → `AgenticPromptsService` (scopes prompt discovery to active session worktree)
 - `IActiveSessionService` → `ActiveSessionService` (tracks active session)
+- `IAICustomizationWorkspaceService` → `SessionsAICustomizationWorkspaceService` (scopes customization behavior to the active session root)
 
 Service overrides also live under `services/`:
 - `services/configuration/browser/` - configuration service overrides
@@ -295,10 +296,10 @@ Views and contributions that should only appear in the agent sessions window (no
 
 ### 10.4 AI Customization Changes
 
-1. **Read `AI_CUSTOMIZATIONS.md` first** — it covers the management editor and tree view design
+1. **Read `../chat-customizations-editor/SKILL.md` first** — it covers the shared core/sessions customization architecture
 2. Lean on existing VS Code services (`IPromptsService`, `IMcpService`, `IChatService`)
 3. Browser compatibility required — no Node.js APIs
-4. Active worktree comes from `IActiveSessionService`
+4. Active worktree comes from `ISessionsManagementService`
 
 ### 10.5 Validation
 
