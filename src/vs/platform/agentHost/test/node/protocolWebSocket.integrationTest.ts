@@ -9,47 +9,25 @@ import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { URI } from '../../../../base/common/uri.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
+import { protocolReplacer, protocolReviver } from '../../common/state/jsonSerialization.js';
 import {
 	isJsonRpcNotification,
 	isJsonRpcResponse,
+	JSON_RPC_PARSE_ERROR,
 	type IActionBroadcastParams,
 	type IFetchTurnsResult,
+	type IInitializeResult,
 	type IJsonRpcErrorResponse,
 	type IJsonRpcSuccessResponse,
 	type IListSessionsResult,
 	type INotificationBroadcastParams,
 	type IProtocolMessage,
 	type IProtocolNotification,
-	type IServerHelloParams,
+	type IReconnectResult,
 	type IStateSnapshot,
 } from '../../common/state/sessionProtocol.js';
 import type { IDeltaAction, ISessionAddedNotification, ISessionRemovedNotification, IUsageAction } from '../../common/state/sessionActions.js';
 import type { ISessionState } from '../../common/state/sessionState.js';
-
-// ---- JSON serialization helpers (mirror webSocketTransport.ts) --------------
-
-function uriReplacer(_key: string, value: unknown): unknown {
-	if (value instanceof URI) {
-		return value.toJSON();
-	}
-	if (value instanceof Map) {
-		return { $type: 'Map', entries: [...value.entries()] };
-	}
-	return value;
-}
-
-function uriReviver(_key: string, value: unknown): unknown {
-	if (value && typeof value === 'object') {
-		const obj = value as Record<string, unknown>;
-		if (obj.$mid === 1) {
-			return URI.revive(value as URI);
-		}
-		if (obj.$type === 'Map' && Array.isArray(obj.entries)) {
-			return new Map(obj.entries as [unknown, unknown][]);
-		}
-	}
-	return value;
-}
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
@@ -74,7 +52,7 @@ class TestProtocolClient {
 			this._ws.on('open', () => {
 				this._ws.on('message', (data: Buffer | string) => {
 					const text = typeof data === 'string' ? data : data.toString('utf-8');
-					const msg = JSON.parse(text, uriReviver);
+					const msg = JSON.parse(text, protocolReviver);
 					this._handleMessage(msg);
 				});
 				resolve();
@@ -113,14 +91,14 @@ class TestProtocolClient {
 	/** Send a JSON-RPC notification (fire-and-forget). */
 	notify(method: string, params?: unknown): void {
 		const msg: IProtocolMessage = { jsonrpc: '2.0', method, params };
-		this._ws.send(JSON.stringify(msg, uriReplacer));
+		this._ws.send(JSON.stringify(msg, protocolReplacer));
 	}
 
 	/** Send a JSON-RPC request and await the response. */
 	call<T>(method: string, params?: unknown, timeoutMs = 5000): Promise<T> {
 		const id = this._nextId++;
 		const msg: IProtocolMessage = { jsonrpc: '2.0', id, method, params };
-		this._ws.send(JSON.stringify(msg, uriReplacer));
+		this._ws.send(JSON.stringify(msg, protocolReplacer));
 
 		return new Promise<T>((resolve, reject) => {
 			const timer = setTimeout(() => {
@@ -164,6 +142,31 @@ class TestProtocolClient {
 		return predicate ? this._notifications.filter(predicate) : [...this._notifications];
 	}
 
+	/** Send a raw string over the WebSocket without JSON serialization. */
+	sendRaw(data: string): void {
+		this._ws.send(data);
+	}
+
+	/** Wait for the next raw message from the server. */
+	waitForRawMessage(timeoutMs = 5000): Promise<unknown> {
+		return new Promise((resolve, reject) => {
+			const timer = setTimeout(() => {
+				cleanup();
+				reject(new Error(`Timeout waiting for raw message (${timeoutMs}ms)`));
+			}, timeoutMs);
+			const onMsg = (data: Buffer | string) => {
+				cleanup();
+				const text = typeof data === 'string' ? data : data.toString('utf-8');
+				resolve(JSON.parse(text));
+			};
+			const cleanup = () => {
+				clearTimeout(timer);
+				this._ws.removeListener('message', onMsg);
+			};
+			this._ws.on('message', onMsg);
+		});
+	}
+
 	close(): void {
 		for (const w of this._notifWaiters) {
 			w.reject(new Error('Client closed'));
@@ -186,7 +189,7 @@ class TestProtocolClient {
 async function startServer(): Promise<{ process: ChildProcess; port: number }> {
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../node/agentHostServerMain.js', import.meta.url));
-		const child = fork(serverPath, ['--enable-mock-agent', '--quiet', '--port', '0'], {
+		const child = fork(serverPath, ['--enable-mock-agent', '--quiet', '--port', '0', '--without-connection-token'], {
 			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
 		});
 
@@ -204,8 +207,8 @@ async function startServer(): Promise<{ process: ChildProcess; port: number }> {
 			}
 		});
 
-		child.stderr!.on('data', (data: Buffer) => {
-			console.error('[TestServer]', data.toString());
+		child.stderr!.on('data', () => {
+			// Intentionally swallowed - the test runner fails if console.error is used.
 		});
 
 		child.on('error', err => {
@@ -242,8 +245,7 @@ function getActionParams(n: IProtocolNotification): IActionBroadcastParams {
 
 /** Perform handshake, create a session, subscribe, and return its URI. */
 async function createAndSubscribeSession(c: TestProtocolClient, clientId: string): Promise<URI> {
-	c.notify('initialize', { protocolVersion: PROTOCOL_VERSION, clientId });
-	await c.waitForNotification(n => n.method === 'serverHello');
+	await c.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId });
 
 	await c.call('createSession', { session: nextSessionUri(), provider: 'mock' });
 
@@ -297,28 +299,25 @@ suite('Protocol WebSocket E2E', function () {
 	});
 
 	// 1. Handshake
-	test('handshake returns serverHello with protocol version', async function () {
+	test('handshake returns initialize response with protocol version', async function () {
 		this.timeout(5_000);
 
-		client.notify('initialize', {
+		const result = await client.call<IInitializeResult>('initialize', {
 			protocolVersion: PROTOCOL_VERSION,
 			clientId: 'test-handshake',
 			initialSubscriptions: [URI.from({ scheme: 'agenthost', path: '/root' })],
 		});
 
-		const hello = await client.waitForNotification(n => n.method === 'serverHello');
-		const params = hello.params as IServerHelloParams;
-		assert.strictEqual(params.protocolVersion, PROTOCOL_VERSION);
-		assert.ok(params.serverSeq >= 0);
-		assert.ok(params.snapshots.length >= 1, 'should have root state snapshot');
+		assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
+		assert.ok(result.serverSeq >= 0);
+		assert.ok(result.snapshots.length >= 1, 'should have root state snapshot');
 	});
 
 	// 2. Create session
 	test('create session triggers sessionAdded notification', async function () {
 		this.timeout(10_000);
 
-		client.notify('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-create-session' });
-		await client.waitForNotification(n => n.method === 'serverHello');
+		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-create-session' });
 
 		await client.call('createSession', { session: nextSessionUri(), provider: 'mock' });
 
@@ -348,16 +347,17 @@ suite('Protocol WebSocket E2E', function () {
 	});
 
 	// 4. Tool invocation lifecycle
-	test('tool invocation: toolStart → toolComplete → delta → turnComplete', async function () {
+	test('tool invocation: toolCallStart → toolCallComplete → delta → turnComplete', async function () {
 		this.timeout(10_000);
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-tool-invocation');
 		dispatchTurnStarted(client, sessionUri, 'turn-tool', 'use-tool', 1);
 
-		await client.waitForNotification(n => isActionNotification(n, 'session/toolStart'));
-		const toolComplete = await client.waitForNotification(n => isActionNotification(n, 'session/toolComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
+		const toolComplete = await client.waitForNotification(n => isActionNotification(n, 'session/toolCallComplete'));
 		const tcAction = getActionParams(toolComplete).envelope.action;
-		if (tcAction.type === 'session/toolComplete') {
+		if (tcAction.type === 'session/toolCallComplete') {
 			assert.strictEqual(tcAction.result.success, true);
 		}
 		await client.waitForNotification(n => isActionNotification(n, 'session/delta'));
@@ -409,8 +409,7 @@ suite('Protocol WebSocket E2E', function () {
 	test('listSessions returns sessions', async function () {
 		this.timeout(10_000);
 
-		client.notify('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-list-sessions' });
-		await client.waitForNotification(n => n.method === 'serverHello');
+		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-list-sessions' });
 
 		await client.call('createSession', { session: nextSessionUri(), provider: 'mock' });
 		await client.waitForNotification(n =>
@@ -438,19 +437,16 @@ suite('Protocol WebSocket E2E', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		client2.notify('reconnect', {
+		const result = await client2.call<IReconnectResult>('reconnect', {
 			clientId: 'test-reconnect',
 			lastSeenServerSeq: missedFromSeq,
 			subscriptions: [sessionUri],
 		});
 
-		await new Promise(resolve => setTimeout(resolve, 500));
-
-		const replayed = client2.receivedNotifications();
-		assert.ok(replayed.length > 0, 'should receive replayed actions or reconnect response');
-		const hasActions = replayed.some(n => n.method === 'action');
-		const hasReconnect = replayed.some(n => n.method === 'reconnectResponse');
-		assert.ok(hasActions || hasReconnect);
+		assert.ok(result.type === 'replay' || result.type === 'snapshot', 'should receive replay or snapshot');
+		if (result.type === 'replay') {
+			assert.ok(result.actions.length > 0, 'should have replayed actions');
+		}
 
 		client2.close();
 	});
@@ -500,8 +496,7 @@ suite('Protocol WebSocket E2E', function () {
 	test('createSession with invalid provider does not crash server', async function () {
 		this.timeout(10_000);
 
-		client.notify('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-invalid-create' });
-		await client.waitForNotification(n => n.method === 'serverHello');
+		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-invalid-create' });
 
 		// This should return a JSON-RPC error
 		let gotError = false;
@@ -532,9 +527,9 @@ suite('Protocol WebSocket E2E', function () {
 		await new Promise(resolve => setTimeout(resolve, 200));
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const result = await client.call<IFetchTurnsResult>('fetchTurns', { session: sessionUri, startTurn: 0, count: 10 });
+		const result = await client.call<IFetchTurnsResult>('fetchTurns', { session: sessionUri, limit: 10 });
 		assert.ok(result.turns.length >= 2);
-		assert.ok(result.totalTurns >= 2);
+		assert.strictEqual(typeof result.hasMore, 'boolean');
 	});
 
 	// ---- Gap tests: coverage ---------------------------------------------------
@@ -597,8 +592,7 @@ suite('Protocol WebSocket E2E', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		client2.notify('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-multi-client-2' });
-		await client2.waitForNotification(n => n.method === 'serverHello');
+		await client2.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-multi-client-2' });
 		await client2.call('subscribe', { resource: sessionUri });
 		client2.clearReceived();
 
@@ -625,8 +619,7 @@ suite('Protocol WebSocket E2E', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		client2.notify('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-unsub-helper' });
-		await client2.waitForNotification(n => n.method === 'serverHello');
+		await client2.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-unsub-helper' });
 		await client2.call('subscribe', { resource: sessionUri });
 
 		dispatchTurnStarted(client2, sessionUri, 'turn-unsub', 'hello', 1);
@@ -659,5 +652,22 @@ suite('Protocol WebSocket E2E', function () {
 		const snapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
 		const state = snapshot.state as ISessionState;
 		assert.strictEqual(state.summary.model, 'new-mock-model');
+	});
+
+	test('malformed JSON message returns parse error', async function () {
+		this.timeout(10_000);
+
+		const raw = new TestProtocolClient(server.port);
+		await raw.connect();
+
+		const responsePromise = raw.waitForRawMessage();
+		raw.sendRaw('this is not valid json{{{');
+
+		const response = await responsePromise as IJsonRpcErrorResponse;
+		assert.strictEqual(response.jsonrpc, '2.0');
+		assert.strictEqual(response.id, null);
+		assert.strictEqual(response.error.code, JSON_RPC_PARSE_ERROR);
+
+		raw.close();
 	});
 });

@@ -58,7 +58,7 @@ suite('SessionStateManager', () => {
 		const snapshot = manager.getSnapshot(ROOT_STATE_URI);
 		assert.ok(snapshot);
 		assert.strictEqual(snapshot.resource.toString(), ROOT_STATE_URI.toString());
-		assert.deepStrictEqual(snapshot.state, { agents: [] });
+		assert.deepStrictEqual(snapshot.state, { agents: [], activeSessions: 0 });
 	});
 
 	test('getSnapshot returns session snapshot after creation', () => {
@@ -159,5 +159,92 @@ suite('SessionStateManager', () => {
 		});
 
 		assert.strictEqual(manager.getActiveTurnId(sessionUri), 'turn-1');
+	});
+
+	test('root state starts with activeSessions: 0', () => {
+		const snapshot = manager.getSnapshot(ROOT_STATE_URI);
+		assert.ok(snapshot);
+		assert.deepStrictEqual(snapshot.state, { agents: [], activeSessions: 0 });
+	});
+
+	test('turnStarted dispatches root/activeSessionsChanged with correct count', () => {
+		manager.createSession(makeSessionSummary());
+		manager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+
+		const envelopes: IActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+		manager.dispatchServerAction({
+			type: 'session/turnStarted',
+			session: sessionUri,
+			turnId: 'turn-1',
+			userMessage: { text: 'hello' },
+		});
+
+		const activeChanged = envelopes.filter(e => e.action.type === 'root/activeSessionsChanged');
+		assert.strictEqual(activeChanged.length, 1);
+		assert.strictEqual((activeChanged[0].action as { activeSessions: number }).activeSessions, 1);
+		assert.strictEqual(manager.rootState.activeSessions, 1);
+	});
+
+	test('turnComplete dispatches root/activeSessionsChanged back to 0', () => {
+		manager.createSession(makeSessionSummary());
+		manager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		manager.dispatchServerAction({
+			type: 'session/turnStarted',
+			session: sessionUri,
+			turnId: 'turn-1',
+			userMessage: { text: 'hello' },
+		});
+
+		const envelopes: IActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+		manager.dispatchServerAction({
+			type: 'session/turnComplete',
+			session: sessionUri,
+			turnId: 'turn-1',
+		});
+
+		const activeChanged = envelopes.filter(e => e.action.type === 'root/activeSessionsChanged');
+		assert.strictEqual(activeChanged.length, 1);
+		assert.strictEqual((activeChanged[0].action as { activeSessions: number }).activeSessions, 0);
+		assert.strictEqual(manager.rootState.activeSessions, 0);
+	});
+
+	test('activeSessions reflects concurrent turn count across sessions', () => {
+		const session2Uri = URI.from({ scheme: 'copilot', path: '/test-session-2' });
+		manager.createSession(makeSessionSummary(sessionUri));
+		manager.createSession(makeSessionSummary(session2Uri));
+		manager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		manager.dispatchServerAction({ type: 'session/ready', session: session2Uri });
+
+		manager.dispatchServerAction({
+			type: 'session/turnStarted',
+			session: sessionUri,
+			turnId: 'turn-1',
+			userMessage: { text: 'a' },
+		});
+		manager.dispatchServerAction({
+			type: 'session/turnStarted',
+			session: session2Uri,
+			turnId: 'turn-2',
+			userMessage: { text: 'b' },
+		});
+		assert.strictEqual(manager.rootState.activeSessions, 2);
+
+		manager.dispatchServerAction({
+			type: 'session/turnComplete',
+			session: sessionUri,
+			turnId: 'turn-1',
+		});
+		assert.strictEqual(manager.rootState.activeSessions, 1);
+
+		manager.dispatchServerAction({
+			type: 'session/turnComplete',
+			session: session2Uri,
+			turnId: 'turn-2',
+		});
+		assert.strictEqual(manager.rootState.activeSessions, 0);
 	});
 });

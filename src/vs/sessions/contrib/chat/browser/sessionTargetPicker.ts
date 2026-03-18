@@ -25,6 +25,7 @@ export class SessionTargetPicker extends Disposable {
 
 	private _selectedTarget: AgentSessionProviders;
 	private _allowedTargets: AgentSessionProviders[];
+	private _targetLabels: ReadonlyMap<string, string>;
 
 	private readonly _onDidChangeTarget = this._register(new Emitter<AgentSessionProviders>());
 	readonly onDidChangeTarget: Event<AgentSessionProviders> = this._onDidChangeTarget.event;
@@ -39,9 +40,11 @@ export class SessionTargetPicker extends Disposable {
 	constructor(
 		allowedTargets: AgentSessionProviders[],
 		defaultTarget: AgentSessionProviders,
+		targetLabels?: ReadonlyMap<string, string>,
 	) {
 		super();
 		this._allowedTargets = allowedTargets;
+		this._targetLabels = targetLabels ?? new Map();
 		this._selectedTarget = allowedTargets.includes(defaultTarget)
 			? defaultTarget
 			: allowedTargets[0];
@@ -55,11 +58,14 @@ export class SessionTargetPicker extends Disposable {
 		this._renderRadio();
 	}
 
-	updateAllowedTargets(targets: AgentSessionProviders[]): void {
+	updateAllowedTargets(targets: AgentSessionProviders[], targetLabels?: ReadonlyMap<string, string>): void {
 		if (targets.length === 0) {
 			return;
 		}
 		this._allowedTargets = targets;
+		if (targetLabels) {
+			this._targetLabels = targetLabels;
+		}
 		if (!targets.includes(this._selectedTarget)) {
 			this._selectedTarget = targets[0];
 			this._onDidChangeTarget.fire(this._selectedTarget);
@@ -81,12 +87,12 @@ export class SessionTargetPicker extends Disposable {
 			return;
 		}
 
-		const targets = [AgentSessionProviders.Background, AgentSessionProviders.Cloud].filter(t => this._allowedTargets.includes(t));
+		const targets = this._allowedTargets;
 		const activeIndex = targets.indexOf(this._selectedTarget);
 
 		const radio = new Radio({
 			items: targets.map(target => ({
-				text: getTargetLabel(target),
+				text: this._targetLabels.get(target) ?? getTargetLabel(target),
 				isActive: target === this._selectedTarget,
 			})),
 		});
@@ -122,6 +128,8 @@ function getTargetLabel(provider: AgentSessionProviders): string {
 			return 'Growth';
 		case AgentSessionProviders.AgentHostCopilot:
 			return 'Agent Host - Copilot';
+		default:
+			return provider;
 	}
 }
 

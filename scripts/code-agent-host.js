@@ -11,24 +11,51 @@ const minimist = require('minimist');
 
 async function main() {
 	const args = minimist(process.argv.slice(2), {
-		boolean: ['help', 'no-launch'],
-		string: ['port'],
+		boolean: ['help', 'enable-mock-agent', 'quiet', 'without-connection-token'],
+		string: ['port', 'log', 'connection-token', 'connection-token-file'],
 	});
 
 	if (args.help) {
 		console.log(
 			'Usage: ./scripts/code-agent-host.sh [options]\n' +
-				'\n' +
-				'Options:\n' +
-				'  --port <number>   Port to listen on (default: 8081, or VSCODE_AGENT_HOST_PORT env)\n' +
-				'  --no-launch       Start server without additional actions\n' +
-				'  --help            Show this help message',
+			'\n' +
+			'Options:\n' +
+			'  --port <number>                Port to listen on (default: 8081, or VSCODE_AGENT_HOST_PORT env)\n' +
+			'  --connection-token <token>      A secret that must be included with all requests\n' +
+			'  --connection-token-file <path>  Path to a file containing the connection token\n' +
+			'  --without-connection-token      Run without a connection token\n' +
+			'  --enable-mock-agent            Enable the mock agent for testing\n' +
+			'  --quiet                        Suppress logging output\n' +
+			'  --log <level>                  Log level to use (trace, debug, info, warning, error, off)\n' +
+			'  --help                         Show this help message',
 		);
 		return;
 	}
 
 	const port = args.port || process.env['VSCODE_AGENT_HOST_PORT'] || '8081';
-	const addr = await startServer(['--port', String(port)]);
+
+	/** @type {string[]} */
+	const serverArgs = ['--port', String(port)];
+	if (args['enable-mock-agent']) {
+		serverArgs.push('--enable-mock-agent');
+	}
+	if (args.quiet) {
+		serverArgs.push('--quiet');
+	}
+	if (args.log) {
+		serverArgs.push('--log', String(args.log));
+	}
+	if (args['connection-token']) {
+		serverArgs.push('--connection-token', String(args['connection-token']));
+	}
+	if (args['connection-token-file']) {
+		serverArgs.push('--connection-token-file', String(args['connection-token-file']));
+	}
+	if (args['without-connection-token']) {
+		serverArgs.push('--without-connection-token');
+	}
+
+	const addr = await startServer(serverArgs);
 	console.log(`Agent Host server listening on ${addr}`);
 }
 

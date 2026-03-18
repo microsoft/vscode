@@ -409,7 +409,7 @@
 			"type": "shell",
 			"command": "npm ci && npm run watch",
 			"windows": {
-				"command": "cmd /d /c \"npm ci && npm run watch\""
+				"command": "cmd /c \"npm ci && npm run watch\""
 			},
 			"inSessions": true,
 			"runOptions": {

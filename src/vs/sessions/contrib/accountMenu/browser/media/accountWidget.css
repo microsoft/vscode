@@ -70,7 +70,7 @@
 /* Boxed hint style for embedded app update indicator — outlined, no fill */
 .account-widget-update .account-widget-update-button.account-widget-update-button-hint {
 	background-color: transparent !important;
-	color: var(--vscode-button-foreground) !important;
+	color: var(--vscode-button-background) !important;
 	border: 1px solid var(--vscode-button-background) !important;
 }
 

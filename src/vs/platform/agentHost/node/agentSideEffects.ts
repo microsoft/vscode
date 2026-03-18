@@ -6,15 +6,17 @@
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import * as os from 'os';
+import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, IAgentAttachment, IAgent } from '../common/agentService.js';
+import { AgentProvider, IAgent, IAgentAttachment } from '../common/agentService.js';
 import type { ISessionAction } from '../common/state/sessionActions.js';
-import type { ICreateSessionParams } from '../common/state/sessionProtocol.js';
+import { IBrowseDirectoryResult, ICreateSessionParams, AHP_PROVIDER_NOT_FOUND, JSON_RPC_INTERNAL_ERROR, ProtocolError, IDirectoryEntry } from '../common/state/sessionProtocol.js';
 import {
 	ISessionModelInfo,
 	SessionStatus, type ISessionSummary
 } from '../common/state/sessionState.js';
-import { mapProgressEventToAction } from './agentEventMapper.js';
+import { mapProgressEventToActions } from './agentEventMapper.js';
 import type { IProtocolSideEffectHandler } from './protocolServerHandler.js';
 import { SessionStateManager } from './sessionStateManager.js';
 
@@ -47,6 +49,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		private readonly _stateManager: SessionStateManager,
 		private readonly _options: IAgentSideEffectsOptions,
 		private readonly _logService: ILogService,
+		private readonly _fileService: IFileService,
 	) {
 		super();
 
@@ -97,9 +100,15 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 
 			const turnId = this._stateManager.getActiveTurnId(e.session);
 			if (turnId) {
-				const action = mapProgressEventToAction(e, e.session, turnId);
-				if (action) {
-					this._stateManager.dispatchServerAction(action);
+				const actions = mapProgressEventToActions(e, e.session, turnId);
+				if (actions) {
+					if (Array.isArray(actions)) {
+						for (const action of actions) {
+							this._stateManager.dispatchServerAction(action);
+						}
+					} else {
+						this._stateManager.dispatchServerAction(actions);
+					}
 				}
 			}
 		}));
@@ -165,14 +174,14 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		}
 	}
 
-	async handleCreateSession(command: ICreateSessionParams): Promise<void> {
+	async handleCreateSession(command: ICreateSessionParams): Promise<URI> {
 		const provider = command.provider as AgentProvider | undefined;
 		if (!provider) {
-			throw new Error('No provider specified for session creation');
+			throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, 'No provider specified for session creation');
 		}
 		const agent = this._options.agents.get().find(a => a.id === provider);
 		if (!agent) {
-			throw new Error(`No agent registered for provider: ${provider}`);
+			throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, `No agent registered for provider: ${provider}`);
 		}
 		const session = await agent.createSession({
 			provider,
@@ -189,6 +198,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		};
 		this._stateManager.createSession(summary);
 		this._stateManager.dispatchServerAction({ type: 'session/ready', session });
+		return session;
 	}
 
 	handleDisposeSession(session: URI): void {
@@ -214,6 +224,37 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			}
 		}
 		return allSessions;
+	}
+
+	handleSetAuthToken(token: string): void {
+		for (const agent of this._options.agents.get()) {
+			agent.setAuthToken(token).catch(err => {
+				this._logService.error('[AgentSideEffects] setAuthToken failed', err);
+			});
+		}
+	}
+
+	async handleBrowseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
+		let stat;
+		try {
+			stat = await this._fileService.resolve(uri);
+		} catch {
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Directory not found: ${uri.toString()}`);
+		}
+
+		if (!stat.isDirectory) {
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Not a directory: ${uri.toString()}`);
+		}
+
+		const entries: IDirectoryEntry[] = (stat.children ?? []).map(child => ({
+			name: child.name,
+			type: child.isDirectory ? 'directory' : 'file',
+		}));
+		return { entries };
+	}
+
+	getDefaultDirectory(): URI {
+		return URI.file(os.homedir());
 	}
 
 	override dispose(): void {

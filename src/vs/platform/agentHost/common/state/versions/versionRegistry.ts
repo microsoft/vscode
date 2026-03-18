@@ -7,6 +7,7 @@
 // See ../AGENTS.md for modification instructions.
 
 import type {
+	IActiveSessionsChangedAction,
 	IAgentsChangedAction,
 	IDeltaAction,
 	IModelChangedAction,
@@ -22,8 +23,12 @@ import type {
 	ISessionReadyAction,
 	IStateAction,
 	ITitleChangedAction,
-	IToolCompleteAction,
-	IToolStartAction,
+	IToolCallCompleteAction,
+	IToolCallConfirmedAction,
+	IToolCallDeltaAction,
+	IToolCallReadyAction,
+	IToolCallResultConfirmedAction,
+	IToolCallStartAction,
 	ITurnCancelledAction,
 	ITurnCompleteAction,
 	ITurnStartedAction,
@@ -49,6 +54,7 @@ import type {
 } from '../sessionState.js';
 
 import type {
+	IV1_ActiveSessionsChangedAction,
 	IV1_ActiveTurn,
 	IV1_AgentInfo,
 	IV1_AgentsChangedAction,
@@ -72,9 +78,13 @@ import type {
 	IV1_SessionState,
 	IV1_SessionSummary,
 	IV1_TitleChangedAction,
+	IV1_ToolCallCompleteAction,
+	IV1_ToolCallConfirmedAction,
+	IV1_ToolCallDeltaAction,
+	IV1_ToolCallReadyAction,
+	IV1_ToolCallResultConfirmedAction,
+	IV1_ToolCallStartAction,
 	IV1_ToolCallState,
-	IV1_ToolCompleteAction,
-	IV1_ToolStartAction,
 	IV1_Turn,
 	IV1_TurnCancelledAction,
 	IV1_TurnCompleteAction,
@@ -91,7 +101,9 @@ import type {
  * Increment when adding new action types or changing behavior.
  *
  * Version history:
- *   1 — Initial: root state, session lifecycle, streaming, tools, permissions
+ *   1 — Initial: root state, session lifecycle, streaming, tools, permissions,
+ *       tool call lifecycle (streaming → pending-confirmation → running →
+ *       pending-result-confirmation → completed/cancelled)
  */
 export const PROTOCOL_VERSION = 1;
 
@@ -135,13 +147,18 @@ type _v1_ErrorInfo = AssertCompatible<IV1_ErrorInfo, IErrorInfo>;
 // -- v1 action compatibility --
 
 type _v1_AgentsChanged = AssertCompatible<IV1_AgentsChangedAction, IAgentsChangedAction>;
+type _v1_ActiveSessionsChanged = AssertCompatible<IV1_ActiveSessionsChangedAction, IActiveSessionsChangedAction>;
 type _v1_SessionReady = AssertCompatible<IV1_SessionReadyAction, ISessionReadyAction>;
 type _v1_CreationFailed = AssertCompatible<IV1_SessionCreationFailedAction, ISessionCreationFailedAction>;
 type _v1_TurnStarted = AssertCompatible<IV1_TurnStartedAction, ITurnStartedAction>;
 type _v1_Delta = AssertCompatible<IV1_DeltaAction, IDeltaAction>;
 type _v1_ResponsePart = AssertCompatible<IV1_ResponsePartAction, IResponsePartAction>;
-type _v1_ToolStart = AssertCompatible<IV1_ToolStartAction, IToolStartAction>;
-type _v1_ToolComplete = AssertCompatible<IV1_ToolCompleteAction, IToolCompleteAction>;
+type _v1_ToolCallStart = AssertCompatible<IV1_ToolCallStartAction, IToolCallStartAction>;
+type _v1_ToolCallDelta = AssertCompatible<IV1_ToolCallDeltaAction, IToolCallDeltaAction>;
+type _v1_ToolCallReady = AssertCompatible<IV1_ToolCallReadyAction, IToolCallReadyAction>;
+type _v1_ToolCallConfirmed = AssertCompatible<IV1_ToolCallConfirmedAction, IToolCallConfirmedAction>;
+type _v1_ToolCallComplete = AssertCompatible<IV1_ToolCallCompleteAction, IToolCallCompleteAction>;
+type _v1_ToolCallResultConfirmed = AssertCompatible<IV1_ToolCallResultConfirmedAction, IToolCallResultConfirmedAction>;
 type _v1_PermissionRequestAction = AssertCompatible<IV1_PermissionRequestAction, IPermissionRequestAction>;
 type _v1_PermissionResolved = AssertCompatible<IV1_PermissionResolvedAction, IPermissionResolvedAction>;
 type _v1_TurnComplete = AssertCompatible<IV1_TurnCompleteAction, ITurnCompleteAction>;
@@ -159,9 +176,11 @@ void (0 as unknown as
 	_v1_ActiveTurn & _v1_MarkdownResponsePart & _v1_ContentRef &
 	_v1_ToolCallState & _v1_CompletedToolCall & _v1_PermissionRequest &
 	_v1_UsageInfo & _v1_ErrorInfo &
-	_v1_AgentsChanged & _v1_SessionReady & _v1_CreationFailed &
-	_v1_TurnStarted & _v1_Delta & _v1_ResponsePart & _v1_ToolStart &
-	_v1_ToolComplete & _v1_PermissionRequestAction & _v1_PermissionResolved &
+	_v1_AgentsChanged & _v1_ActiveSessionsChanged & _v1_SessionReady & _v1_CreationFailed &
+	_v1_TurnStarted & _v1_Delta & _v1_ResponsePart &
+	_v1_ToolCallStart & _v1_ToolCallDelta & _v1_ToolCallReady &
+	_v1_ToolCallConfirmed & _v1_ToolCallComplete & _v1_ToolCallResultConfirmed &
+	_v1_PermissionRequestAction & _v1_PermissionResolved &
 	_v1_TurnComplete & _v1_TurnCancelled & _v1_SessionError & _v1_TitleChanged &
 	_v1_Usage & _v1_Reasoning & _v1_ModelChanged
 );
@@ -179,6 +198,7 @@ void (0 as unknown as
 export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: number } = {
 	// Root actions (v1)
 	'root/agentsChanged': 1,
+	'root/activeSessionsChanged': 1,
 	// Session lifecycle (v1)
 	'session/ready': 1,
 	'session/creationFailed': 1,
@@ -187,8 +207,12 @@ export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: numbe
 	'session/delta': 1,
 	'session/responsePart': 1,
 	// Tool calls (v1)
-	'session/toolStart': 1,
-	'session/toolComplete': 1,
+	'session/toolCallStart': 1,
+	'session/toolCallDelta': 1,
+	'session/toolCallReady': 1,
+	'session/toolCallConfirmed': 1,
+	'session/toolCallComplete': 1,
+	'session/toolCallResultConfirmed': 1,
 	// Permissions (v1)
 	'session/permissionRequest': 1,
 	'session/permissionResolved': 1,
@@ -232,11 +256,12 @@ export function isNotificationKnownToVersion(notification: INotification, client
 // union for a version is built by combining all versions up to that point.
 // When you add a new protocol version, define its additions and extend the map.
 
-/** Action types introduced in v1. */
-type IRootAction_v1 = IV1_AgentsChangedAction;
+/** Action types introduced in v1 (current tip). */
+type IRootAction_v1 = IV1_AgentsChangedAction | IV1_ActiveSessionsChangedAction;
 type ISessionAction_v1 = IV1_SessionReadyAction | IV1_SessionCreationFailedAction
 	| IV1_TurnStartedAction | IV1_DeltaAction | IV1_ResponsePartAction
-	| IV1_ToolStartAction | IV1_ToolCompleteAction
+	| IV1_ToolCallStartAction | IV1_ToolCallDeltaAction | IV1_ToolCallReadyAction
+	| IV1_ToolCallConfirmedAction | IV1_ToolCallCompleteAction | IV1_ToolCallResultConfirmedAction
 	| IV1_PermissionRequestAction | IV1_PermissionResolvedAction
 	| IV1_TurnCompleteAction | IV1_TurnCancelledAction | IV1_SessionErrorAction
 	| IV1_TitleChangedAction | IV1_UsageAction | IV1_ReasoningAction
