@@ -594,11 +594,13 @@ export class BrowserEditor extends EditorPane {
 
 		// Resolve the browser view model from the input
 		const model = await input.resolve();
-		this._model = model;
-		this._onDidChangeModel.fire(model);
+
 		if (token.isCancellationRequested || this.input !== input) {
 			return;
 		}
+
+		this._model = model;
+		this._onDidChangeModel.fire(model);
 
 		this._storageScopeContext.set(this._model.storageScope);
 		this._devToolsOpenContext.set(this._model.isDevToolsOpen);
