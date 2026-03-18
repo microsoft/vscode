@@ -118,7 +118,8 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	) {
 		super();
 		this.container = layoutService.mainContainer;
-		this.settings = new ThemeConfiguration(configurationService, hostColorService);
+		const isNewUser = this.storageService.isNew(StorageScope.APPLICATION);
+		this.settings = new ThemeConfiguration(configurationService, hostColorService, isNewUser);
 
 		this.colorThemeRegistry = this._register(new ThemeRegistry(colorThemesExtPoint, ColorThemeData.fromExtensionTheme));
 		this.colorThemeWatcher = this._register(new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentColorTheme.bind(this)));
@@ -245,6 +246,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 
 		this.migrateColorThemeSettings();
+		this.migrateAutoDetectColorScheme();
 		const result = await Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]);
 		this.showNewDefaultThemeNotification();
 		return result;
@@ -300,6 +302,20 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 					}
 				}
 			}
+		}
+	}
+
+	/**
+	 * For new users who haven't explicitly configured `window.autoDetectColorScheme`,
+	 * persist `true` so that auto-detect becomes the default going forward.
+	 */
+	private migrateAutoDetectColorScheme(): void {
+		if (!this.storageService.isNew(StorageScope.APPLICATION)) {
+			return;
+		}
+		const inspection = this.configurationService.inspect<boolean>(ThemeSettings.DETECT_COLOR_SCHEME);
+		if (inspection.userValue === undefined) {
+			this.configurationService.updateValue(ThemeSettings.DETECT_COLOR_SCHEME, true, ConfigurationTarget.USER);
 		}
 	}
 

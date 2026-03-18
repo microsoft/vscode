@@ -23,4 +23,5 @@ export interface IThemeMainService {
 	getWindowSplash(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined): IPartsSplash | undefined;
 
 	getColorScheme(): IColorScheme;
+	isAutoDetectColorScheme(): boolean;
 }
