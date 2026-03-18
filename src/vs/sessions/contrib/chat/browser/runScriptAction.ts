@@ -283,7 +283,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 		items.push({ type: 'separator', label: localize('custom', "Custom") });
 		items.push({
-			label: localize('enterCustomCommand', "Enter Custom Task..."),
+			label: localize('createNewTask', "Create new Task..."),
 			description: localize('enterCustomCommandDesc', "Create a new shell task"),
 		});
 
@@ -479,7 +479,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		}));
 
 		// Dropdown with categorized actions and per-item toolbars
-		const dropdownAction = this._register(new Action('agentSessions.runScriptDropdown', localize('runDropdown', "More Run Tasks...")));
+		const dropdownAction = this._register(new Action('agentSessions.runScriptDropdown', localize('runDropdown', "More Tasks...")));
 		this._dropdown = this._register(new ChevronActionWidgetDropdown(
 			dropdownAction,
 			{

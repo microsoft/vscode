@@ -73,7 +73,7 @@ export class RunScriptCustomTaskWidget extends Disposable {
 		dom.append(labelSection, dom.$('label.run-script-action-label', undefined, localize('labelFieldLabel', "Name")));
 		const labelInputContainer = dom.append(labelSection, dom.$('.run-script-action-input'));
 		this._labelInput = this._register(new InputBox(labelInputContainer, undefined, {
-			placeholder: localize('enterLabelPlaceholder', "Enter a name for this action (optional)"),
+			placeholder: localize('enterLabelPlaceholder', "Enter a name for this task (optional)"),
 			tooltip: state.labelDisabledReason,
 			ariaLabel: localize('enterLabelAriaLabel', "Task name"),
 			inputBoxStyles: defaultInputBoxStyles,
@@ -102,7 +102,7 @@ export class RunScriptCustomTaskWidget extends Disposable {
 		const runOnRow = dom.append(runOnSection, dom.$('.run-script-action-option-row'));
 		this._runOnCheckbox = this._register(new Checkbox(localize('runOnWorktreeCreated', "Run When Worktree Is Created"), state.runOn === WORKTREE_CREATED_RUN_ON, defaultCheckboxStyles));
 		runOnRow.appendChild(this._runOnCheckbox.domNode);
-		const runOnText = dom.append(runOnRow, dom.$('span.run-script-action-option-text', undefined, localize('runOnWorktreeCreatedDescription', "Automatically run this action when the session worktree is created")));
+		const runOnText = dom.append(runOnRow, dom.$('span.run-script-action-option-text', undefined, localize('runOnWorktreeCreatedDescription', "Automatically run this task when the session worktree is created")));
 		this._register(dom.addDisposableListener(runOnText, dom.EventType.CLICK, () => this._runOnCheckbox.checked = !this._runOnCheckbox.checked));
 
 		const storageSection = dom.append(this.domNode, dom.$('.run-script-action-section'));
@@ -113,13 +113,13 @@ export class RunScriptCustomTaskWidget extends Disposable {
 			items: [
 				{
 					text: localize('workspaceStorageLabel', "Workspace"),
-					tooltip: storageDisabledReason ?? localize('workspaceStorageTooltip', "Save this action in the current workspace"),
+					tooltip: storageDisabledReason ?? localize('workspaceStorageTooltip', "Save this task in the current workspace"),
 					isActive: this._selectedTarget === 'workspace',
 					disabled: workspaceTargetDisabled,
 				},
 				{
 					text: localize('userStorageLabel', "User"),
-					tooltip: this._targetLocked ? storageDisabledReason : localize('userStorageTooltip', "Save this action in your user tasks and make it available in all sessions"),
+					tooltip: this._targetLocked ? storageDisabledReason : localize('userStorageTooltip', "Save this task in your user tasks and make it available in all sessions"),
 					isActive: this._selectedTarget === 'user',
 					disabled: this._targetLocked,
 				}
@@ -135,7 +135,7 @@ export class RunScriptCustomTaskWidget extends Disposable {
 		this._cancelButton = this._register(new Button(buttonRow, { ...defaultButtonStyles, secondary: true }));
 		this._cancelButton.label = localize('cancelAddAction', "Cancel");
 		this._submitButton = this._register(new Button(buttonRow, defaultButtonStyles));
-		this._submitButton.label = state.submitLabel ?? localize('confirmAddAction', "Add Action");
+		this._submitButton.label = state.submitLabel ?? localize('confirmAddAction', "Add Task");
 
 		this._register(this._labelInput.onDidChange(() => this._updateButtonEnablement()));
 		this._register(this._commandInput.onDidChange(() => this._updateButtonEnablement()));
