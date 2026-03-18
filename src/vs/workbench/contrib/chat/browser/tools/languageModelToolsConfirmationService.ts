@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { hash } from '../../../../../base/common/hash.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
@@ -19,16 +18,6 @@ import { IToolData, ToolDataSource } from '../../common/tools/languageModelTools
 
 const RUN_WITHOUT_APPROVAL = localize('runWithoutApproval', "without approval");
 const CONTINUE_WITHOUT_REVIEWING_RESULTS = localize('continueWithoutReviewingResults', "without reviewing result");
-
-/**
- * Computes a stable, bounded key for a tool+parameters combination,
- * used for combination-level auto-approval. Uses a numeric hash to
- * avoid leaking raw parameter values into storage and to handle
- * inputs that JSON.stringify cannot process (e.g. circular structures).
- */
-function computeCombinationKey(toolId: string, parameters: unknown): string {
-	return toolId + ':combination:' + hash(parameters);
-}
 
 
 class GenericConfirmStore extends Disposable {
@@ -247,9 +236,8 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		}
 
 		// Check combination-level confirmation
-		if (ref.combinationLabel) {
-			const combinationKey = computeCombinationKey(ref.toolId, ref.parameters);
-			const combinationResult = this._combinationConfirmStore.checkAutoConfirmation(combinationKey);
+		if (ref.combination) {
+			const combinationResult = this._combinationConfirmStore.checkAutoConfirmation(ref.combination.key);
 			if (combinationResult) {
 				return combinationResult;
 			}
@@ -319,9 +307,8 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		}
 
 		// Add combination-level actions when approveCombination is provided
-		const combinationLabel = ref.combinationLabel;
-		if (combinationLabel) {
-			const combinationKey = computeCombinationKey(ref.toolId, ref.parameters);
+		if (ref.combination) {
+			const { label: combinationLabel, key: combinationKey } = ref.combination;
 			actions.push(
 				{
 					label: localize('allowCombinationSession', '{0} in this Session', combinationLabel),

@@ -87,10 +87,13 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		}
 
 		if (state.confirmationMessages?.allowAutoConfirm !== false) {
-			// Get combination label if present
+			// Get combination label and precomputed key if present
 			const approveCombination = state.confirmationMessages?.approveCombination;
-			const combinationLabel = approveCombination
-				? (typeof approveCombination === 'string' ? approveCombination : approveCombination.value)
+			const combination = approveCombination
+				? {
+					label: typeof approveCombination.label === 'string' ? approveCombination.label : approveCombination.label.value,
+					key: approveCombination.key,
+				}
 				: undefined;
 
 			// Get actions from confirmation service
@@ -99,7 +102,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 				source: this.toolInvocation.source,
 				parameters: state.parameters,
 				chatSessionResource: this.context.element.sessionResource,
-				combinationLabel,
+				combination,
 			});
 
 			for (const action of confirmActions) {

@@ -9,7 +9,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { LanguageModelToolsConfirmationService } from '../../../browser/tools/languageModelToolsConfirmationService.js';
 import { ToolConfirmKind } from '../../../common/chatService/chatService.js';
-import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationRef } from '../../../common/tools/languageModelToolsConfirmationService.js';
+import { computeCombinationKey, ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationRef } from '../../../common/tools/languageModelToolsConfirmationService.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 
 suite('LanguageModelToolsConfirmationService', () => {
@@ -41,6 +41,16 @@ suite('LanguageModelToolsConfirmationService', () => {
 				definitionId
 			},
 			parameters
+		};
+	}
+
+	async function createCombinationRef(toolId: string, parameters: unknown, combinationLabel: string): Promise<ILanguageModelToolConfirmationRef> {
+		return {
+			...createToolRef(toolId, ToolDataSource.Internal, parameters),
+			combination: {
+				label: combinationLabel,
+				key: await computeCombinationKey(toolId, parameters),
+			},
 		};
 	}
 
@@ -526,24 +536,18 @@ suite('LanguageModelToolsConfirmationService', () => {
 		assert.strictEqual(newResult, undefined);
 	});
 
-	test('combination actions are only offered when combinationLabel is set', () => {
+	test('combination actions are only offered when combinationLabel is set', async () => {
 		const refWithout = createToolRef('testTool', ToolDataSource.Internal, { file: 'foo.txt' });
 		const actionsWithout = service.getPreConfirmActions(refWithout);
 		assert.ok(!actionsWithout.some(a => a.label.includes('foo.txt')));
 
-		const refWith: ILanguageModelToolConfirmationRef = {
-			...createToolRef('testTool', ToolDataSource.Internal, { file: 'foo.txt' }),
-			combinationLabel: 'Allow reading "foo.txt"',
-		};
+		const refWith = await createCombinationRef('testTool', { file: 'foo.txt' }, 'Allow reading "foo.txt"');
 		const actionsWith = service.getPreConfirmActions(refWith);
 		assert.ok(actionsWith.some(a => a.label.includes('Allow reading "foo.txt"')));
 	});
 
-	test('combination actions include session, workspace, and profile scopes', () => {
-		const ref: ILanguageModelToolConfirmationRef = {
-			...createToolRef('testTool', ToolDataSource.Internal, { file: 'foo.txt' }),
-			combinationLabel: 'Allow reading "foo.txt"',
-		};
+	test('combination actions include session, workspace, and profile scopes', async () => {
+		const ref = await createCombinationRef('testTool', { file: 'foo.txt' }, 'Allow reading "foo.txt"');
 		const actions = service.getPreConfirmActions(ref);
 		const combinationActions = actions.filter(a => a.label.includes('Allow reading "foo.txt"'));
 		assert.strictEqual(combinationActions.length, 3);
@@ -553,10 +557,7 @@ suite('LanguageModelToolsConfirmationService', () => {
 	});
 
 	test('selecting a combination session action auto-confirms the same parameters', async () => {
-		const ref: ILanguageModelToolConfirmationRef = {
-			...createToolRef('testTool', ToolDataSource.Internal, { file: 'foo.txt' }),
-			combinationLabel: 'Allow reading "foo.txt"',
-		};
+		const ref = await createCombinationRef('testTool', { file: 'foo.txt' }, 'Allow reading "foo.txt"');
 
 		assert.strictEqual(service.getPreConfirmAction(ref), undefined);
 
@@ -570,10 +571,7 @@ suite('LanguageModelToolsConfirmationService', () => {
 	});
 
 	test('selecting a combination workspace action stores at workspace scope', async () => {
-		const ref: ILanguageModelToolConfirmationRef = {
-			...createToolRef('testTool', ToolDataSource.Internal, { file: 'foo.txt' }),
-			combinationLabel: 'Allow reading "foo.txt"',
-		};
+		const ref = await createCombinationRef('testTool', { file: 'foo.txt' }, 'Allow reading "foo.txt"');
 
 		const actions = service.getPreConfirmActions(ref);
 		const combinationAction = actions.find(a => a.label.includes('Allow reading "foo.txt"') && a.scope === 'workspace');
@@ -584,14 +582,8 @@ suite('LanguageModelToolsConfirmationService', () => {
 	});
 
 	test('combination approval does not apply to different parameters', async () => {
-		const refFoo: ILanguageModelToolConfirmationRef = {
-			...createToolRef('testTool', ToolDataSource.Internal, { file: 'foo.txt' }),
-			combinationLabel: 'Allow reading "foo.txt"',
-		};
-		const refBar: ILanguageModelToolConfirmationRef = {
-			...createToolRef('testTool', ToolDataSource.Internal, { file: 'bar.txt' }),
-			combinationLabel: 'Allow reading "bar.txt"',
-		};
+		const refFoo = await createCombinationRef('testTool', { file: 'foo.txt' }, 'Allow reading "foo.txt"');
+		const refBar = await createCombinationRef('testTool', { file: 'bar.txt' }, 'Allow reading "bar.txt"');
 
 		const actions = service.getPreConfirmActions(refFoo);
 		const combinationAction = actions.find(a => a.label.includes('Allow reading "foo.txt"') && a.scope === 'session');
@@ -603,10 +595,7 @@ suite('LanguageModelToolsConfirmationService', () => {
 	});
 
 	test('tool-level approval takes precedence over combination approval', async () => {
-		const ref: ILanguageModelToolConfirmationRef = {
-			...createToolRef('testTool', ToolDataSource.Internal, { file: 'foo.txt' }),
-			combinationLabel: 'Allow reading "foo.txt"',
-		};
+		const ref = await createCombinationRef('testTool', { file: 'foo.txt' }, 'Allow reading "foo.txt"');
 
 		const actions = service.getPreConfirmActions(ref);
 		const toolSessionAction = actions.find(a => a.label.includes('Session')
@@ -619,10 +608,7 @@ suite('LanguageModelToolsConfirmationService', () => {
 	});
 
 	test('combination approvals are cleared on reset', async () => {
-		const ref: ILanguageModelToolConfirmationRef = {
-			...createToolRef('testTool', ToolDataSource.Internal, { file: 'foo.txt' }),
-			combinationLabel: 'Allow reading "foo.txt"',
-		};
+		const ref = await createCombinationRef('testTool', { file: 'foo.txt' }, 'Allow reading "foo.txt"');
 
 		const actions = service.getPreConfirmActions(ref);
 		const combinationAction = actions.find(a => a.label.includes('Allow reading "foo.txt"') && a.scope === 'session');
@@ -635,10 +621,7 @@ suite('LanguageModelToolsConfirmationService', () => {
 	});
 
 	test('combination session approvals do not persist across service instances', async () => {
-		const ref: ILanguageModelToolConfirmationRef = {
-			...createToolRef('testTool', ToolDataSource.Internal, { file: 'foo.txt' }),
-			combinationLabel: 'Allow reading "foo.txt"',
-		};
+		const ref = await createCombinationRef('testTool', { file: 'foo.txt' }, 'Allow reading "foo.txt"');
 
 		const actions = service.getPreConfirmActions(ref);
 		const combinationAction = actions.find(a => a.label.includes('Allow reading "foo.txt"') && a.scope === 'session');

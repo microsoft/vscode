@@ -797,9 +797,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		// No hook decision - use normal auto-confirm logic
-		const combinationLabel = preparedInvocation?.confirmationMessages?.approveCombination;
-		const combinationLabelStr = combinationLabel ? (typeof combinationLabel === 'string' ? combinationLabel : combinationLabel.value) : undefined;
-		const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, sessionResource, dto.chatRequestId, combinationLabelStr);
+		const approveCombination = preparedInvocation?.confirmationMessages?.approveCombination;
+		let combination: { label: string; key: string } | undefined;
+		if (approveCombination) {
+			combination = {
+				label: typeof approveCombination.label === 'string' ? approveCombination.label : approveCombination.label.value,
+				key: approveCombination.key,
+			};
+		}
+		const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, sessionResource, dto.chatRequestId, combination);
 		return { autoConfirmed, preparedInvocation };
 	}
 
@@ -1112,7 +1118,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return true;
 	}
 
-	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined, combinationLabel?: string): Promise<ConfirmedReason | undefined> {
+	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined, combination?: { label: string; key: string }): Promise<ConfirmedReason | undefined> {
 		const tool = this._tools.get(toolId);
 		if (!tool) {
 			return undefined;
@@ -1134,7 +1140,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return undefined;
 		}
 
-		const reason = this._confirmationService.getPreConfirmAction({ toolId, source, parameters, chatSessionResource, combinationLabel });
+		const reason = this._confirmationService.getPreConfirmAction({ toolId, source, parameters, chatSessionResource, combination });
 		if (reason) {
 			return reason;
 		}
