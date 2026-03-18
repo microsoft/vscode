@@ -41,6 +41,13 @@ export interface IHarnessDescriptor {
 	 */
 	readonly hiddenSections?: readonly string[];
 	/**
+	 * Workspace sub-paths that this harness recognizes for file creation.
+	 * When set, the directory picker for new customization files only offers
+	 * workspace directories under these sub-paths (e.g. `.claude` for Claude).
+	 * When `undefined`, all workspace directories are shown (Local harness).
+	 */
+	readonly workspaceSubpaths?: readonly string[];
+	/**
 	 * Returns the storage source filter that should be applied to customization
 	 * items of the given type when this harness is active.
 	 */
@@ -80,6 +87,11 @@ export interface ICustomizationHarnessService {
 	 * and the given customization type.
 	 */
 	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter;
+
+	/**
+	 * Returns the descriptor of the currently active harness.
+	 */
+	getActiveDescriptor(): IHarnessDescriptor;
 }
 
 // #region Shared filter constants
@@ -154,6 +166,7 @@ function createRestrictedHarnessDescriptor(
 	restrictedUserRoots: readonly URI[],
 	extras: readonly string[],
 	hiddenSections?: readonly string[],
+	workspaceSubpaths?: readonly string[],
 ): IHarnessDescriptor {
 	const allSources = buildAllSources(extras);
 	const allRootsFilter: IStorageSourceFilter = { sources: allSources };
@@ -163,6 +176,7 @@ function createRestrictedHarnessDescriptor(
 		label,
 		icon,
 		hiddenSections,
+		workspaceSubpaths,
 		getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
 			if (type === PromptsType.hook) {
 				return HOOKS_FILTER;
@@ -185,6 +199,8 @@ export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras:
 		ThemeIcon.fromId(Codicon.worktree.id),
 		cliUserRoots,
 		extras,
+		undefined, // no hidden sections
+		['.github', '.copilot', '.agents', '.claude'],
 	);
 }
 
@@ -200,6 +216,7 @@ export function createClaudeHarnessDescriptor(claudeRoots: readonly URI[], extra
 		claudeRoots,
 		extras,
 		[AICustomizationManagementSection.Agents, AICustomizationManagementSection.Hooks],
+		['.claude'],
 	);
 }
 
@@ -238,6 +255,11 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		const activeId = this._activeHarness.get();
 		const descriptor = this._harnesses.find(h => h.id === activeId);
 		return descriptor?.getStorageSourceFilter(type) ?? this._harnesses[0].getStorageSourceFilter(type);
+	}
+
+	getActiveDescriptor(): IHarnessDescriptor {
+		const activeId = this._activeHarness.get();
+		return this._harnesses.find(h => h.id === activeId) ?? this._harnesses[0];
 	}
 }
 
