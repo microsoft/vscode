@@ -851,19 +851,19 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		const nonArchivedSessions = sortedSessions.slice(0, nonArchivedCount);
 		const archivedSessions = sortedSessions.slice(nonArchivedCount);
 
-		// Take the top N sessions from the sorted order (preserves NeedsInput prioritization)
-		const topSessions = nonArchivedSessions.slice(0, AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT);
-		const remainingSessions = nonArchivedSessions.slice(AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT);
+		// All pinned sessions are always visible
+		const pinnedSessions = nonArchivedSessions.filter(session => session.isPinned());
+		const unpinnedSessions = nonArchivedSessions.filter(session => !session.isPinned());
 
-		// Ensure all pinned sessions are visible: pull any pinned sessions from the remainder
-		const pinnedInRemainder = remainingSessions.filter(session => session.isPinned());
-		const unpinnedRemainder = remainingSessions.filter(session => !session.isPinned());
+		// Take up to N non-pinned sessions from the sorted order (preserves NeedsInput prioritization)
+		const topUnpinned = unpinnedSessions.slice(0, AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT);
+		const remainingUnpinned = unpinnedSessions.slice(AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT);
 
-		// Add sorted top N + any pinned that fell outside the cap
-		result.push(...topSessions, ...pinnedInRemainder);
+		// Add pinned first, then top N non-pinned
+		result.push(...pinnedSessions, ...topUnpinned);
 
-		// Add "More" section for the rest (unpinned remainder + archived)
-		const othersSessions = [...unpinnedRemainder, ...archivedSessions];
+		// Add "More" section for the rest (remaining unpinned + archived)
+		const othersSessions = [...remainingUnpinned, ...archivedSessions];
 		if (othersSessions.length > 0) {
 			result.push({
 				section: AgentSessionSection.More,
