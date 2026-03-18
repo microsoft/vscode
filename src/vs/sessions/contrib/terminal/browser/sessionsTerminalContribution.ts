@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { localize2 } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -24,6 +24,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 
 /**
  * Returns the cwd URI for the given session: worktree or repository path for
@@ -243,6 +244,22 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 		}
 	}
+
+	async toggle(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		if (viewsService.isViewVisible(TERMINAL_VIEW_ID)) {
+			accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.PANEL_PART);
+			return;
+		}
+
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const pathService = accessor.get(IPathService);
+
+		const activeSession = sessionsManagementService.activeSession.get();
+		const cwd = getSessionCwd(activeSession) ?? await pathService.userHome();
+		await this.ensureTerminal(cwd, true);
+		await viewsService.openView(TERMINAL_VIEW_ID);
+	}
 }
 
 registerWorkbenchContribution2(SessionsTerminalContribution.ID, SessionsTerminalContribution, WorkbenchPhase.AfterRestored);
@@ -254,6 +271,11 @@ class OpenSessionInTerminalAction extends Action2 {
 			id: 'agentSession.openInTerminal',
 			title: localize2('openInTerminal', "Open Terminal"),
 			icon: Codicon.terminal,
+			toggled: {
+				condition: ContextKeyExpr.has(`view.${TERMINAL_VIEW_ID}.visible`),
+				icon: Codicon.terminal,
+				title: localize('hideTerminal', 'Hide Terminal'),
+			},
 			menu: [{
 				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
@@ -265,14 +287,7 @@ class OpenSessionInTerminalAction extends Action2 {
 
 	override async run(_accessor: ServicesAccessor): Promise<void> {
 		const contribution = getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID);
-		const sessionsManagementService = _accessor.get(ISessionsManagementService);
-		const pathService = _accessor.get(IPathService);
-		const viewsService = _accessor.get(IViewsService);
-
-		const activeSession = sessionsManagementService.activeSession.get();
-		const cwd = getSessionCwd(activeSession) ?? await pathService.userHome();
-		await contribution.ensureTerminal(cwd, true);
-		viewsService.openView(TERMINAL_VIEW_ID);
+		await contribution.toggle(_accessor);
 	}
 }
 
