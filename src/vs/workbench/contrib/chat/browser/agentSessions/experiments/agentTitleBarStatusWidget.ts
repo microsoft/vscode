@@ -21,13 +21,9 @@ import { IAgentSessionsService } from '../agentSessionsService.js';
 import { AgentSessionStatus, IAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
-import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
-import { IBrowserWorkbenchEnvironmentService } from '../../../../../services/environment/browser/environmentService.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { Verbosity } from '../../../../../common/editor.js';
-import { Schemas } from '../../../../../../base/common/network.js';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { openSession } from '../agentSessionsOpener.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -43,6 +39,7 @@ import { IActionViewItemService } from '../../../../../../platform/actions/brows
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { LayoutSettings } from '../../../../../services/layout/browser/layoutService.js';
+import { WindowTitle } from '../../../../../browser/parts/titlebar/windowTitle.js';
 import { ChatConfiguration, getAgentControlMode } from '../../../common/constants.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../../chat.js';
@@ -84,9 +81,6 @@ const FILTER_STORAGE_KEY = 'agentSessions.filterExcludes.agentsessionsviewerfilt
 // Storage key for saving user's filter state before we override it
 const PREVIOUS_FILTER_STORAGE_KEY = 'agentSessions.filterExcludes.previousUserFilter';
 
-const NLS_EXTENSION_HOST = localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
-const TITLE_DIRTY = '\u25cf ';
-
 /**
  * Agent Status Widget - renders agent status in the command center.
  *
@@ -124,6 +118,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	/** Menu for ChatTitleBarMenu items (same as chat controls dropdown) */
 	private readonly _chatTitleBarMenu;
 
+	/** WindowTitle instance for honoring the user's window.title setting */
+	private readonly _windowTitle: WindowTitle;
+
 	constructor(
 		action: IAction,
 		options: IBaseActionViewItemOptions | undefined,
@@ -133,9 +130,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		@ICommandService private readonly commandService: ICommandService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
-		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
@@ -154,6 +149,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// Create menu for ChatTitleBarMenu to show in sparkle section dropdown
 		this._chatTitleBarMenu = this._register(this.menuService.createMenu(MenuId.ChatTitleBarMenu, this.contextKeyService));
 
+		// Create WindowTitle to honor the user's window.title setting
+		this._windowTitle = this._register(this.instantiationService.createInstance(WindowTitle, mainWindow));
+
 		// Re-render when control mode or session info changes
 		this._register(this.agentTitleBarStatusService.onDidChangeMode(() => {
 			this._render();
@@ -165,6 +163,11 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Re-render when sessions change to update statistics
 		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
+			this._render();
+		}));
+
+		// Re-render when window title changes (honors user's window.title setting)
+		this._register(this._windowTitle.onDidChange(() => {
 			this._render();
 		}));
 
@@ -1381,19 +1384,18 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 	/**
 	 * Compute the label to display, matching the command center behavior.
+	 * Honors the user's window.title setting when customized.
 	 * Includes prefix and suffix decorations (remote host, extension dev host, etc.)
 	 */
 	private _getLabel(): string {
-		const { prefix, suffix } = this._getTitleDecorations();
+		const { prefix, suffix } = this._windowTitle.getTitleDecorations();
 
-		// Base label: workspace name or file name (when tabs are hidden)
-		let label = this.labelService.getWorkspaceLabel(this.workspaceContextService.getWorkspace());
-		if (this.editorGroupsService.partOptions.showTabs === 'none') {
-			const activeEditor = this.editorService.activeEditor;
-			if (activeEditor) {
-				const dirty = activeEditor.isDirty() && !activeEditor.isSaving() ? TITLE_DIRTY : '';
-				label = `${dirty}${activeEditor.getTitle(Verbosity.SHORT)}`;
-			}
+		// Base label: honor custom window.title format, otherwise workspace name or file name
+		let label = this._windowTitle.workspaceName;
+		if (this._windowTitle.isCustomTitleFormat()) {
+			label = this._windowTitle.getWindowTitle();
+		} else if (this.editorGroupsService.partOptions.showTabs === 'none') {
+			label = this._windowTitle.fileName ?? label;
 		}
 
 		if (!label) {
@@ -1409,28 +1411,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		}
 
 		return label.replaceAll(/\r\n|\r|\n/g, '\u23CE');
-	}
-
-	/**
-	 * Get prefix and suffix decorations for the title (matching WindowTitle behavior)
-	 */
-	private _getTitleDecorations(): { prefix: string | undefined; suffix: string | undefined } {
-		let prefix: string | undefined;
-		const suffix: string | undefined = undefined;
-
-		// Add remote host label if connected to a remote
-		if (this.environmentService.remoteAuthority) {
-			prefix = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.remoteAuthority);
-		}
-
-		// Add extension development host prefix
-		if (this.environmentService.isExtensionDevelopment) {
-			prefix = !prefix
-				? NLS_EXTENSION_HOST
-				: `${NLS_EXTENSION_HOST} - ${prefix}`;
-		}
-
-		return { prefix, suffix };
 	}
 
 	// #endregion
