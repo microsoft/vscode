@@ -885,8 +885,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 						for (const model of allModels) {
 							const modelConfig = group.settings[model.metadata.id];
 							if (modelConfig) {
-								const resolvedModelConfig = await this._resolveModelConfiguration(modelConfig, model.metadata.configurationSchema);
-								perModelConfigurations.set(model.identifier, resolvedModelConfig);
+								// Store raw config (without resolving secrets) to avoid leaking secrets on persist
+								perModelConfigurations.set(model.identifier, { ...modelConfig });
 							}
 						}
 					}
@@ -908,8 +908,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 						for (const model of models) {
 							const modelConfig = group.settings[model.metadata.id];
 							if (modelConfig) {
-								const resolvedModelConfig = await this._resolveModelConfiguration(modelConfig, model.metadata.configurationSchema);
-								perModelConfigurations.set(model.identifier, resolvedModelConfig);
+								// Store raw config (without resolving secrets) to avoid leaking secrets on persist
+								perModelConfigurations.set(model.identifier, { ...modelConfig });
 							}
 						}
 					}
@@ -1608,23 +1608,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 			result[key] = value;
 		}
 
-		return result;
-	}
-
-	private async _resolveModelConfiguration(config: IStringDictionary<unknown>, schema: ILanguageModelConfigurationSchema | undefined): Promise<IStringDictionary<unknown>> {
-		if (!schema) {
-			return { ...config };
-		}
-
-		const result: IStringDictionary<unknown> = {};
-		for (const key in config) {
-			let value = config[key];
-			if (schema.properties?.[key]?.secret) {
-				const secretKey = this.decodeSecretKey(value);
-				value = secretKey ? await this._secretStorageService.get(secretKey) : undefined;
-			}
-			result[key] = value;
-		}
 		return result;
 	}
 
