@@ -1071,6 +1071,10 @@ const taskFinishMessages = [
 	localize('exitCode.reuseTerminal', "Press any key to close the terminal."),
 ];
 
+const normalizedTaskFinishMessages = taskFinishMessages.map(msg =>
+	msg.replace(/[\s.,:;!?"'`()[\]{}<>\-_/\\]+/g, '').toLowerCase()
+);
+
 /**
  * Detects VS Code's specific task completion messages like:
  * - "Press any key to close the terminal."
@@ -1080,20 +1084,9 @@ const taskFinishMessages = [
  * that can split words across lines (e.g., "t\no" instead of "to").
  */
 export function detectsVSCodeTaskFinishMessage(cursorLine: string): boolean {
-	// Remove all whitespace to handle line wrapping that splits words mid-word
-	const normalized = cursorLine.replace(/\s/g, '').toLowerCase();
-	if (taskFinishMessages.some(msg => normalized.includes(msg.replace(/\s/g, '').toLowerCase()))) {
-		return true;
-	}
-
-	// Be tolerant to punctuation and minor wording variants in the task footer, for example:
-	// - "The terminal will be reused by tasks. Press any key to close."
-	// - "The terminal will be reused by tasks, press any key to close it."
-	// and messages where additional tool text is appended afterwards.
+	// Be tolerant to whitespace, punctuation, and line wrapping that can split words mid-word.
 	const compact = cursorLine.replace(/[\s.,:;!?"'`()[\]{}<>\-_/\\]+/g, '').toLowerCase();
-	const hasReuseByTasks = compact.includes('terminalwillbereusedbytasks');
-	const hasPressAnyKeyToClose = compact.includes('pressanykeytoclose');
-	return hasReuseByTasks && hasPressAnyKeyToClose;
+	return normalizedTaskFinishMessages.some(msg => compact.includes(msg));
 }
 
 /**
