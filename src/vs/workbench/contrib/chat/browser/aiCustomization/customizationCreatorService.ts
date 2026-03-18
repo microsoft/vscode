@@ -15,6 +15,7 @@ import { isEqualOrParent } from '../../../../../base/common/resources.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { localize } from '../../../../../nls.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 
 /**
  * Service that opens an AI-guided chat session to help the user create
@@ -33,6 +34,7 @@ export class CustomizationCreatorService {
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 	) { }
 
 	async createWithAI(type: PromptsType): Promise<void> {
@@ -109,10 +111,14 @@ export class CustomizationCreatorService {
 	private async resolveTargetDirectoryWithPicker(type: PromptsType): Promise<URI | undefined | null> {
 		const allFolders = await this.promptsService.getSourceFolders(type);
 		const projectRoot = this.workspaceService.getActiveProjectRoot();
+		const descriptor = this.harnessService.getActiveDescriptor();
+		const subpaths = descriptor.workspaceSubpaths;
 
 		// Filter to only workspace-scoped folders (under the active project root).
 		// Don't rely on storage tags — tilde-expanded user paths can be tagged local.
 		// Deduplicate by URI to avoid inflated counts and duplicate picker entries.
+		// When the active harness specifies workspaceSubpaths, further restrict to
+		// directories whose path includes one of those sub-paths (e.g. `.claude`).
 		const seen = new Set<string>();
 		const workspaceFolders = projectRoot
 			? allFolders.filter(f => {
@@ -124,6 +130,10 @@ export class CustomizationCreatorService {
 					return false;
 				}
 				seen.add(key);
+				if (subpaths) {
+					const path = f.uri.path;
+					return subpaths.some(sp => path.includes(sp));
+				}
 				return true;
 			})
 			: [];
