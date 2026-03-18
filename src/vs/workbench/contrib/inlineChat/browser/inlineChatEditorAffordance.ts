@@ -146,6 +146,7 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 	private readonly _domNode: HTMLElement;
 	private _position: IContentWidgetPosition | null = null;
 	private _isVisible = false;
+	private _currentSelection: Selection | undefined;
 
 	private readonly _onDidRunAction = this._store.add(new Emitter<string>());
 	readonly onDidRunAction: Event<string> = this._onDidRunAction.event;
@@ -186,9 +187,23 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 
 		this._store.add(autorun(r => {
 			const sel = selection.read(r);
+			this._currentSelection = sel;
 			if (sel) {
 				this._show(sel);
 			} else {
+				this._hide();
+			}
+		}));
+
+		this._store.add(this._editor.onDidScrollChange(() => {
+			const sel = this._currentSelection;
+			if (!sel) {
+				return;
+			}
+			const isInViewport = this._isPositionInViewport();
+			if (isInViewport && !this._isVisible) {
+				this._show(sel);
+			} else if (!isInViewport && this._isVisible) {
 				this._hide();
 			}
 		}));
@@ -258,6 +273,30 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 			position: { lineNumber: effectiveLineNumber, column: effectiveColumnNumber },
 			preference: [ContentWidgetPositionPreference.EXACT],
 		};
+	}
+
+	private _isPositionInViewport(): boolean {
+		const widgetPosition = this._position?.position;
+		if (!widgetPosition) {
+			return false;
+		}
+
+		// Check vertical visibility
+		const visibleRanges = this._editor.getVisibleRanges();
+		const isLineVisible = visibleRanges.some(range =>
+			widgetPosition.lineNumber >= range.startLineNumber && widgetPosition.lineNumber <= range.endLineNumber
+		);
+		if (!isLineVisible) {
+			return false;
+		}
+
+		// Check horizontal visibility
+		const scrolledPos = this._editor.getScrolledVisiblePosition(widgetPosition);
+		if (!scrolledPos) {
+			return false;
+		}
+		const layoutInfo = this._editor.getOptions().get(EditorOption.layoutInfo);
+		return scrolledPos.left >= 0 && scrolledPos.left <= layoutInfo.width;
 	}
 
 	private _hide(): void {
