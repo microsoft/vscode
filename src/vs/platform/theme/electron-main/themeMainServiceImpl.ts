@@ -186,7 +186,12 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 			return true;
 		}
 		// For new installs with no stored theme, auto-detect OS color scheme by default
-		return !this.stateService.getItem(THEME_STORAGE_KEY);
+		// unless the user has explicitly configured the setting (e.g. via settings sync)
+		if (!this.stateService.getItem(THEME_STORAGE_KEY)) {
+			const { userValue } = this.configurationService.inspect<boolean>(Setting.DETECT_COLOR_SCHEME.key);
+			return userValue === undefined;
+		}
+		return false;
 	}
 
 	getBackgroundColor(): string {

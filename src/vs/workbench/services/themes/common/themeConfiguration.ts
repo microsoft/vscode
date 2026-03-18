@@ -286,11 +286,11 @@ export class ThemeConfiguration {
 	}
 
 	private shouldAutoDetectColorScheme(): boolean {
-		if (this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
+		const { value, userValue } = this.configurationService.inspect<boolean>(ThemeSettings.DETECT_COLOR_SCHEME);
+		if (value) {
 			return true;
 		}
 		if (this.isNewUser) {
-			const { userValue } = this.configurationService.inspect(ThemeSettings.DETECT_COLOR_SCHEME);
 			return userValue === undefined;
 		}
 		return false;

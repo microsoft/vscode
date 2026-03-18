@@ -246,7 +246,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 
 		this.migrateColorThemeSettings();
-		this.migrateAutoDetectColorScheme();
+		await this.migrateAutoDetectColorScheme();
 		const result = await Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]);
 		this.showNewDefaultThemeNotification();
 		return result;
@@ -309,13 +309,13 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	 * For new users who haven't explicitly configured `window.autoDetectColorScheme`,
 	 * persist `true` so that auto-detect becomes the default going forward.
 	 */
-	private migrateAutoDetectColorScheme(): void {
+	private async migrateAutoDetectColorScheme(): Promise<void> {
 		if (!this.storageService.isNew(StorageScope.APPLICATION)) {
 			return;
 		}
 		const inspection = this.configurationService.inspect<boolean>(ThemeSettings.DETECT_COLOR_SCHEME);
 		if (inspection.userValue === undefined) {
-			this.configurationService.updateValue(ThemeSettings.DETECT_COLOR_SCHEME, true, ConfigurationTarget.USER);
+			await this.configurationService.updateValue(ThemeSettings.DETECT_COLOR_SCHEME, true, ConfigurationTarget.USER);
 		}
 	}
 
