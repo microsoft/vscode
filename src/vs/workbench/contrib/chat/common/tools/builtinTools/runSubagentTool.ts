@@ -122,7 +122,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		mark('code/chat/subagent/willInvoke');
+		mark('code/chat/subagent/willInvoke', { detail: { requestId: invocation.chatRequestId } });
 
 		const args = invocation.parameters as IRunSubagentToolInputParams;
 

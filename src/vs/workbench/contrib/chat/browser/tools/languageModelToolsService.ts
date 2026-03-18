@@ -639,7 +639,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				throw new CancellationError();
 			}
 
-			mark('code/chat/willInvokeTool');
+			mark('code/chat/willInvokeTool', { detail: { requestId: dto.chatRequestId } });
 			invocationTimeWatch = StopWatch.create(true);
 			toolResult = await tool.impl.invoke(dto, countTokens, {
 				report: step => {
@@ -647,7 +647,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 			}, token);
 
-			mark('code/chat/didInvokeTool');
+			mark('code/chat/didInvokeTool', { detail: { requestId: dto.chatRequestId } });
 			invocationTimeWatch.stop();
 			this.ensureToolDetails(dto, toolResult, tool.data, toolInvocation);
 
