@@ -5,7 +5,7 @@
 
 import { DeferredPromise, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { mark } from '../../../../../base/common/performance.js';
+import { clearMarks, mark } from '../../../../../base/common/performance.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -746,6 +746,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void> {
+		clearMarks('code/chat/');
 		mark('code/chat/willResendRequest');
 		const model = this._sessionModels.get(request.session.sessionResource);
 		if (!model && model !== request.session) {
@@ -802,6 +803,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async sendRequest(sessionResource: URI, request: string, options?: IChatSendRequestOptions): Promise<ChatSendResult> {
+		clearMarks('code/chat/');
 		mark('code/chat/willSendRequest');
 		this.trace('sendRequest', `sessionResource: ${sessionResource.toString()}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 
