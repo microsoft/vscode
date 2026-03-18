@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../dom.js';
+import { $, addDisposableListener } from '../../dom.js';
 import { IDisposable } from '../../../common/lifecycle.js';
 import { IListRenderer } from './list.js';
 
@@ -19,6 +19,13 @@ export class RowCache<T> implements IDisposable {
 
 	private readonly transactionNodesPendingRemoval = new Set<HTMLElement>();
 	private inTransaction = false;
+
+	/**
+	 * Rows that have been logically removed from the list but are being kept in
+	 * the DOM until they lose focus, along with the listener that will complete
+	 * the release once focus leaves.
+	 */
+	private readonly pendingFocusedRows = new Map<IRow, IDisposable>();
 
 	constructor(private renderers: Map<string, IListRenderer<T, any>>) { }
 
@@ -80,6 +87,23 @@ export class RowCache<T> implements IDisposable {
 	private releaseRow(row: IRow): void {
 		const { domNode, templateId } = row;
 		if (domNode) {
+			// If this row currently contains DOM focus, keep it in the document
+			// until focus moves away to avoid an abrupt focus loss.
+			const ownerDocument = domNode.ownerDocument;
+			if (ownerDocument && domNode.contains(ownerDocument.activeElement)) {
+				if (!this.pendingFocusedRows.has(row)) {
+					const listener = addDisposableListener(domNode, 'focusout', (e: FocusEvent) => {
+						// Only release when focus has moved completely outside this row.
+						if (!domNode.contains(e.relatedTarget as Node | null)) {
+							this.releaseFocusedRow(row);
+						}
+					});
+					this.pendingFocusedRows.set(row, listener);
+				}
+				// Do not add to the reuse cache yet — the row must stay alive.
+				return;
+			}
+
 			if (this.inTransaction) {
 				this.transactionNodesPendingRemoval.add(domNode);
 			} else {
@@ -88,6 +112,25 @@ export class RowCache<T> implements IDisposable {
 		}
 
 		const cache = this.getTemplateCache(templateId);
+		cache.push(row);
+	}
+
+	/**
+	 * Completes the deferred release of a row that was held due to focus.
+	 * Called when focus has moved outside the row's DOM node.
+	 */
+	private releaseFocusedRow(row: IRow): void {
+		const listener = this.pendingFocusedRows.get(row);
+		if (!listener) {
+			return;
+		}
+
+		listener.dispose();
+		this.pendingFocusedRows.delete(row);
+
+		this.doRemoveNode(row.domNode);
+
+		const cache = this.getTemplateCache(row.templateId);
 		cache.push(row);
 	}
 
@@ -108,6 +151,18 @@ export class RowCache<T> implements IDisposable {
 	}
 
 	dispose(): void {
+		// Release any rows that were being held due to focus, disposing their templates.
+		for (const [row, listener] of this.pendingFocusedRows) {
+			listener.dispose();
+			const renderer = this.renderers.get(row.templateId);
+			if (renderer) {
+				renderer.disposeTemplate(row.templateData);
+				row.templateData = null;
+			}
+			row.domNode.remove();
+		}
+		this.pendingFocusedRows.clear();
+
 		this.cache.forEach((cachedRows, templateId) => {
 			for (const cachedRow of cachedRows) {
 				const renderer = this.getRenderer(templateId);
