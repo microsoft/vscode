@@ -97,7 +97,8 @@ export abstract class BrowserEditorContribution extends Disposable {
 	clear(): void { }
 
 	/**
-	 * Optional widgets to display inside the URL bar (between the URL input and the share toggle).
+	 * Optional widgets to display inside the URL bar (on the right side of the URL input,
+	 * before the actions toolbar).
 	 * Contributions can override this getter to provide widgets.
 	 */
 	get urlBarWidgets(): readonly IBrowserEditorWidgetContribution[] { return []; }
