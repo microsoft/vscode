@@ -2304,9 +2304,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// discard them or need a prompt (as in `confirmPendingRequestsBeforeSend`)
 		// which could be a surprising behavior if the user finishes typing a steering
 		// request just as confirmation is triggered.
-		if (options.alwaysQueue) {
-			options.queue ??= ChatRequestQueueKind.Queued;
-		}
 		if (model.requestNeedsInput.get() && !model.getPendingRequests().length) {
 			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-needsInput');
 			options.queue ??= ChatRequestQueueKind.Queued;
@@ -2314,7 +2311,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (requestInProgress) {
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
-		if (!options.alwaysQueue && !requestInProgress && !isEditing && !(await this.confirmPendingRequestsBeforeSend(model, options))) {
+		if (!requestInProgress && !isEditing && !(await this.confirmPendingRequestsBeforeSend(model, options))) {
 			return;
 		}
 
@@ -2381,7 +2378,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			modeInfo: this.input.currentModeInfo,
 			agentIdSilent: this._lockedAgent?.id,
 			queue: options?.queue,
-			pauseQueue: options?.alwaysQueue,
+
 		});
 
 		if (ChatSendResult.isRejected(result)) {
