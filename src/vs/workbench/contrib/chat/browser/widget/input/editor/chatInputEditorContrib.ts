@@ -103,8 +103,8 @@ class InputEditorDecorations extends Disposable {
 		this._register(this.widget.onDidSubmitAgent((e) => {
 			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent, e.slashCommand?.name));
 		}));
-		this._register(this.widget.inputEditor.onMouseDown(e => {
-			if (!e.event.leftButton || e.target.type !== MouseTargetType.CONTENT_TEXT || !e.target.position) {
+		this._register(this.widget.inputEditor.onMouseUp(e => {
+			if (e.target.type !== MouseTargetType.CONTENT_TEXT || !e.target.position) {
 				return;
 			}
 
@@ -113,8 +113,6 @@ class InputEditorDecorations extends Disposable {
 				return;
 			}
 
-			e.event.preventDefault();
-			e.event.stopPropagation();
 			void this.editorService.openEditor({ resource: clickablePromptSlashCommand.uri });
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.triggerInputEditorDecorationsUpdate()));
