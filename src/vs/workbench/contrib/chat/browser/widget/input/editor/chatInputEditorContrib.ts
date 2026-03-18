@@ -10,6 +10,7 @@ import { themeColorFromId } from '../../../../../../../base/common/themables.js'
 import { URI } from '../../../../../../../base/common/uri.js';
 import { MouseTargetType } from '../../../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../../../editor/browser/services/codeEditorService.js';
+import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../../../editor/common/editorCommon.js';
 import { TrackedRangeStickiness } from '../../../../../../../editor/common/model.js';
@@ -74,6 +75,7 @@ class InputEditorDecorations extends Disposable {
 
 	private readonly previouslyUsedAgents = new Set<string>();
 	private clickablePromptSlashCommand: { range: Range; uri: URI } | undefined;
+	private mouseDownPromptSlashCommand: { position: Position; uri: URI; range: Range } | undefined;
 
 	private readonly viewModelDisposables = this._register(new MutableDisposable());
 
@@ -103,8 +105,10 @@ class InputEditorDecorations extends Disposable {
 		this._register(this.widget.onDidSubmitAgent((e) => {
 			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent, e.slashCommand?.name));
 		}));
-		this._register(this.widget.inputEditor.onMouseUp(e => {
-			if (e.target.type !== MouseTargetType.CONTENT_TEXT || !e.target.position) {
+		this._register(this.widget.inputEditor.onMouseDown(e => {
+			this.mouseDownPromptSlashCommand = undefined;
+
+			if (!e.event.leftButton || e.target.type !== MouseTargetType.CONTENT_TEXT || !e.target.position) {
 				return;
 			}
 
@@ -113,7 +117,25 @@ class InputEditorDecorations extends Disposable {
 				return;
 			}
 
-			void this.editorService.openEditor({ resource: clickablePromptSlashCommand.uri });
+			this.mouseDownPromptSlashCommand = {
+				position: Position.lift(e.target.position),
+				uri: clickablePromptSlashCommand.uri,
+				range: clickablePromptSlashCommand.range,
+			};
+		}));
+		this._register(this.widget.inputEditor.onMouseUp(e => {
+			const mouseDownPromptSlashCommand = this.mouseDownPromptSlashCommand;
+			this.mouseDownPromptSlashCommand = undefined;
+
+			if (!mouseDownPromptSlashCommand || e.target.type !== MouseTargetType.CONTENT_TEXT || !e.target.position) {
+				return;
+			}
+
+			if (!mouseDownPromptSlashCommand.range.containsPosition(e.target.position) || !Position.equals(mouseDownPromptSlashCommand.position, e.target.position)) {
+				return;
+			}
+
+			void this.editorService.openEditor({ resource: mouseDownPromptSlashCommand.uri });
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.triggerInputEditorDecorationsUpdate()));
 		this._register(this.promptsService.onDidChangeSlashCommands(() => this.triggerInputEditorDecorationsUpdate()));
