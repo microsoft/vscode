@@ -67,6 +67,7 @@ suite('RunInTerminalTool', () => {
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
 	let chatServiceDisposeEmitter: Emitter<{ sessionResource: URI[]; reason: 'cleared' }>;
 	let chatSessionArchivedEmitter: Emitter<IAgentSession>;
+	let sandboxEnabled: boolean;
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
@@ -81,6 +82,7 @@ suite('RunInTerminalTool', () => {
 
 		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 		setConfig(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
+		sandboxEnabled = false;
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
 		chatServiceDisposeEmitter = new Emitter<{ sessionResource: URI[]; reason: 'cleared' }>();
 		chatSessionArchivedEmitter = new Emitter<IAgentSession>();
@@ -107,9 +109,9 @@ suite('RunInTerminalTool', () => {
 		});
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
-			isEnabled: async () => false,
-			wrapCommand: command => command,
-			getSandboxConfigPath: async () => undefined,
+			isEnabled: async () => sandboxEnabled,
+			wrapCommand: command => `sandbox:${command}`,
+			getSandboxConfigPath: async () => sandboxEnabled ? '/tmp/sandbox.json' : undefined,
 			getTempDir: () => undefined,
 			setNeedsForceUpdateConfigFile: () => { }
 		});
@@ -432,6 +434,40 @@ suite('RunInTerminalTool', () => {
 					assertConfirmationRequired(await executeToolTest({ command }));
 				});
 			}
+		});
+	});
+
+	suite('sandbox bypass requests', () => {
+		test('should force confirmation for explicit unsandboxed execution requests', async () => {
+			sandboxEnabled = true;
+			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+
+			const result = await executeToolTest({
+				dangerouslyDisableSandbox: true,
+				dangerouslyDisableSandboxReason: 'Needs network access outside the sandbox',
+			});
+
+			assertConfirmationRequired(result, 'Run `bash` command outside the sandbox?');
+			strictEqual(result?.confirmationMessages?.allowAutoConfirm, false);
+			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.dangerouslyDisableSandbox, true);
+			strictEqual(terminalData.dangerouslyDisableSandboxReason, 'Needs network access outside the sandbox');
+			strictEqual(terminalData.commandLine.toolEdited, undefined);
+
+			const confirmationMessage = result?.confirmationMessages?.message;
+			ok(confirmationMessage && typeof confirmationMessage !== 'string');
+			if (!confirmationMessage || typeof confirmationMessage === 'string') {
+				throw new Error('Expected markdown confirmation message');
+			}
+			ok(confirmationMessage.value.includes('Reason for leaving the sandbox: Needs network access outside the sandbox'));
+
+			const disclaimer = result?.confirmationMessages?.disclaimer;
+			ok(disclaimer && typeof disclaimer !== 'string');
+			if (!disclaimer || typeof disclaimer === 'string') {
+				throw new Error('Expected markdown disclaimer');
+			}
+			ok(disclaimer.value.includes('outside the terminal sandbox'));
+			strictEqual(result?.confirmationMessages?.terminalCustomActions, undefined);
 		});
 	});
 
