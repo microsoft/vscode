@@ -202,7 +202,7 @@ export interface IChatSession extends IDisposable {
 	 * Forks the session from the given request point.
 	 * @param requestId The request ID to fork from, or undefined to fork from the end.
 	 * @param token Cancellation token.
-	 * @returns The forked session item, or undefined if forking failed.
+	 * @returns The forked session item. The promise is rejected if forking fails.
 	 */
 	forkSession?: (requestId: string | undefined, token: CancellationToken) => Promise<IChatSessionItem>;
 }
