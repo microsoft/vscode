@@ -514,7 +514,7 @@ declare module 'vscode' {
 		/**
 		 * The new value assigned to the option. When `undefined`, the option is cleared.
 		 */
-		readonly value: string | undefined;
+		readonly value: ChatSessionProviderOptionItem | undefined;
 	}
 
 	export namespace chat {
