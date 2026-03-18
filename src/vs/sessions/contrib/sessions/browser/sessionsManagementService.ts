@@ -20,13 +20,13 @@ import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../.
 import { IAgentSession, isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { AgentSessionProviders, isAgentHostTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { AgentHostNewSession, INewSession, LocalNewSession, RemoteNewSession } from '../../chat/browser/newSession.js';
+import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/browser/newSession.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { isBuiltinChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionProject.js';
 import { IGitHubSessionContext } from '../../github/common/types.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 
@@ -268,8 +268,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		let newSession: INewSession;
 		if (target === AgentSessionProviders.Background) {
 			newSession = this.instantiationService.createInstance(LocalNewSession, sessionResource, defaultRepoUri);
-		} else if (isAgentHostTarget(target)) {
-			newSession = this.instantiationService.createInstance(AgentHostNewSession, sessionResource, target);
 		} else {
 			newSession = this.instantiationService.createInstance(RemoteNewSession, sessionResource, target);
 		}
@@ -483,7 +481,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					isUntitled: true,
 					label: undefined,
 					resource: session.resource,
-					repository: session.repoUri,
+					repository: session.project?.uri,
 					worktree: undefined,
 					worktreeBranchName: undefined,
 					worktreeBaseBranchProtected: undefined,
@@ -496,7 +494,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 							isUntitled: true,
 							label: undefined,
 							resource: session.resource,
-							repository: session.repoUri,
+							repository: session.project?.uri,
 							worktree: undefined,
 							worktreeBranchName: undefined,
 							worktreeBaseBranchProtected: undefined,
