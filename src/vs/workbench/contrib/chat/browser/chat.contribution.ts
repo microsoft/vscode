@@ -1319,6 +1319,16 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		[ChatConfiguration.NestedSubagentsMaxDepth]: {
+			type: 'number',
+			description: nls.localize('chat.nestedSubagents.maxDepth', "Maximum nesting depth for subagents. Set to 0 to disable nested subagents. A subagent at this depth will not be able to launch further subagents."),
+			default: 0,
+			minimum: 0,
+			maximum: 20,
+			experiment: {
+				mode: 'auto'
+			}
+		},
 		[ChatConfiguration.ChatCustomizationMenuEnabled]: {
 			type: 'boolean',
 			tags: ['preview'],

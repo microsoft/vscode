@@ -48,6 +48,7 @@ export enum ChatConfiguration {
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
+	NestedSubagentsMaxDepth = 'chat.nestedSubagents.maxDepth',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
 	ExitAfterDelegation = 'chat.exitAfterDelegation',

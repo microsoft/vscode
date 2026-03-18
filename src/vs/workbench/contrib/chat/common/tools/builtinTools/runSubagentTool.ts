@@ -68,6 +68,9 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	/** Hack to port data between prepare/invoke */
 	private readonly _resolvedModels = new Map<string, { modeModelId: string | undefined; resolvedModelName: string | undefined }>();
 
+	/** Tracks the current subagent nesting depth per session to detect and limit recursion. */
+	private readonly _sessionDepth = new Map<string, number>();
+
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatService private readonly chatService: IChatService,
@@ -81,7 +84,9 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		@IProductService private readonly productService: IProductService,
 	) {
 		super();
-		this.onDidUpdateToolData = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.SubagentToolCustomAgents));
+		this.onDidUpdateToolData = Event.filter(this.configurationService.onDidChangeConfiguration, e =>
+			e.affectsConfiguration(ChatConfiguration.SubagentToolCustomAgents)
+		);
 	}
 
 	getToolData(): IToolData {
@@ -245,14 +250,22 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				}
 			};
 
+			// Determine whether the subagent should be allowed to spawn its own subagents.
+			const maxDepth = this.configurationService.getValue<number>(ChatConfiguration.NestedSubagentsMaxDepth) ?? 0;
+			const sessionKey = invocation.context.sessionResource.toString();
+			const currentDepth = this._sessionDepth.get(sessionKey) ?? 0;
+
 			if (modeTools) {
-				modeTools[RunSubagentTool.Id] = false;
+				modeTools[RunSubagentTool.Id] = currentDepth + 1 < maxDepth; // only enable the Run Subagent tool if we are under the max depth limit
 				modeTools[ManageTodoListToolToolId] = false;
 				modeTools['copilot_askQuestions'] = false;
 			}
+			if (maxDepth >= 0) {
+				this.logService.debug(`RunSubagentTool: Enable nested subagents: session ${sessionKey}, currentDepth: ${currentDepth}, maxDepth: ${maxDepth}`);
+			}
 
 			const variableSet = new ChatRequestVariableSet();
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, modeTools, undefined, invocation.context.sessionResource); // agents can not call subagents
+			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, modeTools, undefined, invocation.context.sessionResource);
 			await computer.collect(variableSet, token);
 
 			// Collect hooks from hook .json files
@@ -304,14 +317,25 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				}
 			}));
 
-			// Invoke the agent
-			const result = await this.chatAgentService.invokeAgent(
-				defaultAgent.id,
-				agentRequest,
-				progressCallback,
-				[],
-				token
-			);
+			// Invoke the agent, tracking nesting depth for recursion detection
+			this._sessionDepth.set(sessionKey, currentDepth + 1);
+			let result;
+			try {
+				result = await this.chatAgentService.invokeAgent(
+					defaultAgent.id,
+					agentRequest,
+					progressCallback,
+					[],
+					token
+				);
+			} finally {
+				const newDepth = (this._sessionDepth.get(sessionKey) ?? 1) - 1;
+				if (newDepth <= 0) {
+					this._sessionDepth.delete(sessionKey);
+				} else {
+					this._sessionDepth.set(sessionKey, newDepth);
+				}
+			}
 
 			// Check for errors
 			if (result.errorDetails) {
