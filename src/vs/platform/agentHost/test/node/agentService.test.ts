@@ -51,7 +51,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Start a turn so there's an active turn to map events to
 			service.dispatchAction(
-				{ type: 'session/turnStarted', session, turnId: 'turn-1', userMessage: { text: 'hello' } },
+				{ type: 'session/turnStarted', session: session.toString(), turnId: 'turn-1', userMessage: { text: 'hello' } },
 				'test-client', 1,
 			);
 

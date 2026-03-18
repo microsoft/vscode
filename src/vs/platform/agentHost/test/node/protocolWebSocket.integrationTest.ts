@@ -8,11 +8,14 @@ import { ChildProcess, fork } from 'child_process';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { URI } from '../../../../base/common/uri.js';
+import { ISubscribeResult } from '../../common/state/protocol/commands.js';
+import type { IActionEnvelope, IDeltaAction, ISessionAddedNotification, ISessionRemovedNotification, IUsageAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
 import {
 	isJsonRpcNotification,
 	isJsonRpcResponse,
 	JSON_RPC_PARSE_ERROR,
+	type IAhpNotification,
 	type IFetchTurnsResult,
 	type IInitializeResult,
 	type IJsonRpcErrorResponse,
@@ -20,11 +23,8 @@ import {
 	type IListSessionsResult,
 	type INotificationBroadcastParams,
 	type IProtocolMessage,
-	type IAhpNotification,
-	type IReconnectResult,
-	type IStateSnapshot,
+	type IReconnectResult
 } from '../../common/state/sessionProtocol.js';
-import type { IActionEnvelope, IDeltaAction, ISessionAddedNotification, ISessionRemovedNotification, IUsageAction } from '../../common/state/sessionActions.js';
 import type { ISessionState } from '../../common/state/sessionState.js';
 
 // ---- JSON-RPC test client ---------------------------------------------------
@@ -223,8 +223,8 @@ async function startServer(): Promise<{ process: ChildProcess; port: number }> {
 
 let sessionCounter = 0;
 
-function nextSessionUri(): URI {
-	return URI.from({ scheme: 'mock', path: `/test-session-${++sessionCounter}` });
+function nextSessionUri(): string {
+	return URI.from({ scheme: 'mock', path: `/test-session-${++sessionCounter}` }).toString();
 }
 
 function isActionNotification(n: IAhpNotification, actionType: string): boolean {
@@ -250,7 +250,7 @@ async function createAndSubscribeSession(c: TestProtocolClient, clientId: string
 	);
 	const realSessionUri = ((notif.params as INotificationBroadcastParams).notification as ISessionAddedNotification).summary.resource;
 
-	await c.call<IStateSnapshot>('subscribe', { resource: realSessionUri });
+	await c.call<ISubscribeResult>('subscribe', { resource: realSessionUri });
 	c.clearReceived();
 
 	return realSessionUri;
@@ -301,7 +301,7 @@ suite('Protocol WebSocket E2E', function () {
 		const result = await client.call<IInitializeResult>('initialize', {
 			protocolVersion: PROTOCOL_VERSION,
 			clientId: 'test-handshake',
-			initialSubscriptions: [URI.from({ scheme: 'agenthost', path: '/root' })],
+			initialSubscriptions: [URI.from({ scheme: 'agenthost', path: '/root' }).toString()],
 		});
 
 		assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
@@ -462,8 +462,8 @@ suite('Protocol WebSocket E2E', function () {
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const snapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
-		const state = snapshot.state as ISessionState;
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
 		assert.ok(state.turns.length >= 1);
 		const turn = state.turns[state.turns.length - 1];
 		assert.ok(turn.usage);
@@ -476,16 +476,16 @@ suite('Protocol WebSocket E2E', function () {
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-modifiedAt');
 
-		const initialSnapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
-		const initialModifiedAt = (initialSnapshot.state as ISessionState).summary.modifiedAt;
+		const initialSnapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const initialModifiedAt = (initialSnapshot.snapshot.state as ISessionState).summary.modifiedAt;
 
 		await new Promise(resolve => setTimeout(resolve, 50));
 
 		dispatchTurnStarted(client, sessionUri, 'turn-mod', 'hello', 1);
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const updatedSnapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
-		const updatedModifiedAt = (updatedSnapshot.state as ISessionState).summary.modifiedAt;
+		const updatedSnapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const updatedModifiedAt = (updatedSnapshot.snapshot.state as ISessionState).summary.modifiedAt;
 		assert.ok(updatedModifiedAt >= initialModifiedAt);
 	});
 
@@ -556,8 +556,8 @@ suite('Protocol WebSocket E2E', function () {
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnCancelled'));
 
-		const snapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
-		const state = snapshot.state as ISessionState;
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
 		assert.ok(state.turns.length >= 1);
 		assert.strictEqual(state.turns[state.turns.length - 1].state, 'cancelled');
 	});
@@ -574,8 +574,8 @@ suite('Protocol WebSocket E2E', function () {
 		await new Promise(resolve => setTimeout(resolve, 200));
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const snapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
-		const state = snapshot.state as ISessionState;
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
 		assert.ok(state.turns.length >= 2, `expected >= 2 turns but got ${state.turns.length}`);
 		assert.strictEqual(state.turns[0].id, 'turn-m1');
 		assert.strictEqual(state.turns[1].id, 'turn-m2');
@@ -645,8 +645,8 @@ suite('Protocol WebSocket E2E', function () {
 			assert.strictEqual((action as { model: string }).model, 'new-mock-model');
 		}
 
-		const snapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
-		const state = snapshot.state as ISessionState;
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
 		assert.strictEqual(state.summary.model, 'new-mock-model');
 	});
 
