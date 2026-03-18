@@ -6,7 +6,7 @@
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -53,13 +53,7 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ICustomizationHarnessService, matchesWorkspaceSubpath, matchesInstructionFileFilter } from '../../common/customizationHarnessService.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { getCleanPromptName, isInClaudeRulesFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
-import { evaluateApplyToPattern } from '../../common/promptSyntax/computeAutomaticInstructions.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { IChatSessionsService, IChatSessionCustomizationItem, IChatSessionCustomizationItemGroup } from '../../common/chatSessionsService.js';
+import { ICustomizationHarnessService, IExternalCustomizationItem, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -662,6 +656,24 @@ export class AICustomizationListWidget extends Disposable {
 			this.refresh();
 		}));
 
+		// Refresh when available harnesses change (external provider registered/unregistered)
+		this._register(autorun(reader => {
+			this.harnessService.availableHarnesses.read(reader);
+			this.refresh();
+		}));
+
+		// Subscribe to the active provider's onDidChange event
+		const providerChangeDisposable = this._register(new MutableDisposable());
+		this._register(autorun(reader => {
+			this.harnessService.activeHarness.read(reader);
+			const activeDescriptor = this.harnessService.getActiveDescriptor();
+			if (activeDescriptor.itemProvider) {
+				providerChangeDisposable.value = activeDescriptor.itemProvider.onDidChange(() => this.refresh());
+			} else {
+				providerChangeDisposable.clear();
+			}
+		}));
+
 	}
 
 	private create(): void {
@@ -1250,6 +1262,14 @@ export class AICustomizationListWidget extends Disposable {
 		}
 
 		const promptType = sectionToPromptType(section);
+
+		// When the active harness has an external item provider, delegate to it
+		// instead of querying promptsService and applying filters.
+		const descriptor = this.harnessService.getActiveDescriptor();
+		if (descriptor.itemProvider && promptType) {
+			return this.fetchItemsFromProvider(descriptor.itemProvider, promptType);
+		}
+
 		const items: IAICustomizationListItem[] = [];
 		const disabledUris = this.promptsService.getDisabledPromptFiles(promptType);
 		const extensionInfoByUri = new Map<string, { id: ExtensionIdentifier; displayName?: string }>();
@@ -1616,33 +1636,27 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
-	 * Fetches items from the registered {@link IChatSessionCustomizationsProvider}
-	 * instead of the built-in {@link IPromptsService} discovery.
+	 * Fetches items from an external customization provider, converting
+	 * the provider's items into the list widget format.
 	 */
-	private async _fetchItemsFromProvider(section: AICustomizationManagementSection): Promise<IAICustomizationListItem[]> {
-		const promptType = sectionToPromptType(section);
-
-		// Use the active harness ID as the session type
-		const activeHarness = this.harnessService.activeHarness.get();
-		const groups = await this.chatSessionsService.getCustomizations(activeHarness, CancellationToken.None);
-
-		if (!groups) {
+	private async fetchItemsFromProvider(provider: IExternalCustomizationItemProvider, promptType: PromptsType): Promise<IAICustomizationListItem[]> {
+		const allItems = await provider.provideCustomizations(CancellationToken.None);
+		if (!allItems) {
 			return [];
 		}
 
-		// Filter groups to only those matching the current section
-		const matchingGroupIds = sectionToCustomizationGroupIds(section);
-		const filteredGroups = groups.filter(g => matchingGroupIds.includes(g.id));
-
-		const items: IAICustomizationListItem[] = [];
-		for (const group of filteredGroups) {
-			for (const item of group.items) {
-				items.push(mapProviderItemToListItem(item, group.id, promptType));
-			}
-		}
-
-		items.sort((a, b) => a.name.localeCompare(b.name));
-		return items;
+		return allItems
+			.filter(item => item.type === promptType)
+			.map((item: IExternalCustomizationItem) => ({
+				id: item.uri.toString(),
+				uri: item.uri,
+				name: item.name,
+				filename: basename(item.uri),
+				description: item.description,
+				storage: PromptsStorage.local,
+				promptType,
+			}))
+			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
 	/**

@@ -3568,21 +3568,12 @@ export enum ChatSessionStatus {
 	NeedsInput = 3
 }
 
-export enum ChatSessionCustomizationType {
-	Agents = 'agents',
-	Skills = 'skills',
-	AgentInstructions = 'agentInstructions',
-	ContextInstructions = 'contextInstructions',
-	OnDemandInstructions = 'onDemandInstructions',
-	Prompts = 'prompts',
-}
-
-export enum ChatSessionCustomizationStorageLocation {
-	Workspace = 1,
-	User = 2,
-	Extension = 3,
-	Plugin = 4,
-	BuiltIn = 5,
+export enum ChatCustomizationType {
+	Agent = 1,
+	Skill = 2,
+	Instructions = 3,
+	Prompt = 4,
+	Hook = 5,
 }
 
 export enum ChatDebugLogLevel {
