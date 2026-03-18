@@ -182,15 +182,14 @@
 	height: auto;
 	padding: 8px 20px;
 	font-size: 15px;
-	border: 1px solid var(--vscode-button-secondaryBorder, var(--vscode-contrastBorder, transparent));
+	border: 1px solid var(--vscode-button-border);
 	background-color: var(--vscode-button-secondaryBackground);
 	color: var(--vscode-button-secondaryForeground);
 	border-radius: 6px;
 }
 
 .sessions-chat-picker-slot.sessions-chat-project-picker .action-label:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-foreground);
+	background-color: var(--vscode-button-secondaryHoverBackground);
 }
 
 .sessions-chat-picker-slot.sessions-chat-project-picker .action-label .codicon {
