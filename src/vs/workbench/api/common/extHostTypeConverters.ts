@@ -48,6 +48,7 @@ import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js'
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatSessionStatus, IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
+import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { ChatRequestHooks, IHookCommand, resolveEffectiveCommand } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
 import { IToolInvocationContext, IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
@@ -3508,6 +3509,18 @@ export namespace ChatLocation {
 			case types.ChatLocation.Terminal: return ChatAgentLocation.Terminal;
 			case types.ChatLocation.Panel: return ChatAgentLocation.Chat;
 			case types.ChatLocation.Editor: return ChatAgentLocation.EditorInline;
+		}
+	}
+}
+
+export namespace ChatCustomizationType {
+	export function from(type: types.ChatCustomizationType): string {
+		switch (type) {
+			case types.ChatCustomizationType.Agent: return PromptsType.agent;
+			case types.ChatCustomizationType.Skill: return PromptsType.skill;
+			case types.ChatCustomizationType.Instructions: return PromptsType.instructions;
+			case types.ChatCustomizationType.Prompt: return PromptsType.prompt;
+			case types.ChatCustomizationType.Hook: return PromptsType.hook;
 		}
 	}
 }
