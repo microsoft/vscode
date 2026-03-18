@@ -199,7 +199,8 @@
 
 .sessions-chat-picker-slot.sessions-chat-project-picker .action-label .codicon-chevron-down {
 	margin-right: 0;
-	margin-top: 2px;
+	position: relative;
+	top: 1px;
 }
 
 .sessions-chat-picker-slot.sessions-chat-project-picker .action-label .sessions-chat-dropdown-label {
