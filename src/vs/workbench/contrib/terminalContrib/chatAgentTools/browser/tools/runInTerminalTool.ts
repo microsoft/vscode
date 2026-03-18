@@ -124,7 +124,8 @@ function createPowerShellModelDescription(shell: string): string {
 	].join('\n');
 }
 
-const genericDescription = `
+function createGenericDescription(isSandboxEnabled: boolean): string {
+	const parts = [`
 Command Execution:
 - Use && to chain simple commands on one line
 - Prefer pipelines | over temporary files for data flow
@@ -144,12 +145,18 @@ Program Execution:
 
 Background Processes:
 - For long-running tasks (e.g., servers), set isBackground=true
-- Returns a terminal ID for checking status and runtime later
+- Returns a terminal ID for checking status and runtime later`];
 
+	if (isSandboxEnabled) {
+		parts.push(`
 Sandboxing:
-- When terminal sandboxing is enabled, commands run in the sandbox by default
-- Only set requestUnsandboxedExecution=true when this specific command must run outside the sandbox
-- When setting requestUnsandboxedExecution=true, also provide requestUnsandboxedExecutionReason; the user will be prompted before it runs unsandboxed
+- ATTENTION: Terminal sandboxing is enabled, commands run in a sandbox by default
+- When a command fails due to sandbox restrictions, immediately re-run it with requestUnsandboxedExecution=true and prompt the user to bypass the sandbox
+- Only set requestUnsandboxedExecution=true when there is evidence of failures caused by the sandbox, e.g. 'Operation not permitted' errors, network failures, or file access errors, etc
+- When setting requestUnsandboxedExecution=true, also provide requestUnsandboxedExecutionReason; the user will be prompted before it runs unsandboxed`);
+	}
+
+	parts.push(`
 
 Output Management:
 - Output is automatically truncated if longer than 60KB to prevent context overflow
@@ -161,22 +168,25 @@ Best Practices:
 - Quote variables: "$var" instead of $var to handle spaces
 - Use find with -exec or xargs for file operations
 - Be specific with commands to avoid excessive output
-- Avoid printing credentials unless absolutely required`;
+- Avoid printing credentials unless absolutely required`);
 
-function createBashModelDescription(): string {
+	return parts.join('');
+}
+
+function createBashModelDescription(isSandboxEnabled: boolean): string {
 	return [
 		'This tool allows you to execute shell commands in a persistent bash terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		genericDescription,
+		createGenericDescription(isSandboxEnabled),
 		'- Use [[ ]] for conditional tests instead of [ ]',
 		'- Prefer $() over backticks for command substitution',
 		'- Use set -e at start of complex commands to exit on errors'
 	].join('\n');
 }
 
-function createZshModelDescription(): string {
+function createZshModelDescription(isSandboxEnabled: boolean): string {
 	return [
 		'This tool allows you to execute shell commands in a persistent zsh terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		genericDescription,
+		createGenericDescription(isSandboxEnabled),
 		'- Use type to check command type (builtin, function, alias)',
 		'- Use jobs, fg, bg for job control',
 		'- Use [[ ]] for conditional tests instead of [ ]',
@@ -186,10 +196,10 @@ function createZshModelDescription(): string {
 	].join('\n');
 }
 
-function createFishModelDescription(): string {
+function createFishModelDescription(isSandboxEnabled: boolean): string {
 	return [
 		'This tool allows you to execute shell commands in a persistent fish terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		genericDescription,
+		createGenericDescription(isSandboxEnabled),
 		'- Use type to check command type (builtin, function, alias)',
 		'- Use jobs, fg, bg for job control',
 		'- Use test expressions for conditionals (no [[ ]] syntax)',
@@ -204,20 +214,24 @@ export async function createRunInTerminalToolData(
 	accessor: ServicesAccessor
 ): Promise<IToolData> {
 	const instantiationService = accessor.get(IInstantiationService);
+	const terminalSandboxService = accessor.get(ITerminalSandboxService);
 
 	const profileFetcher = instantiationService.createInstance(TerminalProfileFetcher);
-	const shell = await profileFetcher.getCopilotShell();
-	const os = await profileFetcher.osBackend;
+	const [shell, os, isSandboxEnabled] = await Promise.all([
+		profileFetcher.getCopilotShell(),
+		profileFetcher.osBackend,
+		terminalSandboxService.isEnabled(),
+	]);
 
 	let modelDescription: string;
 	if (shell && os && isPowerShell(shell, os)) {
 		modelDescription = createPowerShellModelDescription(shell);
 	} else if (shell && os && isZsh(shell, os)) {
-		modelDescription = createZshModelDescription();
+		modelDescription = createZshModelDescription(isSandboxEnabled);
 	} else if (shell && os && isFish(shell, os)) {
-		modelDescription = createFishModelDescription();
+		modelDescription = createFishModelDescription(isSandboxEnabled);
 	} else {
-		modelDescription = createBashModelDescription();
+		modelDescription = createBashModelDescription(isSandboxEnabled);
 	}
 
 	return {
@@ -252,14 +266,16 @@ export async function createRunInTerminalToolData(
 					type: 'number',
 					description: 'An optional timeout in milliseconds. When provided, the tool will stop tracking the command after this duration and return the output collected so far. Be conservative with the timeout duration, give enough time that the command would complete on a low-end machine. Use 0 for no timeout. If it\'s not clear how long the command will take then use 0 to avoid prematurely terminating it, never guess too low.',
 				},
-				requestUnsandboxedExecution: {
-					type: 'boolean',
-					description: 'Request that this command run outside the terminal sandbox. Only set this when the command clearly needs unsandboxed access. The user will be prompted before the command runs unsandboxed.'
-				},
-				requestUnsandboxedExecutionReason: {
-					type: 'string',
-					description: 'A short explanation of why this command must run outside the terminal sandbox. Only provide this when requestUnsandboxedExecution is true.'
-				},
+				...isSandboxEnabled ? {
+					requestUnsandboxedExecution: {
+						type: 'boolean',
+						description: 'Request that this command run outside the terminal sandbox. Only set this when the command clearly needs unsandboxed access. The user will be prompted before the command runs unsandboxed.'
+					},
+					requestUnsandboxedExecutionReason: {
+						type: 'string',
+						description: 'A short explanation of why this command must run outside the terminal sandbox. Only provide this when requestUnsandboxedExecution is true.'
+					},
+				} : {},
 			},
 			required: [
 				'command',
