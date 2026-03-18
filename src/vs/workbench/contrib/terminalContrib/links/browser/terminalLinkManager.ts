@@ -149,6 +149,9 @@ export class TerminalLinkManager extends DisposableStore {
 				activeHoverDisposable?.dispose();
 				activeHoverDisposable = undefined;
 				activeTooltipScheduler?.dispose();
+				if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).linkActivationModifier === 'disabled') {
+					return;
+				}
 				activeTooltipScheduler = new RunOnceScheduler(() => {
 					interface XtermWithCore extends Terminal {
 						_core: IXtermCore;
@@ -348,6 +351,9 @@ export class TerminalLinkManager extends DisposableStore {
 
 	private _tooltipCallback(link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) {
 		if (!this._widgetManager) {
+			return;
+		}
+		if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).linkActivationModifier === 'disabled') {
 			return;
 		}
 
