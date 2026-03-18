@@ -1042,6 +1042,33 @@ export default tseslint.config(
 			]
 		}
 	},
+	// electron-main layer: prevent static imports of heavy node_modules
+	// that would be synchronously loaded on startup
+	{
+		files: [
+			'src/vs/code/electron-main/**/*.ts',
+			'src/vs/code/node/**/*.ts',
+			'src/vs/platform/*/electron-main/**/*.ts',
+			'src/vs/platform/*/node/**/*.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-static-node-module-import': [
+				'error',
+				// Files that run in separate processes, not on the electron-main startup path
+				'src/vs/platform/agentHost/node/copilot/**/*.ts',
+				'src/vs/platform/files/node/watcher/**/*.ts',
+				'src/vs/platform/terminal/node/**/*.ts',
+				// Files that use small, safe modules
+				'src/vs/platform/environment/node/argv.ts',
+			]
+		}
+	},
 	// browser/electron-browser layer
 	{
 		files: [
