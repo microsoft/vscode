@@ -441,7 +441,7 @@ export class TerminalLinkManager extends DisposableStore {
 			} else {
 				clickLabel = nls.localize('terminalLinkHandler.followLinkAlt', "alt + click");
 			}
-		} else {
+		} else if (modifier === 'ctrlCmd') {
 			if (isMacintosh) {
 				clickLabel = nls.localize('terminalLinkHandler.followLinkCmd', "cmd + click");
 			} else {

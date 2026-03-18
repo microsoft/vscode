@@ -183,7 +183,7 @@ export interface ITerminalConfiguration {
 	wordSeparators: string;
 	enableFileLinks: 'off' | 'on' | 'notRemote';
 	allowedLinkSchemes: string[];
-	linkActivationModifier: 'ctrlCmd' | 'alt';
+	linkActivationModifier: 'ctrlCmd' | 'alt' | 'disabled';
 	unicodeVersion: '6' | '11';
 	enablePersistentSessions: boolean;
 	tabs: {

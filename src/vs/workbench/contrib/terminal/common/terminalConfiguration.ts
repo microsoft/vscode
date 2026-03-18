@@ -530,10 +530,11 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSettingId.LinkActivationModifier]: {
 		description: localize('terminal.integrated.linkActivationModifier', "The modifier key required to follow links in the terminal. The exact modifier must be the only one held; combinations with additional modifiers (such as Shift) will not trigger link following."),
 		type: 'string',
-		enum: ['ctrlCmd', 'alt'],
+		enum: ['ctrlCmd', 'alt', 'disabled'],
 		enumDescriptions: [
 			localize('terminal.integrated.linkActivationModifier.ctrlCmd', "Ctrl (or Cmd on macOS) only."),
-			localize('terminal.integrated.linkActivationModifier.alt', "Alt (or Option on macOS) only.")
+			localize('terminal.integrated.linkActivationModifier.alt', "Alt (or Option on macOS) only."),
+			localize('terminal.integrated.linkActivationModifier.disabled', "Disable link following by click.")
 		],
 		default: 'ctrlCmd'
 	},

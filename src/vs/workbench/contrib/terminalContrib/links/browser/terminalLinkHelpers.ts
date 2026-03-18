@@ -258,7 +258,10 @@ export function osPathModule(os: OperatingSystem): IPath {
  * Returns whether the link activation modifier is the only modifier key currently held for the given event.
  * All other modifiers are required to be up to prevent conflicts, e.g., ctrl+shift+c copy.
  */
-export function isLinkModifierDown(event: MouseEvent | KeyboardEvent, modifier: 'ctrlCmd' | 'alt'): boolean {
+export function isLinkModifierDown(event: MouseEvent | KeyboardEvent, modifier: 'ctrlCmd' | 'alt' | 'disabled'): boolean {
+	if (modifier === 'disabled') {
+		return false;
+	}
 	if (modifier === 'alt') {
 		return event.altKey && !event.ctrlKey && !event.shiftKey && !event.metaKey;
 	}
