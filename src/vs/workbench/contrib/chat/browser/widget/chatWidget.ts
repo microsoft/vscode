@@ -1264,6 +1264,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			autoSend: Boolean(handoff.send)
 		});
 
+		this.executeHandoff(handoff, agentId).catch(e => {
+			const target = agentId ?? handoff.agent ?? 'unknown';
+			this.logService.error(`[Handoff] Failed to execute handoff '${handoff.label}' to '${target}'`, e);
+		});
+	}
+
+	async executeHandoff(handoff: IHandOff, agentId?: string): Promise<void> {
+		this.chatSuggestNextWidget.hide();
+
+		const promptToUse = handoff.prompt;
+
 		// If agentId is provided (from chevron dropdown), delegate to that chat session
 		// Otherwise, switch to the handoff agent
 		if (agentId) {
@@ -1271,7 +1282,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.input.setValue(`@${agentId} ${promptToUse}`, false);
 			this.input.focus();
 			// Auto-submit for delegated chat sessions
-			this.acceptInput().catch(e => this.logService.error('Failed to handle handoff continueOn', e));
+			this.acceptInput().catch(e => this.logService.error(`[Handoff] Failed to submit delegated handoff to '@${agentId}'`, e));
 		} else if (handoff.agent) {
 			// Regular handoff to specified agent
 			this._switchToAgentByName(handoff.agent);
