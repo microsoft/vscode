@@ -14,6 +14,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { join } from '../../../../base/common/path.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 export class KeybindingsExportContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.keybindingsExport';
@@ -23,11 +24,13 @@ export class KeybindingsExportContribution extends Disposable implements IWorkbe
 		@IFileService private readonly fileService: IFileService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
-		if (this.nativeEnvironmentService.isBuilt) {
+		if (this.productService.quality === 'stable') {
+			console.log(`[${KeybindingsExportContribution.ID}] Skipping export of default keybindings on stable quality.`);
 			return;
 		}
 
