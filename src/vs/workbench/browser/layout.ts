@@ -599,7 +599,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private updateShadows(): void {
-		this.mainContainer.classList.toggle(LayoutClasses.NO_SHADOWS, this.isShadowsDisabled());
+		const noShadows = this.isShadowsDisabled();
+
+		for (const container of this.containers.values()) {
+			container.classList.toggle(LayoutClasses.NO_SHADOWS, noShadows);
+		}
 	}
 
 	private setSideBarPosition(position: Position): void {
