@@ -533,11 +533,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.selectSection(e.elements[0].id);
 		}));
 
-		// React to harness changes — rebuild visible sections
+		// React to harness changes — rebuild visible sections and refresh counts
 		this.editorDisposables.add(autorun(reader => {
 			this.harnessService.activeHarness.read(reader);
 			this.rebuildVisibleSections();
 			this.updateHarnessDropdown();
+			this.refreshAllPromptsSectionCounts();
 		}));
 
 		// Folder picker (sessions window only)
@@ -1053,6 +1054,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private async resolveTargetDirectoryWithPicker(type: PromptsType, target: 'workspace' | 'user'): Promise<URI | undefined | null> {
 		const allFolders = await this.promptsService.getSourceFolders(type);
 		const projectRoot = this.workspaceService.getActiveProjectRoot();
+		const descriptor = this.harnessService.getActiveDescriptor();
+		const subpaths = descriptor.workspaceSubpaths;
 
 		// Partition folders by whether they're under the active project root.
 		// The storage tags from getSourceFolders() are unreliable (tilde-expanded
@@ -1061,7 +1064,18 @@ export class AICustomizationManagementEditor extends EditorPane {
 		let matchingFolders;
 		if (target === 'workspace') {
 			matchingFolders = projectRoot
-				? allFolders.filter(f => isEqualOrParent(f.uri, projectRoot))
+				? allFolders.filter(f => {
+					if (!isEqualOrParent(f.uri, projectRoot)) {
+						return false;
+					}
+					// When the active harness specifies workspaceSubpaths, only offer
+					// directories whose path includes one of those sub-paths.
+					if (subpaths) {
+						const path = f.uri.path;
+						return subpaths.some(sp => path.includes(sp));
+					}
+					return true;
+				})
 				: [];
 		} else {
 			matchingFolders = projectRoot
