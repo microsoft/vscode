@@ -1058,6 +1058,15 @@ export class ListView<T> implements IListView<T> {
 		item.checkedDisposable.dispose();
 
 		if (item.row) {
+			// If the row being removed contains the currently focused element,
+			// redirect focus to the list's domNode to prevent focus from escaping
+			// the widget entirely (e.g. when scrolling causes a focused checkbox
+			// to be recycled, which would otherwise blur the whole quick pick).
+			const activeElement = getActiveElement();
+			if (activeElement && isAncestor(activeElement, item.row.domNode)) {
+				this.domNode.focus();
+			}
+
 			const renderer = this.renderers.get(item.templateId);
 
 			if (renderer && renderer.disposeElement) {
