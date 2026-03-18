@@ -11,6 +11,7 @@ import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../.
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
@@ -95,6 +96,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		super();
 
 		this.domNode = dom.$('.chat-question-carousel-container');
+		this.domNode.id = generateUuid();
 		this._inChatQuestionCarouselContextKey = ChatContextKeys.inChatQuestionCarousel.bindTo(this._contextKeyService);
 		const focusTracker = this._register(dom.trackFocus(this.domNode));
 		this._register(focusTracker.onDidFocus(() => this._inChatQuestionCarouselContextKey.set(true)));
@@ -258,7 +260,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const buttonTitle = collapsed
 				? localize('chat.questionCarousel.expandTitle', 'Expand Questions')
 				: localize('chat.questionCarousel.collapseTitle', 'Collapse Questions');
-			const contentId = dom.getDomNodeId(this.domNode);
+			const contentId = this.domNode.id;
 			this._collapseButton.label = collapsed ? `$(${Codicon.chevronRight.id})` : `$(${Codicon.chevronDown.id})`;
 			this._collapseButton.element.setAttribute('aria-label', buttonTitle);
 			this._collapseButton.element.setAttribute('aria-expanded', String(!collapsed));
