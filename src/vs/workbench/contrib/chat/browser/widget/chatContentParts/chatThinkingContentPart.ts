@@ -41,6 +41,31 @@ function extractTextFromPart(content: IChatThinkingPart): string {
 	return raw.trim();
 }
 
+function isEditToolId(toolId: string): boolean {
+	const lowerToolId = toolId.toLowerCase();
+	return lowerToolId.includes('edit') ||
+		lowerToolId.includes('create') ||
+		lowerToolId.includes('replace') ||
+		lowerToolId.includes('patch');
+}
+
+/**
+ * Returns true for edit tools whose generic display name should be replaced
+ * with "Editing files" while streaming (e.g. replace, multi-replace, patch, insertEdit).
+ * Excludes create and notebook tools which already have good labels.
+ */
+function isGenericEditToolId(toolId: string): boolean {
+	const lowerToolId = toolId.toLowerCase();
+	if (lowerToolId.includes('create') || lowerToolId.includes('notebook')) {
+		return false;
+	}
+	return lowerToolId.includes('replace') ||
+		lowerToolId.includes('patch') ||
+		lowerToolId.includes('insertedit') ||
+		lowerToolId.includes('insert_edit') ||
+		lowerToolId.includes('editfile');
+}
+
 export function getToolInvocationIcon(toolId: string): ThemeIcon {
 	const lowerToolId = toolId.toLowerCase();
 
@@ -64,11 +89,7 @@ export function getToolInvocationIcon(toolId: string): ThemeIcon {
 		return Codicon.book;
 	}
 
-	if (
-		lowerToolId.includes('edit') ||
-		lowerToolId.includes('create') ||
-		lowerToolId.includes('replace')
-	) {
+	if (isEditToolId(toolId)) {
 		return Codicon.pencil;
 	}
 
@@ -200,6 +221,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private workingSpinnerLabel: HTMLElement | undefined;
 	private availableMessagesByCategory = new Map<WorkingMessageCategory, string[]>();
 	private readonly toolWrappersByCallId = new Map<string, HTMLElement>();
+	private readonly toolLabelsByCallId = new Map<string, string>();
 	private readonly toolDisposables = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly ownedToolParts = new Map<string, IDisposable>();
 	private pendingRemovals: { toolCallId: string; toolLabel: string }[] = [];
@@ -1172,19 +1194,18 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			(t.kind === 'toolInvocation' || t.kind === 'toolInvocationSerialized') && t.toolCallId === toolCallId
 		);
 		if (toolInvocationsIndex !== -1) {
-			const invocation = this.toolInvocations[toolInvocationsIndex];
-			if (invocation.kind === 'toolInvocation' || invocation.kind === 'toolInvocationSerialized') {
-				const msg = invocation.invocationMessage;
-				const label = msg ? (typeof msg === 'string' ? msg : msg.value) : undefined;
-				if (label) {
-					const titleIndex = this.extractedTitles.indexOf(label);
-					if (titleIndex !== -1) {
-						this.extractedTitles.splice(titleIndex, 1);
-					}
+			// Use the tracked displayed label (which may differ from invocationMessage
+			// for streaming edit tools that show "Editing files")
+			const label = this.toolLabelsByCallId.get(toolCallId);
+			if (label) {
+				const titleIndex = this.extractedTitles.indexOf(label);
+				if (titleIndex !== -1) {
+					this.extractedTitles.splice(titleIndex, 1);
 				}
 			}
 			this.toolInvocations.splice(toolInvocationsIndex, 1);
 		}
+		this.toolLabelsByCallId.delete(toolCallId);
 
 		this.updateDropdownClickability();
 		this._onDidChangeHeight.fire();
@@ -1213,15 +1234,18 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		if (removedItem.kind === 'tool' && removedItem.toolInvocationOrMarkdown && (removedItem.toolInvocationOrMarkdown.kind === 'toolInvocation' || removedItem.toolInvocationOrMarkdown.kind === 'toolInvocationSerialized')) {
 			removedItem.toolInvocationOrMarkdown.isAttachedToThinking = false;
 
-			// Keep extractedTitles in sync when a lazy tool leaves the thinking container
-			const msg = removedItem.toolInvocationOrMarkdown.invocationMessage;
-			const label = msg ? (typeof msg === 'string' ? msg : msg.value) : undefined;
+			// Keep extractedTitles in sync when a lazy tool leaves the thinking container.
+			// Use the tracked displayed label (which may differ from invocationMessage
+			// for streaming edit tools that show "Editing files")
+			const toolCallId = removedItem.toolInvocationOrMarkdown.toolCallId;
+			const label = this.toolLabelsByCallId.get(toolCallId);
 			if (label) {
 				const titleIndex = this.extractedTitles.indexOf(label);
 				if (titleIndex !== -1) {
 					this.extractedTitles.splice(titleIndex, 1);
 				}
 			}
+			this.toolLabelsByCallId.delete(toolCallId);
 		}
 
 		const toolInvocationsIndex = this.toolInvocations.findIndex(t =>
@@ -1306,6 +1330,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		if (titleIndex !== -1) {
 			this.extractedTitles.splice(titleIndex, 1);
 		}
+		this.toolLabelsByCallId.delete(toolCallId);
 		this.updateDropdownClickability();
 		this._onDidChangeHeight.fire();
 	}
@@ -1336,9 +1361,21 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		const isToolInvocation = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized');
 		if (isToolInvocation && toolInvocationOrMarkdown.invocationMessage) {
 			const message = typeof toolInvocationOrMarkdown.invocationMessage === 'string' ? toolInvocationOrMarkdown.invocationMessage : toolInvocationOrMarkdown.invocationMessage.value;
-			toolCallLabel = message;
+
+			// For edit-type tools that are still streaming, use a friendlier label
+			// instead of the generic tool display name (e.g. "Replace String in File")
+			const isStreamingEditTool = toolInvocationOrMarkdown.kind === 'toolInvocation' && IChatToolInvocation.isStreaming(toolInvocationOrMarkdown) && isGenericEditToolId(toolInvocationOrMarkdown.toolId);
+			if (isStreamingEditTool) {
+				toolCallLabel = localize('chat.thinking.editingFiles', 'Editing files');
+			} else {
+				toolCallLabel = message;
+			}
 
 			this.toolInvocations.push(toolInvocationOrMarkdown);
+
+			// Track the displayed label for consistent cleanup
+			const toolCallId = toolInvocationOrMarkdown.toolCallId;
+			this.toolLabelsByCallId.set(toolCallId, toolCallLabel);
 
 			// track state for live/still streaming tools, excluding serialized tools
 			if (toolInvocationOrMarkdown.kind === 'toolInvocation') {
@@ -1365,6 +1402,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 							this.extractedTitles.push(updatedMessage);
 						}
 						currentToolLabel = updatedMessage;
+						this.toolLabelsByCallId.set(toolCallId, updatedMessage);
 						this.lastExtractedTitle = updatedMessage;
 
 						// make sure not to set title if expanded
