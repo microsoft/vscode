@@ -40,6 +40,7 @@ import { logBrowserOpen } from '../../../../platform/browserView/common/browserV
 
 // Register actions and browser tools
 import './browserViewActions.js';
+import './browserEditorChatIntegration.js';
 import './tools/browserTools.contribution.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(

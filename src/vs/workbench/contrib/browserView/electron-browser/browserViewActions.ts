@@ -11,12 +11,11 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_CAN_ZOOM_IN, CONTEXT_BROWSER_CAN_ZOOM_OUT, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
+import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_CAN_ZOOM_IN, CONTEXT_BROWSER_CAN_ZOOM_OUT, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewCommandId, BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
-import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -257,71 +256,6 @@ class FocusUrlInputAction extends Action2 {
 	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
 			await browserEditor.focusUrlInput();
-		}
-	}
-}
-
-class AddElementToChatAction extends Action2 {
-	static readonly ID = BrowserViewCommandId.AddElementToChat;
-
-	constructor() {
-		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.chat.sendElementsToChat.enabled', true));
-		super({
-			id: AddElementToChatAction.ID,
-			title: localize2('browser.addElementToChatAction', 'Add Element to Chat'),
-			category: BrowserCategory,
-			icon: Codicon.inspect,
-			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), enabled),
-			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
-			menu: {
-				id: MenuId.BrowserActionsToolbar,
-				group: 'actions',
-				order: 1,
-				when: enabled
-			},
-			keybinding: [{
-				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over terminal
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
-			}, {
-				when: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyCode.Escape
-			}]
-		});
-	}
-
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
-		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.addElementToChat();
-		}
-	}
-}
-
-class AddConsoleLogsToChatAction extends Action2 {
-	static readonly ID = BrowserViewCommandId.AddConsoleLogsToChat;
-
-	constructor() {
-		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.chat.sendElementsToChat.enabled', true));
-		super({
-			id: AddConsoleLogsToChatAction.ID,
-			title: localize2('browser.addConsoleLogsToChatAction', 'Add Console Logs to Chat'),
-			category: BrowserCategory,
-			icon: Codicon.output,
-			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), enabled),
-			menu: {
-				id: MenuId.BrowserActionsToolbar,
-				group: 'actions',
-				order: 2,
-				when: enabled
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
-		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.addConsoleLogsToChat();
 		}
 	}
 }
@@ -727,8 +661,6 @@ registerAction2(GoForwardAction);
 registerAction2(ReloadAction);
 registerAction2(HardReloadAction);
 registerAction2(FocusUrlInputAction);
-registerAction2(AddElementToChatAction);
-registerAction2(AddConsoleLogsToChatAction);
 registerAction2(ToggleDevToolsAction);
 registerAction2(OpenInExternalBrowserAction);
 registerAction2(ClearGlobalBrowserStorageAction);
