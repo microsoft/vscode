@@ -149,7 +149,7 @@ export class UITest {
 			}
 
 			const message = await messageContainer.locator('.message').innerText();
-			this.context.warn(`Marketplace message: ${message} (attempt ${attempt + 1}/5), clicking Refresh`);
+			this.context.log(`Marketplace message: ${message} (attempt ${attempt + 1}/5), clicking Refresh`);
 			await page.getByRole('button', { name: 'Refresh' }).click();
 			await page.waitForTimeout(5_000);
 		}
@@ -168,7 +168,7 @@ export class UITest {
 				return;
 			}
 
-			this.context.warn('Extension install may have failed, retrying');
+			this.context.log('Extension install may have failed, retrying');
 		}
 
 		throw new Error('Failed to install extension after 3 attempts');
