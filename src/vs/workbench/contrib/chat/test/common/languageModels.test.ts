@@ -1102,7 +1102,7 @@ suite('LanguageModels - Per-Model Configuration', function () {
 
 	test('getModelConfiguration returns per-model config from group', function () {
 		const configA = languageModelsService.getModelConfiguration('config-vendor/default/model-a');
-		assert.deepStrictEqual(configA, { temperature: 0.7, reasoningEffort: 'high' });
+		assert.deepStrictEqual(configA, { temperature: 0.7, reasoningEffort: 'high', maxTokens: 4096 });
 
 		const configB = languageModelsService.getModelConfiguration('config-vendor/default/model-b');
 		assert.deepStrictEqual(configB, { temperature: 0.2 });
