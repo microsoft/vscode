@@ -138,6 +138,7 @@ import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js'
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
+import { initFinderService } from '../../platform/native/electron-main/finderService.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -1473,6 +1474,13 @@ export class CodeApplication extends Disposable {
 			this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
 		}
 
+		// macOS: register native Finder "Open with {app}" service provider.
+		// The NSServices entry in Info.plist declares the service; this native
+		// module handles the callback when the user selects it in Finder.
+		if (isMacintosh) {
+			this.initFinderService();
+		}
+
 		// Power telemetry
 		instantiationService.invokeFunction(accessor => {
 			const telemetryService = accessor.get(ITelemetryService);
@@ -1671,5 +1679,29 @@ export class CodeApplication extends Disposable {
 		// Validate Device ID is up to date (delay this as it has shown significant perf impact)
 		// Refs: https://github.com/microsoft/vscode/issues/234064
 		validateDevDeviceId(this.stateService, this.logService);
+	}
+
+	/**
+	 * Registers the native macOS Services provider so "Open with {app}" appears
+	 * in Finder's right-click context menu. When invoked, the file paths are
+	 * opened via windowsMainService — same path as `app.on('open-file')`.
+	 */
+	private initFinderService(): void {
+		initFinderService(paths => {
+			this.logService.trace('finderService#openFiles: ', paths);
+
+			const urisToOpen: IWindowOpenable[] = paths.map(p => {
+				p = normalizeNFC(p);
+				return hasWorkspaceFileExtension(p) ? { workspaceUri: URI.file(p) } : { fileUri: URI.file(p) };
+			});
+
+			this.windowsMainService?.open({
+				context: OpenContext.DOCK,
+				cli: this.environmentMainService.args,
+				urisToOpen,
+				gotoLineMode: false,
+				preferNewWindow: true
+			});
+		}, this.logService);
 	}
 }
