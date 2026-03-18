@@ -256,7 +256,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			const currentDepth = this._sessionDepth.get(sessionKey) ?? 0;
 
 			if (modeTools) {
-				modeTools[RunSubagentTool.Id] = currentDepth + 1 < maxDepth; // only enable the Run Subagent tool if we are under the max depth limit
+				modeTools[RunSubagentTool.Id] = currentDepth + 1 <= maxDepth; // only enable the Run Subagent tool if we are under the max depth limit
 				modeTools[ManageTodoListToolToolId] = false;
 				modeTools['copilot_askQuestions'] = false;
 

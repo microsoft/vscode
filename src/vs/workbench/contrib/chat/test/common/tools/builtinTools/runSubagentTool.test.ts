@@ -585,13 +585,13 @@ suite('RunSubagentTool', () => {
 			assert.strictEqual(capturedRequests[0].userSelectedTools?.['runSubagent'], true);
 		});
 
-		test('disables runSubagent tool when depth reaches maxDepth - 1', async () => {
+		test('disables runSubagent tool when depth reaches maxDepth', async () => {
 			const capturedRequests: IChatAgentRequest[] = [];
 			const sessionUri = URI.parse('test://session/depth-limit');
 
-			// maxDepth=2, so the first invoke (depth 0→1) should allow nesting,
-			// but the second invoke (depth 1→2) should not.
-			const { tool, mockChatAgentService } = createInvokableTool({ maxDepth: 2, capturedRequests });
+			// maxDepth=1, so the first invoke (depth 0→1) should allow nesting,
+			// but the second invoke (depth 1→2) should not since 1+1 <= 1 is false.
+			const { tool, mockChatAgentService } = createInvokableTool({ maxDepth: 1, capturedRequests });
 
 			// Simulate nested invocation: the first invoke's invokeAgent callback
 			// triggers a second invoke on the same tool (same session).
@@ -608,9 +608,9 @@ suite('RunSubagentTool', () => {
 			await tool.invoke(createInvocation(sessionUri), countTokens, noProgress, CancellationToken.None);
 
 			assert.strictEqual(capturedRequests.length, 2);
-			// First call at depth 0: should enable (0 + 1 < 2)
+			// First call at depth 0: should enable (0 + 1 <= 1)
 			assert.strictEqual(capturedRequests[0].userSelectedTools?.['runSubagent'], true);
-			// Second call at depth 1: should disable (1 + 1 < 2 is false)
+			// Second call at depth 1: should disable (1 + 1 <= 1 is false)
 			assert.strictEqual(capturedRequests[1].userSelectedTools?.['runSubagent'], false);
 		});
 
