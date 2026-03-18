@@ -702,9 +702,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._itemControllerRegistrations.deleteAndDispose(handle);
 	}
 
-	$registerChatSessionContentProvider(handle: number, chatSessionScheme: string, supportsFork?: boolean): void {
+	$registerChatSessionContentProvider(handle: number, chatSessionScheme: string): void {
 		const provider: IChatSessionContentProvider = {
-			supportsFork,
 			provideChatSessionContent: (resource, token) => this._provideChatSessionContent(handle, resource, token)
 		};
 

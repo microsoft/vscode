@@ -3620,7 +3620,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$updateChatSessionItems(controllerHandle: number, change: IChatSessionItemsChange): Promise<void>;
 	$addOrUpdateChatSessionItem(controllerHandle: number, item: Dto<IChatSessionItem>): Promise<void>;
 	$onDidCommitChatSessionItem(controllerHandle: number, original: UriComponents, modified: UriComponents): void;
-	$registerChatSessionContentProvider(handle: number, chatSessionScheme: string, supportsFork?: boolean): void;
+	$registerChatSessionContentProvider(handle: number, chatSessionScheme: string): void;
 	$unregisterChatSessionContentProvider(handle: number): void;
 	$onDidChangeChatSessionOptions(handle: number, sessionResource: UriComponents, updates: ReadonlyArray<ChatSessionOptionUpdateDto2>): void;
 	$onDidChangeChatSessionProviderOptions(handle: number): void;

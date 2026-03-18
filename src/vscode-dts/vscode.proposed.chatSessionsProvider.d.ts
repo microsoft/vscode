@@ -406,7 +406,8 @@ declare module 'vscode' {
 		 * The handler should create a new session on the provider's backend and
 		 * return the new {@link ChatSessionItem} representing the forked session.
 		 *
-		 * @param request The request turn to fork from. If undefined, fork from the end of the session.
+		 * @param request The request turn that marks the fork point. The forked session includes all turns
+		 * before this request turn and excludes this request turn itself. If undefined, fork the full session.
 		 * @param token A cancellation token.
 		 * @returns The forked session item.
 		 */
@@ -529,13 +530,6 @@ declare module 'vscode' {
 		 * Whether sessions can be interrupted and resumed without side-effects.
 		 */
 		supportsInterruptions?: boolean;
-
-		/**
-		 * Whether sessions support forking conversations from a given point.
-		 * When true, the fork button is shown on checkpoints and the
-		 * {@link ChatSession.forkHandler} will be called when the user forks.
-		 */
-		supportsFork?: boolean;
 	}
 
 	/**

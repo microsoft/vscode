@@ -208,7 +208,6 @@ export interface IChatSession extends IDisposable {
 }
 
 export interface IChatSessionContentProvider {
-	readonly supportsFork?: boolean;
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 }
 
