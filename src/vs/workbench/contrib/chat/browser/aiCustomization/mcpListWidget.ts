@@ -305,6 +305,9 @@ export class McpListWidget extends Disposable {
 	private readonly _onDidSelectServer = this._register(new Emitter<IWorkbenchMcpServer>());
 	readonly onDidSelectServer = this._onDidSelectServer.event;
 
+	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
+	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
+
 	private sectionHeader!: HTMLElement;
 	private sectionDescription!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
@@ -320,6 +323,7 @@ export class McpListWidget extends Disposable {
 	private backLink!: HTMLElement;
 
 	private filteredServers: IWorkbenchMcpServer[] = [];
+	private filteredBuiltinCount = 0;
 	private displayEntries: IMcpListEntry[] = [];
 	private galleryServers: IWorkbenchMcpServer[] = [];
 	private searchQuery: string = '';
@@ -712,6 +716,26 @@ export class McpListWidget extends Disposable {
 
 		this.displayEntries = entries;
 		this.list.splice(0, this.list.length, this.displayEntries);
+
+		// Compute sidebar badge directly from the data arrays (same source as group headers)
+		this.filteredBuiltinCount = builtinServers.length;
+		this._onDidChangeItemCount.fire(this.itemCount);
+	}
+
+	/**
+	 * Gets the total item count from the underlying data arrays
+	 * (the same source used to build group headers).
+	 */
+	get itemCount(): number {
+		return this.filteredServers.length + this.filteredBuiltinCount;
+	}
+
+	/**
+	 * Re-fires the current item count. Call after subscribing to onDidChangeItemCount
+	 * to ensure the subscriber receives the latest count.
+	 */
+	fireItemCount(): void {
+		this._onDidChangeItemCount.fire(this.itemCount);
 	}
 
 	/**
