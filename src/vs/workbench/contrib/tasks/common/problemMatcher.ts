@@ -24,6 +24,7 @@ import { IMarkerData, MarkerSeverity } from '../../../../platform/markers/common
 import { ExtensionsRegistry, ExtensionMessageCollector } from '../../../services/extensions/common/extensionsRegistry.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { FileType, IFileService, IFileStatWithPartialMetadata, IFileSystemProvider } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export enum FileLocationKind {
 	Default,
@@ -301,12 +302,12 @@ export interface ILineMatcher {
 	handle(lines: string[], start?: number): IHandleResult;
 }
 
-export function createLineMatcher(matcher: ProblemMatcher, fileService?: IFileService): ILineMatcher {
+export function createLineMatcher(matcher: ProblemMatcher, fileService?: IFileService, logService?: ILogService): ILineMatcher {
 	const pattern = matcher.pattern;
 	if (Array.isArray(pattern)) {
-		return new MultiLineMatcher(matcher, fileService);
+		return new MultiLineMatcher(matcher, fileService, logService);
 	} else {
-		return new SingleLineMatcher(matcher, fileService);
+		return new SingleLineMatcher(matcher, fileService, logService);
 	}
 }
 
@@ -315,10 +316,12 @@ const endOfLine: string = Platform.OS === Platform.OperatingSystem.Windows ? '\r
 abstract class AbstractLineMatcher implements ILineMatcher {
 	private matcher: ProblemMatcher;
 	private fileService?: IFileService;
+	private logService?: ILogService;
 
-	constructor(matcher: ProblemMatcher, fileService?: IFileService) {
+	constructor(matcher: ProblemMatcher, fileService?: IFileService, logService?: ILogService) {
 		this.matcher = matcher;
 		this.fileService = fileService;
+		this.logService = logService;
 	}
 
 	public handle(lines: string[], start: number = 0): IHandleResult {
@@ -330,6 +333,16 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 	}
 
 	public abstract get matchLength(): number;
+
+	protected regexpExec(regexp: RegExp, line: string): RegExpExecArray | null {
+		const start = Date.now();
+		const result = regexp.exec(line);
+		const elapsed = Date.now() - start;
+		if (elapsed > 5) {
+			this.logService?.trace(`ProblemMatcher: slow regexp took ${elapsed}ms to execute`, regexp.source);
+		}
+		return result;
+	}
 
 	protected fillProblemData(data: IProblemData | undefined, pattern: IProblemPattern, matches: RegExpExecArray): data is IProblemData {
 		if (data) {
@@ -482,8 +495,8 @@ class SingleLineMatcher extends AbstractLineMatcher {
 
 	private pattern: IProblemPattern;
 
-	constructor(matcher: ProblemMatcher, fileService?: IFileService) {
-		super(matcher, fileService);
+	constructor(matcher: ProblemMatcher, fileService?: IFileService, logService?: ILogService) {
+		super(matcher, fileService, logService);
 		this.pattern = <IProblemPattern>matcher.pattern;
 	}
 
@@ -497,7 +510,7 @@ class SingleLineMatcher extends AbstractLineMatcher {
 		if (this.pattern.kind !== undefined) {
 			data.kind = this.pattern.kind;
 		}
-		const matches = this.pattern.regexp.exec(lines[start]);
+		const matches = this.regexpExec(this.pattern.regexp, lines[start]);
 		if (matches) {
 			this.fillProblemData(data, this.pattern, matches);
 			if (data.kind === ProblemLocationKind.Location && !data.location && !data.line && data.file) {
@@ -521,8 +534,8 @@ class MultiLineMatcher extends AbstractLineMatcher {
 	private patterns: IProblemPattern[];
 	private data: IProblemData | undefined;
 
-	constructor(matcher: ProblemMatcher, fileService?: IFileService) {
-		super(matcher, fileService);
+	constructor(matcher: ProblemMatcher, fileService?: IFileService, logService?: ILogService) {
+		super(matcher, fileService, logService);
 		this.patterns = <IProblemPattern[]>matcher.pattern;
 	}
 
@@ -537,7 +550,7 @@ class MultiLineMatcher extends AbstractLineMatcher {
 		data.kind = this.patterns[0].kind;
 		for (let i = 0; i < this.patterns.length; i++) {
 			const pattern = this.patterns[i];
-			const matches = pattern.regexp.exec(lines[i + start]);
+			const matches = this.regexpExec(pattern.regexp, lines[i + start]);
 			if (!matches) {
 				return { match: null, continue: false };
 			} else {
@@ -559,7 +572,7 @@ class MultiLineMatcher extends AbstractLineMatcher {
 	public override next(line: string): IProblemMatch | null {
 		const pattern = this.patterns[this.patterns.length - 1];
 		Assert.ok(pattern.loop === true && this.data !== null);
-		const matches = pattern.regexp.exec(line);
+		const matches = this.regexpExec(pattern.regexp, line);
 		if (!matches) {
 			this.data = undefined;
 			return null;

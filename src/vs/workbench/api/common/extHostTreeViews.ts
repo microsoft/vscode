@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../nls.js';
 import type * as vscode from 'vscode';
 import { basename } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -151,7 +150,13 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 			dispose: async () => {
 				// Wait for the registration promise to finish before doing the dispose.
 				await registerPromise;
-				this._treeViews.delete(viewId);
+				// Only notify the main thread if this view was not replaced by a new registration.
+				// When an extension disposes a view and immediately re-registers it, the new
+				// registration may have already updated _treeViews before this async dispose runs.
+				if (this._treeViews.get(viewId) === treeView) {
+					this._treeViews.delete(viewId);
+					this._proxy.$disposeTree(viewId);
+				}
 				treeView.dispose();
 			}
 		};
@@ -870,10 +875,14 @@ class ExtHostTreeView<T> extends Disposable {
 		if (duplicateHandle) {
 			const existingElement = this._elements.get(duplicateHandle);
 			if (existingElement) {
-				if (existingElement !== element) {
-					throw new Error(localize('treeView.duplicateElement', 'Element with id {0} is already registered', extTreeItem.id));
-				}
 				const existingNode = this._nodes.get(existingElement);
+				if (existingElement !== element) {
+					// A different element object was registered with the same ID.
+					// This can happen during concurrent tree operations (e.g., tree
+					// being switched to while data is updated). Clean up the stale
+					// element reference before re-registering with the new one.
+					this._nodes.delete(existingElement);
+				}
 				if (existingNode) {
 					const newNode = this._createTreeNode(element, extTreeItem, parentNode);
 					this._updateNodeCache(element, newNode, existingNode, parentNode);
@@ -1108,6 +1117,5 @@ class ExtHostTreeView<T> extends Disposable {
 		this._refreshCancellationSource.dispose();
 
 		this._clearAll();
-		this._proxy.$disposeTree(this._viewId);
 	}
 }

@@ -26,7 +26,7 @@
 					"message": 4
 				},
 				"background": {
-					"beginsPattern": "Starting transpilation...",
+					"beginsPattern": "Starting transpilation\\.\\.\\.",
 					"endsPattern": "Finished transpilation with"
 				}
 			}
@@ -54,7 +54,7 @@
 					"message": 3
 				},
 				"background": {
-					"beginsPattern": "Starting compilation...",
+					"beginsPattern": "Starting compilation\\.\\.\\.",
 					"endsPattern": "Finished compilation with"
 				}
 			}
@@ -73,10 +73,11 @@
 				"owner": "typescript",
 				"applyTo": "closedDocuments",
 				"fileLocation": [
-					"absolute"
+					"relative",
+					"${workspaceFolder}"
 				],
 				"pattern": {
-					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"regexp": "\\] ([^(]+)\\((\\d+,\\d+)\\): (.*)$",
 					"file": 1,
 					"location": 2,
 					"message": 3
@@ -227,6 +228,41 @@
 			"problemMatcher": []
 		},
 		{
+			"label": "Run Dev Sessions",
+			"type": "shell",
+			"command": "./scripts/code.sh",
+			"windows": {
+				"command": ".\\scripts\\code.bat"
+			},
+			"args": [
+				"--sessions"
+			],
+			"problemMatcher": []
+		},
+		{
+			"label": "Run and Compile Sessions - OSS",
+			"type": "shell",
+			"command": "npm run transpile-client && ./scripts/code.sh",
+			"windows": {
+				"command": "npm run transpile-client && .\\scripts\\code.bat"
+			},
+			"args": [
+				"--sessions"
+			],
+			"inSessions": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run and Compile Code - OSS",
+			"type": "shell",
+			"command": "npm run transpile-client && ./scripts/code.sh",
+			"windows": {
+				"command": "npm run transpile-client && .\\scripts\\code.bat"
+			},
+			"inSessions": true,
+			"problemMatcher": []
+		},
+		{
 			"type": "npm",
 			"script": "electron",
 			"label": "Download electron"
@@ -356,6 +392,39 @@
 			"problemMatcher": [
 				"$tsc"
 			]
+		},
+		{
+			"label": "Launch Component Explorer",
+			"type": "shell",
+			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "component-explorer",
+				"fileLocation": "absolute",
+				"pattern": {
+					"regexp": "^\\s*at\\s+(.+?):(\\d+):(\\d+)\\s*$",
+					"file": 1,
+					"line": 2,
+					"column": 3
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*Setting up sessions.*",
+					"endsPattern": "Redirection server listening on.*"
+				}
+			}
+		},
+		{
+			"label": "Install & Watch",
+			"type": "shell",
+			"command": "npm ci && npm run watch",
+			"windows": {
+				"command": "cmd /c \"npm ci && npm run watch\""
+			},
+			"inSessions": true,
+			"runOptions": {
+				"runOn": "worktreeCreated"
+			}
 		}
 	]
 }

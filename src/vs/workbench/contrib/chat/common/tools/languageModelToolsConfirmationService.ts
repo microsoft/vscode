@@ -17,6 +17,8 @@ export interface ILanguageModelToolConfirmationActions {
 	detail?: string;
 	/** Show a separator before this action */
 	divider?: boolean;
+	/** The scope of this action, if applicable */
+	scope?: 'session' | 'workspace' | 'profile';
 	/** Selects this action. Resolves true if the action should be confirmed after selection */
 	select(): Promise<boolean>;
 }
@@ -40,7 +42,7 @@ export interface ILanguageModelToolConfirmationActionProducer {
 export interface ILanguageModelToolConfirmationContributionQuickTreeItem extends IQuickTreeItem {
 	onDidTriggerItemButton?(button: IQuickInputButton): void;
 	onDidChangeChecked?(checked: boolean): void;
-	onDidOpen?(): void;
+	onDidOpen?(): void | Promise<void>;
 }
 
 /**
@@ -83,13 +85,22 @@ export interface ILanguageModelToolsConfirmationService extends ILanguageModelTo
 	readonly _serviceBrand: undefined;
 
 	/** Opens an IQuickTree to let the user manage their preferences.  */
-	manageConfirmationPreferences(tools: readonly IToolData[], options?: { defaultScope?: 'workspace' | 'profile' | 'session' }): void;
+	manageConfirmationPreferences(tools: readonly IToolData[], options?: { defaultScope?: 'workspace' | 'profile' | 'session'; focusToolId?: string }): void;
 
 	/**
 	 * Registers a contribution that provides more specific confirmation logic
 	 * for a tool, in addition to the default confirmation handling.
 	 */
 	registerConfirmationContribution(toolName: string, contribution: ILanguageModelToolConfirmationContribution): IDisposable;
+
+	/**
+	 * Returns true if the tool has confirmation that can be managed, either
+	 * because it has {@link IToolData.canRequestPreApproval} or
+	 * {@link IToolData.canRequestPostApproval} set, because a
+	 * {@link ILanguageModelToolConfirmationContribution} is registered for it,
+	 * or because it has stored auto-confirmation settings.
+	 */
+	toolCanManageConfirmation(tool: IToolData): boolean;
 
 	/** Resets all tool and server confirmation preferences */
 	resetToolAutoConfirmation(): void;

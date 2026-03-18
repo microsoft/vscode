@@ -62,6 +62,7 @@ suite('ObservableChatSession', function () {
 			$disposeChatSessionContent: sinon.stub(),
 			$refreshChatSessionItems: sinon.stub(),
 			$onDidChangeChatSessionItemState: sinon.stub(),
+			$newChatSessionItem: sinon.stub().resolves(undefined),
 		};
 	});
 
@@ -74,12 +75,14 @@ suite('ObservableChatSession', function () {
 
 	function createSessionContent(options: {
 		id?: string;
+		title?: string;
 		history?: any[];
 		hasActiveResponseCallback?: boolean;
 		hasRequestHandler?: boolean;
 	} = {}) {
 		return {
 			id: options.id || 'test-id',
+			title: options.title,
 			history: options.history || [],
 			hasActiveResponseCallback: options.hasActiveResponseCallback || false,
 			hasRequestHandler: options.hasRequestHandler || false
@@ -90,7 +93,7 @@ suite('ObservableChatSession', function () {
 		const resource = LocalChatSessionUri.forSession(sessionId);
 		const session = new ObservableChatSession(resource, 1, proxy, logService, dialogService);
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
-		await session.initialize(CancellationToken.None);
+		await session.initialize(CancellationToken.None, { initialSessionOptions: [] });
 		return session;
 	}
 
@@ -127,7 +130,7 @@ suite('ObservableChatSession', function () {
 		// Initialize the session
 		const sessionContent = createSessionContent();
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
-		await session.initialize(CancellationToken.None);
+		await session.initialize(CancellationToken.None, { initialSessionOptions: [] });
 
 		// Now progress should be visible
 		assert.strictEqual(session.progressObs.get().length, 2);
@@ -160,6 +163,22 @@ suite('ObservableChatSession', function () {
 		assert.ok(session.requestHandler);
 	});
 
+	test('initialization sets title from session content', async function () {
+		const sessionContent = createSessionContent({
+			title: 'My Custom Title',
+		});
+
+		const session = disposables.add(await createInitializedSession(sessionContent));
+		assert.strictEqual(session.title, 'My Custom Title');
+	});
+
+	test('title is undefined when not provided in session content', async function () {
+		const sessionContent = createSessionContent();
+
+		const session = disposables.add(await createInitializedSession(sessionContent));
+		assert.strictEqual(session.title, undefined);
+	});
+
 	test('initialization is idempotent and returns same promise', async function () {
 		const sessionId = 'test-id';
 		const resource = LocalChatSessionUri.forSession(sessionId);
@@ -168,14 +187,33 @@ suite('ObservableChatSession', function () {
 		const sessionContent = createSessionContent();
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 
-		const promise1 = session.initialize(CancellationToken.None);
-		const promise2 = session.initialize(CancellationToken.None);
+		const promise1 = session.initialize(CancellationToken.None, { initialSessionOptions: [] });
+		const promise2 = session.initialize(CancellationToken.None, { initialSessionOptions: [] });
 
 		assert.strictEqual(promise1, promise2);
 		await promise1;
 
 		// Should only call proxy once even though initialize was called twice
 		assert.ok((proxy.$provideChatSessionContent as sinon.SinonStub).calledOnce);
+	});
+
+	test('initialization forwards initial session options context', async function () {
+		const sessionId = 'test-id';
+		const resource = LocalChatSessionUri.forSession(sessionId);
+		const session = disposables.add(new ObservableChatSession(resource, 1, proxy, logService, dialogService));
+		const initialSessionOptions = [{ optionId: 'model', value: 'gpt-4.1' }];
+
+		const sessionContent = createSessionContent();
+		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
+
+		await session.initialize(CancellationToken.None, { initialSessionOptions });
+
+		assert.ok((proxy.$provideChatSessionContent as sinon.SinonStub).calledOnceWith(
+			1,
+			resource,
+			{ initialSessionOptions },
+			CancellationToken.None
+		));
 	});
 
 	test('progress handling works correctly after initialization', async function () {
@@ -359,6 +397,7 @@ suite('MainThreadChatSessions', function () {
 			$disposeChatSessionContent: sinon.stub(),
 			$refreshChatSessionItems: sinon.stub(),
 			$onDidChangeChatSessionItemState: sinon.stub(),
+			$newChatSessionItem: sinon.stub().resolves(undefined),
 		};
 
 		const extHostContext = new class implements IExtHostContext {
@@ -436,6 +475,28 @@ suite('MainThreadChatSessions', function () {
 		assert.strictEqual(session1, session2);
 
 		assert.ok((proxy.$provideChatSessionContent as sinon.SinonStub).calledOnce);
+		mainThread.$unregisterChatSessionContentProvider(1);
+	});
+
+	test('provideChatSessionContent propagates title', async function () {
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		const sessionContent = {
+			id: 'test-session',
+			title: 'My Session Title',
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false
+		};
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+
+		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
+		const session = await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None);
+
+		assert.strictEqual(session.title, 'My Session Title');
+
 		mainThread.$unregisterChatSessionContentProvider(1);
 	});
 

@@ -59,17 +59,17 @@
               "url": {
                 "type": "string",
                 "default": "/user.schema.json",
-                "description": "%json.schemas.url.desc%"
+                "markdownDescription": "%json.schemas.url.desc%"
               },
               "fileMatch": {
                 "type": "array",
                 "items": {
                   "type": "string",
                   "default": "MyFile.json",
-                  "description": "%json.schemas.fileMatch.item.desc%"
+                  "markdownDescription": "%json.schemas.fileMatch.item.desc%"
                 },
                 "minItems": 1,
-                "description": "%json.schemas.fileMatch.desc%"
+                "markdownDescription": "%json.schemas.fileMatch.desc%"
               },
               "schema": {
                 "$ref": "http://json-schema.org/draft-07/schema#",
@@ -131,15 +131,17 @@
           "type": "object",
           "default": {
             "https://schemastore.azurewebsites.net/": true,
-            "https://raw.githubusercontent.com/": true,
+            "https://raw.githubusercontent.com/microsoft/vscode/": true,
+            "https://raw.githubusercontent.com/devcontainers/spec/": true,
             "https://www.schemastore.org/": true,
             "https://json.schemastore.org/": true,
-            "https://json-schema.org/": true
+            "https://json-schema.org/": true,
+            "https://developer.microsoft.com/json-schemas/": true
           },
           "additionalProperties": {
             "type": "boolean"
           },
-          "description": "%json.schemaDownload.trustedDomains.desc%",
+          "markdownDescription": "%json.schemaDownload.trustedDomains.desc%",
           "tags": [
             "usesOnlineServices"
           ]
@@ -188,7 +190,7 @@
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
     "request-light": "^0.8.0",
-    "vscode-languageclient": "^10.0.0-next.18"
+    "vscode-languageclient": "^10.0.0-next.20"
   },
   "devDependencies": {
     "@types/node": "22.x"

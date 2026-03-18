@@ -945,7 +945,6 @@ export const ContextKeys = {
 	SCMCurrentHistoryItemRefInFilter: new RawContextKey<boolean>('scmCurrentHistoryItemRefInFilter', false),
 	RepositoryCount: new RawContextKey<number>('scmRepositoryCount', 0),
 	RepositoryVisibilityCount: new RawContextKey<number>('scmRepositoryVisibleCount', 0),
-	SCMInputHasValidationMessage: new RawContextKey<boolean>('scmInputHasValidationMessage', false),
 	RepositoryVisibility(repository: ISCMRepository) {
 		return new RawContextKey<boolean>(`scmRepositoryVisible:${repository.provider.id}`, false);
 	}

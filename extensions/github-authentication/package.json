@@ -20,7 +20,7 @@
   "enabledApiProposals": [
     "authIssuers",
     "authProviderSpecific",
-    "envIsAppPortable"
+    "agentSessionsWorkspace"
   ],
   "activationEvents": [],
   "capabilities": {
@@ -79,9 +79,9 @@
   "browser": "./dist/browser/extension.js",
   "scripts": {
     "compile": "gulp compile-extension:github-authentication",
-    "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
+    "compile-web": "node esbuild.browser.mts",
     "watch": "gulp watch-extension:github-authentication",
-    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose",
+    "watch-web": "node esbuild.browser.mts --watch",
     "vscode:prepublish": "npm run compile"
   },
   "dependencies": {

@@ -24,7 +24,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
 import { ChatModel, IChatModel } from '../../../common/model/chatModel.js';
 import { IChatService, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
 import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet, IToolResultTextPart } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -77,20 +77,19 @@ function registerToolForTest(service: LanguageModelToolsService, store: any, id:
 			tokenBudget: 100,
 			parameters,
 			context: context ? {
-				sessionId: context.sessionId,
 				sessionResource: LocalChatSessionUri.forSession(context.sessionId),
 			} : undefined,
 		}),
 	};
 }
 
-function stubGetSession(chatService: MockChatService, sessionId: string, options?: { requestId?: string; capture?: { invocation?: any } }): IChatModel {
+function stubGetSession(chatService: MockChatService, sessionId: string, options?: { requestId?: string; capture?: { invocation?: any }; modeInfo?: { permissionLevel?: ChatPermissionLevel } }): IChatModel {
 	const requestId = options?.requestId ?? 'requestId';
 	const capture = options?.capture;
 	const fakeModel = {
 		sessionId,
 		sessionResource: LocalChatSessionUri.forSession(sessionId),
-		getRequests: () => [{ id: requestId, modelId: 'test-model' }],
+		getRequests: () => [{ id: requestId, modelId: 'test-model', modeInfo: options?.modeInfo }],
 	} as ChatModel;
 	chatService.addSession(fakeModel);
 	chatService.appendProgress = (request, progress) => {
@@ -593,6 +592,48 @@ suite('LanguageModelToolsService', () => {
 		await promise;
 	});
 
+	test('skipping modified-files confirmation returns the shared skip message and does not invoke the tool', async () => {
+		let invoked = false;
+		const tool = registerToolForTest(service, store, 'testModifiedFilesConfirmationSkip', {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: {
+					title: 'Confirm',
+					message: 'Choose',
+					allowAutoConfirm: false,
+				},
+				toolSpecificData: {
+					kind: 'modifiedFilesConfirmation',
+					options: ['Copy Changes', 'Move Changes'],
+					modifiedFiles: [{
+						uri: URI.parse('file:///workspace/file1.ts')
+					}]
+				}
+			}),
+			invoke: async () => {
+				invoked = true;
+				return { content: [{ kind: 'text', value: 'should not run' }] };
+			},
+		});
+
+		const sessionId = 'sessionId-modified-files-skip';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'requestId-modified-files-skip', capture });
+
+		const dto = tool.makeDto({ x: 1 }, { sessionId });
+		const promise = service.invokeTool(dto, async () => 0, CancellationToken.None);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published, 'expected ChatToolInvocation to be published');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.Skipped });
+		const result = await promise;
+
+		assert.strictEqual(invoked, false);
+		assert.deepStrictEqual(result.content, [{
+			kind: 'text',
+			value: 'The user chose to skip the tool call, they want to proceed without running it'
+		}]);
+	});
+
 	test('cancel tool call', async () => {
 		const toolBarrier = new Barrier();
 		const tool = registerToolForTest(service, store, 'testTool', {
@@ -619,6 +660,40 @@ suite('LanguageModelToolsService', () => {
 		await assert.rejects(toolPromise, err => {
 			return isCancellationError(err);
 		}, 'Expected tool call to be cancelled');
+	});
+
+	test('rejects tool invocation for cancelled request id', async () => {
+		let invoked = false;
+		const tool = registerToolForTest(service, store, 'testTool', {
+			invoke: async () => {
+				invoked = true;
+				return { content: [{ kind: 'text', value: 'done' }] };
+			}
+		});
+
+		const sessionId = 'sessionId-cancelled-request';
+		const requestId = 'requestId-cancelled-request';
+		const fakeModel = {
+			sessionId,
+			sessionResource: LocalChatSessionUri.forSession(sessionId),
+			getRequests: () => [{
+				id: requestId,
+				modelId: 'test-model',
+				response: { isCanceled: true },
+			}],
+		} as ChatModel;
+		chatService.addSession(fakeModel);
+
+		const dto: IToolInvocation = {
+			...tool.makeDto({ a: 1 }, { sessionId }),
+			chatRequestId: requestId,
+		};
+
+		await assert.rejects(service.invokeTool(dto, async () => 0, CancellationToken.None), err => {
+			return isCancellationError(err);
+		}, 'Expected tool invocation to be rejected for cancelled request id');
+
+		assert.strictEqual(invoked, false, 'Tool implementation should not run after request cancellation');
 	});
 
 	test('toFullReferenceNames', () => {
@@ -1420,6 +1495,235 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(testAccessibilitySignalService.signalPlayedCalls.length, 0, 'accessibility signal should not be played when auto-approve is enabled');
 	});
 
+	test('autopilot permission level bypasses global auto-approve check', async () => {
+		// When autopilot is on, tools should auto-approve without needing global auto-approve enabled
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
+			configureServices: config => {
+				config.setUserConfiguration('chat.tools.global.autoApprove', false); // Global OFF
+			}
+		});
+
+		const tool = registerToolForTest(testService, store, 'autopilotTool', {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Confirm?', message: 'Should be auto-approved by autopilot' } }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'autopilot approved' }] })
+		});
+
+		const sessionId = 'test-autopilot';
+		stubGetSession(testChatService, sessionId, {
+			requestId: 'req1',
+			modeInfo: { permissionLevel: ChatPermissionLevel.Autopilot },
+		});
+
+		// Tool should be auto-approved even though global auto-approve is off
+		const result = await testService.invokeTool(
+			tool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result.content[0].value, 'autopilot approved');
+	});
+
+	test('autopilot finds correct request by chatRequestId', async () => {
+		// When chatRequestId is provided, the exact request should be matched
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
+			configureServices: config => {
+				config.setUserConfiguration('chat.tools.global.autoApprove', false);
+			}
+		});
+
+		const tool = registerToolForTest(testService, store, 'autopilotIdTool', {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Confirm?', message: 'Test' } }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'found by id' }] })
+		});
+
+		const sessionId = 'test-autopilot-id';
+		const fakeModel = {
+			sessionId,
+			sessionResource: LocalChatSessionUri.forSession(sessionId),
+			getRequests: () => [
+				{ id: 'req-old', modelId: 'test-model', modeInfo: undefined },
+				{ id: 'req-autopilot', modelId: 'test-model', modeInfo: { permissionLevel: ChatPermissionLevel.Autopilot } },
+			],
+		} as ChatModel;
+		testChatService.addSession(fakeModel);
+
+		const dto = tool.makeDto({ test: 1 }, { sessionId });
+		dto.chatRequestId = 'req-autopilot';
+
+		const result = await testService.invokeTool(dto, async () => 0, CancellationToken.None);
+		assert.strictEqual(result.content[0].value, 'found by id');
+	});
+
+	test('autopilot auto-approves terminal tool with confirmation messages', async () => {
+		// Terminal tools always return confirmationMessages when their own auto-approve is off.
+		// In autopilot mode, shouldAutoConfirm should still auto-approve the tool.
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
+			configureServices: config => {
+				config.setUserConfiguration('chat.tools.global.autoApprove', false);
+			}
+		});
+
+		const tool = registerToolForTest(testService, store, 'terminalTool', {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: {
+					title: 'Run shell command?',
+					message: 'echo hello',
+				},
+				toolSpecificData: {
+					kind: 'terminal' as const,
+					terminalToolSessionId: 'test',
+					terminalCommandId: 'cmd-1',
+					commandLine: { original: 'echo hello' },
+					language: 'sh',
+				},
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'terminal executed' }] })
+		});
+
+		const sessionId = 'test-autopilot-terminal';
+		stubGetSession(testChatService, sessionId, {
+			requestId: 'req1',
+			modeInfo: { permissionLevel: ChatPermissionLevel.Autopilot },
+		});
+
+		// Terminal tool should be auto-approved by autopilot even without terminal auto-approve enabled
+		const result = await testService.invokeTool(
+			tool.makeDto({ command: 'echo hello', explanation: 'test', goal: 'test', isBackground: false }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result.content[0].value, 'terminal executed');
+	});
+
+	test('bypass approvals auto-approves terminal tool with confirmation messages', async () => {
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
+			configureServices: config => {
+				config.setUserConfiguration('chat.tools.global.autoApprove', false);
+			}
+		});
+
+		const tool = registerToolForTest(testService, store, 'terminalToolBypass', {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: {
+					title: 'Run shell command?',
+					message: 'ls -la',
+				},
+				toolSpecificData: {
+					kind: 'terminal' as const,
+					terminalToolSessionId: 'test',
+					terminalCommandId: 'cmd-2',
+					commandLine: { original: 'ls -la' },
+					language: 'sh',
+				},
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'bypass executed' }] })
+		});
+
+		const sessionId = 'test-bypass-terminal';
+		stubGetSession(testChatService, sessionId, {
+			requestId: 'req1',
+			modeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove },
+		});
+
+		const result = await testService.invokeTool(
+			tool.makeDto({ command: 'ls -la', explanation: 'test', goal: 'test', isBackground: false }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result.content[0].value, 'bypass executed');
+	});
+
+	test('bypass approvals does not auto-approve tools in toolIdsThatCannotBeAutoApproved for CLI sessions', async () => {
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
+			configureServices: config => {
+				config.setUserConfiguration('chat.tools.global.autoApprove', false);
+			}
+		});
+
+		// Register a tool with the ID that should never be auto-approved
+		registerToolForTest(testService, store, 'vscode_get_modified_files_confirmation', {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: {
+					title: 'Uncommitted Changes',
+					message: 'Should these changes be included?',
+				},
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'confirmed' }] })
+		});
+
+		// Create a CLI session URI (authority = 'copilotcli' instead of 'local')
+		const sessionId = 'test-bypass-no-auto-confirm';
+		const cliSessionResource = URI.from({
+			scheme: LocalChatSessionUri.scheme,
+			authority: 'copilotcli',
+			path: '/' + sessionId
+		});
+
+		const capture: { invocation?: any } = {};
+		const fakeModel = {
+			sessionId,
+			sessionResource: cliSessionResource,
+			getRequests: () => [{ id: 'req1', modelId: 'test-model', modeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove } }],
+		} as ChatModel;
+		testChatService.addSession(fakeModel);
+		testChatService.appendProgress = (_request, progress) => {
+			capture.invocation = progress;
+		};
+
+		const resultPromise = testService.invokeTool(
+			{
+				callId: '1',
+				toolId: 'vscode_get_modified_files_confirmation',
+				tokenBudget: 100,
+				parameters: { test: true },
+				context: { sessionResource: cliSessionResource },
+			},
+			async () => 0,
+			CancellationToken.None
+		);
+
+		// The tool should NOT be auto-approved for CLI sessions — it must show confirmation UI
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'tool in toolIdsThatCannotBeAutoApproved should require confirmation for CLI sessions even with Bypass Approvals');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const result = await resultPromise;
+		assert.strictEqual(result.content[0].value, 'confirmed');
+	});
+
+	test('bypass approvals auto-approves tools in toolIdsThatCannotBeAutoApproved for local sessions', async () => {
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
+			configureServices: config => {
+				config.setUserConfiguration('chat.tools.global.autoApprove', false);
+			}
+		});
+
+		// Register a tool with the ID that cannot be auto-approved for CLI
+		const tool = registerToolForTest(testService, store, 'vscode_get_modified_files_confirmation', {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: {
+					title: 'Uncommitted Changes',
+					message: 'Should these changes be included?',
+				},
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'auto approved for local' }] })
+		});
+
+		const sessionId = 'test-bypass-local-auto-confirm';
+		stubGetSession(testChatService, sessionId, {
+			requestId: 'req1',
+			modeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove },
+		});
+
+		// For local sessions, Bypass Approvals should auto-approve even these tools
+		const result = await testService.invokeTool(
+			tool.makeDto({ test: true }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result.content[0].value, 'auto approved for local');
+	});
+
 	test('shouldAutoConfirm with basic configuration', async () => {
 		// Test basic shouldAutoConfirm behavior with simple configuration
 		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
@@ -2211,6 +2515,30 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(deprecatedNames.get('userToolSetRefName'), undefined);
 	});
 
+	test('getDeprecatedFullReferenceNames includes namespaced legacy names for tools in toolsets', () => {
+		// When a tool is in a toolset and has legacy names, the deprecated names map
+		// should also include the namespaced form (e.g. 'vscode/oldName' → 'vscode/newName')
+		const toolWithLegacy: IToolData = {
+			id: 'myNewBrowser',
+			toolReferenceName: 'openIntegratedBrowser',
+			legacyToolReferenceFullNames: ['openSimpleBrowser'],
+			modelDescription: 'Open browser',
+			displayName: 'Open Integrated Browser',
+			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(toolWithLegacy));
+		store.add(service.vscodeToolSet.addTool(toolWithLegacy));
+
+		const deprecated = service.getDeprecatedFullReferenceNames();
+
+		// The simple legacy name should map to the full reference name
+		assert.deepStrictEqual(deprecated.get('openSimpleBrowser'), new Set(['vscode/openIntegratedBrowser']));
+
+		// The namespaced legacy name should also map to the full reference name
+		assert.deepStrictEqual(deprecated.get('vscode/openSimpleBrowser'), new Set(['vscode/openIntegratedBrowser']));
+	});
+
 	test('getToolByFullReferenceName', () => {
 		setupToolsForTest(service, store);
 
@@ -2902,7 +3230,6 @@ suite('LanguageModelToolsService', () => {
 			tokenBudget: 100,
 			parameters: { test: 1 },
 			context: {
-				sessionId,
 				sessionResource: LocalChatSessionUri.forSession(sessionId),
 			},
 			chatStreamToolCallId: 'stream-call-id', // This should correlate
@@ -3849,7 +4176,7 @@ suite('LanguageModelToolsService', () => {
 
 			// Verify error result returned
 			assert.ok(result.toolResultError);
-			assert.ok(result.toolResultError.includes('Destructive operations require approval'));
+			assert.ok((result.toolResultError as string).includes('Destructive operations require approval'));
 			assert.strictEqual(result.content[0].kind, 'text');
 			assert.ok((result.content[0] as IToolResultTextPart).value.includes('Tool execution denied'));
 

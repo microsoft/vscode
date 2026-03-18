@@ -7,14 +7,17 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
 import { promisify } from 'util';
+
 import glob from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
-import { convertPrivateFields, type ConvertPrivateFieldsResult } from './private-to-property.ts';
+import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult } from './private-to-property.ts';
 import { getVersion } from '../lib/getVersion.ts';
+import { getGitCommitDate } from '../lib/date.ts';
 import product from '../../product.json' with { type: 'json' };
 import packageJson from '../../package.json' with { type: 'json' };
 import { useEsbuildTranspile } from '../buildConfig.ts';
+import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 
 const globAsync = promisify(glob);
 
@@ -71,7 +74,8 @@ const extensionHostEntryPoints = [
 ];
 
 function isExtensionHostBundle(filePath: string): boolean {
-	return extensionHostEntryPoints.some(ep => filePath.endsWith(`${ep}.js`));
+	const normalized = filePath.replaceAll('\\', '/');
+	return extensionHostEntryPoints.some(ep => normalized.endsWith(`${ep}.js`));
 }
 
 // Workers - shared between targets
@@ -93,9 +97,11 @@ const desktopWorkerEntryPoints = [
 // Desktop workbench and code entry points
 const desktopEntryPoints = [
 	'vs/workbench/workbench.desktop.main',
+	'vs/sessions/sessions.desktop.main',
 	'vs/workbench/contrib/debug/node/telemetryApp',
 	'vs/platform/files/node/watcher/watcherMain',
 	'vs/platform/terminal/node/ptyHostMain',
+	'vs/platform/agentHost/node/agentHostMain',
 	'vs/workbench/api/node/extensionHostProcess',
 ];
 
@@ -103,6 +109,7 @@ const codeEntryPoints = [
 	'vs/code/node/cliProcessMain',
 	'vs/code/electron-utility/sharedProcess/sharedProcessMain',
 	'vs/code/electron-browser/workbench/workbench',
+	'vs/sessions/electron-browser/sessions',
 ];
 
 // Web entry points (used in server-web and vscode-web)
@@ -197,6 +204,8 @@ function getCssBundleEntryPointsForTarget(target: BuildTarget): Set<string> {
 			return new Set([
 				'vs/workbench/workbench.desktop.main',
 				'vs/code/electron-browser/workbench/workbench',
+				'vs/sessions/sessions.desktop.main',
+				'vs/sessions/electron-browser/sessions',
 			]);
 		case 'server':
 			return new Set(); // Server has no UI
@@ -227,6 +236,7 @@ const commonResourcePatterns = [
 	// SVGs referenced from CSS (needed for transpile/dev builds where CSS is copied as-is)
 	'vs/workbench/browser/media/code-icon.svg',
 	'vs/workbench/browser/parts/editor/media/letterpress*.svg',
+	'vs/sessions/contrib/chat/browser/media/*.svg'
 ];
 
 // Resources for desktop target
@@ -236,6 +246,8 @@ const desktopResourcePatterns = [
 	// HTML
 	'vs/code/electron-browser/workbench/workbench.html',
 	'vs/code/electron-browser/workbench/workbench-dev.html',
+	'vs/sessions/electron-browser/sessions.html',
+	'vs/sessions/electron-browser/sessions-dev.html',
 	'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
 	'vs/workbench/contrib/webview/browser/pre/*.html',
 
@@ -249,6 +261,12 @@ const desktopResourcePatterns = [
 	'vs/workbench/contrib/terminal/common/scripts/*.psm1',
 	'vs/workbench/contrib/terminal/common/scripts/*.fish',
 	'vs/workbench/contrib/terminal/common/scripts/*.zsh',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.psd1',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.psm1',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.dll',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.ps1xml',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/net6plus/*.dll',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/netstd/*.dll',
 	'vs/workbench/contrib/externalTerminal/**/*.scpt',
 
 	// Media - audio
@@ -262,6 +280,10 @@ const desktopResourcePatterns = [
 	'vs/workbench/services/extensionManagement/common/media/*.png',
 	'vs/workbench/browser/parts/editor/media/*.png',
 	'vs/workbench/contrib/debug/browser/media/*.png',
+
+	// Sessions - built-in prompts and skills
+	'vs/sessions/prompts/*.prompt.md',
+	'vs/sessions/skills/**/SKILL.md',
 ];
 
 // Resources for server target (minimal - no UI)
@@ -283,6 +305,12 @@ const serverResourcePatterns = [
 	'vs/workbench/contrib/terminal/common/scripts/shellIntegration-rc.zsh',
 	'vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh',
 	'vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.psd1',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.psm1',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.dll',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.ps1xml',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/net6plus/*.dll',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/netstd/*.dll',
 ];
 
 // Resources for server-web target (server + web UI)
@@ -371,43 +399,53 @@ async function cleanDir(dir: string): Promise<void> {
  * Scan for built-in extensions in the given directory.
  * Returns an array of extension entries for the builtinExtensionsScannerService.
  */
-function scanBuiltinExtensions(extensionsRoot: string): Array<{ extensionPath: string; packageJSON: unknown }> {
-	const result: Array<{ extensionPath: string; packageJSON: unknown }> = [];
+function scanBuiltinExtensions(extensionsRoot: string): Array<IScannedBuiltinExtension> {
+	const scannedExtensions: Array<IScannedBuiltinExtension> = [];
 	const extensionsPath = path.join(REPO_ROOT, extensionsRoot);
 
 	if (!fs.existsSync(extensionsPath)) {
-		return result;
+		return scannedExtensions;
 	}
 
-	for (const entry of fs.readdirSync(extensionsPath, { withFileTypes: true })) {
-		if (!entry.isDirectory()) {
+	for (const extensionFolder of fs.readdirSync(extensionsPath)) {
+		const packageJSONPath = path.join(extensionsPath, extensionFolder, 'package.json');
+		if (!fs.existsSync(packageJSONPath)) {
 			continue;
 		}
-		const packageJsonPath = path.join(extensionsPath, entry.name, 'package.json');
-		if (fs.existsSync(packageJsonPath)) {
-			try {
-				const packageJSON = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-				result.push({
-					extensionPath: entry.name,
-					packageJSON
-				});
-			} catch (e) {
-				// Skip invalid extensions
+		try {
+			const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath, 'utf8'));
+			if (!isWebExtension(packageJSON)) {
+				continue;
 			}
+			const children = fs.readdirSync(path.join(extensionsPath, extensionFolder));
+			const packageNLSPath = children.filter(child => child === 'package.nls.json')[0];
+			const packageNLS = packageNLSPath ? JSON.parse(fs.readFileSync(path.join(extensionsPath, extensionFolder, packageNLSPath), 'utf8')) : undefined;
+			const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
+			const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+
+			scannedExtensions.push({
+				extensionPath: extensionFolder,
+				packageJSON,
+				packageNLS,
+				readmePath: readme ? path.join(extensionFolder, readme) : undefined,
+				changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
+			});
+		} catch (e) {
+			// Skip invalid extensions
 		}
 	}
 
-	return result;
+	return scannedExtensions;
 }
 
 /**
- * Get the date from the out directory date file, or return current date.
+ * Get the date from the out directory date file, or return the git commit date.
  */
 function readISODate(outDir: string): string {
 	try {
 		return fs.readFileSync(path.join(REPO_ROOT, outDir, 'date'), 'utf8');
 	} catch {
-		return new Date().toISOString();
+		return getGitCommitDate();
 	}
 }
 
@@ -705,10 +743,19 @@ async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doManglePrivates: boolean, target: BuildTarget, sourceMapBaseUrl?: string): Promise<void> {
 	await cleanDir(outDir);
 
-	// Write build date file (used by packaging to embed in product.json)
+	// Write build date file (used by packaging to embed in product.json).
+	// Reuse the date from out-build/date if it exists (written by the gulp
+	// writeISODate task) so that all parallel bundle outputs share the same
+	// timestamp - this is required for deterministic builds (e.g. macOS Universal).
 	const outDirPath = path.join(REPO_ROOT, outDir);
 	await fs.promises.mkdir(outDirPath, { recursive: true });
-	await fs.promises.writeFile(path.join(outDirPath, 'date'), new Date().toISOString(), 'utf8');
+	let buildDate: string;
+	try {
+		buildDate = await fs.promises.readFile(path.join(REPO_ROOT, 'out-build', 'date'), 'utf8');
+	} catch {
+		buildDate = getGitCommitDate();
+	}
+	await fs.promises.writeFile(path.join(outDirPath, 'date'), buildDate, 'utf8');
 
 	console.log(`[bundle] ${SRC_DIR} → ${outDir} (target: ${target})${doMinify ? ' (minify)' : ''}${doNls ? ' (nls)' : ''}${doManglePrivates ? ' (mangle-privates)' : ''}`);
 	const t1 = Date.now();
@@ -865,6 +912,15 @@ ${tslib}`,
 	// Post-process and write all output files
 	let bundled = 0;
 	const mangleStats: { file: string; result: ConvertPrivateFieldsResult }[] = [];
+	// Map from JS file path to pre-mangle content + edits, for source map adjustment
+	const mangleEdits = new Map<string, { preMangleCode: string; edits: readonly import('./private-to-property.ts').TextEdit[] }>();
+	// Map from JS file path to pre-NLS content + edits, for source map adjustment
+	const nlsEdits = new Map<string, { preNLSCode: string; edits: readonly import('./private-to-property.ts').TextEdit[] }>();
+	// Defer .map files until all .js files are processed, because esbuild may
+	// emit the .map file in a different build result than the .js file (e.g.
+	// code-split chunks), and we need the NLS/mangle edits from the .js pass
+	// to be available when adjusting the .map.
+	const deferredMaps: { path: string; text: string; contents: Uint8Array }[] = [];
 	for (const { result } of buildResults) {
 		if (!result.outputFiles) {
 			continue;
@@ -876,19 +932,28 @@ ${tslib}`,
 			if (file.path.endsWith('.js') || file.path.endsWith('.css')) {
 				let content = file.text;
 
-				// Apply NLS post-processing if enabled (JS only)
-				if (file.path.endsWith('.js') && doNls && indexMap.size > 0) {
-					content = postProcessNLS(content, indexMap, preserveEnglish);
-				}
-
-				// Convert native #private fields to regular properties.
+				// Convert native #private fields to regular properties BEFORE NLS
+				// post-processing, so that the edit offsets align with esbuild's
+				// source map coordinate system (both reference the raw esbuild output).
 				// Skip extension host bundles - they expose API surface to extensions
 				// where true encapsulation matters more than the perf gain.
 				if (file.path.endsWith('.js') && doManglePrivates && !isExtensionHostBundle(file.path)) {
+					const preMangleCode = content;
 					const mangleResult = convertPrivateFields(content, file.path);
 					content = mangleResult.code;
 					if (mangleResult.editCount > 0) {
 						mangleStats.push({ file: path.relative(path.join(REPO_ROOT, outDir), file.path), result: mangleResult });
+						mangleEdits.set(file.path, { preMangleCode, edits: mangleResult.edits });
+					}
+				}
+
+				// Apply NLS post-processing if enabled (JS only)
+				if (file.path.endsWith('.js') && doNls && indexMap.size > 0) {
+					const preNLSCode = content;
+					const nlsResult = postProcessNLS(content, indexMap, preserveEnglish);
+					content = nlsResult.code;
+					if (nlsResult.edits.length > 0) {
+						nlsEdits.set(file.path, { preNLSCode, edits: nlsResult.edits });
 					}
 				}
 
@@ -906,12 +971,36 @@ ${tslib}`,
 				}
 
 				await fs.promises.writeFile(file.path, content);
+			} else if (file.path.endsWith('.map')) {
+				// Defer .map processing until all .js files have been handled
+				deferredMaps.push({ path: file.path, text: file.text, contents: file.contents });
 			} else {
-				// Write other files (source maps, assets) as-is
+				// Write other files (assets, etc.) as-is
 				await fs.promises.writeFile(file.path, file.contents);
 			}
 		}
 		bundled++;
+	}
+
+	// Second pass: process deferred .map files now that all mangle/NLS edits
+	// have been collected from .js processing above.
+	for (const mapFile of deferredMaps) {
+		const jsPath = mapFile.path.replace(/\.map$/, '');
+		const mangle = mangleEdits.get(jsPath);
+		const nls = nlsEdits.get(jsPath);
+
+		if (mangle || nls) {
+			let mapJson = JSON.parse(mapFile.text);
+			if (mangle) {
+				mapJson = adjustSourceMap(mapJson, mangle.preMangleCode, mangle.edits);
+			}
+			if (nls) {
+				mapJson = adjustSourceMap(mapJson, nls.preNLSCode, nls.edits);
+			}
+			await fs.promises.writeFile(mapFile.path, JSON.stringify(mapJson));
+		} else {
+			await fs.promises.writeFile(mapFile.path, mapFile.contents);
+		}
 	}
 
 	// Log mangle-privates stats
@@ -1093,7 +1182,7 @@ async function main(): Promise<void> {
 					// Write build date file (used by packaging to embed in product.json)
 					const outDirPath = path.join(REPO_ROOT, outDir);
 					await fs.promises.mkdir(outDirPath, { recursive: true });
-					await fs.promises.writeFile(path.join(outDirPath, 'date'), new Date().toISOString(), 'utf8');
+					await fs.promises.writeFile(path.join(outDirPath, 'date'), getGitCommitDate(), 'utf8');
 
 					console.log(`[transpile] ${SRC_DIR} → ${outDir}${options.excludeTests ? ' (excluding tests)' : ''}`);
 					const t1 = Date.now();

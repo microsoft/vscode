@@ -11,8 +11,11 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IBrowserViewModel } from '../common/browserView.js';
+import { BrowserViewCommandId } from '../../../../platform/browserView/common/browserView.js';
 import { localize } from '../../../../nls.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { getWindow } from '../../../../base/browser/dom.js';
 
 export const CONTEXT_BROWSER_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('browserFindWidgetVisible', false, localize('browser.findWidgetVisible', "Whether the browser find widget is visible"));
 export const CONTEXT_BROWSER_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('browserFindWidgetFocused', false, localize('browser.findWidgetFocused', "Whether the browser find widget is focused"));
@@ -30,6 +33,9 @@ export class BrowserFindWidget extends SimpleFindWidget {
 	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
 	private _hasFoundMatch = false;
 
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
+
 	constructor(
 		private readonly container: HTMLElement,
 		@IContextViewService contextViewService: IContextViewService,
@@ -45,15 +51,27 @@ export class BrowserFindWidget extends SimpleFindWidget {
 			showResultCount: true,
 			enableSash: true,
 			initialWidth: 350,
-			previousMatchActionId: 'workbench.action.browser.findPrevious',
-			nextMatchActionId: 'workbench.action.browser.findNext',
-			closeWidgetActionId: 'workbench.action.browser.hideFind'
+			previousMatchActionId: BrowserViewCommandId.FindPrevious,
+			nextMatchActionId: BrowserViewCommandId.FindNext,
+			closeWidgetActionId: BrowserViewCommandId.HideFind
 		}, contextViewService, contextKeyService, hoverService, keybindingService, configurationService, accessibilityService);
 
 		this._findWidgetVisible = CONTEXT_BROWSER_FIND_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this._findWidgetFocused = CONTEXT_BROWSER_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 
-		container.appendChild(this.getDomNode());
+		const domNode = this.getDomNode();
+		container.appendChild(domNode);
+
+		let lastHeight = domNode.offsetHeight;
+		const resizeObserver = new (getWindow(container).ResizeObserver)(() => {
+			const newHeight = domNode.offsetHeight;
+			if (newHeight !== lastHeight) {
+				lastHeight = newHeight;
+				this._onDidChangeHeight.fire();
+			}
+		});
+		resizeObserver.observe(domNode);
+		this._register(toDisposable(() => resizeObserver.disconnect()));
 	}
 
 	/**
@@ -105,6 +123,7 @@ export class BrowserFindWidget extends SimpleFindWidget {
 
 		// Stop find and clear highlights in the browser view
 		this._model?.stopFindInPage(true);
+		this._model?.focus();
 		this._lastFindResult = undefined;
 		this._hasFoundMatch = false;
 	}

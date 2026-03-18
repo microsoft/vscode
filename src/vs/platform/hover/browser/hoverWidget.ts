@@ -138,6 +138,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		if (options.appearance?.compact) {
 			this._hover.containerDomNode.classList.add('workbench-hover', 'compact');
 		}
+		if (this._hoverPointer) {
+			this._hover.containerDomNode.classList.add('with-pointer');
+		}
 		if (options.additionalClasses) {
 			this._hover.containerDomNode.classList.add(...options.additionalClasses);
 		}

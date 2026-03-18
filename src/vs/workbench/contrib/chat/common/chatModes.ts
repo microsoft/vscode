@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
-import { URI } from '../../../../base/common/uri.js';
+import { isUriComponents, URI } from '../../../../base/common/uri.js';
 import { IOffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -19,11 +19,14 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IChatAgentService } from './participants/chatAgents.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from './constants.js';
-import { IHandOff, isTarget } from './promptSyntax/promptFileParser.js';
-import { ExtensionAgentSourceType, IAgentSource, ICustomAgent, ICustomAgentVisibility, IPromptsService, isCustomAgentVisibility, PromptsStorage, Target } from './promptSyntax/service/promptsService.js';
+import { IHandOff } from './promptSyntax/promptFileParser.js';
+import { ExtensionAgentSourceType, IAgentSource, ICustomAgent, ICustomAgentVisibility, IPromptsService, isCustomAgentVisibility, PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { Target } from './promptSyntax/promptTypes.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { hash } from '../../../../base/common/hash.js';
 import { isString } from '../../../../base/common/types.js';
+import { isTarget } from './promptSyntax/languageProviders/promptFileAttributes.js';
 
 export const IChatModeService = createDecorator<IChatModeService>('chatModeService');
 export interface IChatModeService {
@@ -111,6 +114,10 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		for (const cachedMode of cachedCustomModes) {
 			if (isCachedChatModeData(cachedMode) && cachedMode.uri) {
 				try {
+					const visibility = cachedMode.visibility ?? { userInvocable: true, agentInvocable: cachedMode.infer !== false };
+					if (!visibility.userInvocable) {
+						continue;
+					}
 					const uri = URI.revive(cachedMode.uri);
 					const customChatMode: ICustomAgent = {
 						uri,
@@ -122,7 +129,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						agentInstructions: cachedMode.modeInstructions ?? { content: cachedMode.body ?? '', toolReferences: [] },
 						handOffs: cachedMode.handOffs,
 						target: cachedMode.target ?? Target.Undefined,
-						visibility: cachedMode.visibility ?? { userInvocable: true, agentInvocable: cachedMode.infer !== false },
+						visibility,
 						agents: cachedMode.agents,
 						source: reviveChatModeSource(cachedMode.source) ?? { storage: PromptsStorage.local }
 					};
@@ -445,17 +452,21 @@ export class CustomChatMode implements IChatMode {
 
 type IChatModeSourceData =
 	| { readonly storage: PromptsStorage.extension; readonly extensionId: string; type?: ExtensionAgentSourceType }
-	| { readonly storage: PromptsStorage.local | PromptsStorage.user };
+	| { readonly storage: PromptsStorage.local | PromptsStorage.user | PromptsStorage.internal }
+	| { readonly storage: PromptsStorage.plugin; readonly pluginUri: URI };
 
 function isChatModeSourceData(value: unknown): value is IChatModeSourceData {
 	if (typeof value !== 'object' || value === null) {
 		return false;
 	}
-	const data = value as { storage?: unknown; extensionId?: unknown };
+	const data = value as { storage?: unknown; extensionId?: unknown; pluginUri?: unknown };
 	if (data.storage === PromptsStorage.extension) {
 		return typeof data.extensionId === 'string';
 	}
-	return data.storage === PromptsStorage.local || data.storage === PromptsStorage.user;
+	if (data.storage === PromptsStorage.plugin) {
+		return isUriComponents(data.pluginUri);
+	}
+	return data.storage === PromptsStorage.local || data.storage === PromptsStorage.user || data.storage === PromptsStorage.internal;
 }
 
 function serializeChatModeSource(source: IAgentSource | undefined): IChatModeSourceData | undefined {
@@ -464,6 +475,9 @@ function serializeChatModeSource(source: IAgentSource | undefined): IChatModeSou
 	}
 	if (source.storage === PromptsStorage.extension) {
 		return { storage: PromptsStorage.extension, extensionId: source.extensionId.value, type: source.type };
+	}
+	if (source.storage === PromptsStorage.plugin) {
+		return { storage: PromptsStorage.plugin, pluginUri: source.pluginUri };
 	}
 	return { storage: source.storage };
 }
@@ -474,6 +488,12 @@ function reviveChatModeSource(data: IChatModeSourceData | undefined): IAgentSour
 	}
 	if (data.storage === PromptsStorage.extension) {
 		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId), type: data.type ?? ExtensionAgentSourceType.contribution };
+	}
+	if (data.storage === PromptsStorage.plugin) {
+		return { storage: PromptsStorage.plugin, pluginUri: URI.revive(data.pluginUri) };
+	}
+	if (data.storage === PromptsStorage.internal) {
+		return { storage: PromptsStorage.internal };
 	}
 	return { storage: data.storage };
 }
@@ -523,11 +543,102 @@ export class BuiltinChatMode implements IChatMode {
 export namespace ChatMode {
 	export const Ask = new BuiltinChatMode(ChatModeKind.Ask, 'Ask', localize('chatDescription', "Explore and understand your code"), Codicon.question);
 	export const Edit = new BuiltinChatMode(ChatModeKind.Edit, 'Edit', localize('editsDescription', "Edit or refactor selected code"), Codicon.edit);
-	export const Agent = new BuiltinChatMode(ChatModeKind.Agent, 'Agent', localize('agentDescription', "Describe what to build next"), Codicon.agent);
+	export const Agent = new BuiltinChatMode(ChatModeKind.Agent, 'Agent', localize('agentDescription', "Describe what to build"), Codicon.agent);
 }
 
 export function isBuiltinChatMode(mode: IChatMode): boolean {
 	return mode.id === ChatMode.Ask.id ||
 		mode.id === ChatMode.Edit.id ||
 		mode.id === ChatMode.Agent.id;
+}
+
+/**
+ * Returns a telemetry-safe mode name. User/local mode names are hashed
+ * to avoid leaking PII; builtin and extension mode names are returned as-is.
+ */
+export function getModeNameForTelemetry(mode: IChatMode): string {
+	const modeStorage = mode.source?.storage;
+	if (modeStorage === PromptsStorage.local || modeStorage === PromptsStorage.user) {
+		return String(hash(mode.name.get()));
+	}
+	return mode.name.get();
+}
+
+/**
+ * Generates a stable identifier for a handoff by combining the target agent
+ * name with a slugified version of the display label.
+ *
+ * Within a single source agent, the combination of `agent` + `label` must be
+ * unique for IDs to be unambiguous.
+ *
+ * @example
+ * ```
+ * getHandoffId({ agent: 'agent', label: 'Continue', prompt: '...' })
+ * // => 'agent:continue'
+ * ```
+ */
+export function getHandoffId(handoff: IHandOff): string {
+	const slug = handoff.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+	return `${handoff.agent}:${slug}`;
+}
+
+/**
+ * Describes a single handoff defined in a custom agent's `.agent.md` file.
+ */
+export interface IHandoffInfo {
+	/** Stable identifier for programmatic matching (format: `<agent>:<slugified-label>`). */
+	readonly id: string;
+	readonly label: string;
+	readonly agent: string;
+	readonly prompt: string;
+	readonly send?: boolean;
+	readonly showContinueOn?: boolean;
+	readonly model?: string;
+}
+
+/**
+ * Describes a custom agent (or built-in mode) and the handoffs it defines.
+ */
+export interface ICustomAgentInfo {
+	readonly id: string;
+	readonly name: string;
+	readonly isBuiltin: boolean;
+	readonly visibility: {
+		readonly userInvocable: boolean;
+		readonly agentInvocable: boolean;
+	};
+	readonly handoffs: IHandoffInfo[];
+}
+
+/**
+ * Builds an array of {@link ICustomAgentInfo} with handoff metadata for the given agents/modes.
+ *
+ * @param modes - The set of agents/modes to include. Pass all modes to get a
+ *   complete picture, or a filtered subset to scope the result.
+ * @returns One entry per agent/mode, each containing the agent's metadata and
+ *   its declared handoffs.
+ */
+export function buildCustomAgentHandoffsInfo(modes: readonly IChatMode[]): ICustomAgentInfo[] {
+	return modes.map(mode => {
+		const handoffs = mode.handOffs?.get() ?? [];
+		const visibility = mode.visibility?.get();
+		return {
+			id: mode.id,
+			name: mode.name.get(),
+			isBuiltin: mode.isBuiltin,
+			visibility: {
+				userInvocable: visibility?.userInvocable ?? true,
+				agentInvocable: visibility?.agentInvocable ?? true,
+			},
+			handoffs: handoffs.map(h => ({
+				id: getHandoffId(h),
+				label: h.label,
+				agent: h.agent,
+				prompt: h.prompt,
+				...(h.send !== undefined ? { send: h.send } : {}),
+				...(h.showContinueOn !== undefined ? { showContinueOn: h.showContinueOn } : {}),
+				...(h.model !== undefined ? { model: h.model } : {}),
+			})),
+		};
+	});
 }

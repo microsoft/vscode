@@ -557,7 +557,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 							return undefined;
 						}
 
-						const onDidReceiveMessage = Event.buffer(Event.fromDOMEventEmitter(messagePort, 'message', e => e.data));
+						const onDidReceiveMessage = Event.buffer(Event.fromDOMEventEmitter(messagePort, 'message', e => e.data), 'onDidReceiveMessage');
 						messagePort.start();
 						messagePassingProtocol = {
 							onDidReceiveMessage,

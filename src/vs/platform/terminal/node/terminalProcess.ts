@@ -17,10 +17,11 @@ import { ILogService, LogLevel } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty, GeneralShellType, ITerminalLaunchResult } from '../common/terminal.js';
 import { ChildProcessMonitor } from './childProcessMonitor.js';
-import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection, sanitizeEnvForLogging } from './terminalEnvironment.js';
+import { getShellIntegrationInjection, IShellIntegrationConfigInjection, sanitizeEnvForLogging } from './terminalEnvironment.js';
 import { WindowsShellHelper } from './windowsShellHelper.js';
 import { IPty, IPtyForkOptions, IWindowsPtyForkOptions, spawn } from 'node-pty';
 import { isNumber } from '../../../base/common/types.js';
+import { getWindowsBuildNumberSync } from '../../../base/node/windowsVersion.js';
 
 const enum ShutdownConstants {
 	/**
@@ -150,7 +151,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._initialCwd = cwd;
 		this._properties[ProcessPropertyType.InitialCwd] = this._initialCwd;
 		this._properties[ProcessPropertyType.Cwd] = this._initialCwd;
-		const useConpty = process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
+		const useConpty = process.platform === 'win32' && getWindowsBuildNumberSync() >= 18309;
 		const useConptyDll = useConpty && this._options.windowsUseConptyDll;
 		this._ptyOptions = {
 			name,
@@ -336,7 +337,20 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this._exitCode = e.exitCode;
 			this._queueProcessExit();
 		}));
-		this._sendProcessId(ptyProcess.pid);
+		// node-pty >= 1.2.0-beta.11 defers conptyNative.connect() on Windows, so
+		// ptyProcess.pid may be 0 immediately after spawn. In that case we wait
+		// for the first data event which only fires after the connection completes
+		// and the real pid is available. See microsoft/node-pty#885.
+		if (ptyProcess.pid > 0) {
+			this._sendProcessId(ptyProcess.pid);
+		} else {
+			const dataListener = ptyProcess.onData(() => {
+				dataListener.dispose();
+				this._childProcessMonitor?.setPid(ptyProcess.pid);
+				this._sendProcessId(ptyProcess.pid);
+			});
+			this._register(dataListener);
+		}
 		this._setupTitlePolling(ptyProcess);
 	}
 
@@ -515,7 +529,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-	resize(cols: number, rows: number): void {
+	resize(cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): void {
 		if (this._store.isDisposed) {
 			return;
 		}
@@ -537,7 +551,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 			this._logService.trace('node-pty.IPty#resize', cols, rows);
 			try {
-				this._ptyProcess.resize(cols, rows);
+				const pixelSize = pixelWidth !== undefined && pixelHeight !== undefined
+					? { width: pixelWidth, height: pixelHeight }
+					: undefined;
+				this._ptyProcess.resize(cols, rows, pixelSize);
 			} catch (e) {
 				// Swallow error if the pty has already exited
 				this._logService.trace('node-pty.IPty#resize exception ' + e.message);
@@ -622,7 +639,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	getWindowsPty(): IProcessReadyWindowsPty | undefined {
 		return isWindows ? {
 			backend: 'conpty',
-			buildNumber: getWindowsBuildNumber()
+			buildNumber: getWindowsBuildNumberSync()
 		} : undefined;
 	}
 }

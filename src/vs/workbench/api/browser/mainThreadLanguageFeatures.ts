@@ -33,7 +33,7 @@ import * as callh from '../../contrib/callHierarchy/common/callHierarchy.js';
 import * as search from '../../contrib/search/common/search.js';
 import * as typeh from '../../contrib/typeHierarchy/common/typeHierarchy.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, IInlineCompletionChangeHintDto, IInlineCompletionModelInfoDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, IInlineCompletionChangeHintDto, IInlineCompletionModelInfoDto, IInlineCompletionProviderOptionDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
 import { InlineCompletionEndOfLifeReasonKind } from '../common/extHostTypes.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../../platform/dataChannel/browser/forwardingTelemetryService.js';
@@ -659,6 +659,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		supportsSetModelId: boolean,
 		initialModelInfo: IInlineCompletionModelInfoDto | undefined,
 		supportsOnDidChangeModelInfo: boolean,
+		supportsSetProviderOption: boolean,
+		initialProviderOptions: readonly IInlineCompletionProviderOptionDto[] | undefined,
+		supportsOnDidChangeProviderOptions: boolean,
 	): void {
 		const providerId = new languages.ProviderId(extensionId, extensionVersion, groupId);
 
@@ -676,6 +679,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			supportsSetModelId,
 			supportsOnDidChange,
 			supportsOnDidChangeModelInfo,
+			initialProviderOptions,
+			supportsSetProviderOption,
+			supportsOnDidChangeProviderOptions,
 			selector,
 			this._proxy,
 		);
@@ -694,6 +700,13 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		const obj = this._registrations.get(handle);
 		if (obj instanceof ExtensionBackedInlineCompletionsProvider) {
 			obj._setModelInfo(data);
+		}
+	}
+
+	$emitInlineCompletionProviderOptionsChange(handle: number, data: readonly IInlineCompletionProviderOptionDto[] | undefined): void {
+		const obj = this._registrations.get(handle);
+		if (obj instanceof ExtensionBackedInlineCompletionsProvider) {
+			obj._setProviderOptions(data);
 		}
 	}
 
@@ -1296,6 +1309,10 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 	public readonly _onDidChangeModelInfoEmitter = this._register(new Emitter<void>());
 	public readonly onDidChangeModelInfo: Event<void> | undefined;
 
+	public readonly setProviderOption: ((optionId: string, valueId: string) => Promise<void>) | undefined;
+	public readonly _onDidProviderOptionsChangeEmitter = this._register(new Emitter<void>());
+	public readonly onDidProviderOptionsChange: Event<void> | undefined;
+
 	constructor(
 		public readonly handle: number,
 		public readonly groupId: string,
@@ -1309,6 +1326,9 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 		private readonly _supportsSetModelId: boolean,
 		private readonly _supportsOnDidChange: boolean,
 		private readonly _supportsOnDidChangeModelInfo: boolean,
+		public providerOptions: readonly languages.IInlineCompletionProviderOption[] | undefined,
+		private readonly _supportsSetProviderOption: boolean,
+		private readonly _supportsOnDidChangeProviderOptions: boolean,
 		private readonly _selector: IDocumentFilterDto[],
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
@@ -1321,8 +1341,13 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			await this._proxy.$handleInlineCompletionSetCurrentModelId(this.handle, modelId);
 		} : undefined;
 
+		this.setProviderOption = this._supportsSetProviderOption ? async (optionId: string, valueId: string) => {
+			await this._proxy.$handleInlineCompletionSetProviderOption(this.handle, optionId, valueId);
+		} : undefined;
+
 		this.onDidChangeInlineCompletions = this._supportsOnDidChange ? this._onDidChangeEmitter.event : undefined;
 		this.onDidChangeModelInfo = this._supportsOnDidChangeModelInfo ? this._onDidChangeModelInfoEmitter.event : undefined;
+		this.onDidProviderOptionsChange = this._supportsOnDidChangeProviderOptions ? this._onDidProviderOptionsChangeEmitter.event : undefined;
 
 		this._register(this._languageFeaturesService.inlineCompletionsProvider.register(this._selector, this));
 	}
@@ -1331,6 +1356,13 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 		this.modelInfo = newModelInfo;
 		if (this._supportsOnDidChangeModelInfo) {
 			this._onDidChangeModelInfoEmitter.fire();
+		}
+	}
+
+	public _setProviderOptions(newProviderOptions: readonly languages.IInlineCompletionProviderOption[] | undefined) {
+		this.providerOptions = newProviderOptions;
+		if (this._supportsOnDidChangeProviderOptions) {
+			this._onDidProviderOptionsChangeEmitter.fire();
 		}
 	}
 

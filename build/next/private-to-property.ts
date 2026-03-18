@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as ts from 'typescript';
+import { type RawSourceMap, type Mapping, SourceMapConsumer, SourceMapGenerator } from 'source-map';
 
 /**
  * Converts native ES private fields (`#foo`) into regular JavaScript properties with short,
@@ -52,12 +53,20 @@ interface Edit {
 // Private name → replacement name per class (identified by position in file)
 type ClassScope = Map<string, string>;
 
+export interface TextEdit {
+	readonly start: number;
+	readonly end: number;
+	readonly newText: string;
+}
+
 export interface ConvertPrivateFieldsResult {
 	readonly code: string;
 	readonly classCount: number;
 	readonly fieldCount: number;
 	readonly editCount: number;
 	readonly elapsed: number;
+	/** Sorted edits applied to the original code, for source map adjustment. */
+	readonly edits: readonly TextEdit[];
 }
 
 /**
@@ -72,7 +81,7 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 	const t1 = Date.now();
 	// Quick bail-out: if there are no `#` characters, nothing to do
 	if (!code.includes('#')) {
-		return { code, classCount: 0, fieldCount: 0, editCount: 0, elapsed: Date.now() - t1 };
+		return { code, classCount: 0, fieldCount: 0, editCount: 0, elapsed: Date.now() - t1, edits: [] };
 	}
 
 	const sourceFile = ts.createSourceFile(filename, code, ts.ScriptTarget.ESNext, false, ts.ScriptKind.JS);
@@ -92,7 +101,7 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 	visit(sourceFile);
 
 	if (edits.length === 0) {
-		return { code, classCount: 0, fieldCount: 0, editCount: 0, elapsed: Date.now() - t1 };
+		return { code, classCount: 0, fieldCount: 0, editCount: 0, elapsed: Date.now() - t1, edits: [] };
 	}
 
 	// Apply edits using substring concatenation (O(N+K), not O(N*K) like char-array splice)
@@ -105,7 +114,7 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 		lastEnd = edit.end;
 	}
 	parts.push(code.substring(lastEnd));
-	return { code: parts.join(''), classCount, fieldCount: nameCounter, editCount: edits.length, elapsed: Date.now() - t1 };
+	return { code: parts.join(''), classCount, fieldCount: nameCounter, editCount: edits.length, elapsed: Date.now() - t1, edits };
 
 	// --- AST walking ---
 
@@ -188,4 +197,196 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 		}
 		return undefined;
 	}
+}
+
+/**
+ * Adjusts a source map to account for text edits applied to the generated JS.
+ *
+ * Each edit replaced a span `[start, end)` in the original generated JS with `newText`.
+ * This shifts all subsequent columns on the same line. The source map's generated
+ * columns are updated so they still point to the correct original positions.
+ *
+ * @param sourceMapJson The parsed source map JSON object.
+ * @param originalCode The original generated JS (before edits were applied).
+ * @param edits The sorted edits that were applied.
+ * @returns A new source map JSON object with adjusted generated columns.
+ */
+export function adjustSourceMap(
+	sourceMapJson: RawSourceMap,
+	originalCode: string,
+	edits: readonly TextEdit[]
+): RawSourceMap {
+	if (edits.length === 0) {
+		return sourceMapJson;
+	}
+
+	// Build line-offset tables for the original code and the code after edits.
+	// When edits span newlines (e.g. NLS replacing a multi-line template literal
+	// with `null`), subsequent lines shift up and columns change. We handle this
+	// by converting each mapping's old generated (line, col) to a byte offset,
+	// adjusting the offset for the edits, then converting back to (line, col) in
+	// the post-edit coordinate system.
+
+	const oldLineStarts = buildLineStarts(originalCode);
+	const newLineStarts = buildLineStartsAfterEdits(originalCode, edits);
+
+	// Precompute cumulative byte-shift after each edit for binary search
+	const n = edits.length;
+	const editStarts: number[] = new Array(n);
+	const editEnds: number[] = new Array(n);
+	const cumShifts: number[] = new Array(n); // cumulative shift *after* edit[i]
+	let cumShift = 0;
+	for (let i = 0; i < n; i++) {
+		editStarts[i] = edits[i].start;
+		editEnds[i] = edits[i].end;
+		cumShift += edits[i].newText.length - (edits[i].end - edits[i].start);
+		cumShifts[i] = cumShift;
+	}
+
+	function adjustOffset(oldOff: number): number {
+		// Binary search: find last edit with start <= oldOff
+		let lo = 0, hi = n - 1;
+		while (lo <= hi) {
+			const mid = (lo + hi) >> 1;
+			if (editStarts[mid] <= oldOff) {
+				lo = mid + 1;
+			} else {
+				hi = mid - 1;
+			}
+		}
+		// hi = index of last edit where start <= oldOff, or -1 if none
+		if (hi < 0) {
+			return oldOff;
+		}
+		if (oldOff < editEnds[hi]) {
+			// Inside edit range — clamp to edit start in new coordinates
+			const prevShift = hi > 0 ? cumShifts[hi - 1] : 0;
+			return editStarts[hi] + prevShift;
+		}
+		return oldOff + cumShifts[hi];
+	}
+
+	function offsetToLineCol(lineStarts: readonly number[], offset: number): { line: number; col: number } {
+		let lo = 0, hi = lineStarts.length - 1;
+		while (lo < hi) {
+			const mid = (lo + hi + 1) >> 1;
+			if (lineStarts[mid] <= offset) {
+				lo = mid;
+			} else {
+				hi = mid - 1;
+			}
+		}
+		return { line: lo, col: offset - lineStarts[lo] };
+	}
+
+	// Use source-map library to read, adjust, and write
+	const consumer = new SourceMapConsumer(sourceMapJson);
+	const generator = new SourceMapGenerator({ file: sourceMapJson.file, sourceRoot: sourceMapJson.sourceRoot });
+
+	// Copy sourcesContent
+	for (let i = 0; i < sourceMapJson.sources.length; i++) {
+		const content = sourceMapJson.sourcesContent?.[i];
+		if (content !== null && content !== undefined) {
+			generator.setSourceContent(sourceMapJson.sources[i], content);
+		}
+	}
+
+	// Walk every mapping, convert old generated position → byte offset → adjust → new position
+	consumer.eachMapping(mapping => {
+		const oldLine0 = mapping.generatedLine - 1; // 0-based
+		const oldOff = (oldLine0 < oldLineStarts.length
+			? oldLineStarts[oldLine0]
+			: oldLineStarts[oldLineStarts.length - 1]) + mapping.generatedColumn;
+
+		const newOff = adjustOffset(oldOff);
+		const newPos = offsetToLineCol(newLineStarts, newOff);
+
+		if (mapping.source !== null && mapping.originalLine !== null && mapping.originalColumn !== null) {
+			const newMapping: Mapping = {
+				generated: { line: newPos.line + 1, column: newPos.col },
+				original: { line: mapping.originalLine, column: mapping.originalColumn },
+				source: mapping.source,
+			};
+			if (mapping.name !== null) {
+				newMapping.name = mapping.name;
+			}
+			generator.addMapping(newMapping);
+		} else {
+			// Preserve unmapped segments (generated-only mappings with no original
+			// position). These create essential "gaps" that prevent
+			// originalPositionFor() from wrongly interpolating between distant
+			// valid mappings on the same line in minified output.
+			// eslint-disable-next-line local/code-no-dangerous-type-assertions
+			generator.addMapping({
+				generated: { line: newPos.line + 1, column: newPos.col },
+			} as Mapping);
+		}
+	});
+
+	return JSON.parse(generator.toString());
+}
+
+function buildLineStarts(text: string): number[] {
+	const starts: number[] = [0];
+	let pos = 0;
+	while (true) {
+		const nl = text.indexOf('\n', pos);
+		if (nl === -1) {
+			break;
+		}
+		starts.push(nl + 1);
+		pos = nl + 1;
+	}
+	return starts;
+}
+
+/**
+ * Compute line starts for the code that results from applying `edits` to
+ * `originalCode`, without materialising the full new string.
+ */
+function buildLineStartsAfterEdits(originalCode: string, edits: readonly TextEdit[]): number[] {
+	const starts: number[] = [0];
+	let oldPos = 0;
+	let newPos = 0;
+
+	for (const edit of edits) {
+		// Scan unchanged region [oldPos, edit.start) for newlines
+		let from = oldPos;
+		while (true) {
+			const nl = originalCode.indexOf('\n', from);
+			if (nl === -1 || nl >= edit.start) {
+				break;
+			}
+			starts.push(newPos + (nl - oldPos) + 1);
+			from = nl + 1;
+		}
+		newPos += edit.start - oldPos;
+
+		// Scan replacement text for newlines
+		let replFrom = 0;
+		while (true) {
+			const nl = edit.newText.indexOf('\n', replFrom);
+			if (nl === -1) {
+				break;
+			}
+			starts.push(newPos + nl + 1);
+			replFrom = nl + 1;
+		}
+		newPos += edit.newText.length;
+
+		oldPos = edit.end;
+	}
+
+	// Scan remaining unchanged text after last edit
+	let from = oldPos;
+	while (true) {
+		const nl = originalCode.indexOf('\n', from);
+		if (nl === -1) {
+			break;
+		}
+		starts.push(newPos + (nl - oldPos) + 1);
+		from = nl + 1;
+	}
+
+	return starts;
 }

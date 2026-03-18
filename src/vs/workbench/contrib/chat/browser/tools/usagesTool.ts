@@ -11,7 +11,7 @@ import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { relativePath } from '../../../../../base/common/resources.js';
+import { isEqual, relativePath } from '../../../../../base/common/resources.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Location, LocationLink } from '../../../../../editor/common/languages.js';
@@ -20,6 +20,7 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getReferencesAtPosition } from '../../../../../editor/contrib/gotoSymbol/browser/goToSymbol.js';
 import { localize } from '../../../../../nls.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -85,6 +86,7 @@ export class UsagesTool extends Disposable implements IToolImpl {
 			userDescription: localize('tool.usages.userDescription', 'Find references, definitions, and implementations of a symbol'),
 			modelDescription,
 			source: ToolDataSource.Internal,
+			when: ContextKeyExpr.has('config.chat.tools.usagesTool.enabled'),
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -295,7 +297,7 @@ export class UsagesTool extends Disposable implements IToolImpl {
 	}
 
 	private _overlaps(a: LocationLink, b: LocationLink): boolean {
-		if (a.uri.toString() !== b.uri.toString()) {
+		if (!isEqual(a.uri, b.uri)) {
 			return false;
 		}
 		return Range.areIntersectingOrTouching(a.range, b.range);

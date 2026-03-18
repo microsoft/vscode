@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { mark } from '../../../../../base/common/performance.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -47,18 +48,21 @@ import { ACTION_START as INLINE_CHAT_START } from '../../../inlineChat/common/in
 import { IPosition } from '../../../../../editor/common/core/position.js';
 import { IMarker, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { ChatSetupController } from './chatSetupController.js';
-import { ChatSetupAnonymous, ChatSetupStep, IChatSetupResult } from './chatSetup.js';
+import { ChatSetupAnonymous, ChatSetupStep, IChatSetupResult, maybeEnableAuthExtension, refreshTokens } from './chatSetup.js';
 import { ChatSetup } from './chatSetupRunner.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { IOutputService } from '../../../../services/output/common/output.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
 	outputChannelId: product.defaultChatAgent?.chatExtensionOutputId ?? '',
+	outputExtensionStateCommand: product.defaultChatAgent?.chatExtensionOutputExtensionStateCommand ?? '',
 };
 
 const ToolsAgentContextKey = ContextKeyExpr.and(
@@ -175,6 +179,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	private static readonly TRUST_NEEDED_MESSAGE = new MarkdownString(localize('trustNeeded', "You need to trust this workspace to use Chat."));
 
 	private static readonly CHAT_RETRY_COMMAND_ID = 'workbench.action.chat.retrySetup';
+	private static readonly CHAT_SHOW_OUTPUT_COMMAND_ID = 'workbench.action.chat.showOutput';
 
 	private readonly _onUnresolvableError = this._register(new Emitter<void>());
 	readonly onUnresolvableError = this._onUnresolvableError.event;
@@ -193,6 +198,9 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IOutputService private readonly outputService: IOutputService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -211,9 +219,31 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 			hostService.reload();
 		}));
+
+		// Show output command: execute extension state command if available, then show output channel
+		this._register(CommandsRegistry.registerCommand(SetupAgent.CHAT_SHOW_OUTPUT_COMMAND_ID, async (accessor) => {
+			const commandService = accessor.get(ICommandService);
+
+			if (defaultChat.outputExtensionStateCommand) {
+				// Command invocation may fail or is blocked by the extension activating
+				// so we just don't wait and timeout after a certain time, logging the error if it fails or times out.
+				raceTimeout(
+					commandService.executeCommand(defaultChat.outputExtensionStateCommand),
+					5000,
+					() => this.logService.info('[chat setup] Timed out executing extension state command')
+				).then(undefined, error => {
+					this.logService.info('[chat setup] Failed to execute extension state command', error);
+				});
+			}
+
+			if (defaultChat.outputChannelId) {
+				await commandService.executeCommand(`workbench.action.output.show.${defaultChat.outputChannelId}`);
+			}
+		}));
 	}
 
 	async invoke(request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void): Promise<IChatAgentResult> {
+		mark('code/chat/setup/willInvoke');
 		return this.instantiationService.invokeFunction(async accessor /* using accessor for lazy loading */ => {
 			const chatService = accessor.get(IChatService);
 			const languageModelsService = accessor.get(ILanguageModelsService);
@@ -244,6 +274,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doInvokeWithoutSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService): Promise<IChatAgentResult> {
+		mark('code/chat/setup/invokeWithoutSetup');
 		const requestModel = chatWidgetService.getWidgetBySessionResource(request.sessionResource)?.viewModel?.model.getRequests().at(-1);
 		if (!requestModel) {
 			this.logService.error('[chat setup] Request model not found, cannot redispatch request.');
@@ -290,6 +321,16 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doForwardRequestToChatWhenReady(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
+		mark('code/chat/setup/willForwardRequestToChatWhenReady');
+
+		// Ensure auth extension is enabled before waiting for chat readiness.
+		// This must run before the readiness event listeners are set up because
+		// updateRunningExtensions restarts all extension hosts.
+		const authExtensionReEnabled = await maybeEnableAuthExtension(this.extensionsWorkbenchService, this.logService);
+		if (authExtensionReEnabled) {
+			refreshTokens(this.commandService);
+		}
+
 		const widget = chatWidgetService.getWidgetBySessionResource(requestModel.session.sessionResource);
 		const modeInfo = widget?.input.currentModeInfo;
 
@@ -301,6 +342,8 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		let agentReady = false;
 		let languageModelReady = false;
 		let toolsModelReady = false;
+
+		mark('code/chat/setup/willWaitForReadiness');
 
 		const whenAgentActivated = this.whenAgentActivated(chatService).then(() => agentActivated = true);
 		const whenAgentReady = this.whenAgentReady(chatAgentService, modeInfo?.kind)?.then(() => agentReady = true);
@@ -465,14 +508,27 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 						content: new MarkdownString(warningMessage)
 					});
 
-					progress({
-						kind: 'command',
-						command: {
-							id: SetupAgent.CHAT_RETRY_COMMAND_ID,
-							title: localize('retryChat', "Restart"),
-							arguments: [requestModel.session.sessionResource]
-						}
-					});
+					if (defaultChat.outputChannelId && this.outputService.getChannelDescriptor(defaultChat.outputChannelId)) {
+						progress({
+							kind: 'command',
+							command: {
+								id: SetupAgent.CHAT_SHOW_OUTPUT_COMMAND_ID,
+								title: localize('showCopilotChatDetails', "Show Details")
+							}
+						});
+					} else {
+						this.logService.warn(defaultChat.outputChannelId
+							? `[chat setup] No output channel found for id '${defaultChat.outputChannelId}' to show details about chat setup timeout. Please ensure the ${defaultChat.chatExtensionId} extension is activated.`
+							: '[chat setup] No output channel provided via product.json to show details about chat setup timeout.');
+						progress({
+							kind: 'command',
+							command: {
+								id: SetupAgent.CHAT_RETRY_COMMAND_ID,
+								title: localize('retryChat', "Restart"),
+								arguments: [requestModel.session.sessionResource]
+							}
+						});
+					}
 
 					// This means Chat is unhealthy and we cannot retry the
 					// request. Signal this to the outside via an event.
@@ -484,6 +540,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			}
 		}
 
+		mark('code/chat/setup/didWaitForReadiness');
 		await chatService.resendRequest(requestModel, {
 			...widget?.getModeRequestOptions(),
 			modeInfo,
@@ -594,6 +651,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doInvokeWithSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService, defaultAccountService: IDefaultAccountService): Promise<IChatAgentResult> {
+		mark('code/chat/setup/invokeWithSetup');
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'chat' });
 
 		const widget = chatWidgetService.getWidgetBySessionResource(request.sessionResource);

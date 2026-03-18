@@ -26,6 +26,7 @@ src/vs/base/browser/ui/tree/** @joaomoreno @benibenj
 # Platform
 src/vs/platform/auxiliaryWindow/** @bpasero
 src/vs/platform/backup/** @bpasero
+src/vs/platform/browserView/** @kycutler @jruales
 src/vs/platform/dialogs/** @bpasero
 src/vs/platform/editor/** @bpasero
 src/vs/platform/environment/** @bpasero
@@ -65,6 +66,7 @@ src/vs/code/** @bpasero @deepak1556
 src/vs/workbench/services/activity/** @bpasero
 src/vs/workbench/services/authentication/** @TylerLeonhardt
 src/vs/workbench/services/auxiliaryWindow/** @bpasero
+src/vs/workbench/services/browserView/** @kycutler @jruales
 src/vs/workbench/services/contextmenu/** @bpasero
 src/vs/workbench/services/dialogs/** @alexr00 @bpasero
 src/vs/workbench/services/editor/** @bpasero
@@ -97,6 +99,7 @@ src/vs/workbench/electron-browser/** @bpasero
 
 # Workbench Contributions
 src/vs/workbench/contrib/authentication/** @TylerLeonhardt
+src/vs/workbench/contrib/browserView/** @kycutler @jruales
 src/vs/workbench/contrib/files/** @bpasero
 src/vs/workbench/contrib/chat/browser/chatListRenderer.ts @roblourens
 src/vs/workbench/contrib/localization/** @TylerLeonhardt
