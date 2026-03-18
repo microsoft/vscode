@@ -61,6 +61,12 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			const idlePromptPromise = trackIdleOnPrompt(this._instance, 1000, store);
 			const onDone = Promise.race([
 				Event.toPromise(Event.filter(this._commandDetection.onCommandFinished, e => {
+					// When no commandId is provided, this basic strategy cannot reliably attach
+					// an id to the command (sendText path), so avoid id-based filtering and
+					// accept the first finished command event.
+					if (!commandId) {
+						return true;
+					}
 					const isMatch = commandMatchesRequestedId(e, commandId);
 					if (!isMatch) {
 						this._log(`Ignoring command-finished event for id=${e.id ?? 'none'}, waiting for requested=${commandId}`);
