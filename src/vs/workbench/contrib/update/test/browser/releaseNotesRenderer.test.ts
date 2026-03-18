@@ -107,6 +107,8 @@ Navigation End -->
 
 suite('Conditional blocks', () => {
 
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('IN_PRODUCT block is revealed when IN_PRODUCT is active', () => {
 		const text = 'before\n<!-- %IF IN_PRODUCT %\nin-product content\n%ENDIF % -->\nafter';
 		const result = processConditionalBlocks(text, new Set(['IN_PRODUCT']));
