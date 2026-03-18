@@ -94,30 +94,36 @@ class ChatSessionHeaderContribution extends Disposable implements IWorkbenchCont
 		}));
 
 		// Periodically try to inject into the DOM (chat widget may not exist yet)
-		this.tryInject();
+		this.ensureInjected();
 	}
 
-	private tryInject(): void {
-		const inject = () => {
-			const view = this.viewsService.getViewWithId<ViewPane>(ChatViewId);
-			if (view && !this.headerElement.parentElement) {
-				view.element.insertBefore(this.headerElement, view.element.firstChild);
-				return true;
-			}
-			return false;
-		};
+	private tryInject(): boolean {
+		if (this.headerElement.parentElement) {
+			return true; // Already injected
+		}
+		const view = this.viewsService.getViewWithId<ViewPane>(ChatViewId);
+		if (view?.element) {
+			view.element.insertBefore(this.headerElement, view.element.firstChild);
+			return true;
+		}
+		return false;
+	}
 
-		if (!inject()) {
-			// Wait for the chat view to become visible
+	private ensureInjected(): void {
+		if (!this.tryInject()) {
+			// Retry when the chat view becomes visible
 			this._register(this.viewsService.onDidChangeViewVisibility(e => {
 				if (e.id === ChatViewId && e.visible) {
-					inject();
+					this.tryInject();
 				}
 			}));
 		}
 	}
 
 	private render(): void {
+		// Ensure header is in the DOM (may have been created before the view mounted)
+		this.tryInject();
+
 		const label = this.getLabel();
 		const icon = this.getIcon();
 		const repoLabel = this.getRepoLabel();

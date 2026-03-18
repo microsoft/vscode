@@ -26,6 +26,7 @@ import { IContextKeyService, IContextKey, RawContextKey } from '../../../../plat
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -142,7 +143,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	// Welcome part
 	private _pickersContainer: HTMLElement | undefined;
-	private _extensionPickersLeftContainer: HTMLElement | undefined;
 	private _toolbarPickersContainer: HTMLElement | undefined;
 	private _localModelPickerContainer: HTMLElement | undefined;
 	private _inputSlot: HTMLElement | undefined;
@@ -192,6 +192,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		@IGitService private readonly gitService: IGitService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 	) {
 		super();
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
@@ -201,7 +202,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._repoPicker = this._register(this.instantiationService.createInstance(RepoPicker));
 		this._cloudModelPicker = this._register(this.instantiationService.createInstance(CloudModelPicker));
 		this._modePicker = this._register(this.instantiationService.createInstance(ModePicker));
-		this._targetPicker = this._register(new SessionTargetPicker(options.allowedTargets, this._resolveDefaultTarget(options)));
+		this._targetPicker = this._register(new SessionTargetPicker(options.allowedTargets, this._resolveDefaultTarget(options), this.actionWidgetService));
 		this._isolationModePicker = this._register(this.instantiationService.createInstance(IsolationModePicker));
 		this._branchPicker = this._register(this.instantiationService.createInstance(BranchPicker));
 		this._syncIndicator = this._register(this.instantiationService.createInstance(SyncIndicator));
@@ -310,12 +311,31 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		const welcomeElement = dom.append(wrapper, dom.$('.chat-full-welcome'));
 
-		// Watermark letterpress
-		const header = dom.append(welcomeElement, dom.$('.chat-full-welcome-header'));
-		dom.append(header, dom.$('.chat-full-welcome-letterpress'));
+		// Sentence-style header: "Start a new [Local v] session in [folderName v]"
+		const sentenceHeader = dom.append(welcomeElement, dom.$('.chat-new-session-sentence'));
 
-		// Option group pickers (above the input)
-		this._pickersContainer = dom.append(welcomeElement, dom.$('.chat-full-welcome-pickers-container'));
+		const sentenceLine = dom.append(sentenceHeader, dom.$('.chat-new-session-sentence-line'));
+
+		// Agent icon
+		const iconSpan = dom.append(sentenceLine, dom.$('span.chat-new-session-sentence-icon'));
+		iconSpan.appendChild(renderIcon(Codicon.agent));
+
+		dom.append(sentenceLine, dom.$('span.chat-new-session-sentence-text')).textContent = localize('newSession.prefix', "Start a new");
+
+		// Target picker inline (Local/Cloud dropdown)
+		const targetInline = dom.append(sentenceLine, dom.$('.chat-new-session-sentence-picker'));
+		this._targetPicker.render(targetInline);
+
+		dom.append(sentenceLine, dom.$('span.chat-new-session-sentence-text')).textContent = localize('newSession.middle', "session in");
+
+		// Folder/Repo picker inline
+		this._pickersContainer = dom.append(sentenceLine, dom.$('.chat-new-session-sentence-picker'));
+
+		// Keyboard shortcut hints (hidden for now)
+		// const hints = dom.append(sentenceHeader, dom.$('.chat-new-session-hints'));
+		// this._createHint(hints, localize('hint.send', "Send and Open New Chat"), '\u2303Enter');
+		// this._createHint(hints, localize('hint.voice', "Voice Input"), '\u2318I');
+		// this._createHint(hints, localize('hint.context', "Attach context"), '#');
 
 		// Input slot
 		this._inputSlot = dom.append(welcomeElement, dom.$('.chat-full-welcome-inputSlot'));
@@ -761,6 +781,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	// --- Welcome: Target & option pickers (dropdown row below input) ---
 
+	// private _createHint(container: HTMLElement, label: string, shortcut: string): void {
+	// 	const hint = dom.append(container, dom.$('.chat-new-session-hint'));
+	// 	dom.append(hint, dom.$('span.chat-new-session-hint-label')).textContent = label;
+	// 	dom.append(hint, dom.$('span.chat-new-session-hint-key')).textContent = shortcut;
+	// }
+
 	private _renderOptionGroupPickers(): void {
 		if (!this._pickersContainer) {
 			return;
@@ -769,25 +795,13 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._clearAllPickers();
 		dom.clearNode(this._pickersContainer);
 
-		const pickersRow = dom.append(this._pickersContainer, dom.$('.chat-full-welcome-pickers'));
-
-		// Left half: target switcher (right-justified within its half)
-		const leftHalf = dom.append(pickersRow, dom.$('.sessions-chat-pickers-left-half'));
-		const targetDropdownContainer = dom.append(leftHalf, dom.$('.sessions-chat-dropdown-wrapper'));
-		this._targetPicker.render(targetDropdownContainer);
-
-		// Right half: separator + pickers (left-justified within its half)
-		const rightHalf = dom.append(pickersRow, dom.$('.sessions-chat-pickers-right-half'));
-		this._extensionPickersLeftContainer = dom.append(rightHalf, dom.$('.sessions-chat-pickers-left-separator'));
-		this._extensionPickersLeftContainer.style.display = 'none';
-
 		// Repo picker for cloud (rendered once, shown/hidden based on target)
-		this._repoPickerContainer = dom.append(rightHalf, dom.$('.sessions-chat-extension-pickers-right'));
+		this._repoPickerContainer = dom.append(this._pickersContainer, dom.$('.sessions-chat-extension-pickers-right'));
 		this._repoPickerContainer.style.display = 'none';
 		this._repoPicker.render(this._repoPickerContainer);
 
 		// Folder picker for local (rendered once, shown/hidden based on target)
-		this._folderPickerContainer = this._folderPicker.render(rightHalf);
+		this._folderPickerContainer = this._folderPicker.render(this._pickersContainer);
 		this._folderPickerContainer.style.display = 'none';
 	}
 
@@ -797,9 +811,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._clearAllPickers();
 		if (this._folderPickerContainer) {
 			this._folderPickerContainer.style.display = '';
-		}
-		if (this._extensionPickersLeftContainer) {
-			this._extensionPickersLeftContainer.style.display = 'block';
 		}
 		// Show local model and mode pickers, hide remote
 		if (this._localModelPickerContainer) {
@@ -829,10 +840,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._cloudModelPicker.setSession(session);
 		this._cloudModelPicker.setVisible(true);
 
-		// Show repo picker and separator
-		if (this._extensionPickersLeftContainer) {
-			this._extensionPickersLeftContainer.style.display = 'block';
-		}
+		// Show repo picker
 		this._repoPickerContainer.style.display = '';
 
 		// Render toolbar pickers (other groups)
@@ -948,9 +956,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}
 		if (this._repoPickerContainer) {
 			this._repoPickerContainer.style.display = 'none';
-		}
-		if (this._extensionPickersLeftContainer) {
-			this._extensionPickersLeftContainer.style.display = 'none';
 		}
 	}
 

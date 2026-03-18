@@ -44,6 +44,7 @@
 .agent-sessions-workbench .part.sidebar > .content {
 	overflow: hidden;
 	background: var(--part-background);
+	width: auto !important;
 }
 
 /* Bottom radius on the last visible child (footer if present, otherwise content) */

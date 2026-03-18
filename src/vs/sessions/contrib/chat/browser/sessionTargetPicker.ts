@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Radio } from '../../../../base/browser/ui/radio/radio.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -17,9 +16,14 @@ import { IGitRepository } from '../../../../workbench/contrib/git/common/gitServ
 
 // #region --- Session Target Picker ---
 
+interface ITargetItem {
+	target: AgentSessionProviders;
+	label: string;
+}
+
 /**
  * A self-contained widget for selecting the session target (Local vs Cloud).
- * Encapsulates state, events, and rendering. Can be placed anywhere in the view.
+ * Renders as a dropdown trigger button, similar to the folder picker.
  */
 export class SessionTargetPicker extends Disposable {
 
@@ -30,7 +34,7 @@ export class SessionTargetPicker extends Disposable {
 	readonly onDidChangeTarget: Event<AgentSessionProviders> = this._onDidChangeTarget.event;
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
-	private _container: HTMLElement | undefined;
+	private _triggerElement: HTMLElement | undefined;
 
 	get selectedTarget(): AgentSessionProviders {
 		return this._selectedTarget;
@@ -39,6 +43,7 @@ export class SessionTargetPicker extends Disposable {
 	constructor(
 		allowedTargets: AgentSessionProviders[],
 		defaultTarget: AgentSessionProviders,
+		private readonly actionWidgetService: IActionWidgetService,
 	) {
 		super();
 		this._allowedTargets = allowedTargets;
@@ -48,11 +53,36 @@ export class SessionTargetPicker extends Disposable {
 	}
 
 	/**
-	 * Renders the target radio (Local / Cloud) into the given container.
+	 * Renders the target dropdown trigger into the given container.
 	 */
 	render(container: HTMLElement): void {
-		this._container = container;
-		this._renderRadio();
+		this._renderDisposables.clear();
+		dom.clearNode(container);
+
+		if (this._allowedTargets.length === 0) {
+			return;
+		}
+
+		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
+
+		const trigger = dom.append(slot, dom.$('a.action-label'));
+		trigger.tabIndex = 0;
+		trigger.role = 'button';
+		this._triggerElement = trigger;
+
+		this._updateTriggerLabel(trigger);
+
+		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, e => {
+			dom.EventHelper.stop(e, true);
+			this._showPicker();
+		}));
+
+		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, e => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				dom.EventHelper.stop(e, true);
+				this._showPicker();
+			}
+		}));
 	}
 
 	updateAllowedTargets(targets: AgentSessionProviders[]): void {
@@ -64,46 +94,63 @@ export class SessionTargetPicker extends Disposable {
 			this._selectedTarget = targets[0];
 			this._onDidChangeTarget.fire(this._selectedTarget);
 		}
-		if (this._container) {
-			this._renderRadio();
+		if (this._triggerElement) {
+			this._updateTriggerLabel(this._triggerElement);
 		}
 	}
 
-	private _renderRadio(): void {
-		if (!this._container) {
-			return;
-		}
+	private _updateTriggerLabel(trigger: HTMLElement): void {
+		dom.clearNode(trigger);
+		const label = getTargetLabel(this._selectedTarget);
+		const labelSpan = dom.append(trigger, dom.$('span.chat-session-option-label'));
+		labelSpan.textContent = label;
+		const chevron = dom.append(trigger, dom.$('span.sessions-chat-dropdown-chevron'));
+		chevron.appendChild(renderIcon(Codicon.chevronDown));
+		trigger.ariaLabel = localize('targetPicker.label', "Session target: {0}", label);
+	}
 
-		this._renderDisposables.clear();
-		dom.clearNode(this._container);
-
-		if (this._allowedTargets.length === 0) {
+	private _showPicker(): void {
+		if (!this._triggerElement || this.actionWidgetService.isVisible) {
 			return;
 		}
 
 		const targets = [AgentSessionProviders.Background, AgentSessionProviders.Cloud].filter(t => this._allowedTargets.includes(t));
-		const activeIndex = targets.indexOf(this._selectedTarget);
 
-		const radio = new Radio({
-			items: targets.map(target => ({
-				text: getTargetLabel(target),
-				isActive: target === this._selectedTarget,
-			})),
-		});
-		this._renderDisposables.add(radio);
-		this._container.appendChild(radio.domNode);
-
-		if (activeIndex >= 0) {
-			radio.setActiveItem(activeIndex);
-		}
-
-		this._renderDisposables.add(radio.onDidSelect(index => {
-			const target = targets[index];
-			if (this._selectedTarget !== target) {
-				this._selectedTarget = target;
-				this._onDidChangeTarget.fire(target);
-			}
+		const items: IActionListItem<ITargetItem>[] = targets.map(target => ({
+			kind: ActionListItemKind.Action as const,
+			group: { title: '' },
+			item: { target, label: getTargetLabel(target) },
+			label: getTargetLabel(target),
+			disabled: false,
+			checked: target === this._selectedTarget,
 		}));
+
+		const triggerElement = this._triggerElement;
+		const delegate: IActionListDelegate<ITargetItem> = {
+			onSelect: item => {
+				this.actionWidgetService.hide();
+				if (item.target !== this._selectedTarget) {
+					this._selectedTarget = item.target;
+					this._onDidChangeTarget.fire(item.target);
+					this._updateTriggerLabel(triggerElement);
+				}
+			},
+			onHide: () => { triggerElement.focus(); },
+		};
+
+		this.actionWidgetService.show<ITargetItem>(
+			'sessionTargetPicker',
+			false,
+			items,
+			delegate,
+			triggerElement,
+			undefined,
+			[],
+			{
+				getAriaLabel: item => item.label ?? '',
+				getWidgetAriaLabel: () => localize('targetPicker.ariaLabel', "Session Target"),
+			},
+		);
 	}
 }
 

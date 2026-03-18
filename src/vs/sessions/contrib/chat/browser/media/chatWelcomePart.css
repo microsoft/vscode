@@ -364,3 +364,111 @@
 .sessions-chat-sync-indicator .action-label .sessions-chat-dropdown-label {
 	margin-left: 3px;
 }
+
+/* ---- Sentence-style new session header ---- */
+
+.chat-new-session-sentence {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	width: 100%;
+	max-width: 800px;
+	padding: 0 0 16px 0;
+}
+
+.chat-new-session-sentence-line {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 6px;
+	font-size: 22px;
+	font-weight: 400;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-new-session-sentence-text {
+	white-space: nowrap;
+}
+
+.chat-new-session-sentence-icon > .codicon {
+	font-size: 22px !important;
+	opacity: 0.5;
+	display: inline-flex;
+	align-items: center;
+	position: relative;
+	top: 2px;
+}
+
+.chat-new-session-sentence-picker {
+	display: inline-flex;
+	align-items: baseline;
+}
+
+/* Style the radio/picker buttons inline to look like bold dropdown text */
+.chat-new-session-sentence-picker .monaco-custom-radio {
+	gap: 0;
+}
+
+.chat-new-session-sentence-picker .monaco-custom-radio .radio-item {
+	font-size: 22px;
+	font-weight: 700;
+	color: var(--vscode-foreground);
+	padding: 0 2px;
+	border-radius: 4px;
+}
+
+.chat-new-session-sentence-picker .sessions-chat-picker-slot .action-label {
+	font-size: 22px;
+	font-weight: 700;
+	color: var(--vscode-foreground);
+}
+
+/* Keyboard shortcut hints */
+.chat-new-session-hints {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.chat-new-session-hint {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 8px;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.7;
+}
+
+.chat-new-session-hint-label {
+	white-space: nowrap;
+}
+
+.chat-new-session-hint-key {
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+	opacity: 0.8;
+}
+
+/* Animation */
+.chat-full-welcome.revealed .chat-new-session-sentence {
+	animation: chat-sentence-fade-in 300ms cubic-bezier(0.0, 0.0, 0.2, 1) both;
+}
+
+@keyframes chat-sentence-fade-in {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-full-welcome.revealed .chat-new-session-sentence {
+		animation: none;
+	}
+}
