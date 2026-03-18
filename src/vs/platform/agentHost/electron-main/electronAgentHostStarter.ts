@@ -114,7 +114,6 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		'Debugger listening on ws://',
 		'For help, see: https://nodejs.org/en/docs/inspector',
 		'ExperimentalWarning: SQLite is an experimental feature',
-		'Use `Code - OSS Helper --trace-warnings ...` to show where the warning was created',
 	];
 
 	private _isExpectedStderr(data: string): boolean {
