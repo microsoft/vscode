@@ -488,6 +488,8 @@ export interface IChatTerminalToolInvocationData {
 		toolEdited?: string;
 		// command to show in the chat UI (potentially different from what is actually run in the terminal)
 		forDisplay?: string;
+		// isSandboxWrapped boolean to run in the terminal (potentially different from original command)
+		isSandboxWrapped?: boolean;
 	};
 	/** The working directory URI for the terminal */
 	cwd?: UriComponents;

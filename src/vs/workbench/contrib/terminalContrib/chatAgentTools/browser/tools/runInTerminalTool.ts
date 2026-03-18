@@ -487,6 +487,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		let rewrittenCommand: string | undefined = args.command;
 		let forDisplayCommand: string | undefined = undefined;
+		let isSandboxWrapped = false;
 		for (const rewriter of this._commandLineRewriters) {
 			const rewriteResult = await rewriter.rewrite({
 				commandLine: rewrittenCommand,
@@ -497,6 +498,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (rewriteResult) {
 				rewrittenCommand = rewriteResult.rewritten;
 				forDisplayCommand = rewriteResult.forDisplay;
+				if (rewriteResult.isSandboxWrapped) {
+					isSandboxWrapped = true;
+				}
 				this._logService.info(`RunInTerminalTool: Command rewritten by ${rewriter.constructor.name}: ${rewriteResult.reasoning}`);
 			}
 		}
@@ -509,6 +513,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				original: args.command,
 				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand,
 				forDisplay: forDisplayCommand ?? normalizeTerminalCommandForDisplay(rewrittenCommand ?? args.command),
+				isSandboxWrapped,
 			},
 			cwd,
 			language,
@@ -781,6 +786,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original
 		);
 
+		const didSandboxWrapCommand = toolSpecificData.commandLine.isSandboxWrapped === true;
+
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -922,12 +929,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				state.timestamp = state.timestamp ?? timingStart;
 				toolSpecificData.terminalCommandState = state;
 
+				// if the command is wrapped in a sandbox, we will not show the command. This is because the sandbox may add additional commands that are not relevant to the user, and the output will provide more context about what is running.
 				let resultText = (
-					didUserEditCommand
-						? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
-						: didToolEditCommand
-							? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
-							: `Command is running in terminal with ID=${termId}`
+					didSandboxWrapCommand ? `Command is now running in terminal with ID=${termId}`
+						: didUserEditCommand
+							? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
+							: didToolEditCommand
+								? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
+								: `Command is running in terminal with ID=${termId}`
 				);
 				if (pollingResult && pollingResult.modelOutputEvalResponse) {
 					resultText += `\n\ The command became idle with output:\n${pollingResult.modelOutputEvalResponse}`;
@@ -1116,13 +1125,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const resultText: string[] = [];
-		if (didUserEditCommand) {
-			resultText.push(`Note: The user manually edited the command to \`${command}\`, and this is the output of running that command instead:\n`);
-		} else if (didToolEditCommand) {
-			resultText.push(`Note: The tool simplified the command to \`${command}\`, and this is the output of running that command instead:\n`);
-		}
-		if (didMoveToBackground && !args.isBackground) {
-			resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
+		if (!didSandboxWrapCommand) {
+			if (didUserEditCommand) {
+				resultText.push(`Note: The user manually edited the command to \`${command}\`, and this is the output of running that command instead:\n`);
+			} else if (didToolEditCommand) {
+				resultText.push(`Note: The tool simplified the command to \`${command}\`, and this is the output of running that command instead:\n`);
+			}
+			if (didMoveToBackground && !args.isBackground) {
+				resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
+			}
 		}
 		if (didTimeout && timeoutValue !== undefined && timeoutValue > 0) {
 			resultText.push(`Note: Command timed out after ${timeoutValue}ms. Output collected so far is shown below and the command may still be running in terminal ID ${termId}.\n\n`);
