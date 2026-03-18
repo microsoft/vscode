@@ -28,7 +28,7 @@ export interface IRunScriptCustomTaskWidgetState {
 	readonly target?: TaskStorageTarget;
 	readonly targetDisabledReason?: string;
 	readonly runOn?: typeof WORKTREE_CREATED_RUN_ON;
-	readonly isExistingTask?: boolean;
+	readonly mode?: 'add' | 'add-existing' | 'configure';
 }
 
 export interface IRunScriptCustomTaskWidgetResult {
@@ -52,6 +52,7 @@ export class RunScriptCustomTaskWidget extends Disposable {
 	private readonly _commandLocked: boolean;
 	private readonly _targetLocked: boolean;
 	private readonly _isExistingTask: boolean;
+	private readonly _isAddExistingTask: boolean;
 	private readonly _initialLabel: string;
 	private readonly _initialCommand: string;
 	private readonly _initialRunOn: boolean;
@@ -70,7 +71,8 @@ export class RunScriptCustomTaskWidget extends Disposable {
 		this._labelLocked = !!state.labelDisabledReason;
 		this._commandLocked = !!state.commandDisabledReason;
 		this._targetLocked = !!state.targetDisabledReason && state.target !== undefined;
-		this._isExistingTask = !!state.isExistingTask;
+		this._isExistingTask = state.mode === 'configure';
+		this._isAddExistingTask = state.mode === 'add-existing';
 		this._selectedTarget = state.target ?? (state.targetDisabledReason ? 'user' : 'workspace');
 		this._initialLabel = state.label ?? '';
 		this._initialCommand = state.command ?? '';
@@ -217,6 +219,9 @@ export class RunScriptCustomTaskWidget extends Disposable {
 	}
 
 	private _getSubmitLabel(): string {
+		if (this._isAddExistingTask) {
+			return localize('confirmAddToSessions', "Add to Sessions Window");
+		}
 		if (!this._isExistingTask) {
 			return localize('confirmAddTask', "Add Task");
 		}
