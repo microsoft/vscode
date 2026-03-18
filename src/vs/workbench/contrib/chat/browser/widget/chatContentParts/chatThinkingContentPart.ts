@@ -27,7 +27,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
@@ -201,6 +201,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private availableMessagesByCategory = new Map<WorkingMessageCategory, string[]>();
 	private readonly toolWrappersByCallId = new Map<string, HTMLElement>();
 	private readonly toolDisposables = this._register(new DisposableMap<string, DisposableStore>());
+	private readonly ownedToolParts = new Map<string, IDisposable>();
 	private pendingRemovals: { toolCallId: string; toolLabel: string }[] = [];
 	private pendingRemovalFlushDisposable: IDisposable | undefined;
 	private pendingScrollDisposable: IDisposable | undefined;
@@ -307,6 +308,13 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			node.classList.add('chat-thinking-fixed-mode');
 			this.currentTitle = this.defaultTitle;
 		}
+
+		this._register(toDisposable(() => {
+			for (const d of this.ownedToolParts.values()) {
+				d.dispose();
+			}
+			this.ownedToolParts.clear();
+		}));
 
 		// override for codicon chevron in the collapsible part
 		this._register(autorun(r => {
@@ -834,7 +842,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 						toolInvocation
 					};
 					if (result.disposable) {
-						this._register(result.disposable);
+						const toolCallId = toolInvocation?.toolCallId;
+						if (toolCallId) {
+							this.ownedToolParts.set(toolCallId, result.disposable);
+						} else {
+							this._register(result.disposable);
+						}
 					}
 				}
 			}
@@ -1122,7 +1135,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			if (result.disposable) {
 				const toolCallId = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? toolInvocationOrMarkdown.toolCallId : undefined;
 				if (toolCallId) {
-					this.toolDisposables.get(toolCallId)?.add(result.disposable);
+					this.ownedToolParts.set(toolCallId, result.disposable);
 				} else {
 					this._register(result.disposable);
 				}
@@ -1145,6 +1158,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 	public removeMaterializedItem(toolCallId: string): void {
 		this.toolDisposables.deleteAndDispose(toolCallId);
+		this.ownedToolParts.delete(toolCallId);
 
 		const wrapper = this.toolWrappersByCallId.get(toolCallId);
 		if (wrapper) {
@@ -1255,6 +1269,8 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	// removes the tool entry that was previously streaming and now is not. removes item from dom and internal tracking.
 	private removeStreamingToolEntry(toolCallId: string, toolLabel: string): void {
 		this.toolDisposables.deleteAndDispose(toolCallId);
+		this.ownedToolParts.get(toolCallId)?.dispose();
+		this.ownedToolParts.delete(toolCallId);
 
 		const wrapper = this.toolWrappersByCallId.get(toolCallId);
 		if (wrapper) {
@@ -1534,7 +1550,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		if (result.disposable) {
 			const toolCallId = item.toolInvocationOrMarkdown && (item.toolInvocationOrMarkdown.kind === 'toolInvocation' || item.toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? item.toolInvocationOrMarkdown.toolCallId : undefined;
 			if (toolCallId) {
-				this.toolDisposables.get(toolCallId)?.add(result.disposable);
+				this.ownedToolParts.set(toolCallId, result.disposable);
 			} else {
 				this._register(result.disposable);
 			}
