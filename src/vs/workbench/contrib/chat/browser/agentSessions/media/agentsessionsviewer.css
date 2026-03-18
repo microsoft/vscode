@@ -64,7 +64,7 @@
 
 	/* On hover or keyboard focus: show toolbar */
 	.monaco-list-row:hover,
-	.monaco-list-row.focused {
+	.monaco-list-row.focused:not(.selected) {
 
 		.agent-session-title-toolbar {
 			display: block;
@@ -332,7 +332,7 @@
 	}
 
 	.monaco-list-row:hover .agent-session-section .agent-session-section-toolbar,
-	.monaco-list-row.focused .agent-session-section .agent-session-section-toolbar {
+	.monaco-list-row.focused:not(.selected) .agent-session-section .agent-session-section-toolbar {
 		width: 22px;
 
 		.monaco-toolbar {
