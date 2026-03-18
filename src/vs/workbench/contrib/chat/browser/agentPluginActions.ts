@@ -258,19 +258,23 @@ export function createDisablePluginDropDown(
 	plugin: IAgentPlugin,
 	enablementModel: IEnablementModel,
 	workspaceContextService: IWorkspaceContextService,
-): EnablementDropDownAction {
+): Action {
 	const key = plugin.uri.toString();
 	const hasWorkspace = workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 
 	const disable = new EnablementSubAction('agentPlugin.disable', localize('disable', "Disable"), 'extension-action label disable',
-		isContributionEnabled(plugin.enablement.get()),
+		isContributionEnabled(plugin.enablement.get()) && !hasWorkspace,
 		() => { enablementModel.setEnabled(key, ContributionEnablementState.DisabledProfile); return Promise.resolve(); });
 
 	const disableWorkspace = new EnablementSubAction('agentPlugin.disableForWorkspace', localize('disableForWorkspace', "Disable (Workspace)"), 'extension-action label disable',
 		isContributionEnabled(plugin.enablement.get()) && hasWorkspace,
 		() => { enablementModel.setEnabled(key, ContributionEnablementState.DisabledWorkspace); return Promise.resolve(); });
 
-	return new EnablementDropDownAction('agentPlugin.disableDropdown', [disable, disableWorkspace]);
+	if (hasWorkspace) {
+		return disableWorkspace;
+	} else {
+		return disable;
+	}
 }
 
 //#endregion
