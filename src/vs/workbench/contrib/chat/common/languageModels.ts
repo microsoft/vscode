@@ -1020,7 +1020,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			throw new Error(`Chat provider for model ${modelId} is not registered.`);
 		}
 		const configuration = this.getModelConfiguration(modelId);
-		const mergedOptions = configuration ? { ...options, configuration } : options;
+		const mergedOptions = configuration ? { ...options, configuration: { ...configuration, ...options.configuration } } : options;
 		return provider.sendChatRequest(modelId, messages, from, mergedOptions, token);
 	}
 
@@ -1036,7 +1036,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const defaults: IStringDictionary<unknown> = {};
 		if (schema?.properties) {
 			for (const [key, propSchema] of Object.entries(schema.properties)) {
-				if (typeof propSchema !== 'boolean' && propSchema.default !== undefined) {
+				if (propSchema.default !== undefined) {
 					defaults[key] = propSchema.default;
 				}
 			}
@@ -1092,7 +1092,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		if (schema?.properties) {
 			for (const [key, value] of Object.entries(updatedConfig)) {
 				const propSchema = schema.properties[key];
-				if (typeof propSchema !== 'boolean' && propSchema?.default !== undefined && propSchema.default === value) {
+				if (propSchema?.default !== undefined && propSchema.default === value) {
 					delete updatedConfig[key];
 				}
 			}
