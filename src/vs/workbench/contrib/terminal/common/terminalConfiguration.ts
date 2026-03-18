@@ -527,6 +527,16 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			'vscode-insiders',
 		]
 	},
+	[TerminalSettingId.LinkActivationModifier]: {
+		description: localize('terminal.integrated.linkActivationModifier', "The modifier key required to follow links in the terminal. The exact modifier must be the only one held; combinations with additional modifiers (such as Shift) will not trigger link following."),
+		type: 'string',
+		enum: ['ctrlCmd', 'alt'],
+		enumDescriptions: [
+			localize('terminal.integrated.linkActivationModifier.ctrlCmd', "Ctrl (or Cmd on macOS) only."),
+			localize('terminal.integrated.linkActivationModifier.alt', "Alt (or Option on macOS) only.")
+		],
+		default: 'ctrlCmd'
+	},
 	[TerminalSettingId.UnicodeVersion]: {
 		type: 'string',
 		enum: ['6', '11'],
