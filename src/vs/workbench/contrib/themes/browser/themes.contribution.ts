@@ -603,17 +603,27 @@ registerAction2(class extends Action2 {
 			}
 		}));
 
-		disposables.add(picker.onDidAccept(async () => {
+		disposables.add(picker.onDidAccept(() => {
 			const selected = picker.activeItems[0];
-			if (selected) {
-				const theme = themes.find(t => t.id === selected.id);
-				if (theme) {
+			const theme = selected ? themes.find(t => t.id === selected.id) : undefined;
+
+			picker.hide();
+
+			if (!theme) {
+				return;
+			}
+
+			(async () => {
+				try {
 					await themeService.setColorTheme(theme, 'auto');
 					await configurationService.updateValue(ThemeSettings.PREFERRED_LIGHT_THEME, ThemeSettingDefaults.COLOR_THEME_LIGHT);
 					await configurationService.updateValue(ThemeSettings.PREFERRED_DARK_THEME, ThemeSettingDefaults.COLOR_THEME_DARK);
+				} catch (error) {
+					if (!isCancellationError(error)) {
+						onUnexpectedError(error);
+					}
 				}
-			}
-			picker.hide();
+			})();
 		}));
 
 		const result = new Promise<void>(resolve => {
