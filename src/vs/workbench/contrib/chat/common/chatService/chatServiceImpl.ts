@@ -1129,6 +1129,7 @@ export class ChatService extends Disposable implements IChatService {
 							acceptedConfirmationData: options?.acceptedConfirmationData,
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 							userSelectedModelId: options?.userSelectedModelId,
+							modelConfiguration: options?.userSelectedModelId ? this.languageModelsService.getModelConfiguration(options.userSelectedModelId) : undefined,
 							userSelectedTools: options?.userSelectedTools?.get(),
 							modeInstructions: options?.modeInfo?.modeInstructions,
 							permissionLevel: options?.modeInfo?.permissionLevel,

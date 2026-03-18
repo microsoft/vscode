@@ -5,6 +5,7 @@
 
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
@@ -147,6 +148,7 @@ export interface IChatAgentRequest {
 	acceptedConfirmationData?: unknown[];
 	rejectedConfirmationData?: unknown[];
 	userSelectedModelId?: string;
+	modelConfiguration?: IStringDictionary<unknown>;
 	userSelectedTools?: UserSelectedTools;
 	modeInstructions?: IChatRequestModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];

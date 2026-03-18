@@ -289,6 +289,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				subAgentInvocationId: invocation.callId,
 				subAgentName: subAgentName,
 				userSelectedModelId: modeModelId,
+				modelConfiguration: modeModelId ? this.languageModelsService.getModelConfiguration(modeModelId) : undefined,
 				userSelectedTools: modeTools,
 				modeInstructions,
 				parentRequestId: invocation.chatRequestId,

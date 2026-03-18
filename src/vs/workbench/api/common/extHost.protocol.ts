@@ -63,7 +63,7 @@ import { ChatResponseClearToPreviousToolInvocationReason, IChatContentInlineRefe
 import { IChatNewSessionRequest, IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableValue } from '../../contrib/chat/common/attachments/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
-import { IChatMessage, IChatResponsePart, ILanguageModelChatInfoOptions, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatSelector } from '../../contrib/chat/common/languageModels.js';
+import { IChatMessage, IChatResponsePart, ILanguageModelChatInfoOptions, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatRequestOptions, ILanguageModelChatSelector } from '../../contrib/chat/common/languageModels.js';
 import { IPreparedToolInvocation, IStreamedToolInvocation, IToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolProgressStep, IToolResult, ToolDataSource } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IPromptFileContext, IPromptFileResource } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
@@ -1394,7 +1394,7 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 export interface ExtHostLanguageModelsShape {
 	$provideLanguageModelChatInfo(vendor: string, options: ILanguageModelChatInfoOptions, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
-	$startChatRequest(modelId: string, requestId: number, from: ExtensionIdentifier | undefined, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: { [name: string]: any }, token: CancellationToken): Promise<void>;
+	$startChatRequest(modelId: string, requestId: number, from: ExtensionIdentifier | undefined, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<void>;
 	$acceptResponsePart(requestId: number, chunk: SerializableObjectWithBuffers<IChatResponsePart | IChatResponsePart[]>): Promise<void>;
 	$acceptResponseDone(requestId: number, error: SerializedError | undefined): Promise<void>;
 	$provideTokenLength(modelId: string, value: string | IChatMessage, token: CancellationToken): Promise<number>;
