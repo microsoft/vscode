@@ -157,15 +157,19 @@ export class UITest {
 		await extensionItem.waitFor();
 
 		for (let attempt = 0; attempt < 3; attempt++) {
-			this.context.log(`Clicking Install on the first extension in the list (attempt ${attempt + 1}/3)`);
-			const installButton = page.locator('.extension-action:not(.disabled)', { hasText: /Install/ }).first();
-			await installButton.click();
+			try {
+				this.context.log(`Clicking Install on the first extension in the list (attempt ${attempt + 1}/3)`);
+				const installButton = page.locator('.extension-action:not(.disabled)', { hasText: /Install/ }).first();
+				await installButton.click();
 
-			this.context.log('Waiting for extension to be installed');
-			const uninstallButton = page.getByRole('button', { name: 'Uninstall' }).first();
-			const installed = await uninstallButton.waitFor({ timeout: 5 * 60_000 }).then(() => true, () => false);
-			if (installed) {
-				return;
+				this.context.log('Waiting for extension to be installed');
+				const uninstallButton = page.getByRole('button', { name: 'Uninstall' }).first();
+				const installed = await uninstallButton.waitFor({ timeout: 5 * 60_000 }).then(() => true, () => false);
+				if (installed) {
+					return;
+				}
+			} catch (error) {
+				this.context.warn(`Extension install attempt ${attempt + 1}/3 failed: ${error instanceof Error ? error.message : String(error)}`);
 			}
 
 			this.context.log('Extension install may have failed, retrying');

@@ -101,7 +101,7 @@ export class TestContext {
 				await fn();
 
 			} catch (error) {
-				self.error(`Test failed with error: ${error instanceof Error ? error.message : String(error)}`);
+				self.log(`Test failed with error: ${error instanceof Error ? error.message : String(error)}`);
 				throw error;
 
 			} finally {
