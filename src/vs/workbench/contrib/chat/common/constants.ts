@@ -10,6 +10,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 
 export enum ChatConfiguration {
 	AIDisabled = 'chat.disableAIFeatures',
+	AllowedGitHubOrganizations = 'chat.allowedGitHubOrganizations',
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
 	PluginMarketplaces = 'chat.plugins.marketplaces',
