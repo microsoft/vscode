@@ -213,11 +213,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		this._register(this._targetPicker.onDidChange((target) => {
 			if (target === 'cloud') {
-				this._newSession.value?.setTargetMode('cloud');
 				this._isolationPicker.setVisible(false);
 				this._branchPicker.setVisible(false);
 			} else {
-				this._newSession.value?.setTargetMode(this._isolationPicker.isolationMode);
+				this._newSession.value?.setIsolationMode(this._isolationPicker.isolationMode);
 				this._isolationPicker.setVisible(true);
 				this._branchPicker.setVisible(this._isolationPicker.isWorktree);
 			}
@@ -226,7 +225,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}));
 
 		this._register(this._isolationPicker.onDidChange((mode) => {
-			this._newSession.value?.setTargetMode(mode);
+			this._newSession.value?.setIsolationMode(mode);
 			this._branchPicker.setVisible(mode === 'worktree');
 			this._updateDraftState();
 			this._focusEditor();
