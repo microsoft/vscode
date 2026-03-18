@@ -2900,7 +2900,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		display: none;
 	}
 
-	.interactive-item-container .header.partially-disabled .detail.show-checkmarks {
+	.interactive-item-container.show-checkmarks .header.partially-disabled .detail {
 		margin-left: 4px;
 
 		.codicon-check {
