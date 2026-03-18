@@ -26,7 +26,7 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/edit
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { UserDataProfilesEditor, UserDataProfilesEditorInput, UserDataProfilesEditorInputSerializer } from './userDataProfilesEditor.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { IEditorService, MODAL_GROUP } from '../../../services/editor/common/editorService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IUserDataProfilesEditor } from '../common/userDataProfile.js';
@@ -107,7 +107,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	}
 
 	private async openProfilesEditor(): Promise<IUserDataProfilesEditor | undefined> {
-		const editor = await this.editorService.openEditor(new UserDataProfilesEditorInput(this.instantiationService), undefined, MODAL_GROUP);
+		const editor = await this.editorService.openEditor(new UserDataProfilesEditorInput(this.instantiationService));
 		return editor as IUserDataProfilesEditor;
 	}
 
@@ -388,7 +388,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			run(accessor: ServicesAccessor) {
 				const editorService = accessor.get(IEditorService);
 				const instantiationService = accessor.get(IInstantiationService);
-				return editorService.openEditor(new UserDataProfilesEditorInput(instantiationService), undefined, MODAL_GROUP);
+				return editorService.openEditor(new UserDataProfilesEditorInput(instantiationService));
 			}
 		}));
 		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {

@@ -250,7 +250,7 @@ export class PromptHeader {
 							model = prop.value.value;
 						}
 					}
-					if (agent && label && prompt !== undefined) {
+					if (agent && label?.trim() && prompt !== undefined) {
 						const handoff: IHandOff = {
 							agent,
 							label,

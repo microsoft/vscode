@@ -1428,12 +1428,12 @@ function registerModalEditorCommands(): void {
 				}
 			});
 		}
-		run(accessor: ServicesAccessor): void {
+		async run(accessor: ServicesAccessor): Promise<void> {
 			const editorGroupsService = accessor.get(IEditorGroupsService);
 
 			for (const part of editorGroupsService.parts) {
 				if (isModalEditorPart(part)) {
-					part.close({ mergeAllEditorsToMainPart: true });
+					await part.close({ mergeAllEditorsToMainPart: true });
 					break;
 				}
 			}
@@ -1469,7 +1469,7 @@ function registerModalEditorCommands(): void {
 					}
 
 					auxiliaryEditorPart.activeGroup.focus();
-					part.close();
+					await part.close();
 					break;
 				}
 			}
@@ -1538,7 +1538,7 @@ function registerModalEditorCommands(): void {
 
 			for (const part of editorGroupsService.parts) {
 				if (isModalEditorPart(part)) {
-					part.close();
+					await part.close();
 					break;
 				}
 			}

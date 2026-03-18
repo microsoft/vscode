@@ -37,7 +37,7 @@ export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOpt
 	return handleGroupResult(group, editor, preferredGroup, editorGroupService, configurationService);
 }
 
-function handleGroupResult(group: IEditorGroup, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, editorGroupService: IEditorGroupsService, configurationService: IConfigurationService): [IEditorGroup, EditorActivation | undefined] {
+function handleGroupResult(group: IEditorGroup, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, editorGroupService: IEditorGroupsService, configurationService: IConfigurationService): FindGroupResult {
 	const modalEditorPart = editorGroupService.activeModalEditorPart;
 	const modalEditorMode = configurationService.getValue<string>('workbench.editor.useModal');
 	const editorInput = isEditorInputWithOptions(editor) ? editor.editor : isEditorInput(editor) ? editor : undefined;
@@ -46,13 +46,13 @@ function handleGroupResult(group: IEditorGroup, editor: EditorInputWithOptions |
 		// Only allow to open in modal group if MODAL_GROUP is explicitly requested
 		// or when the setting is configured to open all editors modal or when the
 		// editor has the RequiresModal capability.
-		group = handleModalEditorPart(group, editor, modalEditorPart, editorGroupService);
+		return handleModalEditorPart(group, editor, modalEditorPart, editorGroupService, preferredGroup);
 	}
 
 	return handleGroupActivation(group, editor, preferredGroup, editorGroupService);
 }
 
-function handleModalEditorPart(group: IEditorGroup, editor: EditorInputWithOptions | IUntypedEditorInput, modalEditorPart: IModalEditorPart, editorGroupService: IEditorGroupsService): IEditorGroup {
+async function handleModalEditorPart(group: IEditorGroup, editor: EditorInputWithOptions | IUntypedEditorInput, modalEditorPart: IModalEditorPart, editorGroupService: IEditorGroupsService, preferredGroup: PreferredGroup | undefined): Promise<[IEditorGroup, EditorActivation | undefined]> {
 	const options = editor.options;
 
 	// If the resolved group is part of the modal, redirect
@@ -63,10 +63,10 @@ function handleModalEditorPart(group: IEditorGroup, editor: EditorInputWithOptio
 
 	// Try to close the modal editor part unless preserveFocus is set
 	if (!options?.preserveFocus) {
-		modalEditorPart.close();
+		await modalEditorPart.close();
 	}
 
-	return group;
+	return handleGroupActivation(group, editor, preferredGroup, editorGroupService);
 }
 
 function handleGroupActivation(group: IEditorGroup, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, editorGroupService: IEditorGroupsService): [IEditorGroup, EditorActivation | undefined] {

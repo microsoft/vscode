@@ -684,6 +684,7 @@ export class PromptValidator {
 			report(toMarker(localize('promptValidator.handoffsMustBeArray', "The 'handoffs' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
+		const seenLabels = new Map<string, Range>();
 		for (const item of attribute.value.items) {
 			if (item.type !== 'map') {
 				report(toMarker(localize('promptValidator.eachHandoffMustBeObject', "Each handoff in the 'handoffs' attribute must be an object with 'label', 'agent', 'prompt' and optional 'send'."), item.range, MarkerSeverity.Error));
@@ -695,6 +696,8 @@ export class PromptValidator {
 					case 'label':
 						if (prop.value.type !== 'scalar' || prop.value.value.trim().length === 0) {
 							report(toMarker(localize('promptValidator.handoffLabelMustBeNonEmptyString', "The 'label' property in a handoff must be a non-empty string."), prop.value.range, MarkerSeverity.Error));
+						} else if (!/[a-zA-Z0-9]/.test(prop.value.value)) {
+							report(toMarker(localize('promptValidator.handoffLabelMustContainAlphanumeric', "The 'label' property in a handoff must contain at least one alphanumeric character."), prop.value.range, MarkerSeverity.Error));
 						}
 						break;
 					case 'agent':
@@ -731,6 +734,17 @@ export class PromptValidator {
 			}
 			if (required.size > 0) {
 				report(toMarker(localize('promptValidator.missingHandoffProperties', "Missing required properties {0} in handoff object.", Array.from(required).map(s => `'${s}'`).join(', ')), item.range, MarkerSeverity.Error));
+			}
+
+			// Detect duplicate labels (case-insensitive, consistent with ExecuteHandoffAction lookup)
+			const labelProp = item.properties.find(p => p.key.value === 'label');
+			if (labelProp?.value.type === 'scalar') {
+				const normalizedLabel = labelProp.value.value.toLowerCase();
+				if (normalizedLabel && seenLabels.has(normalizedLabel)) {
+					report(toMarker(localize('promptValidator.duplicateHandoffLabel', "Duplicate handoff label '{0}'. Each handoff must have a unique label.", labelProp.value.value), labelProp.value.range, MarkerSeverity.Error));
+				} else if (normalizedLabel) {
+					seenLabels.set(normalizedLabel, labelProp.value.range);
+				}
 			}
 		}
 	}

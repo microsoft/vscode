@@ -563,3 +563,82 @@ export function getModeNameForTelemetry(mode: IChatMode): string {
 	}
 	return mode.name.get();
 }
+
+/**
+ * Generates a stable identifier for a handoff by combining the target agent
+ * name with a slugified version of the display label.
+ *
+ * Within a single source agent, the combination of `agent` + `label` must be
+ * unique for IDs to be unambiguous.
+ *
+ * @example
+ * ```
+ * getHandoffId({ agent: 'agent', label: 'Continue', prompt: '...' })
+ * // => 'agent:continue'
+ * ```
+ */
+export function getHandoffId(handoff: IHandOff): string {
+	const slug = handoff.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+	return `${handoff.agent}:${slug}`;
+}
+
+/**
+ * Describes a single handoff defined in a custom agent's `.agent.md` file.
+ */
+export interface IHandoffInfo {
+	/** Stable identifier for programmatic matching (format: `<agent>:<slugified-label>`). */
+	readonly id: string;
+	readonly label: string;
+	readonly agent: string;
+	readonly prompt: string;
+	readonly send?: boolean;
+	readonly showContinueOn?: boolean;
+	readonly model?: string;
+}
+
+/**
+ * Describes a custom agent (or built-in mode) and the handoffs it defines.
+ */
+export interface ICustomAgentInfo {
+	readonly id: string;
+	readonly name: string;
+	readonly isBuiltin: boolean;
+	readonly visibility: {
+		readonly userInvocable: boolean;
+		readonly agentInvocable: boolean;
+	};
+	readonly handoffs: IHandoffInfo[];
+}
+
+/**
+ * Builds an array of {@link ICustomAgentInfo} with handoff metadata for the given agents/modes.
+ *
+ * @param modes - The set of agents/modes to include. Pass all modes to get a
+ *   complete picture, or a filtered subset to scope the result.
+ * @returns One entry per agent/mode, each containing the agent's metadata and
+ *   its declared handoffs.
+ */
+export function buildCustomAgentHandoffsInfo(modes: readonly IChatMode[]): ICustomAgentInfo[] {
+	return modes.map(mode => {
+		const handoffs = mode.handOffs?.get() ?? [];
+		const visibility = mode.visibility?.get();
+		return {
+			id: mode.id,
+			name: mode.name.get(),
+			isBuiltin: mode.isBuiltin,
+			visibility: {
+				userInvocable: visibility?.userInvocable ?? true,
+				agentInvocable: visibility?.agentInvocable ?? true,
+			},
+			handoffs: handoffs.map(h => ({
+				id: getHandoffId(h),
+				label: h.label,
+				agent: h.agent,
+				prompt: h.prompt,
+				...(h.send !== undefined ? { send: h.send } : {}),
+				...(h.showContinueOn !== undefined ? { showContinueOn: h.showContinueOn } : {}),
+				...(h.model !== undefined ? { model: h.model } : {}),
+			})),
+		};
+	});
+}
