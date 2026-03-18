@@ -194,7 +194,13 @@
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .codicon {
 	font-size: 18px;
-	margin-right: 6px;
+	margin-right: 2px;
+}
+
+.sessions-chat-picker-slot.sessions-chat-project-picker .action-label .codicon-chevron-down {
+	margin-right: 0;
+	position: relative;
+	top: 1px;
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label {
@@ -220,7 +226,7 @@
 	padding: 3px 3px 3px 6px;
 	background-color: transparent;
 	border: none;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-icon-foreground);
 	font-size: 13px;
 	cursor: pointer;
 	white-space: nowrap;
@@ -242,7 +248,7 @@
 
 .sessions-chat-picker-slot.disabled .action-label:hover {
 	background-color: transparent;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-icon-foreground);
 }
 
 .sessions-chat-picker-slot.loading .action-label {
@@ -279,7 +285,7 @@
 
 .sessions-chat-picker-slot .action-label .codicon-chevron-down {
 	font-size: 12px;
-	margin-left: 2px;
+	margin-left: 6px;
 }
 
 .sessions-chat-picker-slot .action-label .chat-session-option-label {

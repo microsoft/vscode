@@ -51,7 +51,7 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
 
 export { truncateToFirstSentence } from './aiCustomizationListWidgetUtils.js';
 
@@ -1111,6 +1111,23 @@ export class AICustomizationListWidget extends Disposable {
 		const filteredItems = applyStorageSourceFilter(items, filter);
 		items.length = 0;
 		items.push(...filteredItems);
+
+		// Apply workspace subpath filter — when the active harness specifies
+		// workspaceSubpaths, hide workspace-local items that aren't under one
+		// of the recognized sub-paths (e.g. Claude only shows .claude/ items).
+		const descriptor = this.harnessService.getActiveDescriptor();
+		const subpaths = descriptor.workspaceSubpaths;
+		if (subpaths) {
+			const projectRoot = this.workspaceService.getActiveProjectRoot();
+			for (let i = items.length - 1; i >= 0; i--) {
+				const item = items[i];
+				if (item.storage === PromptsStorage.local && projectRoot && isEqualOrParent(item.uri, projectRoot)) {
+					if (!matchesWorkspaceSubpath(item.uri.path, subpaths)) {
+						items.splice(i, 1);
+					}
+				}
+			}
+		}
 
 		// Sort items by name
 		items.sort((a, b) => a.name.localeCompare(b.name));

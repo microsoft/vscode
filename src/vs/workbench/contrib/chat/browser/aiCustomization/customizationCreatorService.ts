@@ -15,7 +15,7 @@ import { isEqualOrParent } from '../../../../../base/common/resources.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { localize } from '../../../../../nls.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
 
 /**
  * Service that opens an AI-guided chat session to help the user create
@@ -131,8 +131,7 @@ export class CustomizationCreatorService {
 				}
 				seen.add(key);
 				if (subpaths) {
-					const path = f.uri.path;
-					return subpaths.some(sp => path.includes(sp));
+					return matchesWorkspaceSubpath(f.uri.path, subpaths);
 				}
 				return true;
 			})

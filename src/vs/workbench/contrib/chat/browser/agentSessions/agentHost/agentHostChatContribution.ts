@@ -66,7 +66,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._setupIpcLogging();
 
 		// Shared client state for protocol reconciliation
-		this._clientState = this._register(new SessionClientState(this._agentHostService.clientId));
+		this._clientState = this._register(new SessionClientState(this._agentHostService.clientId, this._logService));
 
 		// Forward action envelopes from the host to client state
 		this._register(this._agentHostService.onDidAction(envelope => {

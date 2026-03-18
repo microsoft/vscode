@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
-import { IActionEnvelope, IActionOrigin, INotification, ISessionAction, IRootAction, IStateAction, isRootAction, isSessionAction } from '../common/state/sessionActions.js';
+import { ActionType, NotificationType, IActionEnvelope, IActionOrigin, INotification, ISessionAction, IRootAction, IStateAction, isRootAction, isSessionAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer } from '../common/state/sessionReducers.js';
 import { createRootState, createSessionState, type IRootState, type ISessionState, type ISessionSummary, type URI, ROOT_STATE_URI } from '../common/state/sessionState.js';
@@ -40,6 +40,8 @@ export class SessionStateManager extends Disposable {
 		super();
 		this._rootState = createRootState();
 	}
+	private readonly _log = (msg: string) => this._logService.warn(`[SessionStateManager] ${msg}`);
+
 	get hasActiveSessions(): boolean {
 		return this._activeTurnToSession.size > 0;
 	}
@@ -105,7 +107,7 @@ export class SessionStateManager extends Disposable {
 		this._logService.trace(`[SessionStateManager] Created session: ${key}`);
 
 		this._onDidEmitNotification.fire({
-			type: 'notify/sessionAdded',
+			type: NotificationType.SessionAdded,
 			summary,
 		});
 
@@ -130,7 +132,7 @@ export class SessionStateManager extends Disposable {
 		this._logService.trace(`[SessionStateManager] Removed session: ${session}`);
 
 		this._onDidEmitNotification.fire({
-			type: 'notify/sessionRemoved',
+			type: NotificationType.SessionRemoved,
 			session,
 		});
 	}
@@ -173,7 +175,7 @@ export class SessionStateManager extends Disposable {
 		let resultingState: unknown = undefined;
 		// Apply to state
 		if (isRootAction(action)) {
-			this._rootState = rootReducer(this._rootState, action as IRootAction);
+			this._rootState = rootReducer(this._rootState, action as IRootAction, this._log);
 			resultingState = this._rootState;
 		}
 
@@ -182,20 +184,20 @@ export class SessionStateManager extends Disposable {
 			const key = sessionAction.session;
 			const state = this._sessionStates.get(key);
 			if (state) {
-				const newState = sessionReducer(state, sessionAction);
+				const newState = sessionReducer(state, sessionAction, this._log);
 				this._sessionStates.set(key, newState);
 
 				// Track active turn for turn lifecycle
-				if (sessionAction.type === 'session/turnStarted') {
+				if (sessionAction.type === ActionType.SessionTurnStarted) {
 					this._activeTurnToSession.set(sessionAction.turnId, key);
-					this.dispatchServerAction({ type: 'root/activeSessionsChanged', activeSessions: this._activeTurnToSession.size });
+					this.dispatchServerAction({ type: ActionType.RootActiveSessionsChanged, activeSessions: this._activeTurnToSession.size });
 				} else if (
-					sessionAction.type === 'session/turnComplete' ||
-					sessionAction.type === 'session/turnCancelled' ||
-					sessionAction.type === 'session/error'
+					sessionAction.type === ActionType.SessionTurnComplete ||
+					sessionAction.type === ActionType.SessionTurnCancelled ||
+					sessionAction.type === ActionType.SessionError
 				) {
 					this._activeTurnToSession.delete(sessionAction.turnId);
-					this.dispatchServerAction({ type: 'root/activeSessionsChanged', activeSessions: this._activeTurnToSession.size });
+					this.dispatchServerAction({ type: ActionType.RootActiveSessionsChanged, activeSessions: this._activeTurnToSession.size });
 				}
 
 				resultingState = newState;

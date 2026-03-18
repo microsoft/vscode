@@ -7,10 +7,10 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import { ILogService } from '../../log/common/log.js';
 import { IFileService } from '../../files/common/files.js';
-import { AgentProvider, IAgentCreateSessionConfig, IAgent, IAgentService, IAgentSessionMetadata, AgentSession, IAgentDescriptor, IResourceMetadata, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
-import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
+import { ILogService } from '../../log/common/log.js';
+import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentDescriptor, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
+import { ActionType, IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
 import type { IBrowseDirectoryResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionSummary } from '../common/state/sessionState.js';
 import { AgentSideEffects } from './agentSideEffects.js';
@@ -155,7 +155,7 @@ export class AgentService extends Disposable implements IAgentService {
 			modifiedAt: Date.now(),
 		};
 		this._stateManager.createSession(summary);
-		this._stateManager.dispatchServerAction({ type: 'session/ready', session: session.toString() });
+		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: session.toString() });
 
 		return session;
 	}
