@@ -478,6 +478,8 @@ suite('buildModelPickerItems', () => {
 			true,
 			undefined,
 			stubChatEntitlementService,
+			true,
+			true,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem?.item);
@@ -646,6 +648,8 @@ suite('buildModelPickerItems', () => {
 			true,
 			undefined,
 			anonymousEntitlementService,
+			true,
+			true,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem?.item);

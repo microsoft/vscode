@@ -402,6 +402,12 @@ export interface ILanguageModelsService {
 	 */
 	getModelConfigurationActions(modelId: string): IAction[];
 
+	/**
+	 * Returns a human-readable description of the model's current configuration.
+	 * Shows values for properties marked with group 'navigation'.
+	 */
+	getModelConfigurationDescription(modelId: string): string | undefined;
+
 	addLanguageModelsProviderGroup(name: string, vendorId: string, configuration: IStringDictionary<unknown> | undefined): Promise<void>;
 
 	removeLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void>;
@@ -1021,8 +1027,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 		const configuration = this.getModelConfiguration(modelId);
 		const mergedOptions = configuration ? { ...options, configuration: { ...configuration, ...options.configuration } } : options;
-=======
->>>>>>> theirs
 		return provider.sendChatRequest(modelId, messages, from, mergedOptions, token);
 	}
 
@@ -1182,117 +1186,31 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return actions;
 	}
 
-	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
-		const metadata = this._modelCache.get(modelId);
-		if (!metadata) {
-			return;
-		}
-
-		// Find the group from the configuration service (source of truth)
-		const allGroups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
-		let group: ILanguageModelsProviderGroup | undefined;
-
-		// First try to find a group that already has config for this model
-		group = allGroups.find(g => g.vendor === metadata.vendor && g.settings?.[metadata.id] !== undefined);
-
-		// If not found, find any group for this vendor
-		if (!group) {
-			group = allGroups.find(g => g.vendor === metadata.vendor);
-		}
-
-		// Merge new values into existing config, removing properties set to their schema default
-		const existingConfig = this._modelConfigurations.get(modelId) ?? {};
-		const updatedConfig = { ...existingConfig, ...values };
-		const schema = metadata.configurationSchema;
-		if (schema?.properties) {
-			for (const [key, value] of Object.entries(updatedConfig)) {
-				const propSchema = schema.properties[key];
-				if (typeof propSchema !== 'boolean' && propSchema?.default !== undefined && propSchema.default === value) {
-					delete updatedConfig[key];
-				}
-			}
-		}
-
-		if (group) {
-			const existingSettings = (group.settings as IStringDictionary<IStringDictionary<unknown>> | undefined) ?? {};
-			let updatedSettings: IStringDictionary<IStringDictionary<unknown>>;
-			if (Object.keys(updatedConfig).length === 0) {
-				updatedSettings = { ...existingSettings };
-				delete updatedSettings[metadata.id];
-			} else {
-				updatedSettings = { ...existingSettings, [metadata.id]: updatedConfig };
-			}
-			const updatedGroup: ILanguageModelsProviderGroup = {
-				...group,
-				settings: Object.keys(updatedSettings).length > 0 ? updatedSettings : undefined
-			};
-			if (!updatedGroup.settings && Object.keys(updatedGroup).filter(k => k !== 'name' && k !== 'vendor' && k !== 'range' && k !== 'settings').length === 0) {
-				// Remove the group entirely if it only had model config
-				await this._languageModelsConfigurationService.removeLanguageModelsProviderGroup(group);
-			} else {
-				await this._languageModelsConfigurationService.updateLanguageModelsProviderGroup(group, updatedGroup);
-			}
-		} else if (Object.keys(updatedConfig).length > 0) {
-			// Only create a new group if there's non-default config
-			const vendor = this.getVendors().find(v => v.vendor === metadata.vendor);
-			if (!vendor) {
-				return;
-			}
-			const newGroup: ILanguageModelsProviderGroup = {
-				name: vendor.displayName,
-				vendor: metadata.vendor,
-				settings: { [metadata.id]: updatedConfig }
-			};
-			await this._languageModelsConfigurationService.addLanguageModelsProviderGroup(newGroup);
-		}
-
-		// Update the in-memory cache
-		if (Object.keys(updatedConfig).length > 0) {
-			this._modelConfigurations.set(modelId, updatedConfig);
-		} else {
-			this._modelConfigurations.delete(modelId);
-		}
-	}
-
-	getModelConfigurationActions(modelId: string): IAction[] {
+	getModelConfigurationDescription(modelId: string): string | undefined {
 		const metadata = this._modelCache.get(modelId);
 		const schema = metadata?.configurationSchema;
 		if (!schema?.properties) {
-			return [];
+			return undefined;
 		}
 
-		const actions: IAction[] = [];
 		const currentConfig = this._modelConfigurations.get(modelId) ?? {};
+		const parts: string[] = [];
 
 		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (!propSchema.enum || !Array.isArray(propSchema.enum)) {
+			if (propSchema.group !== 'navigation') {
 				continue;
 			}
-			const currentValue = currentConfig[key] ?? propSchema.default;
-			const label = (typeof propSchema.title === 'string' ? propSchema.title : undefined)
-				?? key.replace(/([a-z])([A-Z])/g, '$1 $2')
-					.replace(/^./, s => s.toUpperCase());
-			const defaultValue = propSchema.default;
+			const value = currentConfig[key] ?? propSchema.default;
+			if (value === undefined) {
+				continue;
+			}
 			const enumItemLabels = propSchema.enumItemLabels;
-			const enumDescriptions = propSchema.enumDescriptions;
-			const enumActions: IAction[] = propSchema.enum.map((value: unknown, index: number) => {
-				const itemLabel = enumItemLabels?.[index] ?? String(value);
-				const displayLabel = value === defaultValue ? localize('models.enumDefault', "{0} (default)", itemLabel) : itemLabel;
-				const tooltip = enumDescriptions?.[index] ?? '';
-				return {
-					id: `configureModel.${key}.${value}`,
-					label: displayLabel,
-					class: undefined,
-					enabled: true,
-					tooltip,
-					checked: currentValue === value,
-					run: () => this.setModelConfiguration(modelId, { [key]: value })
-				};
-			});
-			actions.push(new SubmenuAction(`configureModel.${key}`, label, enumActions));
+			const enumIndex = propSchema.enum?.indexOf(value) ?? -1;
+			const label = enumItemLabels?.[enumIndex] ?? String(value);
+			parts.push(label);
 		}
 
-		return actions;
+		return parts.length > 0 ? parts.join(', ') : undefined;
 	}
 
 	async configureLanguageModelsProviderGroup(vendorId: string, providerGroupName?: string): Promise<void> {

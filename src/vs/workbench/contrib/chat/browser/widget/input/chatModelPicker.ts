@@ -88,6 +88,7 @@ function createModelItem(
 		hideIcon: false,
 		section: action.section,
 		hover: model ? { content: getModelHoverContent(model), position: hoverPosition } : undefined,
+		submenuActions: action.toolbarActions,
 	};
 }
 
@@ -96,17 +97,25 @@ function createModelAction(
 	selectedModelId: string | undefined,
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
 	section?: string,
+	languageModelsService?: ILanguageModelsService,
 ): IActionWidgetDropdownAction & { section?: string } {
+	const toolbarActions = languageModelsService?.getModelConfigurationActions(model.identifier);
+	const configDescription = languageModelsService?.getModelConfigurationDescription(model.identifier);
+	const baseDescription = model.metadata.multiplier ?? model.metadata.detail;
+	const description = configDescription && baseDescription
+		? `${configDescription} · ${baseDescription}`
+		: configDescription ?? baseDescription;
 	return {
 		id: model.identifier,
 		enabled: true,
 		icon: model.metadata.statusIcon,
 		checked: model.identifier === selectedModelId,
 		class: undefined,
-		description: model.metadata.multiplier ?? model.metadata.detail,
+		description,
 		tooltip: model.metadata.name,
 		label: model.metadata.name,
 		section,
+		toolbarActions: toolbarActions && toolbarActions.length > 0 ? toolbarActions : undefined,
 		run: () => onSelect(model),
 	};
 }
@@ -155,7 +164,10 @@ export function buildModelPickerItems(
 	useGroupedModelPicker: boolean,
 	manageModelsAction: IActionWidgetDropdownAction | undefined,
 	chatEntitlementService: IChatEntitlementService,
+	showUnavailableFeatured: boolean,
+	showFeatured: boolean,
 	hoverPosition?: IHoverPositionOptions,
+	languageModelsService?: ILanguageModelsService,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
@@ -207,7 +219,7 @@ export function buildModelPickerItems(
 			const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
 			if (autoModel) {
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
-				items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect), autoModel, hoverPosition));
+				items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect, undefined, languageModelsService), autoModel, hoverPosition));
 			}
 
 			// --- 2. Promoted section (selected + recently used + featured) ---
@@ -255,21 +267,28 @@ export function buildModelPickerItems(
 			}
 
 			// Featured models from control manifest
-			for (const [entryId, entry] of Object.entries(controlModels)) {
-				if (!entry.featured || placed.has(entryId)) {
-					continue;
-				}
-				const model = resolveModel(entryId);
-				if (model && !placed.has(model.identifier)) {
-					markPlaced(model.identifier, model.metadata.id);
-					if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
-						promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: 'update' });
-					} else {
-						promotedItems.push({ kind: 'available', model });
+			if (showFeatured) {
+				for (const [entryId, entry] of Object.entries(controlModels)) {
+					if (!entry.featured || placed.has(entryId)) {
+						continue;
 					}
-				} else if (!model && !entry.exists) {
-					markPlaced(entryId);
-					promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: getUnavailableReason(entry) });
+					const model = resolveModel(entryId);
+					if (model && !placed.has(model.identifier)) {
+						if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
+							if (showUnavailableFeatured) {
+								markPlaced(model.identifier, model.metadata.id);
+								promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: 'update' });
+							}
+						} else {
+							markPlaced(model.identifier, model.metadata.id);
+							promotedItems.push({ kind: 'available', model });
+						}
+					} else if (!model && !entry.exists) {
+						if (showUnavailableFeatured) {
+							markPlaced(entryId);
+							promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: getUnavailableReason(entry) });
+						}
+					}
 				}
 			}
 
@@ -288,7 +307,7 @@ export function buildModelPickerItems(
 
 				for (const item of promotedItems) {
 					if (item.kind === 'available') {
-						items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect), item.model, hoverPosition));
+						items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect, undefined, languageModelsService), item.model, hoverPosition));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, undefined, hoverPosition));
 					}
@@ -341,7 +360,7 @@ export function buildModelPickerItems(
 					if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
 						items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other, hoverPosition));
 					} else {
-						items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, ModelPickerSection.Other), model, hoverPosition));
+						items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, ModelPickerSection.Other, languageModelsService), model, hoverPosition));
 					}
 				}
 			}
@@ -363,7 +382,7 @@ export function buildModelPickerItems(
 		// Flat list: auto first, then all models sorted alphabetically
 		const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
 		if (autoModel) {
-			items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect), autoModel, hoverPosition));
+			items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect, undefined, languageModelsService), autoModel, hoverPosition));
 		}
 		const sortedModels = models
 			.filter(m => m !== autoModel)
@@ -372,7 +391,7 @@ export function buildModelPickerItems(
 				return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
 			});
 		for (const model of sortedModels) {
-			items.push(createModelItem(createModelAction(model, selectedModelId, onSelect), model, hoverPosition));
+			items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, undefined, languageModelsService), model, hoverPosition));
 		}
 	}
 
@@ -494,6 +513,10 @@ export class ModelPickerWidget extends Disposable {
 		@IUpdateService private readonly _updateService: IUpdateService,
 	) {
 		super();
+
+		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
+			this._renderLabel();
+		}));
 	}
 
 	setHideChevrons(hideChevrons: IObservable<boolean>): void {
@@ -590,7 +613,10 @@ export class ModelPickerWidget extends Disposable {
 			this._delegate.useGroupedModelPicker(),
 			!showFilter ? manageModelsAction : undefined,
 			this._entitlementService,
+			this._delegate.showUnavailableFeatured(),
+			this._delegate.showFeatured(),
 			this._hoverPosition,
+			this._languageModelsService,
 		);
 
 		const listOptions = {
@@ -663,7 +689,14 @@ export class ModelPickerWidget extends Disposable {
 			domChildren.push(iconElement);
 		}
 
-		domChildren.push(dom.$('span.chat-input-picker-label', undefined, name ?? localize('chat.modelPicker.auto', "Auto")));
+		const modelLabel = name ?? localize('chat.modelPicker.auto', "Auto");
+		const configDescription = this._selectedModel
+			? this._languageModelsService.getModelConfigurationDescription(this._selectedModel.identifier)
+			: undefined;
+		const fullLabel = configDescription
+			? `${modelLabel} · ${configDescription}`
+			: modelLabel;
+		domChildren.push(dom.$('span.chat-input-picker-label', undefined, fullLabel));
 
 		// Badge icon between label and chevron
 		if (this._badgeIcon) {

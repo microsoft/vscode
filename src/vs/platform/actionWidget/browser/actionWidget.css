@@ -310,3 +310,26 @@
 .action-widget .action-list-filter-actions .action-label:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
+
+.action-widget .action-list-submenu-indicator {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	flex-shrink: 0;
+	cursor: pointer;
+	opacity: 0.6;
+}
+
+.action-widget .action-list-submenu-indicator:hover {
+	opacity: 1;
+}
+
+.action-list-submenu-panel {
+	background-color: var(--vscode-menu-background);
+	color: var(--vscode-menu-foreground);
+	border: 1px solid var(--vscode-menu-border, var(--vscode-editorHoverWidget-border));
+	border-radius: 5px;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	z-index: 50;
+}
