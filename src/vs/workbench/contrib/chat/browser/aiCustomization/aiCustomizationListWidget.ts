@@ -51,7 +51,7 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
 
 export { truncateToFirstSentence } from './aiCustomizationListWidgetUtils.js';
 
@@ -1122,8 +1122,7 @@ export class AICustomizationListWidget extends Disposable {
 			for (let i = items.length - 1; i >= 0; i--) {
 				const item = items[i];
 				if (item.storage === PromptsStorage.local && projectRoot && isEqualOrParent(item.uri, projectRoot)) {
-					const path = item.uri.path;
-					if (!subpaths.some(sp => path.includes(sp))) {
+					if (!matchesWorkspaceSubpath(item.uri.path, subpaths)) {
 						items.splice(i, 1);
 					}
 				}

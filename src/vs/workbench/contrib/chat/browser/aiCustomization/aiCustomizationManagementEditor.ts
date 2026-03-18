@@ -81,7 +81,7 @@ import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
 import { AgentPluginEditor } from '../agentPluginEditor/agentPluginEditor.js';
 import { AgentPluginEditorInput } from '../agentPluginEditor/agentPluginEditorInput.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
-import { ICustomizationHarnessService, CustomizationHarness } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, CustomizationHarness, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 
 const $ = DOM.$;
@@ -555,7 +555,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.refreshAllPromptsSectionCounts();
 		}));
 
-		// When the harness selector setting is off, lock to Local harness
+		// When the harness selector setting is off, lock to Local harness.
+		// In Sessions (single CLI harness) the dropdown is already hidden and
+		// setActiveHarness(VSCode) is a safe no-op since the CLI harness
+		// remains active — filtering stays correct for that window.
 		if (!this.isHarnessSelectorEnabled) {
 			this.harnessService.setActiveHarness(CustomizationHarness.VSCode);
 		}
@@ -1100,8 +1103,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					// When the active harness specifies workspaceSubpaths, only offer
 					// directories whose path includes one of those sub-paths.
 					if (subpaths) {
-						const path = f.uri.path;
-						return subpaths.some(sp => path.includes(sp));
+						return matchesWorkspaceSubpath(f.uri.path, subpaths);
 					}
 					return true;
 				})
