@@ -1069,6 +1069,8 @@ const taskFinishMessages = [
 	// "Press any key to close the terminal." (with exit code placeholder removed for matching)
 	localize('exitCode.closeTerminal', "Press any key to close the terminal."),
 	localize('exitCode.reuseTerminal', "Press any key to close the terminal."),
+	// Punctuation variant: "The terminal will be reused by tasks. Press any key to close."
+	localize('reuseTerminal.pressClose', "The terminal will be reused by tasks. Press any key to close."),
 ];
 
 const normalizedTaskFinishMessages = taskFinishMessages.map(msg =>
