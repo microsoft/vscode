@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { ISessionAction } from '../../common/state/sessionActions.js';
-import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type ICreateSessionParams, type IInitializeResult, type IProtocolMessage, type IProtocolNotification, type IReconnectResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type ICreateSessionParams, type IInitializeResult, type IProtocolMessage, type IAhpNotification, type IReconnectResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -71,13 +71,13 @@ class MockSideEffectHandler implements IProtocolSideEffectHandler {
 	handleAction(action: ISessionAction): void {
 		this.handledActions.push(action);
 	}
-	async handleCreateSession(_command: ICreateSessionParams): Promise<URI> { return URI.parse('copilot:/mock-session'); }
-	handleDisposeSession(_session: URI): void { }
+	async handleCreateSession(_command: ICreateSessionParams): Promise<void> { /* session created via state manager */ }
+	handleDisposeSession(_session: string): void { }
 	async handleListSessions(): Promise<ISessionSummary[]> { return []; }
 	handleSetAuthToken(_token: string): void { }
-	async handleBrowseDirectory(uri: URI): Promise<{ entries: { name: string; type: 'file' | 'directory' }[] }> {
-		this.browsedUris.push(uri);
-		const error = this.browseErrors.get(uri.toString());
+	async handleBrowseDirectory(uri: string): Promise<{ entries: { name: string; type: 'file' | 'directory' }[] }> {
+		this.browsedUris.push(URI.parse(uri));
+		const error = this.browseErrors.get(uri);
 		if (error) {
 			throw error;
 		}
@@ -88,8 +88,8 @@ class MockSideEffectHandler implements IProtocolSideEffectHandler {
 			],
 		};
 	}
-	getDefaultDirectory(): URI {
-		return URI.file('/home/testuser');
+	getDefaultDirectory(): string {
+		return URI.file('/home/testuser').toString();
 	}
 }
 
@@ -103,8 +103,8 @@ function request(id: number, method: string, params?: unknown): IProtocolMessage
 	return { jsonrpc: '2.0', id, method, params } as IProtocolMessage;
 }
 
-function findNotifications(sent: IProtocolMessage[], method: string): IProtocolNotification[] {
-	return sent.filter(isJsonRpcNotification) as IProtocolNotification[];
+function findNotifications(sent: IProtocolMessage[], method: string): IAhpNotification[] {
+	return sent.filter(isJsonRpcNotification) as IAhpNotification[];
 }
 
 function findResponse(sent: IProtocolMessage[], id: number): IProtocolMessage | undefined {
@@ -124,9 +124,9 @@ suite('ProtocolServerHandler', () => {
 	let server: MockProtocolServer;
 	let sideEffects: MockSideEffectHandler;
 
-	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' });
+	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 
-	function makeSessionSummary(resource?: URI): ISessionSummary {
+	function makeSessionSummary(resource?: string): ISessionSummary {
 		return {
 			resource: resource ?? sessionUri,
 			provider: 'copilot',
@@ -137,7 +137,7 @@ suite('ProtocolServerHandler', () => {
 		};
 	}
 
-	function connectClient(clientId: string, initialSubscriptions?: readonly URI[]): MockProtocolTransport {
+	function connectClient(clientId: string, initialSubscriptions?: readonly string[]): MockProtocolTransport {
 		const transport = new MockProtocolTransport();
 		server.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', {
@@ -200,8 +200,8 @@ suite('ProtocolServerHandler', () => {
 		const resp = await responsePromise;
 
 		assert.ok(resp, 'should have sent response');
-		const snapshot = (resp as { result: IStateSnapshot }).result;
-		assert.strictEqual(snapshot.resource.toString(), sessionUri.toString());
+		const result = (resp as unknown as { result: { snapshot: IStateSnapshot } }).result;
+		assert.strictEqual(result.snapshot.resource.toString(), sessionUri.toString());
 	});
 
 	test('client action is dispatched and echoed', () => {
@@ -223,11 +223,11 @@ suite('ProtocolServerHandler', () => {
 
 		const actionMsgs = findNotifications(transport.sent, 'action');
 		const turnStarted = actionMsgs.find(m => {
-			const params = m.params as { envelope: { action: { type: string } } };
-			return params.envelope.action.type === 'session/turnStarted';
+			const envelope = m.params as unknown as { action: { type: string } };
+			return envelope.action.type === 'session/turnStarted';
 		});
 		assert.ok(turnStarted, 'should have echoed turnStarted');
-		const envelope = (turnStarted!.params as { envelope: { origin: { clientId: string; clientSeq: number } } }).envelope;
+		const envelope = turnStarted!.params as unknown as { origin: { clientId: string; clientSeq: number } };
 		assert.strictEqual(envelope.origin.clientId, 'client-1');
 		assert.strictEqual(envelope.origin.clientSeq, 1);
 	});
@@ -342,14 +342,14 @@ suite('ProtocolServerHandler', () => {
 		const resp = findResponse(transport.sent, 1);
 		assert.ok(resp);
 		const result = (resp as { result: IInitializeResult }).result;
-		assert.strictEqual(URI.revive(result.defaultDirectory!).path, '/home/testuser');
+		assert.strictEqual(URI.parse(result.defaultDirectory!).path, '/home/testuser');
 	});
 
 	test('browseDirectory routes to side effect handler', async () => {
 		const transport = connectClient('client-browse');
 		transport.sent.length = 0;
 
-		const dirUri = URI.file('/home/user/project');
+		const dirUri = URI.file('/home/user/project').toString();
 		const responsePromise = waitForResponse(transport, 2);
 		transport.simulateMessage(request(2, 'browseDirectory', { uri: dirUri }));
 		const resp = await responsePromise;
@@ -358,7 +358,7 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(sideEffects.browsedUris[0].path, '/home/user/project');
 
 		assert.ok(resp);
-		const result = (resp as { result: { entries: { name: string; uri: unknown; type: string }[] } }).result;
+		const result = (resp as unknown as { result: { entries: { name: string; uri: unknown; type: string }[] } }).result;
 		assert.strictEqual(result.entries.length, 2);
 		assert.strictEqual(result.entries[0].name, 'src');
 		assert.strictEqual(result.entries[0].type, 'directory');
@@ -370,8 +370,8 @@ suite('ProtocolServerHandler', () => {
 		const transport = connectClient('client-browse-error');
 		transport.sent.length = 0;
 
-		const dirUri = URI.file('/missing');
-		sideEffects.browseErrors.set(dirUri.toString(), new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Directory not found: ${dirUri.toString()}`));
+		const dirUri = URI.file('/missing').toString();
+		sideEffects.browseErrors.set(dirUri, new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Directory not found: ${dirUri}`));
 		const responsePromise = waitForResponse(transport, 2);
 		transport.simulateMessage(request(2, 'browseDirectory', { uri: dirUri }));
 		const resp = await responsePromise as { error?: { code: number; message: string } };

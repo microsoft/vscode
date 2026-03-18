@@ -7,17 +7,18 @@
 // Wraps WebSocketClientTransport and SessionClientState to provide a
 // higher-level API matching IAgentService.
 
+import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { generateUuid } from '../../../base/common/uuid.js';
-import { URI } from '../../../base/common/uri.js';
-import { DeferredPromise } from '../../../base/common/async.js';
 import { hasKey } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IAgentConnection, IAgentCreateSessionConfig, IAgentDescriptor, IAgentSessionMetadata } from '../common/agentService.js';
+import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentDescriptor, IAgentSessionMetadata } from '../common/agentService.js';
+import type { IClientNotificationMap, ICommandMap } from '../common/state/protocol/messages.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
-import { isJsonRpcNotification, isJsonRpcResponse, type IBrowseDirectoryResult, type IInitializeResult, type IListSessionsResult, type IProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
+import { isJsonRpcNotification, isJsonRpcResponse, type IJsonRpcResponse, type IProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import type { ISessionSummary } from '../common/state/sessionState.js';
 import { WebSocketClientTransport } from './webSocketClientTransport.js';
 
@@ -37,7 +38,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private readonly _transport: WebSocketClientTransport;
 	private _serverSeq = 0;
 	private _nextClientSeq = 1;
-	private _defaultDirectory: URI | undefined;
+	private _defaultDirectory: string | undefined;
 
 	private readonly _onDidAction = this._register(new Emitter<IActionEnvelope>());
 	readonly onDidAction = this._onDidAction.event;
@@ -60,7 +61,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._transport['_address'];
 	}
 
-	get defaultDirectory(): URI | undefined {
+	get defaultDirectory(): string | undefined {
 		return this._defaultDirectory;
 	}
 
@@ -81,27 +82,27 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	async connect(): Promise<void> {
 		await this._transport.connect();
 
-		// Send initialize request and await the response
 		const result = await this._sendRequest('initialize', {
 			protocolVersion: PROTOCOL_VERSION,
 			clientId: this._clientId,
-		}) as IInitializeResult;
+		});
 		this._serverSeq = result.serverSeq;
-		this._defaultDirectory = result.defaultDirectory ? URI.revive(result.defaultDirectory) : undefined;
+		this._defaultDirectory = result.defaultDirectory;
 	}
 
 	/**
 	 * Subscribe to state at a URI. Returns the current state snapshot.
 	 */
-	subscribe(resource: URI): Promise<IStateSnapshot> {
-		return this._sendRequest('subscribe', { resource }) as Promise<IStateSnapshot>;
+	async subscribe(resource: URI): Promise<IStateSnapshot> {
+		const result = await this._sendRequest('subscribe', { resource: resource.toString() });
+		return result.snapshot;
 	}
 
 	/**
 	 * Unsubscribe from state at a URI.
 	 */
 	unsubscribe(resource: URI): void {
-		this._sendNotification('unsubscribe', { resource });
+		this._sendNotification('unsubscribe', { resource: resource.toString() });
 	}
 
 	/**
@@ -115,56 +116,59 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Create a new session on the remote agent host.
 	 */
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
-		const result = await this._sendRequest('createSession', {
-			provider: config?.provider,
+		const provider = config?.provider ?? 'copilot';
+		const session = AgentSession.uri(provider, generateUuid());
+		await this._sendRequest('createSession', {
+			session: session.toString(),
+			provider,
 			model: config?.model,
 			workingDirectory: config?.workingDirectory,
-		}) as { session: URI };
-		return URI.revive(result.session);
+		});
+		return session;
 	}
 
 	/**
 	 * Push a GitHub auth token to the remote agent host.
 	 */
 	async setAuthToken(token: string): Promise<void> {
-		this._sendNotification('setAuthToken', { token });
+		this._sendExtensionNotification('setAuthToken', { token });
 	}
 
 	/**
 	 * Refresh the model list from all providers on the remote host.
 	 */
 	async refreshModels(): Promise<void> {
-		await this._sendRequest('refreshModels');
+		await this._sendExtensionRequest('refreshModels');
 	}
 
 	/**
 	 * Discover available agent backends from the remote host.
 	 */
 	async listAgents(): Promise<IAgentDescriptor[]> {
-		return await this._sendRequest('listAgents') as IAgentDescriptor[];
+		return await this._sendExtensionRequest('listAgents') as IAgentDescriptor[];
 	}
 
 	/**
 	 * Gracefully shut down all sessions on the remote host.
 	 */
 	async shutdown(): Promise<void> {
-		await this._sendRequest('shutdown');
+		await this._sendExtensionRequest('shutdown');
 	}
 
 	/**
 	 * Dispose a session on the remote agent host.
 	 */
 	async disposeSession(session: URI): Promise<void> {
-		await this._sendRequest('disposeSession', { session });
+		await this._sendRequest('disposeSession', { session: session.toString() });
 	}
 
 	/**
 	 * List all sessions from the remote agent host.
 	 */
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		const result = await this._sendRequest('listSessions') as IListSessionsResult;
-		return result.sessions.map((s: ISessionSummary) => ({
-			session: s.resource,
+		const result = await this._sendRequest('listSessions', {});
+		return result.items.map((s: ISessionSummary) => ({
+			session: URI.parse(s.resource),
 			startTime: s.createdAt,
 			modifiedTime: s.modifiedAt,
 			summary: s.title,
@@ -174,8 +178,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * List the contents of a directory on the remote host's filesystem.
 	 */
-	async browseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
-		return await this._sendRequest('browseDirectory', { uri }) as IBrowseDirectoryResult;
+	async browseDirectory(uri: URI): Promise<ICommandMap['browseDirectory']['result']> {
+		return await this._sendRequest('browseDirectory', { uri: uri.toString() });
 	}
 
 	private _handleMessage(msg: IProtocolMessage): void {
@@ -195,13 +199,14 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		} else if (isJsonRpcNotification(msg)) {
 			switch (msg.method) {
 				case 'action': {
-					const { envelope } = msg.params as { envelope: IActionEnvelope };
+					// Protocol envelope → VS Code envelope (superset of action types)
+					const envelope = msg.params as unknown as IActionEnvelope;
 					this._serverSeq = Math.max(this._serverSeq, envelope.serverSeq);
 					this._onDidAction.fire(envelope);
 					break;
 				}
 				case 'notification': {
-					const { notification } = msg.params as { notification: INotification };
+					const notification = msg.params.notification as unknown as INotification;
 					this._logService.trace(`[RemoteAgentHostProtocol] Notification: ${notification.type}`);
 					this._onDidNotification.fire(notification);
 					break;
@@ -215,17 +220,39 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}
 	}
 
-	/** Send a JSON-RPC notification (fire-and-forget). */
-	private _sendNotification(method: string, params?: unknown): void {
-		this._transport.send({ jsonrpc: '2.0', method, params });
+	/** Send a typed JSON-RPC notification for a protocol-defined method. */
+	private _sendNotification<M extends keyof IClientNotificationMap>(method: M, params: IClientNotificationMap[M]['params']): void {
+		// Generic M can't satisfy the distributive IAhpNotification union directly
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
+		this._transport.send({ jsonrpc: '2.0' as const, method, params } as IProtocolMessage);
 	}
 
-	/** Send a JSON-RPC request and return a promise for the response. */
-	private _sendRequest(method: string, params?: unknown): Promise<unknown> {
+	/** Send a JSON-RPC notification for a VS Code extension method (not in the protocol spec). */
+	private _sendExtensionNotification(method: string, params?: unknown): void {
+		// Cast: extension methods aren't in the typed protocol maps yet
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
+		this._transport.send({ jsonrpc: '2.0', method, params } as unknown as IJsonRpcResponse);
+	}
+
+	/** Send a typed JSON-RPC request for a protocol-defined method. */
+	private _sendRequest<M extends keyof ICommandMap>(method: M, params: ICommandMap[M]['params']): Promise<ICommandMap[M]['result']> {
 		const id = this._nextRequestId++;
 		const deferred = new DeferredPromise<unknown>();
 		this._pendingRequests.set(id, deferred);
-		this._transport.send({ jsonrpc: '2.0', id, method, params });
+		// Generic M can't satisfy the distributive IAhpRequest union directly
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
+		this._transport.send({ jsonrpc: '2.0' as const, id, method, params } as IProtocolMessage);
+		return deferred.p as Promise<ICommandMap[M]['result']>;
+	}
+
+	/** Send a JSON-RPC request for a VS Code extension method (not in the protocol spec). */
+	private _sendExtensionRequest(method: string, params?: unknown): Promise<unknown> {
+		const id = this._nextRequestId++;
+		const deferred = new DeferredPromise<unknown>();
+		this._pendingRequests.set(id, deferred);
+		// Cast: extension methods aren't in the typed protocol maps yet
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
+		this._transport.send({ jsonrpc: '2.0', id, method, params } as unknown as IJsonRpcResponse);
 		return deferred.p;
 	}
 

@@ -18,6 +18,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IAgentAttachment, AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
+import { getToolKind, getToolLanguage } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { TurnState, type IMessageAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -146,8 +147,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			try {
 				const snapshot = await this._config.connection.subscribe(resolvedSession);
 				if (snapshot?.state) {
-					this._clientState.handleSnapshot(resolvedSession, snapshot.state, snapshot.fromSeq);
-					const sessionState = this._clientState.getSessionState(resolvedSession);
+					this._clientState.handleSnapshot(resolvedSession.toString(), snapshot.state, snapshot.fromSeq);
+					const sessionState = this._clientState.getSessionState(resolvedSession.toString());
 					if (sessionState) {
 						history.push(...turnsToHistory(sessionState.turns, this._config.agentId));
 					}
@@ -170,7 +171,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._activeSessions.delete(resourceKey);
 				this._sessionToBackend.delete(resourceKey);
 				if (resolvedSession) {
-					this._clientState.unsubscribe(resolvedSession);
+					this._clientState.unsubscribe(resolvedSession.toString());
 					this._config.connection.unsubscribe(resolvedSession);
 					this._config.connection.disposeSession(resolvedSession);
 				}
@@ -261,11 +262,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// agent backend picks up the new model before processing the turn.
 		const rawModelId = this._extractRawModelId(request.userSelectedModelId);
 		if (rawModelId) {
-			const currentModel = this._clientState.getSessionState(session)?.summary.model;
+			const currentModel = this._clientState.getSessionState(session.toString())?.summary.model;
 			if (currentModel !== rawModelId) {
 				const modelAction = {
 					type: 'session/modelChanged' as const,
-					session,
+					session: session.toString(),
 					model: rawModelId,
 				};
 				const modelSeq = this._clientState.applyOptimistic(modelAction);
@@ -277,7 +278,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// the provider as a side effect.
 		const turnAction = {
 			type: 'session/turnStarted' as const,
-			session,
+			session: session.toString(),
 			turnId,
 			userMessage: {
 				text: request.message,
@@ -317,7 +318,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// Listen to state changes and translate to IChatProgress[]
 		turnDisposables.add(this._clientState.onDidChangeSessionState(e => {
-			if (e.session.toString() !== session.toString() || cancellationToken.isCancellationRequested) {
+			if (e.session !== session.toString() || cancellationToken.isCancellationRequested) {
 				return;
 			}
 
@@ -368,11 +369,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					existing.invocationMessage = typeof tc.invocationMessage === 'string'
 						? tc.invocationMessage
 						: new MarkdownString(tc.invocationMessage.markdown);
-					if (tc.toolKind === 'terminal' && tc.toolInput) {
+					if (getToolKind(tc) === 'terminal' && tc.toolInput) {
 						existing.toolSpecificData = {
 							kind: 'terminal',
 							commandLine: { original: tc.toolInput },
-							language: tc.language ?? 'shellscript',
+							language: getToolLanguage(tc) ?? 'shellscript',
 						};
 					}
 				}
@@ -392,7 +393,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._logService.info(`[AgentHost] Permission response: requestId=${requestId}, approved=${approved}`);
 					const resolveAction = {
 						type: 'session/permissionResolved' as const,
-						session,
+						session: session.toString(),
 						turnId,
 						requestId,
 						approved,
@@ -414,7 +415,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._logService.info(`[AgentHost] Cancellation requested for ${session.toString()}, dispatching turnCancelled`);
 			const cancelAction = {
 				type: 'session/turnCancelled' as const,
-				session,
+				session: session.toString(),
 				turnId,
 			};
 			const seq = this._clientState.applyOptimistic(cancelAction);
@@ -451,7 +452,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Subscribe to the new session's state
 		try {
 			const snapshot = await this._config.connection.subscribe(session);
-			this._clientState.handleSnapshot(session, snapshot.state, snapshot.fromSeq);
+			this._clientState.handleSnapshot(session.toString(), snapshot.state, snapshot.fromSeq);
 		} catch (err) {
 			this._logService.error(`[AgentHost] Failed to subscribe to new session: ${session.toString()}`, err);
 		}

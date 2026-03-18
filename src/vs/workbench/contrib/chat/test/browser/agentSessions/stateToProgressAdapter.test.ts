@@ -101,10 +101,9 @@ suite('stateToProgressAdapter', () => {
 		test('terminal tool call in history has correct terminal data', () => {
 			const turn = createTurn({
 				toolCalls: [createCompletedToolCall({
-					toolKind: 'terminal',
+					_meta: { toolKind: 'terminal', language: 'shellscript' },
 					toolInput: 'echo hello',
-					language: 'shellscript',
-					toolOutput: 'hello',
+					content: [{ type: 'text', text: 'hello' }],
 					success: true,
 				})],
 			});
@@ -156,9 +155,9 @@ suite('stateToProgressAdapter', () => {
 		test('failed tool in history has exitCode 1', () => {
 			const turn = createTurn({
 				toolCalls: [createCompletedToolCall({
-					toolKind: 'terminal',
+					_meta: { toolKind: 'terminal' },
 					toolInput: 'bad-command',
-					toolOutput: 'error',
+					content: [{ type: 'text', text: 'error' }],
 					success: false,
 				})],
 			});
@@ -195,7 +194,7 @@ suite('stateToProgressAdapter', () => {
 
 		test('sets terminal toolSpecificData', () => {
 			const tc = createToolCallState({
-				toolKind: 'terminal',
+				_meta: { toolKind: 'terminal' },
 				toolInput: 'ls -la',
 			});
 
@@ -259,7 +258,7 @@ suite('stateToProgressAdapter', () => {
 
 		test('finalizes terminal tool with output and exit code', () => {
 			const tc = createToolCallState({
-				toolKind: 'terminal',
+				_meta: { toolKind: 'terminal' },
 				toolInput: 'echo hi',
 				status: 'running',
 			});
@@ -271,12 +270,12 @@ suite('stateToProgressAdapter', () => {
 				toolName: 'test_tool',
 				displayName: 'Test Tool',
 				invocationMessage: 'Running test tool...',
-				toolKind: 'terminal',
+				_meta: { toolKind: 'terminal' },
 				toolInput: 'echo hi',
 				confirmed: 'not-needed',
 				success: true,
 				pastTenseMessage: 'Ran echo hi',
-				toolOutput: 'output text',
+				content: [{ type: 'text', text: 'output text' }],
 			});
 
 			assert.ok(invocation.toolSpecificData);

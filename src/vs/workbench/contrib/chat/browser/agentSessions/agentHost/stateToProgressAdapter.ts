@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { TurnState, type ICompletedToolCall, type IPermissionRequest, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { TurnState, getToolOutputText, type ICompletedToolCall, type IPermissionRequest, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getToolKind, getToolLanguage } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { type IChatProgress, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -47,17 +48,17 @@ export function turnsToHistory(turns: readonly ITurn[], participantId: string): 
  * tool invocation suitable for history replay.
  */
 function completedToolCallToSerialized(tc: ICompletedToolCall): IChatToolInvocationSerialized {
-	const isTerminal = tc.toolKind === 'terminal';
+	const isTerminal = getToolKind(tc) === 'terminal';
 	const isSuccess = tc.status === 'completed' && tc.success;
 	const invocationMsg = stringOrMarkdownToString(tc.invocationMessage) ?? '';
 
 	let toolSpecificData: IChatTerminalToolInvocationData | undefined;
 	if (isTerminal && tc.toolInput) {
-		const toolOutput = tc.status === 'completed' ? tc.toolOutput : undefined;
+		const toolOutput = tc.status === 'completed' ? getToolOutputText(tc) : undefined;
 		toolSpecificData = {
 			kind: 'terminal',
 			commandLine: { original: tc.toolInput },
-			language: tc.language ?? 'shellscript',
+			language: getToolLanguage(tc) ?? 'shellscript',
 			terminalCommandOutput: toolOutput !== undefined ? { text: toolOutput } : undefined,
 			terminalCommandState: { exitCode: isSuccess ? 0 : 1 },
 		};
@@ -113,11 +114,11 @@ export function toolCallStateToInvocation(tc: IToolCallState): ChatToolInvocatio
 	const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, undefined, undefined);
 	invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage) ?? '';
 
-	if (tc.toolKind === 'terminal' && tc.status !== 'streaming' && tc.toolInput) {
+	if (getToolKind(tc) === 'terminal') {
 		invocation.toolSpecificData = {
 			kind: 'terminal',
-			commandLine: { original: tc.toolInput },
-			language: tc.language ?? 'shellscript',
+			commandLine: { original: tc.status !== 'streaming' ? (tc.toolInput ?? '') : '' },
+			language: getToolLanguage(tc) ?? 'shellscript',
 		} satisfies IChatTerminalToolInvocationData;
 	}
 
@@ -203,12 +204,15 @@ export function permissionToConfirmation(perm: IPermissionRequest): ChatToolInvo
 export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: IToolCallState): void {
 	const isCompleted = tc.status === 'completed';
 	const isCancelled = tc.status === 'cancelled';
+	const isTerminal = invocation.toolSpecificData?.kind === 'terminal' || getToolKind(tc) === 'terminal';
 
-	if (invocation.toolSpecificData?.kind === 'terminal' && (isCompleted || isCancelled)) {
-		const terminalData = invocation.toolSpecificData as IChatTerminalToolInvocationData;
-		const toolOutput = isCompleted ? tc.toolOutput : undefined;
+	if (isTerminal && (isCompleted || isCancelled)) {
+		const toolOutput = isCompleted ? getToolOutputText(tc) : undefined;
+		const existing = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
 		invocation.toolSpecificData = {
-			...terminalData,
+			kind: 'terminal',
+			commandLine: existing?.commandLine ?? { original: tc.toolInput ?? '' },
+			language: existing?.language ?? getToolLanguage(tc) ?? 'shellscript',
 			terminalCommandOutput: toolOutput !== undefined ? { text: toolOutput } : undefined,
 			terminalCommandState: { exitCode: isCompleted && tc.success ? 0 : 1 },
 		};

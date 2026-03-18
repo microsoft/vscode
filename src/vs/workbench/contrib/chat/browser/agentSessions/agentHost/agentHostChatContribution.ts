@@ -156,7 +156,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	private async _initializeAndSubscribe(): Promise<void> {
 		try {
-			const snapshot = await this._agentHostService.subscribe(ROOT_STATE_URI);
+			const snapshot = await this._agentHostService.subscribe(URI.parse(ROOT_STATE_URI));
 			if (this._store.isDisposed) {
 				return;
 			}

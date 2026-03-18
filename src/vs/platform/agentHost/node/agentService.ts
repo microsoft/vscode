@@ -132,7 +132,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		// Create state in the state manager
 		const summary: ISessionSummary = {
-			resource: session,
+			resource: session.toString(),
 			provider: provider.id,
 			title: 'New Session',
 			status: SessionStatus.Idle,
@@ -140,7 +140,7 @@ export class AgentService extends Disposable implements IAgentService {
 			modifiedAt: Date.now(),
 		};
 		this._stateManager.createSession(summary);
-		this._stateManager.dispatchServerAction({ type: 'session/ready', session });
+		this._stateManager.dispatchServerAction({ type: 'session/ready', session: session.toString() });
 
 		return session;
 	}
@@ -152,14 +152,14 @@ export class AgentService extends Disposable implements IAgentService {
 			await provider.disposeSession(session);
 			this._sessionToProvider.delete(session.toString());
 		}
-		this._stateManager.removeSession(session);
+		this._stateManager.removeSession(session.toString());
 	}
 
 	// ---- Protocol methods ---------------------------------------------------
 
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
 		this._logService.trace(`[AgentService] subscribe: ${resource.toString()}`);
-		const snapshot = this._stateManager.getSnapshot(resource);
+		const snapshot = this._stateManager.getSnapshot(resource.toString());
 		if (!snapshot) {
 			throw new Error(`Cannot subscribe to unknown resource: ${resource.toString()}`);
 		}
@@ -183,7 +183,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async browseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
-		return this._sideEffects.handleBrowseDirectory(uri);
+		return this._sideEffects.handleBrowseDirectory(uri.toString());
 	}
 
 	async shutdown(): Promise<void> {
@@ -198,12 +198,12 @@ export class AgentService extends Disposable implements IAgentService {
 
 	// ---- helpers ------------------------------------------------------------
 
-	private _findProviderForSession(session: URI): IAgent | undefined {
-		const providerId = this._sessionToProvider.get(session.toString());
+	private _findProviderForSession(session: URI | string): IAgent | undefined {
+		const key = typeof session === 'string' ? session : session.toString();
+		const providerId = this._sessionToProvider.get(key);
 		if (providerId) {
 			return this._providers.get(providerId);
 		}
-		// Try to infer from URI scheme
 		const schemeProvider = AgentSession.provider(session);
 		if (schemeProvider) {
 			return this._providers.get(schemeProvider);
