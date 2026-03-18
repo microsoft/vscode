@@ -261,7 +261,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				? localize('chat.questionCarousel.expandTitle', 'Expand Questions')
 				: localize('chat.questionCarousel.collapseTitle', 'Collapse Questions');
 			const contentId = this.domNode.id;
-			this._collapseButton.label = collapsed ? `$(${Codicon.chevronRight.id})` : `$(${Codicon.chevronDown.id})`;
+			this._collapseButton.label = collapsed ? `$(${Codicon.chevronUp.id})` : `$(${Codicon.chevronDown.id})`;
 			this._collapseButton.element.setAttribute('aria-label', buttonTitle);
 			this._collapseButton.element.setAttribute('aria-expanded', String(!collapsed));
 			this._collapseButton.element.setAttribute('aria-controls', contentId);
@@ -656,11 +656,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		if (this._headerActionsContainer) {
 			dom.clearNode(this._headerActionsContainer);
-			if (this._closeButtonContainer) {
-				this._headerActionsContainer.appendChild(this._closeButtonContainer);
-			}
 			if (this._collapseButton) {
 				this._headerActionsContainer.appendChild(this._collapseButton.element);
+			}
+			if (this._closeButtonContainer) {
+				this._headerActionsContainer.appendChild(this._closeButtonContainer);
 			}
 			titleRow.appendChild(this._headerActionsContainer);
 		}
