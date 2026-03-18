@@ -375,6 +375,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 				this._renderRemoteSessionPickers(session);
 			}));
 		} else {
+			this._sessionTypePicker.setProject(session.project);
 			this._renderLocalSessionPickers();
 			if (session.project) {
 				this._openRepository(session.project.uri);
