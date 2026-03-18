@@ -293,7 +293,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			button.appendChild(document.createTextNode(entry.label));
 			button.onclick = () => {
 				this.telemetryService.publicLog2<AgentSessionsWelcomeActionEvent, AgentSessionsWelcomeActionClassification>(
-					'gettingStarted.ActionExecuted',
+					'agentSessionsWelcome.ActionExecuted',
 					{ welcomeKind: 'agentSessionsWelcomePage', action: 'executeCommand', actionId: entry.command }
 				);
 				this.commandService.executeCommand(entry.command);
@@ -652,7 +652,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		card.onclick = () => {
 			const walkthrough = activeWalkthroughs[currentIndex];
 			this.telemetryService.publicLog2<AgentSessionsWelcomeActionEvent, AgentSessionsWelcomeActionClassification>(
-				'gettingStarted.ActionExecuted',
+				'agentSessionsWelcome.ActionExecuted',
 				{ welcomeKind: 'agentSessionsWelcomePage', action: 'openWalkthrough', actionId: walkthrough.id }
 			);
 			// Open walkthrough with returnToCommand so back button returns to agent sessions welcome

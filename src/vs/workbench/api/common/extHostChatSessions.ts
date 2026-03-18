@@ -13,17 +13,16 @@ import { Disposable, DisposableStore, toDisposable } from '../../../base/common/
 import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import * as objects from '../../../base/common/objects.js';
-import { basename } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { SymbolKind, SymbolKinds } from '../../../editor/common/languages.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, IPromptFileVariableEntry, ISymbolVariableEntry, PromptFileVariableKind } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
-import { IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatNewSessionRequest, IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
-import { ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatSessionProviderOptions, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
+import { ChatSessionContentContextDto, ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatSessionProviderOptions, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
 import { ChatAgentResponseStream } from './extHostChatAgents2.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
@@ -500,7 +499,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		});
 	}
 
-	async $provideChatSessionContent(handle: number, sessionResourceComponents: UriComponents, token: CancellationToken): Promise<ChatSessionDto> {
+	async $provideChatSessionContent(handle: number, sessionResourceComponents: UriComponents, context: ChatSessionContentContextDto, token: CancellationToken): Promise<ChatSessionDto> {
 		const provider = this._chatSessionContentProviders.get(handle);
 		if (!provider) {
 			throw new Error(`No provider for handle ${handle}`);
@@ -508,7 +507,9 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		const sessionResource = URI.revive(sessionResourceComponents);
 
-		const session = await provider.provider.provideChatSessionContent(sessionResource, token);
+		const session = await provider.provider.provideChatSessionContent(sessionResource, token, {
+			sessionOptions: context?.initialSessionOptions ?? []
+		});
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -639,7 +640,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			return {};
 		}
 
-		const chatRequest = typeConvert.ChatAgentRequest.to(request, undefined, await this.getModelForRequest(request, entry.sessionObj.extension), [], new Map(), entry.sessionObj.extension, this._logService);
+		const chatRequest = typeConvert.ChatAgentRequest.to(request, undefined, await this.getModelForRequest(request, entry.sessionObj.extension), request.modelConfiguration, [], new Map(), entry.sessionObj.extension, this._logService);
 
 		const stream = entry.sessionObj.getActiveRequestStream(request);
 		await entry.sessionObj.session.requestHandler(chatRequest, { history, yieldRequested: false }, stream.apiObject, token);
@@ -709,19 +710,16 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			} satisfies ISymbolVariableEntry;
 		}
 
-		if (URI.isUri(value) && ref.name.startsWith(`prompt:`) &&
-			ref.id.startsWith(PromptFileVariableKind.PromptFile) &&
-			ref.id.endsWith(value.toString())) {
-			return {
-				id: ref.id,
-				name: `prompt:${basename(value)}`,
-				value,
-				kind: 'promptFile',
-				modelDescription: 'Prompt instructions file',
-				isRoot: true,
-				automaticallyAdded: false,
-				range,
-			} satisfies IPromptFileVariableEntry;
+		if (URI.isUri(value) && ref.name.startsWith(`prompt:`)) {
+			if (ref.id.startsWith(PromptFileVariableKind.Instruction)) {
+				return toPromptFileVariableEntry(value, PromptFileVariableKind.Instruction);
+			}
+			if (ref.id.startsWith(PromptFileVariableKind.InstructionReference)) {
+				return toPromptFileVariableEntry(value, PromptFileVariableKind.InstructionReference);
+			}
+			if (ref.id.startsWith(PromptFileVariableKind.PromptFile)) {
+				return toPromptFileVariableEntry(value, PromptFileVariableKind.PromptFile);
+			}
 		}
 
 		const isFile = URI.isUri(value) || (value && typeof value === 'object' && 'uri' in value);
@@ -777,7 +775,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		await controllerData.controller.refreshHandler(token);
 	}
 
-	async $newChatSessionItem(handle: number, request: IChatAgentRequest, token: CancellationToken): Promise<ReturnType<typeof typeConvert.ChatSessionItem.from> | undefined> {
+	async $newChatSessionItem(handle: number, request: IChatNewSessionRequest, token: CancellationToken): Promise<ReturnType<typeof typeConvert.ChatSessionItem.from> | undefined> {
 		const controllerData = this._chatSessionItemControllers.get(handle);
 		if (!controllerData) {
 			this._logService.warn(`No controller found for handle ${handle}`);
@@ -789,10 +787,13 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			return undefined;
 		}
 
-		const model = await this.getModelForRequest(request, controllerData.extension);
-		const chatRequest = typeConvert.ChatAgentRequest.to(request, undefined, model, [], new Map(), controllerData.extension, this._logService);
-
-		const item = await handler({ request: chatRequest }, token);
+		const item = await handler({
+			request: {
+				prompt: request.prompt,
+				command: request.command
+			},
+			sessionOptions: request.initialSessionOptions ?? [],
+		}, token);
 		if (!item) {
 			return undefined;
 		}

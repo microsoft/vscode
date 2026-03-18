@@ -126,31 +126,31 @@ suite('customizationCounts', () => {
 
 	suite('getSourceCountsTotal', () => {
 		test('sums only visible sources', () => {
-			const counts = { workspace: 5, user: 3, extension: 2 };
+			const counts = { workspace: 5, user: 3, extension: 2, builtin: 0 };
 			const filter: IStorageSourceFilter = { sources: [PromptsStorage.local, PromptsStorage.user] };
 			assert.strictEqual(getSourceCountsTotal(counts, filter), 8);
 		});
 
 		test('returns 0 for empty sources', () => {
-			const counts = { workspace: 5, user: 3, extension: 2 };
+			const counts = { workspace: 5, user: 3, extension: 2, builtin: 0 };
 			const filter: IStorageSourceFilter = { sources: [] };
 			assert.strictEqual(getSourceCountsTotal(counts, filter), 0);
 		});
 
 		test('sums all sources', () => {
-			const counts = { workspace: 5, user: 3, extension: 2 };
+			const counts = { workspace: 5, user: 3, extension: 2, builtin: 0 };
 			const filter: IStorageSourceFilter = { sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension] };
 			assert.strictEqual(getSourceCountsTotal(counts, filter), 10);
 		});
 
 		test('handles single source', () => {
-			const counts = { workspace: 7, user: 0, extension: 0 };
+			const counts = { workspace: 7, user: 0, extension: 0, builtin: 0 };
 			const filter: IStorageSourceFilter = { sources: [PromptsStorage.local] };
 			assert.strictEqual(getSourceCountsTotal(counts, filter), 7);
 		});
 
 		test('ignores plugin storage in totals (not in ISourceCounts)', () => {
-			const counts = { workspace: 1, user: 1, extension: 1 };
+			const counts = { workspace: 1, user: 1, extension: 1, builtin: 0 };
 			const filter: IStorageSourceFilter = { sources: [PromptsStorage.plugin] };
 			assert.strictEqual(getSourceCountsTotal(counts, filter), 0);
 		});
@@ -334,7 +334,7 @@ suite('customizationCounts', () => {
 				workspaceService,
 			);
 
-			assert.deepStrictEqual(counts, { workspace: 1, user: 1, extension: 1 });
+			assert.deepStrictEqual(counts, { workspace: 1, user: 1, extension: 1, builtin: 0 });
 		});
 
 		test('empty agents returns all zeros', async () => {
@@ -348,7 +348,7 @@ suite('customizationCounts', () => {
 				contextService, workspaceService,
 			);
 
-			assert.deepStrictEqual(counts, { workspace: 0, user: 0, extension: 0 });
+			assert.deepStrictEqual(counts, { workspace: 0, user: 0, extension: 0, builtin: 0 });
 		});
 	});
 
@@ -386,7 +386,7 @@ suite('customizationCounts', () => {
 				contextService, workspaceService,
 			);
 
-			assert.deepStrictEqual(counts, { workspace: 0, user: 0, extension: 0 });
+			assert.deepStrictEqual(counts, { workspace: 0, user: 0, extension: 0, builtin: 0 });
 		});
 
 		test('skills filtered by storage source filter', async () => {
@@ -450,7 +450,7 @@ suite('customizationCounts', () => {
 				contextService, workspaceService,
 			);
 
-			assert.deepStrictEqual(counts, { workspace: 1, user: 1, extension: 0 });
+			assert.deepStrictEqual(counts, { workspace: 1, user: 1, extension: 0, builtin: 0 });
 		});
 
 		test('all skills are excluded from prompt counts', async () => {
@@ -469,7 +469,7 @@ suite('customizationCounts', () => {
 				contextService, workspaceService,
 			);
 
-			assert.deepStrictEqual(counts, { workspace: 0, user: 0, extension: 0 });
+			assert.deepStrictEqual(counts, { workspace: 0, user: 0, extension: 0, builtin: 0 });
 		});
 	});
 

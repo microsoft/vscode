@@ -81,6 +81,7 @@ enum LayoutClasses {
 	PANEL_HIDDEN = 'nopanel',
 	AUXILIARYBAR_HIDDEN = 'noauxiliarybar',
 	CHATBAR_HIDDEN = 'nochatbar',
+	STATUSBAR_HIDDEN = 'nostatusbar',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized'
 }
@@ -590,6 +591,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.getPart(Parts.EDITOR_PART).create(editorPartContainer, { restorePreviousState: false });
 		mark('code/didCreatePart/workbench.parts.editor');
 
+		this.getPart(Parts.EDITOR_PART).layout(0, 0, 0, 0); // needed to make some view methods work
+
 		this.mainContainer.appendChild(editorPartContainer);
 	}
 
@@ -780,7 +783,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Default sizes
 		const sideBarSize = 300;
-		const auxiliaryBarSize = 300;
+		const auxiliaryBarSize = 340;
 		const panelSize = 300;
 		const titleBarHeight = this.titleBarPartView?.minimumHeight ?? 30;
 
@@ -893,6 +896,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			!this.partVisibility.panel ? LayoutClasses.PANEL_HIDDEN : undefined,
 			!this.partVisibility.auxiliaryBar ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.partVisibility.chatBar ? LayoutClasses.CHATBAR_HIDDEN : undefined,
+			LayoutClasses.STATUSBAR_HIDDEN, // sessions window never has a status bar
 			this.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined
 		]);
 	}
@@ -1119,6 +1123,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			this.workbenchGrid.exitMaximizedView();
 		}
 
+		const panelHadFocus = !hidden || this.hasFocus(Parts.PANEL_PART);
+
 		this.partVisibility.panel = !hidden;
 		this.mainContainer.classList.toggle(LayoutClasses.PANEL_HIDDEN, hidden);
 
@@ -1131,15 +1137,24 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		// If panel becomes hidden, also hide the current active pane composite
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
 			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Panel);
+
+			// Focus the chat bar when hiding the panel if it had focus
+			if (panelHadFocus) {
+				this.focusPart(Parts.CHATBAR_PART);
+			}
 		}
 
-		// If panel becomes visible, show last active panel or default
-		if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
-			const panelToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Panel) ??
-				this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id;
-			if (panelToOpen) {
-				this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.Panel);
+		// If panel becomes visible, show last active panel or default and focus it
+		if (!hidden) {
+			if (!this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
+				const panelToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Panel) ??
+					this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id;
+				if (panelToOpen) {
+					this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.Panel);
+				}
 			}
+
+			this.focusPart(Parts.PANEL_PART);
 		}
 	}
 

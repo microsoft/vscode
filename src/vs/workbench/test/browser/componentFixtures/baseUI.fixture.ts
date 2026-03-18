@@ -22,34 +22,42 @@ import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGro
 
 export default defineThemedFixtureGroup({
 	Buttons: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: renderButtons,
 	}),
 
 	ButtonBar: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: renderButtonBar,
 	}),
 
 	Toggles: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: renderToggles,
 	}),
 
 	InputBoxes: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: renderInputBoxes,
 	}),
 
 	CountBadges: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: renderCountBadges,
 	}),
 
 	ActionBar: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: renderActionBar,
 	}),
 
 	ProgressBars: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: renderProgressBars,
 	}),
 
 	HighlightedLabels: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: renderHighlightedLabels,
 	}),
 });

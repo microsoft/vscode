@@ -7,17 +7,16 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { basename, isEqual } from '../../../../base/common/resources.js';
+import { basename, extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { INewSession } from './newSession.js';
 
 const STORAGE_KEY_LAST_FOLDER = 'agentSessions.lastPickedFolder';
 const STORAGE_KEY_RECENT_FOLDERS = 'agentSessions.recentlyPickedFolders';
@@ -27,6 +26,7 @@ const FILTER_THRESHOLD = 10;
 interface IFolderItem {
 	readonly uri: URI;
 	readonly label: string;
+	readonly checked?: boolean;
 }
 
 /**
@@ -35,6 +35,26 @@ interface IFolderItem {
  * folder and recently picked folders in storage. Enables a filter input when
  * there are more than 10 items.
  */
+export interface IFolderPickerOptions {
+	/**
+	 * Filesystem schemes to pass to `showOpenDialog`. When set, the dialog
+	 * browses the given scheme(s) instead of the default local filesystem.
+	 * This is used to browse a remote agent host's filesystem.
+	 */
+	readonly availableFileSystems?: readonly string[];
+
+	/**
+	 * Default URI to pass to `showOpenDialog` as the starting location.
+	 */
+	readonly defaultUri?: URI;
+
+	/**
+	 * Optional prefix for storage keys, so that different picker instances
+	 * (e.g. local vs remote) don't share the same last-picked and recents.
+	 */
+	readonly storageKeyPrefix?: string;
+}
+
 export class FolderPicker extends Disposable {
 
 	private readonly _onDidSelectFolder = this._register(new Emitter<URI>());
@@ -42,43 +62,50 @@ export class FolderPicker extends Disposable {
 
 	private _selectedFolderUri: URI | undefined;
 	private _recentlyPickedFolders: URI[] = [];
-	private _newSession: INewSession | undefined;
 
 	private _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _storageKeyLastFolder: string;
+	private readonly _storageKeyRecentFolders: string;
 
 	get selectedFolderUri(): URI | undefined {
 		return this._selectedFolderUri;
 	}
 
-	/**
-	 * Sets the pending session that this picker writes to.
-	 * When the user selects a folder, it calls `setRepoUri` on the session.
-	 */
-	setNewSession(session: INewSession | undefined): void {
-		this._newSession = session;
-	}
-
 	constructor(
+		private readonly _options: IFolderPickerOptions | undefined,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
-		// Restore last picked folder
-		const lastFolder = this.storageService.get(STORAGE_KEY_LAST_FOLDER, StorageScope.PROFILE);
+		const prefix = this._options?.storageKeyPrefix ?? '';
+		this._storageKeyLastFolder = prefix + STORAGE_KEY_LAST_FOLDER;
+		this._storageKeyRecentFolders = prefix + STORAGE_KEY_RECENT_FOLDERS;
+
+		// The set of schemes this picker is allowed to browse
+		const allowedSchemes = new Set(this._options?.availableFileSystems ?? [Schemas.file]);
+
+		// Restore last picked folder (skip URIs with schemes this picker can't handle)
+		const lastFolder = this.storageService.get(this._storageKeyLastFolder, StorageScope.PROFILE);
 		if (lastFolder) {
-			try { this._selectedFolderUri = URI.parse(lastFolder); } catch { /* ignore */ }
+			try {
+				const parsed = URI.parse(lastFolder);
+				if (allowedSchemes.has(parsed.scheme)) {
+					this._selectedFolderUri = parsed;
+				}
+			} catch { /* ignore */ }
 		}
 
-		// Restore recently picked folders
+		// Restore recently picked folders (filter out URIs with foreign schemes)
 		try {
-			const stored = this.storageService.get(STORAGE_KEY_RECENT_FOLDERS, StorageScope.PROFILE);
+			const stored = this.storageService.get(this._storageKeyRecentFolders, StorageScope.PROFILE);
 			if (stored) {
-				this._recentlyPickedFolders = JSON.parse(stored).map((s: string) => URI.parse(s));
+				this._recentlyPickedFolders = JSON.parse(stored)
+					.map((s: string) => URI.parse(s))
+					.filter((u: URI) => allowedSchemes.has(u.scheme));
 			}
 		} catch { /* ignore */ }
 	}
@@ -123,7 +150,7 @@ export class FolderPicker extends Disposable {
 			return;
 		}
 
-		const currentFolderUri = this._selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
+		const currentFolderUri = this._selectedFolderUri;
 		const items = this._buildItems(currentFolderUri);
 		const showFilter = items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
 
@@ -161,7 +188,7 @@ export class FolderPicker extends Disposable {
 	}
 
 	/**
-	 * Programmatically set the selected folder.
+	 * Programmatically set the selected folder (e.g. restoring draft state).
 	 */
 	setSelectedFolder(folderUri: URI): void {
 		this._selectFolder(folderUri);
@@ -178,9 +205,8 @@ export class FolderPicker extends Disposable {
 	private _selectFolder(folderUri: URI): void {
 		this._selectedFolderUri = folderUri;
 		this._addToRecentlyPickedFolders(folderUri);
-		this.storageService.store(STORAGE_KEY_LAST_FOLDER, folderUri.toString(), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.store(this._storageKeyLastFolder, folderUri.toString(), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._updateTriggerLabel(this._triggerElement);
-		this._newSession?.setRepoUri(folderUri);
 		this._onDidSelectFolder.fire(folderUri);
 	}
 
@@ -191,6 +217,8 @@ export class FolderPicker extends Disposable {
 				canSelectFolders: true,
 				canSelectMany: false,
 				title: localize('selectFolder', "Select Folder"),
+				availableFileSystems: this._options?.availableFileSystems?.slice(),
+				defaultUri: this._options?.defaultUri,
 			});
 			if (selected?.[0]) {
 				this._selectFolder(selected[0]);
@@ -213,45 +241,37 @@ export class FolderPicker extends Disposable {
 
 	private _addToRecentlyPickedFolders(folderUri: URI): void {
 		this._recentlyPickedFolders = [folderUri, ...this._recentlyPickedFolders.filter(f => !isEqual(f, folderUri))].slice(0, MAX_RECENT_FOLDERS);
-		this.storageService.store(STORAGE_KEY_RECENT_FOLDERS, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.store(this._storageKeyRecentFolders, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private _buildItems(currentFolderUri: URI | undefined): IActionListItem<IFolderItem>[] {
 		const seenUris = new Set<string>();
-		if (currentFolderUri) {
-			seenUris.add(currentFolderUri.toString());
-		}
 
 		const items: IActionListItem<IFolderItem>[] = [];
 
-		// Currently selected folder (shown first, checked)
+		// Collect all folders (current + recently picked), deduplicated and sorted by name
+		const allFolders: { uri: URI; label: string }[] = [];
 		if (currentFolderUri) {
-			items.push({
-				kind: ActionListItemKind.Action,
-				label: basename(currentFolderUri),
-				group: { title: '', icon: Codicon.folder },
-				item: { uri: currentFolderUri, label: basename(currentFolderUri) },
-			});
+			seenUris.add(currentFolderUri.toString());
+			allFolders.push({ uri: currentFolderUri, label: basename(currentFolderUri) });
 		}
-
-		// Recently picked folders (sorted by name)
-		const dedupedFolders: { uri: URI; label: string }[] = [];
 		for (const folderUri of this._recentlyPickedFolders) {
 			const key = folderUri.toString();
 			if (seenUris.has(key)) {
 				continue;
 			}
 			seenUris.add(key);
-			dedupedFolders.push({ uri: folderUri, label: basename(folderUri) });
+			allFolders.push({ uri: folderUri, label: basename(folderUri) });
 		}
-		dedupedFolders.sort((a, b) => a.label.localeCompare(b.label));
-		for (const folder of dedupedFolders) {
+		allFolders.sort((a, b) => extUriBiasedIgnorePathCase.compare(a.uri, b.uri));
+		for (const folder of allFolders) {
+			const isCurrent = currentFolderUri && isEqual(folder.uri, currentFolderUri);
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: folder.label,
 				group: { title: '', icon: Codicon.folder },
-				item: { uri: folder.uri, label: folder.label },
-				onRemove: () => this._removeFolder(folder.uri),
+				item: { uri: folder.uri, label: folder.label, checked: isCurrent || false },
+				...(!isCurrent ? { onRemove: () => this._removeFolder(folder.uri) } : {}),
 			});
 		}
 
@@ -268,19 +288,35 @@ export class FolderPicker extends Disposable {
 			group: { title: '', icon: Codicon.search },
 			item: { uri: URI.from({ scheme: 'command', path: 'browse' }), label: localize('browseFolder', "Browse...") },
 		});
-		items.push({
-			kind: ActionListItemKind.Action,
-			label: localize('cloneRepository', "Clone..."),
-			group: { title: '', icon: Codicon.repoClone },
-			item: { uri: URI.from({ scheme: 'command', path: 'clone' }), label: localize('cloneRepository', "Clone...") },
-		});
+		if (!this._options?.availableFileSystems?.length) {
+			items.push({
+				kind: ActionListItemKind.Action,
+				label: localize('cloneRepository', "Clone..."),
+				group: { title: '', icon: Codicon.repoClone },
+				item: { uri: URI.from({ scheme: 'command', path: 'clone' }), label: localize('cloneRepository', "Clone...") },
+			});
+		}
 
 		return items;
 	}
 
+	/**
+	 * Removes a folder from the recently picked list and storage.
+	 */
+	removeFromRecents(folderUri: URI): void {
+		this._recentlyPickedFolders = this._recentlyPickedFolders.filter(f => !isEqual(f, folderUri));
+		this.storageService.store(this._storageKeyRecentFolders, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
+		// If this was the last picked folder, clear it
+		if (this._selectedFolderUri && isEqual(this._selectedFolderUri, folderUri)) {
+			this._selectedFolderUri = undefined;
+			this.storageService.remove(this._storageKeyLastFolder, StorageScope.PROFILE);
+			this._updateTriggerLabel(this._triggerElement);
+		}
+	}
+
 	private _removeFolder(folderUri: URI): void {
 		this._recentlyPickedFolders = this._recentlyPickedFolders.filter(f => !isEqual(f, folderUri));
-		this.storageService.store(STORAGE_KEY_RECENT_FOLDERS, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.store(this._storageKeyRecentFolders, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private _updateTriggerLabel(trigger: HTMLElement | undefined): void {
@@ -289,7 +325,7 @@ export class FolderPicker extends Disposable {
 		}
 
 		dom.clearNode(trigger);
-		const folderUri = this._selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
+		const folderUri = this._selectedFolderUri;
 		const label = folderUri ? basename(folderUri) : localize('pickFolder', "Pick Folder");
 
 		dom.append(trigger, renderIcon(Codicon.folder));

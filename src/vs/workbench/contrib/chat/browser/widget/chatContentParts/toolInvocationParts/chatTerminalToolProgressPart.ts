@@ -17,7 +17,10 @@ import { ChatQueryTitlePart } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, type IChatMarkdownContentPartOptions } from '../chatMarkdownContentPart.js';
 import { ChatProgressSubPart } from '../chatProgressContentPart.js';
+import { ChatResourceGroupWidget } from '../chatResourceGroupWidget.js';
+import { IChatCollapsibleIODataPart } from '../chatToolInputOutputContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { extractImagesFromToolInvocationOutputDetails } from '../../../../common/chatImageExtraction.js';
 import { TerminalToolAutoExpand } from './terminalToolAutoExpand.js';
 import { ChatCollapsibleContentPart } from '../chatCollapsibleContentPart.js';
 import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
@@ -42,7 +45,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { stripIcons } from '../../../../../../../base/common/iconLabels.js';
 import { IAccessibleViewService } from '../../../../../../../platform/accessibility/browser/accessibleView.js';
 import { IContextKey, IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
-import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
+import { AccessibilityVerbositySettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { EditorPool } from '../chatContentCodePools.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
@@ -419,15 +422,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this.domNode = this._createCollapsibleWrapper(progressPart.domNode, displayCommand, toolInvocation, context);
 		} else {
 			this.domNode = progressPart.domNode;
-			// Toggle show-checkmarks class on the progress container for accessibility setting
-			const updateCheckmarks = () => this.domNode.classList.toggle('show-checkmarks', !!this._configurationService.getValue<boolean>(AccessibilityWorkbenchSettingId.ShowChatCheckmarks));
-			updateCheckmarks();
-			this._register(this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(AccessibilityWorkbenchSettingId.ShowChatCheckmarks)) {
-					updateCheckmarks();
-				}
-			}));
 		}
+
+		this._renderImagePills(toolInvocation, context, elements.container);
 
 		// Only auto-expand in thinking containers if there's actual output to show
 		const hasStoredOutput = !!terminalData.terminalCommandOutput;
@@ -435,6 +432,57 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			void this._toggleOutput(true);
 		}
 		this._register(this._terminalChatService.registerProgressPart(this));
+	}
+
+	/**
+	 * Renders image attachment pills below the terminal output when the tool
+	 * result contains image data parts. For collapsible wrappers, the single
+	 * widget is reparented between inside/outside based on expanded state.
+	 */
+	private _renderImagePills(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, context: IChatContentPartRenderContext, innerContainer: HTMLElement): void {
+		const renderImages = () => {
+			const extracted = extractImagesFromToolInvocationOutputDetails(toolInvocation, context.element.sessionResource);
+			const imageParts: IChatCollapsibleIODataPart[] = extracted.map(img => ({
+				kind: 'data',
+				value: img.data.buffer,
+				mimeType: img.mimeType,
+				uri: img.uri,
+			}));
+			if (imageParts.length === 0) {
+				return;
+			}
+
+			const widget = this._register(this._instantiationService.createInstance(ChatResourceGroupWidget, imageParts));
+
+			if (this._thinkingCollapsibleWrapper) {
+				// Reparent the single widget between inner (expanded) and outer (collapsed)
+				const wrapper = this._thinkingCollapsibleWrapper;
+				const placeWidget = (expanded: boolean) => {
+					if (expanded) {
+						innerContainer.appendChild(widget.domNode);
+					} else {
+						wrapper.domNode.appendChild(widget.domNode);
+					}
+				};
+				placeWidget(wrapper.expanded.get());
+				this._register(autorun(reader => {
+					placeWidget(wrapper.expanded.read(reader));
+				}));
+			} else {
+				innerContainer.appendChild(widget.domNode);
+			}
+		};
+
+		if (toolInvocation.kind === 'toolInvocationSerialized') {
+			renderImages();
+		} else {
+			this._register(autorun(reader => {
+				const state = toolInvocation.state.read(reader);
+				if (state.type === IChatToolInvocation.StateKind.Completed) {
+					renderImages();
+				}
+			}));
+		}
 	}
 
 	private _createCollapsibleWrapper(contentElement: HTMLElement, commandText: string, toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, context: IChatContentPartRenderContext): HTMLElement {

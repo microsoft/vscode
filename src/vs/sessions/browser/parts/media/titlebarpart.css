@@ -8,8 +8,72 @@
 	height: 100%;
 	align-items: center;
 	order: 0;
-	flex-grow: 2;
+	flex-grow: 0;
+	flex-shrink: 0;
+	width: auto;
 	justify-content: flex-start;
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container.has-center > .titlebar-center {
+	order: 1;
+	width: auto;
+	flex-grow: 0;
+	flex-shrink: 1;
+	min-width: 0px;
+	margin: 0;
+	justify-content: flex-start;
+}
+
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left {
+	width: fit-content;
+	flex-grow: 0;
+}
+
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center {
+	flex: 1;
+	max-width: none;
+}
+
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center .window-title {
+	margin: unset;
+}
+
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right {
+	order: 2;
+	width: fit-content;
+	flex-grow: 0;
+	justify-content: flex-end;
+	margin-right: 10px;
+}
+
+/* Session Title Actions Container (before right toolbar) */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container {
+	display: none;
+	flex-shrink: 0;
+	-webkit-app-region: no-drag;
+	height: 100%;
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container:not(.has-no-actions) {
+	display: flex;
+	align-items: center;
+}
+
+/* Separator between session actions and layout actions toolbar */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + .titlebar-layout-actions-container:not(.has-no-actions)::before {
+	content: '';
+	width: 1px;
+	height: 16px;
+	margin: 0 4px;
+	background-color: var(--vscode-disabledForeground);
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container .codicon {
+	color: inherit;
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container .monaco-action-bar .action-item {
+	display: flex;
 }
 
 /* Left Tool Bar Container */
@@ -40,19 +104,12 @@
 	display: flex;
 }
 
-/* TODO: Hack to avoid flicker when sidebar becomes visible.
- * The contribution swaps the menu item synchronously, but the toolbar
- * re-render is async, causing a brief flash. Hide the container via
- * CSS when sidebar is visible (nosidebar class is removed synchronously). */
-.agent-sessions-workbench:not(.nosidebar) .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container {
+/* Hide the entire titlebar left when the sidebar is visible */
+.agent-sessions-workbench:not(.nosidebar) .part.titlebar > .sessions-titlebar-container > .titlebar-left {
 	display: none !important;
 }
 
 /* macOS native: the spacer uses window-controls-container but should not block dragging */
 .agent-sessions-workbench.mac .part.titlebar .window-controls-container {
 	-webkit-app-region: drag;
-}
-
-.agent-sessions-workbench:not(.nosidebar) .part.titlebar > .sessions-titlebar-container > .titlebar-left .window-controls-container {
-	display: none !important;
 }

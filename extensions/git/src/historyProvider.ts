@@ -8,7 +8,8 @@ import { CancellationToken, Disposable, Event, EventEmitter, FileDecoration, Fil
 import { Repository, Resource } from './repository';
 import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, subject, truncate } from './util';
 import { toMultiFileDiffEditorUris } from './uri';
-import { AvatarQuery, AvatarQueryCommit, Branch, LogOptions, Ref, RefType } from './api/git';
+import type { AvatarQuery, AvatarQueryCommit, Branch, LogOptions, Ref } from './api/git';
+import { RefType } from './api/git.constants';
 import { emojify, ensureEmojis } from './emoji';
 import { Commit } from './git';
 import { OperationKind, OperationResult } from './operation';

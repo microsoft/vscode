@@ -31,7 +31,65 @@
 	overflow: hidden;
 }
 
+/* Folder picker footer (sessions window only) */
+.ai-customization-management-editor .sidebar-folder-picker {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	padding: 6px 4px;
+	border-top: 1px solid var(--vscode-sideBarSectionHeader-border, transparent);
+}
 
+.ai-customization-management-editor .folder-picker-button {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: 1;
+	min-width: 0;
+	padding: 4px 6px;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	font-size: 11px;
+}
+
+.ai-customization-management-editor .folder-picker-button:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.ai-customization-management-editor .folder-picker-icon {
+	flex-shrink: 0;
+	font-size: 14px;
+}
+
+.ai-customization-management-editor .folder-picker-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .folder-picker-clear {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.ai-customization-management-editor .folder-picker-clear:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
 
 /* Section list items */
 .ai-customization-management-editor .section-list-item {
@@ -81,6 +139,19 @@
 	font-weight: 400;
 }
 
+.ai-customization-management-editor .section-list-item .section-count {
+	flex-shrink: 0;
+	font-size: 10px;
+	font-weight: 500;
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
+	padding: 0 5px;
+	border-radius: 8px;
+	min-width: 14px;
+	text-align: center;
+	line-height: 16px;
+}
+
 /* Content area */
 .ai-customization-management-editor .management-content {
 	background-color: var(--vscode-editor-background);
@@ -101,6 +172,56 @@
 	height: 100%;
 }
 
+/* Harness dropdown in sidebar */
+.ai-customization-management-editor .sidebar-harness-dropdown {
+	flex-shrink: 0;
+	padding: 6px 4px 4px;
+}
+
+.ai-customization-management-editor .harness-dropdown-button {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	padding: 5px 8px;
+	border: 1px solid var(--vscode-dropdown-border, transparent);
+	border-radius: 4px;
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+	cursor: pointer;
+	font-size: 12px;
+	text-align: left;
+}
+
+.ai-customization-management-editor .harness-dropdown-button:hover {
+	background: var(--vscode-dropdown-background);
+	border-color: var(--vscode-focusBorder);
+}
+
+.ai-customization-management-editor .harness-dropdown-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.ai-customization-management-editor .harness-dropdown-icon {
+	font-size: 14px;
+	flex-shrink: 0;
+	color: inherit;
+}
+
+.ai-customization-management-editor .harness-dropdown-label {
+	flex: 1;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.ai-customization-management-editor .harness-dropdown-chevron {
+	font-size: 12px;
+	flex-shrink: 0;
+	opacity: 0.7;
+}
+
 /* Search and button container - consistent with Models view */
 .ai-customization-list-widget .list-search-and-button-container,
 .mcp-list-widget .list-search-and-button-container {
@@ -108,7 +229,7 @@
 	align-items: center;
 	gap: 8px;
 	flex-shrink: 0;
-	margin: 6px 0px;
+	padding: 6px 0;
 }
 
 .ai-customization-list-widget .list-search-container,
@@ -137,7 +258,8 @@
 
 .ai-customization-list-widget .list-container {
 	flex: 1;
-	overflow: hidden;
+	min-height: 0;
+	overflow: auto;
 }
 
 .ai-customization-list-widget .list-empty-message {
@@ -193,10 +315,8 @@
 	border-radius: 4px;
 }
 
-/* Separator line above non-first group headers */
+/* Spacing above non-first group headers */
 .ai-customization-group-header.has-previous-group {
-	border-top: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
-	margin-top: 4px;
 	padding-top: 12px;
 }
 
@@ -249,8 +369,8 @@
 	flex-shrink: 0;
 	font-size: 10px;
 	font-weight: 500;
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 	padding: 0 5px;
 	border-radius: 8px;
 	min-width: 14px;
@@ -290,7 +410,6 @@
 	padding: 6px 8px 6px 24px;
 	cursor: pointer;
 	border-radius: 4px;
-	margin: 2px 0;
 	min-height: 32px;
 }
 
@@ -338,6 +457,17 @@
 .ai-customization-list-item .git-status-badge.committed {
 	color: var(--vscode-charts-green, #89d185);
 	opacity: 0.6;
+}
+
+.ai-customization-list-item .item-type-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0.8;
+	font-size: 14px;
 }
 
 .ai-customization-list-item .item-text {
@@ -486,12 +616,11 @@
 .ai-customization-overview .overview-section .section-count {
 	flex-shrink: 0;
 	font-size: 9px;
-	font-weight: 600;
+	font-weight: 500;
 	padding: 1px 5px;
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 	border-radius: 8px;
-	border: 1px solid transparent;
 	min-width: 14px;
 	text-align: center;
 }
@@ -499,6 +628,7 @@
 /* Content container visibility */
 .ai-customization-management-editor .prompts-content-container,
 .ai-customization-management-editor .mcp-content-container,
+.ai-customization-management-editor .plugin-content-container,
 .ai-customization-management-editor .models-content-container {
 	height: 100%;
 	display: flex;
@@ -513,6 +643,18 @@
 }
 
 .ai-customization-management-editor .mcp-detail-editor-container {
+	flex: 1;
+	overflow: hidden;
+}
+
+/* Embedded plugin detail view */
+.ai-customization-management-editor .plugin-detail-container {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.ai-customization-management-editor .plugin-detail-editor-container {
 	flex: 1;
 	overflow: hidden;
 }
@@ -590,7 +732,8 @@
 
 .mcp-list-widget .mcp-list-container {
 	flex: 1;
-	overflow: hidden;
+	min-height: 0;
+	overflow: auto;
 }
 
 /* MCP Empty State */
@@ -632,15 +775,20 @@
 .mcp-server-item {
 	display: flex;
 	align-items: center;
-	padding: 8px 12px;
+	padding: 6px 8px;
 	cursor: pointer;
 	border-radius: 4px;
-	margin: 2px 0;
-	gap: 12px;
+	min-height: 32px;
+	gap: 10px;
 }
 
 .mcp-server-item:hover {
 	background-color: var(--vscode-list-hoverBackground);
+}
+
+.mcp-server-item.builtin {
+	cursor: default;
+	opacity: 0.85;
 }
 
 .mcp-server-item .mcp-server-icon {
@@ -663,10 +811,10 @@
 
 .mcp-server-item .mcp-server-name {
 	font-size: 13px;
-	font-weight: 500;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	line-height: 18px;
 }
 
 .mcp-server-item .mcp-server-description {
@@ -675,6 +823,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	line-height: 14px;
 }
 
 .mcp-server-item .mcp-server-status {
@@ -701,6 +850,15 @@
 }
 
 .mcp-server-item .mcp-server-status.stopped {
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.mcp-server-item.disabled {
+	opacity: 0.5;
+}
+
+.mcp-server-item .mcp-server-status.disabled {
 	background-color: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
 }
@@ -752,6 +910,19 @@
 	flex-shrink: 0;
 }
 
+.mcp-gallery-item.extension-list-item {
+	padding: 6px 8px 6px 16px;
+}
+
+.mcp-gallery-item.extension-list-item > .details > .footer {
+	display: flex;
+	align-items: center;
+}
+
+.mcp-gallery-item.extension-list-item .mcp-gallery-action {
+	margin-left: auto;
+}
+
 .mcp-gallery-item .mcp-gallery-install-button {
 	font-size: 11px;
 	padding: 2px 10px;
@@ -788,13 +959,23 @@
 	transition: background-color 0.1s ease, opacity 0.1s ease;
 }
 
-.ai-customization-management-editor .editor-back-button:hover {
+.ai-customization-management-editor .editor-back-button:hover:not(:disabled) {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	opacity: 1;
 }
 
-.ai-customization-management-editor .editor-back-button:active {
+.ai-customization-management-editor .editor-back-button:active:not(:disabled) {
 	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+.ai-customization-management-editor .editor-back-button:disabled {
+	cursor: default;
+	opacity: 0.45;
+}
+
+.ai-customization-management-editor .editor-action-button-icon {
+	font-size: 14px;
+	line-height: 14px;
 }
 
 .ai-customization-management-editor .editor-item-info {

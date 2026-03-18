@@ -34,7 +34,7 @@ interface SuggestFixtureOptions extends ComponentFixtureContext {
 	editorOptions?: IEditorOptions;
 }
 
-async function renderSuggestWidget(options: SuggestFixtureOptions): Promise<void> {
+function renderSuggestWidget(options: SuggestFixtureOptions): void {
 	const { container, disposableStore, theme } = options;
 	container.style.width = options.width ?? '500px';
 	container.style.height = options.height ?? '300px';
@@ -144,8 +144,9 @@ const mixedKindCompletions: CompletionList = {
 	],
 };
 
-export default defineThemedFixtureGroup({
+export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	MethodCompletions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => renderSuggestWidget({
 			...context,
 			code: `const element = document.getElementById('app');
@@ -159,6 +160,7 @@ if (element) {
 	}),
 
 	MixedKinds: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => renderSuggestWidget({
 			...context,
 			code: '',

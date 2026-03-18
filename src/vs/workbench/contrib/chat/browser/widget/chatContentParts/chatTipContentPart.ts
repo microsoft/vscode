@@ -74,15 +74,7 @@ export class ChatTipContentPart extends Disposable {
 		this._renderTip(tip);
 
 		this._register(this._chatTipService.onDidDismissTip(() => {
-			// Use getNextEligibleTip instead of navigateToNextTip to show the next
-			// available tip even if it's the only one left (no multiple-tip requirement)
-			const nextTip = this._chatTipService.getNextEligibleTip();
-			if (nextTip) {
-				this._renderTip(nextTip);
-				dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => this.focus());
-			} else {
-				this._onDidHide.fire();
-			}
+			this._onDidHide.fire();
 		}));
 
 		this._register(this._chatTipService.onDidNavigateTip(tip => {
@@ -230,7 +222,7 @@ registerAction2(class DismissTipToolbarAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		accessor.get(IChatTipService).dismissTip();
+		accessor.get(IChatTipService).dismissTipForSession();
 	}
 });
 
@@ -253,7 +245,7 @@ registerAction2(class DismissTipAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		accessor.get(IChatTipService).dismissTip();
+		accessor.get(IChatTipService).dismissTipForSession();
 	}
 });
 

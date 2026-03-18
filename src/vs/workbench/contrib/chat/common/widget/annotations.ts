@@ -250,6 +250,10 @@ export function hasCodeblockUriTag(text: string): boolean {
 	return text.includes('<vscode_codeblock_uri');
 }
 
+export function hasEditCodeblockUriTag(text: string): boolean {
+	return text.includes('<vscode_codeblock_uri isEdit');
+}
+
 export function extractVulnerabilitiesFromText(text: string): { newText: string; vulnerabilities: IMarkdownVulnerability[] } {
 	const vulnerabilities: IMarkdownVulnerability[] = [];
 	let newText = text;

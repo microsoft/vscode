@@ -784,6 +784,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('tips.enabled', "When enabled, will show the watermark tips when no editor is open.")
 			},
+			[LayoutSettings.SHADOWS]: {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('shadows', "Controls whether shadow effects are shown around the side panels and other workbench elements.")
+			},
 		}
 	});
 
@@ -1052,19 +1057,6 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			const result: ConfigurationKeyValuePairs = [['zenMode.hideTabs', { value: undefined }]];
 			if (value === true) {
 				result.push(['zenMode.showTabs', { value: 'single' }]);
-			}
-			return result;
-		}
-	}]);
-
-Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
-	.registerConfigurationMigrations([{
-		key: 'workbench.editor.useModal', migrateFn: (value: unknown) => {
-			const result: ConfigurationKeyValuePairs = [];
-			if (value === 'default') {
-				result.push(['workbench.editor.useModal', { value: 'some' }]);
-			} else if (value === 'on') {
-				result.push(['workbench.editor.useModal', { value: 'all' }]);
 			}
 			return result;
 		}

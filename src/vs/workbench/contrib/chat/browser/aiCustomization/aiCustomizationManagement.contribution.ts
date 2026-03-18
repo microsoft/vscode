@@ -6,14 +6,13 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from '../../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IEditorService, MODAL_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
@@ -21,9 +20,13 @@ import { AICustomizationManagementEditorInput } from './aiCustomizationManagemen
 import {
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID,
+	AI_CUSTOMIZATION_ITEM_STORAGE_KEY,
+	AI_CUSTOMIZATION_ITEM_TYPE_KEY,
+	AI_CUSTOMIZATION_ITEM_URI_KEY,
 	AICustomizationManagementCommands,
 	AICustomizationManagementItemMenuId,
 	AICustomizationManagementSection,
+	BUILTIN_STORAGE,
 } from './aiCustomizationManagement.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -31,13 +34,35 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IFileService, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { basename } from '../../../../../base/common/resources.js';
+import { basename, dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, isMacintosh } from '../../../../../base/common/platform.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+
+//#region Telemetry
+
+type CustomizationEditorDeleteItemEvent = {
+	promptType: string;
+	storage: string;
+};
+
+type CustomizationEditorDeleteItemClassification = {
+	promptType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of customization being deleted.' };
+	storage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The storage location of the deleted item.' };
+	owner: 'joshspicer';
+	comment: 'Tracks item deletion in the Chat Customizations editor.';
+};
+
+//#endregion
 
 //#region Editor Registration
 
@@ -119,6 +144,16 @@ function extractStorage(context: AICustomizationContext): PromptsStorage | undef
 	return context.storage;
 }
 
+/**
+ * Extracts prompt type from context.
+ */
+function extractPromptType(context: AICustomizationContext): PromptsType | undefined {
+	if (URI.isUri(context) || typeof context === 'string') {
+		return undefined;
+	}
+	return context.promptType;
+}
+
 // Open file action
 const OPEN_AI_CUSTOMIZATION_MGMT_FILE_ID = 'aiCustomizationManagement.openFile';
 registerAction2(class extends Action2 {
@@ -131,9 +166,19 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		await editorService.openEditor({
+		const storage = extractStorage(context);
+
+		const editorPane = await editorService.openEditor({
 			resource: extractURI(context)
 		});
+
+		const codeEditor = getCodeEditor(editorPane?.getControl());
+		if (codeEditor && (storage === PromptsStorage.extension || storage === PromptsStorage.plugin)) {
+			codeEditor.updateOptions({
+				readOnly: true,
+				readOnlyMessage: new MarkdownString(localize('readonlyPluginFile', "This file is provided by a plugin or extension and cannot be edited.")),
+			});
+		}
 	}
 });
 
@@ -193,11 +238,32 @@ registerAction2(class extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 
 		const uri = extractURI(context);
-		const fileName = basename(uri);
 		const storage = extractStorage(context);
+		const promptType = extractPromptType(context);
+		const isSkill = promptType === PromptsType.skill;
+		// For skills, use the parent folder name since skills are structured as <skillname>/SKILL.md.
+		const fileName = isSkill ? basename(dirname(uri)) : basename(uri);
 
-		// Extension and plugin files cannot be deleted
-		if (storage === PromptsStorage.extension || storage === PromptsStorage.plugin) {
+		// Plugin-provided files: offer to uninstall the plugin
+		if (storage === PromptsStorage.plugin) {
+			const agentPluginService = accessor.get(IAgentPluginService);
+			const plugin = agentPluginService.plugins.get().find(p => isEqualOrParent(uri, p.uri));
+			if (plugin) {
+				const result = await dialogService.confirm({
+					message: localize('cannotDeletePluginItem', "This item is provided by the plugin '{0}'", plugin.label),
+					detail: localize('cannotDeletePluginItemDetail', "Individual components from a plugin cannot be removed separately. Would you like to uninstall the entire plugin?"),
+					primaryButton: localize('uninstallPlugin', "Uninstall Plugin"),
+					type: 'question',
+				});
+				if (result.confirmed) {
+					plugin.remove();
+				}
+			}
+			return;
+		}
+
+		// Extension and built-in files cannot be deleted
+		if (storage === PromptsStorage.extension || storage === BUILTIN_STORAGE) {
 			await dialogService.info(
 				localize('cannotDeleteExtension', "Cannot Delete Extension File"),
 				localize('cannotDeleteExtensionDetail', "Files provided by extensions cannot be deleted. You can disable the extension if you no longer want to use this customization.")
@@ -206,23 +272,94 @@ registerAction2(class extends Action2 {
 		}
 
 		// Confirm deletion
+		const message = isSkill
+			? localize('confirmDeleteSkill', "Are you sure you want to delete skill '{0}' and its folder?", fileName)
+			: localize('confirmDelete', "Are you sure you want to delete '{0}'?", fileName);
 		const confirmation = await dialogService.confirm({
-			message: localize('confirmDelete', "Are you sure you want to delete '{0}'?", fileName),
+			message,
 			detail: localize('confirmDeleteDetail', "This action cannot be undone."),
 			primaryButton: localize('delete', "Delete"),
 			type: 'warning',
 		});
 
 		if (confirmation.confirmed) {
-			await fileService.del(uri, { useTrash: true });
+			try {
+				const telemetryService = accessor.get(ITelemetryService);
+				telemetryService.publicLog2<CustomizationEditorDeleteItemEvent, CustomizationEditorDeleteItemClassification>('chatCustomizationEditor.deleteItem', {
+					promptType: promptType ?? '',
+					storage: storage ?? '',
+				});
+			} catch {
+				// Telemetry must not block deletion
+			}
+
+			// For skills, delete the parent folder (e.g. .github/skills/my-skill/)
+			// since each skill is a folder containing SKILL.md.
+			const deleteTarget = isSkill ? dirname(uri) : uri;
+			const useTrash = fileService.hasCapability(deleteTarget, FileSystemProviderCapabilities.Trash);
+			await fileService.del(deleteTarget, { useTrash, recursive: isSkill });
+
+			// Commit the deletion to git (sessions: main repo + worktree)
+			if (storage === PromptsStorage.local) {
+				const workspaceService = accessor.get(IAICustomizationWorkspaceService);
+				const projectRoot = workspaceService.getActiveProjectRoot();
+				if (projectRoot) {
+					await workspaceService.deleteFiles(projectRoot, [deleteTarget]);
+				}
+			}
 		}
 	}
 });
 
-// Context Key for prompt type to conditionally show "Run Prompt"
-const AI_CUSTOMIZATION_ITEM_TYPE_KEY = 'aiCustomizationManagementItemType';
+// Copy path action
+const COPY_AI_CUSTOMIZATION_PATH_ID = 'aiCustomizationManagement.copyPath';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: COPY_AI_CUSTOMIZATION_PATH_ID,
+			title: localize2('copyPath', "Copy Path"),
+			icon: Codicon.clippy,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		const clipboardService = accessor.get(IClipboardService);
+		const uri = extractURI(context);
+		const textToCopy = uri.scheme === 'file' ? uri.fsPath : uri.toString(true);
+		await clipboardService.writeText(textToCopy);
+	}
+});
+
+/**
+ * When clause that hides an action for read-only (extension, plugin, built-in) items.
+ */
+const WHEN_ITEM_IS_DELETABLE = ContextKeyExpr.and(
+	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, PromptsStorage.extension),
+	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, PromptsStorage.plugin),
+	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+);
+
+/**
+ * When clause that shows an action only for plugin items.
+ */
+const WHEN_ITEM_IS_PLUGIN = ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, PromptsStorage.plugin);
 
 // Register context menu items
+
+// Inline hover actions (shown as icon buttons on hover)
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: COPY_AI_CUSTOMIZATION_PATH_ID, title: localize('copyPath', "Copy Path"), icon: Codicon.clippy },
+	group: 'inline',
+	order: 1,
+});
+
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: DELETE_AI_CUSTOMIZATION_ID, title: localize('delete', "Delete"), icon: Codicon.trash },
+	group: 'inline',
+	order: 10,
+	when: WHEN_ITEM_IS_DELETABLE,
+});
+
+// Context menu items (shown on right-click)
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: OPEN_AI_CUSTOMIZATION_MGMT_FILE_ID, title: localize('open', "Open") },
 	group: '1_open',
@@ -241,8 +378,8 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	group: '3_file',
 	order: 1,
 	when: ContextKeyExpr.or(
-		ContextKeyExpr.regex('aiCustomizationManagementItemUri', new RegExp(`^${Schemas.file}:`)),
-		ContextKeyExpr.regex('aiCustomizationManagementItemUri', new RegExp(`^${Schemas.vscodeUserData}:`))
+		ContextKeyExpr.regex(AI_CUSTOMIZATION_ITEM_URI_KEY, new RegExp(`^${Schemas.file}:`)),
+		ContextKeyExpr.regex(AI_CUSTOMIZATION_ITEM_URI_KEY, new RegExp(`^${Schemas.vscodeUserData}:`))
 	),
 });
 
@@ -250,6 +387,53 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: DELETE_AI_CUSTOMIZATION_ID, title: localize('delete', "Delete") },
 	group: '4_modify',
 	order: 1,
+	when: WHEN_ITEM_IS_DELETABLE,
+});
+
+// Uninstall Plugin action - shown for plugin-provided items
+const UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.uninstallPlugin';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID,
+			title: localize2('uninstallPlugin', "Uninstall Plugin"),
+			icon: Codicon.trash,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		const agentPluginService = accessor.get(IAgentPluginService);
+		const dialogService = accessor.get(IDialogService);
+
+		const uri = extractURI(context);
+		const plugin = agentPluginService.plugins.get().find(p => isEqualOrParent(uri, p.uri));
+		if (!plugin) {
+			return;
+		}
+
+		const result = await dialogService.confirm({
+			message: localize('confirmUninstallPlugin', "This item is provided by the plugin '{0}'", plugin.label),
+			detail: localize('confirmUninstallPluginDetail', "Individual components from a plugin cannot be removed separately. Would you like to uninstall the entire plugin?"),
+			primaryButton: localize('uninstallPluginBtn', "Uninstall Plugin"),
+			type: 'question',
+		});
+		if (result.confirmed) {
+			plugin.remove();
+		}
+	}
+});
+
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('uninstallPlugin', "Uninstall Plugin"), icon: Codicon.trash },
+	group: 'inline',
+	order: 10,
+	when: WHEN_ITEM_IS_PLUGIN,
+});
+
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('uninstallPlugin', "Uninstall Plugin") },
+	group: '4_modify',
+	order: 1,
+	when: WHEN_ITEM_IS_PLUGIN,
 });
 
 //#endregion
@@ -282,33 +466,13 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
 				const editorService = accessor.get(IEditorService);
 				const input = AICustomizationManagementEditorInput.getOrCreate();
-				const pane = await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
+				const pane = await editorService.openEditor(input, { pinned: true });
 				if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);
 				}
 			}
 		}));
 
-		// Toggle Debug Panel in AI Customizations Editor
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: AICustomizationManagementCommands.ToggleDebug,
-					title: localize2('toggleDebugPanel', "Customizations Debug"),
-					category: Categories.Developer,
-					f1: true,
-				});
-			}
-
-			async run(accessor: ServicesAccessor): Promise<void> {
-				const editorService = accessor.get(IEditorService);
-				const pane = editorService.activeEditorPane;
-				if (pane instanceof AICustomizationManagementEditor) {
-					const report = await (pane as AICustomizationManagementEditor).generateDebugReport();
-					await editorService.openEditor({ resource: undefined, contents: report, options: { pinned: false } });
-				}
-			}
-		}));
 	}
 }
 

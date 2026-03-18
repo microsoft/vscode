@@ -9,6 +9,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
@@ -23,7 +24,8 @@ import { ILanguageModelsService } from '../../languageModels.js';
 import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
 import { IChatAgentRequest, IChatAgentService } from '../../participants/chatAgents.js';
 import { ComputeAutomaticInstructions } from '../../promptSyntax/computeAutomaticInstructions.js';
-import { IChatRequestHooks } from '../../promptSyntax/hookSchema.js';
+import { ChatRequestHooks, mergeHooks } from '../../promptSyntax/hookSchema.js';
+import { HookType } from '../../promptSyntax/hookTypes.js';
 import { ICustomAgent, IPromptsService } from '../../promptSyntax/service/promptsService.js';
 import { isBuiltinAgent } from '../../promptSyntax/utils/promptsServiceUtils.js';
 import {
@@ -120,6 +122,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
+		mark('code/chat/subagent/willInvoke');
+
 		const args = invocation.parameters as IRunSubagentToolInputParams;
 
 		this.logService.debug(`RunSubagentTool: Invoking with prompt: ${args.prompt.substring(0, 100)}...`);
@@ -252,12 +256,26 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			await computer.collect(variableSet, token);
 
 			// Collect hooks from hook .json files
-			let collectedHooks: IChatRequestHooks | undefined;
+			let collectedHooks: ChatRequestHooks | undefined;
 			try {
 				const info = await this.promptsService.getHooks(token, invocation.context.sessionResource);
 				collectedHooks = info?.hooks;
 			} catch (error) {
 				this.logService.warn('[ChatService] Failed to collect hooks:', error);
+			}
+
+			// Merge subagent-level hooks (from the agent's frontmatter) with global hooks.
+			// Remap Stop hooks to SubagentStop since the agent is running as a subagent.
+			if (subagent?.hooks) {
+				const remapped: ChatRequestHooks = { ...subagent.hooks };
+				if (remapped[HookType.Stop]) {
+					const stopHooks = remapped[HookType.Stop];
+					(remapped as Record<string, unknown>)[HookType.SubagentStop] = remapped[HookType.SubagentStop]
+						? [...remapped[HookType.SubagentStop], ...stopHooks]
+						: stopHooks;
+					(remapped as Record<string, unknown>)[HookType.Stop] = undefined;
+				}
+				collectedHooks = mergeHooks(collectedHooks, remapped);
 			}
 
 			// Build the agent request
@@ -271,6 +289,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				subAgentInvocationId: invocation.callId,
 				subAgentName: subAgentName,
 				userSelectedModelId: modeModelId,
+				modelConfiguration: modeModelId ? this.languageModelsService.getModelConfiguration(modeModelId) : undefined,
 				userSelectedTools: modeTools,
 				modeInstructions,
 				parentRequestId: invocation.chatRequestId,
