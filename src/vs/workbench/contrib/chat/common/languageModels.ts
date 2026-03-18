@@ -1143,6 +1143,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 		} else {
 			this._modelConfigurations.delete(modelId);
 		}
+
+		// Notify listeners so UI (e.g., model picker label) updates
+		this._onLanguageModelChange.fire(metadata.vendor);
 	}
 
 	getModelConfigurationActions(modelId: string): IAction[] {

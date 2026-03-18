@@ -311,18 +311,25 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+.action-widget .actionList {
+	position: relative;
+}
+
 .action-widget .action-list-submenu-indicator {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	width: 20px;
+	height: 20px;
 	flex-shrink: 0;
 	cursor: pointer;
 	opacity: 0.6;
+	border-radius: 4px;
 }
 
 .action-widget .action-list-submenu-indicator:hover {
 	opacity: 1;
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .action-list-submenu-panel {
@@ -332,4 +339,5 @@
 	border-radius: 5px;
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	z-index: 50;
+	width: fit-content;
 }
