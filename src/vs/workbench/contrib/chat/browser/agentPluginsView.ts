@@ -421,7 +421,8 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		if (text) {
 			installed = installed.filter(p =>
 				p.name.toLowerCase().includes(text) ||
-				p.description.toLowerCase().includes(text)
+				p.description.toLowerCase().includes(text) ||
+				(p.marketplace ?? '').toLowerCase().includes(text)
 			);
 		}
 
@@ -453,7 +454,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 				});
 			} else {
 				const lowerText = text.toLowerCase();
-				filteredMp = filteredMp.filter(p => p.name.toLowerCase().includes(lowerText) || p.description.toLowerCase().includes(lowerText));
+				filteredMp = filteredMp.filter(p => p.name.toLowerCase().includes(lowerText) || p.description.toLowerCase().includes(lowerText) || p.marketplace.toLowerCase().includes(lowerText));
 			}
 
 			const marketplace = filteredMp.map(marketplacePluginToItem);
