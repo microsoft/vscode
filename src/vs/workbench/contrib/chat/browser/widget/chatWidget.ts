@@ -2524,14 +2524,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.bodyDimension = new dom.Dimension(width, height);
 
+		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
+
 		if (this.viewModel?.editing) {
 			this.inlineInputPart?.layout(width);
 		}
 
+		this.inputPart.maxHeight = height - chatSuggestNextWidgetHeight;
 		this.inputPart.layout(width);
 
 		const inputHeight = this.inputPart.height.get();
-		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
 		const lastElementVisible = this.listWidget.isScrolledToBottom;
 		const lastItem = this.listWidget.lastItem;
 
