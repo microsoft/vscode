@@ -368,7 +368,11 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return Codicon.circleFilled;
 		}
 
-		return Codicon.circleSmallFilled;
+		if (session.providerType === AgentSessionProviders.Local) {
+			return Codicon.circleSmallFilled;
+		}
+
+		return session.icon;
 	}
 
 	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {

@@ -5,12 +5,11 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IActionEnvelope, IActionOrigin, INotification, ISessionAction, IRootAction, IStateAction, isRootAction, isSessionAction } from '../common/state/sessionActions.js';
-import { IStateSnapshot } from '../common/state/sessionProtocol.js';
+import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, IRootState, ISessionState, ISessionSummary, ROOT_STATE_URI } from '../common/state/sessionState.js';
+import { createRootState, createSessionState, type IRootState, type ISessionState, type ISessionSummary, type URI, ROOT_STATE_URI } from '../common/state/sessionState.js';
 
 /**
  * Server-side state manager for the sessions process protocol.
@@ -52,7 +51,7 @@ export class SessionStateManager extends Disposable {
 	}
 
 	getSessionState(session: URI): ISessionState | undefined {
-		return this._sessionStates.get(session.toString());
+		return this._sessionStates.get(session);
 	}
 
 	get serverSeq(): number {
@@ -67,9 +66,7 @@ export class SessionStateManager extends Disposable {
 	 * the client should process subsequent envelopes with serverSeq > fromSeq.
 	 */
 	getSnapshot(resource: URI): IStateSnapshot | undefined {
-		const key = resource.toString();
-
-		if (key === ROOT_STATE_URI.toString()) {
+		if (resource === ROOT_STATE_URI) {
 			return {
 				resource,
 				state: this._rootState,
@@ -77,7 +74,7 @@ export class SessionStateManager extends Disposable {
 			};
 		}
 
-		const sessionState = this._sessionStates.get(key);
+		const sessionState = this._sessionStates.get(resource);
 		if (!sessionState) {
 			return undefined;
 		}
@@ -96,7 +93,7 @@ export class SessionStateManager extends Disposable {
 	 * Returns the initial session state.
 	 */
 	createSession(summary: ISessionSummary): ISessionState {
-		const key = summary.resource.toString();
+		const key = summary.resource;
 		if (this._sessionStates.has(key)) {
 			this._logService.warn(`[SessionStateManager] Session already exists: ${key}`);
 			return this._sessionStates.get(key)!;
@@ -119,8 +116,7 @@ export class SessionStateManager extends Disposable {
 	 * Removes a session from state and emits a sessionRemoved notification.
 	 */
 	removeSession(session: URI): void {
-		const key = session.toString();
-		const state = this._sessionStates.get(key);
+		const state = this._sessionStates.get(session);
 		if (!state) {
 			return;
 		}
@@ -130,8 +126,8 @@ export class SessionStateManager extends Disposable {
 			this._activeTurnToSession.delete(state.activeTurn.id);
 		}
 
-		this._sessionStates.delete(key);
-		this._logService.trace(`[SessionStateManager] Removed session: ${key}`);
+		this._sessionStates.delete(session);
+		this._logService.trace(`[SessionStateManager] Removed session: ${session}`);
 
 		this._onDidEmitNotification.fire({
 			type: 'notify/sessionRemoved',
@@ -147,7 +143,7 @@ export class SessionStateManager extends Disposable {
 	 * with the correct active turn.
 	 */
 	getActiveTurnId(session: URI): string | undefined {
-		const state = this._sessionStates.get(session.toString());
+		const state = this._sessionStates.get(session);
 		return state?.activeTurn?.id;
 	}
 
@@ -183,7 +179,7 @@ export class SessionStateManager extends Disposable {
 
 		if (isSessionAction(action)) {
 			const sessionAction = action as ISessionAction;
-			const key = sessionAction.session.toString();
+			const key = sessionAction.session;
 			const state = this._sessionStates.get(key);
 			if (state) {
 				const newState = sessionReducer(state, sessionAction);

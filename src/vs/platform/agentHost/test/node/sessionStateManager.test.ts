@@ -16,9 +16,9 @@ suite('SessionStateManager', () => {
 
 	let disposables: DisposableStore;
 	let manager: SessionStateManager;
-	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' });
+	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 
-	function makeSessionSummary(resource?: URI): ISessionSummary {
+	function makeSessionSummary(resource?: string): ISessionSummary {
 		return {
 			resource: resource ?? sessionUri,
 			provider: 'copilot',
@@ -49,7 +49,7 @@ suite('SessionStateManager', () => {
 	});
 
 	test('getSnapshot returns undefined for unknown session', () => {
-		const unknown = URI.from({ scheme: 'copilot', path: '/unknown' });
+		const unknown = URI.from({ scheme: 'copilot', path: '/unknown' }).toString();
 		const snapshot = manager.getSnapshot(unknown);
 		assert.strictEqual(snapshot, undefined);
 	});
@@ -213,7 +213,7 @@ suite('SessionStateManager', () => {
 	});
 
 	test('activeSessions reflects concurrent turn count across sessions', () => {
-		const session2Uri = URI.from({ scheme: 'copilot', path: '/test-session-2' });
+		const session2Uri = URI.from({ scheme: 'copilot', path: '/test-session-2' }).toString();
 		manager.createSession(makeSessionSummary(sessionUri));
 		manager.createSession(makeSessionSummary(session2Uri));
 		manager.dispatchServerAction({ type: 'session/ready', session: sessionUri });

@@ -17,6 +17,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
+import { mark } from '../../../../../base/common/performance.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -60,6 +61,7 @@ import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } fro
 import { ChatRequestQueueKind, ChatSendResult, IChatLocationData, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
+import { IChatArtifactsService } from '../../common/tools/chatArtifactsService.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
@@ -393,6 +395,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
+		@IChatArtifactsService private readonly chatArtifactsService: IChatArtifactsService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService,
 		@IChatTipService private readonly chatTipService: IChatTipService,
@@ -587,6 +590,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.chatTodoListService.onDidUpdateTodos((sessionResource) => {
 			if (isEqual(this.viewModel?.sessionResource, sessionResource)) {
 				this.inputPart.renderChatTodoListWidget(sessionResource);
+			}
+		}));
+
+		this._register(this.chatArtifactsService.onDidUpdateArtifacts((sessionResource) => {
+			if (isEqual(this.viewModel?.sessionResource, sessionResource)) {
+				this.inputPart.renderArtifactsWidget(sessionResource);
 			}
 		}));
 	}
@@ -1264,6 +1273,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			autoSend: Boolean(handoff.send)
 		});
 
+		this.executeHandoff(handoff, agentId).catch(e => {
+			const target = agentId ?? handoff.agent ?? 'unknown';
+			this.logService.error(`[Handoff] Failed to execute handoff '${handoff.label}' to '${target}'`, e);
+		});
+	}
+
+	async executeHandoff(handoff: IHandOff, agentId?: string): Promise<void> {
+		this.chatSuggestNextWidget.hide();
+
+		const promptToUse = handoff.prompt;
+
 		// If agentId is provided (from chevron dropdown), delegate to that chat session
 		// Otherwise, switch to the handoff agent
 		if (agentId) {
@@ -1271,7 +1291,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.input.setValue(`@${agentId} ${promptToUse}`, false);
 			this.input.focus();
 			// Auto-submit for delegated chat sessions
-			this.acceptInput().catch(e => this.logService.error('Failed to handle handoff continueOn', e));
+			this.acceptInput().catch(e => this.logService.error(`[Handoff] Failed to submit delegated handoff to '@${agentId}'`, e));
 		} else if (handoff.agent) {
 			// Regular handoff to specified agent
 			this._switchToAgentByName(handoff.agent);
@@ -2072,6 +2092,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.renderChatSuggestNextWidget();
 		this.updateChatInputContext();
 		this.input.renderChatTodoListWidget(this.viewModel.sessionResource);
+		this.input.renderArtifactsWidget(this.viewModel.sessionResource);
 	}
 
 	getFocus(): ChatTreeItem | undefined {
@@ -2165,7 +2186,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
-		return this._acceptInput(query ? { query } : undefined, options);
+		mark('code/chat/willAcceptInput');
+		const result = await this._acceptInput(query ? { query } : undefined, options);
+		mark('code/chat/didAcceptInput');
+		return result;
 	}
 
 	async rerunLastRequest(): Promise<void> {
@@ -2289,9 +2313,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// discard them or need a prompt (as in `confirmPendingRequestsBeforeSend`)
 		// which could be a surprising behavior if the user finishes typing a steering
 		// request just as confirmation is triggered.
-		if (options.alwaysQueue) {
-			options.queue ??= ChatRequestQueueKind.Queued;
-		}
 		if (model.requestNeedsInput.get() && !model.getPendingRequests().length) {
 			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-needsInput');
 			options.queue ??= ChatRequestQueueKind.Queued;
@@ -2299,7 +2320,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (requestInProgress) {
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
-		if (!options.alwaysQueue && !requestInProgress && !isEditing && !(await this.confirmPendingRequestsBeforeSend(model, options))) {
+		if (!requestInProgress && !isEditing && !(await this.confirmPendingRequestsBeforeSend(model, options))) {
 			return;
 		}
 
@@ -2366,7 +2387,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			modeInfo: this.input.currentModeInfo,
 			agentIdSilent: this._lockedAgent?.id,
 			queue: options?.queue,
-			pauseQueue: options?.alwaysQueue,
+
 		});
 
 		if (ChatSendResult.isRejected(result)) {

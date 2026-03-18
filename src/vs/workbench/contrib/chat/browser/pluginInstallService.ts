@@ -9,6 +9,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -16,8 +17,9 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
+import { ChatConfiguration } from '../common/constants.js';
 import { IPluginInstallService, IUpdateAllPluginsOptions, IUpdateAllPluginsResult } from '../common/plugins/pluginInstallService.js';
-import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, MarketplaceReferenceKind, MarketplaceType, hasSourceChanged, parseMarketplaceReference, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, MarketplaceReferenceKind, MarketplaceType, hasSourceChanged, parseMarketplaceReference, parseMarketplaceReferences, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
 
 export class PluginInstallService implements IPluginInstallService {
 	declare readonly _serviceBrand: undefined;
@@ -32,6 +34,7 @@ export class PluginInstallService implements IPluginInstallService {
 		@IProgressService private readonly _progressService: IProgressService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) { }
 
 	async installPlugin(plugin: IMarketplacePlugin): Promise<void> {
@@ -171,6 +174,7 @@ export class PluginInstallService implements IPluginInstallService {
 			const plugin = discoveredPlugins[0];
 			const pluginDir = plugin.source ? URI.joinPath(repoDir, plugin.source) : repoDir;
 			this._pluginMarketplaceService.addInstalledPlugin(pluginDir, plugin);
+			this._addMarketplaceToConfig(reference);
 			return { success: true };
 		}
 
@@ -193,7 +197,17 @@ export class PluginInstallService implements IPluginInstallService {
 		const plugin = selected.plugin;
 		const pluginDir = plugin.source ? URI.joinPath(repoDir, plugin.source) : repoDir;
 		this._pluginMarketplaceService.addInstalledPlugin(pluginDir, plugin);
+		this._addMarketplaceToConfig(reference);
 		return { success: true };
+	}
+
+	private _addMarketplaceToConfig(reference: IMarketplaceReference): void {
+		const currentValues = this._configurationService.getValue<unknown[]>(ChatConfiguration.PluginMarketplaces) ?? [];
+		const existingRefs = parseMarketplaceReferences(currentValues);
+		if (existingRefs.some(r => r.canonicalId === reference.canonicalId)) {
+			return;
+		}
+		this._configurationService.updateValue(ChatConfiguration.PluginMarketplaces, [...currentValues, reference.rawValue]);
 	}
 
 	async updatePlugin(plugin: IMarketplacePlugin, silent?: boolean): Promise<boolean> {

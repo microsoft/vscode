@@ -35,19 +35,19 @@ suite('AgentSideEffects', () => {
 
 	function setupSession(): void {
 		stateManager.createSession({
-			resource: sessionUri,
+			resource: sessionUri.toString(),
 			provider: 'mock',
 			title: 'Test',
 			status: SessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
 		});
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri.toString() });
 	}
 
 	function startTurn(turnId: string): void {
 		stateManager.dispatchClientAction(
-			{ type: 'session/turnStarted', session: sessionUri, turnId, userMessage: { text: 'hello' } },
+			{ type: 'session/turnStarted', session: sessionUri.toString(), turnId, userMessage: { text: 'hello' } },
 			{ clientId: 'test', clientSeq: 1 },
 		);
 	}
@@ -85,7 +85,7 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			const action: ISessionAction = {
 				type: 'session/turnStarted',
-				session: sessionUri,
+				session: sessionUri.toString(),
 				turnId: 'turn-1',
 				userMessage: { text: 'hello world' },
 			};
@@ -94,7 +94,7 @@ suite('AgentSideEffects', () => {
 			// sendMessage is async but fire-and-forget; wait a tick
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: sessionUri, prompt: 'hello world' }]);
+			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello world' }]);
 		});
 
 		test('dispatches session/error when no agent is found', async () => {
@@ -110,7 +110,7 @@ suite('AgentSideEffects', () => {
 
 			noAgentSideEffects.handleAction({
 				type: 'session/turnStarted',
-				session: sessionUri,
+				session: sessionUri.toString(),
 				turnId: 'turn-1',
 				userMessage: { text: 'hello' },
 			});
@@ -128,13 +128,13 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			sideEffects.handleAction({
 				type: 'session/turnCancelled',
-				session: sessionUri,
+				session: sessionUri.toString(),
 				turnId: 'turn-1',
 			});
 
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.abortSessionCalls, [sessionUri]);
+			assert.deepStrictEqual(agent.abortSessionCalls, [URI.parse(sessionUri.toString())]);
 		});
 	});
 
@@ -160,7 +160,7 @@ suite('AgentSideEffects', () => {
 			// Now resolve it
 			sideEffects.handleAction({
 				type: 'session/permissionResolved',
-				session: sessionUri,
+				session: sessionUri.toString(),
 				turnId: 'turn-1',
 				requestId: 'perm-1',
 				approved: true,
@@ -178,13 +178,13 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			sideEffects.handleAction({
 				type: 'session/modelChanged',
-				session: sessionUri,
+				session: sessionUri.toString(),
 				model: 'gpt-5',
 			});
 
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.changeModelCalls, [{ session: sessionUri, model: 'gpt-5' }]);
+			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: 'gpt-5' }]);
 		});
 	});
 
@@ -230,7 +230,7 @@ suite('AgentSideEffects', () => {
 			const envelopes: IActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
-			await sideEffects.handleCreateSession({ session: sessionUri, provider: 'mock' });
+			await sideEffects.handleCreateSession({ session: sessionUri.toString(), provider: 'mock' });
 
 			const ready = envelopes.find(e => e.action.type === 'session/ready');
 			assert.ok(ready, 'should dispatch session/ready');
@@ -238,7 +238,7 @@ suite('AgentSideEffects', () => {
 
 		test('throws when no provider is specified', async () => {
 			await assert.rejects(
-				() => sideEffects.handleCreateSession({ session: sessionUri }),
+				() => sideEffects.handleCreateSession({ session: sessionUri.toString() }),
 				/No provider specified/,
 			);
 		});
@@ -251,7 +251,7 @@ suite('AgentSideEffects', () => {
 			}, new NullLogService(), fileService));
 
 			await assert.rejects(
-				() => noAgentSideEffects.handleCreateSession({ session: sessionUri, provider: 'nonexistent' }),
+				() => noAgentSideEffects.handleCreateSession({ session: sessionUri.toString(), provider: 'nonexistent' }),
 				/No agent registered/,
 			);
 		});
@@ -264,12 +264,12 @@ suite('AgentSideEffects', () => {
 		test('disposes the session on the agent and removes state', async () => {
 			setupSession();
 
-			sideEffects.handleDisposeSession(sessionUri);
+			sideEffects.handleDisposeSession(sessionUri.toString());
 
 			await new Promise(r => setTimeout(r, 10));
 
 			assert.strictEqual(agent.disposeSessionCalls.length, 1);
-			assert.strictEqual(stateManager.getSessionState(sessionUri), undefined);
+			assert.strictEqual(stateManager.getSessionState(sessionUri.toString()), undefined);
 		});
 	});
 
@@ -292,14 +292,14 @@ suite('AgentSideEffects', () => {
 
 		test('throws when the directory does not exist', async () => {
 			await assert.rejects(
-				() => sideEffects.handleBrowseDirectory(URI.from({ scheme: Schemas.inMemory, path: '/nonexistent' })),
+				() => sideEffects.handleBrowseDirectory(URI.from({ scheme: Schemas.inMemory, path: '/nonexistent' }).toString()),
 				/Directory not found/,
 			);
 		});
 
 		test('throws when the target is not a directory', async () => {
 			await assert.rejects(
-				() => sideEffects.handleBrowseDirectory(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' })),
+				() => sideEffects.handleBrowseDirectory(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' }).toString()),
 				/Not a directory/,
 			);
 		});

@@ -179,6 +179,11 @@ export interface ICodeReviewService {
 	removeComment(sessionResource: URI, commentId: string): void;
 
 	/**
+	 * Update the body text of a single code review comment.
+	 */
+	updateComment(sessionResource: URI, commentId: string, newBody: string): void;
+
+	/**
 	 * Dismiss/clear the review for a session entirely.
 	 */
 	dismissReview(sessionResource: URI): void;
@@ -369,6 +374,22 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 
 		const filtered = state.comments.filter(c => c.id !== commentId);
 		data.state.set({ kind: CodeReviewStateKind.Result, version: state.version, comments: filtered }, undefined);
+		this._saveToStorage();
+	}
+
+	updateComment(sessionResource: URI, commentId: string, newBody: string): void {
+		const data = this._reviewsBySession.get(sessionResource.toString());
+		if (!data) {
+			return;
+		}
+
+		const state = data.state.get();
+		if (state.kind !== CodeReviewStateKind.Result) {
+			return;
+		}
+
+		const updated = state.comments.map(c => c.id === commentId ? { ...c, body: newBody } : c);
+		data.state.set({ kind: CodeReviewStateKind.Result, version: state.version, comments: updated }, undefined);
 		this._saveToStorage();
 	}
 

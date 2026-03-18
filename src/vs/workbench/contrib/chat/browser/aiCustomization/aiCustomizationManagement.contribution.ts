@@ -44,6 +44,8 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, isMacintosh } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 
 //#region Telemetry
@@ -164,9 +166,19 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		await editorService.openEditor({
+		const storage = extractStorage(context);
+
+		const editorPane = await editorService.openEditor({
 			resource: extractURI(context)
 		});
+
+		const codeEditor = getCodeEditor(editorPane?.getControl());
+		if (codeEditor && (storage === PromptsStorage.extension || storage === PromptsStorage.plugin)) {
+			codeEditor.updateOptions({
+				readOnly: true,
+				readOnlyMessage: new MarkdownString(localize('readonlyPluginFile', "This file is provided by a plugin or extension and cannot be edited.")),
+			});
+		}
 	}
 });
 
