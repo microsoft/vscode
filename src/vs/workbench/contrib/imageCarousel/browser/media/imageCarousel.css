@@ -86,7 +86,7 @@
 .monaco-workbench.monaco-reduce-motion .image-carousel-editor .nav-arrow {
 	transition: none;
 }
-.image-carousel-editor .image-area:hover .nav-arrow:not(:disabled) {
+.image-carousel-editor .slideshow-container:hover .nav-arrow:not(:disabled) {
 	opacity: 0.8;
 }
 
