@@ -58,7 +58,7 @@ import { TargetPicker, IsolationPicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
 import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
 import { CloudModelPicker } from './modelPicker.js';
-import { ProjectPicker } from './projectPicker.js';
+import { WorkspacePicker } from './workspacePicker.js';
 import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
 import { ModePicker } from './modePicker.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
@@ -98,7 +98,7 @@ interface INewChatWidgetOptions {
  */
 class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
-	private readonly _projectPicker: ProjectPicker;
+	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _targetPicker: TargetPicker;
 	private readonly _branchPicker: BranchPicker;
 	private readonly _isolationPicker: IsolationPicker;
@@ -184,7 +184,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		super();
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
-		this._projectPicker = this._register(this.instantiationService.createInstance(ProjectPicker));
+		this._workspacePicker = this._register(this.instantiationService.createInstance(WorkspacePicker));
 		this._permissionPicker = this._register(this.instantiationService.createInstance(NewChatPermissionPicker));
 		this._cloudModelPicker = this._register(this.instantiationService.createInstance(CloudModelPicker));
 		this._modePicker = this._register(this.instantiationService.createInstance(ModePicker));
@@ -194,7 +194,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._options = options;
 
 		// When a project is selected, infer the target and create a new session
-		this._register(this._projectPicker.onDidSelectProject(async (project) => {
+		this._register(this._workspacePicker.onDidSelectProject(async (project) => {
 			await this._onProjectSelected(project);
 			this._updateDraftState();
 			this._focusEditor();
@@ -309,7 +309,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._restoreState();
 
 		// Create initial session
-		const restoredProject = this._projectPicker.selectedProject;
+		const restoredProject = this._workspacePicker.selectedProject;
 		if (restoredProject) {
 			this._onProjectSelected(restoredProject);
 		} else {
@@ -685,7 +685,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const pickersRow = dom.append(this._pickersContainer, dom.$('.chat-full-welcome-pickers'));
 
 		// Project picker (unified folder + repo picker)
-		this._projectPicker.render(pickersRow);
+		this._workspacePicker.render(pickersRow);
 	}
 
 	// --- Local session pickers ---
@@ -965,7 +965,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	private _openRepoOrFolderPicker(_sessionType: AgentSessionProviders): void {
-		this._projectPicker.showPicker();
+		this._workspacePicker.showPicker();
 	}
 
 	private async _requestFolderTrust(folderUri: URI, previousProject?: SessionWorkspace): Promise<boolean> {
@@ -974,11 +974,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			message: localize('trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
 		});
 		if (!trusted) {
-			this._projectPicker.removeFromRecents(folderUri);
+			this._workspacePicker.removeFromRecents(folderUri);
 			if (previousProject) {
-				this._projectPicker.setSelectedProject(previousProject, false);
+				this._workspacePicker.setSelectedProject(previousProject, false);
 			} else {
-				this._projectPicker.clearSelection();
+				this._workspacePicker.clearSelection();
 			}
 		}
 		return !!trusted;
@@ -1005,7 +1005,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			if (draft.projectUri) {
 				try {
 					const project = new SessionWorkspace(URI.revive(draft.projectUri));
-					this._projectPicker.setSelectedProject(project, false);
+					this._workspacePicker.setSelectedProject(project, false);
 				} catch { /* ignore */ }
 			}
 		}

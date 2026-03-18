@@ -51,7 +51,7 @@ interface IStoredProject {
  * - "Browse Folders..." — opens a folder dialog
  * - "Browse Repositories..." — runs the cloud repository picker command
  */
-export class ProjectPicker extends Disposable {
+export class WorkspacePicker extends Disposable {
 
 	private readonly _onDidSelectProject = this._register(new Emitter<SessionWorkspace>());
 	readonly onDidSelectProject: Event<SessionWorkspace> = this._onDidSelectProject.event;
@@ -155,7 +155,7 @@ export class ProjectPicker extends Disposable {
 	render(container: HTMLElement): HTMLElement {
 		this._renderDisposables.clear();
 
-		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-project-picker'));
+		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-workspace-picker'));
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
@@ -207,10 +207,10 @@ export class ProjectPicker extends Disposable {
 			onHide: () => { triggerElement.focus(); },
 		};
 
-		const listOptions = showFilter ? { showFilter: true, filterPlaceholder: localize('projectPicker.filter', "Search Workspaces...") } : undefined;
+		const listOptions = showFilter ? { showFilter: true, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces...") } : undefined;
 
 		this.actionWidgetService.show<IStoredProject>(
-			'projectPicker',
+			'workspacePicker',
 			false,
 			items,
 			delegate,
@@ -219,7 +219,7 @@ export class ProjectPicker extends Disposable {
 			[],
 			{
 				getAriaLabel: (item) => item.label ?? '',
-				getWidgetAriaLabel: () => localize('projectPicker.ariaLabel', "Project Picker"),
+				getWidgetAriaLabel: () => localize('workspacePicker.ariaLabel', "Workspace Picker"),
 			},
 			listOptions,
 		);
