@@ -53,7 +53,7 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ICustomizationHarnessService, IExternalCustomizationItem, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -1265,9 +1265,9 @@ export class AICustomizationListWidget extends Disposable {
 
 		// When the active harness has an external item provider, delegate to it
 		// instead of querying promptsService and applying filters.
-		const descriptor = this.harnessService.getActiveDescriptor();
-		if (descriptor.itemProvider && promptType) {
-			return this.fetchItemsFromProvider(descriptor.itemProvider, promptType);
+		const activeDescriptor = this.harnessService.getActiveDescriptor();
+		if (activeDescriptor.itemProvider && promptType) {
+			return this.fetchItemsFromProvider(activeDescriptor.itemProvider, promptType);
 		}
 
 		const items: IAICustomizationListItem[] = [];
