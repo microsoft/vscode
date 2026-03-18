@@ -6,7 +6,7 @@
 import { TSESTree } from '@typescript-eslint/typescript-estree';
 import * as eslint from 'eslint';
 import { builtinModules } from 'module';
-import { join, normalize } from 'path';
+import { join, normalize, relative } from 'path';
 import minimatch from 'minimatch';
 import { createImportRuleListener } from './utils.ts';
 
@@ -36,7 +36,7 @@ export default new class implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		const allowedPaths = context.options as string[];
-		const filePath = normalize(context.getFilename()).substring(REPO_ROOT.length).replace(/\\/g, '/');
+		const filePath = normalize(relative(REPO_ROOT, normalize(context.getFilename()))).replace(/\\/g, '/');
 
 		// Skip whitelisted files
 		if (allowedPaths.some(pattern => filePath === pattern || minimatch(filePath, pattern))) {
