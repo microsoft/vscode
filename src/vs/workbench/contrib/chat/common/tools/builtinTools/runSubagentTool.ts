@@ -254,15 +254,24 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			const maxDepth = this.configurationService.getValue<number>(ChatConfiguration.NestedSubagentsMaxDepth) ?? 0;
 			const sessionKey = invocation.context.sessionResource.toString();
 			const currentDepth = this._sessionDepth.get(sessionKey) ?? 0;
+			const depthAllowed = currentDepth + 1 <= maxDepth;
 
-			if (modeTools) {
-				modeTools[RunSubagentTool.Id] = currentDepth + 1 <= maxDepth; // only enable the Run Subagent tool if we are under the max depth limit
-				modeTools[ManageTodoListToolToolId] = false;
-				modeTools['copilot_askQuestions'] = false;
+			if (!modeTools) {
+				// Initialize modeTools so that we can still enforce the max depth restriction
+				modeTools = {};
+			}
 
-				if (maxDepth > 0) {
-					this.logService.debug(`RunSubagentTool: Nested subagents enabling ${modeTools[RunSubagentTool.Id]}: session ${sessionKey}, currentDepth: ${currentDepth}, maxDepth: ${maxDepth}`);
-				}
+			// Only further-restrict RunSubagentTool: do not re-enable it if it was explicitly disabled.
+			const existingRunSubagentEnablement = modeTools[RunSubagentTool.Id];
+			if (existingRunSubagentEnablement !== false) {
+				modeTools[RunSubagentTool.Id] = depthAllowed; // only enable the Run Subagent tool if we are under the max depth limit
+			}
+
+			modeTools[ManageTodoListToolToolId] = false;
+			modeTools['copilot_askQuestions'] = false;
+
+			if (maxDepth > 0) {
+				this.logService.debug(`RunSubagentTool: Nested subagents enabling ${modeTools[RunSubagentTool.Id]}: session ${sessionKey}, currentDepth: ${currentDepth}, maxDepth: ${maxDepth}`);
 			}
 
 			const variableSet = new ChatRequestVariableSet();
