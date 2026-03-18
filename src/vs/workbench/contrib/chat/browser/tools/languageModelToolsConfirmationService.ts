@@ -19,11 +19,22 @@ import { IToolData, ToolDataSource } from '../../common/tools/languageModelTools
 const RUN_WITHOUT_APPROVAL = localize('runWithoutApproval', "without approval");
 const CONTINUE_WITHOUT_REVIEWING_RESULTS = localize('continueWithoutReviewingResults', "without reviewing result");
 
+/**
+ * Represents an auto-confirmation entry in the confirm store.
+ * When `confirmed` is true, the tool/combination is auto-confirmed.
+ * When `label` is set, it provides a human-readable description
+ * for display in the management UI.
+ */
+interface IAutoConfirmEntry {
+	readonly confirmed: true;
+	readonly label?: string;
+}
+
 
 class GenericConfirmStore extends Disposable {
 	private _workspaceStore: Lazy<ToolConfirmStore>;
 	private _profileStore: Lazy<ToolConfirmStore>;
-	private _memoryStore = new Map<string, string | boolean>();
+	private _memoryStore = new Map<string, IAutoConfirmEntry>();
 
 	constructor(
 		private readonly _storageKey: string,
@@ -36,18 +47,18 @@ class GenericConfirmStore extends Disposable {
 
 	public setAutoConfirmation(id: string, scope: 'workspace' | 'profile' | 'session' | 'never', label?: string): void {
 		// Clear from all scopes first
-		this._workspaceStore.value.setAutoConfirm(id, false);
-		this._profileStore.value.setAutoConfirm(id, false);
+		this._workspaceStore.value.setAutoConfirm(id, undefined);
+		this._profileStore.value.setAutoConfirm(id, undefined);
 		this._memoryStore.delete(id);
 
-		const value = label ?? true;
+		const entry: IAutoConfirmEntry = { confirmed: true, label };
 		// Set in the appropriate scope
 		if (scope === 'workspace') {
-			this._workspaceStore.value.setAutoConfirm(id, value);
+			this._workspaceStore.value.setAutoConfirm(id, entry);
 		} else if (scope === 'profile') {
-			this._profileStore.value.setAutoConfirm(id, value);
+			this._profileStore.value.setAutoConfirm(id, entry);
 		} else if (scope === 'session') {
-			this._memoryStore.set(id, value);
+			this._memoryStore.set(id, entry);
 		}
 	}
 
@@ -75,19 +86,9 @@ class GenericConfirmStore extends Disposable {
 	}
 
 	public getLabel(id: string): string | undefined {
-		const ws = this._workspaceStore.value.getAutoConfirm(id);
-		if (typeof ws === 'string') {
-			return ws;
-		}
-		const profile = this._profileStore.value.getAutoConfirm(id);
-		if (typeof profile === 'string') {
-			return profile;
-		}
-		const mem = this._memoryStore.get(id);
-		if (typeof mem === 'string') {
-			return mem;
-		}
-		return undefined;
+		return this._workspaceStore.value.getAutoConfirm(id)?.label
+			?? this._profileStore.value.getAutoConfirm(id)?.label
+			?? this._memoryStore.get(id)?.label;
 	}
 
 	public reset(): void {
@@ -125,7 +126,7 @@ class GenericConfirmStore extends Disposable {
 }
 
 class ToolConfirmStore extends Disposable {
-	private _autoConfirmTools: LRUCache<string, string | boolean> = new LRUCache<string, string | boolean>(100);
+	private _autoConfirmTools: LRUCache<string, IAutoConfirmEntry> = new LRUCache<string, IAutoConfirmEntry>(100);
 	private _didChange = false;
 
 	constructor(
@@ -143,12 +144,12 @@ class ToolConfirmStore extends Disposable {
 				if (Array.isArray(parsed)) {
 					// Legacy format: string[]
 					for (const key of parsed) {
-						this._autoConfirmTools.set(key, true);
+						this._autoConfirmTools.set(key, { confirmed: true });
 					}
 				} else if (typeof parsed === 'object' && parsed !== null) {
 					// New format: Record<string, string | boolean>
 					for (const [key, value] of Object.entries(parsed)) {
-						this._autoConfirmTools.set(key, typeof value === 'string' ? value : true);
+						this._autoConfirmTools.set(key, { confirmed: true, label: typeof value === 'string' ? value : undefined });
 					}
 				}
 			} catch {
@@ -159,8 +160,8 @@ class ToolConfirmStore extends Disposable {
 		this._register(storageService.onWillSaveState(() => {
 			if (this._didChange) {
 				const data: Record<string, string | boolean> = {};
-				for (const [key, value] of this._autoConfirmTools) {
-					data[key] = value;
+				for (const [key, entry] of this._autoConfirmTools) {
+					data[key] = entry.label ?? true;
 				}
 				this.storageService.store(this._storageKey, JSON.stringify(data), this._scope, StorageTarget.MACHINE);
 				this._didChange = false;
@@ -173,20 +174,20 @@ class ToolConfirmStore extends Disposable {
 		this._didChange = true;
 	}
 
-	public getAutoConfirm(id: string): string | boolean | undefined {
-		const value = this._autoConfirmTools.get(id);
-		if (value) {
+	public getAutoConfirm(id: string): IAutoConfirmEntry | undefined {
+		const entry = this._autoConfirmTools.get(id);
+		if (entry) {
 			this._didChange = true;
-			return value;
+			return entry;
 		}
 		return undefined;
 	}
 
-	public setAutoConfirm(id: string, value: string | boolean): void {
-		if (value === false) {
+	public setAutoConfirm(id: string, entry: IAutoConfirmEntry | undefined): void {
+		if (!entry) {
 			this._autoConfirmTools.delete(id);
 		} else {
-			this._autoConfirmTools.set(id, value);
+			this._autoConfirmTools.set(id, entry);
 		}
 		this._didChange = true;
 	}
