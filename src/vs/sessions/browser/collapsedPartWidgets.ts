@@ -57,12 +57,12 @@ export class CollapsedSidebarWidget extends Disposable {
 	private createNewSessionButton(): DisposableStore {
 		const store = new DisposableStore();
 		const btn = append(this.element, $('.collapsed-panel-button.collapsed-sidebar-new-session'));
-		append(btn, $(ThemeIcon.asCSSSelector(Codicon.add)));
+		append(btn, $(ThemeIcon.asCSSSelector(Codicon.newSession)));
 
 		store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), btn, localize('newSession', "New Session")));
 
 		store.add(dom.addDisposableListener(btn, dom.EventType.CLICK, () => {
-			this.commandService.executeCommand('workbench.action.chat.newChat');
+			this.commandService.executeCommand('sessionsView.newSession');
 		}));
 
 		return store;
@@ -213,80 +213,58 @@ export class CollapsedAuxiliaryBarWidget extends Disposable {
 		this.indicatorDisposables.clear();
 		this.indicatorContainer.textContent = '';
 
-		// Always show the diff button
-		const diffBtn = append(this.indicatorContainer, $('.collapsed-panel-button.collapsed-auxbar-indicator'));
-		append(diffBtn, $(ThemeIcon.asCSSSelector(Codicon.diffMultiple)));
-
-		// Always show the files button
-		const filesBtn = append(this.indicatorContainer, $('.collapsed-panel-button.collapsed-auxbar-indicator'));
-		append(filesBtn, $(ThemeIcon.asCSSSelector(Codicon.files)));
-
 		// Get change summary from active session
 		const activeSession = this.sessionsManagementService.getActiveSession();
 		const session = activeSession ? this.agentSessionsService.getSession(activeSession.resource) : undefined;
 		const summary = session ? getAgentChangesSummary(session.changes) : undefined;
 
-		// Populate diff button with file count if available
+		// Combined changes button: [diff icon] +insertions -deletions fileCount
+		const changesBtn = append(this.indicatorContainer, $('.collapsed-panel-button.collapsed-auxbar-indicator'));
+
+		append(changesBtn, $(ThemeIcon.asCSSSelector(Codicon.diffMultiple)));
+
+		if (summary && summary.insertions > 0) {
+			const insLabel = append(changesBtn, $('span.collapsed-auxbar-count.collapsed-auxbar-insertions'));
+			insLabel.textContent = `+${summary.insertions}`;
+		}
+
+		if (summary && summary.deletions > 0) {
+			const delLabel = append(changesBtn, $('span.collapsed-auxbar-count.collapsed-auxbar-deletions'));
+			delLabel.textContent = `-${summary.deletions}`;
+		}
+
 		if (summary && summary.files > 0) {
-			const filesLabel = append(diffBtn, $('span.collapsed-auxbar-count'));
+			const filesLabel = append(changesBtn, $('span.collapsed-auxbar-count'));
 			filesLabel.textContent = `${summary.files}`;
 			this.indicatorDisposables.add(this.hoverService.setupManagedHover(
-				getDefaultHoverDelegate('element'), diffBtn,
-				localize('filesChanged', "{0} file(s) changed", summary.files)
+				getDefaultHoverDelegate('element'), changesBtn,
+				localize('changesSummary', "{0} file(s) changed, {1} insertion(s), {2} deletion(s)", summary.files, summary.insertions, summary.deletions)
 			));
 		} else {
 			this.indicatorDisposables.add(this.hoverService.setupManagedHover(
-				getDefaultHoverDelegate('element'), diffBtn,
+				getDefaultHoverDelegate('element'), changesBtn,
 				localize('showChanges', "Show Changes")
 			));
 		}
+
+		this.indicatorDisposables.add(dom.addDisposableListener(changesBtn, dom.EventType.CLICK, () => {
+			this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+			this.paneCompositeService.openPaneComposite('workbench.view.agentSessions.changesContainer', ViewContainerLocation.AuxiliaryBar);
+		}));
+
+		// Files button
+		const filesBtn = append(this.indicatorContainer, $('.collapsed-panel-button.collapsed-auxbar-indicator'));
+		append(filesBtn, $(ThemeIcon.asCSSSelector(Codicon.files)));
 
 		this.indicatorDisposables.add(this.hoverService.setupManagedHover(
 			getDefaultHoverDelegate('element'), filesBtn,
 			localize('showFiles', "Show Files")
 		));
 
-		// Click handlers — open auxbar to specific view containers
-		this.indicatorDisposables.add(dom.addDisposableListener(diffBtn, dom.EventType.CLICK, () => {
-			this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-			this.paneCompositeService.openPaneComposite('workbench.view.agentSessions.changesContainer', ViewContainerLocation.AuxiliaryBar);
-		}));
 		this.indicatorDisposables.add(dom.addDisposableListener(filesBtn, dom.EventType.CLICK, () => {
 			this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 			this.paneCompositeService.openPaneComposite('workbench.sessions.auxiliaryBar.filesContainer', ViewContainerLocation.AuxiliaryBar);
 		}));
-
-		// Insertions
-		if (summary && summary.insertions > 0) {
-			const insIndicator = append(this.indicatorContainer, $('.collapsed-panel-button.collapsed-auxbar-indicator.collapsed-auxbar-insertions'));
-			const insLabel = append(insIndicator, $('span.collapsed-auxbar-count.collapsed-auxbar-insertions'));
-			insLabel.textContent = `+${summary.insertions}`;
-
-			this.indicatorDisposables.add(this.hoverService.setupManagedHover(
-				getDefaultHoverDelegate('element'), insIndicator,
-				localize('insertions', "{0} insertion(s)", summary.insertions)
-			));
-
-			this.indicatorDisposables.add(dom.addDisposableListener(insIndicator, dom.EventType.CLICK, () => {
-				this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-			}));
-		}
-
-		// Deletions
-		if (summary && summary.deletions > 0) {
-			const delIndicator = append(this.indicatorContainer, $('.collapsed-panel-button.collapsed-auxbar-indicator.collapsed-auxbar-deletions'));
-			const delLabel = append(delIndicator, $('span.collapsed-auxbar-count.collapsed-auxbar-deletions'));
-			delLabel.textContent = `-${summary.deletions}`;
-
-			this.indicatorDisposables.add(this.hoverService.setupManagedHover(
-				getDefaultHoverDelegate('element'), delIndicator,
-				localize('deletions', "{0} deletion(s)", summary.deletions)
-			));
-
-			this.indicatorDisposables.add(dom.addDisposableListener(delIndicator, dom.EventType.CLICK, () => {
-				this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-			}));
-		}
 	}
 
 	show(): void {

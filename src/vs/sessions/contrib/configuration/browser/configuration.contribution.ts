@@ -31,6 +31,9 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 
 		'files.autoSave': 'afterDelay',
 
+		'workbench.preferredDarkColorTheme': 'Default Dark Modern',
+		'workbench.preferredLightColorTheme': 'Default Light Modern',
+
 		'git.autofetch': true,
 		'git.branchRandomName.enable': true,
 		'git.detectWorktrees': false,
