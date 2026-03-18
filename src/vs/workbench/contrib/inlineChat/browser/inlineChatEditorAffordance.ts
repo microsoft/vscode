@@ -146,7 +146,6 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 	private readonly _domNode: HTMLElement;
 	private _position: IContentWidgetPosition | null = null;
 	private _isVisible = false;
-	private _currentSelection: Selection | undefined;
 
 	private readonly _onDidRunAction = this._store.add(new Emitter<string>());
 	readonly onDidRunAction: Event<string> = this._onDidRunAction.event;
@@ -187,7 +186,6 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 
 		this._store.add(autorun(r => {
 			const sel = selection.read(r);
-			this._currentSelection = sel;
 			if (sel) {
 				this._show(sel);
 			} else {
@@ -196,7 +194,7 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 		}));
 
 		this._store.add(this._editor.onDidScrollChange(() => {
-			const sel = this._currentSelection;
+			const sel = selection.get();
 			if (!sel) {
 				return;
 			}
