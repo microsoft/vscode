@@ -191,6 +191,10 @@ export class IsolationPicker extends Disposable {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('github.copilot.chat.cli.isolationOption.enabled')) {
 				this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
+				if (!this._isolationOptionEnabled) {
+					// Reset to worktree when isolation option is disabled
+					this._setMode('worktree');
+				}
 				this._updateVisibility();
 				this._updateTriggerLabel();
 			}
