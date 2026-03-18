@@ -7,6 +7,7 @@ import assert from 'assert';
 import { IListRenderer, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
 import { ListView } from '../../../../browser/ui/list/listView.js';
 import { range } from '../../../../common/arrays.js';
+import { timeout } from '../../../../common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ListView', function () {
@@ -41,7 +42,7 @@ suite('ListView', function () {
 		assert.strictEqual(templatesCount, 0, 'all templates have been disposed');
 	});
 
-	test('focused row is kept in DOM when its element is spliced out', function () {
+	test('focused row is kept in DOM when its element is spliced out', async function () {
 		const container = document.createElement('div');
 		container.style.height = '200px';
 		container.style.width = '200px';
@@ -82,8 +83,9 @@ suite('ListView', function () {
 		assert.ok(container.contains(firstRowInput), 'focused row should still be in DOM after splice');
 		assert.strictEqual(container.querySelectorAll('.monaco-list-row').length, 3, 'DOM still has 3 row nodes (focused row is deferred)');
 
-		// Blur — this should complete the deferred release
+		// Blur — the FocusTracker fires onDidBlur asynchronously (setTimeout 0)
 		firstRowInput.blur();
+		await timeout(0);
 
 		// The row should now be removed
 		assert.ok(!container.contains(firstRowInput), 'row should be removed from DOM after losing focus');

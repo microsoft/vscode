@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener } from '../../dom.js';
-import { IDisposable } from '../../../common/lifecycle.js';
+import { $, isAncestorOfActiveElement, trackFocus } from '../../dom.js';
+import { combinedDisposable, IDisposable } from '../../../common/lifecycle.js';
 import { IListRenderer } from './list.js';
 
 export interface IRow {
@@ -89,16 +89,11 @@ export class RowCache<T> implements IDisposable {
 		if (domNode) {
 			// If this row currently contains DOM focus, keep it in the document
 			// until focus moves away to avoid an abrupt focus loss.
-			const ownerDocument = domNode.ownerDocument;
-			if (ownerDocument && domNode.contains(ownerDocument.activeElement)) {
+			if (isAncestorOfActiveElement(domNode)) {
 				if (!this.pendingFocusedRows.has(row)) {
-					const listener = addDisposableListener(domNode, 'focusout', (e: FocusEvent) => {
-						// Only release when focus has moved completely outside this row.
-						if (!domNode.contains(e.relatedTarget as Node | null)) {
-							this.releaseFocusedRow(row);
-						}
-					});
-					this.pendingFocusedRows.set(row, listener);
+					const focusTracker = trackFocus(domNode);
+					const blurListener = focusTracker.onDidBlur(() => this.releaseFocusedRow(row));
+					this.pendingFocusedRows.set(row, combinedDisposable(focusTracker, blurListener));
 				}
 				// Do not add to the reuse cache yet — the row must stay alive.
 				return;
