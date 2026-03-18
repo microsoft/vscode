@@ -5,7 +5,7 @@
 
 import { strictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { detectsCommonPromptPattern } from '../../browser/executeStrategy/executeStrategy.js';
+import { commandMatchesRequestedId, detectsCommonPromptPattern } from '../../browser/executeStrategy/executeStrategy.js';
 
 suite('Execute Strategy - Prompt Detection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -67,5 +67,16 @@ user@host:~$ `;
 		strictEqual(detectsCommonPromptPattern('output\n\n\n').detected, false);
 		strictEqual(detectsCommonPromptPattern('\n\n$ \n\n').detected, true); // prompt with surrounding whitespace
 		strictEqual(detectsCommonPromptPattern('output\nPS C:\\> ').detected, true); // prompt at end after output
+	});
+
+	test('commandMatchesRequestedId accepts any command when no id is requested', () => {
+		strictEqual(commandMatchesRequestedId({ id: 'abc' }, undefined), true);
+		strictEqual(commandMatchesRequestedId({ id: undefined }, undefined), true);
+	});
+
+	test('commandMatchesRequestedId only accepts matching requested id', () => {
+		strictEqual(commandMatchesRequestedId({ id: 'cmd-1' }, 'cmd-1'), true);
+		strictEqual(commandMatchesRequestedId({ id: 'cmd-2' }, 'cmd-1'), false);
+		strictEqual(commandMatchesRequestedId({ id: undefined }, 'cmd-1'), false);
 	});
 });
