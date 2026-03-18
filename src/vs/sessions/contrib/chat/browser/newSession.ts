@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { TargetMode } from './sessionTargetPicker.js';
-import { SessionWorkspace } from '../../sessions/common/sessionProject.js';
+import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 

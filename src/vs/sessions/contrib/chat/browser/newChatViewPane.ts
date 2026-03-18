@@ -59,7 +59,7 @@ import { BranchPicker } from './branchPicker.js';
 import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { ProjectPicker } from './projectPicker.js';
-import { SessionWorkspace } from '../../sessions/common/sessionProject.js';
+import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
 import { ModePicker } from './modePicker.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { SlashCommandHandler } from './slashCommands.js';

@@ -26,7 +26,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { isBuiltinChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionProject.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionWorkspace.js';
 import { IGitHubSessionContext } from '../../github/common/types.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 
