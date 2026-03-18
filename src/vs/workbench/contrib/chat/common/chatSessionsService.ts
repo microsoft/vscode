@@ -153,6 +153,8 @@ export type IChatSessionHistoryItem = {
 	participant: string;
 };
 
+export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
+
 /**
  * The session type used for local agent chat sessions.
  */
@@ -200,11 +202,11 @@ export interface IChatSession extends IDisposable {
 
 	/**
 	 * Forks the session from the given request point.
-	 * @param requestId The request ID to fork from, or undefined to fork from the end.
+	 * @param request The request history item to fork from, or undefined to fork from the end.
 	 * @param token Cancellation token.
 	 * @returns The forked session item. The promise is rejected if forking fails.
 	 */
-	forkSession?: (requestId: string | undefined, token: CancellationToken) => Promise<IChatSessionItem>;
+	forkSession?: (request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>;
 }
 
 export interface IChatSessionContentProvider {
@@ -340,11 +342,11 @@ export interface IChatSessionsService {
 	/**
 	 * Forks a contributed chat session from the given request point.
 	 * @param sessionResource The session resource to fork.
-	 * @param requestId The request ID to fork from, or undefined to fork from the end.
+	 * @param request The request history item to fork from, or undefined to fork from the end.
 	 * @param token Cancellation token.
 	 * @returns The forked session item, or undefined if forking failed.
 	 */
-	forkChatSession(sessionResource: URI, requestId: string | undefined, token: CancellationToken): Promise<IChatSessionItem>;
+	forkChatSession(sessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken): Promise<IChatSessionItem>;
 
 	readonly onDidChangeOptionGroups: Event<string>;
 
