@@ -837,7 +837,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const shouldEnforceTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel) === true;
 			if (shouldEnforceTimeout) {
 				timeoutPromise = timeout(timeoutValue);
-				timeoutRacePromise = timeoutPromise.then(() => ({ type: 'timeout' as const }));
+				timeoutRacePromise = timeoutPromise.then(
+					() => ({ type: 'timeout' as const })
+				).catch(() => ({ type: 'timeout' as const }));
 			}
 		}
 
