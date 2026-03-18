@@ -560,19 +560,19 @@ suite('AgentSessionsDataSource', () => {
 			const sections = getSectionsFromResult(result);
 			const topSessions = result.filter((r): r is IAgentSession => !isAgentSessionSection(r));
 
-			// Both pinned sessions appear in the flat top portion
-			const topLabels = topSessions.map(s => s.label);
-			assert.ok(topLabels.includes('Session pinned1'));
-			assert.ok(topLabels.includes('Session pinned2'));
+			// Pinned first, then unpinned filling remaining cap slots (cap=3, 2 pinned → 1 unpinned slot)
+			assert.deepStrictEqual(topSessions.map(s => s.label), [
+				'Session pinned1',
+				'Session pinned2',
+				'Session s1',
+			]);
 
 			const moreSection = sections.find(s => s.section === AgentSessionSection.More);
 			assert.ok(moreSection);
-			// Pinned sessions must not appear in the More section
-			const moreLabels = moreSection.sessions.map(s => s.label);
-			for (const label of moreLabels) {
-				assert.notStrictEqual(label, 'Session pinned1');
-				assert.notStrictEqual(label, 'Session pinned2');
-			}
+			assert.deepStrictEqual(moreSection.sessions.map(s => s.label), [
+				'Session s2',
+				'Session s3',
+			]);
 		});
 
 		test('more pinned sessions than cap limit are all shown', () => {
@@ -597,19 +597,20 @@ suite('AgentSessionsDataSource', () => {
 			const sections = getSectionsFromResult(result);
 			const topSessions = result.filter((r): r is IAgentSession => !isAgentSessionSection(r));
 
-			// All 4 pinned sessions appear in the flat top portion
-			assert.strictEqual(topSessions.length, 4);
-			const topLabels = topSessions.map(s => s.label);
-			assert.ok(topLabels.includes('Session pinned1'));
-			assert.ok(topLabels.includes('Session pinned2'));
-			assert.ok(topLabels.includes('Session pinned3'));
-			assert.ok(topLabels.includes('Session pinned4'));
+			// All 4 pinned sessions shown (exceeds cap of 3), ordered by time
+			assert.deepStrictEqual(topSessions.map(s => s.label), [
+				'Session pinned1',
+				'Session pinned2',
+				'Session pinned3',
+				'Session pinned4',
+			]);
 
 			// Unpinned session goes to More section
 			const moreSection = sections.find(s => s.section === AgentSessionSection.More);
 			assert.ok(moreSection);
-			assert.strictEqual(moreSection.sessions.length, 1);
-			assert.strictEqual(moreSection.sessions[0].label, 'Session unpinned1');
+			assert.deepStrictEqual(moreSection.sessions.map(s => s.label), [
+				'Session unpinned1',
+			]);
 		});
 	});
 
