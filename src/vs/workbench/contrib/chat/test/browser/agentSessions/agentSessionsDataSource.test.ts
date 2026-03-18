@@ -539,13 +539,15 @@ suite('AgentSessionsDataSource', () => {
 		test('pinned sessions are always shown above the cap with capped grouping', () => {
 			const now = Date.now();
 			const sessions = [
-				// Two pinned sessions — always shown regardless of cap
-				createMockSession({ id: 'pinned1', isPinned: true, startTime: now }),
-				createMockSession({ id: 'pinned2', isPinned: true, startTime: now - ONE_DAY }),
-				// Additional unpinned sessions to exceed the cap and populate the More section
+				// Recent unpinned sessions fill the top 3 by time
 				createMockSession({ id: 's1', startTime: now }),
 				createMockSession({ id: 's2', startTime: now - ONE_DAY }),
 				createMockSession({ id: 's3', startTime: now - 2 * ONE_DAY }),
+				// Unpinned overflow
+				createMockSession({ id: 's4', startTime: now - 3 * ONE_DAY }),
+				// Two pinned sessions with old timestamps — would fall outside top 3 by time alone
+				createMockSession({ id: 'pinned1', isPinned: true, startTime: now - 4 * ONE_DAY }),
+				createMockSession({ id: 'pinned2', isPinned: true, startTime: now - 5 * ONE_DAY }),
 			];
 
 			const filter = createMockFilter({
@@ -560,18 +562,20 @@ suite('AgentSessionsDataSource', () => {
 			const sections = getSectionsFromResult(result);
 			const topSessions = result.filter((r): r is IAgentSession => !isAgentSessionSection(r));
 
-			// Pinned first, then unpinned filling remaining cap slots (cap=3, 2 pinned → 1 unpinned slot)
+			// Top 3 by time sort preserved, then pinned sessions pulled from remainder
 			assert.deepStrictEqual(topSessions.map(s => s.label), [
+				'Session s1',
+				'Session s2',
+				'Session s3',
 				'Session pinned1',
 				'Session pinned2',
-				'Session s1',
 			]);
 
+			// Only unpinned overflow goes to More
 			const moreSection = sections.find(s => s.section === AgentSessionSection.More);
 			assert.ok(moreSection);
 			assert.deepStrictEqual(moreSection.sessions.map(s => s.label), [
-				'Session s2',
-				'Session s3',
+				'Session s4',
 			]);
 		});
 
@@ -582,7 +586,8 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: 'pinned2', isPinned: true, startTime: now - ONE_DAY }),
 				createMockSession({ id: 'pinned3', isPinned: true, startTime: now - 2 * ONE_DAY }),
 				createMockSession({ id: 'pinned4', isPinned: true, startTime: now - 3 * ONE_DAY }),
-				createMockSession({ id: 'unpinned1', startTime: now }),
+				// Unpinned session with oldest timestamp — goes to More
+				createMockSession({ id: 'unpinned1', startTime: now - 4 * ONE_DAY }),
 			];
 
 			const filter = createMockFilter({
@@ -597,7 +602,7 @@ suite('AgentSessionsDataSource', () => {
 			const sections = getSectionsFromResult(result);
 			const topSessions = result.filter((r): r is IAgentSession => !isAgentSessionSection(r));
 
-			// All 4 pinned sessions shown (exceeds cap of 3), ordered by time
+			// All 4 pinned in top 3 + pinned4 pulled from remainder
 			assert.deepStrictEqual(topSessions.map(s => s.label), [
 				'Session pinned1',
 				'Session pinned2',
@@ -610,6 +615,45 @@ suite('AgentSessionsDataSource', () => {
 			assert.ok(moreSection);
 			assert.deepStrictEqual(moreSection.sessions.map(s => s.label), [
 				'Session unpinned1',
+			]);
+		});
+
+		test('unpinned NeedsInput session is not pushed below pinned sessions', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: 'needs-input', status: ChatSessionStatus.NeedsInput, startTime: now }),
+				createMockSession({ id: 'pinned1', isPinned: true, startTime: now }),
+				createMockSession({ id: 'pinned2', isPinned: true, startTime: now - ONE_DAY }),
+				createMockSession({ id: 'pinned3', isPinned: true, startTime: now - 2 * ONE_DAY }),
+				createMockSession({ id: 's1', startTime: now }),
+			];
+
+			const filter = createMockFilter({
+				groupBy: AgentSessionsGrouping.Capped,
+				excludeRead: false
+			});
+			// Use real sorter to exercise NeedsInput prioritization in capped mode
+			const sorter = new AgentSessionsSorter();
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+			const sections = getSectionsFromResult(result);
+			const topSessions = result.filter((r): r is IAgentSession => !isAgentSessionSection(r));
+
+			// NeedsInput session stays at position 0 (sorter priority preserved),
+			// all pinned sessions are also visible, pinned3 pulled from remainder
+			assert.deepStrictEqual(topSessions.map(s => s.label), [
+				'Session needs-input',
+				'Session pinned1',
+				'Session pinned2',
+				'Session pinned3',
+			]);
+
+			const moreSection = sections.find(s => s.section === AgentSessionSection.More);
+			assert.ok(moreSection);
+			assert.deepStrictEqual(moreSection.sessions.map(s => s.label), [
+				'Session s1',
 			]);
 		});
 	});
