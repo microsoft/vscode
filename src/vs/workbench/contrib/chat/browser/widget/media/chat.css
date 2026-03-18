@@ -2210,7 +2210,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	font-size: var(--vscode-font-size);
+	font-size: 13px;
 }
 
 .chat-artifacts-widget.chat-artifacts-collapsed .chat-artifacts-list {
