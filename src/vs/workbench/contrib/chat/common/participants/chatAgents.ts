@@ -27,7 +27,7 @@ import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ILanguageModelsService } from '../languageModels.js';
-import { mark } from '../../../../../base/common/performance.js';
+import { PerfTracer } from '../../../../../base/common/performance.js';
 
 //#region agent service, commands etc
 
@@ -265,6 +265,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	declare _serviceBrand: undefined;
 
 	private _agents = new Map<string, IChatAgentEntry>();
+	private readonly _perfTracer = new PerfTracer('code/chat/');
 
 	private readonly _onDidChangeAgents = this._register(new Emitter<IChatAgent | undefined>());
 	readonly onDidChangeAgents: Event<IChatAgent | undefined> = this._onDidChangeAgents.event;
@@ -508,14 +509,16 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	async invokeAgent(id: string, request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
-		mark('code/chat/willInvokeAgent', { detail: { requestId: request.requestId } });
+		const trace = this._perfTracer.start({ requestId: request.requestId });
+		trace.mark('willInvokeAgent');
 		const data = this._agents.get(id);
 		if (!data?.impl) {
 			throw new Error(`No activated agent with id "${id}"`);
 		}
 
 		const result = await data.impl.invoke(request, progress, history, token);
-		mark('code/chat/didInvokeAgent', { detail: { requestId: request.requestId } });
+		trace.mark('didInvokeAgent');
+		trace.done();
 		return result;
 	}
 

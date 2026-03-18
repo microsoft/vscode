@@ -17,7 +17,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { mark } from '../../../../../base/common/performance.js';
+import { PerfTracer } from '../../../../../base/common/performance.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -274,6 +274,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _visible = false;
 	get visible() { return this._visible; }
+
+	private readonly _perfTracer = new PerfTracer('code/chatWidget/');
 
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
 	private _instructionFilesExist: boolean | undefined;
@@ -2186,9 +2188,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
-		mark('code/chatWidget/willAcceptInput');
+		const trace = this._perfTracer.start();
+		trace.mark('willAcceptInput');
 		const result = await this._acceptInput(query ? { query } : undefined, options);
-		mark('code/chatWidget/didAcceptInput');
+		trace.mark('didAcceptInput');
+		trace.done();
 		return result;
 	}
 

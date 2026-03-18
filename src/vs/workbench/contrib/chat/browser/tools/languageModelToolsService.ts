@@ -18,7 +18,7 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../../base/common/mime.js';
 import { derived, derivedOpts, IObservable, IReader, observableFromEventOpts, ObservableSet, observableSignal, transaction } from '../../../../../base/common/observable.js';
-import { mark } from '../../../../../base/common/performance.js';
+import { PerfTracer } from '../../../../../base/common/performance.js';
 import Severity from '../../../../../base/common/severity.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -113,6 +113,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private readonly _ctxToolsCount: IContextKey<number>;
 
 	private readonly _callsByRequestId = new Map<string, ITrackedCall[]>();
+	private readonly _perfTracer = new PerfTracer('code/chat/');
 
 	/** Pending tool calls in the streaming phase, keyed by toolCallId */
 	private readonly _pendingToolCalls = new Map<string, ChatToolInvocation>();
@@ -639,7 +640,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				throw new CancellationError();
 			}
 
-			mark('code/chat/willInvokeTool', { detail: { requestId: dto.chatRequestId } });
+			const trace = this._perfTracer.start({ requestId: dto.chatRequestId });
+			trace.mark('willInvokeTool');
 			invocationTimeWatch = StopWatch.create(true);
 			toolResult = await tool.impl.invoke(dto, countTokens, {
 				report: step => {
@@ -647,7 +649,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 			}, token);
 
-			mark('code/chat/didInvokeTool', { detail: { requestId: dto.chatRequestId } });
+			trace.mark('didInvokeTool');
+			trace.done();
 			invocationTimeWatch.stop();
 			this.ensureToolDetails(dto, toolResult, tool.data, toolInvocation);
 

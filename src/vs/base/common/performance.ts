@@ -17,10 +17,10 @@ function _definePolyfillMarks(timeOrigin?: number) {
 	function getMarks() {
 		return _data.slice();
 	}
-	function clearMarks(prefix: string, detail?: Record<string, unknown>) {
+	function clearMarks(prefix: string, details?: Record<string, unknown>[]) {
 		for (let i = _data.length - 1; i >= 0; i--) {
 			const entry = _data[i];
-			if (entry.name.startsWith(prefix) && _detailMatches(entry.detail, detail)) {
+			if (entry.name.startsWith(prefix) && _detailMatchesAny(entry.detail, details)) {
 				_data.splice(i, 1);
 			}
 		}
@@ -30,19 +30,25 @@ function _definePolyfillMarks(timeOrigin?: number) {
 
 declare const process: INodeProcess;
 
-function _detailMatches(entryDetail: unknown, filter?: Record<string, unknown>): boolean {
-	if (!filter) {
+function _detailMatchesAny(entryDetail: unknown, filters?: Record<string, unknown>[]): boolean {
+	if (!filters || filters.length === 0) {
 		return true;
 	}
-	if (typeof entryDetail !== 'object' || entryDetail === null) {
+	if (entryDetail === undefined || entryDetail === null) {
+		return true; // marks with no detail are always cleared when the prefix matches
+	}
+	if (typeof entryDetail !== 'object') {
 		return false;
 	}
-	for (const key of Object.keys(filter)) {
-		if ((entryDetail as Record<string, unknown>)[key] !== filter[key]) {
-			return false;
+	const detail = entryDetail as Record<string, unknown>;
+	return filters.some(filter => {
+		for (const key of Object.keys(filter)) {
+			if (detail[key] !== filter[key]) {
+				return false;
+			}
 		}
-	}
-	return true;
+		return true;
+	});
 }
 
 interface IPerformanceEntry {
@@ -86,9 +92,9 @@ function _define() {
 				mark(name: string, markOptions?: { startTime?: number; detail?: unknown }) {
 					performance.mark(name, markOptions);
 				},
-				clearMarks(prefix: string, detail?: Record<string, unknown>) {
+				clearMarks(prefix: string, details?: Record<string, unknown>[]) {
 					for (const entry of performance.getEntriesByType('mark')) {
-						if (entry.name.startsWith(prefix) && _detailMatches((entry as unknown as { detail?: unknown }).detail, detail)) {
+						if (entry.name.startsWith(prefix) && _detailMatchesAny((entry as unknown as { detail?: unknown }).detail, details)) {
 							performance.clearMarks(entry.name);
 						}
 					}
@@ -139,9 +145,9 @@ export const mark: (name: string, markOptions?: { startTime?: number; detail?: u
 
 /**
  * Clears all marks whose name starts with the given prefix.
- * If `detail` is provided, only clears marks whose detail contains all specified key-value pairs.
+ * If `details` is provided, only clears marks whose detail matches any of the given filters.
  */
-export const clearMarks: (prefix: string, detail?: Record<string, unknown>) => void = perf.clearMarks;
+export const clearMarks: (prefix: string, details?: Record<string, unknown>[]) => void = perf.clearMarks;
 
 export interface PerformanceMark {
 	readonly name: string;
@@ -153,3 +159,63 @@ export interface PerformanceMark {
  * Returns all marks, sorted by `startTime`.
  */
 export const getMarks: () => PerformanceMark[] = perf.getMarks;
+
+/**
+ * A reusable performance tracing helper that manages mark lifecycle within a given prefix namespace.
+ *
+ * Usage:
+ * ```
+ * const tracer = new PerfTracer('code/chat/');
+ *
+ * // Starting a new trace cleans up marks from completed previous traces
+ * const trace = tracer.start({ sessionResource: '...' });
+ * trace.mark('willSendRequest');
+ * trace.mark('didSendRequest');
+ * // ... later, when done:
+ * trace.done();
+ * ```
+ */
+export class PerfTracer {
+
+	private _nextTraceId = 0;
+	private readonly _doneTraceIds = new Set<string>();
+
+	constructor(private readonly _prefix: string) { }
+
+	/**
+	 * Starts a new trace. Clears marks from any previously completed traces.
+	 * Returns a {@link PerfTrace} that can be used to emit marks and signal completion.
+	 */
+	start(detail?: Record<string, unknown>): PerfTrace {
+		if (this._doneTraceIds.size > 0) {
+			clearMarks(this._prefix, [...this._doneTraceIds].map(traceId => ({ traceId })));
+			this._doneTraceIds.clear();
+		}
+		const traceId = String(this._nextTraceId++);
+		return new PerfTrace(this._prefix, traceId, detail, this._doneTraceIds);
+	}
+}
+
+export class PerfTrace {
+
+	constructor(
+		private readonly _prefix: string,
+		private readonly _traceId: string,
+		private readonly _detail: Record<string, unknown> | undefined,
+		private readonly _doneTraceIds: Set<string>,
+	) { }
+
+	/**
+	 * Emits a performance mark with the trace's prefix, traceId, and any additional detail.
+	 */
+	mark(name: string, detail?: Record<string, unknown>): void {
+		mark(this._prefix + name, { detail: { traceId: this._traceId, ...this._detail, ...detail } });
+	}
+
+	/**
+	 * Marks this trace as done. Its marks will be cleared when the next trace starts.
+	 */
+	done(): void {
+		this._doneTraceIds.add(this._traceId);
+	}
+}
