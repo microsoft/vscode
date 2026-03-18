@@ -7,7 +7,7 @@ import assert from 'assert';
 import { WordCharacterClassifier } from '../../../../common/core/wordCharacterClassifier.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { DefaultEndOfLine, ITextSnapshot, SearchData } from '../../../../common/model.js';
+import { DefaultEndOfLine, EndOfLinePreference, ITextSnapshot, SearchData } from '../../../../common/model.js';
 import { PieceTreeBase } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeBase.js';
 import { PieceTreeTextBuffer } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeTextBuffer.js';
 import { PieceTreeTextBufferBuilder } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
@@ -2173,7 +2173,8 @@ suite('CR line endings', () => {
 		const pieceTree = createTextBuffer(['hello\rworld\r'], true);
 		ds.add(pieceTree);
 		assert.strictEqual(pieceTree.getEOL(), '\r');
-		const value = pieceTree.getValue();
+		const lineCount = pieceTree.getLineCount();
+		const value = pieceTree.getValueInRange(new Range(1, 1, lineCount, pieceTree.getLineMaxColumn(lineCount)), EndOfLinePreference.TextDefined);
 		assert.strictEqual(value, 'hello\rworld\r');
 	});
 });
