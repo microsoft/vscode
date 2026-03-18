@@ -575,7 +575,7 @@ suite('RunSubagentTool', () => {
 			assert.strictEqual(capturedRequests[0].userSelectedTools?.['runSubagent'], false);
 		});
 
-		test('enables runSubagent tool at depth 0 when maxDepth > 1', async () => {
+		test('enables runSubagent tool at depth 0 when maxDepth >= 1', async () => {
 			const capturedRequests: IChatAgentRequest[] = [];
 			const { tool } = createInvokableTool({ maxDepth: 3, capturedRequests });
 			const sessionUri = URI.parse('test://session/depth-enabled');
