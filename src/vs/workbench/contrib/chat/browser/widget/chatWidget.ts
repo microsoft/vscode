@@ -275,7 +275,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _visible = false;
 	get visible() { return this._visible; }
 
-	private readonly _perfTracer = new PerfTracer('code/chatWidget/');
+	private readonly _perfTracer = PerfTracer.get('code/chatWidget/');
 
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
 	private _instructionFilesExist: boolean | undefined;

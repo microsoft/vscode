@@ -96,8 +96,10 @@ export class ComputeAutomaticInstructions {
 	}
 
 	public async collect(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
-		const trace = new PerfTracer('code/chat/').start({ sessionResource: this._sessionResource?.toString() });
-		trace.mark('willCollectInstructions');
+		const trace = this._sessionResource
+			? PerfTracer.get('code/chat/').find('sessionResource', this._sessionResource.toString())
+			: undefined;
+		trace?.mark('willCollectInstructions');
 
 		const instructionFiles = await this._promptsService.getInstructionFiles(token, this._sessionResource);
 
@@ -122,8 +124,7 @@ export class ComputeAutomaticInstructions {
 		}
 
 		this.sendTelemetry(telemetryEvent);
-		trace.mark('didCollectInstructions');
-		trace.done();
+		trace?.mark('didCollectInstructions');
 	}
 
 	private sendTelemetry(telemetryEvent: InstructionsCollectionEvent): void {

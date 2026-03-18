@@ -265,7 +265,6 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	declare _serviceBrand: undefined;
 
 	private _agents = new Map<string, IChatAgentEntry>();
-	private readonly _perfTracer = new PerfTracer('code/chat/');
 
 	private readonly _onDidChangeAgents = this._register(new Emitter<IChatAgent | undefined>());
 	readonly onDidChangeAgents: Event<IChatAgent | undefined> = this._onDidChangeAgents.event;
@@ -509,16 +508,15 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	async invokeAgent(id: string, request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
-		const trace = this._perfTracer.start({ requestId: request.requestId });
-		trace.mark('willInvokeAgent');
+		const trace = PerfTracer.get('code/chat/').find('requestId', request.requestId);
+		trace?.mark('willInvokeAgent');
 		const data = this._agents.get(id);
 		if (!data?.impl) {
 			throw new Error(`No activated agent with id "${id}"`);
 		}
 
 		const result = await data.impl.invoke(request, progress, history, token);
-		trace.mark('didInvokeAgent');
-		trace.done();
+		trace?.mark('didInvokeAgent');
 		return result;
 	}
 

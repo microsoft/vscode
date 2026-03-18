@@ -72,7 +72,7 @@ const ToolsAgentContextKey = ContextKeyExpr.and(
 
 export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
-	private readonly _perfTracer = new PerfTracer('code/chat/setup/');
+	private readonly _perfTracer = PerfTracer.get('code/chat/setup/');
 
 	static registerDefaultAgents(instantiationService: IInstantiationService, location: ChatAgentLocation, mode: ChatModeKind, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
 		return instantiationService.invokeFunction(accessor => {
@@ -255,7 +255,9 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			const languageModelToolsService = accessor.get(ILanguageModelToolsService);
 			const defaultAccountService = accessor.get(IDefaultAccountService);
 
-			return this.doInvoke(request, part => progress([part]), chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService, defaultAccountService);
+			const result = await this.doInvoke(request, part => progress([part]), chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService, defaultAccountService);
+			trace.done();
+			return result;
 		});
 	}
 
@@ -293,6 +295,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		await this.forwardRequestToChat(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
 
+		trace.done();
 		return {};
 	}
 
@@ -722,6 +725,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			});
 		}
 
+		trace.done();
 		return {};
 	}
 

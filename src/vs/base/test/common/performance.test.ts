@@ -6,203 +6,436 @@ import assert from 'assert';
 import { clearMarks, getMarks, mark, PerformanceMark, PerfTracer } from '../../common/performance.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
-function getChatMarks(prefix: string): PerformanceMark[] {
+function marksFor(prefix: string): PerformanceMark[] {
 	return getMarks().filter(m => m.name.startsWith(prefix));
+}
+
+function markNames(prefix: string): string[] {
+	return marksFor(prefix).map(m => m.name);
+}
+
+function detailOf(m: PerformanceMark): Record<string, unknown> {
+	return m.detail as Record<string, unknown>;
+}
+
+// Each test uses a unique prefix via a counter to avoid singleton state leaking between tests.
+let testCounter = 0;
+function uniquePrefix(): string {
+	return `test/perf/${testCounter++}/`;
 }
 
 suite('PerfTracer', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const prefix = 'test/perfTracer/';
+	suite('singleton', () => {
+		test('get() returns the same instance for the same prefix', () => {
+			const p = uniquePrefix();
+			assert.strictEqual(PerfTracer.get(p), PerfTracer.get(p));
+		});
 
-	teardown(() => {
-		// Clean up any marks left by tests
-		clearMarks(prefix);
+		test('get() returns different instances for different prefixes', () => {
+			assert.notStrictEqual(PerfTracer.get(uniquePrefix()), PerfTracer.get(uniquePrefix()));
+		});
 	});
 
-	test('start() creates a trace that emits marks with prefix and traceId', () => {
-		const tracer = new PerfTracer(prefix);
-		const trace = tracer.start();
-		trace.mark('willDo');
-		trace.mark('didDo');
+	suite('start() and mark()', () => {
+		test('emits marks with the correct prefix', () => {
+			const p = uniquePrefix();
+			const trace = PerfTracer.get(p).start();
+			trace.mark('willDo');
+			trace.mark('didDo');
 
-		const marks = getChatMarks(prefix);
-		assert.strictEqual(marks.length, 2);
-		assert.strictEqual(marks[0].name, `${prefix}willDo`);
-		assert.strictEqual(marks[1].name, `${prefix}didDo`);
+			assert.deepStrictEqual(markNames(p), [`${p}willDo`, `${p}didDo`]);
+		});
 
-		// Both marks should have the same traceId
-		const traceId0 = (marks[0].detail as Record<string, unknown>).traceId;
-		const traceId1 = (marks[1].detail as Record<string, unknown>).traceId;
-		assert.ok(traceId0 !== undefined);
-		assert.strictEqual(traceId0, traceId1);
+		test('all marks from a trace share the same traceId', () => {
+			const p = uniquePrefix();
+			const trace = PerfTracer.get(p).start();
+			trace.mark('a');
+			trace.mark('b');
+
+			const marks = marksFor(p);
+			assert.strictEqual(detailOf(marks[0]).traceId, detailOf(marks[1]).traceId);
+		});
+
+		test('initial detail is included in all marks', () => {
+			const p = uniquePrefix();
+			const trace = PerfTracer.get(p).start({ sessionResource: 'sess1' });
+			trace.mark('step');
+
+			assert.strictEqual(detailOf(marksFor(p)[0]).sessionResource, 'sess1');
+		});
+
+		test('per-mark detail is merged with initial detail', () => {
+			const p = uniquePrefix();
+			const trace = PerfTracer.get(p).start({ session: 'A' });
+			trace.mark('step', { requestId: 'req1' });
+
+			const detail = detailOf(marksFor(p)[0]);
+			assert.strictEqual(detail.session, 'A');
+			assert.strictEqual(detail.requestId, 'req1');
+			assert.ok(detail.traceId !== undefined);
+		});
+
+		test('each start() assigns a unique traceId', () => {
+			const p = uniquePrefix();
+			const tracer = PerfTracer.get(p);
+
+			const t1 = tracer.start();
+			t1.mark('a');
+			const t2 = tracer.start();
+			t2.mark('b');
+
+			const marks = marksFor(p);
+			assert.notStrictEqual(detailOf(marks[0]).traceId, detailOf(marks[1]).traceId);
+		});
 	});
 
-	test('start() passes initial detail to all marks', () => {
-		const tracer = new PerfTracer(prefix);
-		const trace = tracer.start({ sessionResource: 'mySession' });
-		trace.mark('willDo');
+	suite('done() and cleanup', () => {
+		test('done() then start() clears completed trace marks', () => {
+			const p = uniquePrefix();
+			const tracer = PerfTracer.get(p);
 
-		const marks = getChatMarks(prefix);
-		assert.strictEqual(marks.length, 1);
-		const detail = marks[0].detail as Record<string, unknown>;
-		assert.strictEqual(detail.sessionResource, 'mySession');
-		assert.ok(detail.traceId !== undefined);
+			const t1 = tracer.start();
+			t1.mark('old');
+			t1.done();
+
+			// Marks still present before next start()
+			assert.strictEqual(marksFor(p).length, 1);
+
+			const t2 = tracer.start();
+			t2.mark('new');
+
+			assert.deepStrictEqual(markNames(p), [`${p}new`]);
+		});
+
+		test('start() does not clear marks from in-flight (not done) traces', () => {
+			const p = uniquePrefix();
+			const tracer = PerfTracer.get(p);
+
+			const t1 = tracer.start();
+			t1.mark('inflight');
+
+			tracer.start().mark('new');
+
+			assert.ok(markNames(p).includes(`${p}inflight`));
+			assert.ok(markNames(p).includes(`${p}new`));
+		});
+
+		test('multiple done traces are all cleaned up on next start()', () => {
+			const p = uniquePrefix();
+			const tracer = PerfTracer.get(p);
+
+			const t1 = tracer.start();
+			t1.mark('t1');
+			t1.done();
+
+			const t2 = tracer.start(); // clears t1
+			t2.mark('t2');
+			t2.done();
+
+			tracer.start().mark('t3'); // clears t2
+
+			assert.deepStrictEqual(markNames(p), [`${p}t3`]);
+		});
+
+		test('done() is idempotent', () => {
+			const p = uniquePrefix();
+			const tracer = PerfTracer.get(p);
+
+			const t = tracer.start();
+			t.mark('step');
+			t.done();
+			t.done(); // second call should be harmless
+
+			tracer.start();
+			assert.strictEqual(marksFor(p).length, 0);
+		});
+
+		test('marks without detail are cleared as fallback', () => {
+			const p = uniquePrefix();
+			mark(`${p}noDetail`);
+
+			const tracer = PerfTracer.get(p);
+			const t = tracer.start();
+			t.mark('withDetail');
+			t.done();
+
+			tracer.start(); // clears done trace; noDetail also cleared (no traceId to filter against)
+
+			assert.strictEqual(marksFor(p).filter(m => m.name === `${p}noDetail`).length, 0);
+		});
+
+		test('marks from other prefixes are never touched', () => {
+			const p1 = uniquePrefix();
+			const p2 = uniquePrefix();
+			mark(`${p2}untouched`);
+
+			const tracer = PerfTracer.get(p1);
+			const t = tracer.start();
+			t.mark('step');
+			t.done();
+			tracer.start();
+
+			assert.strictEqual(marksFor(p2).length, 1);
+			clearMarks(p2);
+		});
+
+		test('different prefix tracers do not interfere with each other', () => {
+			const pA = uniquePrefix();
+			const pB = uniquePrefix();
+
+			const tA = PerfTracer.get(pA).start();
+			tA.mark('step');
+			tA.done();
+
+			PerfTracer.get(pB).start().mark('step');
+
+			// Cleaning A should not affect B
+			PerfTracer.get(pA).start().mark('newStep');
+
+			assert.deepStrictEqual(markNames(pA), [`${pA}newStep`]);
+			assert.deepStrictEqual(markNames(pB), [`${pB}step`]);
+		});
 	});
 
-	test('mark() merges per-mark detail with initial detail', () => {
-		const tracer = new PerfTracer(prefix);
-		const trace = tracer.start({ session: 'A' });
-		trace.mark('step', { requestId: 'req1' });
+	suite('register() and find()', () => {
+		test('find() returns undefined when no trace is registered', () => {
+			const p = uniquePrefix();
+			assert.strictEqual(PerfTracer.get(p).find('requestId', 'nonexistent'), undefined);
+		});
 
-		const marks = getChatMarks(prefix);
-		assert.strictEqual(marks.length, 1);
-		const detail = marks[0].detail as Record<string, unknown>;
-		assert.strictEqual(detail.session, 'A');
-		assert.strictEqual(detail.requestId, 'req1');
-		assert.ok(detail.traceId !== undefined);
+		test('register() makes trace findable', () => {
+			const p = uniquePrefix();
+			const trace = PerfTracer.get(p).start();
+			trace.register('requestId', 'req1');
+
+			const found = PerfTracer.get(p).find('requestId', 'req1');
+			assert.strictEqual(found, trace);
+		});
+
+		test('find() returns undefined for wrong value', () => {
+			const p = uniquePrefix();
+			const trace = PerfTracer.get(p).start();
+			trace.register('requestId', 'req1');
+
+			assert.strictEqual(PerfTracer.get(p).find('requestId', 'req2'), undefined);
+		});
+
+		test('find() returns undefined for wrong key', () => {
+			const p = uniquePrefix();
+			const trace = PerfTracer.get(p).start();
+			trace.register('requestId', 'req1');
+
+			assert.strictEqual(PerfTracer.get(p).find('sessionId', 'req1'), undefined);
+		});
+
+		test('done() unregisters the trace from find()', () => {
+			const p = uniquePrefix();
+			const trace = PerfTracer.get(p).start();
+			trace.register('requestId', 'req1');
+			trace.done();
+
+			assert.strictEqual(PerfTracer.get(p).find('requestId', 'req1'), undefined);
+		});
+
+		test('multiple registrations on the same trace', () => {
+			const p = uniquePrefix();
+			const trace = PerfTracer.get(p).start();
+			trace.register('sessionResource', 'sess1');
+			trace.register('requestId', 'req1');
+
+			assert.strictEqual(PerfTracer.get(p).find('sessionResource', 'sess1'), trace);
+			assert.strictEqual(PerfTracer.get(p).find('requestId', 'req1'), trace);
+		});
+
+		test('done() unregisters all registrations', () => {
+			const p = uniquePrefix();
+			const trace = PerfTracer.get(p).start();
+			trace.register('sessionResource', 'sess1');
+			trace.register('requestId', 'req1');
+			trace.done();
+
+			assert.strictEqual(PerfTracer.get(p).find('sessionResource', 'sess1'), undefined);
+			assert.strictEqual(PerfTracer.get(p).find('requestId', 'req1'), undefined);
+		});
+
+		test('concurrent traces can be found independently', () => {
+			const p = uniquePrefix();
+			const tracer = PerfTracer.get(p);
+
+			const t1 = tracer.start();
+			t1.register('requestId', 'req1');
+
+			const t2 = tracer.start();
+			t2.register('requestId', 'req2');
+
+			assert.strictEqual(tracer.find('requestId', 'req1'), t1);
+			assert.strictEqual(tracer.find('requestId', 'req2'), t2);
+		});
+
+		test('downstream code can emit marks to a joined trace', () => {
+			const p = uniquePrefix();
+			const tracer = PerfTracer.get(p);
+
+			// Owner creates and registers
+			const trace = tracer.start({ sessionResource: 'sess1' });
+			trace.mark('willSendRequest');
+			trace.register('requestId', 'req1');
+
+			// Downstream joins and emits
+			const joined = tracer.find('requestId', 'req1');
+			joined?.mark('willInvokeAgent');
+			joined?.mark('didInvokeAgent');
+
+			// All marks should share the same traceId
+			const marks = marksFor(p);
+			assert.strictEqual(marks.length, 3);
+			const traceIds = new Set(marks.map(m => detailOf(m).traceId));
+			assert.strictEqual(traceIds.size, 1);
+
+			// All marks have the owner's initial detail
+			for (const m of marks) {
+				assert.strictEqual(detailOf(m).sessionResource, 'sess1');
+			}
+		});
+
+		test('multiple tool calls within one request all use the same trace', () => {
+			const p = uniquePrefix();
+			const tracer = PerfTracer.get(p);
+
+			const trace = tracer.start();
+			trace.register('requestId', 'req1');
+			trace.mark('willSendRequest');
+
+			// Simulate two tool invocations — both find the same trace
+			const toolTrace1 = tracer.find('requestId', 'req1');
+			toolTrace1?.mark('willInvokeTool');
+			toolTrace1?.mark('didInvokeTool');
+
+			const toolTrace2 = tracer.find('requestId', 'req1');
+			toolTrace2?.mark('willInvokeTool');
+			toolTrace2?.mark('didInvokeTool');
+
+			trace.mark('didCompleteRequest');
+			trace.done();
+
+			// All 5 marks should exist with the same traceId
+			const marks = marksFor(p);
+			assert.strictEqual(marks.length, 5);
+			const traceIds = new Set(marks.map(m => detailOf(m).traceId));
+			assert.strictEqual(traceIds.size, 1);
+
+			// After done + next start, all are cleaned
+			tracer.start();
+			assert.strictEqual(marksFor(p).length, 0);
+		});
+
+		test('find() on a different prefix returns undefined', () => {
+			const p1 = uniquePrefix();
+			const p2 = uniquePrefix();
+
+			const trace = PerfTracer.get(p1).start();
+			trace.register('requestId', 'req1');
+
+			assert.strictEqual(PerfTracer.get(p2).find('requestId', 'req1'), undefined);
+		});
 	});
 
-	test('done() then start() clears completed trace marks', () => {
-		const tracer = new PerfTracer(prefix);
-		const trace1 = tracer.start();
-		trace1.mark('step1');
-		trace1.mark('step2');
-		trace1.done();
+	suite('real-world chat scenario', () => {
+		test('full request lifecycle: owner + agent + tool + instructions', () => {
+			const p = uniquePrefix();
+			const tracer = PerfTracer.get(p);
 
-		// Marks still present before next start()
-		assert.strictEqual(getChatMarks(prefix).length, 2);
+			// 1. ChatService starts a trace (owner)
+			const trace = tracer.start({ sessionResource: 'sess1' });
+			trace.mark('willSendRequest');
+			trace.mark('willSendRequestAsync');
 
-		// Starting a new trace clears the done trace marks
-		const trace2 = tracer.start();
-		trace2.mark('step3');
+			// 2. Request model is created — register requestId
+			trace.register('requestId', 'req-abc');
 
-		const marks = getChatMarks(prefix);
-		assert.strictEqual(marks.length, 1);
-		assert.strictEqual(marks[0].name, `${prefix}step3`);
-	});
+			// 3. ComputeAutomaticInstructions joins via sessionResource
+			trace.register('sessionResource', 'sess1');
+			const instrTrace = tracer.find('sessionResource', 'sess1');
+			instrTrace?.mark('willCollectInstructions');
+			instrTrace?.mark('didCollectInstructions');
 
-	test('start() does not clear marks from in-flight traces', () => {
-		const tracer = new PerfTracer(prefix);
+			// 4. ChatAgentService joins via requestId
+			const agentTrace = tracer.find('requestId', 'req-abc');
+			agentTrace?.mark('willInvokeAgent');
 
-		// Start trace 1 (in-flight, not done)
-		const trace1 = tracer.start();
-		trace1.mark('fromTrace1');
+			// 5. Multiple tool calls join via requestId
+			for (let i = 0; i < 3; i++) {
+				const toolTrace = tracer.find('requestId', 'req-abc');
+				toolTrace?.mark('willInvokeTool');
+				toolTrace?.mark('didInvokeTool');
+			}
 
-		// Start trace 2 — trace 1 is not done, so its marks should survive
-		const trace2 = tracer.start();
-		trace2.mark('fromTrace2');
+			agentTrace?.mark('didInvokeAgent');
 
-		const marks = getChatMarks(prefix);
-		const names = marks.map(m => m.name);
-		assert.ok(names.includes(`${prefix}fromTrace1`));
-		assert.ok(names.includes(`${prefix}fromTrace2`));
-	});
+			// 6. Request completes
+			trace.mark('didCompleteRequest');
+			trace.done();
 
-	test('each start() assigns a unique traceId', () => {
-		const tracer = new PerfTracer(prefix);
-		const trace1 = tracer.start();
-		trace1.mark('a');
-		trace1.done();
+			// Verify: all marks share the same traceId
+			const marks = marksFor(p);
+			assert.strictEqual(marks.length, 12); // willSendRequest + willSendRequestAsync + 2 instructions + willInvokeAgent + 3*(will+did)InvokeTool + didInvokeAgent + didCompleteRequest
+			const traceIds = new Set(marks.map(m => detailOf(m).traceId));
+			assert.strictEqual(traceIds.size, 1);
 
-		tracer.start(); // clears trace1
-		const trace3 = tracer.start();
-		trace3.mark('b');
+			// Verify: all marks have sessionResource from initial detail
+			for (const m of marks) {
+				assert.strictEqual(detailOf(m).sessionResource, 'sess1');
+			}
 
-		const marks = getChatMarks(prefix);
-		assert.strictEqual(marks.length, 1);
-		const traceId = (marks[0].detail as Record<string, unknown>).traceId;
-		assert.strictEqual(traceId, '2'); // 0, 1, 2
-	});
+			// 7. Next request cleans up previous
+			tracer.start();
+			assert.strictEqual(marksFor(p).length, 0);
+		});
 
-	test('multiple done traces are all cleaned up on next start()', () => {
-		const tracer = new PerfTracer(prefix);
+		test('parallel requests in same session maintain separate traces', () => {
+			const p = uniquePrefix();
+			const tracer = PerfTracer.get(p);
 
-		const trace1 = tracer.start();
-		trace1.mark('t1');
-		trace1.done();
+			const trace1 = tracer.start();
+			trace1.register('requestId', 'req1');
+			trace1.mark('willSendRequest');
 
-		const trace2 = tracer.start(); // clears trace1
-		trace2.mark('t2');
-		trace2.done();
+			const trace2 = tracer.start();
+			trace2.register('requestId', 'req2');
+			trace2.mark('willSendRequest');
 
-		const trace3 = tracer.start(); // clears trace2 (trace1 already cleared)
-		trace3.mark('t3');
+			// Both traces are independently findable
+			const found1 = tracer.find('requestId', 'req1');
+			const found2 = tracer.find('requestId', 'req2');
+			assert.strictEqual(found1, trace1);
+			assert.strictEqual(found2, trace2);
 
-		const marks = getChatMarks(prefix);
-		assert.strictEqual(marks.length, 1);
-		assert.strictEqual(marks[0].name, `${prefix}t3`);
-	});
+			// Downstream emits to correct traces
+			found1?.mark('willInvokeAgent');
+			found2?.mark('willInvokeAgent');
 
-	test('different PerfTracer instances do not interfere', () => {
-		const tracerA = new PerfTracer(`${prefix}A/`);
-		const tracerB = new PerfTracer(`${prefix}B/`);
+			// trace1 completes
+			trace1.mark('didCompleteRequest');
+			trace1.done();
 
-		const traceA = tracerA.start();
-		traceA.mark('step');
-		traceA.done();
+			// trace1 is no longer findable
+			assert.strictEqual(tracer.find('requestId', 'req1'), undefined);
+			// trace2 still findable
+			assert.strictEqual(tracer.find('requestId', 'req2'), trace2);
 
-		const traceB = tracerB.start();
-		traceB.mark('step');
+			// Next start() clears trace1's marks but not trace2's
+			tracer.start();
 
-		// Starting new trace on A should not clear B's marks
-		tracerA.start().mark('newStep');
-
-		const marksA = getChatMarks(`${prefix}A/`);
-		const marksB = getChatMarks(`${prefix}B/`);
-
-		assert.strictEqual(marksA.length, 1);
-		assert.strictEqual(marksA[0].name, `${prefix}A/newStep`);
-		assert.strictEqual(marksB.length, 1);
-		assert.strictEqual(marksB[0].name, `${prefix}B/step`);
-	});
-
-	test('done() is idempotent', () => {
-		const tracer = new PerfTracer(prefix);
-		const trace = tracer.start();
-		trace.mark('step');
-		trace.done();
-		trace.done(); // second call should be harmless
-
-		tracer.start(); // should clear once
-		assert.strictEqual(getChatMarks(prefix).length, 0);
-	});
-
-	test('marks without detail are cleared when prefix matches', () => {
-		// Manually create a mark without detail under the prefix
-		mark(`${prefix}noDetail`);
-
-		const tracer = new PerfTracer(prefix);
-		const trace = tracer.start();
-		trace.mark('withDetail');
-		trace.done();
-
-		tracer.start(); // clears done trace — noDetail mark should also be cleared since it has no traceId
-
-		const marks = getChatMarks(prefix);
-		// Only the noDetail mark should remain (it has no traceId to match against)
-		// Actually, _detailMatchesAny returns true for null/undefined detail, so it IS cleared
-		const noDetailMarks = marks.filter(m => m.name === `${prefix}noDetail`);
-		assert.strictEqual(noDetailMarks.length, 0);
-	});
-
-	test('marks from other prefixes are never touched', () => {
-		const otherPrefix = 'test/other/';
-		mark(`${otherPrefix}untouched`);
-
-		const tracer = new PerfTracer(prefix);
-		const trace = tracer.start();
-		trace.mark('step');
-		trace.done();
-
-		tracer.start(); // clears prefix marks
-
-		const otherMarks = getMarks().filter(m => m.name === `${otherPrefix}untouched`);
-		assert.strictEqual(otherMarks.length, 1);
-
-		// Clean up
-		clearMarks(otherPrefix);
+			const remaining = marksFor(p);
+			// All remaining marks should belong to trace2
+			const trace2TraceId = detailOf(remaining[0]).traceId;
+			for (const m of remaining) {
+				assert.strictEqual(detailOf(m).traceId, trace2TraceId);
+			}
+		});
 	});
 });
 
@@ -210,10 +443,10 @@ suite('clearMarks', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const prefix = 'test/clearMarks/';
+	let prefix: string;
 
-	teardown(() => {
-		clearMarks(prefix);
+	setup(() => {
+		prefix = uniquePrefix();
 	});
 
 	test('clears all marks with matching prefix when no details filter', () => {
@@ -222,7 +455,7 @@ suite('clearMarks', () => {
 		mark(`${prefix}c`);
 
 		clearMarks(prefix);
-		assert.strictEqual(getMarks().filter(m => m.name.startsWith(prefix)).length, 0);
+		assert.strictEqual(marksFor(prefix).length, 0);
 	});
 
 	test('clears only marks matching details filter', () => {
@@ -232,21 +465,18 @@ suite('clearMarks', () => {
 
 		clearMarks(prefix, [{ id: '1' }, { id: '3' }]);
 
-		const remaining = getMarks().filter(m => m.name.startsWith(prefix));
+		const remaining = marksFor(prefix);
 		assert.strictEqual(remaining.length, 1);
-		assert.strictEqual((remaining[0].detail as Record<string, unknown>).id, '2');
+		assert.strictEqual(detailOf(remaining[0]).id, '2');
 	});
 
-	test('clears marks with no detail when details filter is provided', () => {
+	test('clears marks with no detail when details filter is provided (fallback)', () => {
 		mark(`${prefix}noDetail`);
 		mark(`${prefix}withDetail`, { detail: { id: '1' } });
 
 		clearMarks(prefix, [{ id: '1' }]);
 
-		const remaining = getMarks().filter(m => m.name.startsWith(prefix));
-		// noDetail should be cleared (fallback: no detail = always match)
-		// withDetail with id=1 should be cleared
-		assert.strictEqual(remaining.length, 0);
+		assert.strictEqual(marksFor(prefix).length, 0);
 	});
 
 	test('does not clear marks whose detail does not match any filter', () => {
@@ -255,8 +485,7 @@ suite('clearMarks', () => {
 
 		clearMarks(prefix, [{ id: '999' }]);
 
-		const remaining = getMarks().filter(m => m.name.startsWith(prefix));
-		assert.strictEqual(remaining.length, 2);
+		assert.strictEqual(marksFor(prefix).length, 2);
 	});
 
 	test('detail filter matches on multiple keys', () => {
@@ -266,7 +495,7 @@ suite('clearMarks', () => {
 
 		clearMarks(prefix, [{ type: 'request', id: '1' }]);
 
-		const remaining = getMarks().filter(m => m.name.startsWith(prefix));
+		const remaining = marksFor(prefix);
 		assert.strictEqual(remaining.length, 2);
 		const names = remaining.map(m => m.name);
 		assert.ok(names.includes(`${prefix}b`));

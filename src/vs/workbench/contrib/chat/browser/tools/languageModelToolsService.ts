@@ -113,7 +113,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private readonly _ctxToolsCount: IContextKey<number>;
 
 	private readonly _callsByRequestId = new Map<string, ITrackedCall[]>();
-	private readonly _perfTracer = new PerfTracer('code/chat/');
 
 	/** Pending tool calls in the streaming phase, keyed by toolCallId */
 	private readonly _pendingToolCalls = new Map<string, ChatToolInvocation>();
@@ -640,8 +639,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				throw new CancellationError();
 			}
 
-			const trace = this._perfTracer.start({ requestId: dto.chatRequestId });
-			trace.mark('willInvokeTool');
+			const trace = dto.chatRequestId ? PerfTracer.get('code/chat/').find('requestId', dto.chatRequestId) : undefined;
+			trace?.mark('willInvokeTool');
 			invocationTimeWatch = StopWatch.create(true);
 			toolResult = await tool.impl.invoke(dto, countTokens, {
 				report: step => {
@@ -649,8 +648,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 			}, token);
 
-			trace.mark('didInvokeTool');
-			trace.done();
+			trace?.mark('didInvokeTool');
 			invocationTimeWatch.stop();
 			this.ensureToolDetails(dto, toolResult, tool.data, toolInvocation);
 

@@ -166,25 +166,51 @@ export const getMarks: () => PerformanceMark[] = perf.getMarks;
 
 /**
  * A reusable performance tracing helper that manages mark lifecycle within a given prefix namespace.
+ * Use `PerfTracer.get(prefix)` to obtain a singleton instance for a given prefix.
  *
- * Usage:
+ * Lifecycle:
+ * - The **owner** calls `tracer.start(detail?)` to create a new trace (and clean up completed ones).
+ * - The owner calls `trace.register(key, value)` once a correlation ID is known (e.g., requestId).
+ * - **Downstream code** calls `tracer.find(key, value)` to join an existing trace and emit marks to it.
+ * - The owner calls `trace.done()` when the operation completes. Marks are cleaned on the next `start()`.
+ *
  * ```
- * const tracer = new PerfTracer('code/chat/');
- *
- * // Starting a new trace cleans up marks from completed previous traces
+ * // Owner (e.g. chatServiceImpl)
+ * const tracer = PerfTracer.get('code/chat/');
  * const trace = tracer.start({ sessionResource: '...' });
  * trace.mark('willSendRequest');
- * trace.mark('didSendRequest');
- * // ... later, when done:
+ * trace.register('requestId', request.id);
+ * // ...
  * trace.done();
+ *
+ * // Downstream (e.g. chatAgents)
+ * const trace = PerfTracer.get('code/chat/').find('requestId', id);
+ * trace?.mark('willInvokeAgent');
+ * trace?.mark('didInvokeAgent');
+ * // NO .done() — doesn't own the lifecycle
  * ```
  */
 export class PerfTracer {
 
+	private static readonly _instances = new Map<string, PerfTracer>();
+
+	/**
+	 * Returns the singleton `PerfTracer` for the given prefix. Creates one if it doesn't exist.
+	 */
+	static get(prefix: string): PerfTracer {
+		let instance = PerfTracer._instances.get(prefix);
+		if (!instance) {
+			instance = new PerfTracer(prefix);
+			PerfTracer._instances.set(prefix, instance);
+		}
+		return instance;
+	}
+
 	private _nextTraceId = 0;
 	private readonly _doneTraceIds = new Set<string>();
+	private readonly _activeTraces = new Map<string, PerfTrace>(); // "key:value" -> trace
 
-	constructor(private readonly _prefix: string) { }
+	private constructor(private readonly _prefix: string) { }
 
 	/**
 	 * Starts a new trace. Clears marks from any previously completed traces.
@@ -196,18 +222,38 @@ export class PerfTracer {
 			this._doneTraceIds.clear();
 		}
 		const traceId = String(this._nextTraceId++);
-		return new PerfTrace(this._prefix, traceId, detail, this._doneTraceIds);
+		return new PerfTrace(this._prefix, traceId, detail, this._doneTraceIds, this._activeTraces);
+	}
+
+	/**
+	 * Finds an active trace registered with the given key/value pair.
+	 * Returns `undefined` if no matching trace is found.
+	 */
+	find(key: string, value: string): PerfTrace | undefined {
+		return this._activeTraces.get(`${key}:${value}`);
 	}
 }
 
 export class PerfTrace {
+
+	private readonly _registrations: string[] = [];
 
 	constructor(
 		private readonly _prefix: string,
 		private readonly _traceId: string,
 		private readonly _detail: Record<string, unknown> | undefined,
 		private readonly _doneTraceIds: Set<string>,
+		private readonly _activeTraces: Map<string, PerfTrace>,
 	) { }
+
+	/**
+	 * Registers this trace so downstream code can find it via `tracer.find(key, value)`.
+	 */
+	register(key: string, value: string): void {
+		const registrationKey = `${key}:${value}`;
+		this._registrations.push(registrationKey);
+		this._activeTraces.set(registrationKey, this);
+	}
 
 	/**
 	 * Emits a performance mark with the trace's prefix, traceId, and any additional detail.
@@ -218,8 +264,13 @@ export class PerfTrace {
 
 	/**
 	 * Marks this trace as done. Its marks will be cleared when the next trace starts.
+	 * Also unregisters this trace from the lookup map.
 	 */
 	done(): void {
 		this._doneTraceIds.add(this._traceId);
+		for (const key of this._registrations) {
+			this._activeTraces.delete(key);
+		}
+		this._registrations.length = 0;
 	}
 }

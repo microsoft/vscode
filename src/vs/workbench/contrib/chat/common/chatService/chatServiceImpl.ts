@@ -106,7 +106,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _sessionModels: ChatModelStore;
 	private readonly _pendingRequests = this._register(new DisposableResourceMap<CancellableRequest>());
 	private readonly _queuedRequestDeferreds = new Map<string, DeferredPromise<ChatSendResult>>();
-	private readonly _perfTracer = new PerfTracer('code/chat/');
+	private readonly _perfTracer = PerfTracer.get('code/chat/');
 	private _saveModelsEnabled = true;
 
 	private _transferredSessionResource: URI | undefined;
@@ -804,7 +804,8 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async sendRequest(sessionResource: URI, request: string, options?: IChatSendRequestOptions): Promise<ChatSendResult> {
-		const trace = this._perfTracer.start();
+		const trace = this._perfTracer.start({ sessionResource: sessionResource.toString() });
+		trace.register('sessionResource', sessionResource.toString());
 		trace.mark('willSendRequest');
 		this.trace('sendRequest', `sessionResource: ${sessionResource.toString()}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 
@@ -1096,6 +1097,7 @@ export class ChatService extends Disposable implements IChatService {
 					const prepareChatAgentRequest = (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel, isParticipantDetected?: boolean): IChatAgentRequest => {
 						const initVariableData: IChatRequestVariableData = { variables: [] };
 						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, agent, command, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get());
+						trace.register('requestId', request.id);
 
 						let variableData: IChatRequestVariableData;
 						let message: string;
