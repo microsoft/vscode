@@ -903,7 +903,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Use the home directory from the connection handshake as the default browse location
 		const conn = this.remoteAgentHostService.connections.find(c => c.address === address);
 		const defaultUri = conn?.defaultDirectory
-			? agentHostUri(authority, conn.defaultDirectory.path)
+			? agentHostUri(authority, URI.parse(conn.defaultDirectory).path)
 			: agentHostUri(authority, '/');
 
 		const picker = this._remoteFolderPickerDisposables.add(

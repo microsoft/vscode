@@ -170,7 +170,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}));
 
 		// Subscribe to root state
-		connection.subscribe(ROOT_STATE_URI).then(snapshot => {
+		connection.subscribe(URI.parse(ROOT_STATE_URI)).then(snapshot => {
 			if (store.isDisposed) {
 				return;
 			}

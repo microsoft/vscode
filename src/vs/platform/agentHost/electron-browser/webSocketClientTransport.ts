@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 // WebSocket client transport for connecting to remote agent host processes.
-// Uses shared JSON serialization with URI revival (see jsonSerialization.ts).
+// Uses plain JSON serialization — URIs are string-typed in the protocol.
 
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
-import type { IProtocolMessage } from '../common/state/sessionProtocol.js';
+import type { IAhpServerNotification, IJsonRpcResponse, IProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolTransport } from '../common/state/sessionTransport.js';
-import { protocolReplacer, protocolReviver } from '../common/state/jsonSerialization.js';
 
 // ---- Client transport -------------------------------------------------------
 
@@ -97,7 +96,7 @@ export class WebSocketClientTransport extends Disposable implements IProtocolTra
 			ws.addEventListener('message', (event: MessageEvent) => {
 				try {
 					const text = typeof event.data === 'string' ? event.data : '';
-					const message = JSON.parse(text, protocolReviver) as IProtocolMessage;
+					const message = JSON.parse(text) as IProtocolMessage;
 					this._onMessage.fire(message);
 				} catch {
 					// Malformed message - drop.
@@ -115,9 +114,9 @@ export class WebSocketClientTransport extends Disposable implements IProtocolTra
 		});
 	}
 
-	send(message: IProtocolMessage): void {
+	send(message: IProtocolMessage | IAhpServerNotification | IJsonRpcResponse): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify(message, protocolReplacer));
+			this._ws.send(JSON.stringify(message));
 		}
 	}
 

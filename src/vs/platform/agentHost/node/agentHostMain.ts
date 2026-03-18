@@ -10,7 +10,7 @@ import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import * as os from 'os';
-import { AgentHostIpcChannels, AgentSession, type AgentProvider } from '../common/agentService.js';
+import { AgentHostIpcChannels, AgentSession } from '../common/agentService.js';
 import { SessionStatus } from '../common/state/sessionState.js';
 import { AgentService } from './agentService.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
@@ -126,19 +126,20 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 			agentService.dispatchAction(action, 'ws-server', 0);
 		},
 		async handleCreateSession(command) {
-			return agentService.createSession({
-				provider: command.provider as AgentProvider | undefined,
+			await agentService.createSession({
+				provider: command.provider,
 				model: command.model,
 				workingDirectory: command.workingDirectory,
+				session: URI.parse(command.session),
 			});
 		},
 		handleDisposeSession(session) {
-			agentService.disposeSession(session);
+			agentService.disposeSession(URI.parse(session));
 		},
 		async handleListSessions() {
 			const sessions = await agentService.listSessions();
 			return sessions.map(s => ({
-				resource: s.session,
+				resource: s.session.toString(),
 				provider: AgentSession.provider(s.session) ?? 'copilot',
 				title: s.summary ?? 'Session',
 				status: SessionStatus.Idle,
@@ -150,10 +151,10 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 			agentService.setAuthToken(token);
 		},
 		handleBrowseDirectory(uri) {
-			return agentService.browseDirectory(uri);
+			return agentService.browseDirectory(URI.parse(uri));
 		},
 		getDefaultDirectory() {
-			return URI.file(os.homedir());
+			return URI.file(os.homedir()).toString();
 		},
 	};
 

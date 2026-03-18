@@ -9,12 +9,12 @@ import { URI } from '../../../base/common/uri.js';
 import * as os from 'os';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, IAgent, IAgentAttachment } from '../common/agentService.js';
+import { IAgent, IAgentAttachment } from '../common/agentService.js';
 import type { ISessionAction } from '../common/state/sessionActions.js';
 import { IBrowseDirectoryResult, ICreateSessionParams, AHP_PROVIDER_NOT_FOUND, JSON_RPC_INTERNAL_ERROR, ProtocolError, IDirectoryEntry } from '../common/state/sessionProtocol.js';
 import {
-	ISessionModelInfo,
-	SessionStatus, type ISessionSummary
+	type ISessionModelInfo,
+	SessionStatus, type ISessionSummary, type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
 import { mapProgressEventToActions } from './agentEventMapper.js';
 import type { IProtocolSideEffectHandler } from './protocolServerHandler.js';
@@ -25,7 +25,7 @@ import { SessionStateManager } from './sessionStateManager.js';
  */
 export interface IAgentSideEffectsOptions {
 	/** Resolve the agent responsible for a given session URI. */
-	readonly getAgent: (session: URI) => IAgent | undefined;
+	readonly getAgent: (session: ProtocolURI) => IAgent | undefined;
 	/** Observable set of registered agents. Triggers `root/agentsChanged` when it changes. */
 	readonly agents: IObservable<readonly IAgent[]>;
 }
@@ -43,7 +43,7 @@ export interface IAgentSideEffectsOptions {
 export class AgentSideEffects extends Disposable implements IProtocolSideEffectHandler {
 
 	/** Maps pending permission request IDs to the provider that issued them. */
-	private readonly _pendingPermissions = new Map<string, AgentProvider>();
+	private readonly _pendingPermissions = new Map<string, string>();
 
 	constructor(
 		private readonly _stateManager: SessionStateManager,
@@ -98,9 +98,9 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				this._pendingPermissions.set(e.requestId, agent.id);
 			}
 
-			const turnId = this._stateManager.getActiveTurnId(e.session);
+			const turnId = this._stateManager.getActiveTurnId(e.session.toString());
 			if (turnId) {
-				const actions = mapProgressEventToActions(e, e.session, turnId);
+				const actions = mapProgressEventToActions(e, e.session.toString(), turnId);
 				if (actions) {
 					if (Array.isArray(actions)) {
 						for (const action of actions) {
@@ -135,7 +135,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 					path: a.path,
 					displayName: a.displayName,
 				}));
-				agent.sendMessage(action.session, action.userMessage.text, attachments).catch(err => {
+				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments).catch(err => {
 					this._logService.error('[AgentSideEffects] sendMessage failed', err);
 					this._stateManager.dispatchServerAction({
 						type: 'session/error',
@@ -159,14 +159,14 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			}
 			case 'session/turnCancelled': {
 				const agent = this._options.getAgent(action.session);
-				agent?.abortSession(action.session).catch(err => {
+				agent?.abortSession(URI.parse(action.session)).catch(err => {
 					this._logService.error('[AgentSideEffects] abortSession failed', err);
 				});
 				break;
 			}
 			case 'session/modelChanged': {
 				const agent = this._options.getAgent(action.session);
-				agent?.changeModel?.(action.session, action.model).catch(err => {
+				agent?.changeModel?.(URI.parse(action.session), action.model).catch(err => {
 					this._logService.error('[AgentSideEffects] changeModel failed', err);
 				});
 				break;
@@ -174,8 +174,8 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		}
 	}
 
-	async handleCreateSession(command: ICreateSessionParams): Promise<URI> {
-		const provider = command.provider as AgentProvider | undefined;
+	async handleCreateSession(command: ICreateSessionParams): Promise<void> {
+		const provider = command.provider;
 		if (!provider) {
 			throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, 'No provider specified for session creation');
 		}
@@ -183,10 +183,13 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		if (!agent) {
 			throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, `No agent registered for provider: ${provider}`);
 		}
-		const session = await agent.createSession({
+		// Use the client-provided session URI per the protocol spec
+		const session = command.session;
+		await agent.createSession({
 			provider,
 			model: command.model,
 			workingDirectory: command.workingDirectory,
+			session: URI.parse(session),
 		});
 		const summary: ISessionSummary = {
 			resource: session,
@@ -198,12 +201,11 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		};
 		this._stateManager.createSession(summary);
 		this._stateManager.dispatchServerAction({ type: 'session/ready', session });
-		return session;
 	}
 
-	handleDisposeSession(session: URI): void {
+	handleDisposeSession(session: ProtocolURI): void {
 		const agent = this._options.getAgent(session);
-		agent?.disposeSession(session).catch(() => { });
+		agent?.disposeSession(URI.parse(session)).catch(() => { });
 		this._stateManager.removeSession(session);
 	}
 
@@ -214,7 +216,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			const provider = agent.id;
 			for (const s of sessions) {
 				allSessions.push({
-					resource: s.session,
+					resource: s.session.toString(),
 					provider,
 					title: s.summary ?? 'Session',
 					status: SessionStatus.Idle,
@@ -234,10 +236,10 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		}
 	}
 
-	async handleBrowseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
+	async handleBrowseDirectory(uri: ProtocolURI): Promise<IBrowseDirectoryResult> {
 		let stat;
 		try {
-			stat = await this._fileService.resolve(uri);
+			stat = await this._fileService.resolve(URI.parse(uri));
 		} catch {
 			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Directory not found: ${uri.toString()}`);
 		}
@@ -253,8 +255,8 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		return { entries };
 	}
 
-	getDefaultDirectory(): URI {
-		return URI.file(os.homedir());
+	getDefaultDirectory(): ProtocolURI {
+		return URI.file(os.homedir()).toString();
 	}
 
 	override dispose(): void {

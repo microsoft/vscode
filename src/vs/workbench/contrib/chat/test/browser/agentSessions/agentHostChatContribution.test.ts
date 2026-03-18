@@ -16,7 +16,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IActionEnvelope, INotification, IPermissionResolvedAction, ISessionAction, ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { SessionLifecycle, SessionStatus, TurnState, createSessionState, type ISessionState, type ISessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionLifecycle, SessionStatus, TurnState, createSessionState, ROOT_STATE_URI, type ISessionState, type ISessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -80,14 +80,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public dispatchedActions: { action: ISessionAction; clientId: string; clientSeq: number }[] = [];
 	public sessionStates = new Map<string, ISessionState>();
 	override async subscribe(resource: URI): Promise<IStateSnapshot> {
-		const existingState = this.sessionStates.get(resource.toString());
+		const resourceStr = resource.toString();
+		const existingState = this.sessionStates.get(resourceStr);
 		if (existingState) {
-			return { resource, state: existingState, fromSeq: 0 };
+			return { resource: resourceStr, state: existingState, fromSeq: 0 };
 		}
 		// Root state subscription
-		if (resource.scheme === 'agenthost') {
+		if (resourceStr === ROOT_STATE_URI) {
 			return {
-				resource,
+				resource: resourceStr,
 				state: {
 					agents: this.agents.map(a => ({ provider: a.provider, displayName: a.displayName, description: a.description, models: [] })),
 					activeSessions: 0
@@ -96,7 +97,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			};
 		}
 		const summary: ISessionSummary = {
-			resource,
+			resource: resourceStr,
 			provider: 'copilot',
 			title: 'Test',
 			status: SessionStatus.Idle,
@@ -104,7 +105,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			modifiedAt: Date.now(),
 		};
 		return {
-			resource,
+			resource: resourceStr,
 			state: { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready },
 			fromSeq: 0,
 		};
@@ -345,7 +346,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 			assert.strictEqual(agentHostService.dispatchedActions[0].action.type, 'session/turnStarted');
 			assert.strictEqual((agentHostService.dispatchedActions[0].action as ITurnStartedAction).userMessage.text, 'Hello');
-			assert.ok(AgentSession.id(session).startsWith('sdk-session-'));
+			assert.ok(AgentSession.id(URI.parse(session)).startsWith('sdk-session-'));
 		});
 
 		test('reuses SDK session for same resource on second message', async () => {
@@ -397,7 +398,7 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
 
-			assert.strictEqual(AgentSession.id(session), 'existing-session-42');
+			assert.strictEqual(AgentSession.id(URI.parse(session)), 'existing-session-42');
 		});
 
 		test('agent-host scheme with untitled path creates new session via mapping', async () => {
@@ -411,7 +412,7 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			// Should create a new SDK session, not use "untitled-abc123" literally
-			assert.ok(AgentSession.id(session).startsWith('sdk-session-'));
+			assert.ok(AgentSession.id(URI.parse(session)).startsWith('sdk-session-'));
 		});
 		test('passes raw model id extracted from language model identifier', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
@@ -521,7 +522,7 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-3', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
 			fire({
 				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-3',
-				result: { success: false, pastTenseMessage: '"Bash" failed', toolOutput: 'command not found', error: { message: 'command not found' } },
+				result: { success: false, pastTenseMessage: '"Bash" failed', content: [{ type: 'text', text: 'command not found' }], error: { message: 'command not found' } },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
@@ -573,7 +574,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Delta from a different session — will be ignored (session not subscribed)
 			agentHostService.fireAction({
-				action: { type: 'session/delta', session: AgentSession.uri('copilot', 'other-session'), turnId, content: 'wrong' } as ISessionAction,
+				action: { type: 'session/delta', session: AgentSession.uri('copilot', 'other-session').toString(), turnId, content: 'wrong' } as ISessionAction,
 				serverSeq: 100,
 				origin: undefined,
 			});
@@ -790,7 +791,7 @@ suite('AgentHostChatContribution', () => {
 
 			const sessionUri = AgentSession.uri('copilot', 'sess-1');
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
@@ -843,11 +844,11 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-shell', toolName: 'bash', displayName: 'Bash', toolKind: 'terminal' } as ISessionAction);
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-shell', toolName: 'bash', displayName: 'Bash', _meta: { toolKind: 'terminal', language: 'shellscript' } } as ISessionAction);
 			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-shell', invocationMessage: 'Running `echo hello`', toolInput: 'echo hello', confirmed: 'not-needed' } as ISessionAction);
 			fire({
 				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-shell',
-				result: { success: true, pastTenseMessage: 'Ran `echo hello`', toolOutput: 'hello\n' },
+				result: { success: true, pastTenseMessage: 'Ran `echo hello`', content: [{ type: 'text', text: 'hello\n' }] },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
@@ -881,11 +882,11 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-fail', toolName: 'bash', displayName: 'Bash', toolKind: 'terminal' } as ISessionAction);
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-fail', toolName: 'bash', displayName: 'Bash', _meta: { toolKind: 'terminal', language: 'shellscript' } } as ISessionAction);
 			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-fail', invocationMessage: 'Running `bad_cmd`', toolInput: 'bad_cmd', confirmed: 'not-needed' } as ISessionAction);
 			fire({
 				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-fail',
-				result: { success: false, pastTenseMessage: '"Bash" failed', toolOutput: 'command not found: bad_cmd', error: { message: 'command not found: bad_cmd' } },
+				result: { success: false, pastTenseMessage: '"Bash" failed', content: [{ type: 'text', text: 'command not found: bad_cmd' }], error: { message: 'command not found: bad_cmd' } },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
@@ -993,7 +994,7 @@ suite('AgentHostChatContribution', () => {
 			const sessionUri = AgentSession.uri('copilot', 'tool-hist');
 
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
@@ -1003,8 +1004,8 @@ suite('AgentHostChatContribution', () => {
 					usage: undefined,
 					toolCalls: [{
 						status: 'completed' as const, toolCallId: 'tc-1', toolName: 'bash', displayName: 'Bash',
-						invocationMessage: 'Running `ls`', toolInput: 'ls', toolKind: 'terminal' as const,
-						confirmed: 'not-needed' as const, success: true, pastTenseMessage: 'Ran `ls`', toolOutput: 'file1\nfile2',
+						invocationMessage: 'Running `ls`', toolInput: 'ls', _meta: { toolKind: 'terminal', language: 'shellscript' },
+						confirmed: 'not-needed' as const, success: true, pastTenseMessage: 'Ran `ls`', content: [{ type: 'text' as const, text: 'file1\nfile2' }],
 					}],
 					responseText: '',
 				}],
@@ -1038,7 +1039,7 @@ suite('AgentHostChatContribution', () => {
 			const sessionUri = AgentSession.uri('copilot', 'orphan-tool');
 
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
@@ -1069,7 +1070,7 @@ suite('AgentHostChatContribution', () => {
 			const sessionUri = AgentSession.uri('copilot', 'generic-tool');
 
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
@@ -1099,7 +1100,7 @@ suite('AgentHostChatContribution', () => {
 
 			const sessionUri = AgentSession.uri('copilot', 'empty-sess');
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [],
 			} as ISessionState);

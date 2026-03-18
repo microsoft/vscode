@@ -32,7 +32,7 @@ export interface IAgentSessionMetadata {
 	readonly summary?: string;
 }
 
-export type AgentProvider = 'copilot' | 'mock';
+export type AgentProvider = string;
 
 /** Metadata describing an agent backend, discovered over IPC. */
 export interface IAgentDescriptor {
@@ -239,20 +239,20 @@ export namespace AgentSession {
 
 	/**
 	 * Extracts the raw session ID from a session URI (the path without leading slash).
+	 * Accepts both a URI object and a URI string.
 	 */
-	export function id(session: URI): string {
-		return session.path.substring(1);
+	export function id(session: URI | string): string {
+		const parsed = typeof session === 'string' ? URI.parse(session) : session;
+		return parsed.path.substring(1);
 	}
 
 	/**
 	 * Extracts the provider name from a session URI scheme.
+	 * Accepts both a URI object and a URI string.
 	 */
-	export function provider(session: URI): AgentProvider | undefined {
-		const scheme = session.scheme;
-		if (scheme === 'copilot' || scheme === 'mock') {
-			return scheme;
-		}
-		return undefined;
+	export function provider(session: URI | string): AgentProvider | undefined {
+		const parsed = typeof session === 'string' ? URI.parse(session) : session;
+		return parsed.scheme || undefined;
 	}
 }
 

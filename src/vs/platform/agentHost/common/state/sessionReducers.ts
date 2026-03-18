@@ -28,6 +28,17 @@ import {
 	TurnState,
 } from './sessionState.js';
 
+// ---- Helper: extract common base fields from a tool call state --------------
+
+function tcBase(tc: IToolCallState) {
+	return {
+		toolCallId: tc.toolCallId,
+		toolName: tc.toolName,
+		displayName: tc.displayName,
+		_meta: tc._meta,
+	};
+}
+
 // ---- Root reducer -----------------------------------------------------------
 
 /**
@@ -37,7 +48,7 @@ import {
 export function rootReducer(state: IRootState, action: IRootAction): IRootState {
 	switch (action.type) {
 		case 'root/agentsChanged': {
-			return { ...state, agents: action.agents };
+			return { ...state, agents: [...action.agents] };
 		}
 		case 'root/activeSessionsChanged': {
 			return { ...state, activeSessions: action.activeSessions };
@@ -110,8 +121,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 							toolCallId: action.toolCallId,
 							toolName: action.toolName,
 							displayName: action.displayName,
-							toolKind: action.toolKind,
-							language: action.language,
+							_meta: action._meta,
 						},
 					},
 				},
@@ -148,25 +158,18 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 			if (!tc) {
 				return state;
 			}
+			const base = tcBase(tc);
 			const updated: IToolCallState = action.confirmed
 				? {
 					status: 'running',
-					toolCallId: tc.toolCallId,
-					toolName: tc.toolName,
-					displayName: tc.displayName,
-					toolKind: tc.toolKind,
-					language: tc.language,
+					...base,
 					invocationMessage: action.invocationMessage,
 					toolInput: action.toolInput,
 					confirmed: action.confirmed,
 				}
 				: {
 					status: 'pending-confirmation',
-					toolCallId: tc.toolCallId,
-					toolName: tc.toolName,
-					displayName: tc.displayName,
-					toolKind: tc.toolKind,
-					language: tc.language,
+					...base,
 					invocationMessage: action.invocationMessage,
 					toolInput: action.toolInput,
 				};
@@ -186,25 +189,18 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 			if (!tc || tc.status !== 'pending-confirmation') {
 				return state;
 			}
+			const base = tcBase(tc);
 			const updated: IToolCallState = action.approved
 				? {
 					status: 'running',
-					toolCallId: tc.toolCallId,
-					toolName: tc.toolName,
-					displayName: tc.displayName,
-					toolKind: tc.toolKind,
-					language: tc.language,
+					...base,
 					invocationMessage: tc.invocationMessage,
 					toolInput: tc.toolInput,
 					confirmed: action.confirmed,
 				}
 				: {
 					status: 'cancelled',
-					toolCallId: tc.toolCallId,
-					toolName: tc.toolName,
-					displayName: tc.displayName,
-					toolKind: tc.toolKind,
-					language: tc.language,
+					...base,
 					invocationMessage: tc.invocationMessage,
 					toolInput: tc.toolInput,
 					reason: action.reason,
@@ -227,15 +223,12 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 			if (!tc || (tc.status !== 'running' && tc.status !== 'pending-confirmation')) {
 				return state;
 			}
+			const base = tcBase(tc);
 			const confirmed = tc.status === 'running' ? tc.confirmed : 'not-needed';
 			const updated: IToolCallState = action.requiresResultConfirmation
 				? {
 					status: 'pending-result-confirmation',
-					toolCallId: tc.toolCallId,
-					toolName: tc.toolName,
-					displayName: tc.displayName,
-					toolKind: tc.toolKind,
-					language: tc.language,
+					...base,
 					invocationMessage: tc.invocationMessage,
 					toolInput: tc.toolInput,
 					confirmed,
@@ -243,11 +236,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 				}
 				: {
 					status: 'completed',
-					toolCallId: tc.toolCallId,
-					toolName: tc.toolName,
-					displayName: tc.displayName,
-					toolKind: tc.toolKind,
-					language: tc.language,
+					...base,
 					invocationMessage: tc.invocationMessage,
 					toolInput: tc.toolInput,
 					confirmed,
@@ -269,29 +258,23 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 			if (!tc || tc.status !== 'pending-result-confirmation') {
 				return state;
 			}
+			const base = tcBase(tc);
 			const updated: IToolCallState = action.approved
 				? {
 					status: 'completed',
-					toolCallId: tc.toolCallId,
-					toolName: tc.toolName,
-					displayName: tc.displayName,
-					toolKind: tc.toolKind,
-					language: tc.language,
+					...base,
 					invocationMessage: tc.invocationMessage,
 					toolInput: tc.toolInput,
 					confirmed: tc.confirmed,
 					success: tc.success,
 					pastTenseMessage: tc.pastTenseMessage,
-					toolOutput: tc.toolOutput,
+					content: tc.content,
+					structuredContent: tc.structuredContent,
 					error: tc.error,
 				}
 				: {
 					status: 'cancelled',
-					toolCallId: tc.toolCallId,
-					toolName: tc.toolName,
-					displayName: tc.displayName,
-					toolKind: tc.toolKind,
-					language: tc.language,
+					...base,
 					invocationMessage: tc.invocationMessage,
 					toolInput: tc.toolInput,
 					reason: 'result-denied',
@@ -338,25 +321,18 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 			if (resolved?.toolCallId) {
 				const toolCall = toolCalls[resolved.toolCallId];
 				if (toolCall && toolCall.status === 'pending-confirmation') {
+					const base = tcBase(toolCall);
 					const updated: IToolCallState = action.approved
 						? {
 							status: 'running',
-							toolCallId: toolCall.toolCallId,
-							toolName: toolCall.toolName,
-							displayName: toolCall.displayName,
-							toolKind: toolCall.toolKind,
-							language: toolCall.language,
+							...base,
 							invocationMessage: toolCall.invocationMessage,
 							toolInput: toolCall.toolInput,
 							confirmed: 'user-action',
 						}
 						: {
 							status: 'cancelled',
-							toolCallId: toolCall.toolCallId,
-							toolName: toolCall.toolName,
-							displayName: toolCall.displayName,
-							toolKind: toolCall.toolKind,
-							language: toolCall.language,
+							...base,
 							invocationMessage: toolCall.invocationMessage,
 							toolInput: toolCall.toolInput,
 							reason: 'denied',
@@ -414,6 +390,18 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 				},
 			};
 		}
+		case 'session/serverToolsChanged': {
+			return { ...state, serverTools: action.tools };
+		}
+		case 'session/activeClientChanged': {
+			return { ...state, activeClient: action.activeClient ?? undefined };
+		}
+		case 'session/activeClientToolsChanged': {
+			if (!state.activeClient) {
+				return state;
+			}
+			return { ...state, activeClient: { ...state.activeClient, tools: action.tools } };
+		}
 	}
 }
 
@@ -440,11 +428,7 @@ function finalizeTurn(state: ISessionState, turnId: string, turnState: TurnState
 			// a cancelled state so they are persisted properly.
 			completedToolCalls.push({
 				status: 'cancelled',
-				toolCallId: tc.toolCallId,
-				toolName: tc.toolName,
-				displayName: tc.displayName,
-				toolKind: tc.toolKind,
-				language: tc.language,
+				...tcBase(tc),
 				invocationMessage: tc.status === 'streaming' ? (tc.invocationMessage ?? '') : tc.invocationMessage,
 				toolInput: tc.status === 'streaming' ? undefined : tc.toolInput,
 				reason: 'skipped',
@@ -469,4 +453,20 @@ function finalizeTurn(state: ISessionState, turnId: string, turnState: TurnState
 		activeTurn: undefined,
 		summary: { ...state.summary, status: SessionStatus.Idle, modifiedAt: Date.now() },
 	};
+}
+
+// ---- Tool call metadata helpers (VS Code extensions via _meta) --------------
+
+/**
+ * Extracts the VS Code-specific `toolKind` rendering hint from a tool call's `_meta`.
+ */
+export function getToolKind(tc: IToolCallState | ICompletedToolCall): 'terminal' | undefined {
+	return tc._meta?.toolKind as 'terminal' | undefined;
+}
+
+/**
+ * Extracts the VS Code-specific `language` hint from a tool call's `_meta`.
+ */
+export function getToolLanguage(tc: IToolCallState | ICompletedToolCall): string | undefined {
+	return tc._meta?.language as string | undefined;
 }
