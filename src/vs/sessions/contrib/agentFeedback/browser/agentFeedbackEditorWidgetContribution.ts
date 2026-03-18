@@ -16,7 +16,7 @@ import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from '.
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { $, addDisposableListener, clearNode, getTotalWidth } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, addStandardDisposableListener, clearNode, getTotalWidth } from '../../../../base/browser/dom.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { overviewRulerRangeHighlight } from '../../../../editor/common/core/editorColorRegistry.js';
@@ -36,6 +36,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 
 /**
  * Widget that displays agent feedback comments for a group of nearby feedback items.
@@ -191,6 +192,22 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 			const actionBarContainer = $('div.agent-feedback-widget-item-actions');
 			const actionBar = this._eventStore.add(new ActionBar(actionBarContainer));
+
+			// Edit action — disabled for PR review and code review comments
+			const isEditable = comment.source === SessionEditorCommentSource.AgentFeedback;
+			const editTooltip = isEditable
+				? nls.localize('editComment', "Edit")
+				: comment.source === SessionEditorCommentSource.PRReview
+					? nls.localize('editPRCommentDisabled', "PR review comments cannot be edited")
+					: nls.localize('editReviewCommentDisabled', "Review comments cannot be edited");
+			actionBar.push(new Action(
+				'agentFeedback.widget.edit',
+				editTooltip,
+				ThemeIcon.asClassName(Codicon.edit),
+				isEditable,
+				() => this._startEditing(comment, text),
+			), { icon: true, label: false });
+
 			if (comment.canConvertToAgentFeedback) {
 				actionBar.push(new Action(
 					'agentFeedback.widget.convert',
@@ -293,6 +310,66 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		}
 
 		this._agentFeedbackService.removeFeedback(this._sessionResource, comment.sourceId);
+	}
+
+	private _startEditing(comment: ISessionEditorComment, textContainer: HTMLElement): void {
+		if (comment.source !== SessionEditorCommentSource.AgentFeedback) {
+			return;
+		}
+
+		const editStore = new DisposableStore();
+		this._eventStore.add(editStore);
+
+		clearNode(textContainer);
+		textContainer.classList.add('editing');
+
+		const textarea = $('textarea.agent-feedback-widget-edit-textarea') as HTMLTextAreaElement;
+		textarea.value = comment.text;
+		textarea.rows = 1;
+		textContainer.appendChild(textarea);
+
+		// Auto-size the textarea
+		const autoSize = () => {
+			textarea.style.height = 'auto';
+			textarea.style.height = `${textarea.scrollHeight}px`;
+			this._editor.layoutOverlayWidget(this);
+		};
+		autoSize();
+
+		editStore.add(addDisposableListener(textarea, 'input', autoSize));
+
+		editStore.add(addStandardDisposableListener(textarea, 'keydown', (e) => {
+			if (e.keyCode === KeyCode.Enter && !e.shiftKey) {
+				e.preventDefault();
+				e.stopPropagation();
+				const newText = textarea.value.trim();
+				if (newText) {
+					this._agentFeedbackService.updateFeedback(this._sessionResource, comment.sourceId, newText);
+				}
+				// Widget will be rebuilt by onDidChangeFeedback
+			} else if (e.keyCode === KeyCode.Escape) {
+				e.preventDefault();
+				e.stopPropagation();
+				this._stopEditing(comment, textContainer, editStore);
+			}
+		}));
+
+		// Stop editing when focus is lost
+		editStore.add(addDisposableListener(textarea, 'blur', () => {
+			this._stopEditing(comment, textContainer, editStore);
+		}));
+
+		textarea.focus();
+	}
+
+	private _stopEditing(comment: ISessionEditorComment, textContainer: HTMLElement, editStore: DisposableStore): void {
+		editStore.dispose();
+		textContainer.classList.remove('editing');
+		clearNode(textContainer);
+		const rendered = this._markdownRendererService.render(new MarkdownString(comment.text));
+		this._eventStore.add(rendered);
+		textContainer.appendChild(rendered.element);
+		this._editor.layoutOverlayWidget(this);
 	}
 
 	private _convertToAgentFeedback(comment: ISessionEditorComment): void {
