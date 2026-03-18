@@ -205,6 +205,22 @@
 	margin-left: 4px;
 }
 
+.sessions-chat-picker-slot .action-label.warning {
+	color: var(--vscode-problemsWarningIcon-foreground);
+}
+
+.sessions-chat-picker-slot .action-label.warning .codicon {
+	color: var(--vscode-problemsWarningIcon-foreground) !important;
+}
+
+.sessions-chat-picker-slot .action-label.info {
+	color: var(--vscode-problemsInfoIcon-foreground);
+}
+
+.sessions-chat-picker-slot .action-label.info .codicon {
+	color: var(--vscode-problemsInfoIcon-foreground) !important;
+}
+
 /* Extension picker slots (rendered inline in the row) */
 .sessions-chat-picker-slot {
 	display: flex;
