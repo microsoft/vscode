@@ -536,10 +536,10 @@ suite('AgentSessionsDataSource', () => {
 			assert.strictEqual(archivedSection.sessions[0].label, 'Session archived-pinned');
 		});
 
-		test('pinned sessions are not capped into More section with capped grouping', () => {
+		test('pinned sessions are always shown above the cap with capped grouping', () => {
 			const now = Date.now();
 			const sessions = [
-				// Two pinned sessions — sorted to top by time so they appear in the flat portion
+				// Two pinned sessions — always shown regardless of cap
 				createMockSession({ id: 'pinned1', isPinned: true, startTime: now }),
 				createMockSession({ id: 'pinned2', isPinned: true, startTime: now - ONE_DAY }),
 				// Additional unpinned sessions to exceed the cap and populate the More section
@@ -558,20 +558,58 @@ suite('AgentSessionsDataSource', () => {
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
 			const sections = getSectionsFromResult(result);
+			const topSessions = result.filter((r): r is IAgentSession => !isAgentSessionSection(r));
 
-			// Capped grouping does not create a Pinned section — all sessions are
-			// sorted by time and the top N appear as flat items, the rest in More.
-			assert.strictEqual(sections.filter(s => s.section === AgentSessionSection.Pinned).length, 0);
+			// Both pinned sessions appear in the flat top portion
+			const topLabels = topSessions.map(s => s.label);
+			assert.ok(topLabels.includes('Session pinned1'));
+			assert.ok(topLabels.includes('Session pinned2'));
 
 			const moreSection = sections.find(s => s.section === AgentSessionSection.More);
 			assert.ok(moreSection);
-			// Pinned sessions have recent timestamps so they land in the flat top portion,
-			// not in the More section
+			// Pinned sessions must not appear in the More section
 			const moreLabels = moreSection.sessions.map(s => s.label);
 			for (const label of moreLabels) {
 				assert.notStrictEqual(label, 'Session pinned1');
 				assert.notStrictEqual(label, 'Session pinned2');
 			}
+		});
+
+		test('more pinned sessions than cap limit are all shown', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: 'pinned1', isPinned: true, startTime: now }),
+				createMockSession({ id: 'pinned2', isPinned: true, startTime: now - ONE_DAY }),
+				createMockSession({ id: 'pinned3', isPinned: true, startTime: now - 2 * ONE_DAY }),
+				createMockSession({ id: 'pinned4', isPinned: true, startTime: now - 3 * ONE_DAY }),
+				createMockSession({ id: 'unpinned1', startTime: now }),
+			];
+
+			const filter = createMockFilter({
+				groupBy: AgentSessionsGrouping.Capped,
+				excludeRead: false
+			});
+			const sorter = createMockSorter();
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+			const sections = getSectionsFromResult(result);
+			const topSessions = result.filter((r): r is IAgentSession => !isAgentSessionSection(r));
+
+			// All 4 pinned sessions appear in the flat top portion
+			assert.strictEqual(topSessions.length, 4);
+			const topLabels = topSessions.map(s => s.label);
+			assert.ok(topLabels.includes('Session pinned1'));
+			assert.ok(topLabels.includes('Session pinned2'));
+			assert.ok(topLabels.includes('Session pinned3'));
+			assert.ok(topLabels.includes('Session pinned4'));
+
+			// Unpinned session goes to More section
+			const moreSection = sections.find(s => s.section === AgentSessionSection.More);
+			assert.ok(moreSection);
+			assert.strictEqual(moreSection.sessions.length, 1);
+			assert.strictEqual(moreSection.sessions[0].label, 'Session unpinned1');
 		});
 	});
 

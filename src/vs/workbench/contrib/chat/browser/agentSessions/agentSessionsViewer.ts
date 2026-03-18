@@ -848,14 +848,23 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		const firstArchivedIndex = sortedSessions.findIndex(session => session.isArchived());
 		const nonArchivedCount = firstArchivedIndex === -1 ? sortedSessions.length : firstArchivedIndex;
+		const nonArchivedSessions = sortedSessions.slice(0, nonArchivedCount);
+		const archivedSessions = sortedSessions.slice(nonArchivedCount);
 
-		const topSessions = sortedSessions.slice(0, Math.min(AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT, nonArchivedCount));
-		const othersSessions = sortedSessions.slice(topSessions.length);
+		// Always show all pinned sessions above the cap
+		const pinnedSessions = nonArchivedSessions.filter(session => session.isPinned());
+		const unpinnedSessions = nonArchivedSessions.filter(session => !session.isPinned());
 
-		// Add top sessions directly (no section header)
-		result.push(...topSessions);
+		// Show pinned sessions + fill remaining cap slots with unpinned sessions
+		const unpinnedSlots = Math.max(0, AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT - pinnedSessions.length);
+		const topUnpinned = unpinnedSessions.slice(0, unpinnedSlots);
+		const otherUnpinned = unpinnedSessions.slice(unpinnedSlots);
 
-		// Add "More" section for the rest
+		// Add all pinned + top unpinned sessions directly (no section header)
+		result.push(...pinnedSessions, ...topUnpinned);
+
+		// Add "More" section for the rest (remaining unpinned + archived)
+		const othersSessions = [...otherUnpinned, ...archivedSessions];
 		if (othersSessions.length > 0) {
 			result.push({
 				section: AgentSessionSection.More,
