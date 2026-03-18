@@ -190,6 +190,10 @@ export class ImageCarouselEditor extends EditorPane {
 			}
 			e.preventDefault();
 
+			if (e.deltaY === 0) {
+				return;
+			}
+
 			if (this._zoomScale === 'fit') {
 				this._initZoomFromFit();
 			}
