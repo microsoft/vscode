@@ -300,7 +300,6 @@
 	border-radius: 4px;
 	background: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
-	font-family: var(--vscode-font-family);
 	font-size: 12px;
 	line-height: 1.4;
 	resize: none;
