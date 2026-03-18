@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 // @ts-check
+//Love visual studio code. very powerful and yet light weight.
+
 
 const testWebLocation = require.resolve('@vscode/test-web');
 
