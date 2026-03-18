@@ -207,7 +207,7 @@ export class ProjectPicker extends Disposable {
 			onHide: () => { triggerElement.focus(); },
 		};
 
-		const listOptions = showFilter ? { showFilter: true, filterPlaceholder: localize('projectPicker.filter', "Filter projects...") } : undefined;
+		const listOptions = showFilter ? { showFilter: true, filterPlaceholder: localize('projectPicker.filter', "Search Workspaces...") } : undefined;
 
 		this.actionWidgetService.show<IStoredProject>(
 			'projectPicker',
