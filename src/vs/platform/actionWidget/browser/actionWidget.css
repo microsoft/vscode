@@ -322,12 +322,21 @@
 	width: 20px;
 	height: 20px;
 	flex-shrink: 0;
-	cursor: pointer;
-	opacity: 0.6;
 	border-radius: 4px;
+	margin-right: 2px;
 }
 
-.action-widget .action-list-submenu-indicator:hover {
+.action-widget .action-list-submenu-indicator.has-submenu {
+	cursor: pointer;
+	opacity: 0.6;
+}
+
+.action-widget .monaco-list-row.action .action-list-submenu-indicator.codicon {
+	display: flex;
+	font-size: 16px;
+}
+
+.action-widget .action-list-submenu-indicator.has-submenu:hover {
 	opacity: 1;
 	background-color: var(--vscode-toolbar-hoverBackground);
 }

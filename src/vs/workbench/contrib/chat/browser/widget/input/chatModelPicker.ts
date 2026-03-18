@@ -92,6 +92,36 @@ function createModelItem(
 	};
 }
 
+/**
+ * Returns a short description summarizing the model's current configuration values
+ * for properties marked with group 'navigation' (e.g., "High", "Medium").
+ */
+function getModelConfigurationDescription(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService: ILanguageModelsService): string | undefined {
+	const schema = model.metadata.configurationSchema;
+	if (!schema?.properties) {
+		return undefined;
+	}
+
+	const currentConfig = languageModelsService.getModelConfiguration(model.identifier) ?? {};
+	const parts: string[] = [];
+
+	for (const [key, propSchema] of Object.entries(schema.properties)) {
+		if (propSchema.group !== 'navigation') {
+			continue;
+		}
+		const value = currentConfig[key] ?? propSchema.default;
+		if (value === undefined) {
+			continue;
+		}
+		const enumItemLabels = propSchema.enumItemLabels;
+		const enumIndex = propSchema.enum?.indexOf(value) ?? -1;
+		const label = enumItemLabels?.[enumIndex] ?? String(value);
+		parts.push(label);
+	}
+
+	return parts.length > 0 ? parts.join(', ') : undefined;
+}
+
 function createModelAction(
 	model: ILanguageModelChatMetadataAndIdentifier,
 	selectedModelId: string | undefined,
@@ -100,7 +130,7 @@ function createModelAction(
 	languageModelsService?: ILanguageModelsService,
 ): IActionWidgetDropdownAction & { section?: string } {
 	const toolbarActions = languageModelsService?.getModelConfigurationActions(model.identifier);
-	const configDescription = languageModelsService?.getModelConfigurationDescription(model.identifier);
+	const configDescription = languageModelsService ? getModelConfigurationDescription(model, languageModelsService) : undefined;
 	const baseDescription = model.metadata.multiplier ?? model.metadata.detail;
 	const description = configDescription && baseDescription
 		? `${configDescription} · ${baseDescription}`
@@ -691,7 +721,7 @@ export class ModelPickerWidget extends Disposable {
 
 		const modelLabel = name ?? localize('chat.modelPicker.auto', "Auto");
 		const configDescription = this._selectedModel
-			? this._languageModelsService.getModelConfigurationDescription(this._selectedModel.identifier)
+			? getModelConfigurationDescription(this._selectedModel, this._languageModelsService)
 			: undefined;
 		const fullLabel = configDescription
 			? `${modelLabel} · ${configDescription}`

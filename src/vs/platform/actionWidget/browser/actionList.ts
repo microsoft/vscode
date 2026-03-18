@@ -340,7 +340,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		// Show submenu indicator for items with submenu actions
 		const hasSubmenu = !!element.submenuActions?.length;
 		if (hasSubmenu) {
-			data.submenuIndicator.className = 'action-list-submenu-indicator ' + ThemeIcon.asClassName(Codicon.chevronRight);
+			data.submenuIndicator.className = 'action-list-submenu-indicator has-submenu ' + ThemeIcon.asClassName(Codicon.chevronRight);
 			data.submenuIndicator.style.display = '';
 			this._onSubmenuIndicatorHover?.(element, data.submenuIndicator, data.elementDisposables);
 		} else if (this._hasAnySubmenuActions) {
@@ -1052,6 +1052,14 @@ export class ActionListWidget<T> extends Disposable {
 			this._list.setSelection([]);
 			return;
 		}
+		// Don't select when clicking the submenu indicator
+		if (element.submenuActions?.length && dom.isMouseEvent(e.browserEvent)) {
+			const target = e.browserEvent.target;
+			if (dom.isHTMLElement(target) && target.closest('.action-list-submenu-indicator')) {
+				this._list.setSelection([]);
+				return;
+			}
+		}
 		if (element.item && this.focusCondition(element)) {
 			this._delegate.onSelect(element.item, e.browserEvent instanceof PreviewSelectedEvent);
 		} else {
@@ -1103,12 +1111,6 @@ export class ActionListWidget<T> extends Disposable {
 	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
 		this._submenuDisposables.clear();
 
-		// Don't show hover for items with submenu actions
-		if (element.submenuActions?.length) {
-			this._hover.clear();
-			return;
-		}
-
 		const rowElement = this._getRowElement(index);
 		if (!rowElement) {
 			this._hover.clear();
@@ -1150,6 +1152,7 @@ export class ActionListWidget<T> extends Disposable {
 
 	private _showSubmenuForElement(element: IActionListItem<T>, indicator: HTMLElement): void {
 		this._submenuDisposables.clear();
+		this._hover.clear();
 		dom.clearNode(this._submenuContainer);
 
 		// Convert submenu actions into ActionListWidget items
@@ -1287,6 +1290,7 @@ export class ActionListWidget<T> extends Disposable {
 				return;
 			}
 			if (submenuIndicator && element.submenuActions?.length) {
+				this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
 				this._cancelSubmenuHide();
 				this._showSubmenuForElement(element, submenuIndicator);
 				return;

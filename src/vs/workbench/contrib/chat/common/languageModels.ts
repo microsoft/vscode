@@ -402,12 +402,6 @@ export interface ILanguageModelsService {
 	 */
 	getModelConfigurationActions(modelId: string): IAction[];
 
-	/**
-	 * Returns a human-readable description of the model's current configuration.
-	 * Shows values for properties marked with group 'navigation'.
-	 */
-	getModelConfigurationDescription(modelId: string): string | undefined;
-
 	addLanguageModelsProviderGroup(name: string, vendorId: string, configuration: IStringDictionary<unknown> | undefined): Promise<void>;
 
 	removeLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void>;
@@ -1187,33 +1181,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		return actions;
-	}
-
-	getModelConfigurationDescription(modelId: string): string | undefined {
-		const metadata = this._modelCache.get(modelId);
-		const schema = metadata?.configurationSchema;
-		if (!schema?.properties) {
-			return undefined;
-		}
-
-		const currentConfig = this._modelConfigurations.get(modelId) ?? {};
-		const parts: string[] = [];
-
-		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (propSchema.group !== 'navigation') {
-				continue;
-			}
-			const value = currentConfig[key] ?? propSchema.default;
-			if (value === undefined) {
-				continue;
-			}
-			const enumItemLabels = propSchema.enumItemLabels;
-			const enumIndex = propSchema.enum?.indexOf(value) ?? -1;
-			const label = enumItemLabels?.[enumIndex] ?? String(value);
-			parts.push(label);
-		}
-
-		return parts.length > 0 ? parts.join(', ') : undefined;
 	}
 
 	async configureLanguageModelsProviderGroup(vendorId: string, providerGroupName?: string): Promise<void> {
