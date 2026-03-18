@@ -1112,6 +1112,24 @@ export class AICustomizationListWidget extends Disposable {
 		items.length = 0;
 		items.push(...filteredItems);
 
+		// Apply workspace subpath filter — when the active harness specifies
+		// workspaceSubpaths, hide workspace-local items that aren't under one
+		// of the recognized sub-paths (e.g. Claude only shows .claude/ items).
+		const descriptor = this.harnessService.getActiveDescriptor();
+		const subpaths = descriptor.workspaceSubpaths;
+		if (subpaths) {
+			const projectRoot = this.workspaceService.getActiveProjectRoot();
+			for (let i = items.length - 1; i >= 0; i--) {
+				const item = items[i];
+				if (item.storage === PromptsStorage.local && projectRoot && isEqualOrParent(item.uri, projectRoot)) {
+					const path = item.uri.path;
+					if (!subpaths.some(sp => path.includes(sp))) {
+						items.splice(i, 1);
+					}
+				}
+			}
+		}
+
 		// Sort items by name
 		items.sort((a, b) => a.name.localeCompare(b.name));
 
