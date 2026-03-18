@@ -21,6 +21,7 @@ import { IRemoteAgentService } from '../../../../services/remote/common/remoteAg
 import { TerminalChatAgentToolsSettingId } from './terminalChatAgentToolsConfiguration.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { ITrustedDomainService } from '../../../url/common/trustedDomainService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
@@ -56,6 +57,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 		this._appRoot = dirname(FileAccess.asFileUri('').path);
@@ -78,6 +80,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}));
 
 		this._register(this._trustedDomainService.onDidChangeTrustedDomains(() => {
+			this.setNeedsForceUpdateConfigFile();
+		}));
+
+		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
 			this.setNeedsForceUpdateConfigFile();
 		}));
 	}
@@ -164,9 +170,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				? this._configurationService.getValue<{ denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }>(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem) ?? {}
 				: {};
 			const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
-			const defaultAllowWrite = [...this._defaultWritePaths];
-			const linuxAllowWrite = [...new Set([...(linuxFileSystemSetting.allowWrite ?? []), ...defaultAllowWrite])];
-			const macAllowWrite = [...new Set([...(macFileSystemSetting.allowWrite ?? []), ...defaultAllowWrite])];
+			const linuxAllowWrite = this._updateAllowWritePathsWithWorkspaceFolders(linuxFileSystemSetting.allowWrite);
+			const macAllowWrite = this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite);
 
 			let allowedDomains = networkSetting.allowedDomains ?? [];
 			if (networkSetting.allowTrustedDomains) {
@@ -229,5 +234,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			}
 		}
 		return Array.from(allowedDomainsSet);
+	}
+
+	private _updateAllowWritePathsWithWorkspaceFolders(configuredAllowWrite: string[] | undefined): string[] {
+		const workspaceFolderPaths = this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri.path);
+		return [...new Set([...workspaceFolderPaths, ...this._defaultWritePaths, ...(configuredAllowWrite ?? [])])];
 	}
 }
