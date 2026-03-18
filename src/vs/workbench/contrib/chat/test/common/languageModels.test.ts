@@ -1018,7 +1018,7 @@ suite('LanguageModels - Per-Model Configuration', function () {
 					return [{
 						vendor: 'config-vendor',
 						name: 'default',
-						models: {
+						settings: {
 							'model-a': { temperature: 0.7, reasoningEffort: 'high' },
 							'model-b': { temperature: 0.2 }
 						}
