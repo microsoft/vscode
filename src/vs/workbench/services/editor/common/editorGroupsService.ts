@@ -574,8 +574,10 @@ export interface IModalEditorPart extends IEditorPart {
 	 * a confirmation dialog asking the user to save.
 	 *
 	 * The option `mergeAllEditorsToMainPart` can be used
-	 * to prevent confirmation of dirty editors by first
-	 * moving them back to the main editor part.
+	 * to first move all editors from this modal editor part
+	 * back to the main editor part, where they remain open.
+	 * This avoids the confirmation dialog because the editors
+	 * are not closed as part of this operation.
 	 *
 	 * @returns `false` if the close was cancelled.
 	 */
