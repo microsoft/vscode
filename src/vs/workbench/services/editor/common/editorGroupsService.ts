@@ -573,6 +573,10 @@ export interface IModalEditorPart extends IEditorPart {
 	 * editors of all groups. Dirty editors will trigger
 	 * a confirmation dialog asking the user to save.
 	 *
+	 * The option `mergeAllEditorsToMainPart` can be used
+	 * to prevent confirmation of dirty editors by first
+	 * moving them back to the main editor part.
+	 *
 	 * @returns `false` if the close was cancelled.
 	 */
 	close(options?: { mergeAllEditorsToMainPart?: boolean }): Promise<boolean>;
