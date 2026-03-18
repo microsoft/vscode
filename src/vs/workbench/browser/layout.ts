@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { localize } from '../../nls.js';
 import { Event, Emitter } from '../../base/common/event.js';
 import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
@@ -11,7 +12,7 @@ import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
 import { SidebarPart } from './parts/sidebar/sidebarPart.js';
 import { PanelPart } from './parts/panel/panelPart.js';
-import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent } from '../services/layout/browser/layoutService.js';
+import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent, PanelMode } from '../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
 import { IConfigurationChangeEvent, IConfigurationService, isConfigured } from '../../platform/configuration/common/configuration.js';
@@ -100,7 +101,9 @@ enum LayoutClasses {
 	STATUSBAR_HIDDEN = 'nostatusbar',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized',
-	WINDOW_BORDER = 'border'
+	WINDOW_BORDER = 'border',
+	PANEL_DIALOG_OPEN = 'panel-dialog-open',
+	PANEL_DIALOG_MAXIMIZED = 'panel-dialog-maximized'
 }
 
 interface IPathToOpen extends IPath {
@@ -212,6 +215,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private _mainContainerDimension!: IDimension;
 	get mainContainerDimension(): IDimension { return this._mainContainerDimension; }
+
+	//#region Panel Dialog Mode
+
+	private panelDialogOverlay: HTMLElement | undefined;
+	private panelDialogSafeArea: HTMLElement | undefined;
+	private panelDialogOriginalParent: HTMLElement | undefined;
+	private panelDialogSavedPosition: Position | undefined;
+	private panelDialogSavedAlignment: PanelAlignment | undefined;
+	private panelDialogSavedSize: IViewSize | undefined;
+
+	//#endregion
 
 	get activeContainerDimension(): IDimension {
 		return this.getContainerDimension(this.activeContainer);
@@ -1632,8 +1646,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 					if (part === sideBar) {
 						this.setSideBarHidden(!visible);
-					} else if (part === panelPart && this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) === visible) {
-						this.setPanelHidden(!visible, true);
+					} else if (part === panelPart) {
+						// In dialog mode, the panel is removed from the grid and managed separately.
+						// When switching modes, hiding the panel from the grid fires this event with
+						// visible=false, which would incorrectly update panel state to hidden.
+						// Skip reacting to grid visibility changes in dialog mode since panel
+						// visibility is controlled through setPanelHidden() directly.
+						if (!this.isDialogMode && this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) === visible) {
+							this.setPanelHidden(!visible, true);
+						}
 					} else if (part === auxiliaryBarPart) {
 						this.setAuxiliaryBarHidden(!visible, true);
 					} else if (part === editorPart) {
@@ -1692,6 +1713,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Layout the grid widget
 			this.workbenchGrid.layout(this._mainContainerDimension.width, this._mainContainerDimension.height);
 			this.initialized = true;
+
+			// Layout dialog panel if in dialog mode
+				this.layoutPanelDialog();
 
 			// Emit as event
 			this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
@@ -2009,72 +2033,82 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const isPanelMaximized = this.isPanelMaximized();
 
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, hidden);
+		this.mainContainer.classList.toggle(LayoutClasses.PANEL_HIDDEN, hidden);
 
-		const panelOpensMaximized = this.panelOpensMaximized();
+		const panelPart = this.getPart(Parts.PANEL_PART);
 
-		// Adjust CSS
-		if (hidden) {
-			this.mainContainer.classList.add(LayoutClasses.PANEL_HIDDEN);
+		if (this.isDialogMode) {
+			this.setPanelDialogHidden(hidden, panelPart);
 		} else {
-			this.mainContainer.classList.remove(LayoutClasses.PANEL_HIDDEN);
+			this.setPanelDockHidden(hidden, wasHidden, isPanelMaximized, skipLayout);
 		}
 
-		// If maximized and in process of hiding, unmaximize FIRST before
-		// changing visibility to prevent conflict with setEditorHidden
-		// which would force panel visible again (fixes #281772)
+		panelPart.setVisible(!hidden);
+		this.handlePanelVisibilityChange(hidden, skipLayout);
+
+		if (!hidden) {
+			this.layoutPanelDialog();
+		}
+	}
+
+	private setPanelDialogHidden(hidden: boolean, panelPart: Part): void {
+		this.mainContainer.classList.toggle(LayoutClasses.PANEL_DIALOG_OPEN, !hidden);
+		if (hidden) {
+			this.mainContainer.classList.remove(LayoutClasses.PANEL_DIALOG_MAXIMIZED);
+		} else {
+			if (this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED)) {
+				this.mainContainer.classList.add(LayoutClasses.PANEL_DIALOG_MAXIMIZED);
+			}
+			this.ensurePanelDialogOverlay();
+		}
+		const targetParent = hidden ? this.panelDialogOriginalParent : this.panelDialogOverlay;
+		if (targetParent && panelPart.element.parentElement !== targetParent) {
+			targetParent.appendChild(panelPart.element);
+		}
+	}
+
+	private setPanelDockHidden(hidden: boolean, wasHidden: boolean, isPanelMaximized: boolean, skipLayout?: boolean): void {
+		// Unmaximize before hiding to prevent conflict with setEditorHidden
 		if (hidden && isPanelMaximized) {
 			this.toggleMaximizedPanel();
 		}
 
-		// Propagate layout changes to grid
 		this.workbenchGrid.setViewVisible(this.panelPartView, !hidden);
 
-		// If panel part becomes hidden, also hide the current active panel if any
-		let focusEditor = false;
-		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
-			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Panel);
-			if (
-				!isIOS &&						// do not auto focus on iOS (https://github.com/microsoft/vscode/issues/127832)
-				!this.isAuxiliaryBarMaximized()	// do not auto focus when auxiliary bar is maximized
-			) {
-				focusEditor = true;
+		if (wasHidden !== hidden) {
+			if (!hidden) {
+				const panelOpensMaximized = this.panelOpensMaximized();
+				if (!skipLayout && isPanelMaximized !== panelOpensMaximized) {
+					this.toggleMaximizedPanel();
+				}
+			} else {
+				this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, isPanelMaximized);
 			}
 		}
+	}
 
-		// If panel part becomes visible, show last active panel or default panel
-		else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
+	private handlePanelVisibilityChange(hidden: boolean, skipLayout?: boolean): void {
+		let focusEditor = false;
+
+		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
+			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Panel);
+			if (!isIOS && !this.isAuxiliaryBarMaximized()) {
+				focusEditor = true;
+			}
+		} else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
 			let panelToOpen: string | undefined = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Panel);
-
-			// verify that the panel we try to open has views before we default to it
-			// otherwise fall back to any view that has views still refs #111463
 			if (!panelToOpen || !this.hasViews(panelToOpen)) {
 				panelToOpen = this.viewDescriptorService
 					.getViewContainersByLocation(ViewContainerLocation.Panel)
 					.find(viewContainer => this.hasViews(viewContainer.id))?.id;
 			}
-
 			if (panelToOpen) {
 				this.openViewContainer(ViewContainerLocation.Panel, panelToOpen, !skipLayout);
 			}
 		}
 
-		// Don't proceed if we have already done this before
-		if (wasHidden === hidden) {
-			return;
-		}
-
-		// If in process of showing, toggle whether or not panel is maximized
-		if (!hidden) {
-			if (!skipLayout && isPanelMaximized !== panelOpensMaximized) {
-				this.toggleMaximizedPanel();
-			}
-		} else {
-			// If in process of hiding, remember whether the panel is maximized or not
-			this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, isPanelMaximized);
-		}
-
 		if (focusEditor) {
-			this.editorGroupService.mainPart.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
+			this.editorGroupService.mainPart.activeGroup.focus();
 		}
 	}
 
@@ -2156,13 +2190,25 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	isPanelMaximized(): boolean {
+		if (this.isDialogMode) {
+			return this.isPanelDialogMaximized();
+		}
 		return (
-			this.getPanelAlignment() === 'center' || 	// the workbench grid currently prevents us from supporting panel
-			!isHorizontal(this.getPanelPosition())		// maximization with non-center panel alignment
+			this.getPanelAlignment() === 'center' ||
+			!isHorizontal(this.getPanelPosition())
 		) && !this.isVisible(Parts.EDITOR_PART, mainWindow) && !this.isAuxiliaryBarMaximized();
 	}
 
 	toggleMaximizedPanel(): void {
+		if (this.isDialogMode) {
+			const maximize = !this.isPanelDialogMaximized();
+			this.mainContainer.classList.toggle(LayoutClasses.PANEL_DIALOG_MAXIMIZED, maximize);
+			this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, maximize);
+			this.layoutPanelDialog();
+			this._onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: true });
+			return;
+		}
+
 		const size = this.workbenchGrid.getViewSize(this.panelPartView);
 		const panelPosition = this.getPanelPosition();
 		const maximize = !this.isPanelMaximized();
@@ -2188,9 +2234,329 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, maximize);
 	}
 
+	//#region Panel Dialog Mode
+
+	private get isDialogMode(): boolean {
+		return this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_MODE) === PanelMode.Dialog;
+	}
+
+	private isPanelDialogMaximized(): boolean {
+		return this.mainContainer.classList.contains(LayoutClasses.PANEL_DIALOG_MAXIMIZED);
+	}
+
+	getPanelMode(): PanelMode {
+		return this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_MODE);
+	}
+
+	togglePanelMode(): void {
+		this.setPanelMode(this.getPanelMode() === PanelMode.Dock ? PanelMode.Dialog : PanelMode.Dock);
+	}
+
+	setPanelMode(mode: PanelMode): void {
+		if (mode === this.getPanelMode()) {
+			return;
+		}
+
+		// Exit maximized state before switching modes.
+		// When panel is maximized in docked mode, the editor is hidden. Switching to dialog mode
+		// while editor is hidden would leave the workbench in an invalid visual state with no
+		// background content. Similarly, switching from maximized dialog back to docked mode
+		// requires the editor to be visible for proper grid layout restoration.
+		// Must happen before mode change so isPanelMaximized() uses the correct code path.
+		if (this.isPanelMaximized()) {
+			this.toggleMaximizedPanel();
+		}
+
+		const panelPart = this.getPart(Parts.PANEL_PART);
+
+		if (mode === PanelMode.Dialog) {
+			// Save current state before transitioning
+			this.panelDialogSavedPosition = this.getPanelPosition();
+			this.panelDialogSavedAlignment = this.getPanelAlignment();
+			this.panelDialogOriginalParent = panelPart.element.parentElement ?? undefined;
+			this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_MODE, PanelMode.Dialog);
+
+			// If panel is visible in grid, save its size and hide from grid
+			if (this.isVisible(Parts.PANEL_PART) && this.workbenchGrid) {
+				this.panelDialogSavedSize = this.workbenchGrid.getViewSize(this.panelPartView);
+				this.workbenchGrid.setViewVisible(this.panelPartView, false);
+			}
+
+			// Set up overlay and move panel into it
+			this.mainContainer.classList.add(LayoutClasses.PANEL_DIALOG_OPEN);
+			this.ensurePanelDialogOverlay();
+			this.panelDialogOverlay?.appendChild(panelPart.element);
+
+			// Make sure panel is visible
+			if (!this.isVisible(Parts.PANEL_PART)) {
+				this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, false);
+				this.mainContainer.classList.remove(LayoutClasses.PANEL_HIDDEN);
+			}
+
+			this.layoutPanelDialog();
+		} else {
+			// Dialog → Dock: restore panel into the grid
+			this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_MODE, PanelMode.Dock);
+			this.mainContainer.classList.remove(LayoutClasses.PANEL_DIALOG_OPEN, LayoutClasses.PANEL_DIALOG_MAXIMIZED);
+
+			// Move panel back to original parent
+			this.panelDialogOriginalParent?.appendChild(panelPart.element);
+
+			// If panel should be visible, show it in the grid and restore size
+			if (!this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) && this.workbenchGrid) {
+				this.workbenchGrid.setViewVisible(this.panelPartView, true);
+				if (this.panelDialogSavedSize) {
+					this.workbenchGrid.resizeView(this.panelPartView, this.panelDialogSavedSize);
+				}
+			}
+
+			// Restore position if it was changed while in dialog mode
+			if (this.panelDialogSavedPosition !== undefined && this.panelDialogSavedPosition !== this.getPanelPosition()) {
+				this.setPanelPosition(this.panelDialogSavedPosition);
+			}
+
+			// Restore alignment only for horizontal positions
+			if (this.panelDialogSavedAlignment !== undefined && isHorizontal(this.getPanelPosition())) {
+				this.setPanelAlignment(this.panelDialogSavedAlignment);
+			}
+
+			// Clean up saved state
+			this.panelDialogSavedPosition = undefined;
+			this.panelDialogSavedAlignment = undefined;
+			this.panelDialogSavedSize = undefined;
+			this.panelDialogOriginalParent = undefined;
+		}
+
+		// Fire visibility event to update context keys
+		this._onDidChangePartVisibility.fire({
+			partId: Parts.PANEL_PART,
+			visible: this.isVisible(Parts.PANEL_PART)
+		});
+	}
+
+	private ensurePanelDialogOverlay(): void {
+		if (this.panelDialogOverlay) {
+			return;
+		}
+
+		// Capture original parent before moving panel
+		if (!this.panelDialogOriginalParent) {
+			const panelPart = this.getPart(Parts.PANEL_PART);
+			this.panelDialogOriginalParent = panelPart.element.parentElement ?? undefined;
+		}
+
+		// Create safe area that clips dialog to editor zone
+		const safeArea = this.panelDialogSafeArea = document.createElement('div');
+		safeArea.classList.add('panel-dialog-safe-area');
+		this.mainContainer.appendChild(safeArea);
+
+		// Create overlay (appended before backdrop for :focus-within sibling selector)
+		const overlay = this.panelDialogOverlay = document.createElement('div');
+		overlay.classList.add('panel-dialog-overlay');
+		overlay.setAttribute('role', 'dialog');
+		overlay.setAttribute('aria-label', localize('panelDialog', "Panel"));
+		safeArea.appendChild(overlay);
+
+		// Create non-interactive backdrop
+		const backdrop = document.createElement('div');
+		backdrop.classList.add('panel-dialog-backdrop');
+		safeArea.appendChild(backdrop);
+
+		// Position safe area
+		this.updatePanelDialogSafeArea();
+
+		// Drag support
+		this.setupPanelDialogDrag(overlay, safeArea);
+
+		// Resize observer for CSS resize handle
+		const resizeObserver = new ResizeObserver(() => this.onPanelDialogResized());
+		resizeObserver.observe(overlay);
+	}
+
+	private setupPanelDialogDrag(overlay: HTMLElement, safeArea: HTMLElement): void {
+		let dragStartX = 0, dragStartY = 0, overlayStartLeft = 0, overlayStartTop = 0;
+
+		const onMouseMove = (e: MouseEvent): void => {
+			const maxLeft = Math.max(0, safeArea.offsetWidth - overlay.offsetWidth);
+			const maxTop = Math.max(0, safeArea.offsetHeight - overlay.offsetHeight);
+			overlay.style.left = `${Math.max(0, Math.min(overlayStartLeft + e.clientX - dragStartX, maxLeft))}px`;
+			overlay.style.top = `${Math.max(0, Math.min(overlayStartTop + e.clientY - dragStartY, maxTop))}px`;
+		};
+
+		const onMouseUp = (): void => {
+			overlay.classList.remove('panel-dialog-dragging');
+			document.removeEventListener('mousemove', onMouseMove);
+			document.removeEventListener('mouseup', onMouseUp);
+			this.savePanelDialogBounds();
+		};
+
+		overlay.addEventListener('mousedown', (e: MouseEvent) => {
+			if (e.button !== 0) {
+				return;
+			}
+			const target = e.target as HTMLElement;
+			const titleEl = overlay.querySelector('.part.panel > .title') as HTMLElement | null;
+			if (!titleEl?.contains(target) || target.closest('a, button, .action-item, .action-label, .composite-bar, input, select')) {
+				return;
+			}
+			e.preventDefault();
+			dragStartX = e.clientX;
+			dragStartY = e.clientY;
+			overlayStartLeft = overlay.offsetLeft;
+			overlayStartTop = overlay.offsetTop;
+			overlay.classList.add('panel-dialog-dragging');
+			document.addEventListener('mousemove', onMouseMove);
+			document.addEventListener('mouseup', onMouseUp);
+		});
+	}
+
+	private onPanelDialogResized(): void {
+		if (!this.panelDialogOverlay || !this.isVisible(Parts.PANEL_PART) || !this.isDialogMode) {
+			return;
+		}
+		this.updatePanelDialogSafeArea();
+		if (!this.isPanelDialogMaximized()) {
+			this.clampPanelDialogOverlay();
+		}
+		const width = this.panelDialogOverlay.offsetWidth;
+		const height = this.panelDialogOverlay.offsetHeight;
+		if (width > 0 && height > 0) {
+			this.getPart(Parts.PANEL_PART).layout(width, height, 0, 0);
+		}
+		this.savePanelDialogBounds();
+	}
+
+	private updatePanelDialogSafeArea(): void {
+		if (!this.panelDialogSafeArea) {
+			return;
+		}
+		const titleBarH = this.isVisible(Parts.TITLEBAR_PART) ? this.titleBarPartView.minimumHeight : 0;
+		const statusBarH = this.isVisible(Parts.STATUSBAR_PART) ? this.statusBarPartView.minimumHeight : 0;
+		this.panelDialogSafeArea.style.top = `${titleBarH}px`;
+		this.panelDialogSafeArea.style.bottom = `${statusBarH}px`;
+	}
+
+	private clampPanelDialogOverlay(): void {
+		if (!this.panelDialogOverlay || !this.panelDialogSafeArea) {
+			return;
+		}
+		const safeW = this.panelDialogSafeArea.offsetWidth;
+		const safeH = this.panelDialogSafeArea.offsetHeight;
+
+		// Clamp size
+		if (this.panelDialogOverlay.offsetWidth > safeW) {
+			this.panelDialogOverlay.style.width = `${safeW}px`;
+		}
+		if (this.panelDialogOverlay.offsetHeight > safeH) {
+			this.panelDialogOverlay.style.height = `${safeH}px`;
+		}
+
+		// Clamp position
+		const maxLeft = Math.max(0, safeW - this.panelDialogOverlay.offsetWidth);
+		const maxTop = Math.max(0, safeH - this.panelDialogOverlay.offsetHeight);
+		const clampedLeft = Math.max(0, Math.min(this.panelDialogOverlay.offsetLeft, maxLeft));
+		const clampedTop = Math.max(0, Math.min(this.panelDialogOverlay.offsetTop, maxTop));
+		if (clampedLeft !== this.panelDialogOverlay.offsetLeft) {
+			this.panelDialogOverlay.style.left = `${clampedLeft}px`;
+		}
+		if (clampedTop !== this.panelDialogOverlay.offsetTop) {
+			this.panelDialogOverlay.style.top = `${clampedTop}px`;
+		}
+	}
+
+	private savePanelDialogBounds(): void {
+		if (!this.panelDialogOverlay || !this.panelDialogSafeArea) {
+			return;
+		}
+		const containerW = this.panelDialogSafeArea.offsetWidth;
+		const containerH = this.panelDialogSafeArea.offsetHeight;
+		if (containerW <= 0 || containerH <= 0) {
+			return;
+		}
+		this.storageService.store('workbench.panel.dialogBoundsRatio', JSON.stringify({
+			leftRatio: this.panelDialogOverlay.offsetLeft / containerW,
+			topRatio: this.panelDialogOverlay.offsetTop / containerH,
+			widthRatio: this.panelDialogOverlay.offsetWidth / containerW,
+			heightRatio: this.panelDialogOverlay.offsetHeight / containerH
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	private loadPanelDialogBounds(): { left: number; top: number; width: number; height: number } | undefined {
+		const raw = this.storageService.get('workbench.panel.dialogBoundsRatio', StorageScope.PROFILE);
+		if (!raw) {
+			return undefined;
+		}
+		try {
+			const { leftRatio, topRatio, widthRatio, heightRatio } = JSON.parse(raw);
+			if (typeof leftRatio !== 'number' || typeof topRatio !== 'number' || typeof widthRatio !== 'number' || typeof heightRatio !== 'number' || widthRatio <= 0 || heightRatio <= 0) {
+				return undefined;
+			}
+			const titleBarH = this.isVisible(Parts.TITLEBAR_PART) ? this.titleBarPartView.minimumHeight : 0;
+			const statusBarH = this.isVisible(Parts.STATUSBAR_PART) ? this.statusBarPartView.minimumHeight : 0;
+			const safeW = this._mainContainerDimension.width;
+			const safeH = Math.max(0, this._mainContainerDimension.height - titleBarH - statusBarH);
+			return {
+				left: Math.round(leftRatio * safeW),
+				top: Math.round(topRatio * safeH),
+				width: Math.round(widthRatio * safeW),
+				height: Math.round(heightRatio * safeH)
+			};
+		} catch {
+			return undefined;
+		}
+	}
+
+	private layoutPanelDialog(): void {
+		if (!this.panelDialogOverlay || !this.isDialogMode) {
+			return;
+		}
+
+		// Restore persisted bounds or compute defaults
+		if (!this.panelDialogOverlay.style.width) {
+			const saved = this.loadPanelDialogBounds();
+			if (saved) {
+				this.panelDialogOverlay.style.left = `${saved.left}px`;
+				this.panelDialogOverlay.style.top = `${saved.top}px`;
+				this.panelDialogOverlay.style.width = `${saved.width}px`;
+				this.panelDialogOverlay.style.height = `${saved.height}px`;
+			} else {
+				// Default: 70% wide, 40% tall, near bottom
+				const titleBarH = this.isVisible(Parts.TITLEBAR_PART) ? this.titleBarPartView.minimumHeight : 0;
+				const statusBarH = this.isVisible(Parts.STATUSBAR_PART) ? this.statusBarPartView.minimumHeight : 0;
+				const safeW = this._mainContainerDimension.width;
+				const safeH = Math.max(0, this._mainContainerDimension.height - titleBarH - statusBarH);
+				const dialogW = Math.round(safeW * 0.7);
+				const dialogH = Math.round(safeH * 0.4);
+				const left = Math.round((safeW - dialogW) / 2);
+				const top = safeH - dialogH - 8;
+
+				this.panelDialogOverlay.style.width = `${dialogW}px`;
+				this.panelDialogOverlay.style.height = `${dialogH}px`;
+				this.panelDialogOverlay.style.left = `${left}px`;
+				this.panelDialogOverlay.style.top = `${top}px`;
+
+				// Persist ratios for proportional window resize
+				if (safeW > 0 && safeH > 0) {
+					this.storageService.store('workbench.panel.dialogBoundsRatio', JSON.stringify({
+						leftRatio: left / safeW,
+						topRatio: top / safeH,
+						widthRatio: dialogW / safeW,
+						heightRatio: dialogH / safeH
+					}), StorageScope.PROFILE, StorageTarget.MACHINE);
+				}
+			}
+		}
+
+		this.onPanelDialogResized();
+	}
+
+	//#endregion
+
 	private panelOpensMaximized(): boolean {
-		if (this.getPanelAlignment() !== 'center' && isHorizontal(this.getPanelPosition())) {
-			return false; // The workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
+		// The workbench grid prevents panel maximization with non-center alignment in horizontal position.
+		// Dialog mode has no grid constraints, so this limitation doesn't apply.
+		if (!this.isDialogMode && this.getPanelAlignment() !== 'center' && isHorizontal(this.getPanelPosition())) {
+			return false;
 		}
 
 		const panelOpensMaximized = partOpensMaximizedFromString(this.configurationService.getValue<string>(WorkbenchLayoutSettings.PANEL_OPENS_MAXIMIZED));
@@ -2309,6 +2675,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	setPanelPosition(position: Position): void {
+		// In dialog mode, stash the position for later restoration
+		if (this.isDialogMode) {
+			this.panelDialogSavedPosition = position;
+			return;
+		}
+
 		if (!this.isVisible(Parts.PANEL_PART)) {
 			this.setPanelHidden(false);
 		}
@@ -2793,6 +3165,9 @@ const LayoutStateKeys = {
 	SIDEBAR_POSITON: new RuntimeStateKey<Position>('sideBar.position', StorageScope.WORKSPACE, StorageTarget.MACHINE, Position.LEFT),
 	PANEL_POSITION: new RuntimeStateKey<Position>('panel.position', StorageScope.WORKSPACE, StorageTarget.MACHINE, Position.BOTTOM),
 	PANEL_ALIGNMENT: new RuntimeStateKey<PanelAlignment>('panel.alignment', StorageScope.PROFILE, StorageTarget.USER, 'center'),
+
+	// Panel Mode
+	PANEL_MODE: new RuntimeStateKey<PanelMode>('panel.mode', StorageScope.WORKSPACE, StorageTarget.MACHINE, PanelMode.Dock),
 
 	// Part Visibility
 	ACTIVITYBAR_HIDDEN: new RuntimeStateKey<boolean>('activityBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false, true),
