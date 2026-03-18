@@ -148,8 +148,8 @@ Background Processes:
 
 Sandboxing:
 - When terminal sandboxing is enabled, commands run in the sandbox by default
-- Only set dangerouslyDisableSandbox=true when this specific command must run outside the sandbox
-- When setting dangerouslyDisableSandbox=true, also provide dangerouslyDisableSandboxReason; the user will be prompted before it runs unsandboxed
+- Only set requestUnsandboxedExecution=true when this specific command must run outside the sandbox
+- When setting requestUnsandboxedExecution=true, also provide requestUnsandboxedExecutionReason; the user will be prompted before it runs unsandboxed
 
 Output Management:
 - Output is automatically truncated if longer than 60KB to prevent context overflow
@@ -252,13 +252,13 @@ export async function createRunInTerminalToolData(
 					type: 'number',
 					description: 'An optional timeout in milliseconds. When provided, the tool will stop tracking the command after this duration and return the output collected so far. Be conservative with the timeout duration, give enough time that the command would complete on a low-end machine. Use 0 for no timeout. If it\'s not clear how long the command will take then use 0 to avoid prematurely terminating it, never guess too low.',
 				},
-				dangerouslyDisableSandbox: {
+				requestUnsandboxedExecution: {
 					type: 'boolean',
 					description: 'Request that this command run outside the terminal sandbox. Only set this when the command clearly needs unsandboxed access. The user will be prompted before the command runs unsandboxed.'
 				},
-				dangerouslyDisableSandboxReason: {
+				requestUnsandboxedExecutionReason: {
 					type: 'string',
-					description: 'A short explanation of why this command must run outside the terminal sandbox. Only provide this when dangerouslyDisableSandbox is true.'
+					description: 'A short explanation of why this command must run outside the terminal sandbox. Only provide this when requestUnsandboxedExecution is true.'
 				},
 			},
 			required: [
@@ -293,8 +293,8 @@ export interface IRunInTerminalInputParams {
 	goal: string;
 	isBackground: boolean;
 	timeout?: number;
-	dangerouslyDisableSandbox?: boolean;
-	dangerouslyDisableSandboxReason?: string;
+	requestUnsandboxedExecution?: boolean;
+	requestUnsandboxedExecutionReason?: string;
 }
 
 /**
@@ -498,7 +498,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._terminalSandboxService.isEnabled()
 		]);
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
-		const requiresUnsandboxConfirmation = isTerminalSandboxEnabled && args.dangerouslyDisableSandbox === true;
+		const requiresUnsandboxConfirmation = isTerminalSandboxEnabled && args.requestUnsandboxedExecution === true;
 
 		const terminalToolSessionId = generateUuid();
 		// Generate a custom command ID to link the command between renderer and pty host
@@ -512,7 +512,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				cwd,
 				shell,
 				os,
-				dangerouslyDisableSandbox: requiresUnsandboxConfirmation,
+				requestUnsandboxedExecution: requiresUnsandboxConfirmation,
 			});
 			if (rewriteResult) {
 				rewrittenCommand = rewriteResult.rewritten;
@@ -533,8 +533,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			cwd,
 			language,
 			isBackground: args.isBackground,
-			dangerouslyDisableSandbox: requiresUnsandboxConfirmation,
-			dangerouslyDisableSandboxReason: args.dangerouslyDisableSandboxReason,
+			requestUnsandboxedExecution: requiresUnsandboxConfirmation,
+			requestUnsandboxedExecutionReason: args.requestUnsandboxedExecutionReason,
 		};
 
 		// HACK: Exit early if there's an alternative recommendation, this is a little hacky but
@@ -733,7 +733,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				"Explanation: {0}\n\nGoal: {1}\n\nReason for leaving the sandbox: {2}",
 				args.explanation,
 				args.goal,
-				args.dangerouslyDisableSandboxReason || localize('runInTerminal.unsandboxed.confirmationMessage.defaultReason', "The model indicated that this command needs unsandboxed access.")
+				args.requestUnsandboxedExecutionReason || localize('runInTerminal.unsandboxed.confirmationMessage.defaultReason', "The model indicated that this command needs unsandboxed access.")
 			))
 			: new MarkdownString(localize('runInTerminal.confirmationMessage', "Explanation: {0}\n\nGoal: {1}", args.explanation, args.goal));
 		const confirmationMessages = shouldShowConfirmation ? {

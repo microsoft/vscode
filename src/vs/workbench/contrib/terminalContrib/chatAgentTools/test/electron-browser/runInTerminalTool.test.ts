@@ -443,15 +443,15 @@ suite('RunInTerminalTool', () => {
 			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
 
 			const result = await executeToolTest({
-				dangerouslyDisableSandbox: true,
-				dangerouslyDisableSandboxReason: 'Needs network access outside the sandbox',
+				requestUnsandboxedExecution: true,
+				requestUnsandboxedExecutionReason: 'Needs network access outside the sandbox',
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command outside the sandbox?');
 			strictEqual(result?.confirmationMessages?.allowAutoConfirm, false);
 			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData;
-			strictEqual(terminalData.dangerouslyDisableSandbox, true);
-			strictEqual(terminalData.dangerouslyDisableSandboxReason, 'Needs network access outside the sandbox');
+			strictEqual(terminalData.requestUnsandboxedExecution, true);
+			strictEqual(terminalData.requestUnsandboxedExecutionReason, 'Needs network access outside the sandbox');
 			strictEqual(terminalData.commandLine.toolEdited, undefined);
 
 			const confirmationMessage = result?.confirmationMessages?.message;

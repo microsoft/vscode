@@ -96,7 +96,7 @@ suite('CommandLineSandboxRewriter', () => {
 		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter));
 		const result = await rewriter.rewrite({
 			...createRewriteOptions('echo hello'),
-			dangerouslyDisableSandbox: true,
+			requestUnsandboxedExecution: true,
 		});
 
 		strictEqual(result, undefined);

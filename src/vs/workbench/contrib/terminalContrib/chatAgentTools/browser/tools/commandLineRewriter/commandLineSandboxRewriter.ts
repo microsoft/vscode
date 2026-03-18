@@ -15,7 +15,7 @@ export class CommandLineSandboxRewriter extends Disposable implements ICommandLi
 	}
 
 	async rewrite(options: ICommandLineRewriterOptions): Promise<ICommandLineRewriterResult | undefined> {
-		if (options.dangerouslyDisableSandbox) {
+		if (options.requestUnsandboxedExecution) {
 			return undefined;
 		}
 
