@@ -1737,6 +1737,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.onDidChangeSkills(listener, thisArgs, disposables);
 			},
+			registerCustomizationProvider(id: string, metadata: vscode.ChatCustomizationProviderMetadata, provider: vscode.ChatCustomizationProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'chatCustomizationProvider');
+				return extHostChatAgents2.registerCustomizationProvider(extension, id, metadata, provider);
+			},
 		};
 
 		// namespace: lm
@@ -2125,6 +2129,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatToolInvocationPart: extHostTypes.ChatToolInvocationPart,
 			ChatLocation: extHostTypes.ChatLocation,
 			ChatSessionStatus: extHostTypes.ChatSessionStatus,
+			ChatCustomizationType: extHostTypes.ChatCustomizationType,
 			ChatDebugLogLevel: extHostTypes.ChatDebugLogLevel,
 			ChatDebugToolCallResult: extHostTypes.ChatDebugToolCallResult,
 			ChatDebugHookResult: extHostTypes.ChatDebugHookResult,

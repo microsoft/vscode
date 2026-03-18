@@ -3567,6 +3567,14 @@ export enum ChatSessionStatus {
 	NeedsInput = 3
 }
 
+export enum ChatCustomizationType {
+	Agent = 1,
+	Skill = 2,
+	Instructions = 3,
+	Prompt = 4,
+	Hook = 5,
+}
+
 export enum ChatDebugLogLevel {
 	Trace = 0,
 	Info = 1,
