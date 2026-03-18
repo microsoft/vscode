@@ -258,9 +258,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const buttonTitle = collapsed
 				? localize('chat.questionCarousel.expandTitle', 'Expand Questions')
 				: localize('chat.questionCarousel.collapseTitle', 'Collapse Questions');
+			const contentId = dom.getDomNodeId(this.domNode);
 			this._collapseButton.label = collapsed ? `$(${Codicon.chevronRight.id})` : `$(${Codicon.chevronDown.id})`;
 			this._collapseButton.element.setAttribute('aria-label', buttonTitle);
 			this._collapseButton.element.setAttribute('aria-expanded', String(!collapsed));
+			this._collapseButton.element.setAttribute('aria-controls', contentId);
 			this._collapseButton.setTitle(buttonTitle);
 		}
 	}
