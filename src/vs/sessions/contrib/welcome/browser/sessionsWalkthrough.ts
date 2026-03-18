@@ -13,9 +13,13 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { ChatSetupStrategy } from '../../../../workbench/contrib/chat/browser/chatSetup/chatSetup.js';
 
 export type WalkthroughOutcome = 'completed' | 'dismissed' | 'startTour';
 
@@ -44,6 +48,9 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -85,7 +92,14 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	// Step rendering
 
 	private _renderStep(): void {
-		this._renderDots();
+		// Hide dots on the welcome/sign-in step
+		if (this.currentStep === 0) {
+			this.dotsContainer.textContent = '';
+			this.dotsContainer.style.display = 'none';
+		} else {
+			this.dotsContainer.style.display = '';
+			this._renderDots();
+		}
 
 		// Clear content and footer
 		this.contentContainer.textContent = '';
@@ -136,11 +150,15 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	// Step 1: Sign In
 
 	private _renderSignIn(): void {
-		const header = append(this.contentContainer, $('.sessions-walkthrough-header'));
-		const iconEl = append(header, $('span.sessions-walkthrough-icon'));
+		// Horizontal layout: icon left, text + buttons right
+		const layout = append(this.contentContainer, $('.sessions-walkthrough-hero'));
+
+		const iconEl = append(layout, $('span.sessions-walkthrough-icon.sessions-walkthrough-icon-large'));
 		iconEl.appendChild(renderIcon(Codicon.agent));
-		append(header, $('h2', undefined, localize('walkthrough.step1.title', "Welcome to Sessions")));
-		append(header, $('p', undefined, localize('walkthrough.step1.subtitle', "Sign in to start building with your AI agent.")));
+
+		const right = append(layout, $('.sessions-walkthrough-hero-text'));
+		const titleEl = append(right, $('h2', undefined, localize('walkthrough.step1.title', "Welcome to Sessions")));
+		const subtitleEl = append(right, $('p', undefined, localize('walkthrough.step1.subtitle', "Sign in to continue with agent-powered development.")));
 
 		// If already signed in, just show a Continue button
 		if (this._isAlreadySetUp()) {
@@ -151,21 +169,29 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			return;
 		}
 
-		// Sign-in provider buttons rendered directly in content
-		const providers = append(this.contentContainer, $('.sessions-walkthrough-providers'));
+		// Provider buttons row inside the right column
+		const providerRow = append(right, $('.sessions-walkthrough-providers-row'));
 
-		const providerData: Array<{ label: string; cssClass: string }> = [
-			{ label: localize('walkthrough.signin.github', "Continue with GitHub"), cssClass: 'provider-github' },
-			{ label: localize('walkthrough.signin.microsoft', "Continue with Microsoft"), cssClass: 'provider-microsoft' },
-			{ label: localize('walkthrough.signin.apple', "Continue with Apple"), cssClass: 'provider-apple' },
+		// GitHub: text button
+		const githubBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.provider-github')) as HTMLButtonElement;
+		append(githubBtn, $('span.sessions-walkthrough-provider-label', undefined, localize('walkthrough.signin.githubCopilot', "Continue with GitHub Copilot")));
+
+		// Google: icon-only
+		const googleBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only.provider-google')) as HTMLButtonElement;
+		googleBtn.setAttribute('aria-label', localize('walkthrough.signin.google', "Continue with Google"));
+		googleBtn.title = localize('walkthrough.signin.google', "Continue with Google");
+
+		// Apple: icon-only
+		const appleBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only.provider-apple')) as HTMLButtonElement;
+		appleBtn.setAttribute('aria-label', localize('walkthrough.signin.apple', "Continue with Apple"));
+		appleBtn.title = localize('walkthrough.signin.apple', "Continue with Apple");
+
+		const providerButtons = [githubBtn, googleBtn, appleBtn];
+		const providerStrategies = [
+			ChatSetupStrategy.SetupWithoutEnterpriseProvider, // GitHub
+			ChatSetupStrategy.SetupWithGoogleProvider,
+			ChatSetupStrategy.SetupWithAppleProvider,
 		];
-
-		const providerButtons: HTMLButtonElement[] = [];
-		for (const provider of providerData) {
-			const btn = append(providers, $(`button.sessions-walkthrough-provider-btn.${provider.cssClass}`)) as HTMLButtonElement;
-			providerButtons.push(btn);
-			append(btn, $('span.sessions-walkthrough-provider-label', undefined, provider.label));
-		}
 
 		// Spinner + error below providers
 		const spinnerContainer = append(this.footerContainer, $('.sessions-walkthrough-spinner'));
@@ -173,8 +199,9 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		const errorContainer = append(this.footerContainer, $('p.sessions-walkthrough-error'));
 		errorContainer.style.display = 'none';
 
-		for (const btn of providerButtons) {
-			this._register(addDisposableListener(btn, EventType.CLICK, () => this._runSignIn(providerButtons, spinnerContainer, errorContainer)));
+		for (let i = 0; i < providerButtons.length; i++) {
+			const strategy = providerStrategies[i];
+			this._register(addDisposableListener(providerButtons[i], EventType.CLICK, () => this._runSignIn(providerButtons, spinnerContainer, errorContainer, strategy, titleEl, subtitleEl, providerRow)));
 		}
 	}
 
@@ -188,32 +215,40 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		);
 	}
 
-	private async _runSignIn(providerButtons: HTMLButtonElement[], spinner: HTMLElement, error: HTMLElement): Promise<void> {
+	private async _runSignIn(providerButtons: HTMLButtonElement[], spinner: HTMLElement, error: HTMLElement, strategy: ChatSetupStrategy, titleEl: HTMLElement, subtitleEl: HTMLElement, providerRow: HTMLElement): Promise<void> {
 		// Disable all provider buttons
 		for (const btn of providerButtons) {
 			btn.disabled = true;
 		}
 
 		error.style.display = 'none';
+		spinner.style.display = 'none';
 
-		spinner.textContent = '';
-		spinner.appendChild(renderIcon(Codicon.loading));
-		append(spinner, $('span', undefined, localize('walkthrough.settingUp', "Setting up\u2026")));
-		spinner.style.display = '';
+		// Fade the content
+		this.contentContainer.classList.add('sessions-walkthrough-fade-out');
+		await new Promise(resolve => setTimeout(resolve, 200));
+
+		// Swap title and subtitle in-place
+		titleEl.textContent = localize('walkthrough.settingUp', "Setting up\u2026");
+		subtitleEl.textContent = localize('walkthrough.poweredBy', "Sessions is powered by GitHub Copilot");
+
+		// Replace provider buttons with progress bar
+		const heroText = providerRow.parentElement!;
+		providerRow.remove();
+		append(heroText, $('.sessions-walkthrough-progress-bar', undefined, $('.sessions-walkthrough-progress-bar-fill')));
+
+		// Fade back in
+		this.contentContainer.classList.remove('sessions-walkthrough-fade-out');
 
 		try {
 			const success = await this.commandService.executeCommand<boolean>(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, {
-				dialogIcon: Codicon.agent,
-				dialogTitle: this.chatEntitlementService.anonymous
-					? localize('walkthrough.startUsing', "Start using Sessions")
-					: localize('walkthrough.signinRequired', "Sign in to use Sessions"),
+				setupStrategy: strategy,
 				dialogHideSkip: true
 			});
 
 			if (success) {
-				spinner.textContent = '';
-				spinner.appendChild(renderIcon(Codicon.loading));
-				append(spinner, $('span', undefined, localize('walkthrough.restarting', "Completing setup\u2026")));
+				// Update title
+				titleEl.textContent = localize('walkthrough.signingIn', "Signing you in\u2026");
 
 				this.logService.info('[sessions walkthrough] Restarting extension host after setup');
 				const stopped = await this.extensionService.stopExtensionHosts(
@@ -222,22 +257,76 @@ export class SessionsWalkthroughOverlay extends Disposable {
 				if (stopped) {
 					await this.extensionService.startExtensionHosts();
 				}
-				this._advance();
+
+				// Show personalized success state
+				await this._showSignInSuccess();
 			} else {
-				for (const btn of providerButtons) {
-					btn.disabled = false;
-				}
-				spinner.style.display = 'none';
+				// Fade back to sign-in state
+				this.contentContainer.classList.add('sessions-walkthrough-fade-out');
+				await new Promise(resolve => setTimeout(resolve, 200));
+				this.contentContainer.classList.remove('sessions-walkthrough-fade-out');
+				this.contentContainer.textContent = '';
+				this.footerContainer.textContent = '';
+				this._renderSignIn();
 			}
 		} catch (err) {
 			this.logService.error('[sessions walkthrough] Sign-in failed:', err);
-			error.textContent = localize('walkthrough.error', "Something went wrong. Please try again.");
-			error.style.display = '';
-			for (const btn of providerButtons) {
-				btn.disabled = false;
-			}
-			spinner.style.display = 'none';
+			this.contentContainer.classList.add('sessions-walkthrough-fade-out');
+			await new Promise(resolve => setTimeout(resolve, 200));
+			this.contentContainer.classList.remove('sessions-walkthrough-fade-out');
+			this.contentContainer.textContent = '';
+			this.footerContainer.textContent = '';
+			this._renderSignIn();
 		}
+	}
+
+	private async _showSignInSuccess(): Promise<void> {
+		// Get user's account name
+		const account = await this.defaultAccountService.getDefaultAccount();
+		const userName = account?.accountName ?? '';
+
+		// Fade out current content
+		this.contentContainer.classList.add('sessions-walkthrough-fade-out');
+		await new Promise(resolve => setTimeout(resolve, 200));
+
+		// Rebuild content in hero format
+		this.contentContainer.textContent = '';
+		this.footerContainer.textContent = '';
+
+		const layout = append(this.contentContainer, $('.sessions-walkthrough-hero'));
+
+		// Large check circle icon (replaces agent icon)
+		const iconEl = append(layout, $('span.sessions-walkthrough-icon.sessions-walkthrough-icon-large.sessions-walkthrough-success-icon'));
+		iconEl.appendChild(renderIcon(Codicon.check));
+
+		const right = append(layout, $('.sessions-walkthrough-hero-text'));
+
+		// Welcome message
+		if (userName) {
+			append(right, $('h2', undefined, localize('walkthrough.welcomeUser', "Welcome, {0}", userName)));
+		} else {
+			append(right, $('h2', undefined, localize('walkthrough.welcomeBack', "You\u2019re all set")));
+		}
+
+		append(right, $('p', undefined, localize('walkthrough.successSubtitle', "You\u2019re signed in and ready to go.")));
+
+		// Action buttons row
+		const actions = append(right, $('.sessions-walkthrough-success-actions'));
+
+		const personalizeBtn = this._register(new Button(actions, { ...defaultButtonStyles }));
+		personalizeBtn.label = localize('walkthrough.personalize', "Personalize Your Experience");
+		this._register(personalizeBtn.onDidClick(() => {
+			this._advance(); // Go to import from VS Code step
+		}));
+
+		const getStartedBtn = this._register(new Button(actions, { ...defaultButtonStyles, secondary: true }));
+		getStartedBtn.label = localize('walkthrough.getStarted', "Get Started");
+		this._register(getStartedBtn.onDidClick(() => {
+			this._finish('completed');
+		}));
+
+		// Fade in
+		this.contentContainer.classList.remove('sessions-walkthrough-fade-out');
 	}
 
 	// ------------------------------------------------------------------
