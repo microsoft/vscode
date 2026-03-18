@@ -16,9 +16,8 @@ import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
 
 // #region --- Types ---
 
-export type SessionTargetType = 'cli' | 'cloud';
+export type SessionTargetType = 'copilot-cli' | 'cloud';
 export type IsolationMode = 'worktree' | 'workspace';
-export type TargetMode = IsolationMode | 'cloud';
 
 // #endregion
 
@@ -36,7 +35,7 @@ export type TargetMode = IsolationMode | 'cloud';
  */
 export class TargetPicker extends Disposable {
 
-	private _sessionTarget: SessionTargetType = 'cli';
+	private _sessionTarget: SessionTargetType = 'copilot-cli';
 	private _project: SessionWorkspace | undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<SessionTargetType>());
@@ -51,7 +50,7 @@ export class TargetPicker extends Disposable {
 	}
 
 	get isCli(): boolean {
-		return this._sessionTarget === 'cli';
+		return this._sessionTarget === 'copilot-cli';
 	}
 
 	get isCloud(): boolean {
@@ -82,7 +81,7 @@ export class TargetPicker extends Disposable {
 		}
 
 		if (this._project?.isFolder) {
-			this._setTarget('cli');
+			this._setTarget('copilot-cli');
 			return;
 		}
 	}
@@ -125,7 +124,7 @@ export class TargetPicker extends Disposable {
 				modeIcon = Codicon.cloud;
 				modeLabel = localize('sessionTarget.cloud', "Cloud");
 				break;
-			case 'cli':
+			case 'copilot-cli':
 			default:
 				modeIcon = Codicon.worktree;
 				modeLabel = localize('sessionTarget.cli', "Copilot CLI");
