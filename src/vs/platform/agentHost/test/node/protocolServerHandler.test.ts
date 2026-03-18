@@ -381,4 +381,50 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(resp.error!.code, JSON_RPC_INTERNAL_ERROR);
 		assert.match(resp.error!.message, /Directory not found/);
 	});
+
+	// ---- Extension methods: auth ----------------------------------------
+
+	test('getResourceMetadata returns resource metadata via extension request', async () => {
+		const transport = connectClient('client-metadata');
+		transport.sent.length = 0;
+
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'getResourceMetadata'));
+		const resp = await responsePromise as { result?: { resources: unknown[] } };
+
+		assert.ok(resp?.result);
+		assert.ok(Array.isArray(resp.result!.resources));
+	});
+
+	test('authenticate returns result via extension request', async () => {
+		const transport = connectClient('client-auth');
+		transport.sent.length = 0;
+
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'authenticate', { resource: 'https://api.github.com', token: 'test-token' }));
+		const resp = await responsePromise as { result?: { authenticated: boolean } };
+
+		assert.ok(resp?.result);
+		assert.strictEqual(resp.result!.authenticated, true);
+	});
+
+	test('extension request preserves ProtocolError code and data', async () => {
+		// Override handleAuthenticate to throw a ProtocolError with data
+		const origHandler = sideEffects.handleAuthenticate;
+		sideEffects.handleAuthenticate = async () => { throw new ProtocolError(-32007, 'Auth required', { hint: 'sign in' }); };
+
+		const transport = connectClient('client-auth-error');
+		transport.sent.length = 0;
+
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'authenticate', { resource: 'test', token: 'bad' }));
+		const resp = await responsePromise as { error?: { code: number; message: string; data?: unknown } };
+
+		assert.ok(resp?.error);
+		assert.strictEqual(resp.error!.code, -32007);
+		assert.strictEqual(resp.error!.message, 'Auth required');
+		assert.deepStrictEqual(resp.error!.data, { hint: 'sign in' });
+
+		sideEffects.handleAuthenticate = origHandler;
+	});
 });

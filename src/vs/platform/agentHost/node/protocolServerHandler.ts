@@ -41,6 +41,15 @@ function jsonRpcError(id: number, code: number, message: string, data?: unknown)
 	return { jsonrpc: '2.0', id, error: { code, message, ...(data !== undefined ? { data } : {}) } };
 }
 
+/** Build a JSON-RPC error response from an unknown thrown value, preserving {@link ProtocolError} fields. */
+function jsonRpcErrorFrom(id: number, err: unknown): IJsonRpcResponse {
+	if (err instanceof ProtocolError) {
+		return jsonRpcError(id, err.code, err.message, err.data);
+	}
+	const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
+	return jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, message);
+}
+
 /**
  * Methods handled by the request dispatcher. Excludes `initialize` and
  * `reconnect` which are handled during the handshake phase.
@@ -119,9 +128,7 @@ export class ProtocolServerHandler extends Disposable {
 						client = result.client;
 						transport.send(jsonRpcSuccess(msg.id, result.response));
 					} catch (err) {
-						const code = err instanceof ProtocolError ? err.code : JSON_RPC_INTERNAL_ERROR;
-						const message = err instanceof Error ? err.message : String(err);
-						transport.send(jsonRpcError(msg.id, code, message));
+						transport.send(jsonRpcErrorFrom(msg.id, err));
 					}
 					return;
 				}
@@ -131,9 +138,7 @@ export class ProtocolServerHandler extends Disposable {
 						client = result.client;
 						transport.send(jsonRpcSuccess(msg.id, result.response));
 					} catch (err) {
-						const code = err instanceof ProtocolError ? err.code : JSON_RPC_INTERNAL_ERROR;
-						const message = err instanceof Error ? err.message : String(err);
-						transport.send(jsonRpcError(msg.id, code, message));
+						transport.send(jsonRpcErrorFrom(msg.id, err));
 					}
 					return;
 				}
@@ -333,14 +338,7 @@ export class ProtocolServerHandler extends Disposable {
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
 			}).catch(err => {
 				this._logService.error(`[ProtocolServer] Request '${method}' failed`, err);
-				const code = err instanceof ProtocolError ? err.code : JSON_RPC_INTERNAL_ERROR;
-				const data = err instanceof ProtocolError ? err.data : undefined;
-				const message = err instanceof ProtocolError
-					? err.message
-					: err instanceof Error && err.stack
-						? err.stack
-						: String(err?.message ?? err);
-				client.transport.send(jsonRpcError(id, code, message, data));
+				client.transport.send(jsonRpcErrorFrom(id, err));
 			});
 			return;
 		}
@@ -352,7 +350,7 @@ export class ProtocolServerHandler extends Disposable {
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
 			}).catch(err => {
 				this._logService.error(`[ProtocolServer] Extension request '${method}' failed`, err);
-				client.transport.send(jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, String(err?.message ?? err)));
+				client.transport.send(jsonRpcErrorFrom(id, err));
 			});
 			return;
 		}

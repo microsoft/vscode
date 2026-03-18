@@ -240,7 +240,7 @@ This is returned as the `data` payload of a JSON-RPC error response:
   "jsonrpc": "2.0",
   "id": 5,
   "error": {
-    "code": -32010,
+    "code": -32007,
     "message": "Authentication required",
     "data": {
       "challenges": [
@@ -255,7 +255,7 @@ This is returned as the `data` payload of a JSON-RPC error response:
 }
 ```
 
-A dedicated error code (e.g. `-32010 AHP_AUTH_REQUIRED`) signals this is an auth error so clients can handle it programmatically without parsing the message string.
+A dedicated error code (`-32007 AHP_AUTH_REQUIRED`) signals this is an auth error so clients can handle it programmatically without parsing the message string.
 
 ### Phase 4: Auth State Notifications
 
@@ -356,7 +356,7 @@ for (const scheme of initResult.resourceMetadata?.authSchemes ?? []) {
 
 | Code | Name | When |
 |---|---|---|
-| `-32010` | `AHP_AUTH_REQUIRED` | A command failed because auth is missing or invalid |
+| `-32007` | `AHP_AUTH_REQUIRED` | A command failed because auth is missing or invalid |
 
 ### Extended: `initialize` result
 

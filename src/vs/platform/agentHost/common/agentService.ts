@@ -388,8 +388,9 @@ export interface IAgentService {
 	getResourceMetadata(): Promise<IResourceMetadata>;
 
 	/**
-	 * Authenticate with the server using a specific auth scheme.
-	 * Analogous to sending `Authorization: Bearer <token>` (RFC 6750).
+	 * Authenticate for a protected resource on the server.
+	 * The {@link IAuthenticateParams.resource} must match a resource from
+	 * {@link getResourceMetadata}. Analogous to RFC 6750 bearer token delivery.
 	 */
 	authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult>;
 

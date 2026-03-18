@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../../nls.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -17,6 +18,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentAttachment, AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
 import { getToolKind, getToolLanguage } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { AttachmentType, ToolCallStatus, TurnState, type IMessageAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -468,7 +470,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						workingDirectory,
 					});
 				} else {
-					throw new Error('Authentication is required to start a session. Please sign in and try again.');
+					throw new Error(localize('agentHost.authRequired', "Authentication is required to start a session. Please sign in and try again."));
 				}
 			} else {
 				throw err;
@@ -490,9 +492,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/**
 	 * Check if an error is an "authentication required" error.
-	 * Works across both ProxyChannel (message-only) and WebSocket (structured) paths.
+	 * Checks for the AHP_AUTH_REQUIRED error code when available,
+	 * with a message-based fallback for transports that don't preserve
+	 * structured error codes (e.g. ProxyChannel).
 	 */
 	private _isAuthRequiredError(err: unknown): boolean {
+		if (err instanceof ProtocolError && err.code === AHP_AUTH_REQUIRED) {
+			return true;
+		}
 		if (err instanceof Error && err.message.includes('Authentication required')) {
 			return true;
 		}

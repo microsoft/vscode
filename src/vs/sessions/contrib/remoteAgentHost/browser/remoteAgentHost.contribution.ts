@@ -103,8 +103,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}));
 
 		// Push auth token whenever the default account or sessions change
-		this._register(this._defaultAccountService.onDidChangeDefaultAccount(() => this._pushAuthTokenToAll()));
-		this._register(this._authenticationService.onDidChangeSessions(() => this._pushAuthTokenToAll()));
+		this._register(this._defaultAccountService.onDidChangeDefaultAccount(() => this._authenticateAllConnections()));
+		this._register(this._authenticationService.onDidChangeSessions(() => this._authenticateAllConnections()));
 
 		// Initial setup for already-connected remotes
 		this._reconcileConnections();
@@ -300,7 +300,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		this._logService.info(`[RemoteAgentHost] Registered agent ${agent.provider} from ${address} as ${sessionType}`);
 	}
 
-	private _pushAuthTokenToAll(): void {
+	private _authenticateAllConnections(): void {
 		for (const address of this._connections.keys()) {
 			const connection = this._remoteAgentHostService.getConnection(address);
 			if (connection) {
@@ -318,7 +318,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		try {
 			const metadata = await connection.getResourceMetadata();
 			for (const resource of metadata.resources) {
-				const token = await this._resolveTokenForResource(resource.authorization_servers ?? [], resource.scopes_supported ?? []);
+				const resourceUri = URI.parse(resource.resource);
+				const token = await this._resolveTokenForResource(resourceUri, resource.authorization_servers ?? [], resource.scopes_supported ?? []);
 				if (token) {
 					this._logService.info(`[RemoteAgentHost] Authenticating for resource: ${resource.resource}`);
 					await connection.authenticate({ resource: resource.resource, token });
@@ -335,10 +336,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	 * Resolve a bearer token for a set of authorization servers using the
 	 * standard VS Code authentication service provider resolution.
 	 */
-	private async _resolveTokenForResource(authorizationServers: readonly string[], scopes: readonly string[]): Promise<string | undefined> {
+	private async _resolveTokenForResource(resourceServer: URI, authorizationServers: readonly string[], scopes: readonly string[]): Promise<string | undefined> {
 		for (const server of authorizationServers) {
 			const serverUri = URI.parse(server);
-			const providerId = await this._authenticationService.getOrActivateProviderIdForServer(serverUri);
+			const providerId = await this._authenticationService.getOrActivateProviderIdForServer(serverUri, resourceServer);
 			if (!providerId) {
 				this._logService.trace(`[RemoteAgentHost] No auth provider found for server: ${server}`);
 				continue;
@@ -347,12 +348,6 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			const sessions = await this._authenticationService.getSessions(providerId, [...scopes], { authorizationServer: serverUri }, true);
 			if (sessions.length > 0) {
 				return sessions[0].accessToken;
-			}
-
-			// Fall back to any session from the provider
-			const anySessions = await this._authenticationService.getSessions(providerId);
-			if (anySessions.length > 0) {
-				return anySessions[0].accessToken;
 			}
 		}
 		return undefined;
@@ -368,7 +363,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			for (const resource of metadata.resources) {
 				for (const server of resource.authorization_servers ?? []) {
 					const serverUri = URI.parse(server);
-					const providerId = await this._authenticationService.getOrActivateProviderIdForServer(serverUri);
+					const resourceUri = URI.parse(resource.resource);
+					const providerId = await this._authenticationService.getOrActivateProviderIdForServer(serverUri, resourceUri);
 					if (!providerId) {
 						continue;
 					}

@@ -251,7 +251,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			const metadata = await this._agentHostService.getResourceMetadata();
 			this._logService.trace(`[AgentHost] Resource metadata: ${metadata.resources.length} resource(s)`);
 			for (const resource of metadata.resources) {
-				const token = await this._resolveTokenForResource(resource.authorization_servers ?? [], resource.scopes_supported ?? []);
+				const resourceUri = URI.parse(resource.resource);
+				const token = await this._resolveTokenForResource(resourceUri, resource.authorization_servers ?? [], resource.scopes_supported ?? []);
 				if (token) {
 					this._logService.info(`[AgentHost] Authenticating for resource: ${resource.resource}`);
 					await this._agentHostService.authenticate({ resource: resource.resource, token });
@@ -268,28 +269,19 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * Resolve a bearer token for a set of authorization servers using the
 	 * standard VS Code authentication service provider resolution.
 	 */
-	private async _resolveTokenForResource(authorizationServers: readonly string[], scopes: readonly string[]): Promise<string | undefined> {
+	private async _resolveTokenForResource(resourceServer: URI, authorizationServers: readonly string[], scopes: readonly string[]): Promise<string | undefined> {
 		for (const server of authorizationServers) {
 			const serverUri = URI.parse(server);
-			const providerId = await this._authenticationService.getOrActivateProviderIdForServer(serverUri);
+			const providerId = await this._authenticationService.getOrActivateProviderIdForServer(serverUri, resourceServer);
 			if (!providerId) {
 				this._logService.trace(`[AgentHost] No auth provider found for server: ${server}`);
 				continue;
 			}
 			this._logService.trace(`[AgentHost] Resolved auth provider '${providerId}' for server: ${server}`);
 
-			// Try with the declared scopes first, then fall back to empty scopes
-			// (the provider may have sessions with broader scopes).
 			const sessions = await this._authenticationService.getSessions(providerId, [...scopes], { authorizationServer: serverUri }, true);
 			if (sessions.length > 0) {
 				return sessions[0].accessToken;
-			}
-
-			// Fall back to any session from the provider
-			const anySessions = await this._authenticationService.getSessions(providerId);
-			if (anySessions.length > 0) {
-				this._logService.trace(`[AgentHost] Using session with broader scopes from provider '${providerId}'`);
-				return anySessions[0].accessToken;
 			}
 
 			this._logService.trace(`[AgentHost] No sessions found for provider '${providerId}'`);
@@ -309,7 +301,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			for (const resource of metadata.resources) {
 				for (const server of resource.authorization_servers ?? []) {
 					const serverUri = URI.parse(server);
-					const providerId = await this._authenticationService.getOrActivateProviderIdForServer(serverUri);
+					const resourceUri = URI.parse(resource.resource);
+					const providerId = await this._authenticationService.getOrActivateProviderIdForServer(serverUri, resourceUri);
 					if (!providerId) {
 						continue;
 					}
