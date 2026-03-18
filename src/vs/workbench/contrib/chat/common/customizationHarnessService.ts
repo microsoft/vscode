@@ -206,7 +206,8 @@ export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras:
 
 /**
  * Creates a "Claude" harness descriptor.
- * Claude does not support custom agents or hooks.
+ * Claude does not support custom agents, hooks, or VS Code-style instructions
+ * (it uses CLAUDE.md instead of *.instructions.md).
  */
 export function createClaudeHarnessDescriptor(claudeRoots: readonly URI[], extras: readonly string[]): IHarnessDescriptor {
 	return createRestrictedHarnessDescriptor(
@@ -215,7 +216,7 @@ export function createClaudeHarnessDescriptor(claudeRoots: readonly URI[], extra
 		ThemeIcon.fromId(Codicon.claude.id),
 		claudeRoots,
 		extras,
-		[AICustomizationManagementSection.Agents, AICustomizationManagementSection.Hooks],
+		[AICustomizationManagementSection.Agents, AICustomizationManagementSection.Hooks, AICustomizationManagementSection.Instructions],
 		['.claude'],
 	);
 }
