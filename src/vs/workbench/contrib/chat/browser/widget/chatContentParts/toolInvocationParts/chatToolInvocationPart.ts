@@ -13,7 +13,7 @@ import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } f
 import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
 import { IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
 import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
-import { isToolResultInputOutputDetails, isToolResultOutputDetails, ToolInvocationPresentation } from '../../../../common/tools/languageModelToolsService.js';
+import { isToolResultInputOutputDetails, isToolResultOutputDetails } from '../../../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../../chat.js';
 import { EditorPool } from '../chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartRenderContext } from '../chatContentParts.js';
@@ -32,6 +32,7 @@ import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
 import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfirmationPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
 import { ChatToolStreamingSubPart } from './chatToolStreamingSubPart.js';
+import { shouldHideToolInvocationAfterCompletion } from './chatToolInvocationVisibility.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -108,7 +109,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		const render = () => {
 			partStore.clear();
 
-			if (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation)) {
+			if (shouldHideToolInvocationAfterCompletion(toolInvocation)) {
 				dom.hide(this.domNode);
 				return;
 			}

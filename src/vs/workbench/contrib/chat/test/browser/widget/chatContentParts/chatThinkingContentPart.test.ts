@@ -14,7 +14,7 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatThinkingContentPart } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
-import { IChatMarkdownContent, IChatThinkingPart } from '../../../../common/chatService/chatService.js';
+import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
@@ -22,6 +22,7 @@ import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browse
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ThinkingDisplayMode } from '../../../../common/constants.js';
+import { ToolInvocationPresentation } from '../../../../common/tools/languageModelToolsService.js';
 import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
@@ -70,6 +71,56 @@ suite('ChatThinkingContentPart', () => {
 			value: value ?? '',
 			id: id ?? 'test-thinking-id'
 		};
+	}
+
+	function createMockToolInvocation(options?: {
+		toolCallId?: string;
+		toolId?: string;
+		invocationMessage?: string;
+		presentation?: ToolInvocationPresentation;
+		isAttachedToThinking?: boolean;
+		resultDetails?: unknown;
+		confirmationMessages?: unknown;
+	}) {
+		const progress = observableValue('toolProgress', { progress: undefined as number | undefined });
+		type MockToolState =
+			| {
+				type: IChatToolInvocation.StateKind.Executing;
+				progress: typeof progress;
+			}
+			| {
+				type: IChatToolInvocation.StateKind.Completed;
+				resultDetails: unknown;
+				confirmationMessages: unknown;
+				confirmed: undefined;
+				postConfirmed: undefined;
+				contentForModel: [];
+			};
+
+		const state = observableValue<MockToolState, void>('toolState', {
+			type: IChatToolInvocation.StateKind.Executing,
+			progress
+		});
+
+		const invocation = {
+			kind: 'toolInvocation' as const,
+			toolCallId: options?.toolCallId ?? 'test-tool-call',
+			toolId: options?.toolId ?? 'test_tool',
+			invocationMessage: options?.invocationMessage ?? 'Test tool invocation',
+			originMessage: undefined,
+			pastTenseMessage: options?.invocationMessage ?? 'Test tool invocation',
+			toolSpecificData: undefined,
+			presentation: options?.presentation ?? ToolInvocationPresentation.HiddenAfterComplete,
+			state,
+			source: undefined,
+			isAttachedToThinking: options?.isAttachedToThinking ?? true,
+		} as unknown as IChatToolInvocation;
+
+		return { invocation, state };
+	}
+
+	async function waitForAnimationFrame(): Promise<void> {
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 	}
 
 	setup(() => {
@@ -591,6 +642,87 @@ suite('ChatThinkingContentPart', () => {
 
 			assert.strictEqual(removed, true, 'Should successfully remove the lazy item');
 			assert.strictEqual(factoryCalled, false, 'Factory should never have been called');
+		});
+
+		test('hiddenAfterComplete tools with visible results stay visible after completion', async () => {
+			const content = createThinkingPart('**Working**');
+			const context = createMockRenderContext(false);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const { invocation, state } = createMockToolInvocation({
+				invocationMessage: 'Captured DOM node screenshot',
+				resultDetails: { input: 'node', output: 'image bytes', isError: false }
+			});
+
+			part.appendItem(() => ({ domNode: $('div.test-tool-item', undefined, 'Result-bearing tool') }), invocation.toolId, invocation);
+
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			button.click();
+			assert.ok(part.domNode.querySelector('.test-tool-item'), 'Tool should render after expanding the thinking container');
+
+			state.set({
+				type: IChatToolInvocation.StateKind.Completed,
+				resultDetails: { input: 'node', output: 'image bytes', isError: false },
+				confirmationMessages: undefined,
+				confirmed: undefined,
+				postConfirmed: undefined,
+				contentForModel: []
+			}, undefined, undefined);
+
+			await waitForAnimationFrame();
+
+			assert.ok(part.domNode.querySelector('.test-tool-item'), 'Completed tool with visible result should remain rendered inside thinking');
+		});
+
+		test('confirmation-only hiddenAfterComplete tools clear stale titles after completion', async () => {
+			const content = createThinkingPart('**Working**');
+			const context = createMockRenderContext(false);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			let factoryCalled = false;
+			const { invocation, state } = createMockToolInvocation({
+				invocationMessage: 'Captured DOM node screenshot',
+				confirmationMessages: { title: 'Confirm', message: { value: 'Confirm' } }
+			});
+
+			part.appendItem(() => {
+				factoryCalled = true;
+				return { domNode: $('div.test-tool-item', undefined, 'Confirmation-only tool') };
+			}, invocation.toolId, invocation);
+
+			assert.ok(part.domNode.textContent?.includes('Captured DOM node screenshot'), 'Collapsed thinking title should reflect the pending tool');
+
+			state.set({
+				type: IChatToolInvocation.StateKind.Completed,
+				resultDetails: undefined,
+				confirmationMessages: { title: 'Confirm', message: { value: 'Confirm' } },
+				confirmed: undefined,
+				postConfirmed: undefined,
+				contentForModel: []
+			}, undefined, undefined);
+
+			await waitForAnimationFrame();
+
+			assert.strictEqual(factoryCalled, false, 'Confirmation-only tool should be removed before it materializes');
+			assert.ok(!part.domNode.textContent?.includes('Captured DOM node screenshot'), 'Collapsed thinking title should no longer show the removed tool label');
 		});
 
 		test('lazy items should preserve append order when mixing tool and markdown items', () => {

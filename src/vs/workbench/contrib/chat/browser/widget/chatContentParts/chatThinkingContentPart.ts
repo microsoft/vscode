@@ -34,6 +34,7 @@ import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
 import './media/chatThinkingContent.css';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { shouldHideToolInvocationAfterCompletion } from './toolInvocationParts/chatToolInvocationVisibility.js';
 
 
 function extractTextFromPart(content: IChatThinkingPart): string {
@@ -1120,12 +1121,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			const result = factory();
 			this.appendItemToDOM(result.domNode, toolInvocationId, toolInvocationOrMarkdown, originalParent);
 			if (result.disposable) {
-				const toolCallId = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? toolInvocationOrMarkdown.toolCallId : undefined;
-				if (toolCallId) {
-					this.toolDisposables.get(toolCallId)?.add(result.disposable);
-				} else {
-					this._register(result.disposable);
-				}
+				this.registerToolDisposable(result.disposable, toolInvocationOrMarkdown);
 			}
 		} else {
 			// Defer rendering until expanded
@@ -1172,6 +1168,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.toolInvocations.splice(toolInvocationsIndex, 1);
 		}
 
+		this.refreshDisplayedTitle();
 		this.updateDropdownClickability();
 		this._onDidChangeHeight.fire();
 	}
@@ -1217,6 +1214,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.toolInvocations.splice(toolInvocationsIndex, 1);
 		}
 
+		this.refreshDisplayedTitle();
 		this.updateDropdownClickability();
 		return true;
 	}
@@ -1290,8 +1288,50 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		if (titleIndex !== -1) {
 			this.extractedTitles.splice(titleIndex, 1);
 		}
+		this.refreshDisplayedTitle();
 		this.updateDropdownClickability();
 		this._onDidChangeHeight.fire();
+	}
+
+	private refreshDisplayedTitle(): void {
+		const extractedThinkingTitle = extractTitleFromThinkingContent(this.currentThinkingValue);
+		const nextTitle = this.extractedTitles[this.extractedTitles.length - 1]
+			?? (extractedThinkingTitle && extractedThinkingTitle !== this.defaultTitle ? extractedThinkingTitle : undefined);
+
+		this.lastExtractedTitle = nextTitle;
+
+		if (this.fixedScrollingMode || this._isExpanded.get() || this.element.isComplete || this.streamingCompleted) {
+			return;
+		}
+
+		if (nextTitle) {
+			this.setTitle(nextTitle);
+		} else {
+			this.setTitle(this.defaultTitle, true);
+			this.currentTitle = this.defaultTitle;
+		}
+	}
+
+	private registerToolDisposable(
+		disposable: IDisposable,
+		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent
+	): void {
+		const toolCallId = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized')
+			? toolInvocationOrMarkdown.toolCallId
+			: undefined;
+
+		if (!toolCallId) {
+			this._register(disposable);
+			return;
+		}
+
+		let toolStore = this.toolDisposables.get(toolCallId);
+		if (!toolStore) {
+			toolStore = new DisposableStore();
+			this.toolDisposables.set(toolCallId, toolStore);
+		}
+
+		toolStore.add(disposable);
 	}
 
 	private trackToolMetadata(
@@ -1379,7 +1419,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 					if (currentState.type === IChatToolInvocation.StateKind.Completed ||
 						currentState.type === IChatToolInvocation.StateKind.Cancelled) {
 						// Remove tools that should be hidden now or after completion.
-						if (toolInvocationOrMarkdown.presentation === 'hidden' || toolInvocationOrMarkdown.presentation === 'hiddenAfterComplete') {
+						if (toolInvocationOrMarkdown.presentation === 'hidden' || shouldHideToolInvocationAfterCompletion(toolInvocationOrMarkdown)) {
 							this.pendingRemovals.push({ toolCallId: toolInvocationOrMarkdown.toolCallId, toolLabel: currentToolLabel });
 							this.schedulePendingRemovalsFlush();
 						}
@@ -1532,12 +1572,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.appendItemToDOM(result.domNode, item.toolInvocationId, item.toolInvocationOrMarkdown, item.originalParent);
 
 		if (result.disposable) {
-			const toolCallId = item.toolInvocationOrMarkdown && (item.toolInvocationOrMarkdown.kind === 'toolInvocation' || item.toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? item.toolInvocationOrMarkdown.toolCallId : undefined;
-			if (toolCallId) {
-				this.toolDisposables.get(toolCallId)?.add(result.disposable);
-			} else {
-				this._register(result.disposable);
-			}
+			this.registerToolDisposable(result.disposable, item.toolInvocationOrMarkdown);
 		}
 	}
 
