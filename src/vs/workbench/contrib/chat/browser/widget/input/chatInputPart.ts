@@ -704,9 +704,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							: mode.label.read(undefined) !== agentId; // Extensions use Label (name) as identifier for custom agents.
 					}
 					if (needsUpdate) {
+						const value = mode.isBuiltin ? '' : modeName;
 						this.chatSessionsService.notifySessionOptionsChange(
 							ctx.chatSessionResource,
-							[{ optionId: agentOptionId, value: mode.isBuiltin ? '' : modeName }]
+							[{ optionId: agentOptionId, value: { id: value, name: value } }]
 						).catch(err => this.logService.error('Failed to notify extension of agent change:', err));
 					}
 				}
@@ -1813,14 +1814,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const defaultItem = optionGroup.items.find(item => item.default);
 			return defaultItem;
 		}
-
-		if (typeof currentOptionValue === 'string') {
-			const normalizedOptionId = currentOptionValue.trim();
-			return optionGroup.items.find(m => m.id === normalizedOptionId);
-		} else {
-			return currentOptionValue as IChatSessionProviderOptionItem;
-		}
-
+		return currentOptionValue;
 	}
 
 	private getEffectiveSessionType(ctx: IChatSessionContext | undefined, delegate: ISessionTypePickerDelegate | undefined): string {

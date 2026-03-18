@@ -216,7 +216,7 @@ export interface IChatNewSessionRequest {
 	readonly prompt: string;
 	readonly command?: string;
 
-	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>;
+	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem }>;
 }
 
 export interface IChatSessionItemsDelta {
@@ -241,7 +241,7 @@ export interface IChatSessionItemController {
  */
 export interface IChatSessionOptionsWillNotifyExtensionEvent extends IWaitUntil {
 	readonly sessionResource: URI;
-	readonly updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>;
+	readonly updates: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem }>;
 }
 
 export type ResolvedChatSessionsExtensionPoint = Omit<IChatSessionsExtensionPoint, 'icon'> & {
@@ -352,15 +352,15 @@ export interface IChatSessionsService {
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
 	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void;
 
-	getNewSessionOptionsForSessionType(chatSessionType: string): Record<string, string | IChatSessionProviderOptionItem> | undefined;
-	setNewSessionOptionsForSessionType(chatSessionType: string, options: Record<string, string | IChatSessionProviderOptionItem>): void;
+	getNewSessionOptionsForSessionType(chatSessionType: string): Record<string, IChatSessionProviderOptionItem> | undefined;
+	setNewSessionOptionsForSessionType(chatSessionType: string, options: Record<string, IChatSessionProviderOptionItem>): void;
 	/**
 	 * Event fired when session options change and need to be sent to the extension.
 	 * MainThreadChatSessions subscribes to this to forward changes to the extension host.
 	 * Uses IWaitUntil pattern to allow listeners to register async work.
 	 */
 	readonly onRequestNotifyExtension: Event<IChatSessionOptionsWillNotifyExtensionEvent>;
-	notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): Promise<void>;
+	notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem }>): Promise<void>;
 
 	getInProgressSessionDescription(chatModel: IChatModel): string | undefined;
 

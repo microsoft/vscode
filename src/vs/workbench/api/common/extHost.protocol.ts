@@ -1639,7 +1639,7 @@ export type IChatAgentHistoryEntryDto = {
 export interface IChatSessionContextDto {
 	readonly chatSessionResource: UriComponents;
 	readonly isUntitled: boolean;
-	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string }>;
+	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem }>;
 }
 
 export interface ExtHostChatAgentsShape2 {
@@ -3594,12 +3594,12 @@ export type IChatSessionRequestHistoryItemDto = Extract<IChatSessionHistoryItemD
 
 export interface ChatSessionOptionUpdateDto {
 	readonly optionId: string;
-	readonly value: string | IChatSessionProviderOptionItem | undefined;
+	readonly value: IChatSessionProviderOptionItem | undefined;
 }
 
 export interface ChatSessionOptionUpdateDto2 {
 	readonly optionId: string;
-	readonly value: string | IChatSessionProviderOptionItem;
+	readonly value: IChatSessionProviderOptionItem;
 }
 
 export interface ChatSessionContentContextDto {

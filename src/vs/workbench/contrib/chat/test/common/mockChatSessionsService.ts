@@ -173,15 +173,15 @@ export class MockChatSessionsService implements IChatSessionsService {
 		}
 	}
 
-	getNewSessionOptionsForSessionType(_chatSessionType: string): Record<string, string | IChatSessionProviderOptionItem> | undefined {
+	getNewSessionOptionsForSessionType(_chatSessionType: string): Record<string, IChatSessionProviderOptionItem> | undefined {
 		return undefined;
 	}
 
-	setNewSessionOptionsForSessionType(_chatSessionType: string, _options: Record<string, string | IChatSessionProviderOptionItem>): void {
+	setNewSessionOptionsForSessionType(_chatSessionType: string, _options: Record<string, IChatSessionProviderOptionItem>): void {
 		// noop
 	}
 
-	async notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): Promise<void> {
+	async notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem }>): Promise<void> {
 		await this._onRequestNotifyExtension.fireAsync({ sessionResource, updates }, CancellationToken.None);
 	}
 

@@ -764,7 +764,7 @@ suite('MainThreadChatSessions', function () {
 
 		// Simulate an option change
 		await chatSessionsService.notifySessionOptionsChange(resource, [
-			{ optionId: 'models', value: 'gpt-4-turbo' }
+			{ optionId: 'models', value: { name: 'gpt-4-turbo', id: 'gpt-4-turbo' } }
 		]);
 
 		// Verify the extension was notified
@@ -772,7 +772,7 @@ suite('MainThreadChatSessions', function () {
 		const call = (proxy.$provideHandleOptionsChange as sinon.SinonStub).firstCall;
 		assert.strictEqual(call.args[0], handle);
 		assert.deepStrictEqual(call.args[1], resource);
-		assert.deepStrictEqual(call.args[2], [{ optionId: 'models', value: 'gpt-4-turbo' }]);
+		assert.deepStrictEqual(call.args[2], [{ optionId: 'models', value: { name: 'gpt-4-turbo', id: 'gpt-4-turbo' } }]);
 
 		mainThread.$unregisterChatSessionContentProvider(handle);
 	});
@@ -790,7 +790,7 @@ suite('MainThreadChatSessions', function () {
 		// Attempt to notify option change for an unregistered scheme
 		// This should not throw, but also should not call the proxy
 		await chatSessionsService.notifySessionOptionsChange(resource, [
-			{ optionId: 'models', value: 'gpt-4-turbo' }
+			{ optionId: 'models', value: { name: 'gpt-4-turbo', id: 'gpt-4-turbo' } }
 		]);
 
 		// Verify the extension was NOT notified (no provider registered)

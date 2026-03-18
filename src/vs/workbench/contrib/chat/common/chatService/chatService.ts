@@ -31,6 +31,7 @@ import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js
 import { IChatRequestVariableValue } from '../attachments/chatVariables.js';
 import { ChatAgentLocation } from '../constants.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
+import { IChatSessionProviderOptionItem } from '../chatSessionsService.js';
 
 export interface IChatRequest {
 	message: string;
@@ -1535,7 +1536,7 @@ export interface IChatService {
 
 export interface IChatSessionContext {
 	readonly chatSessionResource: URI;
-	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | { id: string; name: string } }>;
+	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem }>;
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';
