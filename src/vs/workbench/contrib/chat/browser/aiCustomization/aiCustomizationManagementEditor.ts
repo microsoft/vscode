@@ -81,7 +81,8 @@ import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
 import { AgentPluginEditor } from '../agentPluginEditor/agentPluginEditor.js';
 import { AgentPluginEditorInput } from '../agentPluginEditor/agentPluginEditorInput.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, CustomizationHarness } from '../../common/customizationHarnessService.js';
+import { ChatConfiguration } from '../../common/constants.js';
 
 const $ = DOM.$;
 
@@ -463,14 +464,27 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	/**
+	 * Whether the harness selector UI is enabled.
+	 * When disabled, the editor behaves as if "Local" is always selected.
+	 */
+	private get isHarnessSelectorEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled) !== false;
+	}
+
+	/**
 	 * Rebuilds the visible sections list based on the active harness's
 	 * `hiddenSections`. If the current selection falls into a hidden
 	 * section, the first visible section is selected instead.
 	 */
 	private rebuildVisibleSections(): void {
-		const activeId = this.harnessService.activeHarness.get();
-		const descriptor = this.harnessService.availableHarnesses.get().find(h => h.id === activeId);
-		const hidden = new Set(descriptor?.hiddenSections ?? []);
+		let hidden: Set<string>;
+		if (this.isHarnessSelectorEnabled) {
+			const activeId = this.harnessService.activeHarness.get();
+			const descriptor = this.harnessService.availableHarnesses.get().find(h => h.id === activeId);
+			hidden = new Set(descriptor?.hiddenSections ?? []);
+		} else {
+			hidden = new Set(); // Local harness has no hidden sections
+		}
 
 		this.sections.length = 0;
 		for (const s of this.allSections) {
@@ -541,6 +555,18 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.refreshAllPromptsSectionCounts();
 		}));
 
+		// When the harness selector setting is off, lock to Local harness
+		if (!this.isHarnessSelectorEnabled) {
+			this.harnessService.setActiveHarness(CustomizationHarness.VSCode);
+		}
+		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled)) {
+				if (!this.isHarnessSelectorEnabled) {
+					this.harnessService.setActiveHarness(CustomizationHarness.VSCode);
+				}
+			}
+		}));
+
 		// Folder picker (sessions window only)
 		if (this.workspaceService.isSessionsWindow) {
 			this.createFolderPicker(sidebarContent);
@@ -548,6 +574,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private createHarnessDropdown(sidebarContent: HTMLElement): void {
+		if (!this.isHarnessSelectorEnabled) {
+			return;
+		}
 		const harnesses = this.harnessService.availableHarnesses.get();
 		if (harnesses.length <= 1) {
 			return;
