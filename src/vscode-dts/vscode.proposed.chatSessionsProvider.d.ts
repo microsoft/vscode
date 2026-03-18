@@ -430,12 +430,13 @@ declare module 'vscode' {
 		 *
 		 * @deprecated Use {@linkcode ChatSessionItemController.forkHandler} instead. This remains supported for backwards compatibility.
 		 *
+		 * @param sessionResource The resource of the chat session being forked.
 		 * @param request The request turn that marks the fork point. The forked session includes all turns
 		 * before this request turn and excludes this request turn itself. If undefined, fork the full session.
 		 * @param token A cancellation token.
 		 * @returns The forked session item.
 		 */
-		readonly forkHandler?: (request: ChatRequestTurn2 | undefined, token: CancellationToken) => Thenable<ChatSessionItem> | ChatSessionItem;
+		readonly forkHandler?: ChatSessionItemControllerForkHandler;
 	}
 
 	/**

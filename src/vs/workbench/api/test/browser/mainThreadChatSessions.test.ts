@@ -980,7 +980,7 @@ suite('ExtHostChatSessions', function () {
 			participant: 'participant',
 		}, CancellationToken.None);
 
-		assert.ok(deprecatedSessionForkHandler.calledOnceWithExactly(requestTurn, CancellationToken.None));
+		assert.ok(deprecatedSessionForkHandler.calledOnceWithExactly(sessionResource, requestTurn, CancellationToken.None));
 		assert.strictEqual(result.resource.toString(), `${sessionScheme}:/forked-by-session`);
 		assert.strictEqual(result.label, 'Forked by Session');
 		await extHostChatSessions.$disposeChatSessionContent(0, sessionResource);

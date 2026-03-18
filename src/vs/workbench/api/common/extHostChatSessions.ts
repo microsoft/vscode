@@ -674,7 +674,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			throw new Error(`No fork handler for session ${sessionResource.toString()}`);
 		}
 
-		const item = await entry.sessionObj.session.forkHandler(requestTurn, token);
+		const item = await entry.sessionObj.session.forkHandler(sessionResource, requestTurn, token);
 		return typeConvert.ChatSessionItem.from(item);
 	}
 
