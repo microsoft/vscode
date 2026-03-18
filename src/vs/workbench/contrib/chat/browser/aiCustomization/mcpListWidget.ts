@@ -29,7 +29,7 @@ import { Delayer } from '../../../../../base/common/async.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { getContextMenuActions } from '../../../../contrib/mcp/browser/mcpServerActions.js';
 import { LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
-import { workspaceIcon, userIcon, mcpServerIcon, builtinIcon } from './aiCustomizationIcons.js';
+import { workspaceIcon, userIcon, mcpServerIcon, extensionIcon } from './aiCustomizationIcons.js';
 import { formatDisplayName, truncateToFirstSentence } from './aiCustomizationListWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -44,7 +44,7 @@ const MCP_ITEM_HEIGHT = 36;
  * Represents a collapsible group header in the MCP server list.
  */
 interface IMcpGroupHeaderEntry extends ICustomizationGroupHeaderEntry {
-	readonly scope: LocalMcpServerScope | 'builtin';
+	readonly scope: LocalMcpServerScope | 'extensions';
 }
 
 /**
@@ -56,16 +56,16 @@ interface IMcpServerItemEntry {
 }
 
 /**
- * Represents a built-in MCP server provided by an extension.
+ * Represents an MCP server provided by an installed extension.
  */
-interface IMcpBuiltinItemEntry {
-	readonly type: 'builtin-item';
+interface IMcpExtensionItemEntry {
+	readonly type: 'extension-item';
 	readonly id: string;
 	readonly label: string;
 	readonly description: string;
 }
 
-type IMcpListEntry = IMcpGroupHeaderEntry | IMcpServerItemEntry | IMcpBuiltinItemEntry;
+type IMcpListEntry = IMcpGroupHeaderEntry | IMcpServerItemEntry | IMcpExtensionItemEntry;
 
 /**
  * Delegate for the MCP server list.
@@ -85,7 +85,7 @@ class McpServerItemDelegate implements IListVirtualDelegate<IMcpListEntry> {
 		if (element.type === 'group-header') {
 			return 'mcpGroupHeader';
 		}
-		if (element.type === 'builtin-item') {
+		if (element.type === 'extension-item') {
 			return 'mcpServerItem';
 		}
 		const server = element.server;
@@ -105,7 +105,7 @@ interface IMcpServerItemTemplateData {
 /**
  * Renderer for local MCP server list items.
  */
-class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpBuiltinItemEntry, IMcpServerItemTemplateData> {
+class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpExtensionItemEntry, IMcpServerItemTemplateData> {
 	readonly templateId = 'mcpServerItem';
 
 	constructor(
@@ -128,11 +128,11 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 		return { container, typeIcon, name, description, status, disposables: new DisposableStore() };
 	}
 
-	renderElement(element: IMcpServerItemEntry | IMcpBuiltinItemEntry, index: number, templateData: IMcpServerItemTemplateData): void {
+	renderElement(element: IMcpServerItemEntry | IMcpExtensionItemEntry, index: number, templateData: IMcpServerItemTemplateData): void {
 		templateData.disposables.clear();
 
-		if (element.type === 'builtin-item') {
-			templateData.container.classList.add('builtin');
+		if (element.type === 'extension-item') {
+			templateData.container.classList.add('extension-provided');
 			templateData.name.textContent = formatDisplayName(element.label);
 			if (element.description) {
 				templateData.description.textContent = truncateToFirstSentence(element.description);
@@ -144,7 +144,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 			return;
 		}
 
-		templateData.container.classList.remove('builtin');
+		templateData.container.classList.remove('extension-provided');
 		templateData.name.textContent = formatDisplayName(element.server.label);
 		if (element.server.description) {
 			templateData.description.textContent = truncateToFirstSentence(element.server.description);
@@ -458,7 +458,7 @@ export class McpListWidget extends Disposable {
 						if (element.type === 'group-header') {
 							return localize('mcpGroupAriaLabel', "{0}, {1} items, {2}", element.label, element.count, element.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 						}
-						if (element.type === 'builtin-item') {
+						if (element.type === 'extension-item') {
 							return element.label;
 						}
 						return element.server.label;
@@ -473,7 +473,7 @@ export class McpListWidget extends Disposable {
 						if (element.type === 'group-header') {
 							return element.id;
 						}
-						if (element.type === 'builtin-item') {
+						if (element.type === 'extension-item') {
 							return element.id;
 						}
 						return element.server.id;
@@ -489,7 +489,7 @@ export class McpListWidget extends Disposable {
 				} else if (e.element.type === 'server-item') {
 					this._onDidSelectServer.fire(e.element.server);
 				}
-				// builtin-item: no action on click (read-only)
+				// extension-item: no action on click (read-only)
 			}
 		}));
 
@@ -612,12 +612,12 @@ export class McpListWidget extends Disposable {
 
 		// Find extension-provided servers not in the local list (e.g. GitHub MCP)
 		const localIds = new Set(this.filteredServers.map(s => s.id));
-		const builtinServers = this.mcpService.servers.get()
+		const extensionServers = this.mcpService.servers.get()
 			.filter(s => !localIds.has(s.definition.id))
 			.filter(s => !query || s.definition.label.toLowerCase().includes(query));
 
 		// Show empty state only when there are no servers at all (not when filtered to empty)
-		if (this.filteredServers.length === 0 && builtinServers.length === 0) {
+		if (this.filteredServers.length === 0 && extensionServers.length === 0) {
 			this.emptyContainer.style.display = 'flex';
 			this.listContainer.style.display = 'none';
 
@@ -678,25 +678,25 @@ export class McpListWidget extends Disposable {
 			isFirst = false;
 		}
 
-		// Add built-in / extension-provided servers
-		if (builtinServers.length > 0) {
-			const collapsed = this.collapsedGroups.has('builtin');
+		// Add extension-provided servers
+		if (extensionServers.length > 0) {
+			const collapsed = this.collapsedGroups.has('extensions');
 			entries.push({
 				type: 'group-header',
-				id: 'mcp-group-builtin',
-				scope: 'builtin',
+				id: 'mcp-group-extensions',
+				scope: 'extensions',
 				label: localize('extensionsGroup', "Extensions"),
-				icon: builtinIcon,
-				count: builtinServers.length,
+				icon: extensionIcon,
+				count: extensionServers.length,
 				isFirst,
-				description: localize('extensionsGroupDescription', "MCP servers provided by installed extensions. These are available automatically."),
+				description: localize('extensionsGroupDescription', "MCP servers provided by installed extensions."),
 				collapsed,
 			});
 			if (!collapsed) {
-				for (const server of builtinServers) {
+				for (const server of extensionServers) {
 					entries.push({
-						type: 'builtin-item',
-						id: `builtin-${server.definition.id}`,
+						type: 'extension-item',
+						id: `extension-${server.definition.id}`,
 						label: server.definition.label,
 						description: '',
 					});

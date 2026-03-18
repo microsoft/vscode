@@ -723,7 +723,7 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
-.mcp-server-item.builtin {
+.mcp-server-item.extension-provided {
 	cursor: default;
 	opacity: 0.85;
 }
