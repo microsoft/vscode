@@ -3,18 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, MarkdownString, Uri, l10n } from 'vscode';
+import { CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, Uri, l10n, MarkdownString } from 'vscode';
 import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
-
-import type * as cp from 'child_process';
-import { dirname } from 'path';
-import { fromNow } from './date';
+import { NpmPackageInfoProvider } from './packageInfo';
 
 const LIMIT = 40;
-
-const USER_AGENT = 'Visual Studio Code';
 
 export class PackageJSONContribution implements IJSONContribution {
 
@@ -26,12 +21,14 @@ export class PackageJSONContribution implements IJSONContribution {
 		'jsdom', 'stylus', 'when', 'readable-stream', 'aws-sdk', 'concat-stream', 'chai', 'Thenable', 'wrench'];
 
 	private knownScopes = ['@types', '@angular', '@babel', '@nuxtjs', '@vue', '@bazel'];
+	private readonly packageInfoProvider: NpmPackageInfoProvider;
 
 	public getDocumentSelector(): DocumentSelector {
 		return [{ language: 'json', scheme: '*', pattern: '**/package.json' }];
 	}
 
-	public constructor(private xhr: XHRRequest, private npmCommandPath: string | undefined) {
+	public constructor(private xhr: XHRRequest, npmCommandPath: string | undefined) {
+		this.packageInfoProvider = new NpmPackageInfoProvider(xhr, npmCommandPath);
 	}
 
 	public collectDefaultSuggestions(_resource: Uri, result: ISuggestionsCollector): Thenable<any> {
@@ -50,14 +47,6 @@ export class PackageJSONContribution implements IJSONContribution {
 		return Promise.resolve(null);
 	}
 
-	private isEnabled() {
-		return this.npmCommandPath || this.onlineEnabled();
-	}
-
-	private onlineEnabled() {
-		return !!workspace.getConfiguration('npm').get('fetchOnlinePackageInfo');
-	}
-
 	public collectPropertySuggestions(
 		_resource: Uri,
 		location: Location,
@@ -66,7 +55,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		isLast: boolean,
 		collector: ISuggestionsCollector
 	): Thenable<any> | null {
-		if (!this.isEnabled()) {
+		if (!this.packageInfoProvider.isEnabled()) {
 			return null;
 		}
 
@@ -95,7 +84,7 @@ export class PackageJSONContribution implements IJSONContribution {
 				queryUrl = `https://registry.npmjs.org/-/v1/search?size=${LIMIT}&text=${encodeURIComponent(currentWord)}`;
 				return this.xhr({
 					url: queryUrl,
-					headers: { agent: USER_AGENT }
+					headers: { agent: 'Visual Studio Code' }
 				}).then((success) => {
 					if (success.status === 200) {
 						try {
@@ -155,7 +144,7 @@ export class PackageJSONContribution implements IJSONContribution {
 			const queryUrl = `https://registry.npmjs.com/-/v1/search?text=scope:${scope}%20${name}&size=250`;
 			return this.xhr({
 				url: queryUrl,
-				headers: { agent: USER_AGENT }
+				headers: { agent: 'Visual Studio Code' }
 			}).then((success) => {
 				if (success.status === 200) {
 					try {
@@ -180,14 +169,14 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	public async collectValueSuggestions(resource: Uri, location: Location, result: ISuggestionsCollector): Promise<any> {
-		if (!this.isEnabled()) {
+		if (!this.packageInfoProvider.isEnabled()) {
 			return null;
 		}
 
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			const currentKey = location.path[location.path.length - 1];
 			if (typeof currentKey === 'string') {
-				const info = await this.fetchPackageInfo(currentKey, resource);
+				const info = await this.packageInfoProvider.fetchPackageInfo(currentKey, resource);
 				if (info && info.version) {
 
 					let name = JSON.stringify(info.version);
@@ -216,26 +205,6 @@ export class PackageJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	private getDocumentation(description: string | undefined, version: string | undefined, time: string | undefined, homepage: string | undefined, installedVersion: string | undefined): MarkdownString {
-		const str = new MarkdownString();
-		if (description) {
-			str.appendText(description);
-		}
-		if (version) {
-			str.appendText('\n\n');
-			str.appendText(time ? l10n.t("Latest version: {0} published {1}", version, fromNow(Date.parse(time), true, true)) : l10n.t("Latest version: {0}", version));
-		}
-		if (installedVersion) {
-			str.appendText('\n\n');
-			str.appendText(l10n.t("Installed version: {0}", installedVersion));
-		}
-		if (homepage) {
-			str.appendText('\n\n');
-			str.appendText(homepage);
-		}
-		return str;
-	}
-
 	public resolveSuggestion(resource: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null {
 		if (item.kind === CompletionItemKind.Property && !item.documentation) {
 
@@ -244,9 +213,9 @@ export class PackageJSONContribution implements IJSONContribution {
 				name = name.label;
 			}
 
-			return this.fetchPackageInfo(name, resource).then(info => {
+			return this.packageInfoProvider.fetchPackageInfo(name, resource).then(info => {
 				if (info) {
-					item.documentation = this.getDocumentation(info.description, info.version, info.time, info.homepage, info.installedVersion);
+					item.documentation = this.packageInfoProvider.getDocumentation(info.description, info.version, info.time, info.homepage, info.installedVersion);
 					return item;
 				}
 				return null;
@@ -255,142 +224,16 @@ export class PackageJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	private isValidNPMName(name: string): boolean {
-		// following rules from https://github.com/npm/validate-npm-package-name,
-		// leading slash added as additional security measure
-		if (!name || name.length > 214 || name.match(/^[-_.\s]/)) {
-			return false;
-		}
-		const match = name.match(/^(?:@([^/~\s)('!*]+?)[/])?([^/~)('!*\s]+?)$/);
-		if (match) {
-			const scope = match[1];
-			if (scope && encodeURIComponent(scope) !== scope) {
-				return false;
-			}
-			const name = match[2];
-			return encodeURIComponent(name) === name;
-		}
-		return false;
-	}
-
-	private async fetchPackageInfo(pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
-		if (!this.isValidNPMName(pack)) {
-			return undefined; // avoid unnecessary lookups
-		}
-		let info: ViewPackageInfo | undefined;
-		let installedVersion: string | undefined;
-		if (this.npmCommandPath) {
-			([info, installedVersion] = await Promise.all([
-				this.npmView(this.npmCommandPath, pack, resource),
-				this.npmListInstalledVersion(this.npmCommandPath, pack, resource)
-			]));
-		}
-		if (!info && this.onlineEnabled()) {
-			info = await this.npmjsView(pack);
-		}
-		if (installedVersion) {
-			info = info ?? { description: '' };
-			info.installedVersion = installedVersion;
-		}
-		return info;
-	}
-
-	/**
-	 * Runs an npm command and returns its stdout, or undefined if the command fails.
-	 * Sets up cwd from resource, applies corepack env vars, and handles win32 shell quoting.
-	 * Pass ignoreError=true to return stdout even when the command exits with a non-zero code.
-	 */
-	private async runNpmCommand(npmCommandPath: string, args: string[], resource: Uri | undefined): Promise<string | undefined> {
-		const cp = await import('child_process');
-		return new Promise((resolve, _reject) => {
-			const cwd = resource && resource.scheme === 'file' ? dirname(resource.fsPath) : undefined;
-
-			// corepack npm wrapper would automatically update package.json. disable that behavior.
-			// COREPACK_ENABLE_AUTO_PIN disables the package.json overwrite, and
-			// COREPACK_ENABLE_PROJECT_SPEC makes the npm view command succeed
-			//   even if packageManager specified a package manager other than npm.
-			const env = { ...process.env, COREPACK_ENABLE_AUTO_PIN: '0', COREPACK_ENABLE_PROJECT_SPEC: '0' };
-			let options: cp.ExecFileOptions = { cwd, env };
-			let commandPath: string = npmCommandPath;
-			if (process.platform === 'win32') {
-				options = { cwd, env, shell: true };
-				commandPath = `"${npmCommandPath}"`;
-			}
-			cp.execFile(commandPath, args, options, (error, stdout) => {
-				resolve(error ? undefined : stdout.toString());
-			});
-		});
-	}
-
-	private async npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
-		// Request @latest to avoid fetching publish timestamps for all versions in the time field.
-		const args = ['view', '--json', '--', `${pack}@latest`, 'description', 'homepage', 'version', 'time'];
-
-		const stdout = await this.runNpmCommand(npmCommandPath, args, resource);
-		if (stdout) {
-			try {
-				const content = JSON.parse(stdout);
-				const version = content['version'];
-				return {
-					description: content['description'],
-					version: content['version'],
-					time: version ? content['time']?.[version] : undefined,
-					homepage: content['homepage']
-				};
-			} catch (e) {
-				// ignore
-			}
-		}
-		return undefined;
-	}
-
-	private async npmjsView(pack: string): Promise<ViewPackageInfo | undefined> {
-		const queryUrl = 'https://registry.npmjs.org/' + encodeURIComponent(pack);
-		try {
-			const success = await this.xhr({
-				url: queryUrl,
-				headers: { agent: USER_AGENT }
-			});
-			const obj = JSON.parse(success.responseText);
-			const version = obj['dist-tags']?.latest || Object.keys(obj.versions).pop() || '';
-			return {
-				description: obj.description || '',
-				version,
-				time: obj.time?.[version],
-				homepage: obj.homepage || ''
-			};
-		}
-		catch (e) {
-			//ignore
-		}
-		return undefined;
-	}
-
-	private async npmListInstalledVersion(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<string | undefined> {
-		const args = ['ls', '--json', '--depth=0', '--', pack];
-		const stdout = await this.runNpmCommand(npmCommandPath, args, resource);
-		if (stdout) {
-			try {
-				const content = JSON.parse(stdout);
-				const version = content?.dependencies?.[pack]?.version;
-				return typeof version === 'string' ? version : undefined;
-			} catch (e) {
-				// ignore
-			}
-		}
-		return undefined;
-	}
-
 	public getInfoContribution(resource: Uri, location: Location): Thenable<MarkdownString[] | null> | null {
-		if (!this.isEnabled()) {
+		if (!this.packageInfoProvider.isEnabled()) {
 			return null;
 		}
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			const pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {
-				return this.fetchPackageInfo(pack, resource).then(info => {
+				return this.packageInfoProvider.fetchPackageInfo(pack, resource).then(info => {
 					if (info) {
-						return [this.getDocumentation(info.description, info.version, info.time, info.homepage, info.installedVersion)];
+						return [this.packageInfoProvider.getDocumentation(info.description, info.version, info.time, info.homepage, info.installedVersion)];
 					}
 					return null;
 				});
@@ -419,7 +262,7 @@ export class PackageJSONContribution implements IJSONContribution {
 			proposal.kind = CompletionItemKind.Property;
 			proposal.insertText = insertText;
 			proposal.filterText = JSON.stringify(name);
-			proposal.documentation = this.getDocumentation(pack.description, pack.version, undefined, pack?.links?.homepage, undefined);
+			proposal.documentation = this.packageInfoProvider.getDocumentation(pack.description, pack.version, undefined, pack?.links?.homepage, undefined);
 			collector.add(proposal);
 		}
 	}
@@ -430,12 +273,4 @@ interface SearchPackageInfo {
 	description?: string;
 	version?: string;
 	links?: { homepage?: string };
-}
-
-interface ViewPackageInfo {
-	description: string;
-	version?: string;
-	time?: string;
-	homepage?: string;
-	installedVersion?: string;
 }
