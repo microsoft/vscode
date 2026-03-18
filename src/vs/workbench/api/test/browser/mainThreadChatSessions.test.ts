@@ -197,9 +197,18 @@ suite('ObservableChatSession', function () {
 		(proxy.$forkChatSession as sinon.SinonStub).resolves(forkedItem);
 
 		const request: IChatSessionRequestHistoryItem = { type: 'request', id: 'request-1', prompt: 'Previous question', participant: 'participant' };
+		const expectedRequestDto = {
+			type: 'request',
+			id: 'request-1',
+			prompt: 'Previous question',
+			participant: 'participant',
+			command: undefined,
+			variableData: undefined,
+			modelId: undefined,
+		};
 		const result = await session.forkSession?.(request, CancellationToken.None);
 
-		assert.ok((proxy.$forkChatSession as sinon.SinonStub).calledOnceWithExactly(1, session.sessionResource, request, CancellationToken.None));
+		assert.ok((proxy.$forkChatSession as sinon.SinonStub).calledOnceWithExactly(1, session.sessionResource, expectedRequestDto, CancellationToken.None));
 		assert.ok(result);
 		assert.ok(result.resource instanceof URI);
 		assert.ok(Array.isArray(result.changes));
