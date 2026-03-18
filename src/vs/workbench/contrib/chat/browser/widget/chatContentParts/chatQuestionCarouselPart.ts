@@ -656,11 +656,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		if (this._headerActionsContainer) {
 			dom.clearNode(this._headerActionsContainer);
-			if (this._collapseButton) {
-				this._headerActionsContainer.appendChild(this._collapseButton.element);
-			}
 			if (this._closeButtonContainer) {
 				this._headerActionsContainer.appendChild(this._closeButtonContainer);
+			}
+			if (this._collapseButton) {
+				this._headerActionsContainer.appendChild(this._collapseButton.element);
 			}
 			titleRow.appendChild(this._headerActionsContainer);
 		}
