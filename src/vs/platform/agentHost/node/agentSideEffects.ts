@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import * as os from 'os';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgent, IAgentAttachment } from '../common/agentService.js';
+import { IAgent, IAgentAttachment, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import type { ISessionAction } from '../common/state/sessionActions.js';
 import { IBrowseDirectoryResult, ICreateSessionParams, AHP_PROVIDER_NOT_FOUND, JSON_RPC_INTERNAL_ERROR, ProtocolError, IDirectoryEntry } from '../common/state/sessionProtocol.js';
 import {
@@ -234,6 +234,24 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				this._logService.error('[AgentSideEffects] setAuthToken failed', err);
 			});
 		}
+	}
+
+	handleGetResourceMetadata(): IResourceMetadata {
+		const resources = this._options.agents.get().flatMap(a => a.getProtectedResources());
+		return { resources };
+	}
+
+	async handleAuthenticate(params: IAuthenticateParams): Promise<IAuthenticateResult> {
+		for (const agent of this._options.agents.get()) {
+			const resources = agent.getProtectedResources();
+			if (resources.some(r => r.resource === params.resource)) {
+				const accepted = await agent.authenticate(params.resource, params.token);
+				if (accepted) {
+					return { authenticated: true };
+				}
+			}
+		}
+		return { authenticated: false };
 	}
 
 	async handleBrowseDirectory(uri: ProtocolURI): Promise<IBrowseDirectoryResult> {

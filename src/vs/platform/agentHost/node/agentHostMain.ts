@@ -150,6 +150,12 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 		handleSetAuthToken(token) {
 			agentService.setAuthToken(token);
 		},
+		handleGetResourceMetadata() {
+			return agentService.getResourceMetadataSync();
+		},
+		async handleAuthenticate(params) {
+			return agentService.authenticate(params);
+		},
 		handleBrowseDirectory(uri) {
 			return agentService.browseDirectory(URI.parse(uri));
 		},

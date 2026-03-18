@@ -96,6 +96,12 @@ export interface IAgentHostSessionHandlerConfig {
 	 * If not provided, falls back to the first workspace folder.
 	 */
 	readonly resolveWorkingDirectory?: (resourceKey: string) => string | undefined;
+	/**
+	 * Optional callback invoked when the server rejects an operation because
+	 * authentication is required. Should trigger interactive authentication
+	 * and return true if the user authenticated successfully.
+	 */
+	readonly resolveAuthentication?: () => Promise<boolean>;
 }
 
 export class AgentHostSessionHandler extends Disposable implements IChatSessionContentProvider {
@@ -442,11 +448,33 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri.fsPath;
 
 		this._logService.trace(`[AgentHost] Creating new session, model=${rawModelId ?? '(default)'}, provider=${this._config.provider}`);
-		const session = await this._config.connection.createSession({
-			model: rawModelId,
-			provider: this._config.provider,
-			workingDirectory,
-		});
+
+		let session: URI;
+		try {
+			session = await this._config.connection.createSession({
+				model: rawModelId,
+				provider: this._config.provider,
+				workingDirectory,
+			});
+		} catch (err) {
+			// If authentication is required, try to resolve it and retry once
+			if (this._isAuthRequiredError(err) && this._config.resolveAuthentication) {
+				this._logService.info('[AgentHost] Authentication required, prompting user...');
+				const authenticated = await this._config.resolveAuthentication();
+				if (authenticated) {
+					session = await this._config.connection.createSession({
+						model: rawModelId,
+						provider: this._config.provider,
+						workingDirectory,
+					});
+				} else {
+					throw new Error('Authentication is required to start a session. Please sign in and try again.');
+				}
+			} else {
+				throw err;
+			}
+		}
+
 		this._logService.trace(`[AgentHost] Created session: ${session.toString()}`);
 
 		// Subscribe to the new session's state
@@ -458,6 +486,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		return session;
+	}
+
+	/**
+	 * Check if an error is an "authentication required" error.
+	 * Works across both ProxyChannel (message-only) and WebSocket (structured) paths.
+	 */
+	private _isAuthRequiredError(err: unknown): boolean {
+		if (err instanceof Error && err.message.includes('Authentication required')) {
+			return true;
+		}
+		return false;
 	}
 
 	/**

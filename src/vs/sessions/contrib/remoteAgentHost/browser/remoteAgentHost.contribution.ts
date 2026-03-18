@@ -179,8 +179,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			this._logService.error(`[RemoteAgentHost] Failed to subscribe to root state for ${address}`, err);
 		});
 
-		// Push auth token to this new connection
-		this._pushAuthToken(connection);
+		// Authenticate with this new connection
+		this._authenticateWithConnection(connection);
 	}
 
 	private _handleRootStateChange(address: string, connection: IAgentConnection, rootState: IRootState): void {
@@ -282,6 +282,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			extensionId: 'vscode.remote-agent-host',
 			extensionDisplayName: 'Remote Agent Host',
 			resolveWorkingDirectory,
+			resolveAuthentication: () => this._resolveAuthenticationInteractively(connection),
 		}));
 		agentStore.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
@@ -302,26 +303,93 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		for (const address of this._connections.keys()) {
 			const connection = this._remoteAgentHostService.getConnection(address);
 			if (connection) {
-				this._pushAuthToken(connection);
+				this._authenticateWithConnection(connection);
 			}
 		}
 	}
 
-	private async _pushAuthToken(connection: IAgentConnection): Promise<void> {
+	/**
+	 * Discover auth requirements from the connection's resource metadata
+	 * and authenticate using matching tokens resolved via the standard
+	 * VS Code authentication service (same flow as MCP auth).
+	 */
+	private async _authenticateWithConnection(connection: IAgentConnection): Promise<void> {
 		try {
-			const account = await this._defaultAccountService.getDefaultAccount();
-			if (!account) {
-				return;
+			const metadata = await connection.getResourceMetadata();
+			for (const resource of metadata.resources) {
+				const token = await this._resolveTokenForResource(resource.authorization_servers ?? [], resource.scopes_supported ?? []);
+				if (token) {
+					this._logService.info(`[RemoteAgentHost] Authenticating for resource: ${resource.resource}`);
+					await connection.authenticate({ resource: resource.resource, token });
+				} else {
+					this._logService.info(`[RemoteAgentHost] No token resolved for resource: ${resource.resource}`);
+				}
+			}
+		} catch (err) {
+			this._logService.error('[RemoteAgentHost] Failed to authenticate with connection', err);
+		}
+	}
+
+	/**
+	 * Resolve a bearer token for a set of authorization servers using the
+	 * standard VS Code authentication service provider resolution.
+	 */
+	private async _resolveTokenForResource(authorizationServers: readonly string[], scopes: readonly string[]): Promise<string | undefined> {
+		for (const server of authorizationServers) {
+			const serverUri = URI.parse(server);
+			const providerId = await this._authenticationService.getOrActivateProviderIdForServer(serverUri);
+			if (!providerId) {
+				this._logService.trace(`[RemoteAgentHost] No auth provider found for server: ${server}`);
+				continue;
 			}
 
-			const sessions = await this._authenticationService.getSessions(account.authenticationProvider.id);
-			const session = sessions.find(s => s.id === account.sessionId);
-			if (session) {
-				await connection.setAuthToken(session.accessToken);
+			const sessions = await this._authenticationService.getSessions(providerId, [...scopes], { authorizationServer: serverUri }, true);
+			if (sessions.length > 0) {
+				return sessions[0].accessToken;
 			}
-		} catch {
-			// best-effort
+
+			// Fall back to any session from the provider
+			const anySessions = await this._authenticationService.getSessions(providerId);
+			if (anySessions.length > 0) {
+				return anySessions[0].accessToken;
+			}
 		}
+		return undefined;
+	}
+
+	/**
+	 * Interactively prompt the user to authenticate when the server requires it.
+	 * Returns true if authentication succeeded.
+	 */
+	private async _resolveAuthenticationInteractively(connection: IAgentConnection): Promise<boolean> {
+		try {
+			const metadata = await connection.getResourceMetadata();
+			for (const resource of metadata.resources) {
+				for (const server of resource.authorization_servers ?? []) {
+					const serverUri = URI.parse(server);
+					const providerId = await this._authenticationService.getOrActivateProviderIdForServer(serverUri);
+					if (!providerId) {
+						continue;
+					}
+
+					const scopes = [...(resource.scopes_supported ?? [])];
+					const session = await this._authenticationService.createSession(providerId, scopes, {
+						activateImmediate: true,
+						authorizationServer: serverUri,
+					});
+
+					await connection.authenticate({
+						resource: resource.resource,
+						token: session.accessToken,
+					});
+					this._logService.info(`[RemoteAgentHost] Interactive authentication succeeded for ${resource.resource}`);
+					return true;
+				}
+			}
+		} catch (err) {
+			this._logService.error('[RemoteAgentHost] Interactive authentication failed', err);
+		}
+		return false;
 	}
 
 	private _traceIpc(address: string, method: string, data?: unknown): void {

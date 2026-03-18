@@ -9,7 +9,7 @@ import { observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IFileService } from '../../files/common/files.js';
-import { AgentProvider, IAgentCreateSessionConfig, IAgent, IAgentService, IAgentSessionMetadata, AgentSession, IAgentDescriptor } from '../common/agentService.js';
+import { AgentProvider, IAgentCreateSessionConfig, IAgent, IAgentService, IAgentSessionMetadata, AgentSession, IAgentDescriptor, IResourceMetadata, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
 import type { IBrowseDirectoryResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionSummary } from '../common/state/sessionState.js';
@@ -96,6 +96,30 @@ export class AgentService extends Disposable implements IAgentService {
 			promises.push(provider.setAuthToken(token));
 		}
 		await Promise.all(promises);
+	}
+
+	async getResourceMetadata(): Promise<IResourceMetadata> {
+		const resources = [...this._providers.values()].flatMap(p => p.getProtectedResources());
+		return { resources };
+	}
+
+	getResourceMetadataSync(): IResourceMetadata {
+		const resources = [...this._providers.values()].flatMap(p => p.getProtectedResources());
+		return { resources };
+	}
+
+	async authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult> {
+		this._logService.trace(`[AgentService] authenticate called: resource=${params.resource}`);
+		for (const provider of this._providers.values()) {
+			const resources = provider.getProtectedResources();
+			if (resources.some(r => r.resource === params.resource)) {
+				const accepted = await provider.authenticate(params.resource, params.token);
+				if (accepted) {
+					return { authenticated: true };
+				}
+			}
+		}
+		return { authenticated: false };
 	}
 
 	// ---- session management -------------------------------------------------

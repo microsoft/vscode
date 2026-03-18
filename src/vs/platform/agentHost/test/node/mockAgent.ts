@@ -5,6 +5,7 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
+import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentMessageEvent, type IAgentModelInfo, type IAgentProgressEvent, type IAgentSessionMetadata, type IAgentToolCompleteEvent, type IAgentToolStartEvent } from '../../common/agentService.js';
 
 /**
@@ -24,11 +25,19 @@ export class MockAgent implements IAgent {
 	readonly abortSessionCalls: URI[] = [];
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
 	readonly changeModelCalls: { session: URI; model: string }[] = [];
+	readonly authenticateCalls: { resource: string; token: string }[] = [];
 
 	constructor(readonly id: AgentProvider = 'mock') { }
 
 	getDescriptor(): IAgentDescriptor {
 		return { provider: this.id, displayName: `Agent ${this.id}`, description: `Test ${this.id} agent`, requiresAuth: this.id === 'copilot' };
+	}
+
+	getProtectedResources(): IAuthorizationProtectedResourceMetadata[] {
+		if (this.id === 'copilot') {
+			return [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'] }];
+		}
+		return [];
 	}
 
 	async listModels(): Promise<IAgentModelInfo[]> {
@@ -75,6 +84,11 @@ export class MockAgent implements IAgent {
 		this.setAuthTokenCalls.push(token);
 	}
 
+	async authenticate(resource: string, token: string): Promise<boolean> {
+		this.authenticateCalls.push({ resource, token });
+		return true;
+	}
+
 	async shutdown(): Promise<void> { }
 
 	fireProgress(event: IAgentProgressEvent): void {
@@ -102,6 +116,10 @@ export class ScriptedMockAgent implements IAgent {
 
 	getDescriptor(): IAgentDescriptor {
 		return { provider: 'mock', displayName: 'Mock Agent', description: 'Scripted test agent', requiresAuth: false };
+	}
+
+	getProtectedResources(): IAuthorizationProtectedResourceMetadata[] {
+		return [];
 	}
 
 	async listModels(): Promise<IAgentModelInfo[]> {
@@ -224,6 +242,10 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	async setAuthToken(_token: string): Promise<void> { }
+
+	async authenticate(_resource: string, _token: string): Promise<boolean> {
+		return true;
+	}
 
 	async shutdown(): Promise<void> { }
 
