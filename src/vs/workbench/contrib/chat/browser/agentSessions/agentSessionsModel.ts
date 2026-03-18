@@ -311,13 +311,13 @@ class AgentSessionsLogger extends Disposable {
 			lines.push(`  Icon: ${session.icon.id}`);
 
 			if (session.description) {
-				lines.push(`  Description: ${typeof session.description === 'string' ? session.description : session.description.value}`);
+				lines.push(`  Description: ${typeof session.description === 'string' ? session.description : (session.description.value ?? '')}`);
 			}
 			if (session.badge) {
-				lines.push(`  Badge: ${typeof session.badge === 'string' ? session.badge : session.badge.value}`);
+				lines.push(`  Badge: ${typeof session.badge === 'string' ? session.badge : (session.badge.value ?? '')}`);
 			}
 			if (session.tooltip) {
-				lines.push(`  Tooltip: ${typeof session.tooltip === 'string' ? session.tooltip : session.tooltip.value}`);
+				lines.push(`  Tooltip: ${typeof session.tooltip === 'string' ? session.tooltip : (session.tooltip.value ?? '')}`);
 			}
 
 			// Timing info

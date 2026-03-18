@@ -282,7 +282,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		// Archived sessions always keep their badge since they are grouped under
 		// the "Archived" section, not a repository section.
 		if (this.options.isGroupedByRepository?.() && !session.element.isArchived()) {
-			const raw = typeof badge === 'string' ? badge : badge.value;
+			const raw = typeof badge === 'string' ? badge : (badge.value ?? '');
 			const match = raw.match(/^\$\((?:repo|folder|worktree)\)\s*(.+)/);
 			if (match) {
 				const badgeName = match[1].trim();
@@ -294,7 +294,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		}
 
 		const normalisedBadge = this.stripCodicons(badge);
-		const badgeValue = typeof normalisedBadge === 'string' ? normalisedBadge : normalisedBadge.value;
+		const badgeValue = typeof normalisedBadge === 'string' ? normalisedBadge : (normalisedBadge.value ?? '');
 		if (!badgeValue) {
 			return false;
 		}
@@ -305,7 +305,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	}
 
 	private stripCodicons(content: string | IMarkdownString): string | IMarkdownString {
-		const raw = typeof content === 'string' ? content : content.value;
+		const raw = typeof content === 'string' ? content : (content.value ?? '');
 		const stripped = raw.replace(/\$\([a-z0-9\-]+\)\s*/gi, '').trim();
 		if (typeof content === 'string') {
 			return stripped;
@@ -1031,7 +1031,7 @@ export function getRepositoryName(session: IAgentSession): string | undefined {
 	// Fallback: extract repo/folder name from badge
 	const badge = session.badge;
 	if (badge) {
-		const raw = typeof badge === 'string' ? badge : badge.value;
+		const raw = typeof badge === 'string' ? badge : (badge.value ?? '');
 		const badgeMatch = raw.match(/\$\((?:repo|folder|worktree)\)\s*(.+)/);
 		if (badgeMatch) {
 			return badgeMatch[1].trim();
