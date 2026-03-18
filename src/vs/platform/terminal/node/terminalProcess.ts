@@ -337,7 +337,20 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this._exitCode = e.exitCode;
 			this._queueProcessExit();
 		}));
-		this._sendProcessId(ptyProcess.pid);
+		// node-pty >= 1.2.0-beta.11 defers conptyNative.connect() on Windows, so
+		// ptyProcess.pid may be 0 immediately after spawn. In that case we wait
+		// for the first data event which only fires after the connection completes
+		// and the real pid is available. See microsoft/node-pty#885.
+		if (ptyProcess.pid > 0) {
+			this._sendProcessId(ptyProcess.pid);
+		} else {
+			const dataListener = ptyProcess.onData(() => {
+				dataListener.dispose();
+				this._childProcessMonitor?.setPid(ptyProcess.pid);
+				this._sendProcessId(ptyProcess.pid);
+			});
+			this._register(dataListener);
+		}
 		this._setupTitlePolling(ptyProcess);
 	}
 

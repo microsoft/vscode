@@ -71,12 +71,13 @@
 		flex: 1;
 		min-width: 0;
 		padding: 4px 8px;
+		font-size: 13px;
+		line-height: 17px;
 		background-color: transparent;
 		color: var(--vscode-input-foreground);
 		border: none;
 		border-radius: var(--vscode-cornerRadius-small);
 		outline: none !important;
-		font-size: 13px;
 		text-overflow: ellipsis;
 		overflow: hidden;
 		white-space: nowrap;
@@ -312,18 +313,19 @@
 		left: 0;
 		right: 0;
 		bottom: 0;
-		flex: 1;
 		display: flex;
 		align-items: flex-start;
-		justify-content: flex-start;
+		justify-content: center;
 		padding: 80px 40px;
-		margin: 0 2px 2px;
 		background-color: var(--vscode-editor-background);
+		overflow-y: auto;
 	}
 
 	.browser-error-content {
-		max-width: 600px;
+		max-width: 520px;
 		width: 100%;
+		user-select: text;
+		-webkit-user-select: text;
 	}
 
 	.browser-error-title {
@@ -334,9 +336,8 @@
 	}
 
 	.browser-error-detail {
-		margin-bottom: 12px;
-		line-height: 1.6;
-		color: var(--vscode-foreground);
+		margin-bottom: 8px;
+		line-height: 20px;
 
 		strong {
 			font-weight: 600;
@@ -344,7 +345,7 @@
 
 		code {
 			background-color: var(--vscode-textCodeBlock-background);
-			padding: 2px 6px;
+			padding: 1px 4px;
 			border-radius: 3px;
 			font-family: var(--monaco-monospace-font);
 			font-size: 12px;
@@ -459,5 +460,170 @@
 			}
 		}
 
+	}
+
+	/* Site info indicator in URL bar */
+	.browser-site-info-container {
+		display: flex;
+		align-items: center;
+		position: relative;
+		flex-shrink: 0;
+		margin-left: 1px;
+	}
+
+	.browser-site-info-indicator {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 23px;
+		height: 23px;
+		border-radius: var(--vscode-cornerRadius-small);
+		cursor: pointer;
+		background-color: var(--vscode-statusBarItem-errorBackground);
+		outline: none !important;
+
+		&:focus-visible {
+			outline: 1px solid var(--vscode-focusBorder) !important;
+			outline-offset: -1px !important;
+		}
+
+		.codicon {
+			font-size: 15px;
+			margin: 0;
+			color: var(--vscode-statusBarItem-errorForeground);
+		}
+	}
+
+	/* URL input wrapper for display/input swap */
+	.browser-url-input-wrapper {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		min-width: 0;
+	}
+
+	.browser-url-display {
+		flex: 1;
+		padding: 4px 8px;
+		font-size: 13px;
+		line-height: 17px;
+		color: var(--vscode-input-foreground);
+		cursor: text;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		outline: none !important;
+
+		&.placeholder {
+			color: var(--vscode-input-placeholderForeground);
+		}
+	}
+
+	.browser-url-display-protocol-bad {
+		color: var(--vscode-errorForeground);
+		text-decoration: line-through;
+	}
+
+	/* Certificate error page styles */
+	.browser-error-icon {
+		margin-bottom: 12px;
+
+		.codicon {
+			font-size: 32px;
+		}
+
+		&.cert-error .codicon {
+			color: var(--vscode-errorForeground);
+		}
+	}
+
+	.browser-cert-details-table {
+		margin-top: 16px;
+		padding: 8px 4px;
+		border: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+		border-radius: var(--vscode-cornerRadius-medium);
+		background-color: var(--vscode-editorWidget-background);
+	}
+
+	.browser-cert-details-heading {
+		font-weight: 600;
+		margin-bottom: 8px;
+		padding: 0 8px;
+	}
+
+	.browser-cert-details-row {
+		display: grid;
+		grid-template-columns: 30% 70%;
+		gap: 4px;
+		padding: 3px 8px;
+		font-size: 12px;
+
+		&:nth-child(odd) {
+			background-color: rgba(130, 130, 130, 0.04);
+		}
+	}
+
+	.browser-cert-details-label {
+		color: var(--vscode-descriptionForeground);
+		white-space: nowrap;
+	}
+
+	.browser-cert-details-value {
+		word-break: break-all;
+		font-family: var(--monaco-monospace-font);
+	}
+
+	.browser-cert-action {
+		margin-top: 20px;
+		display: flex;
+		justify-content: flex-end;
+		flex-direction: row;
+		gap: 8px;
+
+		&.reverse {
+			flex-direction: row-reverse;
+			justify-content: flex-start;
+		}
+
+		.monaco-button {
+			width: fit-content;
+		}
+	}
+
+	/* Site info hover popover */
+	.browser-site-info-hover-content {
+		padding: 4px 8px;
+		width: 320px;
+		max-width: 320px;
+	}
+
+	.browser-site-info-hover-heading {
+		font-weight: 600;
+		color: var(--vscode-errorForeground);
+	}
+
+	.browser-site-info-hover-detail {
+		font-size: 12px;
+		line-height: 1.5;
+		margin-top: 8px;
+	}
+
+	.browser-site-info-hover-revoke {
+		display: inline-block;
+		font-size: 12px;
+		color: var(--vscode-textLink-foreground);
+		cursor: pointer;
+		text-decoration: var(--text-link-decoration);
+		margin-top: 8px;
+
+		&:hover {
+			color: var(--vscode-textLink-activeForeground);
+			text-decoration: underline;
+		}
+
+		&:focus-visible {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: 2px;
+		}
 	}
 }

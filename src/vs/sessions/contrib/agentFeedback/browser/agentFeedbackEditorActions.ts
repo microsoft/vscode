@@ -122,7 +122,7 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 			await editorService.closeEditors(editorsToClose);
 		}
 
-		await widget.acceptInput('Act on the provided feedback');
+		await widget.acceptInput('/act-on-feedback');
 	}
 }
 

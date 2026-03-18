@@ -139,6 +139,26 @@ const toolMessages = [
 	localize('chat.thinking.tool.5', 'Evaluating'),
 ];
 
+/**
+ * Builds a phrase pool from defaults and user-configured custom phrases.
+ * In 'replace' mode, only custom phrases are used; in 'append' mode (default),
+ * custom phrases are added to the defaults.
+ */
+export function buildPhrasePool(defaults: string[], configurationService: IConfigurationService): string[] {
+	const config = configurationService.getValue<{ mode?: 'replace' | 'append'; phrases?: string[] }>(ChatConfiguration.ThinkingPhrases);
+	const customPhrases = Array.isArray(config?.phrases)
+		? config.phrases
+			.filter((phrase): phrase is string => typeof phrase === 'string')
+			.map(phrase => phrase.trim())
+			.filter(phrase => phrase.length > 0)
+		: [];
+
+	if (customPhrases.length > 0) {
+		return config?.mode === 'replace' ? [...customPhrases] : [...defaults, ...customPhrases];
+	}
+	return [...defaults];
+}
+
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
 
 	private static _codeBlockRendererSync(_languageId: string, text: string, _raw?: string): HTMLElement {
@@ -157,7 +177,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private content: IChatThinkingPart;
 	private currentThinkingValue: string;
 	private currentTitle: string;
-	private defaultTitle = localize('chat.thinking.header', 'Working');
+	private defaultTitle = localize('chat.thinking.header', 'Thinking');
+	private readonly workingTitle = localize('chat.thinking.header.working', 'Working');
 	private textContainer!: HTMLElement;
 	private readonly _markdownResult = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private wrapper!: HTMLElement;
@@ -195,38 +216,18 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			let defaults: string[];
 			switch (category) {
 				case WorkingMessageCategory.Thinking:
-					defaults = [...defaultThinkingMessages];
+					defaults = defaultThinkingMessages;
 					break;
 				case WorkingMessageCategory.Terminal:
-					defaults = [...terminalMessages];
+					defaults = terminalMessages;
 					break;
 				case WorkingMessageCategory.Tool:
 				default:
-					defaults = [...toolMessages];
+					defaults = toolMessages;
 					break;
 			}
 
-			// Read configured phrases from the single setting
-			const config = this.configurationService.getValue<{ mode?: 'replace' | 'append'; phrases?: string[] }>(ChatConfiguration.ThinkingPhrases);
-			const customPhrases = Array.isArray(config?.phrases)
-				? config.phrases
-					.filter((phrase): phrase is string => typeof phrase === 'string')
-					.map(phrase => phrase.trim())
-					.filter(phrase => phrase.length > 0)
-				: [];
-			const mode = config?.mode === 'replace' ? 'replace' : 'append';
-
-			if (customPhrases.length > 0) {
-				if (mode === 'replace') {
-					// Replace mode: use only custom phrases for all categories
-					pool = [...customPhrases];
-				} else {
-					// Append mode: add custom phrases to defaults for this category
-					pool = [...defaults, ...customPhrases];
-				}
-			} else {
-				pool = defaults;
-			}
+			pool = buildPhrasePool(defaults, this.configurationService);
 
 			this.availableMessagesByCategory.set(category, pool);
 		}
@@ -247,7 +248,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	) {
 		const initialText = extractTextFromPart(content);
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
-			?? 'Working';
+			?? localize('chat.thinking.header.initial', 'Thinking');
 
 		super(extractedTitle, context, undefined, hoverService, configurationService);
 
@@ -739,6 +740,22 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		return this.isActive;
 	}
 
+	/**
+	 * Returns true when this thinking part has no meaningful content to display:
+	 * no tool invocations, no lazy items, no hooks, and no thinking text.
+	 * This happens when a tool is removed from thinking (e.g. due to confirmation)
+	 * and the thinking part was only created to hold that tool.
+	 */
+	public isEffectivelyEmpty(): boolean {
+		if (this.toolInvocationCount > 0 || this.lazyItems.length > 0 || this.hookCount > 0) {
+			return false;
+		}
+		if (this.currentThinkingValue.trim().length > 0) {
+			return false;
+		}
+		return true;
+	}
+
 	public markAsInactive(): void {
 		this.isActive = false;
 		this.domNode.classList.remove('chat-thinking-active');
@@ -1126,6 +1143,39 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.updateDropdownClickability();
 	}
 
+	public removeMaterializedItem(toolCallId: string): void {
+		this.toolDisposables.deleteAndDispose(toolCallId);
+
+		const wrapper = this.toolWrappersByCallId.get(toolCallId);
+		if (wrapper) {
+			this.toolWrappersByCallId.delete(toolCallId);
+		}
+
+		this.appendedItemCount = Math.max(0, this.appendedItemCount - 1);
+		this.toolInvocationCount = Math.max(0, this.toolInvocationCount - 1);
+
+		const toolInvocationsIndex = this.toolInvocations.findIndex(t =>
+			(t.kind === 'toolInvocation' || t.kind === 'toolInvocationSerialized') && t.toolCallId === toolCallId
+		);
+		if (toolInvocationsIndex !== -1) {
+			const invocation = this.toolInvocations[toolInvocationsIndex];
+			if (invocation.kind === 'toolInvocation' || invocation.kind === 'toolInvocationSerialized') {
+				const msg = invocation.invocationMessage;
+				const label = msg ? (typeof msg === 'string' ? msg : msg.value) : undefined;
+				if (label) {
+					const titleIndex = this.extractedTitles.indexOf(label);
+					if (titleIndex !== -1) {
+						this.extractedTitles.splice(titleIndex, 1);
+					}
+				}
+			}
+			this.toolInvocations.splice(toolInvocationsIndex, 1);
+		}
+
+		this.updateDropdownClickability();
+		this._onDidChangeHeight.fire();
+	}
+
 	/**
 	 * removes/re-establishes a lazy item from the thinking container
 	 * this is needed so we can check if there are confirmations still needed
@@ -1148,6 +1198,16 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		// Clear the attached-to-thinking flag on the removed tool invocation
 		if (removedItem.kind === 'tool' && removedItem.toolInvocationOrMarkdown && (removedItem.toolInvocationOrMarkdown.kind === 'toolInvocation' || removedItem.toolInvocationOrMarkdown.kind === 'toolInvocationSerialized')) {
 			removedItem.toolInvocationOrMarkdown.isAttachedToThinking = false;
+
+			// Keep extractedTitles in sync when a lazy tool leaves the thinking container
+			const msg = removedItem.toolInvocationOrMarkdown.invocationMessage;
+			const label = msg ? (typeof msg === 'string' ? msg : msg.value) : undefined;
+			if (label) {
+				const titleIndex = this.extractedTitles.indexOf(label);
+				if (titleIndex !== -1) {
+					this.extractedTitles.splice(titleIndex, 1);
+				}
+			}
 		}
 
 		const toolInvocationsIndex = this.toolInvocations.findIndex(t =>
@@ -1248,6 +1308,11 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.hookCount++;
 		} else {
 			this.toolInvocationCount++;
+		}
+
+		// Shift default title from 'Thinking' to 'Working' once we have tool calls
+		if (this.toolInvocationCount === 1) {
+			this.defaultTitle = this.workingTitle;
 		}
 
 		let toolCallLabel: string;
@@ -1535,7 +1600,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 
 		this.lastExtractedTitle = title;
-		const thinkingLabel = `Working: ${title}`;
+		const thinkingLabel = localize('chat.thinking.label', "{0}: {1}", this.defaultTitle, title);
 		this.currentTitle = thinkingLabel;
 
 		if (!this._collapseButton) {
@@ -1550,7 +1615,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.titleShimmerSpan = $('span.chat-thinking-title-shimmer');
 			labelElement.appendChild(this.titleShimmerSpan);
 		}
-		this.titleShimmerSpan.textContent = 'Working: ';
+		this.titleShimmerSpan.textContent = localize('chat.thinking.shimmer', "{0}: ", this.defaultTitle);
 
 		// Dispose previous detail rendering
 		this._titleDetailRendered.clear();
@@ -1573,6 +1638,11 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
+
+		if (_element.isComplete) {
+			return true;
+		}
+
 		if (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized' || other.kind === 'markdownContent' || other.kind === 'hook') {
 			return true;
 		}
