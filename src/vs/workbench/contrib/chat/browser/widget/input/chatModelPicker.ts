@@ -78,7 +78,6 @@ function createModelItem(
 	action: IActionWidgetDropdownAction & { section?: string },
 	model?: ILanguageModelChatMetadataAndIdentifier,
 	hoverPosition?: IHoverPositionOptions,
-	languageModelsService?: ILanguageModelsService,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	return {
 		item: action,
@@ -88,8 +87,7 @@ function createModelItem(
 		group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
 		hideIcon: false,
 		section: action.section,
-		hover: model ? { content: getModelHoverContent(model, languageModelsService), position: hoverPosition } : undefined,
-		submenuActions: action.toolbarActions,
+		hover: model ? { content: getModelHoverContent(model), position: hoverPosition } : undefined,
 	};
 }
 
@@ -98,16 +96,14 @@ function createModelAction(
 	selectedModelId: string | undefined,
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
 	section?: string,
-	_languageModelsService?: ILanguageModelsService,
 ): IActionWidgetDropdownAction & { section?: string } {
-	const description = model.metadata.multiplier ?? model.metadata.detail;
 	return {
 		id: model.identifier,
 		enabled: true,
 		icon: model.metadata.statusIcon,
 		checked: model.identifier === selectedModelId,
 		class: undefined,
-		description,
+		description: model.metadata.multiplier ?? model.metadata.detail,
 		tooltip: model.metadata.name,
 		label: model.metadata.name,
 		section,
@@ -159,8 +155,9 @@ export function buildModelPickerItems(
 	useGroupedModelPicker: boolean,
 	manageModelsAction: IActionWidgetDropdownAction | undefined,
 	chatEntitlementService: IChatEntitlementService,
+	showUnavailableFeatured: boolean,
+	showFeatured: boolean,
 	hoverPosition?: IHoverPositionOptions,
-	languageModelsService?: ILanguageModelsService,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
@@ -212,7 +209,7 @@ export function buildModelPickerItems(
 			const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
 			if (autoModel) {
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
-				items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect, undefined, languageModelsService), autoModel, hoverPosition, languageModelsService));
+				items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect), autoModel, hoverPosition));
 			}
 
 			// --- 2. Promoted section (selected + recently used + featured) ---
@@ -260,21 +257,28 @@ export function buildModelPickerItems(
 			}
 
 			// Featured models from control manifest
-			for (const [entryId, entry] of Object.entries(controlModels)) {
-				if (!entry.featured || placed.has(entryId)) {
-					continue;
-				}
-				const model = resolveModel(entryId);
-				if (model && !placed.has(model.identifier)) {
-					markPlaced(model.identifier, model.metadata.id);
-					if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
-						promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: 'update' });
-					} else {
-						promotedItems.push({ kind: 'available', model });
+			if (showFeatured) {
+				for (const [entryId, entry] of Object.entries(controlModels)) {
+					if (!entry.featured || placed.has(entryId)) {
+						continue;
 					}
-				} else if (!model && !entry.exists) {
-					markPlaced(entryId);
-					promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: getUnavailableReason(entry) });
+					const model = resolveModel(entryId);
+					if (model && !placed.has(model.identifier)) {
+						if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
+							if (showUnavailableFeatured) {
+								markPlaced(model.identifier, model.metadata.id);
+								promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: 'update' });
+							}
+						} else {
+							markPlaced(model.identifier, model.metadata.id);
+							promotedItems.push({ kind: 'available', model });
+						}
+					} else if (!model && !entry.exists) {
+						if (showUnavailableFeatured) {
+							markPlaced(entryId);
+							promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: getUnavailableReason(entry) });
+						}
+					}
 				}
 			}
 
@@ -293,7 +297,7 @@ export function buildModelPickerItems(
 
 				for (const item of promotedItems) {
 					if (item.kind === 'available') {
-						items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect, undefined, languageModelsService), item.model, hoverPosition, languageModelsService));
+						items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect), item.model, hoverPosition));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, undefined, hoverPosition));
 					}
@@ -346,7 +350,7 @@ export function buildModelPickerItems(
 					if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
 						items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other, hoverPosition));
 					} else {
-						items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, ModelPickerSection.Other, languageModelsService), model, hoverPosition, languageModelsService));
+						items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, ModelPickerSection.Other), model, hoverPosition));
 					}
 				}
 			}
@@ -368,7 +372,7 @@ export function buildModelPickerItems(
 		// Flat list: auto first, then all models sorted alphabetically
 		const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
 		if (autoModel) {
-			items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect, undefined, languageModelsService), autoModel, hoverPosition, languageModelsService));
+			items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect), autoModel, hoverPosition));
 		}
 		const sortedModels = models
 			.filter(m => m !== autoModel)
@@ -377,7 +381,7 @@ export function buildModelPickerItems(
 				return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
 			});
 		for (const model of sortedModels) {
-			items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, undefined, languageModelsService), model, hoverPosition, languageModelsService));
+			items.push(createModelItem(createModelAction(model, selectedModelId, onSelect), model, hoverPosition));
 		}
 	}
 
@@ -595,8 +599,9 @@ export class ModelPickerWidget extends Disposable {
 			this._delegate.useGroupedModelPicker(),
 			!showFilter ? manageModelsAction : undefined,
 			this._entitlementService,
+			this._delegate.showUnavailableFeatured(),
+			this._delegate.showFeatured(),
 			this._hoverPosition,
-			this._languageModelsService,
 		);
 
 		const listOptions = {
@@ -687,7 +692,7 @@ export class ModelPickerWidget extends Disposable {
 }
 
 
-function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService?: ILanguageModelsService): MarkdownString {
+function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): MarkdownString {
 	const isAuto = model.metadata.id === 'auto' && model.metadata.vendor === 'copilot';
 	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 	markdown.appendMarkdown(`**${model.metadata.name}**`);
@@ -713,28 +718,6 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, la
 		markdown.appendText(`\n`);
 	}
 
-	// Show navigation-group configuration values
-	if (languageModelsService) {
-		const schema = model.metadata.configurationSchema;
-		if (schema?.properties) {
-			const currentConfig = languageModelsService.getModelConfiguration(model.identifier) ?? {};
-			for (const [key, propSchema] of Object.entries(schema.properties)) {
-				if (typeof propSchema === 'boolean' || propSchema.group !== 'navigation') {
-					continue;
-				}
-				const value = currentConfig[key] ?? propSchema.default;
-				if (value !== undefined) {
-					const title = (typeof propSchema.title === 'string' ? propSchema.title : undefined)
-						?? key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase());
-					const enumIndex = propSchema.enum?.indexOf(value) ?? -1;
-					const displayValue = (enumIndex >= 0 && propSchema.enumItemLabels?.[enumIndex]) ?? String(value);
-					markdown.appendMarkdown(`${title}: ${displayValue}`);
-					markdown.appendText(`\n`);
-				}
-			}
-		}
-	}
-
 	return markdown;
 }
 
@@ -747,4 +730,3 @@ function formatTokenCount(count: number): string {
 	}
 	return count.toString();
 }
-

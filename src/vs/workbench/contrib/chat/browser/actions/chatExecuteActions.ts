@@ -454,37 +454,6 @@ export class OpenModelPickerAction extends Action2 {
 	}
 }
 
-export class OpenModelConfigPickerAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.openModelConfigPicker';
-
-	constructor() {
-		super({
-			id: OpenModelConfigPickerAction.ID,
-			title: localize2('interactive.openModelConfigPicker.label', "Open Model Configuration Picker"),
-			category: CHAT_CATEGORY,
-			f1: false,
-			precondition: ChatContextKeys.enabled,
-			menu: {
-				id: MenuId.ChatInput,
-				order: 3.5, // Right after model picker (order: 3)
-				group: 'navigation',
-				when: ContextKeyExpr.and(
-					ChatContextKeys.chatModelHasNavigationConfig,
-					ContextKeyExpr.or(
-						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
-						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditorInline),
-						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
-						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal)),
-				)
-			}
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		// The picker is opened by the ModelConfigPickerActionItem view item on click
-	}
-}
-
 export class OpenPermissionPickerAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.openPermissionPicker';
 
@@ -1063,7 +1032,6 @@ export function registerChatExecuteActions() {
 	registerAction2(ToggleChatModeAction);
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
-	registerAction2(OpenModelConfigPickerAction);
 	registerAction2(OpenPermissionPickerAction);
 	registerAction2(OpenModePickerAction);
 	registerAction2(OpenSessionTargetPickerAction);

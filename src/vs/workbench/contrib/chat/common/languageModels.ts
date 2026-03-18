@@ -171,12 +171,14 @@ export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart
 export type IExtendedChatResponsePart = IChatResponsePullRequestPart;
 
 export interface ILanguageModelConfigurationSchema extends IJSONSchema {
-	properties?: { [key: string]: IJSONSchema & {
-		/** When set to `'navigation'`, the property is shown as a primary action in the model picker. */
-		group?: string;
-		/** Labels for enum values. If provided, these are shown instead of the raw enum values. */
-		enumItemLabels?: string[];
-	} | boolean };
+	properties?: {
+		[key: string]: IJSONSchema & {
+			/** When set to `'navigation'`, the property is shown as a primary action in the model picker. */
+			group?: string;
+			/** Labels for enum values. If provided, these are shown instead of the raw enum values. */
+			enumItemLabels?: string[];
+		};
+	};
 }
 
 export interface ILanguageModelChatMetadata {
@@ -1148,7 +1150,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const currentConfig = this._modelConfigurations.get(modelId) ?? {};
 
 		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (typeof propSchema === 'boolean' || !propSchema.enum || !Array.isArray(propSchema.enum)) {
+			if (!propSchema.enum || !Array.isArray(propSchema.enum)) {
 				continue;
 			}
 			const currentValue = currentConfig[key] ?? propSchema.default;
@@ -1258,13 +1260,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 		await this._languageModelsConfigurationService.configureLanguageModels({ group, snippet });
 	}
 
-	private _getModelConfigurationSnippet(modelId: string, schema: IJSONSchema): string {
+	private _getModelConfigurationSnippet(modelId: string, schema: ILanguageModelConfigurationSchema): string {
 		const properties: string[] = [];
 		if (schema.properties) {
 			for (const [key, propSchema] of Object.entries(schema.properties)) {
-				if (typeof propSchema === 'boolean') {
-					continue;
-				}
 				if (propSchema.defaultSnippets?.[0]) {
 					const snippet = propSchema.defaultSnippets[0];
 					let bodyText = snippet.bodyText ?? JSON.stringify(snippet.body, null, '\t\t\t');
@@ -1612,7 +1611,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return result;
 	}
 
-	private async _resolveModelConfiguration(config: IStringDictionary<unknown>, schema: IJSONSchema | undefined): Promise<IStringDictionary<unknown>> {
+	private async _resolveModelConfiguration(config: IStringDictionary<unknown>, schema: ILanguageModelConfigurationSchema | undefined): Promise<IStringDictionary<unknown>> {
 		if (!schema) {
 			return { ...config };
 		}
