@@ -284,6 +284,8 @@ suite('Editor Model - TextModel', () => {
 		m.dispose();
 	});
 
+	test('guess indentation 1', () => {
+
 		assertGuess(undefined, undefined, [
 			'x',
 			'x',

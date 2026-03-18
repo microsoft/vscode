@@ -49,16 +49,31 @@ suite('eolCounter', () => {
 	test('mixed CR and LF', () => {
 		const [eolCount, , , eol] = countEOL('line1\rline2\nline3');
 		assert.strictEqual(eolCount, 2);
-		// CR | LF = 3 | 1 = 3 (both bits set)
+		// CR=4, LF=1: CR | LF = 5 (distinct bits)
+		assert.strictEqual(eol, StringEOL.CR | StringEOL.LF);
 		assert.strictEqual(eol & StringEOL.CR, StringEOL.CR);
 		assert.strictEqual(eol & StringEOL.LF, StringEOL.LF);
+		assert.strictEqual(eol & StringEOL.CRLF, 0);
 	});
 
 	test('mixed CR and CRLF', () => {
 		const [eolCount, , , eol] = countEOL('line1\rline2\r\nline3');
 		assert.strictEqual(eolCount, 2);
+		// CR=4, CRLF=2: CR | CRLF = 6 (distinct bits)
+		assert.strictEqual(eol, StringEOL.CR | StringEOL.CRLF);
 		assert.strictEqual(eol & StringEOL.CR, StringEOL.CR);
 		assert.strictEqual(eol & StringEOL.CRLF, StringEOL.CRLF);
+		assert.strictEqual(eol & StringEOL.LF, 0);
+	});
+
+	test('mixed LF and CRLF', () => {
+		const [eolCount, , , eol] = countEOL('line1\nline2\r\nline3');
+		assert.strictEqual(eolCount, 2);
+		// LF=1, CRLF=2: LF | CRLF = 3 (distinct from CR=4)
+		assert.strictEqual(eol, StringEOL.LF | StringEOL.CRLF);
+		assert.strictEqual(eol & StringEOL.LF, StringEOL.LF);
+		assert.strictEqual(eol & StringEOL.CRLF, StringEOL.CRLF);
+		assert.strictEqual(eol & StringEOL.CR, 0);
 	});
 
 	test('CR at end of string', () => {

@@ -7,9 +7,9 @@ import { CharCode } from '../../../../base/common/charCode.js';
 
 export const enum StringEOL {
 	Unknown = 0,
-	CR = 3,
 	LF = 1,
-	CRLF = 2
+	CRLF = 2,
+	CR = 4
 }
 
 export function countEOL(text: string): [number, number, number, StringEOL] {
