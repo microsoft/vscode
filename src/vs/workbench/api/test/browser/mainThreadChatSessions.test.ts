@@ -80,13 +80,15 @@ suite('ObservableChatSession', function () {
 		history?: any[];
 		hasActiveResponseCallback?: boolean;
 		hasRequestHandler?: boolean;
+		hasForkHandler?: boolean;
 	} = {}) {
 		return {
 			id: options.id || 'test-id',
 			title: options.title,
 			history: options.history || [],
-			hasActiveResponseCallback: options.hasActiveResponseCallback || false,
-			hasRequestHandler: options.hasRequestHandler || false
+			hasActiveResponseCallback: options.hasActiveResponseCallback ?? false,
+			hasRequestHandler: options.hasRequestHandler ?? false,
+			hasForkHandler: options.hasForkHandler ?? false
 		};
 	}
 
@@ -162,6 +164,39 @@ suite('ObservableChatSession', function () {
 		// Verify capabilities were set up
 		assert.ok(session.interruptActiveResponseCallback);
 		assert.ok(session.requestHandler);
+	});
+
+	test('initialization sets forkSession and revives forked items', async function () {
+		const session = disposables.add(await createInitializedSession(createSessionContent({ hasForkHandler: true })));
+		assert.ok(session.forkSession);
+
+		const forkedResource = URI.file('/tmp/forked-chat.md');
+		const forkedItem = {
+			resource: forkedResource,
+			label: 'Forked Session',
+			timing: {
+				created: 123,
+				lastRequestStarted: 234,
+				lastRequestEnded: 345,
+			},
+			changes: [{
+				uri: URI.file('/tmp/changed.ts'),
+				originalUri: URI.file('/tmp/original.ts'),
+				insertions: 4,
+				deletions: 2,
+			}],
+		};
+		(proxy.$forkChatSession as sinon.SinonStub).resolves(forkedItem);
+
+		const result = await session.forkSession?.('request-1', CancellationToken.None);
+
+		assert.ok((proxy.$forkChatSession as sinon.SinonStub).calledOnceWithExactly(1, session.sessionResource, 'request-1', CancellationToken.None));
+		assert.ok(result);
+		assert.ok(result.resource instanceof URI);
+		assert.ok(Array.isArray(result.changes));
+		assert.ok(result.changes[0].uri instanceof URI);
+		assert.ok(result.changes[0].originalUri instanceof URI);
+		assert.deepStrictEqual(result, forkedItem);
 	});
 
 	test('initialization sets title from session content', async function () {
