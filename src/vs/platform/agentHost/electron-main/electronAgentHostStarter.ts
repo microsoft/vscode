@@ -72,7 +72,12 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 
 		const store = new DisposableStore();
 		store.add(client);
-		store.add(this.utilityProcess.onStderr(data => this._logService.error(`[AgentHost:stderr] ${data}`)));
+		store.add(this.utilityProcess.onStderr(data => {
+			if (this._isExpectedStderr(data)) {
+				return;
+			}
+			this._logService.error(`[AgentHost:stderr] ${data}`);
+		}));
 		store.add(toDisposable(() => {
 			this.utilityProcess?.kill();
 			this.utilityProcess?.dispose();
@@ -102,5 +107,16 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		}
 
 		e.sender.postMessage('vscode:createAgentHostMessageChannelResult', nonce, [port]);
+	}
+
+	private static readonly _expectedStderrPatterns = [
+		'Most NODE_OPTIONs are not supported in packaged apps',
+		'Debugger listening on ws://',
+		'For help, see: https://nodejs.org/en/docs/inspector',
+		'ExperimentalWarning: SQLite is an experimental feature',
+	];
+
+	private _isExpectedStderr(data: string): boolean {
+		return ElectronAgentHostStarter._expectedStderrPatterns.some(pattern => data.includes(pattern));
 	}
 }
