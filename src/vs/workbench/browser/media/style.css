@@ -70,6 +70,8 @@ body {
 /* Disable panel/part shadows when the setting is off (preserves floating modals, notifications, etc.) */
 .monaco-workbench.no-shadows .part.titlebar,
 .monaco-workbench.no-shadows .part.activitybar,
+.monaco-workbench.no-shadows.nosidebar .part.activitybar,
+.monaco-workbench.no-shadows.activitybar-right .part.activitybar,
 .monaco-workbench.no-shadows .part.editor .tabs-container > .tab {
 	box-shadow: none;
 }
