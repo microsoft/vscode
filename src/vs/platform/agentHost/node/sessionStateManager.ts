@@ -40,6 +40,8 @@ export class SessionStateManager extends Disposable {
 		super();
 		this._rootState = createRootState();
 	}
+	private readonly _log = (msg: string) => this._logService.warn(`[SessionStateManager] ${msg}`);
+
 	get hasActiveSessions(): boolean {
 		return this._activeTurnToSession.size > 0;
 	}
@@ -173,7 +175,7 @@ export class SessionStateManager extends Disposable {
 		let resultingState: unknown = undefined;
 		// Apply to state
 		if (isRootAction(action)) {
-			this._rootState = rootReducer(this._rootState, action as IRootAction);
+			this._rootState = rootReducer(this._rootState, action as IRootAction, this._log);
 			resultingState = this._rootState;
 		}
 
@@ -182,7 +184,7 @@ export class SessionStateManager extends Disposable {
 			const key = sessionAction.session;
 			const state = this._sessionStates.get(key);
 			if (state) {
-				const newState = sessionReducer(state, sessionAction);
+				const newState = sessionReducer(state, sessionAction, this._log);
 				this._sessionStates.set(key, newState);
 
 				// Track active turn for turn lifecycle

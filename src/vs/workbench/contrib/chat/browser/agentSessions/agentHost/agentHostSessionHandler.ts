@@ -120,7 +120,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._config = config;
 
 		// Create shared client state manager for this handler instance
-		this._clientState = this._register(new SessionClientState(config.connection.clientId));
+		this._clientState = this._register(new SessionClientState(config.connection.clientId, this._logService));
 
 		// Forward action envelopes from IPC to client state
 		this._register(config.connection.onDidAction(envelope => {
