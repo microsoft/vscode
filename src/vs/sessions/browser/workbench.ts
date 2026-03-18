@@ -5,7 +5,6 @@
 
 import '../../workbench/browser/style.js';
 import './media/style.css';
-import { CollapsedPanelWidget } from './collapsedPanelWidget.js';
 import { CollapsedSidebarWidget, CollapsedAuxiliaryBarWidget } from './collapsedPartWidgets.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
@@ -233,7 +232,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private chatBarPartView!: ISerializableView;
 
-	private collapsedPanelWidget: CollapsedPanelWidget | undefined;
 	private collapsedSidebarWidget: CollapsedSidebarWidget | undefined;
 	private collapsedAuxiliaryBarWidget: CollapsedAuxiliaryBarWidget | undefined;
 
@@ -374,12 +372,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 				// Layout
 				this.layout();
-
-				// Collapsed Panel Widget (shown when panel is hidden)
-				this.collapsedPanelWidget = this._register(instantiationService.createInstance(CollapsedPanelWidget, this.mainContainer));
-				if (!this.partVisibility.panel) {
-					this.collapsedPanelWidget.show();
-				}
 
 				// Collapsed Sidebar Widget (shown when sidebar is hidden)
 				this.collapsedSidebarWidget = this._register(instantiationService.createInstance(CollapsedSidebarWidget, this.mainContainer));
@@ -1179,13 +1171,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			this.panelPartView,
 			!hidden,
 		);
-
-		// Toggle collapsed panel widget
-		if (hidden) {
-			this.collapsedPanelWidget?.show();
-		} else {
-			this.collapsedPanelWidget?.hide();
-		}
 
 		// If panel becomes hidden, also hide the current active pane composite
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {

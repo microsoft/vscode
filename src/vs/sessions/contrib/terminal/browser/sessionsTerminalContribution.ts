@@ -10,6 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
@@ -20,6 +21,9 @@ import { IPathService } from '../../../../workbench/services/path/common/pathSer
 import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
+import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { Menus } from '../../../browser/menus.js';
 
 /**
  * Returns the cwd URI for the given session: worktree or repository path for
@@ -251,6 +255,12 @@ class OpenSessionInTerminalAction extends Action2 {
 			title: localize2('openInTerminal', "Open Terminal"),
 			icon: Codicon.terminal,
 			f1: true,
+			menu: [{
+				id: Menus.TitleBarRightLayout,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
+			}]
 		});
 	}
 

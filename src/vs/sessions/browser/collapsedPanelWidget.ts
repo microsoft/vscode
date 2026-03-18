@@ -14,7 +14,6 @@ import { IHoverService } from '../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { Codicon } from '../../base/common/codicons.js';
-import { enableDrag } from './collapsedPartWidgets.js';
 
 /**
  * A compact widget shown in the bottom-right corner when the panel is collapsed.
@@ -46,9 +45,6 @@ export class CollapsedPanelWidget extends Disposable {
 
 		// Initial build
 		this.rebuildButtons();
-
-		// Enable drag repositioning
-		this._register(enableDrag(this.element));
 
 		// Start hidden — the workbench controls visibility
 		this.hide();
@@ -84,11 +80,6 @@ export class CollapsedPanelWidget extends Disposable {
 	}
 
 	show(): void {
-		// Reset any custom drag position so the widget returns to its default anchor
-		this.element.style.top = '';
-		this.element.style.left = '';
-		this.element.style.bottom = '';
-		this.element.style.right = '';
 		this.element.classList.remove('collapsed-panel-hidden');
 	}
 

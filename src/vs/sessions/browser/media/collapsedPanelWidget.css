@@ -20,24 +20,10 @@
 	border-radius: 8px;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 
-	cursor: grab;
-
 	transition: opacity 200ms cubic-bezier(0.0, 0.0, 0.2, 1),
 		transform 250ms cubic-bezier(0.34, 1.56, 0.64, 1),
-		scale 250ms cubic-bezier(0.34, 1.56, 0.64, 1),
-		box-shadow 150ms ease;
+		scale 250ms cubic-bezier(0.34, 1.56, 0.64, 1);
 	scale: 1;
-}
-
-/* Dragging state */
-
-.agent-sessions-workbench .collapsed-panel-widget.collapsed-panel-dragging {
-	cursor: grabbing;
-	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
-	scale: 1.03;
-	transition: scale 150ms cubic-bezier(0.34, 1.56, 0.64, 1),
-		box-shadow 150ms ease;
-	user-select: none;
 }
 
 .agent-sessions-workbench .collapsed-panel-widget.collapsed-panel-hidden {
@@ -48,13 +34,6 @@
 	transition: opacity 150ms cubic-bezier(0.4, 0.0, 1, 1),
 		transform 150ms cubic-bezier(0.4, 0.0, 1, 1),
 		scale 150ms cubic-bezier(0.4, 0.0, 1, 1);
-}
-
-/* ---- Position: Panel (bottom-right, above chatbar) ---- */
-
-.agent-sessions-workbench .collapsed-panel-widget:not(.collapsed-sidebar-widget):not(.collapsed-auxbar-widget) {
-	bottom: 18px;
-	right: 16px;
 }
 
 /* ---- Position: Sidebar (top-left, below titlebar) ---- */
@@ -153,8 +132,7 @@
 
 @media (prefers-reduced-motion: reduce) {
 	.agent-sessions-workbench .collapsed-panel-widget,
-	.agent-sessions-workbench .collapsed-panel-widget.collapsed-panel-hidden,
-	.agent-sessions-workbench .collapsed-panel-widget.collapsed-panel-dragging {
+	.agent-sessions-workbench .collapsed-panel-widget.collapsed-panel-hidden {
 		transition: none;
 	}
 }

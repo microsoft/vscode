@@ -6,7 +6,7 @@
 import './media/collapsedPanelWidget.css';
 import * as dom from '../../base/browser/dom.js';
 import { $, append } from '../../base/browser/dom.js';
-import { Disposable, DisposableStore, IDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../base/common/lifecycle.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { IHoverService } from '../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -19,72 +19,6 @@ import { ISessionsManagementService } from '../contrib/sessions/browser/sessions
 import { ICommandService } from '../../platform/commands/common/commands.js';
 import { IPaneCompositePartService } from '../../workbench/services/panecomposite/browser/panecomposite.js';
 import { ViewContainerLocation } from '../../workbench/common/views.js';
-
-/**
- * Makes an absolutely-positioned element draggable within its offset parent.
- * On first drag, CSS bottom/right are cleared and replaced with top/left for
- * free-form positioning.
- */
-export function enableDrag(element: HTMLElement): IDisposable {
-	const store = new DisposableStore();
-	let dragOffsetX = 0;
-	let dragOffsetY = 0;
-	let moveListener: IDisposable | undefined;
-	let upListener: IDisposable | undefined;
-
-	store.add(dom.addDisposableListener(element, dom.EventType.MOUSE_DOWN, e => {
-		// Only primary button; ignore clicks on child buttons
-		if (e.button !== 0 || (e.target as HTMLElement).closest('.collapsed-panel-button, .collapsed-sidebar-new-session')) {
-			return;
-		}
-
-		e.preventDefault();
-
-		const rect = element.getBoundingClientRect();
-		dragOffsetX = e.clientX - rect.left;
-		dragOffsetY = e.clientY - rect.top;
-
-		// Switch from any bottom/right anchoring to explicit top/left
-		element.classList.add('collapsed-panel-dragging');
-		element.style.top = `${rect.top}px`;
-		element.style.left = `${rect.left}px`;
-		element.style.bottom = 'auto';
-		element.style.right = 'auto';
-
-		const parentRect = (element.offsetParent ?? element.parentElement)?.getBoundingClientRect();
-		const targetWindow = dom.getWindow(element);
-		const parentWidth = parentRect?.width ?? targetWindow.innerWidth;
-		const parentHeight = parentRect?.height ?? targetWindow.innerHeight;
-		const parentLeft = parentRect?.left ?? 0;
-		const parentTop = parentRect?.top ?? 0;
-
-		moveListener?.dispose();
-		moveListener = dom.addDisposableListener(dom.getWindow(element), dom.EventType.MOUSE_MOVE, ev => {
-			const x = Math.max(0, Math.min(ev.clientX - dragOffsetX - parentLeft, parentWidth - element.offsetWidth));
-			const y = Math.max(0, Math.min(ev.clientY - dragOffsetY - parentTop, parentHeight - element.offsetHeight));
-			element.style.left = `${x}px`;
-			element.style.top = `${y}px`;
-		});
-
-		upListener?.dispose();
-		upListener = dom.addDisposableListener(dom.getWindow(element), dom.EventType.MOUSE_UP, () => {
-			element.classList.remove('collapsed-panel-dragging');
-			moveListener?.dispose();
-			moveListener = undefined;
-			upListener?.dispose();
-			upListener = undefined;
-		});
-	}));
-
-	store.add({
-		dispose: () => {
-			moveListener?.dispose();
-			upListener?.dispose();
-		}
-	});
-
-	return store;
-}
 
 /**
  * Collapsed widget shown in the bottom-left corner when the sidebar is hidden.
@@ -113,9 +47,6 @@ export class CollapsedSidebarWidget extends Disposable {
 
 		// Listen for session changes
 		this._register(this.agentSessionsService.model.onDidChangeSessions(() => this.rebuildIndicators()));
-
-		// Enable drag repositioning
-		this._register(enableDrag(this.element));
 
 		// Initial build
 		this.rebuildIndicators();
@@ -238,10 +169,6 @@ export class CollapsedSidebarWidget extends Disposable {
 	}
 
 	show(): void {
-		this.element.style.top = '';
-		this.element.style.left = '';
-		this.element.style.bottom = '';
-		this.element.style.right = '';
 		this.element.classList.remove('collapsed-panel-hidden');
 	}
 
@@ -275,9 +202,6 @@ export class CollapsedAuxiliaryBarWidget extends Disposable {
 
 		// Listen for session changes to update indicators
 		this._register(this.agentSessionsService.model.onDidChangeSessions(() => this.rebuildIndicators()));
-
-		// Enable drag repositioning
-		this._register(enableDrag(this.element));
 
 		// Initial build
 		this.rebuildIndicators();
@@ -366,10 +290,6 @@ export class CollapsedAuxiliaryBarWidget extends Disposable {
 	}
 
 	show(): void {
-		this.element.style.top = '';
-		this.element.style.left = '';
-		this.element.style.bottom = '';
-		this.element.style.right = '';
 		this.element.classList.remove('collapsed-panel-hidden');
 	}
 
