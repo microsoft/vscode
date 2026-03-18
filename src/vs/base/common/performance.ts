@@ -93,10 +93,14 @@ function _define() {
 					performance.mark(name, markOptions);
 				},
 				clearMarks(prefix: string, details?: Record<string, unknown>[]) {
+					const toRemove = new Set<string>();
 					for (const entry of performance.getEntriesByType('mark')) {
 						if (entry.name.startsWith(prefix) && _detailMatchesAny((entry as unknown as { detail?: unknown }).detail, details)) {
-							performance.clearMarks(entry.name);
+							toRemove.add(entry.name);
 						}
+					}
+					for (const name of toRemove) {
+						performance.clearMarks(name);
 					}
 				},
 				getMarks() {
