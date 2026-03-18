@@ -1,0 +1,160 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---- Collapsed Part Widgets (shared) ---- */
+
+.agent-sessions-workbench .collapsed-panel-widget {
+	position: absolute;
+	z-index: 10;
+
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 2px;
+	padding: 4px;
+
+	background: var(--vscode-sideBar-background);
+	border: 1px solid var(--vscode-sideBar-border, transparent);
+	border-radius: 8px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+
+	cursor: grab;
+
+	transition: opacity 200ms cubic-bezier(0.0, 0.0, 0.2, 1),
+		transform 250ms cubic-bezier(0.34, 1.56, 0.64, 1),
+		scale 250ms cubic-bezier(0.34, 1.56, 0.64, 1),
+		box-shadow 150ms ease;
+	scale: 1;
+}
+
+/* Dragging state */
+
+.agent-sessions-workbench .collapsed-panel-widget.collapsed-panel-dragging {
+	cursor: grabbing;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
+	scale: 1.03;
+	transition: scale 150ms cubic-bezier(0.34, 1.56, 0.64, 1),
+		box-shadow 150ms ease;
+	user-select: none;
+}
+
+.agent-sessions-workbench .collapsed-panel-widget.collapsed-panel-hidden {
+	opacity: 0;
+	pointer-events: none;
+	transform: translateY(8px);
+	scale: 0.92;
+	transition: opacity 150ms cubic-bezier(0.4, 0.0, 1, 1),
+		transform 150ms cubic-bezier(0.4, 0.0, 1, 1),
+		scale 150ms cubic-bezier(0.4, 0.0, 1, 1);
+}
+
+/* ---- Position: Panel (bottom-right, above chatbar) ---- */
+
+.agent-sessions-workbench .collapsed-panel-widget:not(.collapsed-sidebar-widget):not(.collapsed-auxbar-widget) {
+	bottom: 18px;
+	right: 16px;
+}
+
+/* ---- Position: Sidebar (top-left, below titlebar) ---- */
+
+.agent-sessions-workbench .collapsed-sidebar-widget {
+	top: 42px;
+	left: 16px;
+}
+
+.agent-sessions-workbench .collapsed-sidebar-widget.collapsed-panel-hidden {
+	transform: translateX(-8px);
+	scale: 0.92;
+}
+
+/* ---- Position: Auxiliary Bar (top-right, below titlebar) ---- */
+
+.agent-sessions-workbench .collapsed-auxbar-widget {
+	top: 42px;
+	right: 16px;
+}
+
+.agent-sessions-workbench .collapsed-auxbar-widget.collapsed-panel-hidden {
+	transform: translateX(8px);
+	scale: 0.92;
+}
+
+/* ---- Buttons ---- */
+
+.agent-sessions-workbench .collapsed-panel-widget .collapsed-panel-buttons {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 2px;
+}
+
+.agent-sessions-workbench .collapsed-panel-widget .collapsed-panel-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 28px;
+	height: 28px;
+	border-radius: 6px;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	opacity: 0.7;
+	padding: 0 4px;
+	gap: 4px;
+}
+
+.agent-sessions-workbench .collapsed-panel-widget .collapsed-panel-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	opacity: 1;
+}
+
+.agent-sessions-workbench .collapsed-panel-widget .collapsed-panel-button:active {
+	background: var(--vscode-toolbar-activeBackground);
+}
+
+/* ---- Sidebar indicators ---- */
+
+.agent-sessions-workbench .collapsed-sidebar-count,
+.agent-sessions-workbench .collapsed-auxbar-count {
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	line-height: 1;
+}
+
+.agent-sessions-workbench .collapsed-sidebar-indicator-active .codicon {
+	animation: codicon-spin 1.5s infinite linear;
+}
+
+.agent-sessions-workbench .collapsed-sidebar-indicator-error {
+	color: var(--vscode-errorForeground);
+}
+
+.agent-sessions-workbench .collapsed-sidebar-indicator-input {
+	color: var(--vscode-notificationsInfoIcon-foreground);
+}
+
+/* ---- Auxiliary bar indicators ---- */
+
+.agent-sessions-workbench .collapsed-auxbar-insertions {
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.agent-sessions-workbench .collapsed-auxbar-deletions {
+	color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+.agent-sessions-workbench span.collapsed-auxbar-count.collapsed-auxbar-insertions,
+.agent-sessions-workbench span.collapsed-auxbar-count.collapsed-auxbar-deletions {
+	font-weight: 600;
+}
+
+/* ---- Reduced motion ---- */
+
+@media (prefers-reduced-motion: reduce) {
+	.agent-sessions-workbench .collapsed-panel-widget,
+	.agent-sessions-workbench .collapsed-panel-widget.collapsed-panel-hidden,
+	.agent-sessions-workbench .collapsed-panel-widget.collapsed-panel-dragging {
+		transition: none;
+	}
+}

@@ -5,6 +5,8 @@
 
 import '../../workbench/browser/style.js';
 import './media/style.css';
+import { CollapsedPanelWidget } from './collapsedPanelWidget.js';
+import { CollapsedSidebarWidget, CollapsedAuxiliaryBarWidget } from './collapsedPartWidgets.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
 import { getActiveDocument, getActiveElement, getClientArea, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
@@ -231,6 +233,10 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private chatBarPartView!: ISerializableView;
 
+	private collapsedPanelWidget: CollapsedPanelWidget | undefined;
+	private collapsedSidebarWidget: CollapsedSidebarWidget | undefined;
+	private collapsedAuxiliaryBarWidget: CollapsedAuxiliaryBarWidget | undefined;
+
 	private readonly partVisibility: IPartVisibilityState = {
 		sidebar: true,
 		auxiliaryBar: false,
@@ -368,6 +374,24 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 				// Layout
 				this.layout();
+
+				// Collapsed Panel Widget (shown when panel is hidden)
+				this.collapsedPanelWidget = this._register(instantiationService.createInstance(CollapsedPanelWidget, this.mainContainer));
+				if (!this.partVisibility.panel) {
+					this.collapsedPanelWidget.show();
+				}
+
+				// Collapsed Sidebar Widget (shown when sidebar is hidden)
+				this.collapsedSidebarWidget = this._register(instantiationService.createInstance(CollapsedSidebarWidget, this.mainContainer));
+				if (!this.partVisibility.sidebar) {
+					this.collapsedSidebarWidget.show();
+				}
+
+				// Collapsed Auxiliary Bar Widget (shown when auxiliary bar is hidden)
+				this.collapsedAuxiliaryBarWidget = this._register(instantiationService.createInstance(CollapsedAuxiliaryBarWidget, this.mainContainer));
+				if (!this.partVisibility.auxiliaryBar) {
+					this.collapsedAuxiliaryBarWidget.show();
+				}
 
 				// Restore
 				this.restore(lifecycleService);
@@ -1070,6 +1094,13 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			!hidden,
 		);
 
+		// Toggle collapsed sidebar widget
+		if (hidden) {
+			this.collapsedSidebarWidget?.show();
+		} else {
+			this.collapsedSidebarWidget?.hide();
+		}
+
 		// If sidebar becomes hidden, also hide the current active pane composite
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
 			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Sidebar);
@@ -1098,6 +1129,13 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			this.auxiliaryBarPartView,
 			!hidden,
 		);
+
+		// Toggle collapsed auxiliary bar widget
+		if (hidden) {
+			this.collapsedAuxiliaryBarWidget?.show();
+		} else {
+			this.collapsedAuxiliaryBarWidget?.hide();
+		}
 
 		// If auxiliary bar becomes hidden, also hide the current active pane composite
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)) {
@@ -1141,6 +1179,13 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			this.panelPartView,
 			!hidden,
 		);
+
+		// Toggle collapsed panel widget
+		if (hidden) {
+			this.collapsedPanelWidget?.show();
+		} else {
+			this.collapsedPanelWidget?.hide();
+		}
 
 		// If panel becomes hidden, also hide the current active pane composite
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {

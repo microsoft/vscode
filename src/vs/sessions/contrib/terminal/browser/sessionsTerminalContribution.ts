@@ -17,11 +17,7 @@ import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browse
 import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
-import { Menus } from '../../../browser/menus.js';
 import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 
@@ -254,12 +250,7 @@ class OpenSessionInTerminalAction extends Action2 {
 			id: 'agentSession.openInTerminal',
 			title: localize2('openInTerminal', "Open Terminal"),
 			icon: Codicon.terminal,
-			menu: [{
-				id: Menus.TitleBarSessionMenu,
-				group: 'navigation',
-				order: 9,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
-			}]
+			f1: true,
 		});
 	}
 

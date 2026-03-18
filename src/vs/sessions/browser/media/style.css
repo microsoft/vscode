@@ -24,6 +24,37 @@
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
+	animation: sessions-card-enter-left 250ms cubic-bezier(0.0, 0.0, 0.2, 1) both;
+	overflow: visible !important;
+}
+
+/* Raise the sidebar's grid slot so filter dropdowns paint above adjacent panels */
+.agent-sessions-workbench .split-view-view:has(> .part.sidebar) {
+	z-index: 1;
+	overflow: visible;
+}
+
+/* Move border-radius clipping to inner children so the part can overflow */
+.agent-sessions-workbench .part.sidebar > .composite.title {
+	border-radius: 7px 7px 0 0;
+	overflow: visible;
+	background: var(--part-background);
+}
+
+.agent-sessions-workbench .part.sidebar > .content {
+	overflow: hidden;
+	background: var(--part-background);
+}
+
+/* Bottom radius on the last visible child (footer if present, otherwise content) */
+.agent-sessions-workbench .part.sidebar > .content:last-child {
+	border-radius: 0 0 7px 7px;
+}
+
+.agent-sessions-workbench .part.sidebar > .sidebar-footer {
+	border-radius: 0 0 7px 7px;
+	overflow: hidden;
+	background: var(--part-background);
 }
 
 .agent-sessions-workbench .part.auxiliarybar {
@@ -31,6 +62,7 @@
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
+	animation: sessions-card-enter-right 250ms cubic-bezier(0.0, 0.0, 0.2, 1) both;
 }
 
 .agent-sessions-workbench .part.auxiliarybar > .content,
@@ -44,6 +76,56 @@
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
+	animation: sessions-card-enter-up 250ms cubic-bezier(0.0, 0.0, 0.2, 1) both;
+}
+
+/* Light theme: add subtle shadow to card panels */
+.agent-sessions-workbench.vs .part.sidebar,
+.agent-sessions-workbench.vs .part.auxiliarybar,
+.agent-sessions-workbench.vs .part.panel {
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* Card entrance animations */
+@keyframes sessions-card-enter-left {
+	from {
+		opacity: 0;
+		transform: translateX(-12px) scale(0.97);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0) scale(1);
+	}
+}
+
+@keyframes sessions-card-enter-right {
+	from {
+		opacity: 0;
+		transform: translateX(12px) scale(0.97);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0) scale(1);
+	}
+}
+
+@keyframes sessions-card-enter-up {
+	from {
+		opacity: 0;
+		transform: translateY(12px) scale(0.97);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.agent-sessions-workbench .part.sidebar,
+	.agent-sessions-workbench .part.auxiliarybar,
+	.agent-sessions-workbench .part.panel {
+		animation: none;
+	}
 }
 
 /* Grid background uses editor background so card panels stand out */
