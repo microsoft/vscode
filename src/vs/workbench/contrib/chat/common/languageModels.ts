@@ -1022,7 +1022,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const configuration = this.getModelConfiguration(modelId);
 		const mergedOptions = configuration ? { ...options, configuration: { ...configuration, ...options.configuration } } : options;
 =======
-		const mergedOptions = configuration ? { ...options, configuration } : options;
 >>>>>>> theirs
 		return provider.sendChatRequest(modelId, messages, from, mergedOptions, token);
 	}
