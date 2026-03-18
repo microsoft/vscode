@@ -3603,7 +3603,7 @@ export interface ChatSessionOptionUpdateDto2 {
 }
 
 export interface ChatSessionContentContextDto {
-	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string }>;
+	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem }>;
 }
 
 export interface ChatSessionDto {
@@ -3615,12 +3615,12 @@ export interface ChatSessionDto {
 	hasRequestHandler: boolean;
 	hasForkHandler: boolean;
 	supportsInterruption: boolean;
-	options?: Record<string, string | IChatSessionProviderOptionItem>;
+	options?: Record<string, IChatSessionProviderOptionItem>;
 }
 
 export interface IChatSessionProviderOptions {
 	optionGroups?: readonly IChatSessionProviderOptionGroup[];
-	newSessionOptions?: Record<string, string | IChatSessionProviderOptionItem>;
+	newSessionOptions?: Record<string, IChatSessionProviderOptionItem>;
 }
 
 export interface IChatSessionItemsChange {

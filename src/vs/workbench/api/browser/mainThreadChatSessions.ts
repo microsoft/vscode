@@ -44,8 +44,8 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 	readonly providerHandle: number;
 	readonly history: Array<IChatSessionHistoryItem>;
 	title?: string;
-	private _options?: Record<string, string | IChatSessionProviderOptionItem>;
-	public get options(): Record<string, string | IChatSessionProviderOptionItem> | undefined {
+	private _options?: Record<string, IChatSessionProviderOptionItem>;
+	public get options(): Record<string, IChatSessionProviderOptionItem> | undefined {
 		return this._options;
 	}
 	private readonly _progressObservable = observableValue<IChatProgress[]>(this, []);

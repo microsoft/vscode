@@ -44,7 +44,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 	private contentProviders = new Map<string, IChatSessionContentProvider>();
 	private contributions: IChatSessionsExtensionPoint[] = [];
 	private optionGroups = new Map<string, IChatSessionProviderOptionGroup[]>();
-	private sessionOptions = new ResourceMap<Map<string, string>>();
+	private sessionOptions = new ResourceMap<Map<string, IChatSessionProviderOptionItem>>();
 	private inProgress = new Map<string, number>();
 
 	// For testing: allow triggering events
@@ -185,16 +185,16 @@ export class MockChatSessionsService implements IChatSessionsService {
 		await this._onRequestNotifyExtension.fireAsync({ sessionResource, updates }, CancellationToken.None);
 	}
 
-	getSessionOptions(sessionResource: URI): Map<string, string> | undefined {
+	getSessionOptions(sessionResource: URI): Map<string, IChatSessionProviderOptionItem> | undefined {
 		const options = this.sessionOptions.get(sessionResource);
 		return options && options.size > 0 ? options : undefined;
 	}
 
-	getSessionOption(sessionResource: URI, optionId: string): string | undefined {
+	getSessionOption(sessionResource: URI, optionId: string): IChatSessionProviderOptionItem | undefined {
 		return this.sessionOptions.get(sessionResource)?.get(optionId);
 	}
 
-	setSessionOption(sessionResource: URI, optionId: string, value: string): boolean {
+	setSessionOption(sessionResource: URI, optionId: string, value: IChatSessionProviderOptionItem): boolean {
 		if (!this.sessionOptions.has(sessionResource)) {
 			this.sessionOptions.set(sessionResource, new Map());
 		}

@@ -175,10 +175,9 @@ export interface IChatSession extends IDisposable {
 	readonly history: readonly IChatSessionHistoryItem[];
 
 	/**
-	 * Session options as key-value pairs. Keys correspond to option group IDs (e.g., 'models', 'subagents')
-	 * and values are either the selected option item IDs (string) or full option items (for locked state).
+	 * Session options as key-value pairs. Keys correspond to option group IDs (e.g., 'models', 'subagents').
 	 */
-	readonly options?: Record<string, string | IChatSessionProviderOptionItem>;
+	readonly options?: Record<string, IChatSessionProviderOptionItem>;
 
 	readonly progressObs?: IObservable<IChatProgress[]>;
 	readonly isCompleteObs?: IObservable<boolean>;
@@ -303,9 +302,9 @@ export interface IChatSessionsService {
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 
 	hasAnySessionOptions(sessionResource: URI): boolean;
-	getSessionOptions(sessionResource: URI): Map<string, string> | undefined;
-	getSessionOption(sessionResource: URI, optionId: string): string | IChatSessionProviderOptionItem | undefined;
-	setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean;
+	getSessionOptions(sessionResource: URI): Map<string, IChatSessionProviderOptionItem> | undefined;
+	getSessionOption(sessionResource: URI, optionId: string): IChatSessionProviderOptionItem | undefined;
+	setSessionOption(sessionResource: URI, optionId: string, value: IChatSessionProviderOptionItem): boolean;
 
 	/**
 	 * Fired when options for a chat session change.
