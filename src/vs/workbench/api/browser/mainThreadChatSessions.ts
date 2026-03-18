@@ -30,6 +30,7 @@ import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/participants/chatAgents.js';
+import { IChatArtifactsService } from '../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatTodoListService } from '../../contrib/chat/common/tools/chatTodoListService.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
@@ -338,6 +339,7 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 		chatSessionType: string,
 		handle: number,
 		@IChatService chatService: IChatService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._proxy = proxy;
@@ -379,7 +381,7 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 
 	acceptChange(change: { readonly addedOrUpdated: readonly IChatSessionItem[]; readonly removed: readonly URI[] }): void {
 		for (const item of change.addedOrUpdated) {
-			warnOnUntitledSessionResource(item.resource);
+			warnOnUntitledSessionResource(item.resource, this._logService);
 			this._items.set(item.resource, item);
 		}
 		for (const uri of change.removed) {
@@ -392,7 +394,7 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 	}
 
 	addOrUpdateItem(item: IChatSessionItem): void {
-		warnOnUntitledSessionResource(item.resource);
+		warnOnUntitledSessionResource(item.resource, this._logService);
 		this._items.set(item.resource, item);
 		this._onDidChangeChatSessionItems.fire({
 			addedOrUpdated: [item],
@@ -422,6 +424,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatTodoListService private readonly _chatTodoListService: IChatTodoListService,
+		@IChatArtifactsService private readonly _chatArtifactsService: IChatArtifactsService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -433,7 +436,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
 
 		this._register(this._chatSessionsService.onRequestNotifyExtension(({ sessionResource, updates, waitUntil }) => {
-			warnOnUntitledSessionResource(sessionResource);
+			warnOnUntitledSessionResource(sessionResource, this._logService);
 			const handle = this._getHandleForSessionType(sessionResource.scheme);
 			this._logService.trace(`[MainThreadChatSessions] onRequestNotifyExtension received: scheme '${sessionResource.scheme}', handle ${handle}, ${updates.length} update(s)`);
 			if (handle !== undefined) {
@@ -446,7 +449,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._register(this._agentSessionsService.model.onDidChangeSessionArchivedState(session => {
 			for (const [handle, { chatSessionType }] of this._itemControllerRegistrations) {
 				if (chatSessionType === session.providerType) {
-					warnOnUntitledSessionResource(session.resource);
+					warnOnUntitledSessionResource(session.resource, this._logService);
 					this._proxy.$onDidChangeChatSessionItemState(handle, session.resource, session.isArchived());
 				}
 			}
@@ -525,7 +528,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	$onDidChangeChatSessionOptions(handle: number, sessionResourceComponents: UriComponents, updates: ReadonlyArray<{ optionId: string; value: string }>): void {
 		const sessionResource = URI.revive(sessionResourceComponents);
-		warnOnUntitledSessionResource(sessionResource);
+		warnOnUntitledSessionResource(sessionResource, this._logService);
 		this._chatSessionsService.notifySessionOptionsChange(sessionResource, updates);
 	}
 
@@ -548,6 +551,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 			// Migrate todos from old session to new session
 			this._chatTodoListService.migrateTodos(originalResource, modifiedResource);
+
+			// Migrate artifacts from old session to new session
+			this._chatArtifactsService.migrateArtifacts(originalResource, modifiedResource);
 
 			// Find the group containing the original editor
 			const originalGroup =
@@ -646,7 +652,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	}
 
 	private async _provideChatSessionContent(providerHandle: number, sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
-		warnOnUntitledSessionResource(sessionResource);
+		warnOnUntitledSessionResource(sessionResource, this._logService);
 
 		let session = this._activeSessions.get(sessionResource);
 
@@ -740,7 +746,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	$handleProgressComplete(handle: number, sessionResource: UriComponents, requestId: string) {
 		const resource = URI.revive(sessionResource);
-		warnOnUntitledSessionResource(resource);
+		warnOnUntitledSessionResource(resource, this._logService);
 
 		const observableSession = this._activeSessions.get(resource);
 		if (!observableSession) {
@@ -835,8 +841,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	}
 }
 
-function warnOnUntitledSessionResource(resource: URI): void {
+function warnOnUntitledSessionResource(resource: URI, logService: ILogService): void {
 	if (isUntitledChatSession(resource)) {
-		console.trace(`[MainThreadChatSessions] untitled-style sessionResource detected ${resource.toString()}`);
+		logService.warn(`[MainThreadChatSessions] untitled-style sessionResource detected ${resource.toString()}`);
 	}
 }

@@ -152,9 +152,12 @@
 
 .ci-status-widget-title.ci-status-running .monaco-icon-label::before,
 .ci-status-widget-check.ci-status-running .monaco-icon-label::before,
-.ci-status-widget-title.ci-status-pending .monaco-icon-label::before,
-.ci-status-widget-check.ci-status-pending .monaco-icon-label::before {
+.ci-status-widget-title.ci-status-pending .monaco-icon-label::before {
 	color: var(--vscode-testing-iconQueued, var(--vscode-editorWarning-foreground));
+}
+
+.ci-status-widget-check.ci-status-pending .monaco-icon-label::before {
+	color: var(--vscode-descriptionForeground);
 }
 
 .ci-status-widget-title.ci-status-neutral .monaco-icon-label::before,

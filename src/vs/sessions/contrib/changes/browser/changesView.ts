@@ -54,11 +54,11 @@ import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChan
 import { chatEditingWidgetFileStateContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, ModifiedFileEntryState } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { IActivityService, NumberBadge } from '../../../../workbench/services/activity/common/activity.js';
-import { IEditorService, MODAL_GROUP, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionWorkspace.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
@@ -458,6 +458,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// CI Status widget beneath the card
 		this.ciStatusWidget = this._register(this.instantiationService.createInstance(CIStatusWidget, this.bodyContainer));
+		this._register(this.ciStatusWidget.onDidChangeHeight(() => this.layoutTree()));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
@@ -944,7 +945,7 @@ export class ChangesViewPane extends ViewPane {
 					}
 				};
 
-				const group = sideBySide ? SIDE_GROUP : MODAL_GROUP;
+				const group = sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
 
 				if (isDeletion && originalUri) {
 					this.editorService.openEditor({
@@ -1053,15 +1054,53 @@ export class ChangesViewPane extends ViewPane {
 		const overviewHeight = this.overviewContainer?.offsetHeight ?? 0;
 		const containerPadding = 8; // 4px top + 4px bottom from .chat-editing-session-container
 		const containerBorder = 2; // 1px top + 1px bottom border
-		const ciWidgetHeight = this.ciStatusWidget?.element.offsetHeight ?? 0;
-		const ciWidgetMargin = ciWidgetHeight > 0 ? 8 : 0; // margin-top on CI widget
 
-		const usedHeight = bodyPadding + actionsHeight + actionsMargin + overviewHeight + containerPadding + containerBorder + ciWidgetHeight + ciWidgetMargin;
-		const availableHeight = Math.max(0, bodyHeight - usedHeight);
+		const fixedUsed = bodyPadding + actionsHeight + actionsMargin + overviewHeight + containerPadding + containerBorder;
 
-		// Limit height to the content so the tree doesn't exceed its items
-		const contentHeight = this.tree.contentHeight;
-		const treeHeight = Math.min(availableHeight, contentHeight);
+		// Determine CI widget space needs
+		const ciWidget = this.ciStatusWidget;
+		const ciVisible = ciWidget?.visible ?? false;
+		const ciHeaderHeight = ciVisible ? CIStatusWidget.HEADER_HEIGHT : 0;
+		const ciMargin = ciVisible ? 8 : 0; // margin-top on CI widget
+		const ciDesiredHeight = ciWidget?.desiredHeight ?? 0;
+
+		const spaceForTreeAndCI = Math.max(0, bodyHeight - fixedUsed - ciMargin);
+
+		// Give the tree priority, then CI gets the rest (with min/max on CI body)
+		const treeContentHeight = this.tree.contentHeight;
+		let treeHeight: number;
+		let ciBodyHeight = 0;
+
+		if (!ciVisible) {
+			treeHeight = Math.min(spaceForTreeAndCI, treeContentHeight);
+		} else {
+			// Reserve space for the CI header
+			const spaceAfterCIHeader = Math.max(0, spaceForTreeAndCI - ciHeaderHeight);
+
+			// Give the tree what it needs first, up to available space
+			treeHeight = Math.min(spaceAfterCIHeader, treeContentHeight);
+
+			// Remaining goes to CI body
+			const remainingForCIBody = Math.max(0, spaceAfterCIHeader - treeHeight);
+			const ciDesiredBodyHeight = Math.max(0, ciDesiredHeight - ciHeaderHeight);
+
+			ciBodyHeight = Math.min(ciDesiredBodyHeight, remainingForCIBody);
+
+			// Ensure CI body gets at least MIN_BODY_HEIGHT if there's content
+			if (ciDesiredBodyHeight > 0 && ciBodyHeight < CIStatusWidget.MIN_BODY_HEIGHT) {
+				const minCIBody = Math.min(CIStatusWidget.MIN_BODY_HEIGHT, ciDesiredBodyHeight);
+				const needed = minCIBody - ciBodyHeight;
+				const canTake = Math.max(0, treeHeight - 0); // tree can shrink to 0
+				const taken = Math.min(needed, canTake);
+				treeHeight -= taken;
+				ciBodyHeight += taken;
+			}
+
+			// Cap CI body at MAX_BODY_HEIGHT
+			ciBodyHeight = Math.min(ciBodyHeight, CIStatusWidget.MAX_BODY_HEIGHT);
+
+			ciWidget!.layout(ciBodyHeight);
+		}
 
 		this.tree.layout(treeHeight, this.currentBodyWidth);
 		this.tree.getHTMLElement().style.height = `${treeHeight}px`;

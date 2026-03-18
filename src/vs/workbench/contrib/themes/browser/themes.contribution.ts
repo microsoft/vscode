@@ -569,6 +569,7 @@ registerAction2(class extends Action2 {
 	override async run(accessor: ServicesAccessor) {
 		const themeService = accessor.get(IWorkbenchThemeService);
 		const quickInputService = accessor.get(IQuickInputService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		const previousTheme = themeService.getColorTheme();
 		const allThemes = await themeService.getColorThemes();
@@ -604,13 +605,25 @@ registerAction2(class extends Action2 {
 
 		disposables.add(picker.onDidAccept(() => {
 			const selected = picker.activeItems[0];
-			if (selected) {
-				const theme = themes.find(t => t.id === selected.id);
-				if (theme) {
-					themeService.setColorTheme(theme, 'auto');
-				}
-			}
+			const theme = selected ? themes.find(t => t.id === selected.id) : undefined;
+
 			picker.hide();
+
+			if (!theme) {
+				return;
+			}
+
+			(async () => {
+				try {
+					await themeService.setColorTheme(theme, 'auto');
+					await configurationService.updateValue(ThemeSettings.PREFERRED_LIGHT_THEME, ThemeSettingDefaults.COLOR_THEME_LIGHT);
+					await configurationService.updateValue(ThemeSettings.PREFERRED_DARK_THEME, ThemeSettingDefaults.COLOR_THEME_DARK);
+				} catch (error) {
+					if (!isCancellationError(error)) {
+						onUnexpectedError(error);
+					}
+				}
+			})();
 		}));
 
 		const result = new Promise<void>(resolve => {
