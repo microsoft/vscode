@@ -311,6 +311,7 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+/* Anchor for the absolutely-positioned submenu panel */
 .action-widget .actionList {
 	position: relative;
 }
