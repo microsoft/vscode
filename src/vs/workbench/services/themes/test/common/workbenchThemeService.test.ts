@@ -148,6 +148,7 @@ suite('WorkbenchThemeService', () => {
 			const config = new ThemeConfiguration(configService, hostColor, true);
 
 			assert.deepStrictEqual(config.getPreferredColorScheme(), ColorScheme.HIGH_CONTRAST_DARK);
+			assert.deepStrictEqual(config.isDetectingColorScheme(), true);
 		});
 
 		test('high contrast light OS takes priority over auto-detect for new user', () => {
@@ -156,6 +157,7 @@ suite('WorkbenchThemeService', () => {
 			const config = new ThemeConfiguration(configService, hostColor, true);
 
 			assert.deepStrictEqual(config.getPreferredColorScheme(), ColorScheme.HIGH_CONTRAST_LIGHT);
+			assert.deepStrictEqual(config.isDetectingColorScheme(), true);
 		});
 	});
 });
