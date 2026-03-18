@@ -30,6 +30,7 @@ import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/participants/chatAgents.js';
+import { IChatArtifactsService } from '../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatTodoListService } from '../../contrib/chat/common/tools/chatTodoListService.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
@@ -422,6 +423,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatTodoListService private readonly _chatTodoListService: IChatTodoListService,
+		@IChatArtifactsService private readonly _chatArtifactsService: IChatArtifactsService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -548,6 +550,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 			// Migrate todos from old session to new session
 			this._chatTodoListService.migrateTodos(originalResource, modifiedResource);
+
+			// Migrate artifacts from old session to new session
+			this._chatArtifactsService.migrateArtifacts(originalResource, modifiedResource);
 
 			// Find the group containing the original editor
 			const originalGroup =
