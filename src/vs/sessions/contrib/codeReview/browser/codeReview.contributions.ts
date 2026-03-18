@@ -86,10 +86,6 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 			const codeReviewCount = reviewState.kind === CodeReviewStateKind.Result && reviewState.version === version ? reviewState.comments.length : 0;
 			const prReviewCount = prReviewState.kind === PRReviewStateKind.Loaded ? prReviewState.comments.length : 0;
 
-			if (reviewCount >= MAX_CODE_REVIEWS_PER_SESSION_VERSION) {
-				return;
-			}
-
 			if (codeReviewCount > 0 || prReviewCount > 0) {
 				const comments = getSessionEditorComments(
 					resource,
@@ -101,6 +97,10 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 				if (first) {
 					await agentFeedbackService.revealSessionComment(resource, first.id, first.resourceUri, first.range);
 				}
+				return;
+			}
+
+			if (reviewCount >= MAX_CODE_REVIEWS_PER_SESSION_VERSION) {
 				return;
 			}
 
