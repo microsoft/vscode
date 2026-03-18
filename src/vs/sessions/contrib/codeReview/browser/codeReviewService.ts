@@ -70,6 +70,8 @@ export function getCodeReviewVersion(files: readonly ICodeReviewFile[]): string 
 	return `v1:${stableFileList.length}:${hash(stableFileList)}`;
 }
 
+export const MAX_CODE_REVIEWS_PER_SESSION_VERSION = 5;
+
 export const enum CodeReviewStateKind {
 	Idle = 'idle',
 	Loading = 'loading',
@@ -79,9 +81,9 @@ export const enum CodeReviewStateKind {
 
 export type ICodeReviewState =
 	| { readonly kind: CodeReviewStateKind.Idle }
-	| { readonly kind: CodeReviewStateKind.Loading; readonly version: string }
-	| { readonly kind: CodeReviewStateKind.Result; readonly version: string; readonly comments: readonly ICodeReviewComment[] }
-	| { readonly kind: CodeReviewStateKind.Error; readonly version: string; readonly reason: string };
+	| { readonly kind: CodeReviewStateKind.Loading; readonly version: string; readonly reviewCount: number }
+	| { readonly kind: CodeReviewStateKind.Result; readonly version: string; readonly reviewCount: number; readonly comments: readonly ICodeReviewComment[]; readonly didProduceComments: boolean }
+	| { readonly kind: CodeReviewStateKind.Error; readonly version: string; readonly reviewCount: number; readonly reason: string };
 
 // --- PR Review Types ---------------------------------------------------------
 
@@ -169,7 +171,8 @@ export interface ICodeReviewService {
 	/**
 	 * Request a code review for the given session. The review is associated with
 	 * a version string (fingerprint of changed files). If a review is already in
-	 * progress or completed for this version, this is a no-op.
+	 * progress or there are still unresolved review comments for this version,
+	 * this is a no-op.
 	 */
 	requestReview(sessionResource: URI, version: string, files: readonly { readonly currentUri: URI; readonly baseUri?: URI }[]): void;
 
@@ -204,6 +207,8 @@ export interface ICodeReviewService {
 
 interface IStoredCodeReview {
 	readonly version: string;
+	readonly reviewCount?: number;
+	readonly didProduceComments?: boolean;
 	readonly comments: readonly IStoredCodeReviewComment[];
 }
 
@@ -347,16 +352,20 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 	requestReview(sessionResource: URI, version: string, files: readonly { readonly currentUri: URI; readonly baseUri?: URI }[]): void {
 		const data = this._getOrCreateData(sessionResource);
 		const currentState = data.state.get();
+		const currentReviewCount = currentState.kind !== CodeReviewStateKind.Idle && currentState.version === version ? currentState.reviewCount : 0;
 
-		// Don't re-request if already loading or completed for this version
+		// Don't re-request if already loading or unresolved comments remain for this version.
 		if (currentState.kind === CodeReviewStateKind.Loading && currentState.version === version) {
 			return;
 		}
-		if (currentState.kind === CodeReviewStateKind.Result && currentState.version === version) {
+		if (currentReviewCount >= MAX_CODE_REVIEWS_PER_SESSION_VERSION) {
+			return;
+		}
+		if (currentState.kind === CodeReviewStateKind.Result && currentState.version === version && currentState.comments.length > 0) {
 			return;
 		}
 
-		data.state.set({ kind: CodeReviewStateKind.Loading, version }, undefined);
+		data.state.set({ kind: CodeReviewStateKind.Loading, version, reviewCount: currentReviewCount + 1 }, undefined);
 
 		this._executeReview(sessionResource, version, files, data);
 	}
@@ -373,7 +382,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		}
 
 		const filtered = state.comments.filter(c => c.id !== commentId);
-		data.state.set({ kind: CodeReviewStateKind.Result, version: state.version, comments: filtered }, undefined);
+		data.state.set({ kind: CodeReviewStateKind.Result, version: state.version, reviewCount: state.reviewCount, comments: filtered, didProduceComments: state.didProduceComments }, undefined);
 		this._saveToStorage();
 	}
 
@@ -389,7 +398,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		}
 
 		const updated = state.comments.map(c => c.id === commentId ? { ...c, body: newBody } : c);
-		data.state.set({ kind: CodeReviewStateKind.Result, version: state.version, comments: updated }, undefined);
+		data.state.set({ kind: CodeReviewStateKind.Result, version: state.version, reviewCount: state.reviewCount, comments: updated, didProduceComments: state.didProduceComments }, undefined);
 		this._saveToStorage();
 	}
 
@@ -440,7 +449,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			}
 
 			if (result.type === 'error') {
-				data.state.set({ kind: CodeReviewStateKind.Error, version, reason: result.reason ?? 'Unknown error' }, undefined);
+				data.state.set({ kind: CodeReviewStateKind.Error, version, reviewCount: currentState.reviewCount, reason: result.reason ?? 'Unknown error' }, undefined);
 				return;
 			}
 
@@ -456,14 +465,14 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 				}));
 
 				transaction(tx => {
-					data.state.set({ kind: CodeReviewStateKind.Result, version, comments }, tx);
+					data.state.set({ kind: CodeReviewStateKind.Result, version, reviewCount: currentState.reviewCount, comments, didProduceComments: comments.length > 0 }, tx);
 				});
 				this._saveToStorage();
 			}
 		} catch (err) {
 			const currentState = data.state.get();
 			if (currentState.kind === CodeReviewStateKind.Loading && currentState.version === version) {
-				data.state.set({ kind: CodeReviewStateKind.Error, version, reason: String(err) }, undefined);
+				data.state.set({ kind: CodeReviewStateKind.Error, version, reviewCount: currentState.reviewCount, reason: String(err) }, undefined);
 			}
 		}
 	}
@@ -487,10 +496,10 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 					suggestion: c.suggestion,
 				}));
 				const data = this._getOrCreateData(URI.parse(key));
-				data.state.set({ kind: CodeReviewStateKind.Result, version: review.version, comments }, undefined);
+				data.state.set({ kind: CodeReviewStateKind.Result, version: review.version, reviewCount: review.reviewCount ?? 1, comments, didProduceComments: review.didProduceComments ?? comments.length > 0 }, undefined);
 			}
 		} catch {
-			// Corrupted storage data — ignore
+			// Corrupted storage data - ignore
 		}
 	}
 
@@ -501,6 +510,8 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			if (state.kind === CodeReviewStateKind.Result) {
 				stored[key] = {
 					version: state.version,
+					reviewCount: state.reviewCount,
+					didProduceComments: state.didProduceComments,
 					comments: state.comments.map(c => ({
 						id: c.id,
 						uri: c.uri.toJSON(),
@@ -545,14 +556,14 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 
 				const session = this._agentSessionsService.getSession(URI.parse(key));
 				if (!session) {
-					// Session no longer exists — clean up
+					// Session no longer exists - clean up
 					data.state.set({ kind: CodeReviewStateKind.Idle }, undefined);
 					changed = true;
 					continue;
 				}
 
 				if (!(session.changes instanceof Array) || session.changes.length === 0) {
-					// Session has no file-level changes — clean up
+					// Session has no file-level changes - clean up
 					data.state.set({ kind: CodeReviewStateKind.Idle }, undefined);
 					changed = true;
 					continue;
@@ -561,7 +572,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 				const files = getCodeReviewFilesFromSessionChanges(session.changes);
 				const currentVersion = getCodeReviewVersion(files);
 				if (state.version !== currentVersion) {
-					// Version mismatch — review is stale
+					// Version mismatch - review is stale
 					data.state.set({ kind: CodeReviewStateKind.Idle }, undefined);
 					changed = true;
 				}
