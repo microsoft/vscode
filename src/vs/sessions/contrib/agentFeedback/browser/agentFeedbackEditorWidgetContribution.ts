@@ -586,7 +586,11 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 
 		const groups = groupNearbySessionEditorComments(fileComments, 5);
 
-		for (const group of groups) {
+		// Create widgets in reverse file order so that widgets further up in the
+		// file are added to the DOM last and therefore render on top of widgets
+		// further down.
+		for (let i = groups.length - 1; i >= 0; i--) {
+			const group = groups[i];
 			const widget = this._instantiationService.createInstance(AgentFeedbackEditorWidget, this._editor, group, this._sessionResource);
 			this._widgets.push(widget);
 

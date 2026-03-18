@@ -129,8 +129,8 @@ ActiveTurn {
     userMessage: UserMessage
     streamingText: string
     responseParts: ResponsePart[]
-    toolCalls: Map<toolCallId, ToolCallState>
-    pendingPermissions: Map<requestId, PermissionRequest>
+    toolCalls: Record<toolCallId, ToolCallState>
+    pendingPermissions: Record<requestId, PermissionRequest>
     reasoning: string
     usage: UsageInfo | undefined
 }
@@ -169,6 +169,7 @@ ActionEnvelope {
     action: Action
     serverSeq: number                                     // monotonic, assigned by server
     origin: { clientId: string, clientSeq: number } | undefined  // undefined = server-originated
+    rejectionReason?: string                              // present when the server rejected the action
 }
 ```
 
@@ -240,6 +241,9 @@ Clients interact with the server in two ways:
 | `listSessions(filter?)` | Returns `SessionSummary[]` |
 | `fetchContent(uri)` | Returns content bytes |
 | `fetchTurns(session, range)` | Returns historical turns |
+| `browseDirectory(uri)` | Lists directory entries at a file URI on the server's filesystem |
+
+`browseDirectory(uri)` succeeds only if the target exists and is a directory. If the target does not exist, is not a directory, or cannot be accessed, the server MUST return a JSON-RPC error.
 
 ### Session creation flow
 
@@ -258,19 +262,21 @@ The protocol uses **JSON-RPC 2.0** framing over the transport (WebSocket, Messag
 
 ### Message categories
 
-- **Client → Server notifications** (fire-and-forget): `initialize`, `reconnect`, `unsubscribe`, `dispatchAction`
-- **Client → Server requests** (expect a correlated response): `subscribe`, `createSession`, `disposeSession`, `listSessions`, `fetchTurns`, `fetchContent`
-- **Server → Client notifications** (pushed): `serverHello`, `reconnectResponse`, `action`, `notification`
+- **Client → Server notifications** (fire-and-forget): `unsubscribe`, `dispatchAction`
+- **Client → Server requests** (expect a correlated response): `initialize`, `reconnect`, `subscribe`, `createSession`, `disposeSession`, `listSessions`, `fetchTurns`, `fetchContent`, `browseDirectory`
+- **Server → Client notifications** (pushed): `action`, `notification`
 - **Server → Client responses** (correlated to requests by `id`): success result or JSON-RPC error
 
 ### Connection handshake
 
+`initialize` is a JSON-RPC **request** — the server MUST respond with a result or error:
+
 ```
-1. Client → Server:  { "jsonrpc": "2.0", "method": "initialize", "params": { protocolVersion, clientId, initialSubscriptions? } }
-2. Server → Client:  { "jsonrpc": "2.0", "method": "serverHello", "params": { protocolVersion, serverSeq, snapshots[] } }
+1. Client → Server:  { "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": { protocolVersion, clientId, initialSubscriptions? } }
+2. Server → Client:  { "jsonrpc": "2.0", "id": 1, "result": { protocolVersion, serverSeq, snapshots[], defaultDirectory? } }
 ```
 
-`initialSubscriptions` allows the client to subscribe to root state (and any previously-open sessions on reconnect) in the same round-trip as the handshake. The server responds with snapshots for each.
+`initialSubscriptions` allows the client to subscribe to root state (and any previously-open sessions on reconnect) in the same round-trip as the handshake. The server returns snapshots for each in the response.
 
 ### URI subscription
 
@@ -331,11 +337,23 @@ Client → Server:  { "jsonrpc": "2.0", "method": "dispatchAction", "params": { 
 
 ### Reconnection
 
+`reconnect` is a JSON-RPC **request**. The server MUST include all replayed data in the response:
+
 ```
-Client → Server:  { "jsonrpc": "2.0", "method": "reconnect", "params": { clientId, lastSeenServerSeq, subscriptions } }
+Client → Server:  { "jsonrpc": "2.0", "id": 2, "method": "reconnect", "params": { clientId, lastSeenServerSeq, subscriptions } }
 ```
 
-Server replays actions since `lastSeenServerSeq` from a bounded replay buffer. If the gap exceeds the buffer, sends fresh snapshots via a `reconnectResponse` notification. Notifications are **not** replayed — the client should re-fetch the session list.
+If the gap is within the replay buffer, the response contains missed action envelopes:
+```
+Server → Client:  { "jsonrpc": "2.0", "id": 2, "result": { "type": "replay", "actions": [...] } }
+```
+
+If the gap exceeds the buffer, the response contains fresh snapshots:
+```
+Server → Client:  { "jsonrpc": "2.0", "id": 2, "result": { "type": "snapshot", "snapshots": [...] } }
+```
+
+Protocol notifications are **not** replayed — the client should re-fetch the session list.
 
 ## Write-ahead reconciliation
 
@@ -352,7 +370,7 @@ When the client receives an `ActionEnvelope` from the server:
 
 1. **Own action echoed**: `origin.clientId === myId` and matches head of `pendingActions` → pop from pending, apply to `confirmedState`
 2. **Foreign action**: different origin → apply to `confirmedState`, rebase remaining `pendingActions`
-3. **Rejected action**: server echoed with `rejected: true` → remove from pending (optimistic effect reverted)
+3. **Rejected action**: server echoed with `rejectionReason` present → remove from pending (optimistic effect reverted). The `rejectionReason` MAY be surfaced to the user.
 4. Recompute `optimisticState` from `confirmedState` + remaining `pendingActions`
 
 ### Why rebasing is simple
@@ -444,7 +462,7 @@ interface ProtocolCapabilities {
 ### Forward compatibility
 
 A newer client connecting to an older server:
-1. During handshake, the client learns the server's protocol version.
+1. During handshake, the client learns the server's protocol version from the `initialize` response.
 2. The client derives `ProtocolCapabilities` from the server version.
 3. Command factories check capabilities before dispatching; if unsupported, the client degrades gracefully.
 4. The server only sends action types known to the client's declared version (via `isActionKnownToVersion`).

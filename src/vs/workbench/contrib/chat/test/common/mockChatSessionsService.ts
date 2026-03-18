@@ -218,6 +218,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return this.contributions.find(c => c.type === chatSessionType)?.requiresCustomModels ?? false;
 	}
 
+	supportsDelegationForSessionType(chatSessionType: string): boolean {
+		return this.contributions.find(c => c.type === chatSessionType)?.supportsDelegation !== false;
+	}
+
 	getContentProviderSchemes(): string[] {
 		return Array.from(this.contentProviders.keys());
 	}

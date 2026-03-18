@@ -60,6 +60,7 @@ export interface ISessionModelInfo {
  */
 export interface IRootState {
 	readonly agents: readonly IAgentInfo[];
+	readonly activeSessions: number;
 }
 
 export interface IAgentInfo {
@@ -116,7 +117,8 @@ export interface ITurn {
 	/** The final assistant response text (captured from streamingText on turn completion). */
 	readonly responseText: string;
 	readonly responseParts: readonly IResponsePart[];
-	readonly toolCalls: readonly ICompletedToolCall[];
+	/** Tool invocations in terminal states (completed or cancelled). */
+	readonly toolCalls: readonly (IToolCallCompletedState | IToolCallCancelledState)[];
 	readonly usage: IUsageInfo | undefined;
 	readonly state: TurnState;
 	/** Error info if the turn ended with {@link TurnState.Error}. */
@@ -137,8 +139,8 @@ export interface IActiveTurn {
 	readonly userMessage: IUserMessage;
 	readonly streamingText: string;
 	readonly responseParts: readonly IResponsePart[];
-	readonly toolCalls: ReadonlyMap<string, IToolCallState>;
-	readonly pendingPermissions: ReadonlyMap<string, IPermissionRequest>;
+	readonly toolCalls: Readonly<Record<string, IToolCallState>>;
+	readonly pendingPermissions: Readonly<Record<string, IPermissionRequest>>;
 	readonly reasoning: string;
 	readonly usage: IUsageInfo | undefined;
 }
@@ -168,62 +170,117 @@ export interface IContentRef {
 
 export type IResponsePart = IMarkdownResponsePart | IContentRef;
 
+// ---- String/Markdown helper -------------------------------------------------
+
+/**
+ * A string that may optionally be rendered as Markdown.
+ * Mirrors the protocol's `StringOrMarkdown` type.
+ */
+export type StringOrMarkdown = string | { readonly markdown: string };
+
 // ---- Tool calls -------------------------------------------------------------
 
-export const enum ToolCallStatus {
-	/** Tool is actively executing. */
-	Running = 'running',
-	/** Waiting for user to approve before execution. */
-	PendingPermission = 'pending-permission',
-	/** Tool finished successfully. */
-	Completed = 'completed',
-	/** Tool failed with an error. */
-	Failed = 'failed',
-	/** Tool was denied or skipped by the user. */
-	Cancelled = 'cancelled',
+/**
+ * How a tool call was confirmed for execution.
+ */
+export type ToolCallConfirmationReason = 'not-needed' | 'user-action' | 'setting';
+
+/**
+ * Metadata common to all tool call states.
+ */
+interface IToolCallBase {
+	readonly toolCallId: string;
+	/** Internal tool name (for debugging/logging). */
+	readonly toolName: string;
+	/** Human-readable tool name. */
+	readonly displayName: string;
+	/** Hint for the renderer about how to display this tool (e.g., 'terminal' for shell commands). */
+	readonly toolKind?: 'terminal';
+	/** Language identifier for syntax highlighting. Used with toolKind 'terminal'. */
+	readonly language?: string;
 }
 
 /**
- * Represents the full lifecycle state of a tool invocation within an active turn.
- * Modeled after {@link IChatToolInvocation.State} to enable direct mapping to the chat UI.
+ * Properties available once tool call parameters are fully received.
  */
-export interface IToolCallState {
-	readonly toolCallId: string;
-	readonly toolName: string;
-	readonly displayName: string;
-	readonly invocationMessage: string;
+interface IToolCallParameterFields {
+	/** Message describing what the tool will do. */
+	readonly invocationMessage: StringOrMarkdown;
+	/** A representative input string for display (e.g., the shell command). */
 	readonly toolInput?: string;
-	readonly toolKind?: 'terminal';
-	readonly language?: string;
-	readonly toolArguments?: string;
-	readonly status: ToolCallStatus;
-	/** Parsed tool parameters (from toolArguments). */
-	readonly parameters?: unknown;
-	/** How the tool was confirmed before execution (set after PendingPermission → Running). */
-	readonly confirmed?: 'not-needed' | 'user-action' | 'setting' | 'denied' | 'skipped';
-	/** Set when status transitions to Completed or Failed. */
-	readonly pastTenseMessage?: string;
-	/** Set when status transitions to Completed or Failed. */
-	readonly toolOutput?: string;
-	/** Set when status transitions to Failed. */
-	readonly error?: { readonly message: string; readonly code?: string };
-	/** Why the tool was cancelled (set when status is Cancelled). */
-	readonly cancellationReason?: 'denied' | 'skipped';
 }
 
-export interface ICompletedToolCall {
-	readonly toolCallId: string;
-	readonly toolName: string;
-	readonly displayName: string;
-	readonly invocationMessage: string;
+/**
+ * Tool execution result details, available after execution completes.
+ */
+export interface IToolCallResult {
 	readonly success: boolean;
-	readonly pastTenseMessage: string;
-	readonly toolInput?: string;
-	readonly toolKind?: 'terminal';
-	readonly language?: string;
+	readonly pastTenseMessage: StringOrMarkdown;
 	readonly toolOutput?: string;
 	readonly error?: { readonly message: string; readonly code?: string };
 }
+
+/** LM is streaming the tool call parameters. */
+export interface IToolCallStreamingState extends IToolCallBase {
+	readonly status: 'streaming';
+	/** Partial parameters accumulated so far. */
+	readonly partialInput?: string;
+	/** Progress message shown while parameters are streaming. */
+	readonly invocationMessage?: StringOrMarkdown;
+}
+
+/** Parameters are complete, waiting for client to confirm execution. */
+export interface IToolCallPendingConfirmationState extends IToolCallBase, IToolCallParameterFields {
+	readonly status: 'pending-confirmation';
+}
+
+/** Tool is actively executing. */
+export interface IToolCallRunningState extends IToolCallBase, IToolCallParameterFields {
+	readonly status: 'running';
+	readonly confirmed: ToolCallConfirmationReason;
+}
+
+/** Tool finished executing, waiting for client to approve the result. */
+export interface IToolCallPendingResultConfirmationState extends IToolCallBase, IToolCallParameterFields, IToolCallResult {
+	readonly status: 'pending-result-confirmation';
+	readonly confirmed: ToolCallConfirmationReason;
+}
+
+/** Tool completed successfully or with an error. */
+export interface IToolCallCompletedState extends IToolCallBase, IToolCallParameterFields, IToolCallResult {
+	readonly status: 'completed';
+	readonly confirmed: ToolCallConfirmationReason;
+}
+
+/** Tool call was cancelled (denied, skipped, or result-denied). */
+export interface IToolCallCancelledState extends IToolCallBase, IToolCallParameterFields {
+	readonly status: 'cancelled';
+	readonly reason: 'denied' | 'skipped' | 'result-denied';
+	readonly reasonMessage?: StringOrMarkdown;
+	readonly userSuggestion?: IUserMessage;
+}
+
+/**
+ * Discriminated union of all tool call lifecycle states.
+ * Modeled after {@link IChatToolInvocation.State} to enable direct mapping to the chat UI.
+ */
+export type IToolCallState =
+	| IToolCallStreamingState
+	| IToolCallPendingConfirmationState
+	| IToolCallRunningState
+	| IToolCallPendingResultConfirmationState
+	| IToolCallCompletedState
+	| IToolCallCancelledState;
+
+/**
+ * Derived status type for the tool call lifecycle.
+ */
+export type ToolCallStatus = IToolCallState['status'];
+
+/**
+ * A tool call in a terminal state, stored in completed turns.
+ */
+export type ICompletedToolCall = IToolCallCompletedState | IToolCallCancelledState;
 
 // ---- Permission requests ----------------------------------------------------
 
@@ -261,6 +318,7 @@ export interface IErrorInfo {
 export function createRootState(): IRootState {
 	return {
 		agents: [],
+		activeSessions: 0,
 	};
 }
 
@@ -279,8 +337,8 @@ export function createActiveTurn(id: string, userMessage: IUserMessage): IActive
 		userMessage,
 		streamingText: '',
 		responseParts: [],
-		toolCalls: new Map(),
-		pendingPermissions: new Map(),
+		toolCalls: {},
+		pendingPermissions: {},
 		reasoning: '',
 		usage: undefined,
 	};

@@ -5,8 +5,10 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -162,6 +164,7 @@ interface ISectionItem {
 	readonly id: AICustomizationManagementSection;
 	readonly label: string;
 	readonly icon: ThemeIcon;
+	count: number;
 }
 
 interface ISaveTargetQuickPickItem extends IQuickPickItem {
@@ -198,6 +201,7 @@ interface ISectionItemTemplateData {
 	readonly container: HTMLElement;
 	readonly icon: HTMLElement;
 	readonly label: HTMLElement;
+	readonly count: HTMLElement;
 }
 
 class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTemplateData> {
@@ -207,13 +211,21 @@ class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTem
 		container.classList.add('section-list-item');
 		const icon = DOM.append(container, $('.section-icon'));
 		const label = DOM.append(container, $('.section-label'));
-		return { container, icon, label };
+		const count = DOM.append(container, $('.section-count'));
+		return { container, icon, label, count };
 	}
 
 	renderElement(element: ISectionItem, index: number, templateData: ISectionItemTemplateData): void {
 		templateData.icon.className = 'section-icon';
 		templateData.icon.classList.add(...ThemeIcon.asClassNameArray(element.icon));
 		templateData.label.textContent = element.label;
+		if (element.count > 0) {
+			templateData.count.textContent = String(element.count);
+			templateData.count.style.display = '';
+		} else {
+			templateData.count.textContent = '';
+			templateData.count.style.display = 'none';
+		}
 	}
 
 	disposeTemplate(): void { }
@@ -279,6 +291,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private selectedSection: AICustomizationManagementSection = AICustomizationManagementSection.Agents;
 
 	private readonly editorDisposables = this._register(new DisposableStore());
+	private readonly promptsSectionCountScheduler = this._register(new RunOnceScheduler(() => this._doRefreshAllPromptsSectionCounts(), 100));
 	private _editorContentChanged = false;
 
 	// Folder picker (sessions window only)
@@ -342,7 +355,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		for (const id of this.workspaceService.managementSections) {
 			const info = sectionInfo[id];
 			if (info) {
-				this.sections.push({ id, ...info });
+				this.sections.push({ id, ...info, count: 0 });
 			}
 		}
 
@@ -631,6 +644,42 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Set initial visibility based on selected section
 		this.updateContentVisibility();
 
+		// Wire up section count updates — active prompts section gets its count
+		// from the list widget; all prompts sections are also refreshed from
+		// the prompts service on every change event for consistency.
+		this.editorDisposables.add(this.listWidget.onDidChangeItemCount(count => {
+			if (this.isPromptsSection(this.selectedSection)) {
+				this.updateSectionCount(this.selectedSection, count);
+			}
+		}));
+		if (this.mcpListWidget) {
+			this.editorDisposables.add(this.mcpListWidget.onDidChangeItemCount(count => {
+				this.updateSectionCount(AICustomizationManagementSection.McpServers, count);
+			}));
+			this.mcpListWidget.fireItemCount();
+		}
+		if (this.pluginListWidget) {
+			this.editorDisposables.add(this.pluginListWidget.onDidChangeItemCount(count => {
+				this.updateSectionCount(AICustomizationManagementSection.Plugins, count);
+			}));
+			this.pluginListWidget.fireItemCount();
+		}
+		if (this.modelsWidget) {
+			this.editorDisposables.add(this.modelsWidget.onDidChangeItemCount(count => {
+				this.updateSectionCount(AICustomizationManagementSection.Models, count);
+			}));
+			this.modelsWidget.fireItemCount();
+		}
+
+		// Any prompts data change → refresh ALL prompts section counts (debounced)
+		this.editorDisposables.add(this.promptsService.onDidChangeCustomAgents(() => this.refreshAllPromptsSectionCounts()));
+		this.editorDisposables.add(this.promptsService.onDidChangeSkills(() => this.refreshAllPromptsSectionCounts()));
+		this.editorDisposables.add(this.promptsService.onDidChangeInstructions(() => this.refreshAllPromptsSectionCounts()));
+		this.editorDisposables.add(this.promptsService.onDidChangeSlashCommands(() => this.refreshAllPromptsSectionCounts()));
+
+		// Load initial counts for all sections
+		this.refreshAllPromptsSectionCounts();
+
 		// Load items for the initial section
 		if (this.isPromptsSection(this.selectedSection)) {
 			void this.listWidget.setSection(this.selectedSection);
@@ -644,6 +693,46 @@ export class AICustomizationManagementEditor extends EditorPane {
 			section === AICustomizationManagementSection.Prompts ||
 			section === AICustomizationManagementSection.Hooks;
 	}
+
+	//#region Section Counts
+
+	/**
+	 * Updates the count for a specific section and re-renders the sidebar.
+	 */
+	private updateSectionCount(sectionId: AICustomizationManagementSection, count: number): void {
+		const section = this.sections.find(s => s.id === sectionId);
+		if (!section || section.count === count) {
+			return;
+		}
+		section.count = count;
+		// Re-splice the sections list to trigger re-render
+		this.sectionsList.splice(0, this.sectionsList.length, this.sections);
+		this.ensureSectionsListReflectsActiveSection();
+	}
+
+	/**
+	 * Schedules a debounced refresh of all prompts-based section counts.
+	 */
+	private refreshAllPromptsSectionCounts(): void {
+		this.promptsSectionCountScheduler.schedule();
+	}
+
+	/**
+	 * Performs the actual refresh of all prompts-based section counts.
+	 * Uses the list widget's shared item-loading logic so sidebar counts
+	 * match the per-group counts shown inside each section.
+	 */
+	private _doRefreshAllPromptsSectionCounts(): void {
+		for (const section of this.sections) {
+			if (this.isPromptsSection(section.id)) {
+				this.listWidget.computeItemCountForSection(section.id).then(count => {
+					this.updateSectionCount(section.id, count);
+				}, onUnexpectedError);
+			}
+		}
+	}
+
+	//#endregion
 
 	private selectSection(section: AICustomizationManagementSection): void {
 		if (this.selectedSection === section) {

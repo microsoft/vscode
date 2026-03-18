@@ -1209,6 +1209,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return !!contribution?.requiresCustomModels;
 	}
 
+	public supportsDelegationForSessionType(chatSessionType: string): boolean {
+		const contribution = this._contributions.get(chatSessionType)?.contribution;
+		return contribution?.supportsDelegation !== false;
+	}
+
 	public getContentProviderSchemes(): string[] {
 		return Array.from(this._contentProviders.keys());
 	}
