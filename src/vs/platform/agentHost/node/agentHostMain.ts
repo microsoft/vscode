@@ -147,9 +147,7 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 				modifiedAt: s.modifiedTime,
 			}));
 		},
-		handleSetAuthToken(token) {
-			agentService.setAuthToken(token);
-		},
+
 		handleGetResourceMetadata() {
 			return agentService.getResourceMetadataSync();
 		},

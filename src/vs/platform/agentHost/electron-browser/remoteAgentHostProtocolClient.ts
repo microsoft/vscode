@@ -128,13 +128,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	/**
-	 * Push a GitHub auth token to the remote agent host.
-	 */
-	async setAuthToken(token: string): Promise<void> {
-		this._sendExtensionNotification('setAuthToken', { token });
-	}
-
-	/**
 	 * Retrieve the server's resource metadata describing auth requirements.
 	 */
 	async getResourceMetadata(): Promise<IResourceMetadata> {
@@ -239,13 +232,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		// Generic M can't satisfy the distributive IAhpNotification union directly
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		this._transport.send({ jsonrpc: '2.0' as const, method, params } as IProtocolMessage);
-	}
-
-	/** Send a JSON-RPC notification for a VS Code extension method (not in the protocol spec). */
-	private _sendExtensionNotification(method: string, params?: unknown): void {
-		// Cast: extension methods aren't in the typed protocol maps yet
-		// eslint-disable-next-line local/code-no-dangerous-type-assertions
-		this._transport.send({ jsonrpc: '2.0', method, params } as unknown as IJsonRpcResponse);
 	}
 
 	/** Send a typed JSON-RPC request for a protocol-defined method. */

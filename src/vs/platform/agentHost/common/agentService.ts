@@ -346,12 +346,6 @@ export interface IAgent {
 	/** List persisted sessions from this provider. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
-	/**
-	 * Set the authentication token for this provider.
-	 * @deprecated Use {@link authenticate} instead.
-	 */
-	setAuthToken(token: string): Promise<void>;
-
 	/** Declare protected resources this agent requires auth for (RFC 9728). */
 	getProtectedResources(): IAuthorizationProtectedResourceMetadata[];
 
@@ -385,12 +379,6 @@ export interface IAgentService {
 
 	/** Discover available agent backends from the agent host. */
 	listAgents(): Promise<IAgentDescriptor[]>;
-
-	/**
-	 * Set the GitHub auth token used by the Copilot SDK.
-	 * @deprecated Use {@link authenticate} instead.
-	 */
-	setAuthToken(token: string): Promise<void>;
 
 	/**
 	 * Retrieve the resource metadata describing auth requirements.

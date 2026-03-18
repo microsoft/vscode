@@ -19,7 +19,7 @@ export class MockAgent implements IAgent {
 	private readonly _sessions = new Map<string, URI>();
 	private _nextId = 1;
 
-	readonly setAuthTokenCalls: string[] = [];
+
 	readonly sendMessageCalls: { session: URI; prompt: string }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
@@ -78,10 +78,6 @@ export class MockAgent implements IAgent {
 
 	async changeModel(session: URI, model: string): Promise<void> {
 		this.changeModelCalls.push({ session, model });
-	}
-
-	async setAuthToken(token: string): Promise<void> {
-		this.setAuthTokenCalls.push(token);
 	}
 
 	async authenticate(resource: string, token: string): Promise<boolean> {
@@ -240,8 +236,6 @@ export class ScriptedMockAgent implements IAgent {
 			callback(approved);
 		}
 	}
-
-	async setAuthToken(_token: string): Promise<void> { }
 
 	async authenticate(_resource: string, _token: string): Promise<boolean> {
 		return true;

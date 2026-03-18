@@ -22,7 +22,6 @@ import {
 	type IInitializeParams,
 	type IJsonRpcResponse,
 	type IReconnectParams,
-	type ISetAuthTokenParams,
 	type IStateSnapshot,
 } from '../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI, type ISessionSummary, type URI } from '../common/state/sessionState.js';
@@ -161,15 +160,6 @@ export class ProtocolServerHandler extends Disposable {
 							this._sideEffectHandler.handleAction(action);
 						}
 						break;
-					default: {
-						// VS Code extension: setAuthToken (not part of the protocol spec)
-						const method = msg.method as string;
-						if (method === 'setAuthToken') {
-							const p = msg.params as unknown as ISetAuthTokenParams;
-							this._sideEffectHandler.handleSetAuthToken(p.token);
-						}
-						break;
-					}
 				}
 			}
 			// Responses from the client (if any) are ignored on the server side.
@@ -444,7 +434,6 @@ export interface IProtocolSideEffectHandler {
 	handleCreateSession(command: ICreateSessionParams): Promise<void>;
 	handleDisposeSession(session: URI): void;
 	handleListSessions(): Promise<ISessionSummary[]>;
-	handleSetAuthToken(token: string): void;
 	handleGetResourceMetadata(): IResourceMetadata;
 	handleAuthenticate(params: IAuthenticateParams): Promise<IAuthenticateResult>;
 	handleBrowseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;

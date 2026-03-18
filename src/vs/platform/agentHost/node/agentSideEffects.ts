@@ -228,14 +228,6 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		return allSessions;
 	}
 
-	handleSetAuthToken(token: string): void {
-		for (const agent of this._options.agents.get()) {
-			agent.setAuthToken(token).catch(err => {
-				this._logService.error('[AgentSideEffects] setAuthToken failed', err);
-			});
-		}
-	}
-
 	handleGetResourceMetadata(): IResourceMetadata {
 		const resources = this._options.agents.get().flatMap(a => a.getProtectedResources());
 		return { resources };

@@ -72,7 +72,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}];
 	}
 
-	async setAuthToken(token: string): Promise<void> {
+	async authenticate(resource: string, token: string): Promise<boolean> {
+		if (resource !== 'https://api.github.com') {
+			return false;
+		}
 		const tokenChanged = this._githubToken !== token;
 		this._githubToken = token;
 		this._logService.info(`[Copilot] Auth token ${tokenChanged ? 'updated' : 'unchanged'}`);
@@ -83,13 +86,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._clientStarting = undefined;
 			await client.stop();
 		}
-	}
-
-	async authenticate(resource: string, token: string): Promise<boolean> {
-		if (resource !== 'https://api.github.com') {
-			return false;
-		}
-		await this.setAuthToken(token);
 		return true;
 	}
 

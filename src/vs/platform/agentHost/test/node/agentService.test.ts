@@ -126,20 +126,6 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	// ---- setAuthToken ---------------------------------------------------
-
-	suite('setAuthToken', () => {
-
-		test('broadcasts token to all registered providers', async () => {
-			service.registerProvider(copilotAgent);
-
-			await service.setAuthToken('my-token');
-
-			assert.strictEqual(copilotAgent.setAuthTokenCalls.length, 1);
-			assert.strictEqual(copilotAgent.setAuthTokenCalls[0], 'my-token');
-		});
-	});
-
 	// ---- listSessions / listModels --------------------------------------
 
 	suite('aggregation', () => {

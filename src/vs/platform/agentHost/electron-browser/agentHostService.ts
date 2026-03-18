@@ -83,9 +83,6 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 
 	// ---- IAgentService forwarding (no await needed, delayed channel handles queuing) ----
 
-	setAuthToken(token: string): Promise<void> {
-		return this._proxy.setAuthToken(token);
-	}
 	getResourceMetadata(): Promise<IResourceMetadata> {
 		return this._proxy.getResourceMetadata();
 	}

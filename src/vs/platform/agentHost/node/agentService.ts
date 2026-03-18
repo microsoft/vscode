@@ -89,15 +89,6 @@ export class AgentService extends Disposable implements IAgentService {
 		return [...this._providers.values()].map(p => p.getDescriptor());
 	}
 
-	async setAuthToken(token: string): Promise<void> {
-		this._logService.trace('[AgentService] setAuthToken called');
-		const promises: Promise<void>[] = [];
-		for (const provider of this._providers.values()) {
-			promises.push(provider.setAuthToken(token));
-		}
-		await Promise.all(promises);
-	}
-
 	async getResourceMetadata(): Promise<IResourceMetadata> {
 		const resources = [...this._providers.values()].flatMap(p => p.getProtectedResources());
 		return { resources };
