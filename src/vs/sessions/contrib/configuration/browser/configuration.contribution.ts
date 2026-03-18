@@ -56,6 +56,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 
 		'search.quickOpen.includeHistory': false,
 
+		'task.notifyWindowOnTaskCompletion': false,
+
 		'terminal.integrated.initialHint': false,
 
 		'workbench.editor.doubleClickTabToToggleEditorGroupSizes': 'maximize',
