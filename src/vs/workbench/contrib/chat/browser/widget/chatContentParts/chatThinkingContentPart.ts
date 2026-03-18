@@ -139,6 +139,26 @@ const toolMessages = [
 	localize('chat.thinking.tool.5', 'Evaluating'),
 ];
 
+/**
+ * Builds a phrase pool from defaults and user-configured custom phrases.
+ * In 'replace' mode, only custom phrases are used; in 'append' mode (default),
+ * custom phrases are added to the defaults.
+ */
+export function buildPhrasePool(defaults: string[], configurationService: IConfigurationService): string[] {
+	const config = configurationService.getValue<{ mode?: 'replace' | 'append'; phrases?: string[] }>(ChatConfiguration.ThinkingPhrases);
+	const customPhrases = Array.isArray(config?.phrases)
+		? config.phrases
+			.filter((phrase): phrase is string => typeof phrase === 'string')
+			.map(phrase => phrase.trim())
+			.filter(phrase => phrase.length > 0)
+		: [];
+
+	if (customPhrases.length > 0) {
+		return config?.mode === 'replace' ? [...customPhrases] : [...defaults, ...customPhrases];
+	}
+	return [...defaults];
+}
+
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
 
 	private static _codeBlockRendererSync(_languageId: string, text: string, _raw?: string): HTMLElement {
@@ -196,38 +216,18 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			let defaults: string[];
 			switch (category) {
 				case WorkingMessageCategory.Thinking:
-					defaults = [...defaultThinkingMessages];
+					defaults = defaultThinkingMessages;
 					break;
 				case WorkingMessageCategory.Terminal:
-					defaults = [...terminalMessages];
+					defaults = terminalMessages;
 					break;
 				case WorkingMessageCategory.Tool:
 				default:
-					defaults = [...toolMessages];
+					defaults = toolMessages;
 					break;
 			}
 
-			// Read configured phrases from the single setting
-			const config = this.configurationService.getValue<{ mode?: 'replace' | 'append'; phrases?: string[] }>(ChatConfiguration.ThinkingPhrases);
-			const customPhrases = Array.isArray(config?.phrases)
-				? config.phrases
-					.filter((phrase): phrase is string => typeof phrase === 'string')
-					.map(phrase => phrase.trim())
-					.filter(phrase => phrase.length > 0)
-				: [];
-			const mode = config?.mode === 'replace' ? 'replace' : 'append';
-
-			if (customPhrases.length > 0) {
-				if (mode === 'replace') {
-					// Replace mode: use only custom phrases for all categories
-					pool = [...customPhrases];
-				} else {
-					// Append mode: add custom phrases to defaults for this category
-					pool = [...defaults, ...customPhrases];
-				}
-			} else {
-				pool = defaults;
-			}
+			pool = buildPhrasePool(defaults, this.configurationService);
 
 			this.availableMessagesByCategory.set(category, pool);
 		}
@@ -1600,7 +1600,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 
 		this.lastExtractedTitle = title;
-		const thinkingLabel = `${this.defaultTitle}: ${title}`;
+		const thinkingLabel = localize('chat.thinking.label', "{0}: {1}", this.defaultTitle, title);
 		this.currentTitle = thinkingLabel;
 
 		if (!this._collapseButton) {
@@ -1615,7 +1615,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.titleShimmerSpan = $('span.chat-thinking-title-shimmer');
 			labelElement.appendChild(this.titleShimmerSpan);
 		}
-		this.titleShimmerSpan.textContent = `${this.defaultTitle}: `;
+		this.titleShimmerSpan.textContent = localize('chat.thinking.shimmer', "{0}: ", this.defaultTitle);
 
 		// Dispose previous detail rendering
 		this._titleDetailRendered.clear();
