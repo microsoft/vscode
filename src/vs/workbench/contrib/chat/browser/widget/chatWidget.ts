@@ -17,6 +17,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
+import { mark } from '../../../../../base/common/performance.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -1264,6 +1265,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			autoSend: Boolean(handoff.send)
 		});
 
+		this.executeHandoff(handoff, agentId).catch(e => {
+			const target = agentId ?? handoff.agent ?? 'unknown';
+			this.logService.error(`[Handoff] Failed to execute handoff '${handoff.label}' to '${target}'`, e);
+		});
+	}
+
+	async executeHandoff(handoff: IHandOff, agentId?: string): Promise<void> {
+		this.chatSuggestNextWidget.hide();
+
+		const promptToUse = handoff.prompt;
+
 		// If agentId is provided (from chevron dropdown), delegate to that chat session
 		// Otherwise, switch to the handoff agent
 		if (agentId) {
@@ -1271,7 +1283,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.input.setValue(`@${agentId} ${promptToUse}`, false);
 			this.input.focus();
 			// Auto-submit for delegated chat sessions
-			this.acceptInput().catch(e => this.logService.error('Failed to handle handoff continueOn', e));
+			this.acceptInput().catch(e => this.logService.error(`[Handoff] Failed to submit delegated handoff to '@${agentId}'`, e));
 		} else if (handoff.agent) {
 			// Regular handoff to specified agent
 			this._switchToAgentByName(handoff.agent);
@@ -2165,7 +2177,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
-		return this._acceptInput(query ? { query } : undefined, options);
+		mark('code/chat/willAcceptInput');
+		const result = await this._acceptInput(query ? { query } : undefined, options);
+		mark('code/chat/didAcceptInput');
+		return result;
 	}
 
 	async rerunLastRequest(): Promise<void> {

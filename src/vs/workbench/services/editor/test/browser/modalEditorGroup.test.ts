@@ -64,7 +64,7 @@ suite('Modal Editor Group', () => {
 		assert.ok(modalPart.activeGroup);
 		assert.strictEqual(typeof modalPart.close, 'function');
 
-		modalPart.close();
+		await modalPart.close();
 	});
 
 	test('modal editor part has correct initial state', async () => {
@@ -78,7 +78,7 @@ suite('Modal Editor Group', () => {
 		// Modal part should have exactly one group initially with 0 editors
 		assert.strictEqual(modalPart.activeGroup.count, 0);
 
-		modalPart.close();
+		await modalPart.close();
 	});
 
 	test('modal editor part can open editors', async () => {
@@ -95,7 +95,7 @@ suite('Modal Editor Group', () => {
 		assert.strictEqual(modalPart.activeGroup.count, 1);
 		assert.strictEqual(modalPart.activeGroup.activeEditor, input);
 
-		modalPart.close();
+		await modalPart.close();
 	});
 
 	test('modal editor part is added to parts list', async () => {
@@ -111,7 +111,7 @@ suite('Modal Editor Group', () => {
 		// Modal part's group should be added to the total groups
 		assert.strictEqual(parts.groups.length, initialGroupCount + 1);
 
-		modalPart.close();
+		await modalPart.close();
 	});
 
 	test('closing modal part fires onWillClose event', async () => {
@@ -130,7 +130,7 @@ suite('Modal Editor Group', () => {
 		await modalPart.activeGroup.openEditor(input, { pinned: true });
 
 		// Verify close returns true
-		const result = modalPart.close();
+		const result = await modalPart.close();
 		assert.strictEqual(result, true);
 	});
 
@@ -145,7 +145,7 @@ suite('Modal Editor Group', () => {
 		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
 		await modalPart.activeGroup.openEditor(input, { pinned: true });
 
-		const result = modalPart.close();
+		const result = await modalPart.close();
 
 		assert.strictEqual(result, true);
 	});
@@ -167,7 +167,7 @@ suite('Modal Editor Group', () => {
 
 		assert.ok(allGroups.some(g => g.id === modalGroup.id));
 
-		modalPart.close();
+		await modalPart.close();
 	});
 
 	test('modal editor part is singleton - subsequent calls return same instance', async () => {
@@ -185,7 +185,7 @@ suite('Modal Editor Group', () => {
 		assert.strictEqual(modalPart1, modalPart2);
 		assert.strictEqual(modalPart1.activeGroup.id, modalPart2.activeGroup.id);
 
-		modalPart1.close();
+		await modalPart1.close();
 	});
 
 	test('modal editor part singleton is reset after close', async () => {
@@ -199,7 +199,7 @@ suite('Modal Editor Group', () => {
 		const firstGroupId = modalPart1.activeGroup.id;
 
 		// Close it
-		modalPart1.close();
+		await modalPart1.close();
 
 		// Create another modal - should be a new instance
 		const modalPart2 = await parts.createModalEditorPart();
@@ -207,7 +207,7 @@ suite('Modal Editor Group', () => {
 		// Should be a different group
 		assert.notStrictEqual(modalPart2.activeGroup.id, firstGroupId);
 
-		modalPart2.close();
+		await modalPart2.close();
 	});
 
 	test('modal editor part onDidAddGroup fires only once for singleton', async () => {
@@ -228,7 +228,7 @@ suite('Modal Editor Group', () => {
 		// onDidAddGroup should fire only once since it's a singleton
 		assert.strictEqual(addGroupCount, 1);
 
-		(await parts.createModalEditorPart()).close();
+		await (await parts.createModalEditorPart()).close();
 	});
 
 	test('modal editor part enforces no tabs mode', async () => {
@@ -242,7 +242,7 @@ suite('Modal Editor Group', () => {
 		// Modal parts should enforce no tabs mode
 		assert.strictEqual(modalPart.partOptions.showTabs, 'none');
 
-		modalPart.close();
+		await modalPart.close();
 	});
 
 	test('modal editor part enforces closeEmptyGroups', async () => {
@@ -256,7 +256,7 @@ suite('Modal Editor Group', () => {
 		// Modal parts should enforce closeEmptyGroups
 		assert.strictEqual(modalPart.partOptions.closeEmptyGroups, true);
 
-		modalPart.close();
+		await modalPart.close();
 	});
 
 	test('closing all editors in modal removes the modal group', async () => {
@@ -298,7 +298,7 @@ suite('Modal Editor Group', () => {
 		// but we verify the modal was created successfully which means state handling works)
 		assert.ok(modalPart.activeGroup);
 
-		modalPart.close();
+		await modalPart.close();
 	});
 
 	test('activePart returns modal when focused', async () => {
@@ -319,7 +319,7 @@ suite('Modal Editor Group', () => {
 		const groups = parts.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		assert.ok(groups.some(g => g.id === modalPart.activeGroup.id));
 
-		modalPart.close();
+		await modalPart.close();
 	});
 
 	test('modal part group can be found by id', async () => {
@@ -336,7 +336,7 @@ suite('Modal Editor Group', () => {
 		assert.ok(foundGroup);
 		assert.strictEqual(foundGroup!.id, modalGroup.id);
 
-		modalPart.close();
+		await modalPart.close();
 	});
 
 	test('onDidAddGroup fires when modal is created', async () => {
@@ -355,7 +355,7 @@ suite('Modal Editor Group', () => {
 		assert.ok(addedGroupId !== undefined);
 		assert.strictEqual(addedGroupId, modalPart.activeGroup.id);
 
-		modalPart.close();
+		await modalPart.close();
 	});
 
 	test('onDidRemoveGroup fires when modal is closed', async () => {
@@ -373,7 +373,7 @@ suite('Modal Editor Group', () => {
 			removedGroupId = group.id;
 		}));
 
-		modalPart.close();
+		await modalPart.close();
 
 		assert.ok(removedGroupId !== undefined);
 		assert.strictEqual(removedGroupId, modalGroupId);
@@ -393,7 +393,7 @@ suite('Modal Editor Group', () => {
 		assert.strictEqual(parts.activeModalEditorPart, modalPart);
 
 		// Close modal
-		modalPart.close();
+		await modalPart.close();
 		assert.strictEqual(parts.activeModalEditorPart, undefined);
 	});
 
@@ -456,7 +456,7 @@ suite('Modal Editor Group', () => {
 
 		assert.strictEqual(parts.activeModalEditorPart, modalPart);
 
-		modalPart.close();
+		await modalPart.close();
 	});
 
 	test('modal editor part starts not maximized', async () => {
@@ -469,7 +469,7 @@ suite('Modal Editor Group', () => {
 
 		assert.strictEqual(modalPart.maximized, false);
 
-		modalPart.close();
+		await modalPart.close();
 	});
 
 	test('modal editor part toggleMaximized toggles state', async () => {
@@ -488,7 +488,7 @@ suite('Modal Editor Group', () => {
 		modalPart.toggleMaximized();
 		assert.strictEqual(modalPart.maximized, false);
 
-		modalPart.close();
+		await modalPart.close();
 	});
 
 	test('modal editor part fires onDidChangeMaximized', async () => {
@@ -507,7 +507,7 @@ suite('Modal Editor Group', () => {
 
 		assert.deepStrictEqual(events, [true, false]);
 
-		modalPart.close();
+		await modalPart.close();
 	});
 
 	test('modal editor part remembers maximized state across instances', async () => {
@@ -520,24 +520,24 @@ suite('Modal Editor Group', () => {
 		const modalPart1 = await parts.createModalEditorPart();
 		modalPart1.toggleMaximized();
 		assert.strictEqual(modalPart1.maximized, true);
-		modalPart1.close();
+		await modalPart1.close();
 
 		// Open a new modal - should remember maximized state
 		const modalPart2 = await parts.createModalEditorPart();
 		assert.strictEqual(modalPart2.maximized, true);
-		modalPart2.close();
+		await modalPart2.close();
 
 		// Open another modal after un-maximizing
 		const modalPart3 = await parts.createModalEditorPart();
 		assert.strictEqual(modalPart3.maximized, true);
 		modalPart3.toggleMaximized();
 		assert.strictEqual(modalPart3.maximized, false);
-		modalPart3.close();
+		await modalPart3.close();
 
 		// Should now remember non-maximized state
 		const modalPart4 = await parts.createModalEditorPart();
 		assert.strictEqual(modalPart4.maximized, false);
-		modalPart4.close();
+		await modalPart4.close();
 	});
 
 	suite('useModal: all', () => {
@@ -563,7 +563,7 @@ suite('Modal Editor Group', () => {
 			assert.ok(parts.activeModalEditorPart);
 			assert.strictEqual(group.id, parts.activeModalEditorPart.activeGroup.id);
 
-			parts.activeModalEditorPart.close();
+			await parts.activeModalEditorPart.close();
 		});
 
 		test('findGroup does not auto-close modal', async () => {
@@ -590,7 +590,7 @@ suite('Modal Editor Group', () => {
 			assert.ok(parts.activeModalEditorPart);
 			assert.strictEqual(group.id, modalPart.activeGroup.id);
 
-			modalPart.close();
+			await modalPart.close();
 		});
 
 		test('findGroup auto-closes modal when setting is not all', async () => {
@@ -611,7 +611,7 @@ suite('Modal Editor Group', () => {
 
 			// findGroup without MODAL_GROUP should close the modal
 			const newInput = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
-			instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: newInput.resource }, undefined));
+			await instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: newInput.resource }, undefined));
 
 			assert.strictEqual(parts.activeModalEditorPart, undefined);
 		});
@@ -644,7 +644,7 @@ suite('Modal Editor Group', () => {
 			// With 2 editors, tabs should be visible
 			assert.strictEqual(modalPart.partOptions.showTabs, 'multiple');
 
-			modalPart.close();
+			await modalPart.close();
 		});
 
 		test('hides tabs when not in all mode even with multiple editors', async () => {
@@ -671,7 +671,7 @@ suite('Modal Editor Group', () => {
 			// With 'some' mode, tabs should remain hidden even with multiple editors
 			assert.strictEqual(modalPart.partOptions.showTabs, 'none');
 
-			modalPart.close();
+			await modalPart.close();
 		});
 	});
 
@@ -701,7 +701,7 @@ suite('Modal Editor Group', () => {
 		assert.strictEqual(modalPart.activeGroup.count, 0);
 
 		// Close modal
-		modalPart.close();
+		await modalPart.close();
 		assert.strictEqual(parts.activeModalEditorPart, undefined);
 	});
 
@@ -720,7 +720,7 @@ suite('Modal Editor Group', () => {
 		assert.ok(pane);
 		assert.strictEqual(pane.options?.preserveFocus, false);
 
-		parts.activeModalEditorPart?.close();
+		await parts.activeModalEditorPart?.close();
 	});
 
 	test('modal editor part state is remembered on close and reused on next open', async () => {
@@ -731,13 +731,13 @@ suite('Modal Editor Group', () => {
 
 		// Create maximized modal and close it
 		const modalPart1 = await parts.createModalEditorPart({ maximized: true });
-		modalPart1.close();
+		await modalPart1.close();
 
 		// Create a new modal — it should restore maximized state
 		const modalPart2 = await parts.createModalEditorPart();
 		assert.strictEqual(modalPart2.maximized, true);
 
-		modalPart2.close();
+		await modalPart2.close();
 	});
 
 	test('modal editor part state restores from profile storage', async () => {
@@ -763,7 +763,7 @@ suite('Modal Editor Group', () => {
 		const modalPart = await parts.createModalEditorPart();
 		assert.strictEqual(modalPart.maximized, true);
 
-		modalPart.close();
+		await modalPart.close();
 	});
 
 	suite('RequiresModal capability', () => {
@@ -788,7 +788,7 @@ suite('Modal Editor Group', () => {
 			assert.ok(parts.activeModalEditorPart);
 			assert.strictEqual(group.id, parts.activeModalEditorPart.activeGroup.id);
 
-			parts.activeModalEditorPart.close();
+			await parts.activeModalEditorPart.close();
 		});
 
 		test('findGroup does not close modal for RequiresModal editor when modal is already open', async () => {
@@ -818,7 +818,7 @@ suite('Modal Editor Group', () => {
 			assert.strictEqual(parts.activeModalEditorPart, modalPart);
 			assert.strictEqual(group.id, modalPart.activeGroup.id);
 
-			modalPart.close();
+			await modalPart.close();
 		});
 	});
 
