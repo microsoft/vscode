@@ -21,7 +21,7 @@ import { IAgentSession, isAgentSession } from '../../../../workbench/contrib/cha
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/browser/newSession.js';
+import { INewSession, CopilotCLISession, RemoteNewSession } from '../../chat/browser/newSession.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { isBuiltinChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
@@ -267,7 +267,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		let newSession: INewSession;
 		if (target === AgentSessionProviders.Background) {
-			newSession = this.instantiationService.createInstance(LocalNewSession, sessionResource, defaultRepoUri);
+			newSession = this.instantiationService.createInstance(CopilotCLISession, sessionResource, defaultRepoUri);
 		} else {
 			newSession = this.instantiationService.createInstance(RemoteNewSession, sessionResource, target);
 		}

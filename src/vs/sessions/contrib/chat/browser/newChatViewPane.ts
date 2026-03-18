@@ -54,7 +54,7 @@ import { ContextMenuController } from '../../../../editor/contrib/contextmenu/br
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { TargetPicker, IsolationPicker } from './sessionTargetPicker.js';
+import { SessionTypePicker, IsolationPicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
 import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
 import { CloudModelPicker } from './modelPicker.js';
@@ -99,7 +99,7 @@ interface INewChatWidgetOptions {
 class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private readonly _workspacePicker: WorkspacePicker;
-	private readonly _targetPicker: TargetPicker;
+	private readonly _sessionTypePicker: SessionTypePicker;
 	private readonly _branchPicker: BranchPicker;
 	private readonly _isolationPicker: IsolationPicker;
 	private readonly _options: INewChatWidgetOptions;
@@ -188,7 +188,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._permissionPicker = this._register(this.instantiationService.createInstance(NewChatPermissionPicker));
 		this._cloudModelPicker = this._register(this.instantiationService.createInstance(CloudModelPicker));
 		this._modePicker = this._register(this.instantiationService.createInstance(ModePicker));
-		this._targetPicker = this._register(this.instantiationService.createInstance(TargetPicker));
+		this._sessionTypePicker = this._register(this.instantiationService.createInstance(SessionTypePicker));
 		this._branchPicker = this._register(this.instantiationService.createInstance(BranchPicker));
 		this._isolationPicker = this._register(this.instantiationService.createInstance(IsolationPicker));
 		this._options = options;
@@ -211,7 +211,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._focusEditor();
 		}));
 
-		this._register(this._targetPicker.onDidChange((target) => {
+		this._register(this._sessionTypePicker.onDidChange((target) => {
 			if (target === 'cloud') {
 				this._isolationPicker.setVisible(false);
 				this._branchPicker.setVisible(false);
@@ -291,7 +291,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Isolation mode and branch pickers (below the input, shown when Local target is selected)
 		const isolationContainer = dom.append(welcomeElement, dom.$('.chat-full-welcome-local-mode'));
-		this._targetPicker.render(isolationContainer);
+		this._sessionTypePicker.render(isolationContainer);
 		this._permissionPicker.render(isolationContainer);
 		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));
 		const branchContainer = dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-right'));
@@ -369,7 +369,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}));
 
 		if (session instanceof RemoteNewSession) {
-			this._targetPicker.setProject(session.project);
+			this._sessionTypePicker.setProject(session.project);
 			this._renderRemoteSessionPickers(session, true);
 			listeners.add(session.onDidChangeOptionGroups(() => {
 				this._renderRemoteSessionPickers(session);
@@ -406,10 +406,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 				session.setProject(session.project.withRepository(repository));
 			}
 
-			this._targetPicker.setProject(session?.project);
+			this._sessionTypePicker.setProject(session?.project);
 			this._isolationPicker.setHasGitRepo(!!repository);
 			this._branchPicker.setRepository(repository);
-			this._branchPicker.setVisible(!!repository && this._targetPicker.isCli && this._isolationPicker.isWorktree);
+			this._branchPicker.setVisible(!!repository && this._sessionTypePicker.isCli && this._isolationPicker.isWorktree);
 			this._modePicker.reset();
 		}).catch(e => {
 			if (cts.token.isCancellationRequested) {
@@ -418,7 +418,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this.logService.warn(`Failed to open repository at ${folderUri.toString()}`, getErrorMessage(e));
 			this._repositoryLoading = false;
 			this._updateInputLoadingState();
-			this._targetPicker.setProject(undefined);
+			this._sessionTypePicker.setProject(undefined);
 			this._isolationPicker.setHasGitRepo(false);
 			this._branchPicker.setRepository(undefined);
 			this._branchPicker.setVisible(false);

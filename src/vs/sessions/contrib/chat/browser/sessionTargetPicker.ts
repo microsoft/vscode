@@ -33,7 +33,7 @@ export type IsolationMode = 'worktree' | 'workspace';
  * The target is determined by the project type (folder → CLI, repo → Cloud).
  * Emits `onDidChange` with the selected `SessionTargetType` when the target changes.
  */
-export class TargetPicker extends Disposable {
+export class SessionTypePicker extends Disposable {
 
 	private _sessionTarget: SessionTargetType = 'copilot-cli';
 	private _project: SessionWorkspace | undefined;

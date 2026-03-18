@@ -64,7 +64,7 @@ const AGENT_OPTION_ID = 'agent';
  * Fires `onDidChange` for both `repoUri` and `isolationMode` changes.
  * Notifies the extension service with session options for each property change.
  */
-export class LocalNewSession extends Disposable implements INewSession {
+export class CopilotCLISession extends Disposable implements INewSession {
 
 	private _repoUri: URI | undefined;
 	private _project: SessionWorkspace | undefined;
