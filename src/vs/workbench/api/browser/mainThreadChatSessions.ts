@@ -837,6 +837,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 function warnOnUntitledSessionResource(resource: URI): void {
 	if (isUntitledChatSession(resource)) {
-		console.trace(`[MainThreadChatSessions] untitled-style sessionResource detected ${resource.toString()}`);
+		console.log(`[MainThreadChatSessions] untitled-style sessionResource detected ${resource.toString()}`);
 	}
 }
