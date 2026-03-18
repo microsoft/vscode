@@ -1935,7 +1935,7 @@ export class Repository implements Disposable {
 
 		for (const filePath of gitIgnoredFiles) {
 			let dir = path.dirname(filePath);
-			while (dir !== this.root && !gitIgnoredFiles.has(dir)) {
+			while (dir !== this.root && !gitIgnoredPaths.has(dir)) {
 				gitIgnoredPaths.add(dir);
 				dir = path.dirname(dir);
 			}
