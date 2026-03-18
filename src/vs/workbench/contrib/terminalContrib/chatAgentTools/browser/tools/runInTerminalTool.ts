@@ -973,10 +973,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					didMoveToBackground = true;
 					toolTerminal.isBackground = true;
 					this._sessionTerminalAssociations.delete(chatSessionResource);
-					const processId = toolTerminal.instance.processId;
-					if (isNumber(processId)) {
-						this._associateProcessIdWithSession(chatSessionResource, processId, true);
-					}
+					await this._associateProcessIdWithSession(toolTerminal.instance, chatSessionResource, termId, toolTerminal.shellIntegrationQuality, true);
 					const timeoutOutput = execution.getOutput();
 					outputLineCount = timeoutOutput ? count(timeoutOutput.trim(), '\n') + 1 : 0;
 					terminalResult = timeoutOutput ?? '';
