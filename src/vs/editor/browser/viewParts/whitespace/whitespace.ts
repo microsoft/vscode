@@ -149,6 +149,9 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 
 		const canUseHalfwidthRightwardsArrow = this._options.canUseHalfwidthRightwardsArrow;
 
+		const lineHeight = ctx.getLineHeightForLineNumber(lineNumber);
+		const { maxAscent, maxDescent } = this._context.viewModel.getMaxLineFontMetrics(lineNumber);
+
 		let result: string = '';
 
 		let lineIsEmptyOrWhitespace = false;
@@ -209,9 +212,9 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 			if (!visibleRange) {
 				continue;
 			}
-			const baseFontInfo = this._context.configuration.options.get(EditorOption.fontInfo);
 			const fontInfo = this._context.viewModel.getFontAtPosition(new Position(lineNumber, charIndex + 1));
-			const cy = fontInfo.equals(baseFontInfo) ? fontInfo.lineHeight / 2 : fontInfo.lineHeight - fontInfo.fontHeight / 2;
+			// center_y = (H + (A_max - A_i) - (D_max - D_i)) / 2
+			const cy = (lineHeight + (maxAscent - fontInfo.fontAscent) - (maxDescent - fontInfo.fontDescent)) / 2;
 
 			if (USE_SVG) {
 				maxLeft = Math.max(maxLeft, visibleRange.left);

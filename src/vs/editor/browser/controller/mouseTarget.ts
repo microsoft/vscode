@@ -1014,9 +1014,9 @@ export class MouseTargetFactory {
 			const parent1 = startContainer.parentNode; // expected to be the token span
 			const parent2 = parent1 ? parent1.parentNode : null; // expected to be the view line container span
 			const parent3 = parent2 ? parent2.parentNode : null; // expected to be the view line div
-			const parent3ClassList = parent3 && parent3.nodeType === parent3.ELEMENT_NODE ? (<HTMLElement>parent3).classList : null;
+			const parent3ClassName = parent3 && parent3.nodeType === parent3.ELEMENT_NODE ? (<HTMLElement>parent3).className : null;
 
-			if (parent3ClassList?.contains(ViewLine.CLASS_NAME)) {
+			if (parent3ClassName === ViewLine.CLASS_NAME) {
 				return HitTestResult.createFromDOMInfo(ctx, <HTMLElement>parent1, range.startOffset);
 			} else {
 				return new UnknownHitTestResult(<HTMLElement>startContainer.parentNode);
@@ -1025,8 +1025,9 @@ export class MouseTargetFactory {
 			// startContainer is expected to be the token span
 			const parent1 = startContainer.parentNode; // expected to be the view line container span
 			const parent2 = parent1 ? parent1.parentNode : null; // expected to be the view line div
-			const parent2ClassList = parent2 && parent2.nodeType === parent2.ELEMENT_NODE ? (<HTMLElement>parent2).classList : null;
-			if (parent2ClassList?.contains(ViewLine.CLASS_NAME)) {
+			const parent2ClassName = parent2 && parent2.nodeType === parent2.ELEMENT_NODE ? (<HTMLElement>parent2).className : null;
+
+			if (parent2ClassName === ViewLine.CLASS_NAME) {
 				return HitTestResult.createFromDOMInfo(ctx, <HTMLElement>startContainer, (<HTMLElement>startContainer).textContent.length);
 			} else {
 				return new UnknownHitTestResult(<HTMLElement>startContainer);
@@ -1048,8 +1049,9 @@ export class MouseTargetFactory {
 			const parent1 = hitResult.offsetNode.parentNode; // expected to be the token span
 			const parent2 = parent1 ? parent1.parentNode : null; // expected to be the view line container span
 			const parent3 = parent2 ? parent2.parentNode : null; // expected to be the view line div
-			const parent3ClassList = parent3 && parent3.nodeType === parent3.ELEMENT_NODE ? (<HTMLElement>parent3).classList : null;
-			if (parent3ClassList?.contains(ViewLine.CLASS_NAME)) {
+			const parent3ClassName = parent3 && parent3.nodeType === parent3.ELEMENT_NODE ? (<HTMLElement>parent3).className : null;
+
+			if (parent3ClassName === ViewLine.CLASS_NAME) {
 				return HitTestResult.createFromDOMInfo(ctx, <HTMLElement>hitResult.offsetNode.parentNode, hitResult.offset);
 			} else {
 				return new UnknownHitTestResult(<HTMLElement>hitResult.offsetNode.parentNode);
@@ -1060,17 +1062,17 @@ export class MouseTargetFactory {
 		// Some other times, it returns the `<span>` with the inline decoration
 		if (hitResult.offsetNode.nodeType === hitResult.offsetNode.ELEMENT_NODE) {
 			const parent1 = hitResult.offsetNode.parentNode;
-			const parent1ClassList = parent1 && parent1.nodeType === parent1.ELEMENT_NODE ? (<HTMLElement>parent1).classList : null;
+			const parent1ClassName = parent1 && parent1.nodeType === parent1.ELEMENT_NODE ? (<HTMLElement>parent1).className : null;
 			const parent2 = parent1 ? parent1.parentNode : null;
-			const parent2ClassList = parent2 && parent2.nodeType === parent2.ELEMENT_NODE ? (<HTMLElement>parent2).classList : null;
+			const parent2ClassName = parent2 && parent2.nodeType === parent2.ELEMENT_NODE ? (<HTMLElement>parent2).className : null;
 
-			if (parent1ClassList?.contains(ViewLine.CLASS_NAME)) {
+			if (parent1ClassName === ViewLine.CLASS_NAME) {
 				// it returned the `<span>` of the line and the offset is the `<span>` with the inline decoration
 				const tokenSpan = hitResult.offsetNode.childNodes[Math.min(hitResult.offset, hitResult.offsetNode.childNodes.length - 1)];
 				if (tokenSpan) {
 					return HitTestResult.createFromDOMInfo(ctx, <HTMLElement>tokenSpan, 0);
 				}
-			} else if (parent2ClassList?.contains(ViewLine.CLASS_NAME)) {
+			} else if (parent2ClassName === ViewLine.CLASS_NAME) {
 				// it returned the `<span>` with the inline decoration
 				return HitTestResult.createFromDOMInfo(ctx, <HTMLElement>hitResult.offsetNode, 0);
 			}

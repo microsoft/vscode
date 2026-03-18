@@ -62,7 +62,8 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 		middotWidth: 7,
 		wsmiddotWidth: 7,
 		maxDigitWidth: 7,
-		fontHeight: 19
+		fontAscent: 15,
+		fontDescent: 4
 	}, false);
 	const lineBreaksComputer = factory.createLineBreaksComputer(fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds);
 	const previousLineBreakDataClone = previousLineBreakData ? new ModelLineProjectionData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;

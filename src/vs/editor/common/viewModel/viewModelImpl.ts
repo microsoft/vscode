@@ -614,6 +614,42 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._fontInfoReader.readFontInfo(bareFontInfo);
 	}
 
+	public getMaxLineFontMetrics(lineNumber: number): { maxAscent: number; maxDescent: number } {
+		const options = this._configuration.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
+		let maxAscent = fontInfo.fontAscent;
+		let maxDescent = fontInfo.fontDescent;
+		const allowVariableFonts = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);
+		if (!allowVariableFonts) {
+			return { maxAscent, maxDescent };
+		}
+		const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
+		const lineRange = new Range(lineNumber, 1, lineNumber, this.getLineMaxColumn(lineNumber));
+		const modelRange = this.coordinatesConverter.convertViewRangeToModelRange(lineRange);
+		const fontDecorations = this.model.getFontDecorationsInRange(modelRange, this._editorId);
+		const defaultFontSize = options.get(EditorOption.fontSize);
+		const fontWeight = options.get(EditorOption.fontWeight);
+		const fontFeatureSettings = options.get(EditorOption.fontLigatures);
+		const fontVariationSettings = options.get(EditorOption.fontVariations);
+		const letterSpacing = options.get(EditorOption.letterSpacing);
+
+		const seen = new Set<string>();
+		for (const fontDecoration of fontDecorations) {
+			const fontSize = fontDecoration.options.fontSize ? fontDecoration.options.fontSize * defaultFontSize : defaultFontSize;
+			const fontFamily = fontDecoration.options.fontFamily ?? fontInfo.fontFamily;
+			const key = `${fontFamily}-${fontSize}`;
+			if (seen.has(key)) {
+				continue;
+			}
+			seen.add(key);
+			const bareFontInfo = BareFontInfo._create(fontFamily, fontWeight, fontSize, fontFeatureSettings, fontVariationSettings, lineHeight, letterSpacing, fontInfo.pixelRatio, this._configuration.isSimpleWidget);
+			const decorationFontInfo = this._fontInfoReader.readFontInfo(bareFontInfo);
+			maxAscent = Math.max(maxAscent, decorationFontInfo.fontAscent);
+			maxDescent = Math.max(maxDescent, decorationFontInfo.fontDescent);
+		}
+		return { maxAscent, maxDescent };
+	}
+
 	/**
 	 * @param forceUpdate If true, the hidden areas will be updated even if the new ranges are the same as the previous ranges.
 	 * This is because the model might have changed, which resets the hidden areas, but not the last cached value.

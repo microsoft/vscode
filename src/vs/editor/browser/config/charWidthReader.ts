@@ -142,10 +142,10 @@ export function readCharWidths(targetWindow: Window, bareFontInfo: BareFontInfo,
 	reader.read(targetWindow);
 }
 
-export function readFontHeight(bareFontInfo: BareFontInfo): number {
+export function readFontMetrics(bareFontInfo: BareFontInfo): { ascent: number; descent: number } {
 	const canvas = new OffscreenCanvas(1, 1);
 	const ctx = canvas.getContext('2d')!;
 	ctx.font = `${bareFontInfo.fontSize}px ${bareFontInfo.fontFamily}`;
 	const tm = ctx.measureText('A');
-	return tm.fontBoundingBoxAscent + tm.fontBoundingBoxDescent;
+	return { ascent: tm.fontBoundingBoxAscent, descent: tm.fontBoundingBoxDescent };
 }

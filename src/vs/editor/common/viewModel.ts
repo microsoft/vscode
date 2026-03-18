@@ -57,6 +57,7 @@ export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 	onCompositionEnd(): void;
 
 	getFontAtPosition(position: IPosition): FontInfo;
+	getMaxLineFontMetrics(lineNumber: number): { maxAscent: number; maxDescent: number };
 	getMinimapDecorationsInRange(range: Range): ViewModelDecoration[];
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getTextDirection(lineNumber: number): TextDirection;

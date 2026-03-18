@@ -151,7 +151,8 @@ export class FontInfo extends BareFontInfo {
 	readonly middotWidth: number;
 	readonly wsmiddotWidth: number;
 	readonly maxDigitWidth: number;
-	readonly fontHeight: number;
+	readonly fontAscent: number;
+	readonly fontDescent: number;
 
 	/**
 	 * @internal
@@ -173,7 +174,8 @@ export class FontInfo extends BareFontInfo {
 		middotWidth: number;
 		wsmiddotWidth: number;
 		maxDigitWidth: number;
-		fontHeight: number;
+		fontAscent: number;
+		fontDescent: number;
 	}, isTrusted: boolean) {
 		super(opts);
 		this.isTrusted = isTrusted;
@@ -185,7 +187,8 @@ export class FontInfo extends BareFontInfo {
 		this.middotWidth = opts.middotWidth;
 		this.wsmiddotWidth = opts.wsmiddotWidth;
 		this.maxDigitWidth = opts.maxDigitWidth;
-		this.fontHeight = opts.fontHeight;
+		this.fontAscent = opts.fontAscent;
+		this.fontDescent = opts.fontDescent;
 	}
 
 	/**
@@ -207,7 +210,8 @@ export class FontInfo extends BareFontInfo {
 			&& this.middotWidth === other.middotWidth
 			&& this.wsmiddotWidth === other.wsmiddotWidth
 			&& this.maxDigitWidth === other.maxDigitWidth
-			&& this.fontHeight === other.fontHeight
+			&& this.fontAscent === other.fontAscent
+			&& this.fontDescent === other.fontDescent
 		);
 	}
 }

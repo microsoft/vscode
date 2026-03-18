@@ -374,7 +374,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 
 	private _getViewLineDomNode(node: HTMLElement | null): HTMLElement | null {
 		while (node && node.nodeType === 1) {
-			if (node.classList.contains(ViewLine.CLASS_NAME)) {
+			if (node.className === ViewLine.CLASS_NAME) {
 				return node;
 			}
 			node = node.parentElement;
