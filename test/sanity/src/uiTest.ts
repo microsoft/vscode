@@ -169,7 +169,7 @@ export class UITest {
 					return;
 				}
 			} catch (error) {
-				this.context.warn(`Extension install attempt ${attempt + 1}/3 failed: ${error instanceof Error ? error.message : String(error)}`);
+				this.context.log(`Extension install attempt ${attempt + 1}/3 failed: ${error instanceof Error ? error.message : String(error)}`);
 			}
 
 			this.context.log('Extension install may have failed, retrying');
