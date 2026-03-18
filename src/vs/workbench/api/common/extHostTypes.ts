@@ -3579,6 +3579,12 @@ export enum ChatDebugToolCallResult {
 	Error = 1
 }
 
+export enum ChatDebugHookResult {
+	Success = 0,
+	Error = 1,
+	NonBlockingError = 2
+}
+
 export class ChatDebugToolCallEvent {
 	readonly _kind = 'toolCall';
 	id?: string;
@@ -3760,7 +3766,7 @@ export class ChatDebugEventHookContent {
 	readonly _kind = 'hookContent';
 	hookType: string;
 	command?: string;
-	result?: string;
+	result?: ChatDebugHookResult;
 	durationInMillis?: number;
 	input?: string;
 	output?: string;

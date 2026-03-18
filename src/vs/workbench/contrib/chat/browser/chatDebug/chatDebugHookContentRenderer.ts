@@ -8,7 +8,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { IChatDebugEventHookContent } from '../../common/chatDebugService.js';
+import { ChatDebugHookResult, IChatDebugEventHookContent } from '../../common/chatDebugService.js';
 import { renderSection, tokenizeContent } from './chatDebugToolCallContentRenderer.js';
 
 const $ = DOM.$;
@@ -28,8 +28,8 @@ export async function renderHookContent(content: IChatDebugEventHookContent, lan
 
 	// Status summary line
 	const statusParts: string[] = [];
-	if (content.result) {
-		statusParts.push(content.result);
+	if (content.result !== undefined) {
+		statusParts.push(formatHookResult(content.result));
 	}
 	if (content.exitCode !== undefined) {
 		statusParts.push(localize('chatDebug.hook.exitCode', "Exit Code: {0}", content.exitCode));
@@ -67,6 +67,19 @@ export async function renderHookContent(content: IChatDebugEventHookContent, lan
 	return { element: container, disposables };
 }
 
+function formatHookResult(result: ChatDebugHookResult): string {
+	switch (result) {
+		case ChatDebugHookResult.Success:
+			return localize('chatDebug.hook.result.success', "Success");
+		case ChatDebugHookResult.Error:
+			return localize('chatDebug.hook.result.error', "Error");
+		case ChatDebugHookResult.NonBlockingError:
+			return localize('chatDebug.hook.result.nonBlockingError', "Non-blocking Error");
+		default:
+			return String(result);
+	}
+}
+
 /**
  * Convert a resolved hook content to plain text for clipboard / editor output.
  */
@@ -74,8 +87,8 @@ export function hookContentToPlainText(content: IChatDebugEventHookContent): str
 	const lines: string[] = [];
 	lines.push(localize('chatDebug.hook.typeLabel', "Hook Type: {0}", content.hookType));
 
-	if (content.result) {
-		lines.push(localize('chatDebug.hook.resultLabel', "Result: {0}", content.result));
+	if (content.result !== undefined) {
+		lines.push(localize('chatDebug.hook.resultLabel', "Result: {0}", formatHookResult(content.result)));
 	}
 	if (content.exitCode !== undefined) {
 		lines.push(localize('chatDebug.hook.exitCodeLabel', "Exit Code: {0}", content.exitCode));

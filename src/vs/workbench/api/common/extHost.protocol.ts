@@ -1527,7 +1527,7 @@ export interface IChatDebugEventHookContentDto {
 	readonly kind: 'hook';
 	readonly hookType: string;
 	readonly command?: string;
-	readonly result?: string;
+	readonly result?: 'success' | 'error' | 'nonBlockingError';
 	readonly durationInMillis?: number;
 	readonly input?: string;
 	readonly output?: string;

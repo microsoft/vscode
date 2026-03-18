@@ -10,7 +10,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ExtHostChatDebugShape, IChatDebugEventDto, IChatDebugResolvedEventContentDto, MainContext, MainThreadChatDebugShape } from './extHost.protocol.js';
-import { ChatDebugGenericEvent, ChatDebugLogLevel, ChatDebugMessageContentType, ChatDebugMessageSection, ChatDebugModelTurnEvent, ChatDebugSubagentInvocationEvent, ChatDebugSubagentStatus, ChatDebugToolCallEvent, ChatDebugToolCallResult, ChatDebugUserMessageEvent, ChatDebugAgentResponseEvent, ChatDebugEventHookContent } from './extHostTypes.js';
+import { ChatDebugGenericEvent, ChatDebugHookResult, ChatDebugLogLevel, ChatDebugMessageContentType, ChatDebugMessageSection, ChatDebugModelTurnEvent, ChatDebugSubagentInvocationEvent, ChatDebugSubagentStatus, ChatDebugToolCallEvent, ChatDebugToolCallResult, ChatDebugUserMessageEvent, ChatDebugAgentResponseEvent, ChatDebugEventHookContent } from './extHostTypes.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 
 export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShape {
@@ -299,7 +299,10 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 					kind: 'hook',
 					hookType: hk.hookType,
 					command: hk.command,
-					result: hk.result,
+					result: hk.result === ChatDebugHookResult.Success ? 'success'
+						: hk.result === ChatDebugHookResult.Error ? 'error'
+							: hk.result === ChatDebugHookResult.NonBlockingError ? 'nonBlockingError'
+								: undefined,
 					durationInMillis: hk.durationInMillis,
 					input: hk.input,
 					output: hk.output,

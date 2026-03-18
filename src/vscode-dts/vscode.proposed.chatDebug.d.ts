@@ -611,9 +611,9 @@ declare module 'vscode' {
 		command?: string;
 
 		/**
-		 * The outcome of the hook execution (e.g., "success", "error", "non_blocking_error").
+		 * The outcome of the hook execution.
 		 */
-		result?: string;
+		result?: ChatDebugHookResult;
 
 		/**
 		 * How long the hook took to complete, in milliseconds.
@@ -645,6 +645,18 @@ declare module 'vscode' {
 		 * @param hookType The type of hook that was executed.
 		 */
 		constructor(hookType: string);
+	}
+
+	/**
+	 * The result of a hook execution.
+	 */
+	export enum ChatDebugHookResult {
+		/** The hook executed successfully (exit code 0). */
+		Success = 0,
+		/** The hook returned a blocking error (exit code 2). */
+		Error = 1,
+		/** The hook returned a non-blocking warning (other non-zero exit codes). */
+		NonBlockingError = 2
 	}
 
 	/**
