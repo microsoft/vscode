@@ -590,16 +590,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Menubar visibility
 		this.updateMenubarVisibility(!!skipLayout);
 
-		// Shadows
-		this.updateShadows();
-
 		// Centered Layout
 		this.editorGroupService.whenRestored.then(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED), skipLayout));
 	}
 
+	private isShadowsDisabled(): boolean {
+		return this.configurationService.getValue<boolean>(LayoutSettings.SHADOWS) === false;
+	}
+
 	private updateShadows(): void {
-		const enabled = this.configurationService.getValue<boolean>(LayoutSettings.SHADOWS) !== false;
-		this.mainContainer.classList.toggle(LayoutClasses.NO_SHADOWS, !enabled);
+		this.mainContainer.classList.toggle(LayoutClasses.NO_SHADOWS, this.isShadowsDisabled());
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -1872,7 +1872,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
-			this.configurationService.getValue<boolean>(LayoutSettings.SHADOWS) === false ? LayoutClasses.NO_SHADOWS : undefined
+			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined
 		]);
 	}
 
