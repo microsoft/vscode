@@ -313,8 +313,17 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		if (!this.storageService.isNew(StorageScope.APPLICATION)) {
 			return;
 		}
+
+		// Ensure that user data (including synced settings) has finished initializing
+		// so we do not overwrite values that arrive via settings sync.
+		await this.userDataInitializationService.whenInitializationFinished();
+
 		const inspection = this.configurationService.inspect<boolean>(ThemeSettings.DETECT_COLOR_SCHEME);
-		if (inspection.userValue === undefined) {
+
+		// Treat any of userValue, userLocalValue, or userRemoteValue as an explicit configuration.
+		if (inspection.userValue === undefined
+			&& inspection.userLocalValue === undefined
+			&& inspection.userRemoteValue === undefined) {
 			await this.configurationService.updateValue(ThemeSettings.DETECT_COLOR_SCHEME, true, ConfigurationTarget.USER);
 		}
 	}
