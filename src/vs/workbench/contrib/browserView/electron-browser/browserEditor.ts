@@ -6,11 +6,11 @@
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
 import { $, addDisposableListener, Dimension, EventType, IDomPosition, registerExternalFocusChecker } from '../../../../base/browser/dom.js';
-import { Button, ButtonBar } from '../../../../base/browser/ui/button/button.js';
+import { ButtonBar } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService, IConstructorSignature, BrandedService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -18,15 +18,11 @@ import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/commo
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
-import {
-	IBrowserEditorViewState,
-	IBrowserViewModel
-} from '../../browserView/common/browserView.js';
-import { IBrowserZoomService } from '../../browserView/common/browserZoomService.js';
+import { IBrowserEditorViewState, IBrowserViewModel } from '../../browserView/common/browserView.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError, IBrowserViewCertificateError, BrowserNewPageLocation, browserZoomFactors, browserZoomLabel, browserZoomAccessibilityLabel } from '../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError, IBrowserViewCertificateError, BrowserNewPageLocation } from '../../../../platform/browserView/common/browserView.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -36,23 +32,19 @@ import { BrowserOverlayManager, BrowserOverlayType, IBrowserOverlayInfo } from '
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { disposableTimeout } from '../../../../base/common/async.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { BrowserFindWidget, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserFindWidget.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { SiteInfoWidget } from './siteInfoWidget.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ChatConfiguration } from '../../chat/common/constants.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -61,21 +53,9 @@ export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserS
 export const CONTEXT_BROWSER_HAS_URL = new RawContextKey<boolean>('browserHasUrl', false, localize('browser.hasUrl', "Whether the browser has a URL loaded"));
 export const CONTEXT_BROWSER_HAS_ERROR = new RawContextKey<boolean>('browserHasError', false, localize('browser.hasError', "Whether the browser has a load error"));
 export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
-export const CONTEXT_BROWSER_CAN_ZOOM_IN = new RawContextKey<boolean>('browserCanZoomIn', true, localize('browser.canZoomIn', "Whether the browser can zoom in further"));
-export const CONTEXT_BROWSER_CAN_ZOOM_OUT = new RawContextKey<boolean>('browserCanZoomOut', true, localize('browser.canZoomOut', "Whether the browser can zoom out further"));
 
 // Re-export find widget context keys for use in actions
 export { CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE };
-
-const canShareBrowserWithAgentContext = ContextKeyExpr.and(
-	ChatContextKeys.enabled,
-	ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
-	ContextKeyExpr.has(`config.workbench.browser.enableChatTools`),
-)!;
-function watchForAgentSharingContextChanges(contextKeyService: IContextKeyService): Event<unknown> {
-	const agentSharingKeys = new Set(canShareBrowserWithAgentContext.keys());
-	return Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(agentSharingKeys));
-}
 
 /**
  * Get the original implementation of HTMLElement focus (without window auto-focusing)
@@ -115,51 +95,29 @@ export abstract class BrowserEditorContribution extends Disposable {
 	 * Called when the model is cleared to reset state.
 	 */
 	clear(): void { }
-}
-
-
-/**
- * Transient zoom-level indicator that briefly appears inside the URL bar on zoom changes.
- * All DOM construction, state, and auto-hide logic are self-contained here.
- */
-class BrowserZoomPill extends Disposable {
-	readonly element: HTMLElement;
-	private readonly _icon: HTMLElement;
-	private readonly _label: HTMLElement;
-	private readonly _timeout = this._register(new MutableDisposable());
-
-	constructor() {
-		super();
-		this.element = $('.browser-zoom-pill');
-		// Don't announce this transient element; the zoom level is announced via IAccessibilityService.status() in showZoomPill()
-		this.element.setAttribute('aria-hidden', 'true');
-		this._icon = $('span');
-		this._label = $('span');
-		this.element.appendChild(this._icon);
-		this.element.appendChild(this._label);
-	}
 
 	/**
-	 * Briefly show the zoom level, then auto-hide after 750 ms.
+	 * Optional widgets to display inside the URL bar (on the right side of the URL input,
+	 * before the actions toolbar).
+	 * Contributions can override this getter to provide widgets.
 	 */
-	show(zoomLabel: string, isAtOrAboveDefault: boolean): void {
-		this._icon.className = ThemeIcon.asClassName(isAtOrAboveDefault ? Codicon.zoomIn : Codicon.zoomOut);
-		this._label.textContent = zoomLabel;
-		this.element.classList.add('visible');
-		// Reset auto-hide timer so rapid zoom actions extend the display
-		this._timeout.value = disposableTimeout(() => {
-			this.element.classList.remove('visible');
-		}, 750); // Chrome shows the zoom level for 1.5 seconds, but we show it for less because ours is non-interactive
-	}
+	get urlBarWidgets(): readonly IBrowserEditorWidgetContribution[] { return []; }
+}
+
+/**
+ * A widget that can be contributed to the browser editor URL bar.
+ */
+export interface IBrowserEditorWidgetContribution {
+	readonly element: HTMLElement;
+	/** Ordering value — lower numbers appear first (left). */
+	readonly order: number;
 }
 
 class BrowserNavigationBar extends Disposable {
 	private readonly _urlInput: HTMLInputElement;
 	private readonly _urlDisplay: HTMLElement;
-	private readonly _shareButton: Button;
-	private readonly _shareButtonContainer: HTMLElement;
 	private readonly _siteInfoWidget: SiteInfoWidget;
-	private readonly _zoomPill: BrowserZoomPill;
+	private readonly _urlBarWidgetsContainer: HTMLElement;
 
 	constructor(
 		editor: BrowserEditor,
@@ -221,23 +179,11 @@ class BrowserNavigationBar extends Disposable {
 		urlInputWrapper.appendChild(this._urlDisplay);
 		urlInputWrapper.appendChild(this._urlInput);
 
-		// Share toggle button (inside URL bar, right side)
-		this._shareButtonContainer = $('.browser-share-toggle-container');
-		this._shareButton = this._register(new Button(this._shareButtonContainer, {
-			supportIcons: true,
-			title: localize('browser.shareWithAgent', "Share with Agent"),
-			small: true,
-			hoverDelegate
-		}));
-		this._shareButton.element.classList.add('browser-share-toggle');
-		this._shareButton.label = '$(agent)';
-
-		this._zoomPill = this._register(new BrowserZoomPill());
+		this._urlBarWidgetsContainer = $('.browser-url-bar-widgets');
 
 		urlContainer.appendChild(siteInfoContainer);
 		urlContainer.appendChild(urlInputWrapper);
-		urlContainer.appendChild(this._zoomPill.element);
-		urlContainer.appendChild(this._shareButtonContainer);
+		urlContainer.appendChild(this._urlBarWidgetsContainer);
 
 		// Create actions toolbar (right side) with scoped context
 		const actionsContainer = $('.browser-actions-toolbar');
@@ -283,33 +229,6 @@ class BrowserNavigationBar extends Disposable {
 		this._register(addDisposableListener(this._urlDisplay, EventType.FOCUS, () => {
 			this._showInput();
 		}));
-
-		// Share toggle click handler
-		this._register(this._shareButton.onDidClick(() => {
-			editor.toggleShareWithAgent();
-		}));
-
-		// Show share button only when chat is enabled and browser tools are enabled
-		const updateShareButtonVisibility = () => {
-			this._shareButtonContainer.style.display = scopedContextKeyService.contextMatchesRules(canShareBrowserWithAgentContext) ? '' : 'none';
-		};
-		updateShareButtonVisibility();
-		this._register(watchForAgentSharingContextChanges(scopedContextKeyService)(() => {
-			updateShareButtonVisibility();
-		}));
-	}
-
-	/**
-	 * Update the share toggle visual state
-	 */
-	setShared(isShared: boolean): void {
-		this._shareButton.checked = isShared;
-		this._shareButton.label = isShared
-			? localize('browser.sharingWithAgent', "Sharing with Agent") + ' $(agent)'
-			: '$(agent)';
-		this._shareButton.setTitle(isShared
-			? localize('browser.unshareWithAgent', "Stop Sharing with Agent")
-			: localize('browser.shareWithAgent', "Share with Agent"));
 	}
 
 	/**
@@ -347,10 +266,13 @@ class BrowserNavigationBar extends Disposable {
 	}
 
 	/**
-	 * Briefly show the zoom level indicator pill, then auto-hide.
+	 * Add widget elements inside the URL bar, sorted by order.
 	 */
-	showZoomLevel(zoomLabel: string, isAtOrAboveDefault: boolean): void {
-		this._zoomPill.show(zoomLabel, isAtOrAboveDefault);
+	addUrlBarWidgets(widgets: readonly IBrowserEditorWidgetContribution[]): void {
+		const sorted = widgets.slice().sort((a, b) => a.order - b.order);
+		for (const widget of sorted) {
+			this._urlBarWidgetsContainer.appendChild(widget.element);
+		}
 	}
 
 	/**
@@ -442,8 +364,6 @@ export class BrowserEditor extends EditorPane {
 	private _hasUrlContext!: IContextKey<boolean>;
 	private _hasErrorContext!: IContextKey<boolean>;
 	private _devToolsOpenContext!: IContextKey<boolean>;
-	private _canZoomInContext!: IContextKey<boolean>;
-	private _canZoomOutContext!: IContextKey<boolean>;
 
 	private readonly _inputDisposables = this._register(new DisposableStore());
 	private overlayManager: BrowserOverlayManager | undefined;
@@ -461,8 +381,6 @@ export class BrowserEditor extends EditorPane {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ILayoutService private readonly layoutService: ILayoutService,
-		@IBrowserZoomService private readonly browserZoomService: IBrowserZoomService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super(BrowserEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
 	}
@@ -481,8 +399,6 @@ export class BrowserEditor extends EditorPane {
 		this._hasUrlContext = CONTEXT_BROWSER_HAS_URL.bindTo(contextKeyService);
 		this._hasErrorContext = CONTEXT_BROWSER_HAS_ERROR.bindTo(contextKeyService);
 		this._devToolsOpenContext = CONTEXT_BROWSER_DEVTOOLS_OPEN.bindTo(contextKeyService);
-		this._canZoomInContext = CONTEXT_BROWSER_CAN_ZOOM_IN.bindTo(contextKeyService);
-		this._canZoomOutContext = CONTEXT_BROWSER_CAN_ZOOM_OUT.bindTo(contextKeyService);
 
 		// Currently this is always true since it is scoped to the editor container
 		CONTEXT_BROWSER_FOCUSED.bindTo(contextKeyService);
@@ -507,6 +423,13 @@ export class BrowserEditor extends EditorPane {
 
 		// Create navigation bar widget with scoped context
 		this._navigationBar = this._register(new BrowserNavigationBar(this, toolbar, this.instantiationService, contextKeyService));
+
+		// Inject URL bar widgets from contributions
+		const allWidgets: IBrowserEditorWidgetContribution[] = [];
+		for (const contribution of this._contributionInstances.values()) {
+			allWidgets.push(...contribution.urlBarWidgets);
+		}
+		this._navigationBar.addUrlBarWidgets(allWidgets);
 
 		root.appendChild(toolbar);
 
@@ -604,23 +527,9 @@ export class BrowserEditor extends EditorPane {
 
 		this._storageScopeContext.set(this._model.storageScope);
 		this._devToolsOpenContext.set(this._model.isDevToolsOpen);
-		this.updateZoomContext();
-		this._updateSharingState(true);
 
 		// Update find widget with new model
 		this._findWidget.rawValue?.setModel(this._model);
-
-		// Listen for sharing state changes on the model
-		this._inputDisposables.add(this._model.onDidChangeSharedWithAgent(() => {
-			this._updateSharingState(false);
-		}));
-		this._inputDisposables.add(watchForAgentSharingContextChanges(this.contextKeyService)(() => {
-			this._updateSharingState(false);
-		}));
-
-		this._inputDisposables.add(this._model.onDidChangeZoom(() => {
-			this.updateZoomContext();
-		}));
 
 		// Initialize UI state and context keys from model
 		this.updateNavigationState({
@@ -956,22 +865,6 @@ export class BrowserEditor extends EditorPane {
 		this._model?.untrustCertificate(certError.host, certError.fingerprint);
 	}
 
-	private _updateSharingState(isInitialState: boolean): void {
-		const sharingEnabled = this.contextKeyService.contextMatchesRules(canShareBrowserWithAgentContext);
-		const isShared = sharingEnabled && !!this._model && this._model.sharedWithAgent;
-
-		this._browserContainer.classList.toggle('animate', !isInitialState);
-		this._browserContainer.classList.toggle('shared', isShared);
-		this._navigationBar.setShared(isShared);
-	}
-
-	toggleShareWithAgent(): void {
-		if (!this._model) {
-			return;
-		}
-		this._model.setSharedWithAgent(!this._model.sharedWithAgent);
-	}
-
 	async navigateToUrl(url: string): Promise<void> {
 		if (this._model) {
 			this.group.pinEditor(this.input); // pin editor on navigation
@@ -1011,41 +904,6 @@ export class BrowserEditor extends EditorPane {
 
 	async clearStorage(): Promise<void> {
 		return this._model?.clearStorage();
-	}
-
-	async zoomIn(): Promise<void> {
-		await this._model?.zoomIn();
-		this.showZoomPill();
-	}
-
-	async zoomOut(): Promise<void> {
-		await this._model?.zoomOut();
-		this.showZoomPill();
-	}
-
-	async resetZoom(): Promise<void> {
-		await this._model?.resetZoom();
-		this.showZoomPill();
-	}
-
-	private showZoomPill(): void {
-		if (!this._model) {
-			return;
-		}
-		const defaultIndex = this.browserZoomService.getEffectiveZoomIndex(undefined, false);
-		const defaultFactor = browserZoomFactors[defaultIndex];
-		const currentFactor = this._model.zoomFactor;
-		const label = browserZoomLabel(currentFactor);
-		this._navigationBar.showZoomLevel(label, currentFactor >= defaultFactor);
-		// Announce the new zoom level to screen readers (polite, non-interruptive).
-		this.accessibilityService.status(browserZoomAccessibilityLabel(currentFactor));
-	}
-
-	private updateZoomContext(): void {
-		if (this._model) {
-			this._canZoomInContext.set(this._model.canZoomIn);
-			this._canZoomOutContext.set(this._model.canZoomOut);
-		}
 	}
 
 	/**
@@ -1252,8 +1110,6 @@ export class BrowserEditor extends EditorPane {
 		this._hasErrorContext.reset();
 		this._storageScopeContext.reset();
 		this._devToolsOpenContext.reset();
-		this._canZoomInContext.reset();
-		this._canZoomOutContext.reset();
 
 		this._navigationBar.clear();
 		this.setBackgroundImage(undefined);

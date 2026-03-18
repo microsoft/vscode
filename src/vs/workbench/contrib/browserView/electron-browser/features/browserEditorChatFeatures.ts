@@ -3,30 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from '../../../../nls.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { IContextKey, IContextKeyService, ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { Action2, registerAction2, MenuId } from '../../../../platform/actions/common/actions.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { Event } from '../../../../base/common/event.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IBrowserElementsService } from '../../../services/browserElements/browser/browserElementsService.js';
-import { IChatWidgetService } from '../../chat/browser/chat.js';
-import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
-import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
-import { IElementData, IBrowserTargetLocator, getDisplayNameFromOuterHTML, createElementContextValue } from '../../../../platform/browserElements/common/browserElements.js';
-import { BrowserViewCommandId } from '../../../../platform/browserView/common/browserView.js';
-import { IBrowserViewModel } from '../../browserView/common/browserView.js';
-import { BrowserEditorInput } from '../common/browserEditorInput.js';
-import { BrowserEditor, BrowserEditorContribution, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_FOCUSED } from './browserEditor.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { $ } from '../../../../../base/browser/dom.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IContextKey, IContextKeyService, ContextKeyExpr, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { Action2, registerAction2, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../base/common/event.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IBrowserElementsService } from '../../../../services/browserElements/browser/browserElementsService.js';
+import { IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../../chat/common/constants.js';
+import { IElementData, IBrowserTargetLocator, getDisplayNameFromOuterHTML, createElementContextValue } from '../../../../../platform/browserElements/common/browserElements.js';
+import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
+import { BrowserEditorInput } from '../../common/browserEditorInput.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { BrowserEditor, BrowserEditorContribution, IBrowserEditorWidgetContribution, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_FOCUSED } from '../browserEditor.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { PolicyCategory } from '../../../../../base/common/policy.js';
+import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
+
+// Register tools
+import '../tools/browserTools.contribution.js';
+import { BrowserActionCategory } from '../browserViewActions.js';
 
 // Context key expression to check if browser editor is active
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditorInput.EDITOR_ID);
@@ -34,17 +47,29 @@ const BrowserCategory = localize2('browserCategory', "Browser");
 
 export const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('browserElementSelectionActive', false, localize('browser.elementSelectionActive', "Whether element selection is currently active"));
 
+const canShareBrowserWithAgentContext = ContextKeyExpr.and(
+	ChatContextKeys.enabled,
+	ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
+	ContextKeyExpr.has(`config.workbench.browser.enableChatTools`),
+)!;
+
+
 /**
  * Contribution that manages element selection, element attachment to chat,
- * console session lifecycle, and console log attachment to chat.
+ * console session lifecycle, console log attachment to chat, and agent sharing.
  */
 export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	private _elementSelectionCts: CancellationTokenSource | undefined;
 	private readonly _elementSelectionActiveContext: IContextKey<boolean>;
 
+	// Share with Agent
+	private readonly _shareButtonContainer: HTMLElement;
+	private readonly _shareButton: Button;
+
 	constructor(
 		editor: BrowserEditor,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IBrowserElementsService private readonly browserElementsService: IBrowserElementsService,
@@ -53,6 +78,42 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	) {
 		super(editor);
 		this._elementSelectionActiveContext = CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE.bindTo(contextKeyService);
+
+		// Build share toggle button
+		const hoverDelegate = this._register(instantiationService.createInstance(
+			WorkbenchHoverDelegate,
+			'element',
+			undefined,
+			{ position: { hoverPosition: HoverPosition.ABOVE } }
+		));
+
+		this._shareButtonContainer = $('.browser-share-toggle-container');
+		this._shareButton = this._register(new Button(this._shareButtonContainer, {
+			supportIcons: true,
+			title: localize('browser.shareWithAgent', "Share with Agent"),
+			small: true,
+			hoverDelegate
+		}));
+		this._shareButton.element.classList.add('browser-share-toggle');
+		this._shareButton.label = '$(agent)';
+
+		this._register(this._shareButton.onDidClick(() => {
+			this._toggleShareWithAgent();
+		}));
+
+		// Show share button only when chat is enabled and browser tools are enabled
+		const updateShareButtonVisibility = () => {
+			this._shareButtonContainer.style.display = contextKeyService.contextMatchesRules(canShareBrowserWithAgentContext) ? '' : 'none';
+		};
+		updateShareButtonVisibility();
+		const agentSharingKeys = new Set(canShareBrowserWithAgentContext.keys());
+		this._register(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(agentSharingKeys))(() => {
+			updateShareButtonVisibility();
+		}));
+	}
+
+	override get urlBarWidgets(): readonly IBrowserEditorWidgetContribution[] {
+		return [{ element: this._shareButtonContainer, order: 100 }];
 	}
 
 	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
@@ -64,6 +125,50 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 				store.add(this._startConsoleSession(model.id));
 			}));
 		}
+
+		// Manage sharing state
+		this._updateSharingState(true);
+		store.add(model.onDidChangeSharedWithAgent(() => {
+			this._updateSharingState(false);
+		}));
+		store.add(Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set(canShareBrowserWithAgentContext.keys())))(() => {
+			this._updateSharingState(false);
+		}));
+	}
+
+	override clear(): void {
+		if (this._elementSelectionCts) {
+			this._elementSelectionCts.dispose(true);
+			this._elementSelectionCts = undefined;
+		}
+		this._elementSelectionActiveContext.reset();
+	}
+
+	// -- Sharing -------------------------------------------------------
+
+	private _toggleShareWithAgent(): void {
+		const model = this.editor.model;
+		if (!model) {
+			return;
+		}
+		model.setSharedWithAgent(!model.sharedWithAgent);
+	}
+
+	private _updateSharingState(isInitialState: boolean): void {
+		const model = this.editor.model;
+		const sharingEnabled = this.contextKeyService.contextMatchesRules(canShareBrowserWithAgentContext);
+		const isShared = sharingEnabled && !!model && model.sharedWithAgent;
+
+		this.editor.browserContainer.classList.toggle('animate', !isInitialState);
+		this.editor.browserContainer.classList.toggle('shared', isShared);
+
+		this._shareButton.checked = isShared;
+		this._shareButton.label = isShared
+			? localize('browser.sharingWithAgent', "Sharing with Agent") + ' $(agent)'
+			: '$(agent)';
+		this._shareButton.setTitle(isShared
+			? localize('browser.unshareWithAgent', "Stop Sharing with Agent")
+			: localize('browser.shareWithAgent', "Share with Agent"));
 	}
 
 	// -- Element Selection ----------------------------------------------
@@ -176,14 +281,6 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			this._elementSelectionCts = undefined;
 			this._elementSelectionActiveContext.set(false);
 		}
-	}
-
-	override clear(): void {
-		if (this._elementSelectionCts) {
-			this._elementSelectionCts.dispose(true);
-			this._elementSelectionCts = undefined;
-		}
-		this._elementSelectionActiveContext.reset();
 	}
 
 	private async _attachElementDataToChat(elementData: IElementData): Promise<{ attachCss: boolean; attachImages: boolean }> {
@@ -337,7 +434,7 @@ class AddConsoleLogsToChatAction extends Action2 {
 		super({
 			id: AddConsoleLogsToChatAction.ID,
 			title: localize2('browser.addConsoleLogsToChatAction', 'Add Console Logs to Chat'),
-			category: BrowserCategory,
+			category: BrowserActionCategory,
 			icon: Codicon.output,
 			f1: true,
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), enabled),
@@ -362,6 +459,7 @@ class AddFocusedElementToChatAction extends Action2 {
 		super({
 			id: 'workbench.action.browser.addFocusedElementToChat',
 			title: localize2('browser.addFocusedElementToChat', 'Add Focused Element to Chat'),
+			category: BrowserActionCategory,
 			f1: false,
 			precondition: CONTEXT_BROWSER_FOCUSED,
 			keybinding: {
@@ -383,3 +481,31 @@ class AddFocusedElementToChatAction extends Action2 {
 registerAction2(AddElementToChatAction);
 registerAction2(AddConsoleLogsToChatAction);
 registerAction2(AddFocusedElementToChatAction);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	...workbenchConfigurationNodeBase,
+	properties: {
+		'workbench.browser.enableChatTools': {
+			type: 'boolean',
+			default: false,
+			experiment: { mode: 'startup' },
+			tags: ['experimental'],
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.enableChatTools' },
+				'When enabled, chat agents can use browser tools to open and interact with pages in the Integrated Browser.'
+			),
+			policy: {
+				name: 'BrowserChatTools',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.110',
+				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
+				localization: {
+					description: {
+						key: 'browser.enableChatTools',
+						value: localize('browser.enableChatTools', 'When enabled, chat agents can use browser tools to open and interact with pages in the Integrated Browser.')
+					}
+				},
+			}
+		}
+	}
+});

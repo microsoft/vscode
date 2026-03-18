@@ -84,6 +84,12 @@
 		white-space: nowrap;
 	}
 
+	.browser-url-bar-widgets {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
+	}
+
 	.browser-zoom-pill {
 		display: none;
 		align-items: center;
