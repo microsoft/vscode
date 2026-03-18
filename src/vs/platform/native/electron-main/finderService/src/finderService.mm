@@ -17,51 +17,42 @@
  *
  * ## Architecture
  *
- * 1. `init(callback)` — called once at app startup.
- *    Creates an Objective-C object, sets it as `NSApp.servicesProvider`,
- *    and stores the JS callback as a thread-safe function.
- *
- * 2. When macOS invokes the service, the Objective-C method
- *    `-openFiles:userData:error:` reads file URLs from the pasteboard
- *    and calls back into JavaScript on the main thread.
- *
- * 3. `-validateMenuItem:` always returns YES so the menu item is enabled
- *    whenever VS Code is running.
+ * The service provider registers itself with NSApp on module load.
+ * JS code then calls:
+ *   - `onOpenFiles(callback)` to receive file paths when the service is invoked
+ *   - `setEnabled(bool)` to enable/disable the menu item via validateMenuItem:
  */
 
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 #include <napi.h>
+#include <atomic>
 
 // ---------------------------------------------------------------------------
 // VSCodeFinderServiceProvider — handles the macOS Services callback
 // ---------------------------------------------------------------------------
 
-@interface VSCodeFinderServiceProvider : NSObject {
-	Napi::ThreadSafeFunction _tsfn;
-}
-- (instancetype)initWithTSFN:(Napi::ThreadSafeFunction)tsfn;
+static std::atomic<bool> sEnabled{false};
+static Napi::ThreadSafeFunction sTsfn;
+
+@interface VSCodeFinderServiceProvider : NSObject
 - (void)openFiles:(NSPasteboard *)pboard userData:(NSString *)userData error:(NSString **)error;
 @end
 
 @implementation VSCodeFinderServiceProvider
-
-- (instancetype)initWithTSFN:(Napi::ThreadSafeFunction)tsfn {
-	self = [super init];
-	if (self) {
-		_tsfn = std::move(tsfn);
-	}
-	return self;
-}
 
 /**
  * Called by macOS when the user selects our service from Finder's
  * context menu (Services / Quick Actions).
  */
 - (void)openFiles:(NSPasteboard *)pboard userData:(NSString *)userData error:(NSString **)error {
+	if (!sEnabled.load()) {
+		return;
+	}
+
 	// Read file URLs from the pasteboard
 	NSArray<NSURL *> *urls = [pboard readObjectsForClasses:@[[NSURL class]]
-												   options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}];
+		options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}];
 	if (!urls || urls.count == 0) {
 		return;
 	}
@@ -80,7 +71,7 @@
 
 	// Forward paths to JavaScript via the thread-safe function
 	NSArray<NSString *> *capturedPaths = [paths copy];
-	_tsfn.BlockingCall([capturedPaths](Napi::Env env, Napi::Function jsCallback) {
+	sTsfn.BlockingCall([capturedPaths](Napi::Env env, Napi::Function jsCallback) {
 		Napi::Array arr = Napi::Array::New(env, capturedPaths.count);
 		for (NSUInteger i = 0; i < capturedPaths.count; i++) {
 			arr.Set(i, Napi::String::New(env, [capturedPaths[i] UTF8String]));
@@ -90,11 +81,11 @@
 }
 
 /**
- * Menu validation — return YES so the service is always available
- * when VS Code is running.
+ * Menu validation — returns the current enabled state controlled from JS
+ * via setEnabled(). Disabled by default until JS explicitly enables.
  */
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
-	return YES;
+	return sEnabled.load() ? YES : NO;
 }
 
 @end
@@ -103,15 +94,14 @@
 // N-API exports
 // ---------------------------------------------------------------------------
 
-static VSCodeFinderServiceProvider *sProvider = nil;
-
 /**
- * init(callback: (paths: string[]) => void): void
+ * onOpenFiles(callback: (paths: string[]) => void): void
  *
- * Registers the service provider with NSApp. Must be called once
- * from the Electron main process after the app is ready.
+ * Registers the JS callback that receives file paths when the macOS
+ * service is invoked from Finder. Only the last registered callback
+ * is active.
  */
-static Napi::Value Init(const Napi::CallbackInfo &info) {
+static Napi::Value OnOpenFiles(const Napi::CallbackInfo &info) {
 	Napi::Env env = info.Env();
 
 	if (info.Length() < 1 || !info[0].IsFunction()) {
@@ -120,9 +110,12 @@ static Napi::Value Init(const Napi::CallbackInfo &info) {
 		return env.Undefined();
 	}
 
-	// Create a thread-safe function so the Obj-C callback can safely
-	// invoke the JS function from any thread.
-	Napi::ThreadSafeFunction tsfn = Napi::ThreadSafeFunction::New(
+	// Release previous TSFN if any
+	if (sTsfn) {
+		sTsfn.Release();
+	}
+
+	sTsfn = Napi::ThreadSafeFunction::New(
 		env,
 		info[0].As<Napi::Function>(),
 		"VSCodeFinderServiceCallback",
@@ -130,14 +123,40 @@ static Napi::Value Init(const Napi::CallbackInfo &info) {
 		1   // initial thread count
 	);
 
-	sProvider = [[VSCodeFinderServiceProvider alloc] initWithTSFN:std::move(tsfn)];
-	[NSApp setServicesProvider:sProvider];
-
 	return env.Undefined();
 }
 
+/**
+ * setEnabled(enabled: boolean): void
+ *
+ * Enables or disables the Finder service menu item. When disabled,
+ * validateMenuItem: returns NO and openFiles: is a no-op.
+ */
+static Napi::Value SetEnabled(const Napi::CallbackInfo &info) {
+	Napi::Env env = info.Env();
+
+	if (info.Length() < 1 || !info[0].IsBoolean()) {
+		Napi::TypeError::New(env, "Expected a boolean argument")
+			.ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+
+	sEnabled.store(info[0].As<Napi::Boolean>().Value());
+	return env.Undefined();
+}
+
+/**
+ * Module initialization — registers the service provider with NSApp
+ * automatically when the module is loaded. This ensures the provider
+ * is in place as early as possible.
+ */
 static Napi::Object InitModule(Napi::Env env, Napi::Object exports) {
-	exports.Set("init", Napi::Function::New(env, Init));
+	// Self-register as NSApp services provider on module load
+	static VSCodeFinderServiceProvider *sProvider = [[VSCodeFinderServiceProvider alloc] init];
+	[NSApp setServicesProvider:sProvider];
+
+	exports.Set("onOpenFiles", Napi::Function::New(env, OnOpenFiles));
+	exports.Set("setEnabled", Napi::Function::New(env, SetEnabled));
 	return exports;
 }
 

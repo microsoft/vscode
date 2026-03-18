@@ -138,7 +138,7 @@ import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js'
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
-import { initFinderService } from '../../platform/native/electron-main/finderService.js';
+import { loadFinderService } from '../../platform/native/electron-main/finderService.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -1683,11 +1683,16 @@ export class CodeApplication extends Disposable {
 
 	/**
 	 * Registers the native macOS Services provider so "Open with {app}" appears
-	 * in Finder's right-click context menu. When invoked, the file paths are
-	 * opened via windowsMainService — same path as `app.on('open-file')`.
+	 * in Finder's right-click context menu. The native module self-registers
+	 * with NSApp on load; we wire the callback and enable the menu item.
 	 */
-	private initFinderService(): void {
-		initFinderService(paths => {
+	private async initFinderService(): Promise<void> {
+		const addon = await loadFinderService(this.logService);
+		if (!addon) {
+			return;
+		}
+
+		addon.onOpenFiles(paths => {
 			this.logService.trace('finderService#openFiles: ', paths);
 
 			const urisToOpen: IWindowOpenable[] = paths.map(p => {
@@ -1702,6 +1707,8 @@ export class CodeApplication extends Disposable {
 				gotoLineMode: false,
 				preferNewWindow: true
 			});
-		}, this.logService);
+		});
+
+		addon.setEnabled(true);
 	}
 }

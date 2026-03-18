@@ -7,29 +7,36 @@ import { isMacintosh } from '../../../base/common/platform.js';
 import { ILogService } from '../../log/common/log.js';
 
 interface IFinderServiceAddon {
-	init(callback: (paths: string[]) => void): void;
+	/** Register a callback to receive file paths when the Finder service is invoked. */
+	onOpenFiles(callback: (paths: string[]) => void): void;
+	/** Enable or disable the Finder service menu item. */
+	setEnabled(enabled: boolean): void;
 }
 
 /**
- * Tries to load the native `@vscode/finder-service` addon and initialize it.
+ * Loads the native `@vscode/finder-service` addon.
  *
- * The addon registers as `NSApp.servicesProvider` so that "Open with {app}"
- * appears in Finder's context menu. When the service is invoked, the callback
- * receives an array of file paths.
+ * The addon self-registers as `NSApp.servicesProvider` on module load so
+ * the service is available in Finder as soon as the module is imported.
+ * The returned object exposes:
+ *   - `onOpenFiles(cb)` — receive paths when the user invokes the service
+ *   - `setEnabled(bool)` — enable/disable the menu item
  *
- * No-op on non-macOS platforms or when the addon is not available.
+ * Returns `undefined` on non-macOS or if the addon is unavailable.
  */
-export async function initFinderService(callback: (paths: string[]) => void, logService: ILogService): Promise<void> {
+export async function loadFinderService(logService: ILogService): Promise<IFinderServiceAddon | undefined> {
 	if (!isMacintosh) {
-		return;
+		return undefined;
 	}
 
 	try {
 		// Dynamic import — the addon is optional and only available in
 		// production macOS builds where it has been compiled by node-gyp.
-		const addon: IFinderServiceAddon = (await import('@vscode/finder-service' + '' /* defeats static analysis */)) as IFinderServiceAddon;
-		addon.init(callback);
+		// The addon self-registers with NSApp.servicesProvider on load.
+		const addon = (await import('@vscode/finder-service' + '' /* defeats static analysis */)) as IFinderServiceAddon;
+		return addon;
 	} catch (error) {
 		logService.trace('Finder service addon not available:', error);
+		return undefined;
 	}
 }
