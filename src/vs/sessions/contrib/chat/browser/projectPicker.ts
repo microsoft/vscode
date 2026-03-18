@@ -17,7 +17,7 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { GITHUB_REMOTE_FILE_SCHEME, SessionProject } from '../../sessions/common/sessionProject.js';
+import { GITHUB_REMOTE_FILE_SCHEME, SessionWorkspace } from '../../sessions/common/sessionProject.js';
 
 const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
 const STORAGE_KEY_LAST_PROJECT = 'sessions.lastPickedProject';
@@ -53,16 +53,16 @@ interface IStoredProject {
  */
 export class ProjectPicker extends Disposable {
 
-	private readonly _onDidSelectProject = this._register(new Emitter<SessionProject>());
-	readonly onDidSelectProject: Event<SessionProject> = this._onDidSelectProject.event;
+	private readonly _onDidSelectProject = this._register(new Emitter<SessionWorkspace>());
+	readonly onDidSelectProject: Event<SessionWorkspace> = this._onDidSelectProject.event;
 
-	private _selectedProject: SessionProject | undefined;
+	private _selectedProject: SessionWorkspace | undefined;
 	private _recentProjects: IStoredProject[] = [];
 
 	private _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 
-	get selectedProject(): SessionProject | undefined {
+	get selectedProject(): SessionWorkspace | undefined {
 		return this._selectedProject;
 	}
 
@@ -134,7 +134,7 @@ export class ProjectPicker extends Disposable {
 		try {
 			const lastFolder = this.storageService.get(LEGACY_STORAGE_KEY_LAST_FOLDER, StorageScope.PROFILE);
 			if (lastFolder) {
-				this._selectedProject = new SessionProject(URI.parse(lastFolder));
+				this._selectedProject = new SessionWorkspace(URI.parse(lastFolder));
 				return;
 			}
 		} catch { /* ignore */ }
@@ -143,7 +143,7 @@ export class ProjectPicker extends Disposable {
 			const lastRepo = this.storageService.get(LEGACY_STORAGE_KEY_LAST_REPO, StorageScope.PROFILE);
 			if (lastRepo) {
 				const repo: { id: string; name: string } = JSON.parse(lastRepo);
-				this._selectedProject = new SessionProject(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repo.id}/HEAD` }));
+				this._selectedProject = new SessionWorkspace(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repo.id}/HEAD` }));
 			}
 		} catch { /* ignore */ }
 	}
@@ -229,7 +229,7 @@ export class ProjectPicker extends Disposable {
 	 * Programmatically set the selected project.
 	 * @param fireEvent Whether to fire the onDidSelectProject event. Defaults to true.
 	 */
-	setSelectedProject(project: SessionProject, fireEvent = true): void {
+	setSelectedProject(project: SessionWorkspace, fireEvent = true): void {
 		this._selectProject(project, fireEvent);
 	}
 
@@ -254,7 +254,7 @@ export class ProjectPicker extends Disposable {
 		}
 	}
 
-	private _selectProject(project: SessionProject, fireEvent = true): void {
+	private _selectProject(project: SessionWorkspace, fireEvent = true): void {
 		this._selectedProject = project;
 		const stored = this._toStored(project);
 		this._addToRecents(stored);
@@ -274,7 +274,7 @@ export class ProjectPicker extends Disposable {
 				title: localize('selectFolder', "Select Folder"),
 			});
 			if (selected?.[0]) {
-				this._selectProject(new SessionProject(selected[0]));
+				this._selectProject(new SessionWorkspace(selected[0]));
 			}
 		} catch {
 			// dialog was cancelled or failed
@@ -285,7 +285,7 @@ export class ProjectPicker extends Disposable {
 		try {
 			const result: string | undefined = await this.commandService.executeCommand(OPEN_REPO_COMMAND);
 			if (result) {
-				this._selectProject(new SessionProject(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${result}/HEAD` })));
+				this._selectProject(new SessionWorkspace(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${result}/HEAD` })));
 			}
 		} catch {
 			// command was cancelled or failed
@@ -386,7 +386,7 @@ export class ProjectPicker extends Disposable {
 
 		dom.clearNode(this._triggerElement);
 		const project = this._selectedProject;
-		const label = project ? this._getProjectLabel(project) : localize('pickProject', "Pick a Project");
+		const label = project ? this._getProjectLabel(project) : localize('pickWorkspace', "Pick a Workspace");
 		const icon = project ? (project.isFolder ? Codicon.folder : Codicon.repo) : Codicon.project;
 
 		dom.append(this._triggerElement, renderIcon(icon));
@@ -395,7 +395,7 @@ export class ProjectPicker extends Disposable {
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 	}
 
-	private _getProjectLabel(project: SessionProject): string {
+	private _getProjectLabel(project: SessionWorkspace): string {
 		return this._getStoredProjectLabel({ uri: project.uri.toJSON() });
 	}
 
@@ -408,14 +408,14 @@ export class ProjectPicker extends Disposable {
 		return uri.path.substring(1).replace(/\/HEAD$/, '');
 	}
 
-	private _toStored(project: SessionProject): IStoredProject {
+	private _toStored(project: SessionWorkspace): IStoredProject {
 		return {
 			uri: project.uri.toJSON(),
 		};
 	}
 
-	private _fromStored(stored: IStoredProject): SessionProject {
-		return new SessionProject(URI.revive(stored.uri));
+	private _fromStored(stored: IStoredProject): SessionWorkspace {
+		return new SessionWorkspace(URI.revive(stored.uri));
 	}
 
 	private _projectKey(project: IStoredProject): string {

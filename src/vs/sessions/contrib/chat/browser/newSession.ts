@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { TargetMode } from './sessionTargetPicker.js';
-import { SessionProject } from '../../sessions/common/sessionProject.js';
+import { SessionWorkspace } from '../../sessions/common/sessionProject.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
@@ -34,7 +34,7 @@ export interface ISessionOptionGroup {
 export interface INewSession extends IDisposable {
 	readonly resource: URI;
 	readonly target: AgentSessionProviders;
-	readonly project: SessionProject | undefined;
+	readonly project: SessionWorkspace | undefined;
 	readonly targetMode: TargetMode;
 	readonly branch: string | undefined;
 	readonly modelId: string | undefined;
@@ -44,7 +44,7 @@ export interface INewSession extends IDisposable {
 	readonly selectedOptions: ReadonlyMap<string, IChatSessionProviderOptionItem>;
 	readonly disabled: boolean;
 	readonly onDidChange: Event<NewSessionChangeType>;
-	setProject(project: SessionProject): void;
+	setProject(project: SessionWorkspace): void;
 	setTargetMode(mode: TargetMode): void;
 	setBranch(branch: string | undefined): void;
 	setModelId(modelId: string | undefined): void;
@@ -67,7 +67,7 @@ const AGENT_OPTION_ID = 'agent';
 export class LocalNewSession extends Disposable implements INewSession {
 
 	private _repoUri: URI | undefined;
-	private _project: SessionProject | undefined;
+	private _project: SessionWorkspace | undefined;
 	private _targetMode: TargetMode;
 	private _branch: string | undefined;
 	private _modelId: string | undefined;
@@ -81,7 +81,7 @@ export class LocalNewSession extends Disposable implements INewSession {
 	readonly target = AgentSessionProviders.Background;
 	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
 
-	get project(): SessionProject | undefined { return this._project; }
+	get project(): SessionWorkspace | undefined { return this._project; }
 	get targetMode(): TargetMode { return this._targetMode; }
 	get branch(): string | undefined { return this._branch; }
 	get modelId(): string | undefined { return this._modelId; }
@@ -113,7 +113,7 @@ export class LocalNewSession extends Disposable implements INewSession {
 		this.setOption(ISOLATION_OPTION_ID, 'worktree');
 	}
 
-	setProject(project: SessionProject): void {
+	setProject(project: SessionWorkspace): void {
 		this._project = project;
 		this._repoUri = project.uri;
 		this.setTargetMode('worktree');
@@ -183,7 +183,7 @@ export class LocalNewSession extends Disposable implements INewSession {
 export class RemoteNewSession extends Disposable implements INewSession {
 
 	private _repoUri: URI | undefined;
-	private _project: SessionProject | undefined;
+	private _project: SessionWorkspace | undefined;
 	private _modelId: string | undefined;
 	private _query: string | undefined;
 	private _attachedContext: IChatRequestVariableEntry[] | undefined;
@@ -196,7 +196,7 @@ export class RemoteNewSession extends Disposable implements INewSession {
 
 	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
 
-	get project(): SessionProject | undefined { return this._project; }
+	get project(): SessionWorkspace | undefined { return this._project; }
 	get targetMode(): TargetMode { return 'cloud'; }
 	get branch(): string | undefined { return undefined; }
 	get modelId(): string | undefined { return this._modelId; }
@@ -232,7 +232,7 @@ export class RemoteNewSession extends Disposable implements INewSession {
 		}));
 	}
 
-	setProject(project: SessionProject): void {
+	setProject(project: SessionWorkspace): void {
 		this._project = project;
 		this._repoUri = project.uri;
 		this._onDidChange.fire('repoUri');
