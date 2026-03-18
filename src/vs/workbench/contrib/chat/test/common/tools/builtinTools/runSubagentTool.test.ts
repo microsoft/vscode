@@ -499,6 +499,7 @@ suite('RunSubagentTool', () => {
 		 * Creates a RunSubagentTool with mocked services suitable for invoke() testing.
 		 * The returned `capturedRequests` array collects every IChatAgentRequest passed to invokeAgent.
 		 */
+		let callIdCounter = 0;
 		function createInvokableTool(opts: {
 			maxDepth: number;
 			capturedRequests: IChatAgentRequest[];
@@ -552,7 +553,7 @@ suite('RunSubagentTool', () => {
 
 		function createInvocation(sessionUri: URI, userSelectedTools?: UserSelectedTools): IToolInvocation {
 			return {
-				callId: `call-${Date.now()}`,
+				callId: `call-${++callIdCounter}`,
 				toolId: 'runSubagent',
 				parameters: { prompt: 'do something', description: 'test' },
 				context: { sessionResource: sessionUri },
