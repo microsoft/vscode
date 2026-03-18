@@ -169,7 +169,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 
 		// Register event listeners
-		interactiveStore.add(this._collapseButton.onDidClick(() => this.toggleCollapsed()));
+		interactiveStore.add(collapseButton.onDidClick(() => this.toggleCollapsed()));
 
 		if (this._skipAllButton) {
 			interactiveStore.add(this._skipAllButton.onDidClick(() => this.ignore()));
