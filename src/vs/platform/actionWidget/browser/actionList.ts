@@ -17,7 +17,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
@@ -68,9 +68,9 @@ export interface IActionListItem<T> {
 	 */
 	readonly hover?: IActionListItemHover;
 	/**
-	 * Optional actions shown in the hover popup alongside the hover content.
-	 * When set, the hover displays actionable items (e.g., configuration options)
-	 * that the user can interact with.
+	 * Optional actions shown in a nested submenu panel, triggered by a chevron
+	 * indicator on the right side of the item. When set, hovering or clicking
+	 * the chevron opens an inline submenu with these actions.
 	 */
 	readonly submenuActions?: IAction[];
 	readonly keybinding?: ResolvedKeybinding;
@@ -490,6 +490,7 @@ export class ActionListWidget<T> extends Disposable {
 		this._register(dom.addDisposableListener(this._submenuContainer, 'mouseleave', () => {
 			this._scheduleSubmenuHide();
 		}));
+		this._register(toDisposable(() => this._cancelSubmenuHide()));
 
 		// Initialize collapsed sections
 		if (this._options?.collapsedByDefault) {
@@ -816,6 +817,38 @@ export class ActionListWidget<T> extends Disposable {
 			return true;
 		}
 		return false;
+	}
+
+	/**
+	 * Whether this widget uses dynamic height (has filter or collapsible sections).
+	 */
+	get hasDynamicHeight(): boolean {
+		if (this._options?.showFilter) {
+			return true;
+		}
+		return this._allMenuItems.some(item => item.isSectionToggle);
+	}
+
+	/**
+	 * The height of a single action row in pixels.
+	 */
+	get lineHeight(): number {
+		return this._actionLineHeight;
+	}
+
+	/**
+	 * Computes the total height of all items (including collapsed/filtered items).
+	 */
+	computeFullHeight(): number {
+		let fullHeight = 0;
+		for (const item of this._allMenuItems) {
+			switch (item.kind) {
+				case ActionListItemKind.Header: fullHeight += this._headerLineHeight; break;
+				case ActionListItemKind.Separator: fullHeight += this._separatorLineHeight; break;
+				default: fullHeight += this._actionLineHeight; break;
+			}
+		}
+		return fullHeight;
 	}
 
 	/**
@@ -1446,10 +1479,7 @@ export class ActionList<T> extends Disposable {
 	}
 
 	private hasDynamicHeight(): boolean {
-		if (this._widget['_options']?.showFilter) {
-			return true;
-		}
-		return this._widget['_allMenuItems'].some(item => item.isSectionToggle);
+		return this._widget.hasDynamicHeight;
 	}
 
 	private computeHeight(): number {
@@ -1471,14 +1501,7 @@ export class ActionList<T> extends Disposable {
 			// unconstrained list fits below. Once decided, the dropdown stays
 			// in the same position even when the visible item count changes.
 			if (this._showAbove === undefined) {
-				let fullHeight = filterHeight;
-				for (const item of this._widget['_allMenuItems']) {
-					switch (item.kind) {
-						case ActionListItemKind.Header: fullHeight += this._widget['_headerLineHeight']; break;
-						case ActionListItemKind.Separator: fullHeight += this._widget['_separatorLineHeight']; break;
-						default: fullHeight += this._widget['_actionLineHeight']; break;
-					}
-				}
+				const fullHeight = filterHeight + this._widget.computeFullHeight();
 				this._showAbove = fullHeight > spaceBelow && spaceAbove > spaceBelow;
 			}
 			availableHeight = this._showAbove ? spaceAbove : spaceBelow;
@@ -1489,7 +1512,7 @@ export class ActionList<T> extends Disposable {
 		}
 
 		const viewportMaxHeight = Math.floor(targetWindow.innerHeight * 0.6);
-		const actionLineHeight = this._widget['_actionLineHeight'];
+		const actionLineHeight = this._widget.lineHeight;
 		const maxHeight = Math.min(Math.max(availableHeight, actionLineHeight * 3 + filterHeight), viewportMaxHeight);
 		const height = Math.min(listHeight + filterHeight, maxHeight);
 		return height - filterHeight;

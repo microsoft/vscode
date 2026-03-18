@@ -738,8 +738,7 @@ export class ModelPickerWidget extends Disposable {
 		dom.reset(this._domNode, ...domChildren);
 
 		// Aria
-		const modelName = this._selectedModel?.metadata.name ?? localize('chat.modelPicker.auto', "Auto");
-		this._domNode.ariaLabel = localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", modelName);
+		this._domNode.ariaLabel = localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", fullLabel);
 	}
 }
 
