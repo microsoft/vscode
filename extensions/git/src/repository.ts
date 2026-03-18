@@ -1537,7 +1537,7 @@ export class Repository implements Disposable {
 								: l10n.t('Failed to delete using the Trash. Do you want to permanently delete instead?');
 							const primaryAction = toClean.length === 1
 								? l10n.t('Delete File')
-								: l10n.t('Delete All {0} Files', resources.length);
+								: l10n.t('Delete All {0} Files', toClean.length);
 
 							const result = await window.showWarningMessage(message, { modal: true }, primaryAction);
 							if (result === primaryAction) {
