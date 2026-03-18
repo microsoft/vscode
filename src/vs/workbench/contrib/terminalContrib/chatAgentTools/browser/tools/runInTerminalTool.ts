@@ -931,7 +931,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 				// if the command is wrapped in a sandbox, we will not show the command. This is because the sandbox may add additional commands that are not relevant to the user, and the output will provide more context about what is running.
 				let resultText = (
-					didSandboxWrapCommand ? ''
+					didSandboxWrapCommand ? `Command is now running in terminal with ID=${termId}`
 						: didUserEditCommand
 							? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 							: didToolEditCommand
