@@ -1324,14 +1324,19 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 			this.toolInvocations.push(toolInvocationOrMarkdown);
 
+			// Ensure a DisposableStore exists for all tool invocation kinds so that
+			// disposables registered via appendItem are tracked and cleaned up.
+			if (!this.toolDisposables.has(toolInvocationOrMarkdown.toolCallId)) {
+				this.toolDisposables.set(toolInvocationOrMarkdown.toolCallId, new DisposableStore());
+			}
+
 			// track state for live/still streaming tools, excluding serialized tools
 			if (toolInvocationOrMarkdown.kind === 'toolInvocation') {
 				let currentToolLabel = toolCallLabel;
 				let isComplete = false;
 				let isStreaming = IChatToolInvocation.isStreaming(toolInvocationOrMarkdown);
 
-				const toolStore = new DisposableStore();
-				this.toolDisposables.set(toolInvocationOrMarkdown.toolCallId, toolStore);
+				const toolStore = this.toolDisposables.get(toolInvocationOrMarkdown.toolCallId)!;
 
 				const updateTitle = (updatedMessage: string) => {
 					if (updatedMessage && updatedMessage !== currentToolLabel) {
