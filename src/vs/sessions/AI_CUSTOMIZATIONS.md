@@ -69,6 +69,11 @@ The `IAICustomizationWorkspaceService` interface controls per-window behavior:
 A harness represents the AI execution environment that consumes customizations.
 Storage answers "where did this come from?"; harness answers "who consumes it?".
 
+The service is defined in `common/customizationHarnessService.ts` which also provides:
+- **`CustomizationHarnessServiceBase`** — reusable base class handling active-harness state, the observable list, and `getStorageSourceFilter` dispatch.
+- **Factory functions** — `createVSCodeHarnessDescriptor`, `createCliHarnessDescriptor`, `createClaudeHarnessDescriptor` — parameterized by an `extras` array (the additional storage sources beyond `local`, `user`, `plugin`). Core passes `[PromptsStorage.extension]`; sessions passes `[BUILTIN_STORAGE]`.
+- **Well-known root helpers** — `getCliUserRoots(userHome)` and `getClaudeUserRoots(userHome)` centralize the `~/.copilot`, `~/.claude`, `~/.agents` path knowledge so it isn't duplicated.
+
 Available harnesses:
 
 | Harness | Label | Description |
@@ -77,7 +82,7 @@ Available harnesses:
 | `cli` | Copilot CLI | Restricts user roots to `~/.copilot`, `~/.claude`, `~/.agents` |
 | `claude` | Claude | Restricts user roots to `~/.claude` |
 
-In core VS Code, only the `vscode` harness is registered (toggle hidden).
+In core VS Code, all three harnesses are registered; VS Code is the default.
 In sessions, `cli` and `claude` harnesses are registered with a toggle bar above the list.
 
 ### IStorageSourceFilter

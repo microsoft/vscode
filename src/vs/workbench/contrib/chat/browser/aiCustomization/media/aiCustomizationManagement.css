@@ -200,6 +200,11 @@
 	color: var(--vscode-foreground);
 }
 
+.ai-customization-list-widget .harness-toggle-pill:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .ai-customization-list-widget .harness-toggle-pill.active {
 	background-color: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
