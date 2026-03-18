@@ -399,9 +399,6 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	public getLineHeightForLineNumber(lineNumber: number): number {
 		return this._linesLayout.getLineHeightForLineNumber(lineNumber);
 	}
-	public hasVariableHeightForLineNumber(lineNumber: number): boolean {
-		return this._linesLayout.hasVariableHeightForLineNumber(lineNumber);
-	}
 	public isAfterLines(verticalOffset: number): boolean {
 		return this._linesLayout.isAfterLines(verticalOffset);
 	}

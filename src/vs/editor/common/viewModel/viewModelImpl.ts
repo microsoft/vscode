@@ -614,7 +614,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._fontInfoReader.readFontInfo(bareFontInfo);
 	}
 
-	public getMaxLineFontMetrics(lineNumber: number): { maxAscent: number; maxDescent: number } {
+	public getLineFontMaxAscentDescentMetrics(lineNumber: number): { maxAscent: number; maxDescent: number } {
 		const options = this._configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 		let maxAscent = fontInfo.fontAscent;
@@ -968,7 +968,7 @@ export class ViewModel extends Disposable implements IViewModel {
 				...lineData.inlineDecorations
 			];
 		}
-		const hasVariableLineHeight = this.viewLayout.hasVariableHeightForLineNumber(lineNumber);
+
 		return new ViewLineRenderingData(
 			lineData.minColumn,
 			lineData.maxColumn,
@@ -981,8 +981,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			tabSize,
 			lineData.startVisibleColumn,
 			this._getTextDirection(lineNumber, decorations),
-			hasVariableFonts,
-			hasVariableLineHeight
+			hasVariableFonts
 		);
 	}
 

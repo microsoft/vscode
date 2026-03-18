@@ -502,10 +502,6 @@ export class LinesLayout {
 		return this._lineHeightsManager.heightForLineNumber(lineNumber);
 	}
 
-	public hasVariableHeightForLineNumber(lineNumber: number): boolean {
-		return this._lineHeightsManager.hasVariableHeightForLineNumber(lineNumber);
-	}
-
 	/**
 	 * Get the vertical offset (the sum of heights for all objects above) a certain line number and also the line height of the line.
 	 *

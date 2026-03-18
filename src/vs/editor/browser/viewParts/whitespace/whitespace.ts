@@ -150,7 +150,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		const canUseHalfwidthRightwardsArrow = this._options.canUseHalfwidthRightwardsArrow;
 
 		const lineHeight = ctx.getLineHeightForLineNumber(lineNumber);
-		const { maxAscent, maxDescent } = this._context.viewModel.getMaxLineFontMetrics(lineNumber);
+		const { maxAscent, maxDescent } = this._context.viewModel.getLineFontMaxAscentDescentMetrics(lineNumber);
 
 		let result: string = '';
 
