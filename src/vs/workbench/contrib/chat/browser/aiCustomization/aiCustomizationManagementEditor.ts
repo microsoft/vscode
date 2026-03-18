@@ -303,9 +303,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private folderPickerClearButton: HTMLElement | undefined;
 
 	// Harness dropdown
+	private harnessDropdownContainer: HTMLElement | undefined;
 	private harnessDropdownButton: HTMLElement | undefined;
 	private harnessDropdownIcon: HTMLElement | undefined;
 	private harnessDropdownLabel: HTMLElement | undefined;
+	private sidebarContent: HTMLElement | undefined;
 
 	private readonly inEditorContextKey: IContextKey<boolean>;
 	private readonly sectionContextKey: IContextKey<string>;
@@ -507,7 +509,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private createSidebar(): void {
-		const sidebarContent = DOM.append(this.sidebarContainer, $('.sidebar-content'));
+		const sidebarContent = this.sidebarContent = DOM.append(this.sidebarContainer, $('.sidebar-content'));
 
 		// Harness dropdown (shown when multiple harnesses available)
 		this.createHarnessDropdown(sidebarContent);
@@ -550,7 +552,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// React to harness changes — rebuild visible sections and refresh counts
 		this.editorDisposables.add(autorun(reader => {
 			this.harnessService.activeHarness.read(reader);
+			this.harnessService.availableHarnesses.read(reader);
 			this.rebuildVisibleSections();
+			this.ensureHarnessDropdown();
 			this.updateHarnessDropdown();
 			this.refreshAllPromptsSectionCounts();
 		}));
@@ -585,7 +589,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		const container = DOM.append(sidebarContent, $('.sidebar-harness-dropdown'));
+		const container = this.harnessDropdownContainer = DOM.append(sidebarContent, $('.sidebar-harness-dropdown'));
 
 		this.harnessDropdownButton = DOM.append(container, $('button.harness-dropdown-button'));
 		this.harnessDropdownButton.setAttribute('aria-label', localize('selectHarness', "Select customization target"));
@@ -600,6 +604,27 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(DOM.addDisposableListener(this.harnessDropdownButton, 'click', () => {
 			this.showHarnessPicker();
 		}));
+	}
+
+	/**
+	 * Lazily creates the harness dropdown if it doesn't exist but
+	 * multiple harnesses are now available, or hides it if only one
+	 * harness remains (e.g. after an extension-contributed harness is
+	 * unregistered).
+	 */
+	private ensureHarnessDropdown(): void {
+		const harnesses = this.harnessService.availableHarnesses.get();
+		const shouldShow = this.isHarnessSelectorEnabled && harnesses.length > 1;
+
+		if (shouldShow && !this.harnessDropdownContainer && this.sidebarContent) {
+			this.createHarnessDropdown(this.sidebarContent);
+		} else if (!shouldShow && this.harnessDropdownContainer) {
+			this.harnessDropdownContainer.remove();
+			this.harnessDropdownContainer = undefined;
+			this.harnessDropdownButton = undefined;
+			this.harnessDropdownIcon = undefined;
+			this.harnessDropdownLabel = undefined;
+		}
 	}
 
 	private updateHarnessDropdown(): void {
