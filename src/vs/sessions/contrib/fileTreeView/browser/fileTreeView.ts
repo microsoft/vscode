@@ -43,7 +43,8 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ISessionsManagementService, IActiveSessionItem } from '../../sessions/browser/sessionsManagementService.js';
-import { GITHUB_REMOTE_FILE_SCHEME, getGitHubRemoteFileDisplayName } from './githubFileSystemProvider.js';
+import { getGitHubRemoteFileDisplayName } from './githubFileSystemProvider.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionProject.js';
 import { basename } from '../../../../base/common/path.js';
 import { isEqual } from '../../../../base/common/resources.js';
 

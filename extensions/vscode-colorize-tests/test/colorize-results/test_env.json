@@ -11,7 +11,7 @@
 			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
 			"light_modern": "comment: #008000",
-			"2026-dark": "comment: #768390",
+			"2026-dark": "comment: #8B949E",
 			"2026-light": "comment: #6E7781"
 		}
 	},
@@ -27,7 +27,7 @@
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080",
-			"2026-dark": "variable: #F69D50",
+			"2026-dark": "variable: #FFA657",
 			"2026-light": "variable: #953800"
 		}
 	},
@@ -75,7 +75,7 @@
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080",
-			"2026-dark": "variable: #F69D50",
+			"2026-dark": "variable: #FFA657",
 			"2026-light": "variable: #953800"
 		}
 	},
