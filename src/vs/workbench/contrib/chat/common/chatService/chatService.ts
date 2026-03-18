@@ -605,6 +605,7 @@ export interface IChatToolInvocation {
 	readonly subAgentInvocationId?: string;
 	readonly state: IObservable<IChatToolInvocation.State>;
 	generatedTitle?: string;
+	isAttachedToThinking: boolean;
 
 	kind: 'toolInvocation';
 
@@ -868,6 +869,7 @@ export interface IChatToolInvocationSerialized {
 	source: ToolDataSource | undefined; // undefined on pre-1.104 versions
 	readonly subAgentInvocationId?: string;
 	generatedTitle?: string;
+	isAttachedToThinking?: boolean;
 	kind: 'toolInvocationSerialized';
 }
 
@@ -1286,6 +1288,8 @@ export interface ChatSendResultRejected {
 export interface ChatSendResultSent {
 	readonly kind: 'sent';
 	readonly data: IChatSendRequestData;
+	/** Set when the session was replaced by a new one (e.g. untitled -> real contributed session). */
+	readonly newSessionResource?: URI;
 }
 
 export interface ChatSendResultQueued {
@@ -1463,6 +1467,12 @@ export interface IChatService {
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionResource: URI, source?: string): Promise<void>;
 	/**
+	 * Migrates all in-flight and queued pending requests from one session to another.
+	 * Cancels the in-flight request on the original session, removes queued requests,
+	 * and re-sends them all on the target session preserving their original send options.
+	 */
+	migrateRequests(originalResource: URI, targetResource: URI): void;
+	/**
 	 * Sets yieldRequested on the active request for the given session.
 	 */
 	setYieldRequested(sessionResource: URI): void;
@@ -1499,7 +1509,7 @@ export interface IChatService {
 	readonly onDidReceiveQuestionCarouselAnswer: Event<{ requestId: string; resolveId: string; answers: IChatQuestionAnswers | undefined }>;
 	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: IChatQuestionAnswers | undefined): void;
 
-	readonly onDidDisposeSession: Event<{ readonly sessionResource: URI[]; readonly reason: 'cleared' }>;
+	readonly onDidDisposeSession: Event<{ readonly sessionResource: readonly URI[]; readonly reason: 'cleared' }>;
 
 	transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void>;
 
@@ -1510,7 +1520,7 @@ export interface IChatService {
 	/**
 	 * @deprecated
 	 */
-	registerChatModelChangeListeners(chatSessionType: string, onChange: () => void): IDisposable;
+	registerChatModelChangeListeners(chatSessionType: string, onChange: (chatSessionResource: URI) => void): IDisposable;
 
 	/**
 	 * For tests only!

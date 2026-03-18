@@ -9,15 +9,17 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { getMediaMime } from '../../../../../../base/common/mime.js';
 import { basename, posix, win32 } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -26,7 +28,7 @@ import { ITerminalLogService, ITerminalProfile } from '../../../../../../platfor
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IStreamedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
@@ -36,7 +38,7 @@ import type { ITerminalExecuteStrategy, ITerminalExecuteStrategyResult } from '.
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
+import { extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh, normalizeTerminalCommandForDisplay } from '../runInTerminalHelpers.js';
 import type { ICommandLinePresenter } from './commandLinePresenter/commandLinePresenter.js';
 import { NodeCommandLinePresenter } from './commandLinePresenter/nodeCommandLinePresenter.js';
 import { PythonCommandLinePresenter } from './commandLinePresenter/pythonCommandLinePresenter.js';
@@ -45,7 +47,7 @@ import { SandboxedCommandLinePresenter } from './commandLinePresenter/sandboxedC
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
-import { type ICommandLineAnalyzer, type ICommandLineAnalyzerOptions } from './commandLineAnalyzer/commandLineAnalyzer.js';
+import { type ICommandLineAnalyzer, type ICommandLineAnalyzerOptions, type ICommandLineAnalyzerResult } from './commandLineAnalyzer/commandLineAnalyzer.js';
 import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLineAutoApproveAnalyzer.js';
 import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 import { CommandLineSandboxAnalyzer } from './commandLineAnalyzer/commandLineSandboxAnalyzer.js';
@@ -309,6 +311,8 @@ const telemetryIgnoredSequences = [
 ];
 
 const altBufferMessage = '\n' + localize('runInTerminalTool.altBufferMessage', "The command opened the alternate buffer.");
+const deniedCommandCircuitBreakerThreshold = 3;
+type DenialDetails = NonNullable<ICommandLineAnalyzerResult['denialDetails']>;
 
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {
@@ -327,6 +331,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	protected readonly _sessionTerminalAssociations = new ResourceMap<IToolTerminal>();
 	protected readonly _sessionTerminalInstances = new ResourceMap<Set<ITerminalInstance>>();
+	private readonly _sessionDeniedCommandCounts = new ResourceMap<Map<string, number>>();
 	private readonly _terminalsBeingDisposedBySessionCleanup = new Set<ITerminalInstance>();
 
 	// Immutable window state
@@ -366,6 +371,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	constructor(
 		@IChatService protected readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -434,6 +440,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	}
 
+	async handleToolStream(context: IToolInvocationStreamContext, _token: CancellationToken): Promise<IStreamedToolInvocation | undefined> {
+		const partialInput = context.rawInput as Partial<IRunInTerminalInputParams> | undefined;
+		if (partialInput && typeof partialInput === 'object' && partialInput.command) {
+			const normalizedCommand = normalizeTerminalCommandForDisplay(partialInput.command).replace(/\r\n|\r|\n/g, ' ');
+			const truncatedCommand = normalizedCommand.length > 80
+				? normalizedCommand.substring(0, 77) + '...'
+				: normalizedCommand;
+			const invocationMessage = partialInput.isBackground
+				? new MarkdownString(localize('runInTerminal.streaming.background', "Running `{0}` in background", truncatedCommand))
+				: new MarkdownString(localize('runInTerminal.streaming', "Running `{0}`", truncatedCommand));
+			return { invocationMessage };
+		}
+		return { invocationMessage: localize('runInTerminal.streaming.default', "Running command") };
+	}
+
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunInTerminalInputParams;
 
@@ -487,7 +508,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			commandLine: {
 				original: args.command,
 				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand,
-				forDisplay: forDisplayCommand,
+				forDisplay: forDisplayCommand ?? normalizeTerminalCommandForDisplay(rewrittenCommand ?? args.command),
 			},
 			cwd,
 			language,
@@ -587,7 +608,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		// Extract cd prefix for display - show directory in title, command suffix in editor
-		const commandToDisplay = (toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original).trimStart();
+		const commandToDisplay = (toolSpecificData.commandLine.forDisplay ?? toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original).trimStart();
 		const extractedCd = extractCdPrefix(commandToDisplay, shell, os);
 		let confirmationTitle: string;
 		if (extractedCd && cwd) {
@@ -649,6 +670,28 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Check if the session's permission level (Autopilot/Bypass Approvals) auto-approves all tools.
 		// When active, skip terminal confirmation entirely since the user has opted into full auto-approval.
 		const isSessionAutoApproved = chatSessionResource && this._isSessionAutoApproveLevel(chatSessionResource);
+		const deniedAnalyzerResult = commandLineAnalyzerResults.find(e => e.isAutoApproved === false && e.denialDetails);
+
+		// In auto-approval session mode, fail closed for policy-denied commands instead of showing
+		// a confirmation that may block unattended runs.
+		if (isSessionAutoApproved && deniedAnalyzerResult?.denialDetails && context.forceConfirmationReason === undefined) {
+			const denial = deniedAnalyzerResult.denialDetails;
+			const deniedRule = denial.ruleSourceText
+				? ` Rule: \`${escapeMarkdownSyntaxTokens(denial.ruleSourceText)}\`.`
+				: '';
+			const deniedAttempts = this._recordDeniedCommandAttempt(chatSessionResource!, denial);
+			const shouldCircuitBreak = deniedAttempts >= deniedCommandCircuitBreakerThreshold;
+			toolSpecificData.alternativeRecommendation = shouldCircuitBreak
+				? `POLICY_DENIED_CIRCUIT_BREAKER: Command was blocked ${deniedAttempts} times in this session and will not be retried. Scope: ${denial.scope}. Command: \`${escapeMarkdownSyntaxTokens(denial.deniedCommand)}\`. Reason: ${denial.reason}.${deniedRule}`
+				: `POLICY_DENIED: Command was not executed in auto-approval session mode. Scope: ${denial.scope}. Command: \`${escapeMarkdownSyntaxTokens(denial.deniedCommand)}\`. Reason: ${denial.reason}.${deniedRule}`;
+			return {
+				confirmationMessages: undefined,
+				toolSpecificData,
+			};
+		}
+		if (isSessionAutoApproved && chatSessionResource) {
+			this._sessionDeniedCommandCounts.delete(chatSessionResource);
+		}
 
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
 		const shouldShowConfirmation = (!isFinalAutoApproved && !isSessionAutoApproved) || context.forceConfirmationReason !== undefined;
@@ -659,7 +702,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			terminalCustomActions: customActions,
 		} : undefined;
 
+		const rawDisplayCommand = toolSpecificData.commandLine.forDisplay ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
+		const displayCommand = rawDisplayCommand.length > 80
+			? rawDisplayCommand.substring(0, 77) + '...'
+			: rawDisplayCommand;
+		const escapedDisplayCommand = escapeMarkdownSyntaxTokens(displayCommand);
+		const invocationMessage = args.isBackground
+			? new MarkdownString(localize('runInTerminal.invocation.background', "Running `{0}` in background", escapedDisplayCommand))
+			: new MarkdownString(localize('runInTerminal.invocation', "Running `{0}`", escapedDisplayCommand));
+
 		return {
+			invocationMessage,
 			confirmationMessages,
 			toolSpecificData,
 		};
@@ -674,6 +727,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const inspected = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
 		if (inspected.policyValue === false) {
 			return false;
+		}
+		// Check the terminal chat service's session auto-approval state
+		if (this._terminalChatService.hasChatSessionAutoApproval(chatSessionResource)) {
+			return true;
 		}
 		// Check the live widget picker level (handles mid-session switches).
 		// Fall back to lastFocusedWidget if the session-specific widget isn't found
@@ -880,9 +937,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					resultText += `\n\ The command is still running, with output:\n${pollingResult.output}`;
 				}
 
+				const endCwd = await toolTerminal.instance.getCwdResource();
 				return {
 					toolMetadata: {
-						exitCode: undefined // Background processes don't have immediate exit codes
+						exitCode: undefined, // Background processes don't have immediate exit codes
+						id: termId,
+						cwd: endCwd?.toString(),
 					},
 					content: [{
 						kind: 'text',
@@ -918,10 +978,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						toolResultMessage = altBufferMessage;
 						outputLineCount = 0;
 						error = executeResult.error ?? 'alternateBuffer';
+						const altBufferCwd = await toolTerminal.instance.getCwdResource();
 						altBufferResult = {
 							toolResultMessage,
 							toolMetadata: {
-								exitCode: undefined
+								exitCode: undefined,
+								id: termId,
+								cwd: altBufferCwd?.toString(),
 							},
 							content: [{
 								kind: 'text',
@@ -1058,21 +1121,91 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		resultText.push(terminalResult);
 
 		const isError = exitCode !== undefined && exitCode !== 0;
+		const endCwd = await toolTerminal.instance.getCwdResource();
+
+		const imageContent = await this._extractImagesFromOutput(terminalResult, endCwd);
+
 		return {
 			toolResultMessage,
 			toolMetadata: {
-				exitCode: exitCode
+				exitCode: exitCode,
+				id: termId,
+				cwd: endCwd?.toString(),
 			},
 			toolResultDetails: isError ? {
 				input: command,
 				output: [{ type: 'embed', isText: true, value: terminalResult }],
 				isError: true
 			} : undefined,
-			content: [{
-				kind: 'text',
-				value: resultText.join(''),
-			}]
+			content: [
+				{
+					kind: 'text',
+					value: resultText.join(''),
+				},
+				...imageContent,
+			]
 		};
+	}
+
+	private static readonly _maxImageFileSize = 5 * 1024 * 1024;
+
+	/**
+	 * Scans terminal output for file paths that point to images and reads them.
+	 * Returns data content parts for any found images that exist on disk.
+	 */
+	private async _extractImagesFromOutput(output: string, cwd: URI | undefined): Promise<IToolResult['content']> {
+		const normalizedOutput = output.replace(/\r?\n/g, '');
+
+		// Match paths ending with image extensions. A leading / or \ is sufficient
+		// to identify a path segment; the full path up to the extension is captured.
+		const pathPattern = /(?:[^\s]*[\/\\][^\s]*\.(?:png|jpe?g|gif|webp|bmp))/gi;
+
+		const matches = new Set<string>();
+		for (const match of normalizedOutput.matchAll(pathPattern)) {
+			matches.add(match[0]);
+		}
+
+		if (matches.size === 0) {
+			return [];
+		}
+
+		const results: IToolResult['content'] = [];
+		for (const filePath of matches) {
+			try {
+				const mimeType = getMediaMime(filePath);
+				if (!mimeType || !mimeType.startsWith('image/')) {
+					continue;
+				}
+
+				// Resolve the URI - check for absolute path (Unix / or Windows drive letter)
+				let fileUri: URI;
+				if (/^\/|^[A-Za-z]:[\\\/]/.test(filePath)) {
+					fileUri = URI.file(filePath);
+				} else if (cwd) {
+					fileUri = URI.joinPath(cwd, filePath);
+				} else {
+					continue;
+				}
+
+				const stat = await this._fileService.stat(fileUri).catch(() => undefined);
+				if (!stat || stat.isDirectory || stat.size > RunInTerminalTool._maxImageFileSize) {
+					continue;
+				}
+
+				const fileContent = await this._fileService.readFile(fileUri);
+				results.push({
+					kind: 'data',
+					value: {
+						mimeType,
+						data: fileContent.value,
+					},
+				});
+			} catch {
+				// Ignore files that can't be read
+			}
+		}
+
+		return results;
 	}
 
 	private _handleTerminalVisibility(toolTerminal: IToolTerminal, chatSessionResource: URI) {
@@ -1233,6 +1366,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		this._sessionTerminalAssociations.delete(chatSessionResource);
 		this._sessionTerminalInstances.delete(chatSessionResource);
+		this._sessionDeniedCommandCounts.delete(chatSessionResource);
 
 		for (const terminal of terminalsToDispose) {
 			// Skip redundant map walks in onDidDispose since this session has already been removed.
@@ -1251,6 +1385,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		for (const termId of terminalToRemove) {
 			RunInTerminalTool._activeExecutions.delete(termId);
 		}
+	}
+
+	private _recordDeniedCommandAttempt(chatSessionResource: URI, denial: DenialDetails): number {
+		let sessionCounts = this._sessionDeniedCommandCounts.get(chatSessionResource);
+		if (!sessionCounts) {
+			sessionCounts = new Map<string, number>();
+			this._sessionDeniedCommandCounts.set(chatSessionResource, sessionCounts);
+		}
+		const signature = JSON.stringify([denial.scope, denial.deniedCommand, denial.ruleSourceText ?? denial.reason]);
+		const attempts = (sessionCounts.get(signature) ?? 0) + 1;
+		sessionCounts.set(signature, attempts);
+		return attempts;
 	}
 
 	private _addSessionTerminalAssociation(chatSessionResource: URI, toolTerminal: IToolTerminal): void {

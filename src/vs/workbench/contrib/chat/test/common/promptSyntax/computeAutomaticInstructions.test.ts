@@ -60,6 +60,7 @@ suite('ComputeAutomaticInstructions', () => {
 	let fileService: IFileService;
 	let toolsService: ILanguageModelToolsService;
 	let fileSystemProvider: TestInMemoryFileSystemProviderWithRealPath;
+	let workspaceTrustService: TestWorkspaceTrustManagementService;
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
@@ -76,6 +77,7 @@ suite('ComputeAutomaticInstructions', () => {
 		testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 		testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
 		testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_REFERENCED_INSTRUCTIONS, true);
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, false);
 		testConfigService.setUserConfiguration(PromptsConfig.INSTRUCTIONS_LOCATION_KEY, { [INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true, [CLAUDE_RULES_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.PROMPT_LOCATIONS_KEY, { [PROMPT_DEFAULT_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.MODE_LOCATION_KEY, { [LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true });
@@ -90,6 +92,9 @@ suite('ComputeAutomaticInstructions', () => {
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true),
 			activateByEvent: () => Promise.resolve()
 		});
+
+		workspaceTrustService = disposables.add(new TestWorkspaceTrustManagementService());
+		instaService.stub(IWorkspaceTrustManagementService, workspaceTrustService);
 
 		fileService = disposables.add(instaService.createInstance(FileService));
 		instaService.stub(IFileService, fileService);
@@ -182,11 +187,9 @@ suite('ComputeAutomaticInstructions', () => {
 
 		instaService.stub(IContextKeyService, new MockContextKeyService());
 
-		instaService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
-
 		instaService.stub(IAgentPluginService, {
 			plugins: observableValue('testPlugins', []),
-			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, setEnabled: () => { } },
+			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, setEnabled: () => { }, remove: () => { } },
 		});
 
 		service = disposables.add(instaService.createInstance(PromptsService));
@@ -1626,6 +1629,126 @@ suite('ComputeAutomaticInstructions', () => {
 		instructionFiles = variables2.asArray().filter(v => isPromptFileVariableEntry(v));
 		paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
 		assert.ok(!paths.includes(`${rootFolder}/.claude/CLAUDE.md`), 'Should not include .claude/CLAUDE.md when disabled');
+	});
+
+	test('should collect parent folder CLAUDE configurations when includeWorkspaceFolderParents is enabled', async () => {
+		const parentFolderName = 'collect-claude-parent-test';
+		const parentFolder = `/${parentFolderName}`;
+		const rootFolder = `${parentFolder}/repo`;
+		const rootFolderUri = URI.file(rootFolder);
+
+		workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+		await mockFiles(fileService, [
+			{
+				path: `${parentFolder}/.git/HEAD`,
+				contents: ['ref: refs/heads/main'],
+			},
+			{
+				path: `${parentFolder}/CLAUDE.md`,
+				contents: ['Parent Claude guidelines'],
+			},
+			{
+				path: `${parentFolder}/.claude/CLAUDE.md`,
+				contents: ['Parent .claude Claude guidelines'],
+			},
+			{
+				path: `${rootFolder}/src/file.ts`,
+				contents: ['console.log("test");'],
+			},
+		]);
+
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_MD, true);
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, false);
+
+		await workspaceTrustService.setTrustedUris([URI.file(parentFolder)]);
+
+		const disabledParentContextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined);
+		const disabledParentVariables = new ChatRequestVariableSet();
+		disabledParentVariables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+		await disabledParentContextComputer.collect(disabledParentVariables, CancellationToken.None);
+
+		let paths = disabledParentVariables.asArray()
+			.filter(v => isPromptFileVariableEntry(v))
+			.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+		assert.ok(!paths.includes(`${parentFolder}/CLAUDE.md`), 'Should not include parent CLAUDE.md when parent search is disabled');
+		assert.ok(!paths.includes(`${parentFolder}/.claude/CLAUDE.md`), 'Should not include parent .claude/CLAUDE.md when parent search is disabled');
+
+		// Parent folder settings should allow finding both root and .claude CLAUDE files above the workspace folder.
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+
+		const enabledParentContextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined);
+		const enabledParentVariables = new ChatRequestVariableSet();
+		enabledParentVariables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+		await enabledParentContextComputer.collect(enabledParentVariables, CancellationToken.None);
+
+		paths = enabledParentVariables.asArray()
+			.filter(v => isPromptFileVariableEntry(v))
+			.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+		assert.ok(paths.includes(`${parentFolder}/CLAUDE.md`), 'Should include parent CLAUDE.md when parent search is enabled');
+		assert.ok(paths.includes(`${parentFolder}/.claude/CLAUDE.md`), 'Should include parent .claude/CLAUDE.md when parent search is enabled');
+	});
+
+	test('should collect parent folder copilot-instructions.md and AGENTS.md when includeWorkspaceFolderParents is enabled', async () => {
+		const parentFolderName = 'collect-agent-parent-test';
+		const parentFolder = `/${parentFolderName}`;
+		const rootFolder = `${parentFolder}/repo`;
+		const rootFolderUri = URI.file(rootFolder);
+
+		workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+		await mockFiles(fileService, [
+			{
+				path: `${parentFolder}/.git/HEAD`,
+				contents: ['ref: refs/heads/main'],
+			},
+			{
+				path: `${parentFolder}/.github/copilot-instructions.md`,
+				contents: ['Parent copilot instructions'],
+			},
+			{
+				path: `${parentFolder}/AGENTS.md`,
+				contents: ['Parent agent guidelines'],
+			},
+			{
+				path: `${rootFolder}/src/file.ts`,
+				contents: ['console.log("test");'],
+			},
+		]);
+
+		testConfigService.setUserConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES, true);
+		testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_MD, true);
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, false);
+
+		await workspaceTrustService.setTrustedUris([URI.file(parentFolder)]);
+
+		const disabledParentContextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined);
+		const disabledParentVariables = new ChatRequestVariableSet();
+		disabledParentVariables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+		await disabledParentContextComputer.collect(disabledParentVariables, CancellationToken.None);
+
+		let paths = disabledParentVariables.asArray()
+			.filter(v => isPromptFileVariableEntry(v))
+			.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+		assert.ok(!paths.includes(`${parentFolder}/.github/copilot-instructions.md`), 'Should not include parent copilot-instructions.md when parent search is disabled');
+		assert.ok(!paths.includes(`${parentFolder}/AGENTS.md`), 'Should not include parent AGENTS.md when parent search is disabled');
+
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+
+		const enabledParentContextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined);
+		const enabledParentVariables = new ChatRequestVariableSet();
+		enabledParentVariables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+		await enabledParentContextComputer.collect(enabledParentVariables, CancellationToken.None);
+
+		paths = enabledParentVariables.asArray()
+			.filter(v => isPromptFileVariableEntry(v))
+			.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+		assert.ok(paths.includes(`${parentFolder}/.github/copilot-instructions.md`), 'Should include parent copilot-instructions.md when parent search is enabled');
+		assert.ok(paths.includes(`${parentFolder}/AGENTS.md`), 'Should include parent AGENTS.md when parent search is enabled');
 	});
 
 	test('should collect ~/.claude/CLAUDE.md when enabled', async () => {

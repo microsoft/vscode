@@ -42,7 +42,7 @@ import '../workbench/services/update/electron-browser/updateService.js';
 import '../workbench/services/url/electron-browser/urlService.js';
 import '../workbench/services/lifecycle/electron-browser/lifecycleService.js';
 import '../workbench/services/host/electron-browser/nativeHostService.js';
-import './electron-browser/titleService.js';
+import './services/title/electron-browser/titleService.js';
 import '../platform/meteredConnection/electron-browser/meteredConnectionService.js';
 import '../workbench/services/request/electron-browser/requestService.js';
 import '../workbench/services/clipboard/electron-browser/clipboardService.js';
@@ -218,6 +218,10 @@ import './contrib/terminal/browser/sessionsTerminalContribution.js';
 import './contrib/logs/browser/logs.contribution.js';
 import './contrib/workspace/browser/workspace.contribution.js';
 import './contrib/welcome/browser/welcome.contribution.js';
+
+// Remote Agent Host
+import '../platform/agentHost/electron-browser/remoteAgentHostService.js';
+import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 
 //#endregion
 

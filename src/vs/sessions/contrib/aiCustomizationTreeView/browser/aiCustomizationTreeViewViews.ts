@@ -5,6 +5,7 @@
 
 import './media/aiCustomizationTreeView.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -12,7 +13,7 @@ import { basename, dirname } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -36,7 +37,7 @@ import { AICustomizationManagementEditor } from '../../../../workbench/contrib/c
 import { IAsyncDataSource, ITreeNode, ITreeRenderer, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -149,6 +150,9 @@ interface IFileTemplateData {
 	readonly container: HTMLElement;
 	readonly icon: HTMLElement;
 	readonly name: HTMLElement;
+	readonly actionBar: ActionBar;
+	readonly elementDisposables: DisposableStore;
+	readonly templateDisposables: DisposableStore;
 }
 
 class AICustomizationCategoryRenderer implements ITreeRenderer<IAICustomizationTypeItem | IAICustomizationLinkItem, FuzzyScore, ICategoryTemplateData> {
@@ -189,15 +193,29 @@ class AICustomizationGroupRenderer implements ITreeRenderer<IAICustomizationGrou
 class AICustomizationFileRenderer implements ITreeRenderer<IAICustomizationFileItem, FuzzyScore, IFileTemplateData> {
 	readonly templateId = 'file';
 
+	constructor(
+		private readonly menuService: IMenuService,
+		private readonly contextKeyService: IContextKeyService,
+		private readonly instantiationService: IInstantiationService,
+	) { }
+
 	renderTemplate(container: HTMLElement): IFileTemplateData {
 		const element = dom.append(container, dom.$('.ai-customization-tree-item'));
 		const icon = dom.append(element, dom.$('.icon'));
 		const name = dom.append(element, dom.$('.name'));
-		return { container: element, icon, name };
+		const actionsContainer = dom.append(element, dom.$('.actions'));
+
+		const templateDisposables = new DisposableStore();
+		const actionBar = templateDisposables.add(new ActionBar(actionsContainer, {
+			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
+		}));
+
+		return { container: element, icon, name, actionBar, elementDisposables: new DisposableStore(), templateDisposables };
 	}
 
 	renderElement(node: ITreeNode<IAICustomizationFileItem, FuzzyScore>, _index: number, templateData: IFileTemplateData): void {
 		const item = node.element;
+		templateData.elementDisposables.clear();
 
 		// Set icon based on prompt type
 		let icon: ThemeIcon;
@@ -225,9 +243,45 @@ class AICustomizationFileRenderer implements ITreeRenderer<IAICustomizationFileI
 		// Set tooltip with name and description
 		const tooltip = item.description ? `${item.name} - ${item.description}` : item.name;
 		templateData.container.title = tooltip;
+
+		// Build context for menu actions
+		const context = {
+			uri: item.uri.toString(),
+			name: item.name,
+			promptType: item.promptType,
+			storage: item.storage,
+		};
+
+		// Create scoped context key service with item type for when-clause filtering
+		const overlay = this.contextKeyService.createOverlay([
+			[AICustomizationItemTypeContextKey.key, item.promptType],
+		]);
+
+		// Create menu and extract inline actions
+		const menu = templateData.elementDisposables.add(
+			this.menuService.createMenu(AICustomizationItemMenuId, overlay)
+		);
+
+		const updateActions = () => {
+			const actions = menu.getActions({ arg: context, shouldForwardArgs: true });
+			const { primary } = getContextMenuActions(actions, 'inline');
+			templateData.actionBar.clear();
+			templateData.actionBar.push(primary, { icon: true, label: false });
+		};
+		updateActions();
+		templateData.elementDisposables.add(menu.onDidChange(updateActions));
+
+		templateData.actionBar.context = context;
 	}
 
-	disposeTemplate(_templateData: IFileTemplateData): void { }
+	disposeElement(_node: ITreeNode<IAICustomizationFileItem, FuzzyScore>, _index: number, templateData: IFileTemplateData): void {
+		templateData.elementDisposables.clear();
+	}
+
+	disposeTemplate(templateData: IFileTemplateData): void {
+		templateData.templateDisposables.dispose();
+		templateData.elementDisposables.dispose();
+	}
 }
 
 /**
@@ -356,6 +410,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			const workspaceSkills = cached.skills.filter(s => s.storage === PromptsStorage.local);
 			const userSkills = cached.skills.filter(s => s.storage === PromptsStorage.user);
 			const extensionSkills = cached.skills.filter(s => s.storage === PromptsStorage.extension);
+			const builtinSkills = cached.skills.filter(s => s.storage === BUILTIN_STORAGE);
 
 			if (workspaceSkills.length > 0) {
 				groups.push(this.createGroupItem(promptType, PromptsStorage.local, workspaceSkills.length));
@@ -365,6 +420,9 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			}
 			if (extensionSkills.length > 0) {
 				groups.push(this.createGroupItem(promptType, PromptsStorage.extension, extensionSkills.length));
+			}
+			if (builtinSkills.length > 0) {
+				groups.push(this.createGroupItem(promptType, BUILTIN_STORAGE, builtinSkills.length));
 			}
 
 			return groups;
@@ -575,7 +633,7 @@ export class AICustomizationViewPane extends ViewPane {
 			[
 				new AICustomizationCategoryRenderer(),
 				new AICustomizationGroupRenderer(),
-				new AICustomizationFileRenderer(),
+				new AICustomizationFileRenderer(this.menuService, this.contextKeyService, this.instantiationService),
 			],
 			this.dataSource,
 			{
@@ -616,7 +674,7 @@ export class AICustomizationViewPane extends ViewPane {
 				});
 			} else if (e.element && e.element.type === 'link') {
 				const input = AICustomizationManagementEditorInput.getOrCreate();
-				const editor = await this.editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
+				const editor = await this.editorService.openEditor(input, { pinned: true });
 				if (editor instanceof AICustomizationManagementEditor) {
 					editor.selectSectionById(e.element.section);
 				}

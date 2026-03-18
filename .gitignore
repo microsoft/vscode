@@ -29,6 +29,7 @@ test-output.json
 test/componentFixtures/.screenshots/*
 !test/componentFixtures/.screenshots/baseline/
 dist
+.playwright-cli
 .agents/agents/*.local.md
 .claude/agents/*.local.md
 .github/agents/*.local.md

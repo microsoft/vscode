@@ -110,7 +110,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _isPtyPaused: boolean = false;
 	private _unacknowledgedCharCount: number = 0;
-	private _writeQueue: Promise<void> = Promise.resolve();
 	get exitMessage(): string | undefined { return this._exitMessage; }
 
 	get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
@@ -338,7 +337,20 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this._exitCode = e.exitCode;
 			this._queueProcessExit();
 		}));
-		this._sendProcessId(ptyProcess.pid);
+		// node-pty >= 1.2.0-beta.11 defers conptyNative.connect() on Windows, so
+		// ptyProcess.pid may be 0 immediately after spawn. In that case we wait
+		// for the first data event which only fires after the connection completes
+		// and the real pid is available. See microsoft/node-pty#885.
+		if (ptyProcess.pid > 0) {
+			this._sendProcessId(ptyProcess.pid);
+		} else {
+			const dataListener = ptyProcess.onData(() => {
+				dataListener.dispose();
+				this._childProcessMonitor?.setPid(ptyProcess.pid);
+				this._sendProcessId(ptyProcess.pid);
+			});
+			this._register(dataListener);
+		}
 		this._setupTitlePolling(ptyProcess);
 	}
 
@@ -469,30 +481,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._logService.trace('node-pty.IPty#write', data, isBinary);
 		if (isBinary) {
 			this._ptyProcess!.write(Buffer.from(data, 'binary'));
-		} else if (isMacintosh && data.length > 512 && data.includes('\r')) {
-			// macOS PTY has a ~1024-byte canonical-mode input buffer. Multiline
-			// input exceeding this causes writes to block or corrupt due to
-			// backpressure from the shell's line editor echoing characters.
-			// https://github.com/microsoft/vscode/issues/296955
-			this._writeChunked(data);
 		} else {
 			this._ptyProcess!.write(data);
 		}
 		this._childProcessMonitor?.handleInput();
-	}
-
-	private _writeChunked(data: string): void {
-		this._writeQueue = this._writeQueue.then(async () => {
-			for (let i = 0; i < data.length; i += 512) {
-				if (this._store.isDisposed) {
-					return;
-				}
-				this._ptyProcess!.write(data.slice(i, i + 512));
-				if (i + 512 < data.length) {
-					await timeout(5);
-				}
-			}
-		});
 	}
 
 	sendSignal(signal: string): void {

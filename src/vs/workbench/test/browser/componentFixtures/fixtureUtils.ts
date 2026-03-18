@@ -10,6 +10,7 @@ import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle
 import { URI } from '../../../../base/common/uri.js';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../../build/vite/style.css';
+import '../../../browser/media/style.css';
 
 // Theme
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
@@ -244,10 +245,11 @@ function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
 		return lightThemeStyleSheet;
 	}
 
+	const scopeSelector = '.' + theme.classNames[0];
 	const sheet = new CSSStyleSheet();
 	const css = generateColorThemeCSS(
 		theme,
-		':host',
+		scopeSelector,
 		themingRegistry.getThemingParticipants(),
 		mockEnvironmentService
 	);
@@ -261,20 +263,40 @@ function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
 	return sheet;
 }
 
-/**
- * Applies theme styling to a shadow DOM container.
- * Adds theme class names and adopts shared stylesheets.
- */
-export function setupTheme(container: HTMLElement, theme: ColorThemeData): void {
-	container.classList.add(...theme.classNames);
+let globalStylesInstalled = false;
 
-	const shadowRoot = container.getRootNode() as ShadowRoot;
-	if (shadowRoot.adoptedStyleSheets !== undefined) {
-		shadowRoot.adoptedStyleSheets = [
-			getGlobalStyleSheet(),
-			getIconsStyleSheetCached(),
-			getThemeStyleSheet(theme),
-		];
+function installGlobalStyles(): void {
+	if (globalStylesInstalled) {
+		return;
+	}
+	globalStylesInstalled = true;
+	document.adoptedStyleSheets = [
+		...document.adoptedStyleSheets,
+		getGlobalStyleSheet(),
+		getIconsStyleSheetCached(),
+		getThemeStyleSheet(darkTheme),
+		getThemeStyleSheet(lightTheme),
+	];
+}
+
+export function setupTheme(container: HTMLElement, theme: ColorThemeData): void {
+	installGlobalStyles();
+	container.classList.add('monaco-workbench', getPlatformClass(), ...theme.classNames);
+}
+
+function getPlatformClass(): string {
+	const alwaysUseMac = true;
+	if (alwaysUseMac) {
+		return 'mac';
+	} else {
+		const ua = navigator.userAgent;
+		if (ua.includes('Macintosh')) {
+			return 'mac';
+		}
+		if (ua.includes('Linux')) {
+			return 'linux';
+		}
+		return 'windows';
 	}
 }
 
@@ -515,7 +537,7 @@ type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
  */
 export function defineComponentFixture(options: ComponentFixtureOptions): ThemedFixtures {
 	const createFixture = (theme: typeof darkTheme | typeof lightTheme) => defineFixture({
-		isolation: 'shadow-dom',
+		isolation: 'none',
 		displayMode: { type: 'component' },
 		properties: [],
 		background: theme === darkTheme ? 'dark' : 'light',

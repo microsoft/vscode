@@ -7,6 +7,24 @@ import { createMarkdownCommandLink, IMarkdownString, MarkdownString } from '../.
 import { localize } from '../../../../../../../nls.js';
 import { ConfirmedReason, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 
+export function isMcpToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+	return toolInvocation.source?.type === 'mcp' || toolInvocation.toolId.toLowerCase().includes('mcp');
+}
+
+/**
+ * Determines whether a tool invocation's progress text should shimmer.
+ * MCP tools shimmer; askQuestions defers to the caller's default; all others opt out.
+ */
+export function shouldShimmerForTool(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+	if (isMcpToolInvocation(toolInvocation)) {
+		return true;
+	}
+	if (toolInvocation.toolId === 'copilot_askQuestions' || toolInvocation.toolId === 'vscode_askQuestions') {
+		return false;
+	}
+	return false;
+}
+
 /**
  * Creates a markdown message explaining why a tool was auto-approved.
  * @param toolInvocation The tool invocation to get the approval message for

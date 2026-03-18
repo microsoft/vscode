@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -30,7 +30,7 @@ interface IPermissionItem {
 
 /**
  * A permission picker for the new-session welcome view.
- * Shows Default Approvals and Bypass Approvals options (no Autopilot for CLI sessions).
+ * Shows Default Approvals, Bypass Approvals, and Autopilot options.
  */
 export class NewChatPermissionPicker extends Disposable {
 
@@ -95,6 +95,7 @@ export class NewChatPermissionPicker extends Disposable {
 		}
 
 		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const isAutopilotEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
 
 		const items: IActionListItem<IPermissionItem>[] = [
 			{
@@ -125,6 +126,22 @@ export class NewChatPermissionPicker extends Disposable {
 			},
 		];
 
+		if (isAutopilotEnabled) {
+			items.push({
+				kind: ActionListItemKind.Action,
+				group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.rocket },
+				item: {
+					level: ChatPermissionLevel.Autopilot,
+					label: localize('permissions.autopilot', "Autopilot (Preview)"),
+					icon: Codicon.rocket,
+					checked: this._currentLevel === ChatPermissionLevel.Autopilot,
+				},
+				label: localize('permissions.autopilot', "Autopilot (Preview)"),
+				description: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
+				disabled: policyRestricted,
+			});
+		}
+
 		const triggerElement = this._triggerElement;
 		const delegate: IActionListDelegate<IPermissionItem> = {
 			onSelect: async (item) => {
@@ -134,6 +151,7 @@ export class NewChatPermissionPicker extends Disposable {
 			onHide: () => { triggerElement.focus(); },
 		};
 
+		const listOptions: IActionListOptions = { descriptionBelow: true, minWidth: 255 };
 		this.actionWidgetService.show<IPermissionItem>(
 			'permissionPicker',
 			false,
@@ -146,6 +164,7 @@ export class NewChatPermissionPicker extends Disposable {
 				getAriaLabel: (item) => item.label ?? '',
 				getWidgetAriaLabel: () => localize('permissionPicker.ariaLabel', "Permission Picker"),
 			},
+			listOptions,
 		);
 	}
 
@@ -177,6 +196,33 @@ export class NewChatPermissionPicker extends Disposable {
 			shownWarnings.add(ChatPermissionLevel.AutoApprove);
 		}
 
+		if (level === ChatPermissionLevel.Autopilot && !shownWarnings.has(ChatPermissionLevel.Autopilot)) {
+			const result = await this.dialogService.prompt({
+				type: Severity.Warning,
+				message: localize('permissions.autopilot.warning.title', "Enable Autopilot?"),
+				buttons: [
+					{
+						label: localize('permissions.autopilot.warning.confirm', "Enable"),
+						run: () => true
+					},
+					{
+						label: localize('permissions.autopilot.warning.cancel', "Cancel"),
+						run: () => false
+					},
+				],
+				custom: {
+					icon: Codicon.rocket,
+					markdownDetails: [{
+						markdown: new MarkdownString(localize('permissions.autopilot.warning.detail', "Autopilot will auto-approve all tool calls and continue working autonomously until the task is complete. The agent will make decisions on your behalf without asking for confirmation.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.")),
+					}],
+				},
+			});
+			if (result.result !== true) {
+				return;
+			}
+			shownWarnings.add(ChatPermissionLevel.Autopilot);
+		}
+
 		this._currentLevel = level;
 		this._updateTriggerLabel(this._triggerElement);
 		this._onDidChangeLevel.fire(level);
@@ -188,14 +234,29 @@ export class NewChatPermissionPicker extends Disposable {
 		}
 
 		dom.clearNode(trigger);
-		const icon = this._currentLevel === ChatPermissionLevel.AutoApprove ? Codicon.warning : Codicon.shield;
-		const label = this._currentLevel === ChatPermissionLevel.AutoApprove
-			? localize('permissions.autoApprove.label', "Bypass Approvals")
-			: localize('permissions.default.label', "Default Approvals");
+		let icon: ThemeIcon;
+		let label: string;
+		switch (this._currentLevel) {
+			case ChatPermissionLevel.Autopilot:
+				icon = Codicon.rocket;
+				label = localize('permissions.autopilot.label', "Autopilot (Preview)");
+				break;
+			case ChatPermissionLevel.AutoApprove:
+				icon = Codicon.warning;
+				label = localize('permissions.autoApprove.label', "Bypass Approvals");
+				break;
+			default:
+				icon = Codicon.shield;
+				label = localize('permissions.default.label', "Default Approvals");
+				break;
+		}
 
 		dom.append(trigger, renderIcon(icon));
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
 		dom.append(trigger, renderIcon(Codicon.chevronDown));
+
+		trigger.classList.toggle('warning', this._currentLevel === ChatPermissionLevel.Autopilot);
+		trigger.classList.toggle('info', this._currentLevel === ChatPermissionLevel.AutoApprove);
 	}
 }

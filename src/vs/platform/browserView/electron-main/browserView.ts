@@ -8,7 +8,7 @@ import { FileAccess } from '../../../base/common/network.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex } from '../common/browserView.js';
 import { EVENT_KEY_CODE_MAP, KeyCode, KeyMod, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
@@ -46,6 +46,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	private _lastFavicon: string | undefined = undefined;
 	private _lastError: IBrowserViewLoadError | undefined = undefined;
 	private _lastUserGestureTimestamp: number = -Infinity;
+	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
 	private _debugger: BrowserViewDebugger;
 	private _window: ICodeWindow | IAuxiliaryWindow | undefined;
@@ -137,11 +138,12 @@ export class BrowserView extends Disposable implements ICDPTarget {
 				action: 'allow',
 				createWindow: (options) => {
 					const childView = createChildView(options);
-					const resource = BrowserViewUri.forUrl(details.url, childView.id);
+					const resource = BrowserViewUri.forId(childView.id);
 
 					// Fire event for the workbench to open this view
 					this._onDidRequestNewPage.fire({
 						resource,
+						url: details.url,
 						location,
 						position: { x: options.x, y: options.y, width: options.width, height: options.height }
 					});
@@ -161,8 +163,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		});
 
 		this._debugger = new BrowserViewDebugger(this, this.logService);
-
-		this._register(session.acquire());
 
 		this.setupEventListeners();
 	}
@@ -221,11 +221,13 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		});
 
 		const fireNavigationEvent = () => {
+			const url = webContents.getURL();
 			this._onDidNavigate.fire({
-				url: webContents.getURL(),
+				url,
 				title: webContents.getTitle(),
 				canGoBack: webContents.navigationHistory.canGoBack(),
-				canGoForward: webContents.navigationHistory.canGoForward()
+				canGoForward: webContents.navigationHistory.canGoForward(),
+				certificateError: this.session.trust.getCertificateError(url)
 			});
 		};
 
@@ -250,7 +252,9 @@ export class BrowserView extends Disposable implements ICDPTarget {
 				this._lastError = {
 					url: validatedURL,
 					errorCode,
-					errorDescription
+					errorDescription,
+					// -200 - -220 are the range of certificate errors in Chromium.
+					certificateError: errorCode <= -200 && errorCode >= -220 ? this.session.trust.getCertificateError(validatedURL) : undefined
 				};
 
 				fireLoadingEvent(false);
@@ -258,11 +262,14 @@ export class BrowserView extends Disposable implements ICDPTarget {
 					url: validatedURL,
 					title: '',
 					canGoBack: webContents.navigationHistory.canGoBack(),
-					canGoForward: webContents.navigationHistory.canGoForward()
+					canGoForward: webContents.navigationHistory.canGoForward(),
+					certificateError: this.session.trust.getCertificateError(validatedURL)
 				});
 			}
 		});
 		webContents.on('did-finish-load', () => fireLoadingEvent(false));
+
+		this.session.trust.installCertErrorHandler(webContents);
 
 		webContents.on('render-process-gone', (_event, details) => {
 			this._lastError = {
@@ -277,6 +284,12 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		// Navigation events (when URL actually changes)
 		webContents.on('did-navigate', fireNavigationEvent);
 		webContents.on('did-navigate-in-page', fireNavigationEvent);
+
+		// Chromium resets the zoom factor to its per-origin default (100%) when
+		// navigating to a new document. Re-apply our stored zoom to override it.
+		webContents.on('did-navigate', () => {
+			this._view.webContents.setZoomFactor(browserZoomFactors[this._browserZoomIndex]);
+		});
 
 		// Focus events
 		webContents.on('focus', () => {
@@ -353,8 +366,10 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	 */
 	getState(): IBrowserViewState {
 		const webContents = this._view.webContents;
+		const url = webContents.getURL();
+
 		return {
-			url: webContents.getURL(),
+			url,
 			title: webContents.getTitle(),
 			canGoBack: webContents.navigationHistory.canGoBack(),
 			canGoForward: webContents.navigationHistory.canGoForward(),
@@ -365,8 +380,9 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			lastScreenshot: this._lastScreenshot,
 			lastFavicon: this._lastFavicon,
 			lastError: this._lastError,
+			certificateError: this.session.trust.getCertificateError(url),
 			storageScope: this.session.storageScope,
-			zoomFactor: webContents.getZoomFactor()
+			browserZoomIndex: this._browserZoomIndex
 		};
 	}
 
@@ -390,7 +406,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			}
 		}
 
-		this._view.webContents.setZoomFactor(bounds.zoomFactor);
 		this._view.setBorderRadius(Math.round(bounds.cornerRadius * bounds.zoomFactor));
 		this._view.setBounds({
 			x: Math.round(bounds.x * bounds.zoomFactor),
@@ -398,6 +413,12 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			width: Math.round(bounds.width * bounds.zoomFactor),
 			height: Math.round(bounds.height * bounds.zoomFactor)
 		});
+	}
+
+	setBrowserZoomIndex(zoomIndex: number): void {
+		this._browserZoomIndex = Math.max(0, Math.min(zoomIndex, browserZoomFactors.length - 1));
+		const browserZoomFactor = browserZoomFactors[this._browserZoomIndex];
+		this._view.webContents.setZoomFactor(browserZoomFactor);
 	}
 
 	/**
@@ -570,7 +591,23 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	 * Clear all storage data for this browser view's session
 	 */
 	async clearStorage(): Promise<void> {
-		await this.session.electronSession.clearData();
+		await this.session.clearData();
+	}
+
+	/**
+	 * Trust a certificate for a given host and reload the page.
+	 */
+	async trustCertificate(host: string, fingerprint: string): Promise<void> {
+		await this.session.trust.trustCertificate(host, fingerprint);
+		this._view.webContents.reload();
+	}
+
+	/**
+	 * Revoke trust for a previously trusted certificate and close the view.
+	 */
+	async untrustCertificate(host: string, fingerprint: string): Promise<void> {
+		await this.session.trust.untrustCertificate(host, fingerprint);
+		this.dispose();
 	}
 
 	/**
@@ -629,7 +666,9 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		this._onDidClose.fire();
 
 		// Clean up the view and all its event listeners
-		this._view.webContents.close({ waitForBeforeUnload: false });
+		if (!this._view.webContents.isDestroyed()) {
+			this._view.webContents.close({ waitForBeforeUnload: false });
+		}
 
 		super.dispose();
 	}
@@ -644,6 +683,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 		const isArrowKey = keyCode >= KeyCode.LeftArrow && keyCode <= KeyCode.DownArrow;
 		const isNonEditingKey =
+			keyCode === KeyCode.Enter ||
 			keyCode === KeyCode.Escape ||
 			keyCode >= KeyCode.F1 && keyCode <= KeyCode.F24 ||
 			keyCode >= KeyCode.AudioVolumeMute;

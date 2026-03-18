@@ -187,5 +187,5 @@ export interface ICDPConnection extends IDisposable {
 	 * @param sessionId Optional session ID for targeting a specific session
 	 * @returns Promise resolving to the result or rejecting with a CDPError
 	 */
-	sendMessage(method: string, params?: unknown, sessionId?: string): Promise<unknown>;
+	sendCommand(method: string, params?: unknown, sessionId?: string): Promise<unknown>;
 }

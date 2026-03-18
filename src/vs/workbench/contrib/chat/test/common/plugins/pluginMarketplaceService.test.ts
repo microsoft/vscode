@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -12,10 +15,11 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 
 suite('PluginMarketplaceService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -31,6 +35,7 @@ suite('PluginMarketplaceService', () => {
 		assert.strictEqual(parsed.canonicalId, 'github:microsoft/vscode');
 		assert.strictEqual(parsed.displayLabel, 'microsoft/vscode');
 		assert.deepStrictEqual(parsed.cacheSegments, ['github.com', 'microsoft', 'vscode']);
+		assert.strictEqual(parsed.githubRepo, 'microsoft/vscode');
 	});
 
 	test('parses direct HTTPS and SSH marketplaces ending in .git', () => {
@@ -62,6 +67,33 @@ suite('PluginMarketplaceService', () => {
 		assert.strictEqual(parsed.cloneUrl, 'git@example.com:org/repo.git');
 		assert.strictEqual(parsed.canonicalId, 'git:example.com/org/repo.git');
 		assert.deepStrictEqual(parsed.cacheSegments, ['example.com', 'org', 'repo']);
+		assert.strictEqual(parsed.githubRepo, undefined);
+	});
+
+	test('populates githubRepo for GitHub HTTPS URLs', () => {
+		const withGit = parseMarketplaceReference('https://github.com/owner/repo.git');
+		assert.ok(withGit);
+		assert.strictEqual(withGit?.githubRepo, 'owner/repo');
+
+		const withoutGit = parseMarketplaceReference('https://github.com/owner/repo');
+		assert.ok(withoutGit);
+		assert.strictEqual(withoutGit?.githubRepo, 'owner/repo');
+	});
+
+	test('populates githubRepo for GitHub SCP-style URLs', () => {
+		const parsed = parseMarketplaceReference('git@github.com:owner/repo.git');
+		assert.ok(parsed);
+		assert.strictEqual(parsed?.githubRepo, 'owner/repo');
+	});
+
+	test('does not populate githubRepo for non-GitHub URLs', () => {
+		const https = parseMarketplaceReference('https://example.com/org/repo.git');
+		assert.ok(https);
+		assert.strictEqual(https?.githubRepo, undefined);
+
+		const scp = parseMarketplaceReference('git@gitlab.com:org/repo.git');
+		assert.ok(scp);
+		assert.strictEqual(scp?.githubRepo, undefined);
 	});
 
 	test('parses local file marketplace references', () => {
@@ -159,6 +191,14 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
 
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}

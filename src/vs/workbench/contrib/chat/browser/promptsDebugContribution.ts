@@ -14,7 +14,7 @@ import { IPromptDiscoveryInfo, IPromptsService } from '../common/promptSyntax/se
  *
  * This contribution listens for discovery events emitted by the prompts service
  * and forwards them as debug log entries. It also registers a resolve provider
- * so expanding a discovery event in the debug panel shows the full file list.
+ * so expanding a discovery event in the Agent Debug Logs shows the full file list.
  */
 export class PromptsDebugContribution extends Disposable implements IWorkbenchContribution {
 
@@ -51,17 +51,37 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 				}
 			}
 
+			// Enrich details with file paths so they appear in the event
+			// payload (e.g. forwarded via onDidReceiveChatDebugEvent to the
+			// extension's JSONL file logger).
+			let details = entry.details;
+			if (entry.discoveryInfo) {
+				const info = entry.discoveryInfo;
+				const loaded = info.files.filter(f => f.status === 'loaded').map(f => f.name ?? f.uri.path.split('/').pop() ?? f.uri.toString());
+				const skipped = info.files.filter(f => f.status === 'skipped').map(f => {
+					const label = f.uri.toString();
+					return f.skipReason ? `${label} (${f.skipReason})` : label;
+				});
+				const folders = info.sourceFolders?.map(sf => sf.uri.path) ?? [];
+				const parts: string[] = [];
+				if (details) { parts.push(details); }
+				if (loaded.length > 0) { parts.push(`loaded: [${truncateList(loaded)}]`); }
+				if (skipped.length > 0) { parts.push(`skipped: [${truncateList(skipped)}]`); }
+				if (folders.length > 0) { parts.push(`folders: [${truncateList(folders)}]`); }
+				details = parts.join(' | ') || undefined;
+			}
+
 			chatDebugService.log(
 				entry.sessionResource,
 				entry.name,
-				entry.details,
+				details,
 				undefined,
 				{ id: eventId, category: entry.category },
 			);
 		}));
 
 		// Register a resolve provider so expanding a discovery event
-		// in the debug panel shows the full file list.
+		// in the Agent Debug Logs shows the full file list.
 		this._register(chatDebugService.registerProvider({
 			provideChatDebugLog: async () => undefined,
 			resolveChatDebugLogEvent: async (eventId) => {
@@ -95,4 +115,17 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 			})),
 		};
 	}
+}
+
+const MAX_LIST_ITEMS = 100;
+
+/**
+ * Join a list of strings, truncating after {@link MAX_LIST_ITEMS} entries.
+ * Full details are available via {@link IChatDebugService.resolveEvent}.
+ */
+function truncateList(items: string[]): string {
+	if (items.length <= MAX_LIST_ITEMS) {
+		return items.join(', ');
+	}
+	return items.slice(0, MAX_LIST_ITEMS).join(', ') + ` (+${items.length - MAX_LIST_ITEMS} more)`;
 }

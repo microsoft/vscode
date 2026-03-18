@@ -6,7 +6,8 @@
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
 import { $, addDisposableListener, Dimension, EventType, IDomPosition, registerExternalFocusChecker } from '../../../../base/browser/dom.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
+import { Button, ButtonBar } from '../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -16,21 +17,27 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
-import { BrowserEditorInput } from './browserEditorInput.js';
+import { BrowserEditorInput } from '../common/browserEditorInput.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { IBrowserViewModel } from '../../browserView/common/browserView.js';
+import {
+	IBrowserEditorViewState,
+	IBrowserViewModel
+} from '../../browserView/common/browserView.js';
+import { IBrowserZoomService } from '../../browserView/common/browserZoomService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError, BrowserNewPageLocation } from '../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError, IBrowserViewCertificateError, BrowserNewPageLocation, browserZoomFactors, browserZoomLabel, browserZoomAccessibilityLabel } from '../../../../platform/browserView/common/browserView.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { isMacintosh, isLinux } from '../../../../base/common/platform.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { BrowserOverlayManager, BrowserOverlayType, IBrowserOverlayInfo } from './overlayManager.js';
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -43,6 +50,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { SiteInfoWidget } from './siteInfoWidget.js';
 import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { IElementAncestor, IElementData, IBrowserTargetLocator, getDisplayNameFromOuterHTML } from '../../../../platform/browserElements/common/browserElements.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
@@ -50,6 +58,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ChatConfiguration } from '../../chat/common/constants.js';
 import { Event } from '../../../../base/common/event.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -59,6 +68,8 @@ export const CONTEXT_BROWSER_HAS_URL = new RawContextKey<boolean>('browserHasUrl
 export const CONTEXT_BROWSER_HAS_ERROR = new RawContextKey<boolean>('browserHasError', false, localize('browser.hasError', "Whether the browser has a load error"));
 export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
 export const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('browserElementSelectionActive', false, localize('browser.elementSelectionActive', "Whether element selection is currently active"));
+export const CONTEXT_BROWSER_CAN_ZOOM_IN = new RawContextKey<boolean>('browserCanZoomIn', true, localize('browser.canZoomIn', "Whether the browser can zoom in further"));
+export const CONTEXT_BROWSER_CAN_ZOOM_OUT = new RawContextKey<boolean>('browserCanZoomOut', true, localize('browser.canZoomOut', "Whether the browser can zoom out further"));
 
 // Re-export find widget context keys for use in actions
 export { CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE };
@@ -79,10 +90,48 @@ function watchForAgentSharingContextChanges(contextKeyService: IContextKeyServic
  */
 const originalHtmlElementFocus = HTMLElement.prototype.focus;
 
+/**
+ * Transient zoom-level indicator that briefly appears inside the URL bar on zoom changes.
+ * All DOM construction, state, and auto-hide logic are self-contained here.
+ */
+class BrowserZoomPill extends Disposable {
+	readonly element: HTMLElement;
+	private readonly _icon: HTMLElement;
+	private readonly _label: HTMLElement;
+	private readonly _timeout = this._register(new MutableDisposable());
+
+	constructor() {
+		super();
+		this.element = $('.browser-zoom-pill');
+		// Don't announce this transient element; the zoom level is announced via IAccessibilityService.status() in showZoomPill()
+		this.element.setAttribute('aria-hidden', 'true');
+		this._icon = $('span');
+		this._label = $('span');
+		this.element.appendChild(this._icon);
+		this.element.appendChild(this._label);
+	}
+
+	/**
+	 * Briefly show the zoom level, then auto-hide after 750 ms.
+	 */
+	show(zoomLabel: string, isAtOrAboveDefault: boolean): void {
+		this._icon.className = ThemeIcon.asClassName(isAtOrAboveDefault ? Codicon.zoomIn : Codicon.zoomOut);
+		this._label.textContent = zoomLabel;
+		this.element.classList.add('visible');
+		// Reset auto-hide timer so rapid zoom actions extend the display
+		this._timeout.value = disposableTimeout(() => {
+			this.element.classList.remove('visible');
+		}, 750); // Chrome shows the zoom level for 1.5 seconds, but we show it for less because ours is non-interactive
+	}
+}
+
 class BrowserNavigationBar extends Disposable {
 	private readonly _urlInput: HTMLInputElement;
+	private readonly _urlDisplay: HTMLElement;
 	private readonly _shareButton: Button;
 	private readonly _shareButtonContainer: HTMLElement;
+	private readonly _siteInfoWidget: SiteInfoWidget;
+	private readonly _zoomPill: BrowserZoomPill;
 
 	constructor(
 		editor: BrowserEditor,
@@ -124,10 +173,26 @@ class BrowserNavigationBar extends Disposable {
 		// URL input container (wraps input + share toggle)
 		const urlContainer = $('.browser-url-container');
 
-		// URL input
+		// Site info widget (inside URL bar, left side, hidden by default)
+		const siteInfoContainer = $('.browser-site-info-slot');
+		this._siteInfoWidget = this._register(instantiationService.createInstance(
+			SiteInfoWidget,
+			siteInfoContainer,
+			editor
+		));
+
+		// URL input (hidden by default; shown when user clicks the display)
 		this._urlInput = $<HTMLInputElement>('input.browser-url-input');
 		this._urlInput.type = 'text';
 		this._urlInput.placeholder = localize('browser.urlPlaceholder', "Enter a URL");
+		this._urlInput.style.display = 'none';
+
+		// URL display — shows the URL when not editing; clickable to switch to input
+		const urlInputWrapper = $('.browser-url-input-wrapper');
+		this._urlDisplay = $('span.browser-url-display');
+		this._urlDisplay.tabIndex = 0;
+		urlInputWrapper.appendChild(this._urlDisplay);
+		urlInputWrapper.appendChild(this._urlInput);
 
 		// Share toggle button (inside URL bar, right side)
 		this._shareButtonContainer = $('.browser-share-toggle-container');
@@ -140,7 +205,11 @@ class BrowserNavigationBar extends Disposable {
 		this._shareButton.element.classList.add('browser-share-toggle');
 		this._shareButton.label = '$(agent)';
 
-		urlContainer.appendChild(this._urlInput);
+		this._zoomPill = this._register(new BrowserZoomPill());
+
+		urlContainer.appendChild(siteInfoContainer);
+		urlContainer.appendChild(urlInputWrapper);
+		urlContainer.appendChild(this._zoomPill.element);
 		urlContainer.appendChild(this._shareButtonContainer);
 
 		// Create actions toolbar (right side) with scoped context
@@ -180,6 +249,14 @@ class BrowserNavigationBar extends Disposable {
 			this._urlInput.select();
 		}));
 
+		// Switch back to display mode when the URL bar loses focus
+		this._register(addDisposableListener(this._urlInput, EventType.BLUR, () => {
+			this._showDisplay();
+		}));
+		this._register(addDisposableListener(this._urlDisplay, EventType.FOCUS, () => {
+			this._showInput();
+		}));
+
 		// Share toggle click handler
 		this._register(this._shareButton.onDidClick(() => {
 			editor.toggleShareWithAgent();
@@ -212,26 +289,88 @@ class BrowserNavigationBar extends Disposable {
 	 * Update the navigation bar state from a navigation event
 	 */
 	updateFromNavigationEvent(event: IBrowserViewNavigationEvent): void {
-		// URL input is updated, action enablement is handled by context keys
 		this._urlInput.value = event.url;
+		this._updateDisplay();
 	}
 
 	/**
 	 * Focus the URL input and select all text
 	 */
 	focusUrlInput(): void {
+		this._showInput();
+	}
+
+	/**
+	 * Show or hide the site info indicator
+	 */
+	setCertificateError(certError: IBrowserViewCertificateError | undefined): void {
+		this._siteInfoWidget.setCertificateError(certError);
+		this._urlInput.classList.toggle('cert-error', !!certError);
+		this._updateDisplay();
+	}
+
+	/**
+	 * Switch to input-editing mode: hide display, show and focus input.
+	 */
+	private _showInput(): void {
+		this._urlDisplay.style.display = 'none';
+		this._urlInput.style.display = '';
 		this._urlInput.select();
 		this._urlInput.focus();
 	}
 
+	/**
+	 * Briefly show the zoom level indicator pill, then auto-hide.
+	 */
+	showZoomLevel(zoomLabel: string, isAtOrAboveDefault: boolean): void {
+		this._zoomPill.show(zoomLabel, isAtOrAboveDefault);
+	}
+
+	/**
+	 * Switch to display mode: hide the input and show the styled display.
+	 */
+	private _showDisplay(): void {
+		this._urlInput.style.display = 'none';
+		this._urlDisplay.style.display = '';
+		this._updateDisplay();
+	}
+
+	/**
+	 * Rebuild the display element's content.  When there is a cert error
+	 * and the URL starts with "https://", the protocol is rendered with
+	 * a red strikethrough; otherwise the full URL is shown plainly.
+	 */
+	private _updateDisplay(): void {
+		const url = this._urlInput.value;
+		const hasCertError = this._urlInput.classList.contains('cert-error');
+		const httpsPrefix = 'https:';
+
+		// Clear previous content
+		this._urlDisplay.textContent = '';
+		this._urlDisplay.classList.toggle('placeholder', !url);
+
+		if (hasCertError && url.startsWith(httpsPrefix)) {
+			const protocol = document.createElement('span');
+			protocol.className = 'browser-url-display-protocol-bad';
+			protocol.textContent = httpsPrefix;
+			this._urlDisplay.appendChild(protocol);
+
+			const rest = document.createElement('span');
+			rest.textContent = url.slice(httpsPrefix.length);
+			this._urlDisplay.appendChild(rest);
+		} else {
+			this._urlDisplay.textContent = url || localize('browser.urlPlaceholder', "Enter a URL");
+		}
+	}
+
 	clear(): void {
 		this._urlInput.value = '';
+		this._siteInfoWidget.setCertificateError(undefined);
+		this._updateDisplay();
 	}
 }
 
 export class BrowserEditor extends EditorPane {
-	static readonly ID = 'workbench.editor.browser';
-
 	private _overlayVisible = false;
 	private _editorVisible = false;
 	private _currentKeyDownEvent: IBrowserViewKeyDownEvent | undefined;
@@ -254,6 +393,8 @@ export class BrowserEditor extends EditorPane {
 	private _hasErrorContext!: IContextKey<boolean>;
 	private _devToolsOpenContext!: IContextKey<boolean>;
 	private _elementSelectionActiveContext!: IContextKey<boolean>;
+	private _canZoomInContext!: IContextKey<boolean>;
+	private _canZoomOutContext!: IContextKey<boolean>;
 
 	private _model: IBrowserViewModel | undefined;
 	private readonly _inputDisposables = this._register(new DisposableStore());
@@ -261,6 +402,7 @@ export class BrowserEditor extends EditorPane {
 	private _elementSelectionCts: CancellationTokenSource | undefined;
 	private _consoleSessionCts: CancellationTokenSource | undefined;
 	private _screenshotTimeout: ReturnType<typeof setTimeout> | undefined;
+	private readonly _certActionButton = this._register(new MutableDisposable<ButtonBar>());
 
 	constructor(
 		group: IEditorGroup,
@@ -275,9 +417,11 @@ export class BrowserEditor extends EditorPane {
 		@IBrowserElementsService private readonly browserElementsService: IBrowserElementsService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILayoutService private readonly layoutService: ILayoutService
+		@ILayoutService private readonly layoutService: ILayoutService,
+		@IBrowserZoomService private readonly browserZoomService: IBrowserZoomService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
-		super(BrowserEditor.ID, group, telemetryService, themeService, storageService);
+		super(BrowserEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -295,6 +439,8 @@ export class BrowserEditor extends EditorPane {
 		this._hasErrorContext = CONTEXT_BROWSER_HAS_ERROR.bindTo(contextKeyService);
 		this._devToolsOpenContext = CONTEXT_BROWSER_DEVTOOLS_OPEN.bindTo(contextKeyService);
 		this._elementSelectionActiveContext = CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE.bindTo(contextKeyService);
+		this._canZoomInContext = CONTEXT_BROWSER_CAN_ZOOM_IN.bindTo(contextKeyService);
+		this._canZoomOutContext = CONTEXT_BROWSER_CAN_ZOOM_OUT.bindTo(contextKeyService);
 
 		// Currently this is always true since it is scoped to the editor container
 		CONTEXT_BROWSER_FOCUSED.bindTo(contextKeyService);
@@ -324,6 +470,9 @@ export class BrowserEditor extends EditorPane {
 			if (this._model) {
 				findWidget.setModel(this._model);
 			}
+			findWidget.onDidChangeHeight(() => {
+				this.layoutBrowserContainer();
+			});
 			return findWidget;
 		});
 		this._register(toDisposable(() => this._findWidget.rawValue?.dispose()));
@@ -399,6 +548,7 @@ export class BrowserEditor extends EditorPane {
 
 		this._storageScopeContext.set(this._model.storageScope);
 		this._devToolsOpenContext.set(this._model.isDevToolsOpen);
+		this.updateZoomContext();
 		this._updateSharingState(true);
 
 		// Update find widget with new model
@@ -417,12 +567,17 @@ export class BrowserEditor extends EditorPane {
 			this._updateSharingState(false);
 		}));
 
+		this._inputDisposables.add(this._model.onDidChangeZoom(() => {
+			this.updateZoomContext();
+		}));
+
 		// Initialize UI state and context keys from model
 		this.updateNavigationState({
 			url: this._model.url,
 			title: this._model.title,
 			canGoBack: this._model.canGoBack,
-			canGoForward: this._model.canGoForward
+			canGoForward: this._model.canGoForward,
+			certificateError: this._model.certificateError
 		});
 		this.setBackgroundImage(this._model.screenshot);
 
@@ -478,7 +633,7 @@ export class BrowserEditor extends EditorPane {
 			this._devToolsOpenContext.set(e.isDevToolsOpen);
 		}));
 
-		this._inputDisposables.add(this._model.onDidRequestNewPage(({ resource, location, position }) => {
+		this._inputDisposables.add(this._model.onDidRequestNewPage(({ resource, url, location, position }) => {
 			logBrowserOpen(this.telemetryService, (() => {
 				switch (location) {
 					case BrowserNewPageLocation.Background: return 'browserLinkBackground';
@@ -488,15 +643,17 @@ export class BrowserEditor extends EditorPane {
 			})());
 
 			const targetGroup = location === BrowserNewPageLocation.NewWindow ? AUX_WINDOW_GROUP : this.group;
+			const viewState: IBrowserEditorViewState = { url };
 			this.editorService.openEditor({
-				resource: URI.from(resource),
+				resource: URI.revive(resource),
 				options: {
 					pinned: true,
 					inactive: location === BrowserNewPageLocation.Background,
 					auxiliary: {
 						bounds: position,
 						compact: true
-					}
+					},
+					viewState
 				}
 			}, targetGroup);
 		}));
@@ -505,7 +662,7 @@ export class BrowserEditor extends EditorPane {
 			this.checkOverlays();
 		}));
 
-		// Listen for zoom level changes and update browser view zoom factor
+		// Listen for workbench zoom level changes and update browser view placeholder screenshot's zoom factor
 		this._inputDisposables.add(onDidChangeZoomLevel(targetWindowId => {
 			if (targetWindowId === this.window.vscodeWindowId) {
 				// Update CSS variable for size calculations
@@ -618,20 +775,36 @@ export class BrowserEditor extends EditorPane {
 
 		const error: IBrowserViewLoadError | undefined = this._model.error;
 		this._hasErrorContext.set(!!error);
+
+		this._navigationBar.setCertificateError(
+			this._model.certificateError ?? error?.certificateError
+		);
+
 		if (error) {
 			// Update error content
+			this._certActionButton.clear();
 
 			while (this._errorContainer.firstChild) {
 				this._errorContainer.removeChild(this._errorContainer.firstChild);
 			}
 
 			const errorContent = $('.browser-error-content');
+			const isCertError = !!error.certificateError;
+
+			const errorIcon = $('.browser-error-icon');
+			errorIcon.classList.toggle('cert-error', isCertError);
+			errorIcon.appendChild(renderIcon(isCertError ? Codicon.workspaceUntrusted : Codicon.globe));
+
 			const errorTitle = $('.browser-error-title');
-			errorTitle.textContent = localize('browser.loadErrorLabel', "Failed to Load Page");
+			errorTitle.textContent = isCertError
+				? localize('browser.certErrorLabel', "Certificate Error")
+				: localize('browser.loadErrorLabel', "Failed to Load Page");
 
 			const errorMessage = $('.browser-error-detail');
 			const errorText = $('span');
-			errorText.textContent = `${error.errorDescription} (${error.errorCode})`;
+			errorText.textContent = isCertError
+				? localize('browser.certErrorDescription', "This site's security certificate could not be verified.")
+				: `${error.errorDescription} (${error.errorCode})`;
 			errorMessage.appendChild(errorText);
 
 			const errorUrl = $('.browser-error-detail');
@@ -643,9 +816,81 @@ export class BrowserEditor extends EditorPane {
 			errorUrl.appendChild(document.createTextNode(' '));
 			errorUrl.appendChild(urlValue);
 
+			errorContent.appendChild(errorIcon);
 			errorContent.appendChild(errorTitle);
 			errorContent.appendChild(errorMessage);
+
+			// Show cert error name below description, above URL
+			if (error.certificateError) {
+				const extraWarning = $('b.browser-error-detail');
+				extraWarning.textContent = localize('browser.certErrorExtraWarning', " Your connection is not private.");
+				errorMessage.appendChild(extraWarning);
+			}
+
 			errorContent.appendChild(errorUrl);
+
+			// Show certificate details table and actions
+			if (error.certificateError) {
+				const certError = error.certificateError;
+
+				const certDetailsTable = $('.browser-cert-details-table');
+
+				const heading = $('.browser-cert-details-heading');
+				heading.textContent = localize('browser.certDetailsHeading', "Certificate Details");
+				certDetailsTable.appendChild(heading);
+
+				const addRow = (label: string, value: string) => {
+					const row = $('.browser-cert-details-row');
+					const labelEl = $('.browser-cert-details-label');
+					labelEl.textContent = label;
+					const valueEl = $('.browser-cert-details-value');
+					valueEl.textContent = value;
+					row.appendChild(labelEl);
+					row.appendChild(valueEl);
+					certDetailsTable.appendChild(row);
+				};
+
+				addRow(localize('browser.certError', "Error"), certError.error);
+				addRow(localize('browser.certIssuer', "Issuer"), certError.issuerName);
+				addRow(localize('browser.certSubject', "Subject"), certError.subjectName);
+
+				const formatDate = (epoch: number) => new Date(epoch * 1000).toLocaleDateString();
+				addRow(
+					localize('browser.certValid', "Valid"),
+					`${formatDate(certError.validStart)} - ${formatDate(certError.validExpiry)}`
+				);
+
+				addRow(localize('browser.certFingerprint', "Fingerprint"), certError.fingerprint);
+
+				errorContent.appendChild(certDetailsTable);
+
+				const actionContainer = $('.browser-cert-action');
+				actionContainer.classList.toggle('reverse', isMacintosh || isLinux);
+				const canGoBack = this._model.canGoBack;
+				const buttonBar = new ButtonBar(actionContainer);
+				this._certActionButton.value = buttonBar;
+
+				const primaryButton = buttonBar.addButton({ ...defaultButtonStyles });
+				primaryButton.label = canGoBack
+					? localize('browser.certGoBack', "Go Back")
+					: localize('browser.certCloseTab', "Close Tab");
+				primaryButton.onDidClick(() => {
+					if (canGoBack) {
+						this.goBack();
+					} else {
+						this.group?.closeEditor(this.input);
+					}
+				});
+
+				const secondaryButton = buttonBar.addButton({ ...defaultButtonStyles, secondary: true });
+				secondaryButton.label = localize('browser.certProceed', "Proceed anyway (unsafe)");
+				secondaryButton.onDidClick(() => {
+					this._model?.trustCertificate(certError.host, certError.fingerprint);
+				});
+
+				errorContent.appendChild(actionContainer);
+			}
+
 			this._errorContainer.appendChild(errorContent);
 
 			this.setBackgroundImage(undefined);
@@ -658,6 +903,18 @@ export class BrowserEditor extends EditorPane {
 
 	getUrl(): string | undefined {
 		return this._model?.url;
+	}
+
+	getCertificateError(): IBrowserViewCertificateError | undefined {
+		return this._model?.certificateError;
+	}
+
+	/**
+	 * Revoke trust for the certificate and close this editor tab.
+	 */
+	revokeAndClose(certError: IBrowserViewCertificateError): void {
+		// This method automatically closes the browser view.
+		this._model?.untrustCertificate(certError.host, certError.fingerprint);
 	}
 
 	private _updateSharingState(isInitialState: boolean): void {
@@ -715,6 +972,41 @@ export class BrowserEditor extends EditorPane {
 
 	async clearStorage(): Promise<void> {
 		return this._model?.clearStorage();
+	}
+
+	async zoomIn(): Promise<void> {
+		await this._model?.zoomIn();
+		this.showZoomPill();
+	}
+
+	async zoomOut(): Promise<void> {
+		await this._model?.zoomOut();
+		this.showZoomPill();
+	}
+
+	async resetZoom(): Promise<void> {
+		await this._model?.resetZoom();
+		this.showZoomPill();
+	}
+
+	private showZoomPill(): void {
+		if (!this._model) {
+			return;
+		}
+		const defaultIndex = this.browserZoomService.getEffectiveZoomIndex(undefined, false);
+		const defaultFactor = browserZoomFactors[defaultIndex];
+		const currentFactor = this._model.zoomFactor;
+		const label = browserZoomLabel(currentFactor);
+		this._navigationBar.showZoomLevel(label, currentFactor >= defaultFactor);
+		// Announce the new zoom level to screen readers (polite, non-interruptive).
+		this.accessibilityService.status(browserZoomAccessibilityLabel(currentFactor));
+	}
+
+	private updateZoomContext(): void {
+		if (this._model) {
+			this._canZoomInContext.set(this._model.canZoomIn);
+			this._canZoomOutContext.set(this._model.canZoomOut);
+		}
 	}
 
 	/**
@@ -803,51 +1095,7 @@ export class BrowserEditor extends EditorPane {
 				throw new Error('Element data not found');
 			}
 
-			const bounds = elementData.bounds;
-			const toAttach: IChatRequestVariableEntry[] = [];
-
-			// Prepare HTML/CSS context
-			const displayName = getDisplayNameFromOuterHTML(elementData.outerHTML);
-			const attachCss = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachCSS');
-			const value = this.createElementContextValue(elementData, displayName, attachCss);
-
-			toAttach.push({
-				id: 'element-' + Date.now(),
-				name: displayName,
-				fullName: displayName,
-				value: value,
-				modelDescription: attachCss
-					? 'Structured browser element context with HTML path, attributes, and computed styles.'
-					: 'Structured browser element context with HTML path and attributes.',
-				kind: 'element',
-				icon: ThemeIcon.fromId(Codicon.layout.id),
-				ancestors: elementData.ancestors,
-				attributes: elementData.attributes,
-				computedStyles: attachCss ? elementData.computedStyles : undefined,
-				dimensions: elementData.dimensions,
-				innerText: elementData.innerText,
-			});
-
-			// Attach screenshot if enabled
-			const attachImages = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages');
-			if (attachImages && this._model) {
-				const screenshotBuffer = await this._model.captureScreenshot({
-					quality: 90,
-					rect: bounds
-				});
-
-				toAttach.push({
-					id: 'element-screenshot-' + Date.now(),
-					name: 'Element Screenshot',
-					fullName: 'Element Screenshot',
-					kind: 'image',
-					value: screenshotBuffer.buffer
-				});
-			}
-
-			// Attach to chat widget
-			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
-			widget?.attachmentModel?.addContext(...toAttach);
+			const { attachCss, attachImages } = await this.attachElementDataToChat(elementData);
 
 			type IntegratedBrowserAddElementToChatAddedEvent = {
 				attachCss: boolean;
@@ -992,6 +1240,53 @@ export class BrowserEditor extends EditorPane {
 		return sections.join('\n\n');
 	}
 
+	private async attachElementDataToChat(elementData: IElementData): Promise<{ attachCss: boolean; attachImages: boolean }> {
+		const bounds = elementData.bounds;
+		const toAttach: IChatRequestVariableEntry[] = [];
+
+		const displayName = getDisplayNameFromOuterHTML(elementData.outerHTML);
+		const attachCss = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachCSS');
+		const value = this.createElementContextValue(elementData, displayName, attachCss);
+
+		toAttach.push({
+			id: 'element-' + Date.now(),
+			name: displayName,
+			fullName: displayName,
+			value: value,
+			modelDescription: attachCss
+				? 'Structured browser element context with HTML path, attributes, and computed styles.'
+				: 'Structured browser element context with HTML path and attributes.',
+			kind: 'element',
+			icon: ThemeIcon.fromId(Codicon.layout.id),
+			ancestors: elementData.ancestors,
+			attributes: elementData.attributes,
+			computedStyles: attachCss ? elementData.computedStyles : undefined,
+			dimensions: elementData.dimensions,
+			innerText: elementData.innerText,
+		});
+
+		const attachImages = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages');
+		if (attachImages && this._model) {
+			const screenshotBuffer = await this._model.captureScreenshot({
+				quality: 90,
+				rect: bounds
+			});
+
+			toAttach.push({
+				id: 'element-screenshot-' + Date.now(),
+				name: 'Element Screenshot',
+				fullName: 'Element Screenshot',
+				kind: 'image',
+				value: screenshotBuffer.buffer
+			});
+		}
+
+		const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
+		widget?.attachmentModel?.addContext(...toAttach);
+
+		return { attachCss, attachImages };
+	}
+
 	private formatElementPath(ancestors: readonly IElementAncestor[] | undefined): string | undefined {
 		if (!ancestors || ancestors.length === 0) {
 			return undefined;
@@ -1060,6 +1355,7 @@ export class BrowserEditor extends EditorPane {
 	private updateNavigationState(event: IBrowserViewNavigationEvent): void {
 		// Update navigation bar UI
 		this._navigationBar.updateFromNavigationEvent(event);
+		this._navigationBar.setCertificateError(event.certificateError);
 
 		// Update context keys for command enablement
 		this._canGoBackContext.set(event.canGoBack);
@@ -1149,6 +1445,34 @@ export class BrowserEditor extends EditorPane {
 		this._currentKeyDownEvent = keyEvent;
 
 		try {
+			const isEnterKey =
+				keyEvent.code === 'Enter' ||
+				keyEvent.code === 'NumpadEnter' ||
+				keyEvent.key === 'Enter' ||
+				keyEvent.key === 'Return';
+			if (this._elementSelectionCts && isEnterKey) {
+				const cts = this._elementSelectionCts;
+				const resourceUri = this.input?.resource;
+				if (!resourceUri) {
+					return;
+				}
+
+				const locator: IBrowserTargetLocator = { browserViewId: BrowserViewUri.getId(resourceUri) };
+				const { width, height } = this._browserContainer.getBoundingClientRect();
+				const elementData = await this.browserElementsService.getFocusedElementData({ x: 0, y: 0, width, height }, cts.token, locator);
+				if (!elementData) {
+					return;
+				}
+
+				await this.attachElementDataToChat(elementData);
+				cts.dispose();
+				if (this._elementSelectionCts === cts) {
+					this._elementSelectionCts = undefined;
+					this._elementSelectionActiveContext.set(false);
+				}
+				return;
+			}
+
 			const syntheticEvent = new KeyboardEvent('keydown', keyEvent);
 			const standardEvent = new StandardKeyboardEvent(syntheticEvent);
 
@@ -1232,6 +1556,8 @@ export class BrowserEditor extends EditorPane {
 		this._storageScopeContext.reset();
 		this._devToolsOpenContext.reset();
 		this._elementSelectionActiveContext.reset();
+		this._canZoomInContext.reset();
+		this._canZoomOutContext.reset();
 
 		this._navigationBar.clear();
 		this.setBackgroundImage(undefined);

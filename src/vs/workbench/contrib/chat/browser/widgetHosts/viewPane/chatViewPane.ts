@@ -722,9 +722,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Update the toolbar context with new sessionId
 		this.updateActions();
 
-		// Mark the old model as read when closing
+		// Mark the old model as read when closing unless explicitly marked unread
 		if (oldModelResource) {
-			this.agentSessionsService.model.getSession(oldModelResource)?.setRead(true);
+			const oldSession = this.agentSessionsService.model.getSession(oldModelResource);
+			if (oldSession && !oldSession.isMarkedUnread()) {
+				oldSession.setRead(true);
+			}
 		}
 
 		return model;
@@ -750,7 +753,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
 		if (contribution) {
-			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
+			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType);
 		} else {
 			this._widget.unlockFromCodingAgent();
 		}

@@ -15,6 +15,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
@@ -47,7 +48,11 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 						id: MenuId.ChatEditingSessionChangesToolbar,
 						group: 'navigation',
 						order: 7,
-						when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.hasAgentSessionChanges),
+						when: ContextKeyExpr.and(
+							IsSessionsWindowContext,
+							ChatContextKeys.hasAgentSessionChanges,
+							ChatContextKeys.agentSessionType.notEqualsTo(AgentSessionProviders.Cloud),
+						),
 					},
 				],
 			});

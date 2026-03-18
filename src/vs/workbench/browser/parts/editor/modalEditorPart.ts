@@ -27,6 +27,7 @@ import { GroupDirection, GroupsOrder, IModalEditorPart, GroupActivationReason } 
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext } from '../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, Verbosity } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ResourceLabel } from '../../labels.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
@@ -137,7 +138,7 @@ export class ModalEditorPart {
 				EventHelper.stop(e, true);
 
 				// Close modal when clicking outside the dialog
-				editorPart.close();
+				void editorPart.close();
 			}
 		}));
 
@@ -284,7 +285,9 @@ export class ModalEditorPart {
 
 		// Create label
 		const label = disposables.add(scopedInstantiationService.createInstance(ResourceLabel, titleElement, {}));
-		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, () => {
+		const labelChangeDisposable = disposables.add(new MutableDisposable());
+		let trackedEditor: EditorInput | undefined;
+		const updateLabel = () => {
 			const activeEditor = editorPart.activeGroup.activeEditor;
 			if (activeEditor) {
 				const { labelFormat } = editorPart.partOptions;
@@ -300,10 +303,19 @@ export class ModalEditorPart {
 						extraClasses: activeEditor.getLabelExtraClasses(),
 					}
 				);
+
+				// Only (re)subscribe when the active editor changes, not on every label update
+				if (trackedEditor !== activeEditor) {
+					trackedEditor = activeEditor;
+					labelChangeDisposable.value = activeEditor.onDidChangeLabel(() => updateLabel());
+				}
 			} else {
 				label.element.clear();
+				trackedEditor = undefined;
+				labelChangeDisposable.clear();
 			}
-		}));
+		};
+		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, updateLabel));
 
 		// Handle double-click on header to toggle maximize
 		disposables.add(addDisposableListener(headerElement, EventType.DBLCLICK, e => {
@@ -425,31 +437,66 @@ export class ModalEditorPart {
 		}));
 
 		disposables.add(resizableElement.onDidResize(e => {
-			const deltaWidth = e.dimension.width - resizeStartSize.width;
-			const deltaHeight = e.dimension.height - resizeStartSize.height;
 
-			// Adjust position to keep the opposite edge fixed
-			if (e.west) {
-				resizableElement.domNode.style.left = `${resizeStartLeft - deltaWidth}px`;
-			}
-			if (e.north) {
-				resizableElement.domNode.style.top = `${resizeStartTop - deltaHeight}px`;
+			// Clamp position and size to window bounds during active resize
+			// (skip on `done` — values are already correct from prior events,
+			//  and directional flags are not set on the done event)
+			if (!e.done) {
+				const containerDimension = this.layoutService.mainContainerDimension;
+				const titleBarOffset = this.layoutService.mainContainerOffset.top;
+
+				const deltaWidth = e.dimension.width - resizeStartSize.width;
+				const deltaHeight = e.dimension.height - resizeStartSize.height;
+
+				let newLeft = e.west ? resizeStartLeft - deltaWidth : resizeStartLeft;
+				let newTop = e.north ? resizeStartTop - deltaHeight : resizeStartTop;
+				let newWidth = e.dimension.width;
+				let newHeight = e.dimension.height;
+
+				if (newLeft < 0) {
+					newWidth += newLeft;
+					newLeft = 0;
+				}
+				if (newTop < titleBarOffset) {
+					newHeight += newTop - titleBarOffset;
+					newTop = titleBarOffset;
+				}
+				if (newLeft + newWidth > containerDimension.width) {
+					newWidth = containerDimension.width - newLeft;
+				}
+				if (newTop + newHeight > containerDimension.height) {
+					newHeight = containerDimension.height - newTop;
+				}
+
+				// Apply corrected size if it was clamped
+				if (newWidth !== e.dimension.width || newHeight !== e.dimension.height) {
+					resizableElement.layout(newHeight, newWidth);
+				}
+
+				// Adjust position to keep the opposite edge fixed
+				if (e.west) {
+					resizableElement.domNode.style.left = `${newLeft}px`;
+				}
+				if (e.north) {
+					resizableElement.domNode.style.top = `${newTop}px`;
+				}
 			}
 
 			// Update editor part layout during resize
-			editorPart.layout(e.dimension.width - MODAL_BORDER_SIZE, e.dimension.height - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT, 0, 0);
+			const size = resizableElement.size;
+			editorPart.layout(size.width - MODAL_BORDER_SIZE, size.height - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT, 0, 0);
 
 			if (e.done) {
 				isResizing = false;
 
 				// Check if size matches the default (from sash double-click reset)
 				const defaultSize = getDefaultSize();
-				if (e.dimension.width === defaultSize.width && e.dimension.height === defaultSize.height) {
+				if (size.width === defaultSize.width && size.height === defaultSize.height) {
 					editorPart.size = undefined;
 					editorPart.position = undefined;
 					layoutModal();
 				} else {
-					editorPart.size = new Dimension(e.dimension.width, e.dimension.height);
+					editorPart.size = new Dimension(size.width, size.height);
 					editorPart.position = {
 						left: parseFloat(resizableElement.domNode.style.left) || 0,
 						top: parseFloat(resizableElement.domNode.style.top) || 0,
@@ -737,38 +784,37 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 			this.previousMainWindowActiveElement.focus();
 		}
 
-		this.doClose({ mergeConfirmingEditorsToMainPart: false });
+		this._onWillClose.fire();
 	}
 
 	protected override saveState(): void {
 		return; // disabled, modal editor part state is not persisted
 	}
 
-	close(options?: { mergeAllEditorsToMainPart?: boolean }): boolean {
-		return this.doClose({ ...options, mergeConfirmingEditorsToMainPart: true });
-	}
+	async close(options?: { mergeAllEditorsToMainPart?: boolean }): Promise<boolean> {
 
-	private doClose(options?: { mergeAllEditorsToMainPart?: boolean; mergeConfirmingEditorsToMainPart?: boolean }): boolean {
-		let result = true;
-		if (options?.mergeConfirmingEditorsToMainPart) {
-
-			// First close all editors that are non-confirming (unless we merge all)
-			if (!options.mergeAllEditorsToMainPart) {
-				for (const group of this.groups) {
-					group.closeAllEditors({ excludeConfirming: true });
-				}
-			}
-
-			// Then merge remaining to main part
-			result = this.mergeGroupsToMainPart();
+		// Merge all editors to main part (editors stay open, no confirmation needed)
+		if (options?.mergeAllEditorsToMainPart) {
+			const result = this.mergeGroupsToMainPart();
 			if (!result) {
-				return false; // Do not close when editors could not be merged back
+				return false;
+			}
+		}
+
+		// Close all editors in each group, leveraging the existing
+		// confirmation infrastructure for dirty editors
+		else {
+			for (const group of this.groups) {
+				const closed = await group.closeAllEditors();
+				if (!closed) {
+					return false; // user cancelled
+				}
 			}
 		}
 
 		this._onWillClose.fire();
 
-		return result;
+		return true;
 	}
 
 	private mergeGroupsToMainPart(): boolean {

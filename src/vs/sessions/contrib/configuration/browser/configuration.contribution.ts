@@ -8,6 +8,8 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultConfigurations([{
 	overrides: {
+		'breadcrumbs.enabled': false,
+
 		'chat.experimentalSessionsWindowOverride': true,
 		'chat.hookFilesLocations': {
 			'.claude/settings.local.json': false,
@@ -20,15 +22,18 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'chat.implicitContext.suggestedContext': false,
 		'chat.implicitContext.enabled': { 'panel': 'never' },
 		'chat.tools.terminal.enableAutoApprove': true,
-		'github.copilot.chat.githubMcpServer.enabled': true,
-
-		'breadcrumbs.enabled': false,
 
 		'diffEditor.hideUnchangedRegions.enabled': true,
 
 		'extensions.ignoreRecommendations': true,
 
 		'files.autoSave': 'afterDelay',
+		'files.watcherExclude': {
+			'**/.git/objects/**': true,
+			'**/.git/subtree-cache/**': true,
+			'**/node_modules/*/**': true /* TODO@bpasero see if this helps improve perf */,
+			'**/.hg/store/**': true
+		},
 
 		'git.autofetch': true,
 		'git.branchRandomName.enable': true,
@@ -39,14 +44,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 			'markdown': true,
 			'plaintext': true,
 		},
-
 		'github.copilot.chat.claudeCode.enabled': true,
 		'github.copilot.chat.cli.branchSupport.enabled': true,
-		'github.copilot.chat.languageContext.typescript.enabled': true,
+		'github.copilot.chat.cli.isolationOption.enabled': false,
 		'github.copilot.chat.cli.mcp.enabled': true,
+		'github.copilot.chat.githubMcpServer.enabled': true,
+		'github.copilot.chat.languageContext.typescript.enabled': true,
 
 		'inlineChat.affordance': 'editor',
 		'inlineChat.renderMode': 'hover',
+
+		'search.quickOpen.includeHistory': false,
 
 		'terminal.integrated.initialHint': false,
 
@@ -57,8 +65,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'workbench.layoutControl.type': 'toggles',
 		'workbench.editor.useModal': 'all',
 		'workbench.panel.showLabels': false,
-		'workbench.colorTheme': 'Experimental Dark',
-		'search.quickOpen.includeHistory': false,
+		'workbench.colorTheme': 'VS Code Dark',
 
 		'window.menuStyle': 'custom',
 		'window.dialogStyle': 'custom',

@@ -155,6 +155,8 @@ export function buildModelPickerItems(
 	useGroupedModelPicker: boolean,
 	manageModelsAction: IActionWidgetDropdownAction | undefined,
 	chatEntitlementService: IChatEntitlementService,
+	showUnavailableFeatured: boolean,
+	showFeatured: boolean,
 	hoverPosition?: IHoverPositionOptions,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
@@ -171,7 +173,6 @@ export function buildModelPickerItems(
 	}
 
 	if (useGroupedModelPicker) {
-		const isPro = isProUser(chatEntitlementService.entitlement);
 		let otherModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 		if (models.length) {
 			// Collect all available models into lookup maps
@@ -194,7 +195,8 @@ export function buildModelPickerItems(
 			const resolveModel = (id: string) => allModelsMap.get(id) ?? modelsByMetadataId.get(id);
 
 			const getUnavailableReason = (entry: IModelControlEntry): 'upgrade' | 'update' | 'admin' => {
-				if (!isPro) {
+				const isBusinessOrEnterpriseUser = chatEntitlementService.entitlement === ChatEntitlement.Business || chatEntitlementService.entitlement === ChatEntitlement.Enterprise;
+				if (!isBusinessOrEnterpriseUser) {
 					return 'upgrade';
 				}
 				if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
@@ -255,21 +257,28 @@ export function buildModelPickerItems(
 			}
 
 			// Featured models from control manifest
-			for (const [entryId, entry] of Object.entries(controlModels)) {
-				if (!entry.featured || placed.has(entryId)) {
-					continue;
-				}
-				const model = resolveModel(entryId);
-				if (model && !placed.has(model.identifier)) {
-					markPlaced(model.identifier, model.metadata.id);
-					if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
-						promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: 'update' });
-					} else {
-						promotedItems.push({ kind: 'available', model });
+			if (showFeatured) {
+				for (const [entryId, entry] of Object.entries(controlModels)) {
+					if (!entry.featured || placed.has(entryId)) {
+						continue;
 					}
-				} else if (!model && !entry.exists) {
-					markPlaced(entryId);
-					promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: getUnavailableReason(entry) });
+					const model = resolveModel(entryId);
+					if (model && !placed.has(model.identifier)) {
+						if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
+							if (showUnavailableFeatured) {
+								markPlaced(model.identifier, model.metadata.id);
+								promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: 'update' });
+							}
+						} else {
+							markPlaced(model.identifier, model.metadata.id);
+							promotedItems.push({ kind: 'available', model });
+						}
+					} else if (!model && !entry.exists) {
+						if (showUnavailableFeatured) {
+							markPlaced(entryId);
+							promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: getUnavailableReason(entry) });
+						}
+					}
 				}
 			}
 
@@ -590,6 +599,8 @@ export class ModelPickerWidget extends Disposable {
 			this._delegate.useGroupedModelPicker(),
 			!showFilter ? manageModelsAction : undefined,
 			this._entitlementService,
+			this._delegate.showUnavailableFeatured(),
+			this._delegate.showFeatured(),
 			this._hoverPosition,
 		);
 
