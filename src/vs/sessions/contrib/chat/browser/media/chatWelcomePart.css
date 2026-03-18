@@ -291,6 +291,34 @@
 	margin-left: 2px;
 }
 
+.sessions-chat-picker-slot .action-label.warning {
+	color: var(--vscode-problemsWarningIcon-foreground);
+	opacity: 0.75;
+}
+
+.sessions-chat-picker-slot .action-label.warning .codicon {
+	color: var(--vscode-problemsWarningIcon-foreground) !important;
+}
+
+.sessions-chat-picker-slot .action-label.warning:hover {
+	color: var(--vscode-problemsWarningIcon-foreground);
+	opacity: 1;
+}
+
+.sessions-chat-picker-slot .action-label.info {
+	color: var(--vscode-problemsInfoIcon-foreground);
+	opacity: 0.75;
+}
+
+.sessions-chat-picker-slot .action-label.info .codicon {
+	color: var(--vscode-problemsInfoIcon-foreground) !important;
+}
+
+.sessions-chat-picker-slot .action-label.info:hover {
+	color: var(--vscode-problemsInfoIcon-foreground);
+	opacity: 1;
+}
+
 /* Sync indicator: a slim non-interactive-looking separator before the button */
 .sessions-chat-sync-indicator {
 	margin-left: 4px;
