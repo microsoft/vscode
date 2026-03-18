@@ -589,7 +589,8 @@ export class UnpinAgentSessionAction extends BaseAgentSessionAction {
 				order: 0,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					ChatContextKeys.isPinnedAgentSession
+					ChatContextKeys.isPinnedAgentSession,
+					ChatContextKeys.isArchivedAgentSession.negate()
 				),
 			}, {
 				id: MenuId.AgentSessionsContext,
@@ -597,7 +598,8 @@ export class UnpinAgentSessionAction extends BaseAgentSessionAction {
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					ChatContextKeys.isPinnedAgentSession
+					ChatContextKeys.isPinnedAgentSession,
+					ChatContextKeys.isArchivedAgentSession.negate()
 				),
 			}]
 		});
