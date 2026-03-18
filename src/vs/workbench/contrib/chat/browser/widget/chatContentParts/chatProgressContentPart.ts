@@ -27,6 +27,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -174,9 +175,25 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService
 	) {
+		const defaultLabel = localize('workingMessage', "Working");
+		const config = configurationService.getValue<{ mode?: 'replace' | 'append'; phrases?: string[] }>(ChatConfiguration.ThinkingPhrases);
+		const customPhrases = Array.isArray(config?.phrases)
+			? config.phrases
+				.filter((phrase): phrase is string => typeof phrase === 'string')
+				.map(phrase => phrase.trim())
+				.filter(phrase => phrase.length > 0)
+			: [];
+		let label: string;
+		if (customPhrases.length > 0) {
+			const pool = config?.mode === 'replace' ? customPhrases : [defaultLabel, ...customPhrases];
+			label = pool[Math.floor(Math.random() * pool.length)];
+		} else {
+			label = defaultLabel;
+		}
+
 		const progressMessage: IChatProgressMessage = {
 			kind: 'progressMessage',
-			content: new MarkdownString().appendText(localize('workingMessage', "Working"))
+			content: new MarkdownString().appendText(label)
 		};
 		super(progressMessage, chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, true, instantiationService, chatMarkdownAnchorService, configurationService);
 		this._register(languageModelToolsService.onDidPrepareToolCallBecomeUnresponsive(e => {

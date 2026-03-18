@@ -157,7 +157,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private content: IChatThinkingPart;
 	private currentThinkingValue: string;
 	private currentTitle: string;
-	private defaultTitle = localize('chat.thinking.header', 'Working');
+	private defaultTitle = localize('chat.thinking.header', 'Thinking');
+	private readonly workingTitle = localize('chat.thinking.header.working', 'Working');
 	private textContainer!: HTMLElement;
 	private readonly _markdownResult = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private wrapper!: HTMLElement;
@@ -247,7 +248,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	) {
 		const initialText = extractTextFromPart(content);
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
-			?? 'Working';
+			?? localize('chat.thinking.header.initial', 'Thinking');
 
 		super(extractedTitle, context, undefined, hoverService, configurationService);
 
@@ -1309,6 +1310,11 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.toolInvocationCount++;
 		}
 
+		// Shift default title from 'Thinking' to 'Working' once we have tool calls
+		if (this.toolInvocationCount === 1) {
+			this.defaultTitle = this.workingTitle;
+		}
+
 		let toolCallLabel: string;
 
 		const isToolInvocation = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized');
@@ -1594,7 +1600,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 
 		this.lastExtractedTitle = title;
-		const thinkingLabel = `Working: ${title}`;
+		const thinkingLabel = `${this.defaultTitle}: ${title}`;
 		this.currentTitle = thinkingLabel;
 
 		if (!this._collapseButton) {
@@ -1609,7 +1615,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.titleShimmerSpan = $('span.chat-thinking-title-shimmer');
 			labelElement.appendChild(this.titleShimmerSpan);
 		}
-		this.titleShimmerSpan.textContent = 'Working: ';
+		this.titleShimmerSpan.textContent = `${this.defaultTitle}: `;
 
 		// Dispose previous detail rendering
 		this._titleDetailRendered.clear();
