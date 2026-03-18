@@ -259,9 +259,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				modeTools[RunSubagentTool.Id] = currentDepth + 1 < maxDepth; // only enable the Run Subagent tool if we are under the max depth limit
 				modeTools[ManageTodoListToolToolId] = false;
 				modeTools['copilot_askQuestions'] = false;
-			}
-			if (maxDepth >= 0) {
-				this.logService.debug(`RunSubagentTool: Enable nested subagents: session ${sessionKey}, currentDepth: ${currentDepth}, maxDepth: ${maxDepth}`);
+
+				if (maxDepth > 0) {
+					this.logService.debug(`RunSubagentTool: Nested subagents enabling ${modeTools[RunSubagentTool.Id]}: session ${sessionKey}, currentDepth: ${currentDepth}, maxDepth: ${maxDepth}`);
+				}
 			}
 
 			const variableSet = new ChatRequestVariableSet();
