@@ -784,6 +784,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('tips.enabled', "When enabled, will show the watermark tips when no editor is open.")
 			},
+			[LayoutSettings.SHADOWS]: {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('shadows', "Controls whether shadow effects are shown around the side panels and other workbench elements.")
+			},
 		}
 	});
 
