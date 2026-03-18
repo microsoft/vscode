@@ -22,7 +22,7 @@ import { IChatProgress, IChatService } from '../../chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../constants.js';
 import { ILanguageModelsService } from '../../languageModels.js';
 import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
-import { IChatAgentRequest, IChatAgentService } from '../../participants/chatAgents.js';
+import { IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../participants/chatAgents.js';
 import { ComputeAutomaticInstructions } from '../../promptSyntax/computeAutomaticInstructions.js';
 import { ChatRequestHooks, mergeHooks } from '../../promptSyntax/hookSchema.js';
 import { HookType } from '../../promptSyntax/hookTypes.js';
@@ -319,7 +319,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 			// Invoke the agent, tracking nesting depth for recursion detection
 			this._sessionDepth.set(sessionKey, currentDepth + 1);
-			let result;
+			let result: IChatAgentResult | undefined;
 			try {
 				result = await this.chatAgentService.invokeAgent(
 					defaultAgent.id,
@@ -338,7 +338,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			}
 
 			// Check for errors
-			if (result.errorDetails) {
+			if (result?.errorDetails) {
 				return createToolSimpleTextResult(`Agent error: ${result.errorDetails.message}`);
 			}
 
