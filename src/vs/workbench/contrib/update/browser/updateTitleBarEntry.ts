@@ -294,7 +294,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		return this.tooltip.domNode;
 	}
 
-	private runAction() {
+	private async runAction() {
 		let commandId: string | undefined;
 		switch (this.updateService.state.type) {
 			case StateType.AvailableForDownload:
@@ -311,8 +311,8 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 				return;
 		}
 
-		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'titleBar' });
-		this.commandService.executeCommand(commandId);
+		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'titlebar' });
+		await this.commandService.executeCommand(commandId);
 	}
 
 	private onStateChange(state: State) {
