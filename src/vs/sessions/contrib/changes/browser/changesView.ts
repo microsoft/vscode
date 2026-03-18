@@ -586,14 +586,48 @@ export class ChangesViewPane extends ViewPane {
 			return repository?.state.read(reader)?.HEAD?.commit;
 		});
 
+		const lastCheckpointRefObs = derived(reader => {
+			const sessionResource = activeSessionResource.read(reader);
+			if (!sessionResource) {
+				return undefined;
+			}
+
+			sessionsChangedSignal.read(reader);
+			const model = this.agentSessionsService.getSession(sessionResource);
+
+			return model?.metadata?.lastCheckpointRef as string | undefined;
+		});
+
+		const beforeLastCheckpointRefObs = derived(reader => {
+			const lastCheckpointRef = lastCheckpointRefObs.read(reader);
+			if (!lastCheckpointRef) {
+				return undefined;
+			}
+
+			const checkpointSegments = lastCheckpointRef.split('/');
+			const turnCount = parseInt(checkpointSegments.pop() ?? '-1', 10);
+			if (!Number.isFinite(turnCount) || turnCount <= 0) {
+				return undefined;
+			}
+
+			checkpointSegments.push(`${turnCount - 1}`);
+			return checkpointSegments.join('/');
+		});
+
 		const lastTurnChangesObs = derived(reader => {
 			const repository = this.activeSessionRepositoryObs.read(reader);
 			const headCommit = headCommitObs.read(reader);
+
 			if (!repository || !headCommit) {
 				return constObservable(undefined);
 			}
 
-			return new ObservablePromise(repository.diffBetweenWithStats(`${headCommit}^`, headCommit)).resolvedValue;
+			const lastCheckpointRef = lastCheckpointRefObs.read(reader);
+			const beforeLastCheckpointRef = beforeLastCheckpointRefObs.read(reader);
+
+			return lastCheckpointRef && beforeLastCheckpointRef
+				? new ObservablePromise(repository.diffBetweenWithStats2(`${beforeLastCheckpointRef}..${lastCheckpointRef}`)).resolvedValue
+				: new ObservablePromise(repository.diffBetweenWithStats(`${headCommit}^`, headCommit)).resolvedValue;
 		});
 
 		// Combine both entry sources for display
@@ -607,13 +641,30 @@ export class ChangesViewPane extends ViewPane {
 			let sourceEntries: IChangesFileItem[];
 			if (versionMode === ChangesVersionMode.LastTurn) {
 				const diffChanges = lastTurnDiffChanges ?? [];
-				const parentRef = headCommit ? `${headCommit}^` : '';
+				const lastCheckpointRef = lastCheckpointRefObs.read(undefined);
+				const beforeLastCheckpointRef = beforeLastCheckpointRefObs.read(undefined);
+
+				const ref = lastCheckpointRef
+					? lastCheckpointRef
+					: headCommit;
+
+				const parentRef = beforeLastCheckpointRef
+					? beforeLastCheckpointRef
+					: headCommit ? `${headCommit}^` : undefined;
+
 				sourceEntries = diffChanges.map(change => {
 					const isDeletion = change.modifiedUri === undefined;
 					const isAddition = change.originalUri === undefined;
-					const fileUri = change.modifiedUri ?? change.uri;
-					const originalUri = isAddition ? change.originalUri
-						: headCommit ? fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: parentRef }) })
+					const uri = change.modifiedUri ?? change.uri;
+					const fileUri = isDeletion
+						? uri
+						: ref
+							? uri.with({ scheme: 'git', query: JSON.stringify({ path: uri.fsPath, ref }) })
+							: uri;
+					const originalUri = isAddition
+						? change.originalUri
+						: parentRef
+							? fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: parentRef }) })
 							: change.originalUri;
 					return {
 						type: 'file',
