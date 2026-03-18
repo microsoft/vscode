@@ -121,18 +121,20 @@ declare module 'vscode' {
 	 * plus additional display hints.
 	 */
 	export type LanguageModelConfigurationSchema = {
-		readonly properties?: { readonly [key: string]: Record<string, any> & {
-			/**
-			 * Human-readable labels for enum values, shown instead of the raw values.
-			 * Must have the same length and order as `enum`.
-			 */
-			readonly enumItemLabels?: string[];
-			/**
-			 * The group this property belongs to. When set to `'navigation'`, the property
-			 * is shown as a primary action in the model picker.
-			 */
-			readonly group?: string;
-		} };
+		readonly properties?: {
+			readonly [key: string]: Record<string, any> & {
+				/**
+				 * Human-readable labels for enum values, shown instead of the raw values.
+				 * Must have the same length and order as `enum`.
+				 */
+				readonly enumItemLabels?: string[];
+				/**
+				 * The group this property belongs to. When set to `'navigation'`, the property
+				 * is shown as a primary action in the model picker.
+				 */
+				readonly group?: string;
+			}
+		};
 	};
 
 	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
