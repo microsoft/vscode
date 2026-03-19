@@ -286,7 +286,11 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 				const rendered = renderMarkdown(element.description, {
 					actionHandler: (content: string) => {
 						const uri = URI.parse(content);
-						this._linkHandler?.(uri, element) ?? this._openerService.open(uri, { allowCommands: true });
+						if (this._linkHandler) {
+							this._linkHandler(uri, element);
+						} else {
+							void this._openerService.open(uri, { allowCommands: true });
+						}
 					}
 				});
 				data.elementDisposables.add(rendered);
