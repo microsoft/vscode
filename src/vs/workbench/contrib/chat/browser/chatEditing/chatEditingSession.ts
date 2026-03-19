@@ -989,7 +989,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 		this._entriesObs.set(entriesArr, undefined);
 		this._telemetryService.publicLog2<ChatEditingSessionRestoreEvent, ChatEditingSessionRestoreClassification>('chatEditing/sessionRestore', {
-			sessionId: String(hash(this.chatSessionResource.toString())),
+			sessionId: getKeyForChatSessionResource(this.chatSessionResource),
 			...this._countEntryStates(entriesArr),
 		});
 	}
