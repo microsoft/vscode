@@ -54,37 +54,6 @@ import { assertNever } from '../../../../../../base/common/assert.js';
 import { ChatInternalCustomizations } from '../internalCustomizations/internalCustomizations.js';
 
 /**
- * Error thrown when a skill file is missing the required name attribute.
- */
-export class SkillMissingNameError extends Error {
-	constructor(public readonly uri: URI) {
-		super('Skill file must have a name attribute');
-	}
-}
-
-/**
- * Error thrown when a skill file is missing the required description attribute.
- */
-export class SkillMissingDescriptionError extends Error {
-	constructor(public readonly uri: URI) {
-		super('Skill file must have a description attribute');
-	}
-}
-
-/**
- * Error thrown when a skill's name does not match its parent folder name.
- */
-export class SkillNameMismatchError extends Error {
-	constructor(
-		public readonly uri: URI,
-		public readonly skillName: string,
-		public readonly folderName: string
-	) {
-		super(`Skill name must match folder name: expected "${folderName}" but got "${skillName}"`);
-	}
-}
-
-/**
  * Provides prompt services.
  */
 export class PromptsService extends Disposable implements IPromptsService {
@@ -827,15 +796,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const entryPromise = (async () => {
 			// For skills, validate that the file follows the required structure
 			if (type === PromptsType.skill) {
-				try {
-					const validated = await this.validateAndSanitizeSkillFile(uri, CancellationToken.None);
-					name = validated.name;
-					description = validated.description;
-				} catch (e) {
-					const msg = e instanceof Error ? e.message : String(e);
-					this.logger.error(`[registerContributedFile] Extension '${extension.identifier.value}' failed to validate skill file: ${uri}`, msg);
-					throw e;
-				}
+				const validated = await this.validateAndSanitizeSkillFile(uri, CancellationToken.None);
+				name = validated.name;
+				description = validated.description;
 			}
 
 			try {
@@ -1030,32 +993,25 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	private async validateAndSanitizeSkillFile(uri: URI, token: CancellationToken): Promise<{ name: string; description: string | undefined }> {
 		const parsedFile = await this.parseNew(uri, token);
-		const name = parsedFile.header?.name;
-
+		const skillFolderUri = dirname(uri);
+		const skillFolderName = basename(skillFolderUri);
+		let name = parsedFile.header?.name;
 		if (!name) {
-			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill file missing name attribute: ${uri}`);
-			throw new SkillMissingNameError(uri);
+			name = skillFolderName;
+			this.logger.warn(`[findAgentSkills] Agent skill name missing, using folder name as fallback: ${uri}`);
+		} else if (name !== skillFolderName) {
+			this.logger.warn(`[validateAndSanitizeSkillFile] Agent skill name "${name}" does not match folder name "${skillFolderName}": ${uri}`);
 		}
 
-		const description = parsedFile.header?.description;
-		if (!description) {
-			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill file missing description attribute: ${uri}`);
-			throw new SkillMissingDescriptionError(uri);
+		if (!parsedFile.header?.description) {
+			this.logger.warn(`[findAgentSkills] Agent skill description missing: ${uri}`);
 		}
 
 		// Sanitize the name first (remove XML tags and truncate)
-		const sanitizedName = this.truncateAgentSkillName(name, uri);
-
-		// Validate that the sanitized name matches the parent folder name (per agentskills.io specification)
-		const skillFolderUri = dirname(uri);
-		const folderName = basename(skillFolderUri);
-		if (sanitizedName !== folderName) {
-			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill name "${sanitizedName}" does not match folder name "${folderName}": ${uri}`);
-			throw new SkillNameMismatchError(uri, sanitizedName, folderName);
-		}
+		name = this.truncateAgentSkillName(name, uri);
 
 		const sanitizedDescription = this.truncateAgentSkillDescription(parsedFile.header?.description, uri);
-		return { name: sanitizedName, description: sanitizedDescription };
+		return { name, description: sanitizedDescription };
 	}
 
 	private truncateAgentSkillName(name: string, uri: URI): string {
