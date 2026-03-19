@@ -15,8 +15,8 @@
  *
  * Margin values (must match the constants in the Part classes):
  *   Sidebar:       no card (flush, spans full height)
- *   Auxiliary bar:  top=8, bottom=8, right=8
- *   Panel:          bottom=8, left=8, right=8
+ *   Auxiliary bar:  top=16, bottom=18, right=16
+ *   Panel:          bottom=18, left=16, right=16
  */
 
 .agent-sessions-workbench .part.sidebar {
@@ -25,14 +25,14 @@
 }
 
 .agent-sessions-workbench .part.auxiliarybar {
-	margin: 8px 8px 8px 0;
+	margin: 16px 16px 18px 0;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
 }
 
 .agent-sessions-workbench .part.panel {
-	margin: 0 8px 8px 8px;
+	margin: 0 16px 18px 16px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
@@ -54,16 +54,16 @@
 .agent-sessions-workbench .interactive-session .interactive-item-container {
 	max-width: 950px;
 	margin: 0 auto;
-	padding-left: 8px;
-	padding-right: 8px;
+	padding-left: 16px;
+	padding-right: 16px;
 	box-sizing: border-box;
 }
 
 .agent-sessions-workbench .interactive-session > .chat-suggest-next-widget {
 	max-width: 950px;
 	margin: 0 auto;
-	padding-left: 8px;
-	padding-right: 8px;
+	padding-left: 16px;
+	padding-right: 16px;
 	box-sizing: border-box;
 }
 
@@ -79,7 +79,7 @@
 	margin: 0 auto !important;
 	display: inherit !important;
 	/* Align with panel (terminal) card margin */
-	padding: 4px 8px 6px 8px !important;
+	padding: 4px 16px 16px 16px !important;
 	box-sizing: border-box;
 }
 
@@ -87,4 +87,46 @@
 
 .agent-sessions-workbench .agent-session-title {
 	color: var(--vscode-list-activeSelectionForeground);
+}
+
+/* ---- Modal Editor Block ---- */
+
+.agent-sessions-workbench .monaco-modal-editor-block {
+	background: rgba(0, 0, 0, 0.5);
+}
+
+/* Hide the file icon in modal editor titles */
+.agent-sessions-workbench .modal-editor-title .monaco-icon-label::before,
+.agent-sessions-workbench .modal-editor-title .monaco-icon-label > .monaco-icon-label-iconpath {
+	display: none;
+}
+
+/* ---- Customization Empty State ---- */
+
+/* Icon + title side by side in a row, description underneath */
+.agent-sessions-workbench .ai-customization-list-widget .list-empty-state .empty-state-header {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+}
+
+.agent-sessions-workbench .ai-customization-list-widget .list-empty-state .empty-state-header > .empty-state-icon {
+	font-size: 16px;
+	margin-bottom: 0;
+	flex-shrink: 0;
+}
+
+/* MCP / Plugin empty state: icon + title side by side */
+.agent-sessions-workbench .mcp-empty-state .empty-state-header {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+}
+
+.agent-sessions-workbench .mcp-empty-state .empty-state-header > .empty-icon {
+	font-size: 16px;
+	margin-bottom: 0;
+	flex-shrink: 0;
 }

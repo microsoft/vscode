@@ -27,7 +27,6 @@ import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ILanguageModelsService } from '../languageModels.js';
-import { mark } from '../../../../../base/common/performance.js';
 
 //#region agent service, commands etc
 
@@ -508,15 +507,12 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	async invokeAgent(id: string, request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
-		mark('code/chat/willInvokeAgent');
 		const data = this._agents.get(id);
 		if (!data?.impl) {
 			throw new Error(`No activated agent with id "${id}"`);
 		}
 
-		const result = await data.impl.invoke(request, progress, history, token);
-		mark('code/chat/didInvokeAgent');
-		return result;
+		return await data.impl.invoke(request, progress, history, token);
 	}
 
 	setRequestTools(id: string, requestId: string, tools: UserSelectedTools): void {

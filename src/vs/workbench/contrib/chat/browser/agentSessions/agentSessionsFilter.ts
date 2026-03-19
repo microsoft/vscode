@@ -279,7 +279,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			constructor() {
 				super({
 					id: `agentSessions.filter.resetExcludes.${menuId.id.toLowerCase()}`,
-					title: localize('agentSessions.filter.reset', "Reset"),
+					title: localize('agentSessions.filter.reset', "Reset Filter"),
 					menu: {
 						id: menuId,
 						group: '4_reset',

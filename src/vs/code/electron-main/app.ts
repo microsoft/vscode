@@ -895,10 +895,19 @@ export class CodeApplication extends Disposable {
 	private async handleProtocolUrl(windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		this.logService.trace('app#handleProtocolUrl():', uri.toString(true), options);
 
+		// Sessions app: "open a sessions window", regardless of other parameters.
+		if ((process as INodeProcess).isEmbeddedApp) {
+			this.logService.trace('app#handleProtocolUrl() opening sessions window for bare protocol URL:', uri.toString(true));
+
+			await windowsMainService.openSessionsWindow({ context: OpenContext.LINK, contextWindowId: undefined });
+
+			return true;
+		}
+
 		// Support 'workspace' URLs (https://github.com/microsoft/vscode/issues/124263)
 		if (uri.scheme === this.productService.urlProtocol && uri.path === 'workspace') {
 			uri = uri.with({
-				authority: 'file',
+				authority: Schemas.file,
 				path: URI.parse(uri.query).path,
 				query: ''
 			});
