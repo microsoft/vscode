@@ -899,7 +899,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		const pinnedSessions: IAgentSession[] = [];
 		const archivedSessions: IAgentSession[] = [];
 		const unknownKey = '\x00unknown';
-		const unknownLabel = localize('agentSessions.noRepository', "Other");
+		const unknownLabel = AgentSessionSectionLabels[AgentSessionSection.Repository];
 
 		for (const session of sortedSessions) {
 			if (session.isArchived()) {
@@ -937,11 +937,23 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			});
 		}
 
-		for (const [, { label, sessions }] of repoMap) {
+		for (const [repoId, { label, sessions }] of repoMap) {
+			if (repoId === unknownKey) {
+				continue; // "Other" group is added after all named repos
+			}
 			result.push({
 				section: AgentSessionSection.Repository,
 				label,
 				sessions,
+			});
+		}
+
+		const unknownGroup = repoMap.get(unknownKey);
+		if (unknownGroup) {
+			result.push({
+				section: AgentSessionSection.Repository,
+				label: unknownGroup.label,
+				sessions: unknownGroup.sessions,
 			});
 		}
 
@@ -1112,6 +1124,7 @@ export const AgentSessionSectionLabels = {
 	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
 	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
 	[AgentSessionSection.More]: localize('agentSessions.moreSection', "More"),
+	[AgentSessionSection.Repository]: localize('agentSessions.noRepository', "Other"),
 };
 
 const DAY_THRESHOLD = 24 * 60 * 60 * 1000;
