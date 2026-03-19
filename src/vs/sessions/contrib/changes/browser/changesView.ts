@@ -342,6 +342,7 @@ export class ChangesViewPane extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.viewModel = this.instantiationService.createInstance(ChangesViewModel);
+		this._register(this.viewModel);
 
 		// Version mode
 		this._register(bindContextKey(changesVersionModeContextKey, this.scopedContextKeyService, reader => {
@@ -353,7 +354,7 @@ export class ChangesViewPane extends ViewPane {
 			return this.viewModel.viewModeObs.read(reader);
 		}));
 
-		// Set chatSessionType on the view's context key service so ViewTitlev menu items
+		// Set chatSessionType on the view's context key service so ViewTitle menu items
 		// can use it in their `when` clauses. Update reactively when the active session
 		// changes.
 		this._register(bindContextKey(ChatContextKeys.agentSessionType, this.scopedContextKeyService, reader => {
@@ -623,8 +624,6 @@ export class ChangesViewPane extends ViewPane {
 		if (this.actionsContainer) {
 			dom.clearNode(this.actionsContainer);
 
-			const scopedInstantiationService = this.renderDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
-
 			this.renderDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, this.scopedContextKeyService, reader => {
 				const { files } = topLevelStats.read(reader);
 				return files > 0;
@@ -645,6 +644,10 @@ export class ChangesViewPane extends ViewPane {
 				const metadata = this.agentSessionsService.getSession(sessionResource)?.metadata;
 				return metadata?.pullRequestUrl !== undefined;
 			}));
+
+			const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
+			const scopedInstantiationService = this.instantiationService.createChild(scopedServiceCollection);
+			this.renderDisposables.add(scopedInstantiationService);
 
 			this.renderDisposables.add(autorun(reader => {
 				const { added, removed } = topLevelStats.read(reader);
