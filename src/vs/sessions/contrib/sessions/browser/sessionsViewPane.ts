@@ -111,7 +111,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 			groupResults: () => this.currentGrouping,
 			allowedProviders: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
 			providerLabelOverrides: new Map([
-				[AgentSessionProviders.Background, localize('chat.session.providerLabel.local', "Copilot CLI")],
+				[AgentSessionProviders.Background, localize('chat.session.providerLabel.background', "Copilot CLI")],
 			]),
 		}));
 
