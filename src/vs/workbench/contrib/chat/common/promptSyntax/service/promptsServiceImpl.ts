@@ -995,22 +995,26 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const parsedFile = await this.parseNew(uri, token);
 		const skillFolderUri = dirname(uri);
 		const skillFolderName = basename(skillFolderUri);
-		let name = parsedFile.header?.name;
-		if (!name) {
-			name = skillFolderName;
-			this.logger.warn(`[findAgentSkills] Agent skill name missing, using folder name as fallback: ${uri}`);
-		} else if (name !== skillFolderName) {
-			this.logger.warn(`[validateAndSanitizeSkillFile] Agent skill name "${name}" does not match folder name "${skillFolderName}": ${uri}`);
+		const nameFromFile = parsedFile.header?.name;
+		if (!nameFromFile) {
+			this.logger.warn(`[validateAndSanitizeSkillFile] Agent skill name missing: ${uri}`);
+			throw new Error('Agent skill name missing');
+		}
+
+		if (nameFromFile !== skillFolderName) {
+			this.logger.warn(`[validateAndSanitizeSkillFile] Agent skill name "${nameFromFile}" does not match folder name "${skillFolderName}": ${uri}`);
+			throw new Error('Agent skill name does not match folder name');
 		}
 
 		if (!parsedFile.header?.description) {
-			this.logger.warn(`[findAgentSkills] Agent skill description missing: ${uri}`);
+			this.logger.warn(`[validateAndSanitizeSkillFile] Agent skill description missing: ${uri}`);
+			throw new Error('Agent skill description missing');
 		}
 
 		// Sanitize the name first (remove XML tags and truncate)
-		name = this.truncateAgentSkillName(name, uri);
+		let name = this.truncateAgentSkillName(nameFromFile, uri);
 
-		const sanitizedDescription = this.truncateAgentSkillDescription(parsedFile.header?.description, uri);
+		const sanitizedDescription = this.truncateAgentSkillDescription(parsedFile.header.description, uri);
 		return { name, description: sanitizedDescription };
 	}
 
