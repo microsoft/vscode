@@ -16,7 +16,7 @@ export const GetTerminalOutputToolData: IToolData = {
 	toolReferenceName: 'getTerminalOutput',
 	legacyToolReferenceFullNames: ['runCommands/getTerminalOutput'],
 	displayName: localize('getTerminalOutputTool.displayName', 'Get Terminal Output'),
-	modelDescription: `Get the output of a background terminal command previously started with ${TerminalToolId.RunInTerminal}. The id must be the exact opaque value returned by ${TerminalToolId.RunInTerminal} when isBackground=true; terminal names, labels, and integers are not valid ids.`,
+	modelDescription: `Get the output of a background terminal command previously started with ${TerminalToolId.RunInTerminal}. The ID must be the exact opaque value returned by ${TerminalToolId.RunInTerminal} when isBackground=true; terminal names, labels, and integers are not valid IDs.`,
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -24,7 +24,7 @@ export const GetTerminalOutputToolData: IToolData = {
 		properties: {
 			id: {
 				type: 'string',
-				description: `The ID of the background terminal to check (returned by ${TerminalToolId.RunInTerminal} when isBackground=true). This must be the exact opaque id returned by that tool; terminal names, labels, or integers are invalid.`,
+				description: `The ID of the background terminal to check (returned by ${TerminalToolId.RunInTerminal} when isBackground=true). This must be the exact opaque ID returned by that tool; terminal names, labels, or integers are invalid.`,
 				pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
 			},
 		},
