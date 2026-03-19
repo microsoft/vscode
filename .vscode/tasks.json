@@ -89,11 +89,24 @@
 			}
 		},
 		{
+			"type": "npm",
+			"script": "watch-copilotd",
+			"label": "Copilot - Build",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never",
+				"group": "buildWatchers",
+				"close": false
+			},
+			"problemMatcher": "$esbuild-watch"
+		},
+		{
 			"label": "VS Code - Build",
 			"dependsOn": [
 				"Core - Transpile",
 				"Core - Typecheck",
-				"Ext - Build"
+				"Ext - Build",
+				"Copilot - Build"
 			],
 			"group": {
 				"kind": "build",
@@ -138,11 +151,24 @@
 			"problemMatcher": "$tsc"
 		},
 		{
+			"type": "npm",
+			"script": "kill-watch-copilotd",
+			"label": "Kill Copilot - Build",
+			"group": "build",
+			"presentation": {
+				"reveal": "never",
+				"group": "buildKillers",
+				"close": true
+			},
+			"problemMatcher": "$esbuild"
+		},
+		{
 			"label": "Kill VS Code - Build",
 			"dependsOn": [
 				"Kill Core - Transpile",
 				"Kill Core - Typecheck",
-				"Kill Ext - Build"
+				"Kill Ext - Build",
+				"Kill Copilot - Build"
 			],
 			"group": "build",
 			"problemMatcher": []
