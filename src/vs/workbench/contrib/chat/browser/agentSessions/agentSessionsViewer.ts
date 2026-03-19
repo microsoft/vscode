@@ -898,8 +898,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		const repoMap = new Map<string, { label: string; sessions: IAgentSession[] }>();
 		const pinnedSessions: IAgentSession[] = [];
 		const archivedSessions: IAgentSession[] = [];
-		const unknownKey = '\x00unknown';
-		const unknownLabel = localize('agentSessions.noRepository', "Other");
+		const otherSessions: IAgentSession[] = [];
 
 		for (const session of sortedSessions) {
 			if (session.isArchived()) {
@@ -915,14 +914,14 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			const repoName = this.getRepositoryName(session);
 			if (!repoName) {
 				this.logService?.warn('[AgentSessions] Could not determine repository name for session, categorizing as "Other"', JSON.stringify(session));
+				otherSessions.push(session);
+				continue;
 			}
-			const repoId = repoName || unknownKey;
-			const repoLabel = repoName || unknownLabel;
 
-			let group = repoMap.get(repoId);
+			let group = repoMap.get(repoName);
 			if (!group) {
-				group = { label: repoLabel, sessions: [] };
-				repoMap.set(repoId, group);
+				group = { label: repoName, sessions: [] };
+				repoMap.set(repoName, group);
 			}
 			group.sessions.push(session);
 		}
@@ -942,6 +941,14 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 				section: AgentSessionSection.Repository,
 				label,
 				sessions,
+			});
+		}
+
+		if (otherSessions.length > 0) {
+			result.push({
+				section: AgentSessionSection.Repository,
+				label: localize('agentSessions.noRepository', "Other"),
+				sessions: otherSessions,
 			});
 		}
 
