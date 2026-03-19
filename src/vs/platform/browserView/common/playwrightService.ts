@@ -9,6 +9,18 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 export const IPlaywrightService = createDecorator<IPlaywrightService>('playwrightService');
 
 /**
+ * The session name used to register the integrated browser with Playwright CLI.
+ * External tools (e.g. `npx playwright@next cli`) can discover the embedded
+ * browser when the environment variable {@link playwrightSessionEnvVar} is set to this value.
+ */
+export const playwrightSessionName = 'vscode-embedded-browser';
+
+/**
+ * Environment variable that Playwright CLI reads to discover a registered browser session.
+ */
+export const playwrightSessionEnvVar = 'PLAYWRIGHT_CLI_SESSION';
+
+/**
  * A service for using Playwright to connect to and automate the integrated browser.
  *
  * Pages must be explicitly tracked via {@link startTrackingPage} (or implicitly via

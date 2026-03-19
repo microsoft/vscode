@@ -7,7 +7,7 @@ import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
-import { IPlaywrightService } from '../common/playwrightService.js';
+import { IPlaywrightService, playwrightSessionName } from '../common/playwrightService.js';
 import { IBrowserViewGroupRemoteService } from '../node/browserViewGroupRemoteService.js';
 import { IBrowserViewGroup } from '../common/browserViewGroup.js';
 import { PlaywrightTab } from './playwrightTab.js';
@@ -26,6 +26,10 @@ interface PlaywrightTransport {
 declare module 'playwright-core' {
 	interface BrowserType {
 		_connectOverCDPTransport(transport: PlaywrightTransport): Promise<Browser>;
+	}
+	interface Browser {
+		_register(title: string, options?: Record<string, unknown>): Promise<{ pipeName: string }>;
+		_unregister(): Promise<void>;
 	}
 }
 
@@ -111,6 +115,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 				// This can happen if the service was disposed while we were waiting for the connection. In that case, clean up immediately.
 				if (this._initPromise === undefined) {
+					browser._unregister().catch(() => { /* ignore */ });
 					browser.close().catch(() => { /* ignore */ });
 					group.dispose();
 					throw new Error('PlaywrightService was disposed during initialization');
@@ -127,6 +132,14 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 				await this._pages.initialize(browser, group);
 				this._browser = browser;
+
+				// Register the browser with Playwright so that external CLI tools
+				// (e.g. `npx playwright@next cli`) can discover it via the
+				// PLAYWRIGHT_CLI_SESSION environment variable.
+				browser._register(playwrightSessionName).then(
+					({ pipeName }) => this.logService.debug('[PlaywrightService] Registered browser as', playwrightSessionName, 'with pipe name', pipeName),
+					(err) => this.logService.warn('[PlaywrightService] Failed to register browser for CLI discovery:', err),
+				);
 			} catch (e) {
 				this._initPromise = undefined;
 				throw e;
@@ -196,6 +209,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 	override dispose(): void {
 		if (this._browser) {
+			this._browser._unregister().catch(() => { /* ignore */ });
 			this._browser.close().catch(() => { /* ignore */ });
 			this._browser = undefined;
 		}

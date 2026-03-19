@@ -37,6 +37,9 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
+import { EnvironmentVariableMutatorType } from '../../../../platform/terminal/common/environmentVariable.js';
+import { IEnvironmentVariableCollectionWithPersistence, IEnvironmentVariableService } from '../../terminal/common/environmentVariable.js';
+import { playwrightSessionName, playwrightSessionEnvVar } from '../../../../platform/browserView/common/playwrightService.js';
 
 // Register actions and browser tools
 import './browserViewActions.js';
@@ -168,6 +171,44 @@ class WindowZoomSynchronizer extends Disposable implements IWorkbenchContributio
 }
 
 registerWorkbenchContribution2(WindowZoomSynchronizer.ID, WindowZoomSynchronizer, WorkbenchPhase.BlockRestore);
+
+/**
+ * Sets the {@link playwrightSessionEnvVar} environment variable in all terminals
+ * so that Playwright CLI tools can discover the integrated browser registered via
+ * {@link playwrightSessionName}.
+ */
+class PlaywrightTerminalEnvironmentContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.browserView.playwrightTerminalEnvironment';
+
+	private static readonly _collectionKey = 'workbench.browserView.playwright';
+
+	constructor(
+		@IEnvironmentVariableService environmentVariableService: IEnvironmentVariableService,
+	) {
+		super();
+		this._setCollection(environmentVariableService);
+		this._register(environmentVariableService.onDidChangeCollections(() => {
+			if (!environmentVariableService.collections.has(PlaywrightTerminalEnvironmentContribution._collectionKey)) {
+				this._setCollection(environmentVariableService);
+			}
+		}));
+	}
+
+	private _setCollection(environmentVariableService: IEnvironmentVariableService): void {
+		const collection: IEnvironmentVariableCollectionWithPersistence = {
+			persistent: false,
+			map: new Map([[playwrightSessionEnvVar, {
+				variable: playwrightSessionEnvVar,
+				value: playwrightSessionName,
+				type: EnvironmentVariableMutatorType.Replace,
+				options: { applyAtProcessCreation: true, applyAtShellIntegration: false },
+			}]]),
+		};
+		environmentVariableService.set(PlaywrightTerminalEnvironmentContribution._collectionKey, collection);
+	}
+}
+
+registerWorkbenchContribution2(PlaywrightTerminalEnvironmentContribution.ID, PlaywrightTerminalEnvironmentContribution, WorkbenchPhase.AfterRestored);
 
 registerSingleton(IBrowserViewWorkbenchService, BrowserViewWorkbenchService, InstantiationType.Delayed);
 registerSingleton(IBrowserViewCDPService, BrowserViewCDPService, InstantiationType.Delayed);
