@@ -148,7 +148,7 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
 			instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
 			const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
-			await instance.xtermReadyPromise;
+			await instance.processReady;
 			return instance;
 		}
 
@@ -201,6 +201,7 @@ suite('Workbench - TerminalInstance', () => {
 		test('should use bracketed paste mode for multiline executed text when available', async () => {
 			const instance = await createTerminalInstance();
 			const writes: string[] = [];
+			const processManager = (instance as unknown as { _processManager: { write(data: string): Promise<void> } })._processManager;
 
 			instance.xterm = {
 				raw: {
@@ -210,10 +211,8 @@ suite('Workbench - TerminalInstance', () => {
 				},
 				scrollToBottom: () => { }
 			} as TerminalInstance['xterm'];
-			(instance as unknown as { _processManager: { write(data: string): Promise<void> } })._processManager = {
-				write: async (data: string) => {
-					writes.push(data);
-				}
+			processManager.write = async (data: string) => {
+				writes.push(data);
 			};
 
 			await instance.sendText('echo hello\nworld', true);
