@@ -238,6 +238,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 
 		this.storageService.store(GROUPING_STORAGE_KEY, this.currentGrouping, StorageScope.PROFILE, StorageTarget.USER);
 		this.isGroupedByRepoKey?.set(this.currentGrouping === AgentSessionsGrouping.Repository);
+		this.sessionsControl?.resetSectionCollapseState();
 		this.sessionsControl?.update();
 	}
 }
