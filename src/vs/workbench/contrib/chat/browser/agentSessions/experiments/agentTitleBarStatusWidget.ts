@@ -1355,19 +1355,17 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	// #region Label Helpers
 
 	/**
-	 * Compute the label to display, matching the command center behavior.
-	 * Honors the user's window.title setting when customized.
-	 * Includes prefix and suffix decorations (remote host, extension dev host, etc.)
+	 * Compute the label to display in the command center.
+	 * Uses the workspace name (folder name) with prefix/suffix decorations.
+	 * Falls back to file name when tabs are hidden, or "Search" when empty.
 	 */
 	private _getLabel(): string {
 		const { prefix, suffix } = this._windowTitle.getTitleDecorations();
 
-		// Base label: honor custom window.title format, otherwise workspace name or file name
+		// Base label: workspace name or file name when tabs are hidden
 		let label = this._windowTitle.workspaceName;
-		if (this._windowTitle.isCustomTitleFormat()) {
-			label = this._windowTitle.getWindowTitle();
-		} else if (this.editorGroupsService.partOptions.showTabs === 'none') {
-			label = this._windowTitle.fileName ?? label;
+		if (!label && this.editorGroupsService.partOptions.showTabs === 'none') {
+			label = this._windowTitle.fileName ?? '';
 		}
 
 		if (!label) {
@@ -1401,7 +1399,8 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -1412,12 +1411,17 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 			return instantiationService.createInstance(AgentTitleBarStatusWidget, action, options);
 		}, undefined));
 
-		// Add/remove CSS classes on workbench based on settings
-		// Force enable command center when unified agents bar is enabled
+		// Add/remove CSS classes on workbench based on settings.
+		// Only hide the default command center search box (via unified-agents-bar)
+		// when chat is enabled, so the search box remains visible during remote
+		// connection startup before the agent status widget is ready to render.
+		const chatEnabledKey = contextKeyService.getContextKeyValue<boolean>('chatIsEnabled');
+		let chatEnabled = !!chatEnabledKey;
+
 		const updateClass = () => {
 			const commandCenterEnabled = configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) === true;
-			const enabled = commandCenterEnabled;
-			const enhanced = commandCenterEnabled;
+			const enabled = commandCenterEnabled && chatEnabled;
+			const enhanced = commandCenterEnabled && chatEnabled;
 
 			mainWindow.document.body.classList.toggle('agent-status-enabled', enabled);
 			mainWindow.document.body.classList.toggle('unified-agents-bar', enhanced);
@@ -1425,6 +1429,12 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 		updateClass();
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar) || e.affectsConfiguration(LayoutSettings.COMMAND_CENTER)) {
+				updateClass();
+			}
+		}));
+		this._register(contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set(['chatIsEnabled']))) {
+				chatEnabled = !!contextKeyService.getContextKeyValue<boolean>('chatIsEnabled');
 				updateClass();
 			}
 		}));
