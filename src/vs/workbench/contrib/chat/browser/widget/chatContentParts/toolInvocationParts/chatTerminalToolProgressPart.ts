@@ -1641,9 +1641,7 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		const title = isSandboxWrapped
-			? (isComplete ? localize('chat.terminal.ranInSandbox', "$(lock) Ran in sandbox") : localize('chat.terminal.runningInSandbox', "$(lock) Running in sandbox"))
-			: (isComplete ? `Ran \`${commandText}\`` : `Running \`${commandText}\``);
+		const title = isComplete ? `Ran \`${commandText}\`` : `Running \`${commandText}\``;
 		super(title, context, undefined, hoverService, configurationService);
 
 		this._terminalContentElement = contentElement;
@@ -1670,8 +1668,8 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		labelElement.textContent = '';
 		if (this._isSandboxWrapped) {
 			dom.reset(labelElement, ...renderLabelWithIcons(this._isComplete
-				? localize('chat.terminal.ranInSandbox', "$(lock) Ran in sandbox")
-				: localize('chat.terminal.runningInSandbox', "$(lock) Running in sandbox")));
+				? localize('chat.terminal.ranInSandbox', "$(lock) Ran `{0}` in sandbox", this._commandText)
+				: localize('chat.terminal.runningInSandbox', "$(lock) Running `{0}` in sandbox", this._commandText)));
 			return;
 		}
 
