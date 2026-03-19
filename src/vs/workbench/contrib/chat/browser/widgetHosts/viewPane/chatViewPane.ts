@@ -791,13 +791,20 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			// A delay here to avoid blinking because only Cloud sessions are slow, most others are fast
 			const clearWidget = disposableTimeout(() => {
+				// Only clear the current model if this loadSession call is still the active one
+				// and has not been cancelled. This preserves the "last call wins" behavior.
+				if (token.isCancellationRequested || this.loadSessionCts.value !== cts) {
+					return;
+				}
 				// clear current model without starting a new one
 				queue = this.showModel(undefined, false).then(() => { });
 			}, 100);
+			const clearWidgetCancellationListener = token.onCancellationRequested(() => clearWidget.dispose());
 
 			try {
 				const newModelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token);
 				clearWidget.dispose();
+				clearWidgetCancellationListener.dispose();
 				await queue;
 
 				if (token.isCancellationRequested) {
@@ -808,6 +815,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				return this.showModel(newModelRef);
 			} catch (err) {
 				clearWidget.dispose();
+				clearWidgetCancellationListener.dispose();
 				await queue;
 
 				if (token.isCancellationRequested) {
