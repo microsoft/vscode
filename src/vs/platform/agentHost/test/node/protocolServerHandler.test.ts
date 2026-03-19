@@ -9,7 +9,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { ISessionAction } from '../../common/state/sessionActions.js';
+import { ActionType, type ISessionAction } from '../../common/state/sessionActions.js';
 import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type ICreateSessionParams, type IInitializeResult, type IProtocolMessage, type IAhpNotification, type IReconnectResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
@@ -206,7 +206,7 @@ suite('ProtocolServerHandler', () => {
 
 	test('client action is dispatched and echoed', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
 
 		const transport = connectClient('client-1', [sessionUri]);
 		transport.sent.length = 0;
@@ -214,7 +214,7 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateMessage(notification('dispatchAction', {
 			clientSeq: 1,
 			action: {
-				type: 'session/turnStarted',
+				type: ActionType.SessionTurnStarted,
 				session: sessionUri,
 				turnId: 'turn-1',
 				userMessage: { text: 'hello' },
@@ -224,7 +224,7 @@ suite('ProtocolServerHandler', () => {
 		const actionMsgs = findNotifications(transport.sent, 'action');
 		const turnStarted = actionMsgs.find(m => {
 			const envelope = m.params as unknown as { action: { type: string } };
-			return envelope.action.type === 'session/turnStarted';
+			return envelope.action.type === ActionType.SessionTurnStarted;
 		});
 		assert.ok(turnStarted, 'should have echoed turnStarted');
 		const envelope = turnStarted!.params as unknown as { origin: { clientId: string; clientSeq: number } };
@@ -234,7 +234,7 @@ suite('ProtocolServerHandler', () => {
 
 	test('actions are scoped to subscribed sessions', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
 
 		const transportA = connectClient('client-a', [sessionUri]);
 		const transportB = connectClient('client-b');
@@ -243,7 +243,7 @@ suite('ProtocolServerHandler', () => {
 		transportB.sent.length = 0;
 
 		stateManager.dispatchServerAction({
-			type: 'session/titleChanged',
+			type: ActionType.SessionTitleChanged,
 			session: sessionUri,
 			title: 'New Title',
 		});
@@ -267,15 +267,15 @@ suite('ProtocolServerHandler', () => {
 
 	test('reconnect replays missed actions', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
 
 		const transport1 = connectClient('client-r', [sessionUri]);
 		const resp = findResponse(transport1.sent, 1);
 		const initSeq = (resp as { result: IInitializeResult }).result.serverSeq;
 		transport1.simulateClose();
 
-		stateManager.dispatchServerAction({ type: 'session/titleChanged', session: sessionUri, title: 'Title A' });
-		stateManager.dispatchServerAction({ type: 'session/titleChanged', session: sessionUri, title: 'Title B' });
+		stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'Title A' });
+		stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'Title B' });
 
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
@@ -296,13 +296,13 @@ suite('ProtocolServerHandler', () => {
 
 	test('reconnect sends fresh snapshots when gap too large', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
 
 		const transport1 = connectClient('client-g', [sessionUri]);
 		transport1.simulateClose();
 
 		for (let i = 0; i < 1100; i++) {
-			stateManager.dispatchServerAction({ type: 'session/titleChanged', session: sessionUri, title: `Title ${i}` });
+			stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: `Title ${i}` });
 		}
 
 		const transport2 = new MockProtocolTransport();
@@ -324,14 +324,14 @@ suite('ProtocolServerHandler', () => {
 
 	test('client disconnect cleans up', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
 
 		const transport = connectClient('client-d', [sessionUri]);
 		transport.sent.length = 0;
 
 		transport.simulateClose();
 
-		stateManager.dispatchServerAction({ type: 'session/titleChanged', session: sessionUri, title: 'After Disconnect' });
+		stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'After Disconnect' });
 
 		assert.strictEqual(transport.sent.length, 0);
 	});

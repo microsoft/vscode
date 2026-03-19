@@ -219,7 +219,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				constructor() {
 					super({
 						id: CONFIGURE_DEFAULT_RUN_ACTION_ID,
-						title: localize2('configureDefaultRunAction', "Add Action..."),
+						title: localize2('configureDefaultRunAction', "Add Task..."),
 						category: SessionsCategories.Sessions,
 						icon: Codicon.add,
 						precondition: configureScriptPrecondition,
@@ -243,7 +243,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				constructor() {
 					super({
 						id: GENERATE_RUN_ACTION_ID,
-						title: localize2('generateRunAction', "Generate New Action..."),
+						title: localize2('generateRunAction', "Generate New Task..."),
 						category: SessionsCategories.Sessions,
 						precondition: IsActiveSessionBackgroundProviderContext,
 						menu: [{
@@ -283,7 +283,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 		items.push({ type: 'separator', label: localize('custom', "Custom") });
 		items.push({
-			label: localize('enterCustomCommand', "Enter Custom Command..."),
+			label: localize('createNewTask', "Create new Task..."),
 			description: localize('enterCustomCommandDesc', "Create a new shell task"),
 		});
 
@@ -300,7 +300,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		}
 
 		const picked = await this._quickInputService.pick(items, {
-			placeHolder: localize('pickRunAction', "Select a task or enter a custom command"),
+			placeHolder: localize('pickRunAction', "Select or create a task"),
 		});
 
 		if (!picked) {
@@ -382,12 +382,12 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 			const quickWidget = disposables.add(this._quickInputService.createQuickWidget());
 			quickWidget.title = isConfigureMode
-				? localize('configureActionWidgetTitle', "Configure Action...")
+				? localize('configureActionWidgetTitle', "Configure Task...")
 				: existingTask
-					? localize('addExistingActionWidgetTitle', "Add Existing Action...")
-					: localize('addActionWidgetTitle', "Add Action...");
+					? localize('addExistingActionWidgetTitle', "Add Existing Task...")
+					: localize('addActionWidgetTitle', "Add Task...");
 			quickWidget.description = isConfigureMode
-				? localize('configureActionWidgetDescription', "Update how this action is named, saved, and run")
+				? localize('configureActionWidgetDescription', "Update how this task is named, saved, and run")
 				: existingTask
 					? localize('addExistingActionWidgetDescription', "Enable an existing task for sessions and configure when it should run")
 					: localize('addActionWidgetDescription', "Create a shell task and configure how it should be saved and run");
@@ -400,7 +400,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				target: existingTask?.target,
 				targetDisabledReason: existingTask && !isConfigureMode ? localize('existingTaskTargetLocked', "This existing task cannot be moved between workspace and user storage.") : workspaceTargetDisabledReason,
 				runOn: existingTask?.task.runOptions?.runOn === 'worktreeCreated' ? 'worktreeCreated' : undefined,
-				submitLabel: isConfigureMode ? localize('confirmConfigureAction', "Save Changes") : undefined,
+				mode: isConfigureMode ? 'configure' : existingTask ? 'add-existing' : 'add',
 			}));
 			quickWidget.widget = widget.domNode;
 
@@ -479,7 +479,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		}));
 
 		// Dropdown with categorized actions and per-item toolbars
-		const dropdownAction = this._register(new Action('agentSessions.runScriptDropdown', localize('runDropdown', "More Run Actions...")));
+		const dropdownAction = this._register(new Action('agentSessions.runScriptDropdown', localize('runDropdown', "More Tasks...")));
 		this._dropdown = this._register(new ChevronActionWidgetDropdown(
 			dropdownAction,
 			{
@@ -633,16 +633,16 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			});
 		}
 
-		// "Add Action..." action
+		// "Add Task..." action
 		const canConfigure = !!(session.worktree ?? session.repository);
 		actions.push({
 			id: 'runScript.addAction',
-			label: localize('configureDefaultRunAction', "Add Action..."),
+			label: localize('configureDefaultRunAction', "Add Task..."),
 			tooltip: '',
 			hover: {
 				content: canConfigure
-					? localize('addActionTooltip', "Add a new action")
-					: localize('addActionTooltipDisabled', "Cannot add actions to this session because workspace storage is unavailable"),
+					? localize('addActionTooltip', "Add a new task")
+					: localize('addActionTooltipDisabled', "Cannot add tasks to this session because workspace storage is unavailable"),
 				position: { hoverPosition: HoverPosition.LEFT }
 			},
 			icon: Codicon.add,
@@ -657,13 +657,13 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			},
 		});
 
-		// "Generate New Action..." action
+		// "Generate New Task..." action
 		actions.push({
 			id: 'runScript.generateAction',
-			label: localize('generateRunAction', "Generate New Action..."),
+			label: localize('generateRunAction', "Generate New Task..."),
 			tooltip: '',
 			hover: {
-				content: localize('generateRunActionTooltip', "Generate a new workspace action"),
+				content: localize('generateRunActionTooltip', "Generate a new workspace task"),
 				position: { hoverPosition: HoverPosition.LEFT },
 			},
 			icon: Codicon.sparkle,
@@ -713,7 +713,7 @@ class RunScriptNotAvailableAction extends Action2 {
 		super({
 			id: 'workbench.action.agentSessions.runScript.notAvailable',
 			title: localize2('run', "Run"),
-			tooltip: localize('runScriptNotAvailableTooltip', "Run Script is not available for this session type"),
+			tooltip: localize('runScriptNotAvailableTooltip', "Run Task is not available for this session type"),
 			icon: Codicon.play,
 			precondition: ContextKeyExpr.false(),
 			menu: [{
