@@ -33,7 +33,7 @@ import '../../../../platform/theme/common/colors/listColors.js';
 // ============================================================================
 
 const defaultFilter: IStorageSourceFilter = {
-	sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension],
+	sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin],
 };
 
 interface IFixtureInstructionFile {
@@ -178,7 +178,7 @@ async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFi
 // Fixtures
 // ============================================================================
 
-export default defineThemedFixtureGroup({ path: 'chat/' }, {
+export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	InstructionsTabWithItems: defineComponentFixture({
 		labels: { kind: 'screenshot' },
