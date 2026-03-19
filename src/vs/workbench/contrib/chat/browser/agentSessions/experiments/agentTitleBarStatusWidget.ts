@@ -25,7 +25,6 @@ import { IWorkspaceContextService, WorkbenchState } from '../../../../../../plat
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
-import { openSession } from '../agentSessionsOpener.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -96,7 +95,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	private readonly _dynamicDisposables = this._register(new DisposableStore());
 
 	/** The currently displayed in-progress session (if any) - clicking pill opens this */
-	private _displayedSession: IAgentSession | undefined;
 
 	/** Cached render state to avoid unnecessary DOM rebuilds */
 	private _lastRenderState: string | undefined;
@@ -491,9 +489,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Label - always shows workspace name in compact mode
 		const label = $('span.agent-status-label');
-		const { session: attentionSession, progress: progressText } = this._getSessionNeedingAttention(attentionNeededSessions);
-		this._displayedSession = attentionSession;
-
+		const { progress: progressText } = this._getSessionNeedingAttention(attentionNeededSessions);
 		const defaultLabel = isCompactMode ? this._getLabel() : (progressText ?? this._getLabel());
 
 		if (!isCompactMode && progressText) {
@@ -544,20 +540,22 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// Setup hover tooltip on input area
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
 		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, inputArea, () => {
-			if (this._displayedSession) {
-				return localize('openSessionTooltip', "Open session: {0}", this._displayedSession.label);
-			}
 			const kbForTooltip = this.keybindingService.lookupKeybinding(UNIFIED_QUICK_ACCESS_ACTION_ID)?.getLabel();
 			return kbForTooltip
 				? localize('askTooltip', "Open Quick Access ({0})", kbForTooltip)
 				: localize('askTooltip2', "Open Quick Access");
 		}));
 
-		// Click handler - open displayed session if showing progress, otherwise open unified quick access
+		// Click handler - always open quick access in compact mode (attention sessions are handled by the badge)
 		disposables.add(addDisposableListener(inputArea, EventType.CLICK, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			this._handlePillClick();
+			this.telemetryService.publicLog2<AgentStatusClickEvent, AgentStatusClickClassification>('agentStatusWidget.click', {
+				source: 'pill',
+				action: 'quickAccess',
+			});
+			const useUnifiedQuickAccess = this.configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
+			this.commandService.executeCommand(useUnifiedQuickAccess ? UNIFIED_QUICK_ACCESS_ACTION_ID : QUICK_OPEN_ACTION_ID);
 		}));
 
 		// Keyboard handler
@@ -565,7 +563,12 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				e.stopPropagation();
-				this._handlePillClick();
+				this.telemetryService.publicLog2<AgentStatusClickEvent, AgentStatusClickClassification>('agentStatusWidget.click', {
+					source: 'pill',
+					action: 'quickAccess',
+				});
+				const useUnifiedQuickAccess = this.configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
+				this.commandService.executeCommand(useUnifiedQuickAccess ? UNIFIED_QUICK_ACCESS_ACTION_ID : QUICK_OPEN_ACTION_ID);
 			}
 		}));
 
@@ -1290,31 +1293,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				enterProjection(e);
 			}
 		}));
-	}
-
-	// #endregion
-
-	// #region Click Handlers
-
-	/**
-	 * Handle pill click - opens the displayed session if showing progress, otherwise opens unified quick access
-	 */
-	private _handlePillClick(): void {
-		if (this._displayedSession) {
-			this.telemetryService.publicLog2<AgentStatusClickEvent, AgentStatusClickClassification>('agentStatusWidget.click', {
-				source: 'pill',
-				action: 'openSession',
-			});
-			this.instantiationService.invokeFunction(openSession, this._displayedSession);
-		} else {
-			this.telemetryService.publicLog2<AgentStatusClickEvent, AgentStatusClickClassification>('agentStatusWidget.click', {
-				source: 'pill',
-				action: 'quickAccess',
-			});
-			// Use unified quick access only if that separate setting is enabled, otherwise use normal quick open
-			const useUnifiedQuickAccess = this.configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
-			this.commandService.executeCommand(useUnifiedQuickAccess ? UNIFIED_QUICK_ACCESS_ACTION_ID : QUICK_OPEN_ACTION_ID);
-		}
 	}
 
 	// #endregion
