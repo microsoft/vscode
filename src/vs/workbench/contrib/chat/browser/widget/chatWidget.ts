@@ -2225,8 +2225,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			userSelectedModelId: this.input.currentLanguageModel,
 			modeInfo: this.input.currentModeInfo,
 		};
+		const result = await this.chatService.resendRequest(lastRequest, options);
 		this.logThinkingStyleUsage('rerun');
-		return await this.chatService.resendRequest(lastRequest, options);
+		return result;
 	}
 
 	private getConfiguredThinkingStyle(): ThinkingDisplayMode {
