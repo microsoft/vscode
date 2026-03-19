@@ -32,7 +32,20 @@ export function parseNotebookSnapshotFileURI(resource: URI): ChatEditingSnapshot
 
 export function createSnapshot(notebook: INotebookTextModel, transientOptions: TransientOptions | undefined, outputSizeConfig: IConfigurationService | number): string {
 	const outputSizeLimit = (typeof outputSizeConfig === 'number' ? outputSizeConfig : outputSizeConfig.getValue<number>(NotebookSetting.outputBackupSizeLimit)) * 1024;
-	return serializeSnapshot(notebook.createSnapshot({ context: SnapshotContext.Backup, outputSizeLimit, transientOptions }), transientOptions);
+	try {
+		return serializeSnapshot(notebook.createSnapshot({ context: SnapshotContext.Backup, outputSizeLimit, transientOptions }), transientOptions);
+	} catch (e) {
+		// When backup snapshot fails (e.g. outputs exceed size limit), retry without outputs.
+		// A degraded snapshot is better than crashing the chat editing session.
+		console.warn('Failed to create notebook snapshot, retrying without outputs', e);
+		const withoutOutputs: TransientOptions = {
+			transientOutputs: true,
+			transientCellMetadata: transientOptions?.transientCellMetadata ?? {},
+			transientDocumentMetadata: transientOptions?.transientDocumentMetadata ?? {},
+			cellContentMetadata: transientOptions?.cellContentMetadata ?? {},
+		};
+		return serializeSnapshot(notebook.createSnapshot({ context: SnapshotContext.Backup, outputSizeLimit, transientOptions: withoutOutputs }), withoutOutputs);
+	}
 }
 
 export function restoreSnapshot(notebook: INotebookTextModel, snapshot: string): void {

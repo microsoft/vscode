@@ -113,6 +113,11 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			const [options, buffer] = await Promise.all([
 				notebookService.withNotebookDataProvider(resourceRef.object.notebook.notebookType),
 				notebookService.createNotebookTextDocumentSnapshot(notebook.uri, SnapshotContext.Backup, CancellationToken.None).then(s => streamToBuffer(s))
+					.catch(e => {
+						// When backup snapshot fails (e.g. outputs exceed size limit), fall back to Save context.
+						console.warn('Failed to create notebook snapshot for chat editing, retrying without backup size limit', e);
+						return notebookService.createNotebookTextDocumentSnapshot(notebook.uri, SnapshotContext.Save, CancellationToken.None).then(s => streamToBuffer(s));
+					})
 			]);
 			const disposables = new DisposableStore();
 			// Register so that we can load this from file system.
