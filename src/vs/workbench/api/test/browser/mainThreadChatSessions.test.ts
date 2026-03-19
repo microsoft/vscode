@@ -763,9 +763,7 @@ suite('MainThreadChatSessions', function () {
 		(proxy.$provideHandleOptionsChange as sinon.SinonStub).resetHistory();
 
 		// Simulate an option change
-		await chatSessionsService.notifySessionOptionsChange(resource, [
-			{ optionId: 'models', value: 'gpt-4-turbo' }
-		]);
+		chatSessionsService.setSessionOption(resource, 'models', 'gpt-4-turbo');
 
 		// Verify the extension was notified
 		assert.ok((proxy.$provideHandleOptionsChange as sinon.SinonStub).calledOnce);
@@ -789,7 +787,7 @@ suite('MainThreadChatSessions', function () {
 
 		// Attempt to notify option change for an unregistered scheme
 		// This should not throw, but also should not call the proxy
-		await chatSessionsService.notifySessionOptionsChange(resource, [
+		chatSessionsService.updateSessionOptions(resource, [
 			{ optionId: 'models', value: 'gpt-4-turbo' }
 		]);
 
