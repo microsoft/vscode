@@ -443,6 +443,7 @@ export class ActionListWidget<T> extends Disposable {
 	private readonly _submenuContainer: HTMLElement;
 	private _submenuHideTimeout: ReturnType<typeof setTimeout> | undefined;
 	private _currentSubmenuWidget: ActionListWidget<IAction> | undefined;
+	private _currentSubmenuElement: IActionListItem<T> | undefined;
 
 	private readonly _collapsedSections = new Set<string>();
 	private _filterText = '';
@@ -1142,6 +1143,9 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
+		if (this._currentSubmenuElement === element) {
+			return;
+		}
 		this._submenuDisposables.clear();
 
 		const rowElement = this._getRowElement(index);
@@ -1186,6 +1190,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _showSubmenuForElement(element: IActionListItem<T>, indicator: HTMLElement): void {
 		this._submenuDisposables.clear();
 		this._hover.clear();
+		this._currentSubmenuElement = element;
 		dom.clearNode(this._submenuContainer);
 
 		// Convert submenu actions into ActionListWidget items
@@ -1292,6 +1297,7 @@ export class ActionListWidget<T> extends Disposable {
 		this._cancelSubmenuHide();
 		this._submenuDisposables.clear();
 		this._currentSubmenuWidget = undefined;
+		this._currentSubmenuElement = undefined;
 		dom.clearNode(this._submenuContainer);
 		this._submenuContainer.style.display = 'none';
 	}
@@ -1331,9 +1337,13 @@ export class ActionListWidget<T> extends Disposable {
 
 			// Set focus immediately for responsive hover feedback
 			this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
-			this._hideSubmenu();
+			if (this._currentSubmenuElement === element) {
+				this._cancelSubmenuHide();
+			} else {
+				this._hideSubmenu();
+			}
 
-			if (this._delegate.onHover && !element.disabled && element.kind === ActionListItemKind.Action) {
+			if (this._delegate.onHover && !element.disabled && element.kind === ActionListItemKind.Action && this._currentSubmenuElement !== element) {
 				const result = await this._delegate.onHover(element.item, this.cts.token);
 				const canPreview = result ? result.canPreview : undefined;
 				if (canPreview !== element.canPreview) {
@@ -1535,6 +1545,3 @@ export class ActionList<T> extends Disposable {
 function stripNewlines(str: string): string {
 	return str.replace(/\r\n|\r|\n/g, ' ');
 }
-
-
-
