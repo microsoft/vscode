@@ -1453,36 +1453,32 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const parsedFile = await this.parseNew(uri, token);
 				const folderName = getSkillFolderName(uri);
 
-				const name = parsedFile.header?.name;
-				// Use folder name as fallback when name is missing or doesn't match
-				let resolvedName: string;
+				let name = parsedFile.header?.name;
+
 				if (!name) {
 					this.logger.warn(`[computeSkillDiscoveryInfo] Agent skill file missing name attribute, using folder name "${folderName}": ${uri}`);
-					resolvedName = folderName;
-				} else {
-					const sanitizedName = this.truncateAgentSkillName(name, uri);
-					if (sanitizedName !== folderName) {
-						this.logger.warn(`[computeSkillDiscoveryInfo] Agent skill name "${sanitizedName}" does not match folder name "${folderName}", using folder name: ${uri}`);
-						resolvedName = folderName;
-					} else {
-						resolvedName = sanitizedName;
-					}
+					name = folderName;
+				}
+				const sanitizedName = this.truncateAgentSkillName(name, uri);
+				if (sanitizedName !== folderName) {
+					this.logger.warn(`[computeSkillDiscoveryInfo] Agent skill name "${sanitizedName}" does not match folder name "${folderName}", using folder name: ${uri}`);
+
 				}
 
-				if (seenNames.has(resolvedName)) {
-					this.logger.warn(`[computeSkillDiscoveryInfo] Skipping duplicate agent skill name: ${resolvedName} at ${uri}`);
-					files.push({ uri, storage, status: 'skipped', skipReason: 'duplicate-name', name: resolvedName, duplicateOf: nameToUri.get(resolvedName), extensionId, source });
+				if (seenNames.has(sanitizedName)) {
+					this.logger.warn(`[computeSkillDiscoveryInfo] Skipping duplicate agent skill name: ${sanitizedName} at ${uri}`);
+					files.push({ uri, storage, status: 'skipped', skipReason: 'duplicate-name', name: sanitizedName, duplicateOf: nameToUri.get(sanitizedName), extensionId, source });
 					continue;
 				}
 
 				const description = parsedFile.header?.description;
 
-				seenNames.add(resolvedName);
-				nameToUri.set(resolvedName, uri);
+				seenNames.add(sanitizedName);
+				nameToUri.set(sanitizedName, uri);
 				const disableModelInvocation = parsedFile.header?.disableModelInvocation === true;
 				const userInvocable = parsedFile.header?.userInvocable !== false;
 				const sanitizedDescription = description ? this.truncateAgentSkillDescription(description, uri) : undefined;
-				files.push({ uri, storage, status: 'loaded', name: resolvedName, description: sanitizedDescription, extensionId, source, disableModelInvocation, userInvocable });
+				files.push({ uri, storage, status: 'loaded', name: sanitizedName, description: sanitizedDescription, extensionId, source, disableModelInvocation, userInvocable });
 
 				// Track skill type
 				skillsBySource.set(source, (skillsBySource.get(source) || 0) + 1);
