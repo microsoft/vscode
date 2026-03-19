@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from '../../../../nls.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
@@ -143,7 +142,7 @@ export class KeybindingsExportContribution extends Disposable implements IWorkbe
 	private static _formatAllCommandsAsComment(boundCommands: Map<string, boolean>): string {
 		const unboundCommands = getAllUnboundCommands(boundCommands);
 		const pretty = unboundCommands.sort().join('\n// - ');
-		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
+		return '// Here are other available commands: ' + '\n// - ' + pretty;
 	}
 }
 
