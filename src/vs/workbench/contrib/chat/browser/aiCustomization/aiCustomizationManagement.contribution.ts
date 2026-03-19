@@ -20,6 +20,7 @@ import { AICustomizationManagementEditorInput } from './aiCustomizationManagemen
 import {
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID,
+	AI_CUSTOMIZATION_ITEM_DISABLED_KEY,
 	AI_CUSTOMIZATION_ITEM_STORAGE_KEY,
 	AI_CUSTOMIZATION_ITEM_TYPE_KEY,
 	AI_CUSTOMIZATION_ITEM_URI_KEY,
@@ -33,7 +34,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { PromptsStorage, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -434,6 +435,102 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	group: '4_modify',
 	order: 1,
 	when: WHEN_ITEM_IS_PLUGIN,
+});
+
+// Disable item action
+const DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID = 'aiCustomizationManagement.disableItem';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID,
+			title: localize2('disable', "Disable"),
+			icon: Codicon.eyeClosed,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		const promptsService = accessor.get(IPromptsService);
+		const uri = extractURI(context);
+		const promptType = extractPromptType(context);
+		if (!promptType) {
+			return;
+		}
+
+		const disabled = promptsService.getDisabledPromptFiles(promptType);
+		disabled.add(uri);
+		promptsService.setDisabledPromptFiles(promptType, disabled);
+	}
+});
+
+// Enable item action
+const ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID = 'aiCustomizationManagement.enableItem';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID,
+			title: localize2('enable', "Enable"),
+			icon: Codicon.eye,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		const promptsService = accessor.get(IPromptsService);
+		const uri = extractURI(context);
+		const promptType = extractPromptType(context);
+		if (!promptType) {
+			return;
+		}
+
+		const disabled = promptsService.getDisabledPromptFiles(promptType);
+		disabled.delete(uri);
+		promptsService.setDisabledPromptFiles(promptType, disabled);
+	}
+});
+
+// Context menu: Disable (shown when builtin item is enabled)
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disable', "Disable") },
+	group: '5_toggle',
+	order: 1,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+	),
+});
+
+// Context menu: Enable (shown when builtin item is disabled)
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable") },
+	group: '5_toggle',
+	order: 1,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+	),
+});
+
+// Inline hover: Disable (shown when builtin item is enabled)
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disable', "Disable"), icon: Codicon.eyeClosed },
+	group: 'inline',
+	order: 5,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+	),
+});
+
+// Inline hover: Enable (shown when builtin item is disabled)
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable"), icon: Codicon.eye },
+	group: 'inline',
+	order: 5,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+	),
 });
 
 //#endregion

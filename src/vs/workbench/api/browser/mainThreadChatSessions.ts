@@ -25,17 +25,18 @@ import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/c
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { awaitStatsForSession } from '../../contrib/chat/common/chat.js';
 import { IChatContentInlineReference, IChatProgress, IChatService, ResponseModelState } from '../../contrib/chat/common/chatService/chatService.js';
-import { ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/participants/chatAgents.js';
+import { IChatArtifactsService } from '../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatTodoListService } from '../../contrib/chat/common/tools/chatTodoListService.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ChatSessionContentContextDto, ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionHistoryItemDto, IChatSessionItemsChange, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
+import { ChatSessionContentContextDto, ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionHistoryItemDto, IChatSessionItemsChange, IChatSessionRequestHistoryItemDto, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
 
 export class ObservableChatSession extends Disposable implements IChatSession {
 
@@ -67,6 +68,7 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 		history: any[],
 		token: CancellationToken
 	) => Promise<void>;
+	forkSession?: (request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>;
 
 	private readonly _proxy: ExtHostChatSessionsShape;
 	private readonly _providerHandle: number;
@@ -239,6 +241,13 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 				};
 			}
 
+			if (sessionContent.hasForkHandler && !this.forkSession) {
+				this.forkSession = async (request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => {
+					const result = await this._proxy.$forkChatSession(this._providerHandle, this.sessionResource, request ? this.toRequestDto(request) : undefined, token);
+					return revive(result) as IChatSessionItem;
+				};
+			}
+
 			this._isInitialized = true;
 
 			// Process any pending progress chunks
@@ -305,6 +314,18 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 		if (!this._isCompleteObservable.get()) {
 			this._isCompleteObservable.set(true, undefined);
 		}
+	}
+
+	private toRequestDto(request: IChatSessionRequestHistoryItem): IChatSessionRequestHistoryItemDto {
+		return {
+			type: 'request',
+			id: request.id,
+			prompt: request.prompt,
+			participant: request.participant,
+			command: request.command,
+			variableData: undefined,
+			modelId: request.modelId,
+		};
 	}
 
 	override dispose(): void {
@@ -423,6 +444,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatTodoListService private readonly _chatTodoListService: IChatTodoListService,
+		@IChatArtifactsService private readonly _chatArtifactsService: IChatArtifactsService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -549,6 +571,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 			// Migrate todos from old session to new session
 			this._chatTodoListService.migrateTodos(originalResource, modifiedResource);
+
+			// Migrate artifacts from old session to new session
+			this._chatArtifactsService.migrateArtifacts(originalResource, modifiedResource);
 
 			// Find the group containing the original editor
 			const originalGroup =
