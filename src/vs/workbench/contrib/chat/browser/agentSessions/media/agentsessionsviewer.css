@@ -310,6 +310,7 @@
 		font-size: 11px;
 		font-weight: 500;
 		color: var(--vscode-descriptionForeground);
+		text-transform: uppercase;
 		/* align with session item padding */
 		padding: 0 6px;
 
