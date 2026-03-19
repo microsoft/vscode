@@ -10,7 +10,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IFileService } from '../../files/common/files.js';
 import { AgentProvider, IAgentCreateSessionConfig, IAgent, IAgentService, IAgentSessionMetadata, AgentSession, IAgentDescriptor } from '../common/agentService.js';
-import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
+import { ActionType, type IActionEnvelope, type INotification, type ISessionAction } from '../common/state/sessionActions.js';
 import type { IBrowseDirectoryResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionSummary } from '../common/state/sessionState.js';
 import { AgentSideEffects } from './agentSideEffects.js';
@@ -140,7 +140,7 @@ export class AgentService extends Disposable implements IAgentService {
 			modifiedAt: Date.now(),
 		};
 		this._stateManager.createSession(summary);
-		this._stateManager.dispatchServerAction({ type: 'session/ready', session: session.toString() });
+		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: session.toString() });
 
 		return session;
 	}

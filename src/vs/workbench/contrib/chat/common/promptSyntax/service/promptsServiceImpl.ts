@@ -603,7 +603,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const promptFiles = await this.listPromptFiles(PromptsType.prompt, token);
 		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
 		const skills = useAgentSkills ? await this.listPromptFiles(PromptsType.skill, token) : [];
-		const slashCommandFiles = [...promptFiles, ...skills];
+		const disabledSkills = this.getDisabledPromptFiles(PromptsType.skill);
+		const slashCommandFiles = [
+			...promptFiles,
+			...skills.filter(s => !disabledSkills.has(s.uri)),
+		];
 		const details = await Promise.all(slashCommandFiles.map(async promptPath => {
 			try {
 				const parsedPromptFile = await this.parseNew(promptPath.uri, token);
@@ -1007,6 +1011,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		this.storageService.store(this.disabledPromptsStorageKeyPrefix + type, JSON.stringify(disabled), StorageScope.PROFILE, StorageTarget.USER);
 		if (type === PromptsType.agent) {
 			this.cachedCustomAgents.refresh();
+		} else if (type === PromptsType.skill) {
+			this.cachedSkills.refresh();
+			this.cachedSlashCommands.refresh();
 		}
 	}
 

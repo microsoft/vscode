@@ -803,7 +803,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		// No hook decision - use normal auto-confirm logic
-		const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, sessionResource, dto.chatRequestId);
+		const approveCombination = preparedInvocation?.confirmationMessages?.approveCombination;
+		let combination: { label: string; key: string } | undefined;
+		if (approveCombination) {
+			combination = {
+				label: typeof approveCombination.label === 'string' ? approveCombination.label : approveCombination.label.value,
+				key: approveCombination.key,
+			};
+		}
+		const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, sessionResource, dto.chatRequestId, combination);
 		return { autoConfirmed, preparedInvocation };
 	}
 
@@ -1116,7 +1124,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return true;
 	}
 
-	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined): Promise<ConfirmedReason | undefined> {
+	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined, combination?: { label: string; key: string }): Promise<ConfirmedReason | undefined> {
 		const tool = this._tools.get(toolId);
 		if (!tool) {
 			return undefined;
@@ -1142,7 +1150,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return undefined;
 		}
 
-		const reason = this._confirmationService.getPreConfirmAction({ toolId, source, parameters, chatSessionResource });
+		const reason = this._confirmationService.getPreConfirmAction({ toolId, source, parameters, chatSessionResource, combination });
 		if (reason) {
 			return reason;
 		}
