@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from '../../../../nls.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
@@ -21,12 +22,12 @@ import { IKeyboardMapper } from '../../../../platform/keyboardLayout/common/keyb
 import { IMacLinuxKeyboardMapping, IWindowsKeyboardMapping } from '../../../../platform/keyboardLayout/common/keyboardLayout.js';
 import { MacLinuxKeyboardMapper } from '../../../services/keybinding/common/macLinuxKeyboardMapper.js';
 import { WindowsKeyboardMapper } from '../../../services/keybinding/common/windowsKeyboardMapper.js';
-import { KeymapInfo } from '../../../services/keybinding/common/keymapInfo.js';
+import { IKeymapInfo, KeymapInfo } from '../../../services/keybinding/common/keymapInfo.js';
 import { EN_US_WIN_LAYOUT } from '../../../services/keybinding/browser/keyboardLayouts/en.win.js';
 import { EN_US_DARWIN_LAYOUT } from '../../../services/keybinding/browser/keyboardLayouts/en.darwin.js';
 import { EN_US_LINUX_LAYOUT } from '../../../services/keybinding/browser/keyboardLayouts/en.linux.js';
-import { formatDefaultKeybindings } from '../../../services/keybinding/common/keybindingIO.js';
-import { formatAllCommandsAsComment } from '../../../services/keybinding/browser/unboundCommands.js';
+import { KeybindingIO, OutputBuilder } from '../../../services/keybinding/common/keybindingIO.js';
+import { getAllUnboundCommands } from '../../../services/keybinding/browser/unboundCommands.js';
 
 export class KeybindingsExportContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.keybindingsExport';
@@ -82,26 +83,27 @@ export class KeybindingsExportContribution extends Disposable implements IWorkbe
 		const defaultKeybindings = resolver.getDefaultKeybindings();
 		const boundCommands = resolver.getDefaultBoundCommands();
 		return (
-			formatDefaultKeybindings(defaultKeybindings)
+			KeybindingsExportContribution._formatDefaultKeybindings(defaultKeybindings)
 			+ '\n\n'
-			+ formatAllCommandsAsComment(boundCommands)
+			+ KeybindingsExportContribution._formatAllCommandsAsComment(boundCommands)
 		);
 	}
 
 	private static _createKeyboardMapperForOS(os: OperatingSystem): IKeyboardMapper {
+		const layoutMap: Record<OperatingSystem, IKeymapInfo> = {
+			[OperatingSystem.Windows]: EN_US_WIN_LAYOUT,
+			[OperatingSystem.Macintosh]: EN_US_DARWIN_LAYOUT,
+			[OperatingSystem.Linux]: EN_US_LINUX_LAYOUT,
+		};
+		const layout = layoutMap[os];
+		const keymapInfo = new KeymapInfo(layout.layout, layout.secondaryLayouts, layout.mapping);
 		switch (os) {
-			case OperatingSystem.Windows: {
-				const keymapInfo = new KeymapInfo(EN_US_WIN_LAYOUT.layout, EN_US_WIN_LAYOUT.secondaryLayouts, EN_US_WIN_LAYOUT.mapping);
+			case OperatingSystem.Windows:
 				return new WindowsKeyboardMapper(true, <IWindowsKeyboardMapping>keymapInfo.mapping, false);
-			}
-			case OperatingSystem.Macintosh: {
-				const keymapInfo = new KeymapInfo(EN_US_DARWIN_LAYOUT.layout, EN_US_DARWIN_LAYOUT.secondaryLayouts, EN_US_DARWIN_LAYOUT.mapping);
+			case OperatingSystem.Macintosh:
 				return new MacLinuxKeyboardMapper(true, <IMacLinuxKeyboardMapping>keymapInfo.mapping, false, OperatingSystem.Macintosh);
-			}
-			case OperatingSystem.Linux: {
-				const keymapInfo = new KeymapInfo(EN_US_LINUX_LAYOUT.layout, EN_US_LINUX_LAYOUT.secondaryLayouts, EN_US_LINUX_LAYOUT.mapping);
+			case OperatingSystem.Linux:
 				return new MacLinuxKeyboardMapper(true, <IMacLinuxKeyboardMapping>keymapInfo.mapping, false, OperatingSystem.Linux);
-			}
 		}
 	}
 
@@ -122,6 +124,27 @@ export class KeybindingsExportContribution extends Disposable implements IWorkbe
 		return result;
 	}
 
+	private static _formatDefaultKeybindings(defaultKeybindings: readonly ResolvedKeybindingItem[]): string {
+		const out = new OutputBuilder();
+		out.writeLine('[');
+		const lastIndex = defaultKeybindings.length - 1;
+		defaultKeybindings.forEach((k, index) => {
+			KeybindingIO.writeKeybindingItem(out, k);
+			if (index !== lastIndex) {
+				out.writeLine(',');
+			} else {
+				out.writeLine();
+			}
+		});
+		out.writeLine(']');
+		return out.toString();
+	}
+
+	private static _formatAllCommandsAsComment(boundCommands: Map<string, boolean>): string {
+		const unboundCommands = getAllUnboundCommands(boundCommands);
+		const pretty = unboundCommands.sort().join('\n// - ');
+		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
+	}
 }
 
 registerWorkbenchContribution2(

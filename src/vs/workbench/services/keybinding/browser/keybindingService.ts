@@ -53,9 +53,9 @@ import { IExtensionService } from '../../extensions/common/extensions.js';
 import { ExtensionMessageCollector, ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
 import { IHostService } from '../../host/browser/host.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
-import { IUserKeybindingItem, formatDefaultKeybindings, KeybindingIO } from '../common/keybindingIO.js';
+import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from '../common/keybindingIO.js';
 import { IKeyboard, INavigatorWithKeyboard } from './navigatorKeyboard.js';
-import { formatAllCommandsAsComment } from './unboundCommands.js';
+import { getAllUnboundCommands } from './unboundCommands.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 
 function isValidContributedKeyBinding(keyBinding: ContributedKeyBinding, rejects: string[]): boolean {
@@ -663,10 +663,33 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		const defaultKeybindings = resolver.getDefaultKeybindings();
 		const boundCommands = resolver.getDefaultBoundCommands();
 		return (
-			formatDefaultKeybindings(defaultKeybindings)
+			WorkbenchKeybindingService._getDefaultKeybindings(defaultKeybindings)
 			+ '\n\n'
-			+ formatAllCommandsAsComment(boundCommands)
+			+ WorkbenchKeybindingService._getAllCommandsAsComment(boundCommands)
 		);
+	}
+
+	private static _getDefaultKeybindings(defaultKeybindings: readonly ResolvedKeybindingItem[]): string {
+		const out = new OutputBuilder();
+		out.writeLine('[');
+
+		const lastIndex = defaultKeybindings.length - 1;
+		defaultKeybindings.forEach((k, index) => {
+			KeybindingIO.writeKeybindingItem(out, k);
+			if (index !== lastIndex) {
+				out.writeLine(',');
+			} else {
+				out.writeLine();
+			}
+		});
+		out.writeLine(']');
+		return out.toString();
+	}
+
+	private static _getAllCommandsAsComment(boundCommands: Map<string, boolean>): string {
+		const unboundCommands = getAllUnboundCommands(boundCommands);
+		const pretty = unboundCommands.sort().join('\n// - ');
+		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
 	}
 
 	override mightProducePrintableCharacter(event: IKeyboardEvent): boolean {

@@ -7,7 +7,6 @@ import { CommandsRegistry, ICommandMetadata } from '../../../../platform/command
 import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { MenuRegistry, MenuId, isIMenuItem } from '../../../../platform/actions/common/actions.js';
-import * as nls from '../../../../nls.js';
 
 export function getAllUnboundCommands(boundCommands: Map<string, boolean>): string[] {
 	const unboundCommands: string[] = [];
@@ -50,10 +49,4 @@ export function getAllUnboundCommands(boundCommands: Map<string, boolean>): stri
 	}
 
 	return unboundCommands;
-}
-
-export function formatAllCommandsAsComment(boundCommands: Map<string, boolean>): string {
-	const unboundCommands = getAllUnboundCommands(boundCommands);
-	const pretty = unboundCommands.sort().join('\n// - ');
-	return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
 }

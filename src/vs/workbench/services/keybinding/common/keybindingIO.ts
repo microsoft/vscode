@@ -91,20 +91,3 @@ export class OutputBuilder {
 		return this._lines.join('\n');
 	}
 }
-
-export function formatDefaultKeybindings(defaultKeybindings: readonly ResolvedKeybindingItem[]): string {
-	const out = new OutputBuilder();
-	out.writeLine('[');
-
-	const lastIndex = defaultKeybindings.length - 1;
-	defaultKeybindings.forEach((k, index) => {
-		KeybindingIO.writeKeybindingItem(out, k);
-		if (index !== lastIndex) {
-			out.writeLine(',');
-		} else {
-			out.writeLine();
-		}
-	});
-	out.writeLine(']');
-	return out.toString();
-}
