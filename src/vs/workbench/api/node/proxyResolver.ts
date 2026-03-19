@@ -285,7 +285,7 @@ type AdditionalCertificatesClassification = {
 	isRemote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this is a remote extension host' };
 	loadLocalCertificates: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether local certificates are loaded' };
 	useNodeSystemCerts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether Node.js system certificates are used' };
-	nodeSystemCertErrors: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'JSON summary of certificate loading errors from tls.getSystemCACertificatesErrors()' };
+	nodeSystemCertErrors: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Summary of certificate loading errors from tls.getSystemCACertificatesErrors() or a sentinel string when unavailable/disabled' };
 };
 
 type AdditionalCertificatesEvent = {
