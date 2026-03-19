@@ -16,6 +16,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { URI } from '../../../../../base/common/uri.js';
 import { isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 export class OpenSessionsWindowAction extends Action2 {
 	constructor() {
@@ -40,7 +41,7 @@ export class OpenSessionsWindowAction extends Action2 {
 					? 'vscode-sessions-exploration'
 					: 'vscode-sessions-insiders';
 
-			await openerService.open(URI.from({ scheme }), { openExternal: true });
+			await openerService.open(URI.from({ scheme, authority: Schemas.file }), { openExternal: true });
 		} else {
 			const nativeHostService = accessor.get(INativeHostService);
 			await nativeHostService.openSessionsWindow();
