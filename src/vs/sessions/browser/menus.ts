@@ -24,5 +24,4 @@ export const Menus = {
 	SidebarFooter: new MenuId('SessionsSidebarFooter'),
 	SidebarCustomizations: new MenuId('SessionsSidebarCustomizations'),
 	AgentFeedbackEditorContent: new MenuId('AgentFeedbackEditorContent'),
-	CollapsedPanel: new MenuId('SessionsCollapsedPanel'),
 } as const;

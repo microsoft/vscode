@@ -13,7 +13,7 @@
 	padding: 0 4px;
 	height: 100%;
 	position: relative;
-	z-index: 2500;
+	z-index: 2500; /* Above titlebar toolbar actions so widgets remain clickable */
 	-webkit-app-region: no-drag;
 }
 

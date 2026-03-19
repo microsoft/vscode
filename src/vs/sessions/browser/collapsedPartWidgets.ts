@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/collapsedPanelWidget.css';
-import * as dom from '../../base/browser/dom.js';
-import { $, append } from '../../base/browser/dom.js';
-import { Disposable, DisposableStore } from '../../base/common/lifecycle.js';
+import { $, addDisposableListener, append, EventType } from '../../base/browser/dom.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../base/common/lifecycle.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { IHoverService } from '../../platform/hover/browser/hover.js';
 import { createInstantHoverDelegate } from '../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -20,6 +19,9 @@ import { IPaneCompositePartService } from '../../workbench/services/panecomposit
 import { ViewContainerLocation } from '../../workbench/common/views.js';
 import { URI } from '../../base/common/uri.js';
 import { Event } from '../../base/common/event.js';
+
+// Duplicated from vs/sessions/contrib/changes/browser/changesView.ts to avoid a layering import.
+const CHANGES_VIEW_CONTAINER_ID = 'workbench.view.agentSessions.changesContainer';
 
 /**
  * Collapsed widget shown in the bottom-left corner when the sidebar is hidden.
@@ -63,7 +65,7 @@ export class CollapsedSidebarWidget extends Disposable {
 
 		store.add(this.hoverService.setupManagedHover(this.hoverDelegate, btn, localize('newSession', "New Session")));
 
-		store.add(dom.addDisposableListener(btn, dom.EventType.CLICK, () => {
+		store.add(addDisposableListener(btn, EventType.CLICK, () => {
 			this.commandService.executeCommand('workbench.action.sessions.newChat');
 		}));
 
@@ -136,7 +138,7 @@ export class CollapsedSidebarWidget extends Disposable {
 
 		this.indicatorDisposables.add(this.hoverService.setupManagedHover(this.hoverDelegate, indicator, tooltip));
 
-		this.indicatorDisposables.add(dom.addDisposableListener(indicator, dom.EventType.CLICK, () => {
+		this.indicatorDisposables.add(addDisposableListener(indicator, EventType.CLICK, () => {
 			this.layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
 		}));
 	}
@@ -190,6 +192,7 @@ export class CollapsedAuxiliaryBarWidget extends Disposable {
 	private readonly indicatorDisposables = this._register(new DisposableStore());
 	private readonly hoverDelegate = this._register(createInstantHoverDelegate());
 	private activeSessionResource: (() => URI | undefined) | undefined;
+	private readonly activeSessionDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		parent: HTMLElement,
@@ -218,7 +221,7 @@ export class CollapsedAuxiliaryBarWidget extends Disposable {
 	 */
 	setActiveSessionProvider(getResource: () => URI | undefined, onDidChange: Event<void>): void {
 		this.activeSessionResource = getResource;
-		this._register(onDidChange(() => this.rebuildIndicators()));
+		this.activeSessionDisposable.value = onDidChange(() => this.rebuildIndicators());
 		this.rebuildIndicators();
 	}
 
@@ -258,9 +261,9 @@ export class CollapsedAuxiliaryBarWidget extends Disposable {
 			));
 		}
 
-		this.indicatorDisposables.add(dom.addDisposableListener(changesBtn, dom.EventType.CLICK, () => {
+		this.indicatorDisposables.add(addDisposableListener(changesBtn, EventType.CLICK, () => {
 			this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-			this.paneCompositeService.openPaneComposite('workbench.view.agentSessions.changesContainer', ViewContainerLocation.AuxiliaryBar);
+			this.paneCompositeService.openPaneComposite(CHANGES_VIEW_CONTAINER_ID, ViewContainerLocation.AuxiliaryBar);
 		}));
 	}
 

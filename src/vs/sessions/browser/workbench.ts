@@ -400,6 +400,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 				// Wire active session provider after restore, when ISessionsManagementService is available.
 				// Resolved via createDecorator to avoid a layering import from vs/sessions/contrib/.
+				// Note: whenRestored is a deferred promise that resolves inside restore() below.
 				const auxWidget = this.collapsedAuxiliaryBarWidget;
 				this.whenRestored.then(() => {
 					instantiationService.invokeFunction(accessor => {
