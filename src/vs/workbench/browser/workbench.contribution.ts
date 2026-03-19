@@ -369,6 +369,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'number',
 				'description': localize('modalMinWidth', "Controls the minimum width of modal editor overlays in pixels."),
 				'default': 400,
+				'minimum': 0,
+				'multipleOf': 1
 			},
 			'workbench.editor.swipeToNavigate': {
 				'type': 'boolean',
