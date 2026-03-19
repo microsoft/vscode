@@ -28,7 +28,7 @@ import { AgentSessionProviders, getAgentSessionProvider } from '../../contrib/ch
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IPromptFileContext, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
-import { isValidPromptType, PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { isValidPromptType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../contrib/chat/common/requestParser/chatRequestParser.js';
@@ -203,10 +203,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	private async _pushSkills(): Promise<void> {
 		try {
 			const skills = await this._promptsService.findAgentSkills(CancellationToken.None) ?? [];
-			const disabledSkills = this._promptsService.getDisabledPromptFiles(PromptsType.skill);
-			const dtos: ISkillDto[] = skills
-				.filter(skill => !disabledSkills.has(skill.uri))
-				.map(skill => ({ uri: skill.uri }));
+			const dtos: ISkillDto[] = skills.map(skill => ({ uri: skill.uri }));
 			this._proxy.$acceptSkills(dtos);
 		} catch (error) {
 			this._logService.error('[chat] Failed to push skills to extension host', error);

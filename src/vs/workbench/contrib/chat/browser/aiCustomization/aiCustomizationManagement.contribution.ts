@@ -485,36 +485,48 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// Context menu: Disable (shown when item is enabled)
+// Context menu: Disable (shown when builtin item is enabled)
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disable', "Disable") },
 	group: '5_toggle',
 	order: 1,
-	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+	),
 });
 
-// Context menu: Enable (shown when item is disabled)
+// Context menu: Enable (shown when builtin item is disabled)
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable") },
 	group: '5_toggle',
 	order: 1,
-	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+	),
 });
 
-// Inline hover: Disable (shown when item is enabled)
+// Inline hover: Disable (shown when builtin item is enabled)
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disable', "Disable"), icon: Codicon.eyeClosed },
 	group: 'inline',
 	order: 5,
-	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+	),
 });
 
-// Inline hover: Enable (shown when item is disabled)
+// Inline hover: Enable (shown when builtin item is disabled)
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable"), icon: Codicon.eye },
 	group: 'inline',
 	order: 5,
-	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+	),
 });
 
 //#endregion

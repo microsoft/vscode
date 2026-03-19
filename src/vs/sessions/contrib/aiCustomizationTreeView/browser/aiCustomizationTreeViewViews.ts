@@ -59,6 +59,11 @@ export const AICustomizationItemTypeContextKey = new RawContextKey<string>('aiCu
  */
 export const AICustomizationItemDisabledContextKey = new RawContextKey<boolean>('aiCustomizationItemDisabled', false);
 
+/**
+ * Context key for the current item's storage type in context menus.
+ */
+export const AICustomizationItemStorageContextKey = new RawContextKey<string>('aiCustomizationItemStorage', '');
+
 //#endregion
 
 //#region Tree Item Types
@@ -265,6 +270,7 @@ class AICustomizationFileRenderer implements ITreeRenderer<IAICustomizationFileI
 		const overlay = this.contextKeyService.createOverlay([
 			[AICustomizationItemTypeContextKey.key, item.promptType],
 			[AICustomizationItemDisabledContextKey.key, item.disabled],
+			[AICustomizationItemStorageContextKey.key, item.storage],
 		]);
 
 		// Create menu and extract inline actions
@@ -580,6 +586,7 @@ export class AICustomizationViewPane extends ViewPane {
 	private readonly isEmptyContextKey: IContextKey<boolean>;
 	private readonly itemTypeContextKey: IContextKey<string>;
 	private readonly itemDisabledContextKey: IContextKey<boolean>;
+	private readonly itemStorageContextKey: IContextKey<string>;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -605,6 +612,7 @@ export class AICustomizationViewPane extends ViewPane {
 		this.isEmptyContextKey = AICustomizationIsEmptyContextKey.bindTo(contextKeyService);
 		this.itemTypeContextKey = AICustomizationItemTypeContextKey.bindTo(contextKeyService);
 		this.itemDisabledContextKey = AICustomizationItemDisabledContextKey.bindTo(contextKeyService);
+		this.itemStorageContextKey = AICustomizationItemStorageContextKey.bindTo(contextKeyService);
 
 		// Subscribe to prompt service events to refresh tree
 		this._register(this.promptsService.onDidChangeCustomAgents(() => this.refresh()));
@@ -750,6 +758,7 @@ export class AICustomizationViewPane extends ViewPane {
 		// Set context keys for the item so menu items can use `when` clauses
 		this.itemTypeContextKey.set(element.promptType);
 		this.itemDisabledContextKey.set(element.disabled);
+		this.itemStorageContextKey.set(element.storage);
 
 		// Get menu actions from the menu service
 		const context = {
@@ -771,6 +780,7 @@ export class AICustomizationViewPane extends ViewPane {
 					// Clear the context keys when menu closes
 					this.itemTypeContextKey.reset();
 					this.itemDisabledContextKey.reset();
+					this.itemStorageContextKey.reset();
 				},
 			});
 		}

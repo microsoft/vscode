@@ -8,7 +8,7 @@ import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/act
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AICustomizationItemMenuId } from './aiCustomizationTreeView.js';
-import { AICustomizationItemDisabledContextKey, AICustomizationItemTypeContextKey, AICustomizationViewPane } from './aiCustomizationTreeViewViews.js';
+import { AICustomizationItemDisabledContextKey, AICustomizationItemStorageContextKey, AICustomizationItemTypeContextKey, AICustomizationViewPane } from './aiCustomizationTreeViewViews.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -20,6 +20,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { AI_CUSTOMIZATION_VIEW_ID } from './aiCustomizationTreeView.js';
+import { BUILTIN_STORAGE } from '../../chat/common/builtinPromptsStorage.js';
 
 //#region Utilities
 
@@ -232,36 +233,48 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// Context menu: Disable (shown when item is enabled)
+// Context menu: Disable (shown when builtin item is enabled)
 MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 	command: { id: DISABLE_AI_CUSTOMIZATION_ITEM_ID, title: localize('disable', "Disable") },
 	group: '4_toggle',
 	order: 1,
-	when: ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, false),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, false),
+		ContextKeyExpr.equals(AICustomizationItemStorageContextKey.key, BUILTIN_STORAGE),
+	),
 });
 
-// Context menu: Enable (shown when item is disabled)
+// Context menu: Enable (shown when builtin item is disabled)
 MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 	command: { id: ENABLE_AI_CUSTOMIZATION_ITEM_ID, title: localize('enable', "Enable") },
 	group: '4_toggle',
 	order: 1,
-	when: ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, true),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, true),
+		ContextKeyExpr.equals(AICustomizationItemStorageContextKey.key, BUILTIN_STORAGE),
+	),
 });
 
-// Inline hover: Disable (shown when item is enabled)
+// Inline hover: Disable (shown when builtin item is enabled)
 MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 	command: { id: DISABLE_AI_CUSTOMIZATION_ITEM_ID, title: localize('disable', "Disable"), icon: Codicon.eyeClosed },
 	group: 'inline',
 	order: 5,
-	when: ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, false),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, false),
+		ContextKeyExpr.equals(AICustomizationItemStorageContextKey.key, BUILTIN_STORAGE),
+	),
 });
 
-// Inline hover: Enable (shown when item is disabled)
+// Inline hover: Enable (shown when builtin item is disabled)
 MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 	command: { id: ENABLE_AI_CUSTOMIZATION_ITEM_ID, title: localize('enable', "Enable"), icon: Codicon.eye },
 	group: 'inline',
 	order: 5,
-	when: ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, true),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, true),
+		ContextKeyExpr.equals(AICustomizationItemStorageContextKey.key, BUILTIN_STORAGE),
+	),
 });
 
 //#endregion
