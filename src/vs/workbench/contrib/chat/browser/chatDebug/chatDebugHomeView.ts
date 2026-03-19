@@ -17,7 +17,7 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { AGENT_DEBUG_LOG_ENABLED_SETTING } from '../../common/promptSyntax/promptTypes.js';
-import { LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 
@@ -88,7 +88,12 @@ export class ChatDebugHomeView extends Disposable {
 		// List sessions that have debug event data.
 		// Use the debug service as the source of truth — it includes sessions
 		// whose chat models may have been archived (e.g. when a new chat was started).
-		const sessionResources = [...this.chatDebugService.getSessionResources()].reverse();
+		const cliSessionTypes = new Set(['copilotcli', 'claude-code']);
+		const sessionResources = [...this.chatDebugService.getSessionResources()].reverse()
+			// Hide untitled bootstrap sessions for CLI session types (e.g. copilotcli, claude-code).
+			// These are transient sessions created during async session setup that only contain
+			// a single "Load Hooks" event and would confuse users.
+			.filter(r => !cliSessionTypes.has(getChatSessionType(r)) || !isUntitledChatSession(r));
 
 		// Sort: active session first
 		if (activeSessionResource) {
@@ -122,10 +127,14 @@ export class ChatDebugHomeView extends Disposable {
 					sessionTitle = localize('chatDebug.newSession', "New Chat");
 				} else if (importedTitle) {
 					sessionTitle = localize('chatDebug.importedSession', "Imported: {0}", importedTitle);
-				} else if (sessionResource.scheme === 'copilotcli') {
+				} else if (getChatSessionType(sessionResource) === 'copilotcli') {
 					const pathId = sessionResource.path.replace(/^\//, '').split('-')[0];
 					const shortId = pathId || sessionResource.authority || sessionResource.toString();
 					sessionTitle = localize('chatDebug.copilotCliSessionWithId', "Copilot CLI: {0}", shortId);
+				} else if (getChatSessionType(sessionResource) === 'claude-code') {
+					const pathId = sessionResource.path.replace(/^\//, '').split('-')[0];
+					const shortId = pathId || sessionResource.authority || sessionResource.toString();
+					sessionTitle = localize('chatDebug.claudeCodeSessionWithId', "Claude Code: {0}", shortId);
 				} else {
 					sessionTitle = localize('chatDebug.newSession', "New Chat");
 				}

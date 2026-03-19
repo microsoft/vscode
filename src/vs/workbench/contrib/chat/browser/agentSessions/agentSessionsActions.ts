@@ -552,7 +552,6 @@ export class PinAgentSessionAction extends BaseAgentSessionAction {
 				group: 'navigation',
 				order: 0,
 				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
 					ChatContextKeys.isPinnedAgentSession.negate(),
 					ChatContextKeys.isArchivedAgentSession.negate()
 				),
@@ -561,7 +560,6 @@ export class PinAgentSessionAction extends BaseAgentSessionAction {
 				group: '0_pin',
 				order: 1,
 				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
 					ChatContextKeys.isPinnedAgentSession.negate(),
 					ChatContextKeys.isArchivedAgentSession.negate()
 				),
@@ -588,16 +586,16 @@ export class UnpinAgentSessionAction extends BaseAgentSessionAction {
 				group: 'navigation',
 				order: 0,
 				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					ChatContextKeys.isPinnedAgentSession
+					ChatContextKeys.isPinnedAgentSession,
+					ChatContextKeys.isArchivedAgentSession.negate()
 				),
 			}, {
 				id: MenuId.AgentSessionsContext,
 				group: '0_pin',
 				order: 1,
 				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					ChatContextKeys.isPinnedAgentSession
+					ChatContextKeys.isPinnedAgentSession,
+					ChatContextKeys.isArchivedAgentSession.negate()
 				),
 			}]
 		});

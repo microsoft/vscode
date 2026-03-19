@@ -368,7 +368,11 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return Codicon.circleFilled;
 		}
 
-		return Codicon.circleSmallFilled;
+		if (session.providerType === AgentSessionProviders.Local) {
+			return Codicon.circleSmallFilled;
+		}
+
+		return session.icon;
 	}
 
 	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
@@ -848,14 +852,22 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		const firstArchivedIndex = sortedSessions.findIndex(session => session.isArchived());
 		const nonArchivedCount = firstArchivedIndex === -1 ? sortedSessions.length : firstArchivedIndex;
+		const nonArchivedSessions = sortedSessions.slice(0, nonArchivedCount);
+		const archivedSessions = sortedSessions.slice(nonArchivedCount);
 
-		const topSessions = sortedSessions.slice(0, Math.min(AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT, nonArchivedCount));
-		const othersSessions = sortedSessions.slice(topSessions.length);
+		// All pinned sessions are always visible
+		const pinnedSessions = nonArchivedSessions.filter(session => session.isPinned());
+		const unpinnedSessions = nonArchivedSessions.filter(session => !session.isPinned());
 
-		// Add top sessions directly (no section header)
-		result.push(...topSessions);
+		// Take up to N non-pinned sessions from the sorted order (preserves NeedsInput prioritization)
+		const topUnpinned = unpinnedSessions.slice(0, AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT);
+		const remainingUnpinned = unpinnedSessions.slice(AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT);
 
-		// Add "More" section for the rest
+		// Add pinned first, then top N non-pinned
+		result.push(...pinnedSessions, ...topUnpinned);
+
+		// Add "More" section for the rest (remaining unpinned + archived)
+		const othersSessions = [...remainingUnpinned, ...archivedSessions];
 		if (othersSessions.length > 0) {
 			result.push({
 				section: AgentSessionSection.More,

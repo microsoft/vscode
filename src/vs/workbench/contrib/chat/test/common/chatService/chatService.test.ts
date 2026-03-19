@@ -865,6 +865,19 @@ suite('ChatService', () => {
 		assert.ok(lastThree[2].includes('queued-3'));
 	});
 
+	test('acquireOrLoadSession returns undefined when remote provider is not registered (fix for #301203)', async () => {
+		const unregisteredScheme = 'unregistered-provider';
+		const sessionResource = URI.from({ scheme: unregisteredScheme, path: '/orphaned-session' });
+
+		// Use a mock sessions service with NO content provider registered for the scheme
+		const mockSessionsService = new MockChatSessionsService();
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const testService = createChatService();
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.strictEqual(ref, undefined, 'Should return undefined when no provider is registered');
+	});
+
 	test('sendRequest on untitled remote session propagates initialSessionOptions to new model', async () => {
 		const remoteScheme = 'remoteProvider';
 		const untitledResource = URI.from({ scheme: remoteScheme, path: '/untitled-test-session' });

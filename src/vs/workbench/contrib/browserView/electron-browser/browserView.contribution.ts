@@ -19,28 +19,24 @@ import { workbenchConfigurationNodeBase } from '../../../common/configuration.js
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { IBrowserViewWorkbenchService, IBrowserViewCDPService } from '../common/browserView.js';
+import { IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
 import { BrowserViewCDPService } from './browserViewCDPService.js';
-import { BrowserZoomService, IBrowserZoomService, MATCH_WINDOW_ZOOM_LABEL } from '../common/browserZoomService.js';
-import { browserZoomFactors, BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
 import { IExternalOpener, IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { PolicyCategory } from '../../../../base/common/policy.js';
-import { getZoomLevel, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
-import { mainWindow } from '../../../../base/browser/window.js';
-import { zoomLevelToZoomFactor } from '../../../../platform/window/common/window.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 
-// Register actions and browser tools
+// Register actions and browser features
 import './browserViewActions.js';
-import './tools/browserTools.contribution.js';
+import './features/browserEditorChatFeatures.js';
+import './features/browserEditorZoomFeature.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -151,27 +147,8 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 
 registerWorkbenchContribution2(LocalhostLinkOpenerContribution.ID, LocalhostLinkOpenerContribution, WorkbenchPhase.BlockStartup);
 
-/**
- * Bridges the application's UI zoom level changes into IBrowserZoomService so that
- * views using the 'Match Window' default zoom level stay in sync.
- */
-class WindowZoomSynchronizer extends Disposable implements IWorkbenchContribution {
-	static readonly ID = 'workbench.contrib.browserView.windowZoomSynchronizer';
-
-	constructor(@IBrowserZoomService browserZoomService: IBrowserZoomService) {
-		super();
-		browserZoomService.notifyWindowZoomChanged(zoomLevelToZoomFactor(getZoomLevel(mainWindow)));
-		this._register(onDidChangeZoomLevel(() => {
-			browserZoomService.notifyWindowZoomChanged(zoomLevelToZoomFactor(getZoomLevel(mainWindow)));
-		}));
-	}
-}
-
-registerWorkbenchContribution2(WindowZoomSynchronizer.ID, WindowZoomSynchronizer, WorkbenchPhase.BlockRestore);
-
 registerSingleton(IBrowserViewWorkbenchService, BrowserViewWorkbenchService, InstantiationType.Delayed);
 registerSingleton(IBrowserViewCDPService, BrowserViewCDPService, InstantiationType.Delayed);
-registerSingleton(IBrowserZoomService, BrowserZoomService, InstantiationType.Delayed);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
@@ -192,46 +169,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				{ comment: ['This is the description for a setting.'], key: 'browser.openLocalhostLinks' },
 				'When enabled, localhost links from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
 			)
-		},
-		'workbench.browser.enableChatTools': {
-			type: 'boolean',
-			default: false,
-			experiment: { mode: 'startup' },
-			tags: ['experimental'],
-			markdownDescription: localize(
-				{ comment: ['This is the description for a setting.'], key: 'browser.enableChatTools' },
-				'When enabled, chat agents can use browser tools to open and interact with pages in the Integrated Browser.'
-			),
-			policy: {
-				name: 'BrowserChatTools',
-				category: PolicyCategory.InteractiveSession,
-				minimumVersion: '1.110',
-				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
-				localization: {
-					description: {
-						key: 'browser.enableChatTools',
-						value: localize('browser.enableChatTools', 'When enabled, chat agents can use browser tools to open and interact with pages in the Integrated Browser.')
-					}
-				},
-			}
-		},
-		'workbench.browser.pageZoom': {
-			type: 'string',
-			enum: [MATCH_WINDOW_ZOOM_LABEL, ...browserZoomFactors.map(f => `${Math.round(f * 100)}%`)],
-			markdownEnumDescriptions: [
-				localize(
-					{ comment: ['This is the description for a setting enum value.'], key: 'browser.defaultZoomLevel.matchWindow' },
-					'Matches the application\'s current UI zoom level.'
-				),
-				...browserZoomFactors.map(() => ''),
-			],
-			default: MATCH_WINDOW_ZOOM_LABEL,
-			markdownDescription: localize(
-				{ comment: ['This is the description for a setting.'], key: 'browser.pageZoom' },
-				'Default zoom level for all sites in the Integrated Browser.'
-			),
-			// Zoom can change from machine to machine, so we don't need the workspace-level nor syncing that WINDOW has.
-			scope: ConfigurationScope.MACHINE
 		},
 		'workbench.browser.dataStorage': {
 			type: 'string',

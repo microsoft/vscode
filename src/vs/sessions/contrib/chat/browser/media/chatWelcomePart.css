@@ -178,7 +178,7 @@
 }
 
 /* Prominent project picker button */
-.sessions-chat-picker-slot.sessions-chat-project-picker .action-label {
+.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label {
 	height: auto;
 	padding: 8px 20px;
 	font-size: 15px;
@@ -188,16 +188,22 @@
 	border-radius: 6px;
 }
 
-.sessions-chat-picker-slot.sessions-chat-project-picker .action-label:hover {
+.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label:hover {
 	background-color: var(--vscode-button-secondaryHoverBackground);
 }
 
-.sessions-chat-picker-slot.sessions-chat-project-picker .action-label .codicon {
+.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .codicon {
 	font-size: 18px;
-	margin-right: 6px;
+	margin-right: 2px;
 }
 
-.sessions-chat-picker-slot.sessions-chat-project-picker .action-label .sessions-chat-dropdown-label {
+.sessions-chat-picker-slot.sessions-chat-project-picker .action-label .codicon-chevron-down {
+	margin-right: 0;
+	position: relative;
+	top: 1px;
+}
+
+.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label {
 	font-size: 15px;
 }
 
@@ -220,7 +226,7 @@
 	padding: 3px 3px 3px 6px;
 	background-color: transparent;
 	border: none;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-icon-foreground);
 	font-size: 13px;
 	cursor: pointer;
 	white-space: nowrap;
@@ -242,7 +248,7 @@
 
 .sessions-chat-picker-slot.disabled .action-label:hover {
 	background-color: transparent;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-icon-foreground);
 }
 
 .sessions-chat-picker-slot.loading .action-label {
@@ -279,7 +285,7 @@
 
 .sessions-chat-picker-slot .action-label .codicon-chevron-down {
 	font-size: 12px;
-	margin-left: 2px;
+	margin-left: 6px;
 }
 
 .sessions-chat-picker-slot .action-label .chat-session-option-label {
@@ -289,6 +295,34 @@
 
 .sessions-chat-picker-slot .action-label span + .chat-session-option-label {
 	margin-left: 2px;
+}
+
+.sessions-chat-picker-slot .action-label.warning {
+	color: var(--vscode-problemsWarningIcon-foreground);
+	opacity: 0.75;
+}
+
+.sessions-chat-picker-slot .action-label.warning .codicon {
+	color: var(--vscode-problemsWarningIcon-foreground) !important;
+}
+
+.sessions-chat-picker-slot .action-label.warning:hover {
+	color: var(--vscode-problemsWarningIcon-foreground);
+	opacity: 1;
+}
+
+.sessions-chat-picker-slot .action-label.info {
+	color: var(--vscode-problemsInfoIcon-foreground);
+	opacity: 0.75;
+}
+
+.sessions-chat-picker-slot .action-label.info .codicon {
+	color: var(--vscode-problemsInfoIcon-foreground) !important;
+}
+
+.sessions-chat-picker-slot .action-label.info:hover {
+	color: var(--vscode-problemsInfoIcon-foreground);
+	opacity: 1;
 }
 
 /* Sync indicator: a slim non-interactive-looking separator before the button */

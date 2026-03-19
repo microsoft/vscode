@@ -121,6 +121,7 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	private static readonly _debugEligibleSchemes = new Set([
 		LocalChatSessionUri.scheme,	// vscode-chat-session (local sessions)
 		'copilotcli',				// Copilot CLI background sessions
+		'claude-code',				// Claude Code CLI sessions
 	]);
 
 	private _isDebugEligibleSession(sessionResource: URI): boolean {
