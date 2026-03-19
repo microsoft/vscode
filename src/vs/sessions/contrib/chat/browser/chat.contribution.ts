@@ -103,7 +103,7 @@ class NewChatInSessionsWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.sessions.newChat',
-			title: localize2('chat.newEdits.label', "New Chat"),
+			title: localize2('chat.newEdits.label', "New Session"),
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 2,
@@ -129,8 +129,8 @@ class NewChatInRepositorySectionAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'agentSessionSection.newChat',
-			title: localize2('newChatInRepository', "New Chat"),
+			id: 'agentSessionSection.newSession',
+			title: localize2('newSessionInRepository', "New Session"),
 			icon: Codicon.newSession,
 			menu: [{
 				id: MenuId.AgentSessionSectionToolbar,
