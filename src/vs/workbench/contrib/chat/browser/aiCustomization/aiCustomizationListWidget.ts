@@ -13,6 +13,7 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { basename, dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -949,11 +950,13 @@ export class AICustomizationListWidget extends Disposable {
 				});
 			}
 		} else if (promptType === PromptsType.skill) {
-			// Use findAgentSkills which has parsed name/description from frontmatter
+			// Use findAgentSkills for enabled skills (has parsed name/description from frontmatter)
 			const skills = await this.promptsService.findAgentSkills(CancellationToken.None);
+			const seenUris = new ResourceSet();
 			for (const skill of skills || []) {
 				const filename = basename(skill.uri);
 				const skillName = skill.name || basename(dirname(skill.uri)) || filename;
+				seenUris.add(skill.uri);
 				items.push({
 					id: skill.uri.toString(),
 					uri: skill.uri,
@@ -962,8 +965,27 @@ export class AICustomizationListWidget extends Disposable {
 					description: skill.description,
 					storage: skill.storage,
 					promptType,
-					disabled: disabledUris.has(skill.uri),
+					disabled: false,
 				});
+			}
+			// Also include disabled skills from the raw file list
+			if (disabledUris.size > 0) {
+				const allSkillFiles = await this.promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None);
+				for (const file of allSkillFiles) {
+					if (!seenUris.has(file.uri) && disabledUris.has(file.uri)) {
+						const filename = basename(file.uri);
+						items.push({
+							id: file.uri.toString(),
+							uri: file.uri,
+							name: file.name || basename(dirname(file.uri)) || filename,
+							filename,
+							description: file.description,
+							storage: file.storage,
+							promptType,
+							disabled: true,
+						});
+					}
+				}
 			}
 		} else if (promptType === PromptsType.prompt) {
 			// Use getPromptSlashCommands which has parsed name/description from frontmatter
