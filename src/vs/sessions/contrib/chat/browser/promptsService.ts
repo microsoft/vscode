@@ -211,11 +211,8 @@ export class AgenticPromptsService extends PromptsService {
 			}
 		}
 
-		// Filter out overridden and disabled built-in items
-		const disabledFiles = this.getDisabledPromptFiles(type);
 		const nonOverridden = builtinItems.filter(
 			p => !overriddenNames.has(type === PromptsType.skill ? basename(dirname(p.uri)) : getCleanPromptName(p.uri))
-				&& !disabledFiles.has(p.uri)
 		);
 		// Built-in items use BUILTIN_STORAGE ('builtin') which is not in the
 		// core IPromptPath union but is handled by the sessions UI layer.
