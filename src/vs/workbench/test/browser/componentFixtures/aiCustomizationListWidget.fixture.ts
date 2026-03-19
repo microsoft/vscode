@@ -173,7 +173,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			// On-demand instructions (with applyTo pattern)
 			{ uri: URI.file('/workspace/.github/instructions/testing-guidelines.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Testing Guidelines', description: 'Testing best practices', applyTo: '**/*.test.ts' },
 			{ uri: URI.file('/workspace/.github/instructions/security-review.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Security Review', description: 'Security review checklist', applyTo: 'src/auth/**' },
-			{ uri: URI.file('/home/dev/.copilot/instructions/typescript-rules.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, name: 'Typescript Rules', description: 'TypeScript conventions', applyTo: '**/*.ts' },
+			{ uri: URI.file('/home/dev/.copilot/instructions/typescript-rules.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, name: 'TypeScript Rules', description: 'TypeScript conventions', applyTo: '**/*.ts' },
 		], [
 			// Agent instruction files (AGENTS.md, copilot-instructions.md)
 			{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentFileType.agentsMd },
