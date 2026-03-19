@@ -54,6 +54,37 @@ import { assertNever } from '../../../../../../base/common/assert.js';
 import { ChatInternalCustomizations } from '../internalCustomizations/internalCustomizations.js';
 
 /**
+ * Error thrown when a skill file is missing the required name attribute.
+ */
+export class SkillMissingNameError extends Error {
+	constructor(public readonly uri: URI) {
+		super('Skill file must have a name attribute');
+	}
+}
+
+/**
+ * Error thrown when a skill file is missing the required description attribute.
+ */
+export class SkillMissingDescriptionError extends Error {
+	constructor(public readonly uri: URI) {
+		super('Skill file must have a description attribute');
+	}
+}
+
+/**
+ * Error thrown when a skill's name does not match its parent folder name.
+ */
+export class SkillNameMismatchError extends Error {
+	constructor(
+		public readonly uri: URI,
+		public readonly skillName: string,
+		public readonly folderName: string
+	) {
+		super(`Skill name must match folder name: expected "${folderName}" but got "${skillName}"`);
+	}
+}
+
+/**
  * Provides prompt services.
  */
 export class PromptsService extends Disposable implements IPromptsService {
@@ -999,29 +1030,32 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	private async validateAndSanitizeSkillFile(uri: URI, token: CancellationToken): Promise<{ name: string; description: string | undefined }> {
 		const parsedFile = await this.parseNew(uri, token);
-		const skillFolderUri = dirname(uri);
-		const skillFolderName = basename(skillFolderUri);
-		const nameFromFile = parsedFile.header?.name;
-		if (!nameFromFile) {
-			this.logger.warn(`[validateAndSanitizeSkillFile] Agent skill name missing: ${uri}`);
-			throw new Error('Agent skill name missing');
+		const name = parsedFile.header?.name;
+
+		if (!name) {
+			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill file missing name attribute: ${uri}`);
+			throw new SkillMissingNameError(uri);
 		}
 
-		if (nameFromFile !== skillFolderName) {
-			this.logger.warn(`[validateAndSanitizeSkillFile] Agent skill name "${nameFromFile}" does not match folder name "${skillFolderName}": ${uri}`);
-			throw new Error('Agent skill name does not match folder name');
-		}
-
-		if (!parsedFile.header?.description) {
-			this.logger.warn(`[validateAndSanitizeSkillFile] Agent skill description missing: ${uri}`);
-			throw new Error('Agent skill description missing');
+		const description = parsedFile.header?.description;
+		if (!description) {
+			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill file missing description attribute: ${uri}`);
+			throw new SkillMissingDescriptionError(uri);
 		}
 
 		// Sanitize the name first (remove XML tags and truncate)
-		let name = this.truncateAgentSkillName(nameFromFile, uri);
+		const sanitizedName = this.truncateAgentSkillName(name, uri);
 
-		const sanitizedDescription = this.truncateAgentSkillDescription(parsedFile.header.description, uri);
-		return { name, description: sanitizedDescription };
+		// Validate that the sanitized name matches the parent folder name (per agentskills.io specification)
+		const skillFolderUri = dirname(uri);
+		const folderName = basename(skillFolderUri);
+		if (sanitizedName !== folderName) {
+			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill name "${sanitizedName}" does not match folder name "${folderName}": ${uri}`);
+			throw new SkillNameMismatchError(uri, sanitizedName, folderName);
+		}
+
+		const sanitizedDescription = this.truncateAgentSkillDescription(parsedFile.header?.description, uri);
+		return { name: sanitizedName, description: sanitizedDescription };
 	}
 
 	private truncateAgentSkillName(name: string, uri: URI): string {
