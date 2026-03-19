@@ -12,14 +12,14 @@ import { Disposable, DisposableStore } from '../../../../../../base/common/lifec
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js';
 import { IChatProgress, IChatService } from '../../chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../constants.js';
-import { ILanguageModelsService } from '../../languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
 import { IChatAgentRequest, IChatAgentService } from '../../participants/chatAgents.js';
 import { ComputeAutomaticInstructions } from '../../promptSyntax/computeAutomaticInstructions.js';
@@ -50,19 +50,23 @@ const BaseModelDescription = `Launch a new agent to handle complex, multi-step t
 - When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result.
 - Each agent invocation is stateless. You will not be able to send additional messages to the agent, nor will the agent be able to communicate with you outside of its final report. Therefore, your prompt should contain a highly detailed task description for the agent to perform autonomously and you should specify exactly what information the agent should return back to you in its final and only message to you.
 - The agent's outputs should generally be trusted
-- Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user\'s intent`;
+- Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user\'s intent
+- If the user asks for a certain model, you MUST provide that model\'s qualified name in the format "Model Name (Vendor)" to invoke the agent with that specific model.`;
 
 export interface IRunSubagentToolInputParams {
 	prompt: string;
 	description: string;
 	agentName?: string;
+	model?: string;
 }
 
 export class RunSubagentTool extends Disposable implements IToolImpl {
 
 	static readonly Id = 'runSubagent';
 
-	readonly onDidUpdateToolData: Event<IConfigurationChangeEvent>;
+	readonly onDidUpdateToolData: Event<unknown>;
+
+	private static readonly _MaxCachedModels = 100;
 
 	/** Hack to port data between prepare/invoke */
 	private readonly _resolvedModels = new Map<string, { modeModelId: string | undefined; resolvedModelName: string | undefined }>();
@@ -73,14 +77,22 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILogService private readonly logService: ILogService,
-		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
 	) {
 		super();
-		this.onDidUpdateToolData = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.SubagentToolCustomAgents));
+		// Debounce because onDidChangeLanguageModels fires per vendor/model during
+		// startup, and each event would trigger getToolData() re-registration.
+		this.onDidUpdateToolData = Event.debounce(
+			Event.any(
+				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.SubagentToolCustomAgents)),
+				this.languageModelsService.onDidChangeLanguageModels,
+			),
+			() => { },
+			100,
+		);
 	}
 
 	getToolData(): IToolData {
@@ -95,6 +107,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				description: {
 					type: 'string',
 					description: 'A short (3-5 word) description of the task'
+				},
+				model: {
+					type: 'string',
+					description: 'Optional model for the subagent. Use a fast model (e.g. "GPT-4.1 (copilot)") for simple lookups and searches, or a reasoning model (e.g. "Claude Sonnet 4 (copilot)") for complex analysis. Format: "Model Name (Vendor)". If not provided, uses the current model.',
+					...this.getAvailableModelEnum(),
 				}
 			},
 			required: ['prompt', 'description']
@@ -165,7 +182,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 						resolvedModelName = cached.resolvedModelName;
 					} else {
 						// Fallback: resolve the model here if prepare didn't cache it
-						const resolved = this.resolveSubagentModel(subagent, invocation.modelId);
+						const resolved = this.resolveSubagentModel(subagent, invocation.modelId, args.model);
 						modeModelId = resolved.modeModelId;
 						resolvedModelName = resolved.resolvedModelName;
 					}
@@ -188,7 +205,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					modeInstructions = instructions && {
 						name: subAgentName,
 						content: instructions.content,
-						toolReferences: this.toolsService.toToolReferences(instructions.toolReferences),
+						toolReferences: this.languageModelToolsService.toToolReferences(instructions.toolReferences),
 						metadata: instructions.metadata,
 						isBuiltin: isBuiltinAgent(subagent.source, subagent.uri, this.productService),
 					};
@@ -196,14 +213,16 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					throw new Error(`Requested agent '${subAgentName}' not found. Try again with the correct agent name, or omit the agentName to use the current agent.`);
 				}
 			} else {
-				// No subagent name - clean up any cached entry and resolve model name from main model
+				// No subagent name - clean up any cached entry and resolve model from explicit parameter or main model
 				const cached = this._resolvedModels.get(invocation.callId);
 				if (cached) {
 					this._resolvedModels.delete(invocation.callId);
+					modeModelId = cached.modeModelId;
 					resolvedModelName = cached.resolvedModelName;
 				} else {
-					const resolvedModelMetadata = modeModelId ? this.languageModelsService.lookupLanguageModel(modeModelId) : undefined;
-					resolvedModelName = resolvedModelMetadata?.name;
+					const resolved = this.resolveSubagentModel(undefined, invocation.modelId, args.model);
+					modeModelId = resolved.modeModelId;
+					resolvedModelName = resolved.resolvedModelName;
 				}
 			}
 
@@ -353,37 +372,63 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		return agents.find(agent => agent.name === name);
 	}
 
+	private getAvailableModelEnum(): { enum: string[] } | {} {
+		const names = this.languageModelsService.getLanguageModelIds()
+			.map(id => this.languageModelsService.lookupLanguageModel(id))
+			.filter((m): m is ILanguageModelChatMetadata =>
+				!!m
+				&& ILanguageModelChatMetadata.suitableForAgentMode(m)
+				&& m.isUserSelectable !== false
+				&& !m.targetChatSessionType
+			)
+			.map(m => ILanguageModelChatMetadata.asQualifiedName(m));
+		return names.length > 0 ? { enum: names } : {};
+	}
+
 	/**
 	 * Resolves the model to be used by a subagent, applying multiplier-based
 	 * fallback to avoid using a more expensive model than the main agent.
 	 */
-	private resolveSubagentModel(subagent: ICustomAgent | undefined, mainModelId: string | undefined): { modeModelId: string | undefined; resolvedModelName: string | undefined } {
+	private resolveSubagentModel(subagent: ICustomAgent | undefined, mainModelId: string | undefined, explicitModelQualifiedName?: string): { modeModelId: string | undefined; resolvedModelName: string | undefined } {
 		let modeModelId = mainModelId;
 
-		if (subagent) {
+		let explicitModelResolved = false;
+
+		// Explicit model parameter takes highest priority
+		if (explicitModelQualifiedName) {
+			const lm = this.languageModelsService.lookupLanguageModelByQualifiedName(explicitModelQualifiedName);
+			if (lm?.identifier) {
+				modeModelId = lm.identifier;
+				explicitModelResolved = true;
+			} else {
+				this.logService.warn(`[RunSubagentTool] Explicit model '${explicitModelQualifiedName}' not found, falling back to agent or main model.`);
+			}
+		}
+
+		if (subagent && !explicitModelResolved) {
 			const modeModelQualifiedNames = subagent.model;
 			if (modeModelQualifiedNames) {
 				// Find the actual model identifier from the qualified name(s)
-				outer: for (const qualifiedName of modeModelQualifiedNames) {
+				for (const qualifiedName of modeModelQualifiedNames) {
 					const lmByQualifiedName = this.languageModelsService.lookupLanguageModelByQualifiedName(qualifiedName);
 					if (lmByQualifiedName?.identifier) {
 						modeModelId = lmByQualifiedName.identifier;
-						break outer;
+						break;
 					}
 				}
 			}
+		}
 
-			// If the subagent's model has a larger multiplier than the main agent's model,
-			// fall back to the main agent's model to avoid using a more expensive model.
-			if (modeModelId && modeModelId !== mainModelId) {
-				const mainModelMetadata = mainModelId ? this.languageModelsService.lookupLanguageModel(mainModelId) : undefined;
-				const subagentModelMetadata = this.languageModelsService.lookupLanguageModel(modeModelId);
-				const mainMultiplier = mainModelMetadata?.multiplierNumeric;
-				const subagentMultiplier = subagentModelMetadata?.multiplierNumeric;
-				if (mainMultiplier !== undefined && subagentMultiplier !== undefined && subagentMultiplier > mainMultiplier) {
-					this.logService.warn(`[RunSubagentTool] Subagent '${subagent.name}' requested model '${subagentModelMetadata?.name}' (multiplier: ${subagentMultiplier}) which has a larger multiplier than the main agent model '${mainModelMetadata?.name}' (multiplier: ${mainMultiplier}). Falling back to the main agent model.`);
-					modeModelId = mainModelId;
-				}
+		// If the resolved model has a larger multiplier than the main agent's model,
+		// fall back to the main agent's model to avoid using a more expensive model.
+		if (modeModelId && modeModelId !== mainModelId) {
+			const mainModelMetadata = mainModelId ? this.languageModelsService.lookupLanguageModel(mainModelId) : undefined;
+			const subagentModelMetadata = this.languageModelsService.lookupLanguageModel(modeModelId);
+			const mainMultiplier = mainModelMetadata?.multiplierNumeric;
+			const subagentMultiplier = subagentModelMetadata?.multiplierNumeric;
+			if (mainMultiplier !== undefined && subagentMultiplier !== undefined && subagentMultiplier > mainMultiplier) {
+				this.logService.warn(`[RunSubagentTool] Requested model '${subagentModelMetadata?.name}' (multiplier: ${subagentMultiplier}) has a larger multiplier than the main agent model '${mainModelMetadata?.name}' (multiplier: ${mainMultiplier}). Falling back to the main agent model.`);
+				modeModelId = mainModelId;
 			}
 		}
 
@@ -397,7 +442,14 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		const subagent = args.agentName ? await this.getSubAgentByName(args.agentName) : undefined;
 
 		// Resolve the model early and cache it for invoke()
-		const resolved = this.resolveSubagentModel(subagent, context.modelId);
+		const resolved = this.resolveSubagentModel(subagent, context.modelId, args.model);
+		if (this._resolvedModels.size >= RunSubagentTool._MaxCachedModels) {
+			// Evict oldest entry to prevent unbounded growth on cancellation
+			const oldest = this._resolvedModels.keys().next().value;
+			if (oldest !== undefined) {
+				this._resolvedModels.delete(oldest);
+			}
+		}
 		this._resolvedModels.set(context.toolCallId, resolved);
 
 		return {
