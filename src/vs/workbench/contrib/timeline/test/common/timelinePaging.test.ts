@@ -17,4 +17,16 @@ suite('timelinePaging', () => {
 		assert.strictEqual(getDefaultTimelinePageSize(440, 22, true), 21);
 		assert.strictEqual(getDefaultTimelinePageSize(1000, 22, false), 44);
 	});
+
+	test('guards invalid item height values', () => {
+		assert.strictEqual(getDefaultTimelinePageSize(1000, 0, false), 999);
+		assert.strictEqual(getDefaultTimelinePageSize(1000, -5, false), 999);
+		assert.strictEqual(getDefaultTimelinePageSize(1000, Number.NaN, false), 999);
+		assert.strictEqual(getDefaultTimelinePageSize(1000, Number.POSITIVE_INFINITY, false), 999);
+	});
+
+	test('guards non-finite render height values', () => {
+		assert.strictEqual(getDefaultTimelinePageSize(Number.NaN, 22, false), 20);
+		assert.strictEqual(getDefaultTimelinePageSize(Number.POSITIVE_INFINITY, 22, false), 20);
+	});
 });
