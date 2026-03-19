@@ -1014,10 +1014,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		} else if (type === PromptsType.skill) {
 			this.cachedSkills.refresh();
 			this.cachedSlashCommands.refresh();
-		} else if (type === PromptsType.prompt) {
-			this.cachedSlashCommands.refresh();
-		} else if (type === PromptsType.instructions) {
-			this._onDidChangeInstructions.fire();
 		}
 	}
 
