@@ -36,11 +36,15 @@ suite('PerfTracer', () => {
 			tracer.dispose();
 		});
 
-		test('createPerfTracer() throws on duplicate prefix', () => {
+		test('createPerfTracer() replaces existing tracer with same prefix', () => {
 			const p = uniquePrefix();
-			const tracer = createPerfTracer(p);
-			assert.throws(() => createPerfTracer(p));
-			tracer.dispose();
+			const t1 = createPerfTracer(p);
+			t1.start().mark('old');
+			const t2 = createPerfTracer(p);
+			assert.strictEqual(getPerfTracer(p), t2);
+			// old tracer's marks were cleared by dispose
+			assert.strictEqual(marksFor(p).length, 0);
+			t2.dispose();
 		});
 
 		test('getPerfTracer() returns undefined for unknown prefix', () => {

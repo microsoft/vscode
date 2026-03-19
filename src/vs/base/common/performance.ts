@@ -179,15 +179,13 @@ export function createLocalPerfTracer(prefix: string): PerfTracer {
 
 /**
  * Creates a new {@link PerfTracer} with the given prefix and registers it in the global registry.
- * Throws if a tracer with the same prefix already exists.
+ * If a tracer with the same prefix already exists, it is disposed and replaced.
  * A trailing `/` is appended to the prefix automatically (e.g. `'code/chat'` → `'code/chat/'`).
  * Use {@link getPerfTracer} to look up a registered tracer from downstream code.
  */
 export function createPerfTracer(prefix: string): PerfTracer {
 	const normalizedPrefix = prefix.endsWith('/') ? prefix : prefix + '/';
-	if (_tracers.has(normalizedPrefix)) {
-		throw new Error(`PerfTracer with prefix "${normalizedPrefix}" already exists`);
-	}
+	_tracers.get(normalizedPrefix)?.dispose();
 	const tracer = new PerfTracer(normalizedPrefix);
 	_tracers.set(normalizedPrefix, tracer);
 	return tracer;
@@ -233,7 +231,8 @@ export function getPerfTracer(prefix: string): PerfTracer | undefined {
  */
 class PerfTracer implements IDisposable {
 
-	private _nextTraceId = 0;
+	private static _nextTraceId = 0;
+
 	private readonly _doneTraceIds = new Set<string>();
 	private readonly _activeTraces = new Map<string, PerfTrace>(); // "key:value" -> trace
 	private _disposed = false;
@@ -252,7 +251,7 @@ class PerfTracer implements IDisposable {
 			clearMarks(this._prefix, [...this._doneTraceIds].map(traceId => ({ traceId })));
 			this._doneTraceIds.clear();
 		}
-		const traceId = String(this._nextTraceId++);
+		const traceId = String(PerfTracer._nextTraceId++);
 		return new PerfTrace(this._prefix, traceId, detail, this._doneTraceIds, this._activeTraces);
 	}
 
