@@ -30,7 +30,6 @@ import { EditorActivation } from '../../../../../platform/editor/common/editor.j
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { hash } from '../../../../../base/common/hash.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -49,7 +48,7 @@ import { ChatEditingDeletedFileEntry } from './chatEditingDeletedFileEntry.js';
 import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
-import { FileOperation, FileOperationType } from './chatEditingOperations.js';
+import { FileOperation, FileOperationType, getKeyForChatSessionResource } from './chatEditingOperations.js';
 import { IChatEditingExplanationModelManager, IExplanationDiffInfo, IExplanationGenerationHandle } from './chatEditingExplanationModelManager.js';
 import { ChatEditingSessionStorage, IChatEditingSessionStop, StoredSessionState } from './chatEditingSessionStorage.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
@@ -349,7 +348,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const storage = this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionResource);
 		const storedState = this._getStoredState();
 		this._telemetryService.publicLog2<ChatEditingSessionStoreEvent, ChatEditingSessionStoreClassification>('chatEditing/sessionStore', {
-			sessionId: String(hash(this.chatSessionResource.toString())),
+			sessionId: getKeyForChatSessionResource(this.chatSessionResource),
 			...this._countEntryStates(this._entriesObs.get()),
 		});
 		return storage.storeState(storedState);
