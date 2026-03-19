@@ -281,7 +281,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	title: localize2('filterAgentSessions', "Filter Sessions"),
 	group: 'navigation',
 	order: 3,
-	icon: Codicon.gear,
+	icon: Codicon.settings,
 	when: ContextKeyExpr.equals('view', SessionsViewId)
 } satisfies ISubmenuItem);
 
