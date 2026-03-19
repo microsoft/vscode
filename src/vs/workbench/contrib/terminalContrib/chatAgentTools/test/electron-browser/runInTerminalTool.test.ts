@@ -67,6 +67,7 @@ suite('RunInTerminalTool', () => {
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
 	let chatServiceDisposeEmitter: Emitter<{ sessionResource: URI[]; reason: 'cleared' }>;
 	let chatSessionArchivedEmitter: Emitter<IAgentSession>;
+	let terminalSandboxService: ITerminalSandboxService;
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
@@ -105,14 +106,15 @@ suite('RunInTerminalTool', () => {
 		instantiationService.stub(IHistoryService, {
 			getLastActiveWorkspaceRoot: () => undefined
 		});
-		instantiationService.stub(ITerminalSandboxService, {
+		terminalSandboxService = {
 			_serviceBrand: undefined,
 			isEnabled: async () => false,
 			wrapCommand: command => command,
 			getSandboxConfigPath: async () => undefined,
 			getTempDir: () => undefined,
 			setNeedsForceUpdateConfigFile: () => { }
-		});
+		};
+		instantiationService.stub(ITerminalSandboxService, terminalSandboxService);
 
 		const treeSitterLibraryService = store.add(instantiationService.createInstance(TreeSitterLibraryService));
 		treeSitterLibraryService.isTest = true;
@@ -197,6 +199,23 @@ suite('RunInTerminalTool', () => {
 			strictEqual(preparedInvocation.confirmationMessages!.title, expectedTitle);
 		}
 	}
+
+	suite('sandbox invocation messaging', () => {
+		test('should use sandbox labels when command is sandbox wrapped', async () => {
+			terminalSandboxService.isEnabled = async () => true;
+			terminalSandboxService.getSandboxConfigPath = async () => '/tmp/vscode-sandbox-settings.json';
+			terminalSandboxService.wrapCommand = command => `sandbox-runtime ${command}`;
+
+			const preparedInvocation = await executeToolTest({ command: 'echo hello' });
+
+			ok(preparedInvocation, 'Expected prepared invocation to be defined');
+			strictEqual((preparedInvocation.invocationMessage as IMarkdownString).value, '$(lock) Running in sandbox');
+			strictEqual((preparedInvocation.pastTenseMessage as IMarkdownString).value, '$(lock) Ran in sandbox');
+
+			const terminalData = preparedInvocation.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
+		});
+	});
 
 	suite('default auto-approve rules', () => {
 		const defaults = terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>;

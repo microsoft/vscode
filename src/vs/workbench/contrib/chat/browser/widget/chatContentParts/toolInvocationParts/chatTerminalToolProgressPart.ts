@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h } from '../../../../../../../base/browser/dom.js';
+import { renderLabelWithIcons } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -499,6 +500,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const wrapper = this._register(this._instantiationService.createInstance(
 			ChatTerminalThinkingCollapsibleWrapper,
 			truncatedCommand,
+			this._terminalData.commandLine.isSandboxWrapped === true,
 			contentElement,
 			context,
 			initialExpanded,
@@ -1626,10 +1628,12 @@ export class ContinueInBackgroundAction extends Action implements IAction {
 class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart {
 	private readonly _terminalContentElement: HTMLElement;
 	private readonly _commandText: string;
+	private readonly _isSandboxWrapped: boolean;
 	private _isComplete: boolean;
 
 	constructor(
 		commandText: string,
+		isSandboxWrapped: boolean,
 		contentElement: HTMLElement,
 		context: IChatContentPartRenderContext,
 		initialExpanded: boolean,
@@ -1637,11 +1641,14 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		const title = isComplete ? `Ran \`${commandText}\`` : `Running \`${commandText}\``;
+		const title = isSandboxWrapped
+			? (isComplete ? localize('chat.terminal.ranInSandbox', "$(lock) Ran in sandbox") : localize('chat.terminal.runningInSandbox', "$(lock) Running in sandbox"))
+			: (isComplete ? `Ran \`${commandText}\`` : `Running \`${commandText}\``);
 		super(title, context, undefined, hoverService, configurationService);
 
 		this._terminalContentElement = contentElement;
 		this._commandText = commandText;
+		this._isSandboxWrapped = isSandboxWrapped;
 		this._isComplete = isComplete;
 
 		this.domNode.classList.add('chat-terminal-thinking-collapsible');
@@ -1661,6 +1668,12 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 
 		const labelElement = this._collapseButton.labelElement;
 		labelElement.textContent = '';
+		if (this._isSandboxWrapped) {
+			dom.reset(labelElement, ...renderLabelWithIcons(this._isComplete
+				? localize('chat.terminal.ranInSandbox', "$(lock) Ran in sandbox")
+				: localize('chat.terminal.runningInSandbox', "$(lock) Running in sandbox")));
+			return;
+		}
 
 		const prefixText = this._isComplete
 			? localize('chat.terminal.ran.prefix', "Ran ")

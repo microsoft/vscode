@@ -712,9 +712,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			? rawDisplayCommand.substring(0, 77) + '...'
 			: rawDisplayCommand;
 		const escapedDisplayCommand = escapeMarkdownSyntaxTokens(displayCommand);
-		const invocationMessage = args.isBackground
-			? new MarkdownString(localize('runInTerminal.invocation.background', "Running `{0}` in background", escapedDisplayCommand))
-			: new MarkdownString(localize('runInTerminal.invocation', "Running `{0}`", escapedDisplayCommand));
+		const invocationMessage = toolSpecificData.commandLine.isSandboxWrapped
+			? new MarkdownString(args.isBackground
+				? localize('runInTerminal.invocation.sandbox.background', "$(lock) Running in sandbox in background")
+				: localize('runInTerminal.invocation.sandbox', "$(lock) Running in sandbox"), { supportThemeIcons: true })
+			: new MarkdownString(args.isBackground
+				? localize('runInTerminal.invocation.background', "Running `{0}` in background", escapedDisplayCommand)
+				: localize('runInTerminal.invocation', "Running `{0}`", escapedDisplayCommand));
 
 		return {
 			invocationMessage,
