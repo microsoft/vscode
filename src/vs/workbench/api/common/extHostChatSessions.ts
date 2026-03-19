@@ -22,7 +22,7 @@ import { IChatNewSessionRequest, IChatSessionProviderOptionItem } from '../../co
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
-import { ChatSessionContentContextDto, ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatSessionProviderOptions, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
+import { ChatSessionContentContextDto, ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatSessionRequestHistoryItemDto, IChatSessionProviderOptions, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
 import { ChatAgentResponseStream } from './extHostChatAgents2.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
@@ -423,6 +423,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		let isDisposed = false;
 		let newChatSessionItemHandler: vscode.ChatSessionItemController['newChatSessionItemHandler'];
+		let forkHandler: vscode.ChatSessionItemController['forkHandler'];
 		const onDidChangeChatSessionItemStateEmitter = disposables.add(new Emitter<vscode.ChatSessionItem>());
 
 		const collection = new ChatSessionItemCollectionImpl(controllerHandle, this._proxy);
@@ -454,6 +455,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			},
 			get newChatSessionItemHandler() { return newChatSessionItemHandler; },
 			set newChatSessionItemHandler(handler: vscode.ChatSessionItemController['newChatSessionItemHandler']) { newChatSessionItemHandler = handler; },
+			get forkHandler() { return forkHandler; },
+			set forkHandler(handler: vscode.ChatSessionItemController['forkHandler']) { forkHandler = handler; },
 			dispose: () => {
 				isDisposed = true;
 				disposables.dispose();
@@ -514,6 +517,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			throw new CancellationError();
 		}
 
+		const controllerData = this.getChatSessionItemController(sessionResource.scheme);
+
 		const sessionDisposables = new DisposableStore();
 		const sessionId = ExtHostChatSessions._sessionHandlePool++;
 		const id = sessionResource.toString();
@@ -550,6 +555,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			title: session.title,
 			hasActiveResponseCallback: !!session.activeResponseCallback,
 			hasRequestHandler: !!session.requestHandler,
+			hasForkHandler: !!controllerData?.controller.forkHandler || !!session.forkHandler,
 			supportsInterruption: !!capabilities?.supportsInterruptions,
 			options: session.options,
 			history: session.history.map(turn => {
@@ -640,13 +646,63 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			return {};
 		}
 
-		const chatRequest = typeConvert.ChatAgentRequest.to(request, undefined, await this.getModelForRequest(request, entry.sessionObj.extension), [], new Map(), entry.sessionObj.extension, this._logService);
+		const chatRequest = typeConvert.ChatAgentRequest.to(request, undefined, await this.getModelForRequest(request, entry.sessionObj.extension), request.modelConfiguration, [], new Map(), entry.sessionObj.extension, this._logService);
 
 		const stream = entry.sessionObj.getActiveRequestStream(request);
 		await entry.sessionObj.session.requestHandler(chatRequest, { history, yieldRequested: false }, stream.apiObject, token);
 
 		// TODO: do we need to dispose the stream object?
 		return {};
+	}
+
+	async $forkChatSession(handle: number, sessionResourceComponents: UriComponents, request: IChatSessionRequestHistoryItemDto | undefined, token: CancellationToken): Promise<ReturnType<typeof typeConvert.ChatSessionItem.from>> {
+		const sessionResource = URI.revive(sessionResourceComponents);
+		const entry = this._extHostChatSessions.get(sessionResource);
+		if (!entry) {
+			throw new Error(`No chat session found for resource ${sessionResource.toString()}`);
+		}
+
+		const requestTurn = this.convertRequestDtoToRequestTurn(request);
+
+		const controllerData = this.getChatSessionItemController(sessionResource.scheme);
+		if (controllerData?.controller.forkHandler) {
+			const item = await controllerData.controller.forkHandler(sessionResource, requestTurn, token);
+			return typeConvert.ChatSessionItem.from(item);
+		}
+
+		if (!entry.sessionObj.session.forkHandler) {
+			throw new Error(`No fork handler for session ${sessionResource.toString()}`);
+		}
+
+		const item = await entry.sessionObj.session.forkHandler(sessionResource, requestTurn, token);
+		return typeConvert.ChatSessionItem.from(item);
+	}
+
+	private convertRequestDtoToRequestTurn(request: IChatSessionRequestHistoryItemDto | undefined): extHostTypes.ChatRequestTurn | undefined {
+		if (!request) {
+			return undefined;
+		}
+
+		return new extHostTypes.ChatRequestTurn(
+			request.prompt,
+			request.command,
+			[],
+			request.participant,
+			[],
+			undefined,
+			request.id,
+			request.modelId,
+		);
+	}
+
+	private getChatSessionItemController(chatSessionType: string) {
+		for (const controllerData of this._chatSessionItemControllers.values()) {
+			if (controllerData.chatSessionType === chatSessionType) {
+				return controllerData;
+			}
+		}
+
+		return undefined;
 	}
 
 	private async getModelForRequest(request: IChatAgentRequest, extension: IExtensionDescription): Promise<vscode.LanguageModelChat> {

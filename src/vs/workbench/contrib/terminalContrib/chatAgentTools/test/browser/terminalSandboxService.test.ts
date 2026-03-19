@@ -21,6 +21,8 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/common/remoteAgentEnvironment.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
+import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 suite('TerminalSandboxService - allowTrustedDomains', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -29,6 +31,7 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 	let configurationService: TestConfigurationService;
 	let trustedDomainService: MockTrustedDomainService;
 	let fileService: MockFileService;
+	let workspaceContextService: MockWorkspaceContextService;
 	let createdFiles: Map<string, string>;
 
 	class MockTrustedDomainService implements ITrustedDomainService {
@@ -79,12 +82,62 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		}
 	}
 
+	class MockWorkspaceContextService implements IWorkspaceContextService {
+		_serviceBrand: undefined;
+		readonly onDidChangeWorkbenchState = Event.None;
+		readonly onDidChangeWorkspaceName = Event.None;
+		readonly onWillChangeWorkspaceFolders = Event.None;
+		private readonly _onDidChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersChangeEvent>();
+		readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent> = this._onDidChangeWorkspaceFolders.event;
+		private _workspace: IWorkspace = testWorkspace();
+
+		getCompleteWorkspace(): Promise<IWorkspace> {
+			return Promise.resolve(this._workspace);
+		}
+
+		getWorkspace(): IWorkspace {
+			return this._workspace;
+		}
+
+		getWorkbenchState(): WorkbenchState {
+			return this._workspace.folders.length > 0 ? WorkbenchState.FOLDER : WorkbenchState.EMPTY;
+		}
+
+		getWorkspaceFolder(_resource: URI): IWorkspaceFolder | null {
+			return null;
+		}
+
+		isCurrentWorkspace(_workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean {
+			return false;
+		}
+
+		isInsideWorkspace(_resource: URI): boolean {
+			return false;
+		}
+
+		hasWorkspaceData(): boolean {
+			return this._workspace.folders.length > 0;
+		}
+
+		setWorkspaceFolders(folders: URI[]): void {
+			const previousFolders = this._workspace.folders;
+			this._workspace = testWorkspace(...folders);
+			this._onDidChangeWorkspaceFolders.fire({
+				added: this._workspace.folders.filter(folder => !previousFolders.some(previousFolder => previousFolder.uri.toString() === folder.uri.toString())),
+				removed: previousFolders.filter(folder => !this._workspace.folders.some(nextFolder => nextFolder.uri.toString() === folder.uri.toString())),
+				changed: []
+			});
+		}
+	}
+
 	setup(() => {
 		createdFiles = new Map();
 		instantiationService = workbenchInstantiationService({}, store);
 		configurationService = new TestConfigurationService();
 		trustedDomainService = new MockTrustedDomainService();
 		fileService = new MockFileService();
+		workspaceContextService = new MockWorkspaceContextService();
+		workspaceContextService.setWorkspaceFolders([URI.file('/workspace-one')]);
 
 		// Setup default configuration
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled, true);
@@ -104,6 +157,7 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IRemoteAgentService, new MockRemoteAgentService());
 		instantiationService.stub(ITrustedDomainService, trustedDomainService);
+		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 	});
 
 	test('should filter out sole wildcard (*) from trusted domains', async () => {
@@ -253,6 +307,38 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 
 		const config = JSON.parse(configContent);
 		strictEqual(config.network.allowedDomains.length, 0, 'Should have no domains (* filtered out)');
+	});
+
+	test('should refresh allowWrite paths when workspace folders change', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem, {
+			allowWrite: ['/configured/path'],
+			denyRead: [],
+			denyWrite: []
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		const initialConfigContent = createdFiles.get(configPath);
+		ok(initialConfigContent, 'Config file should be created for the initial workspace folders');
+
+		const initialConfig = JSON.parse(initialConfigContent);
+		ok(initialConfig.filesystem.allowWrite.includes('/workspace-one'), 'Initial config should include the original workspace folder');
+		ok(initialConfig.filesystem.allowWrite.includes('/configured/path'), 'Initial config should include configured allowWrite paths');
+
+		workspaceContextService.setWorkspaceFolders([URI.file('/workspace-two')]);
+
+		const refreshedConfigPath = await sandboxService.getSandboxConfigPath();
+		strictEqual(refreshedConfigPath, configPath, 'Config path should stay stable when the config is refreshed');
+
+		const refreshedConfigContent = createdFiles.get(configPath);
+		ok(refreshedConfigContent, 'Config file should be rewritten after workspace folders change');
+
+		const refreshedConfig = JSON.parse(refreshedConfigContent);
+		ok(refreshedConfig.filesystem.allowWrite.includes('/workspace-two'), 'Refreshed config should include the updated workspace folder');
+		ok(!refreshedConfig.filesystem.allowWrite.includes('/workspace-one'), 'Refreshed config should remove the old workspace folder');
+		ok(refreshedConfig.filesystem.allowWrite.includes('/configured/path'), 'Refreshed config should preserve configured allowWrite paths');
 	});
 
 	test('should add ripgrep bin directory to PATH when wrapping command', async () => {

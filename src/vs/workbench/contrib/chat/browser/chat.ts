@@ -227,6 +227,7 @@ export interface IChatListItemRendererOptions {
 	readonly noFooter?: boolean;
 	readonly renderDetectedCommandsWithRequest?: boolean;
 	readonly restorable?: boolean;
+	readonly supportsFork?: boolean;
 	readonly editable?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
@@ -330,11 +331,6 @@ export interface IChatAcceptInputOptions {
 	 * If Steering, also sets yieldRequested on any active request to signal it should wrap up.
 	 */
 	queue?: ChatRequestQueueKind;
-	/**
-	 * When true, always queues the request regardless of whether a request is currently in progress.
-	 * The request stays in the pending queue until explicitly processed.
-	 */
-	alwaysQueue?: boolean;
 }
 
 export interface IChatWidgetViewModelChangeEvent {

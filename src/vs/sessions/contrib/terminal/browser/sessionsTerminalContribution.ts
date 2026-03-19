@@ -71,8 +71,12 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			if (instance.shellLaunchConfig.attachPersistentProcess && this._activeKey) {
 				instance.getInitialCwd().then(cwd => {
 					if (cwd.toLowerCase() !== this._activeKey) {
-						this._terminalService.moveToBackground(instance);
-						this._logService.trace(`[SessionsTerminal] Hid restored terminal ${instance.instanceId} (cwd: ${cwd})`);
+						const availableInstance = this._getAvailableTerminal(instance, `hide restored terminal for ${cwd}`);
+						if (!availableInstance) {
+							return;
+						}
+						this._terminalService.moveToBackground(availableInstance);
+						this._logService.trace(`[SessionsTerminal] Hid restored terminal ${availableInstance.instanceId} (cwd: ${cwd})`);
 					}
 				});
 			}
@@ -100,9 +104,13 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 		if (existing.length === 0) {
 			try {
-				existing = [await this._terminalService.createTerminal({ config: { cwd } })];
-				this._terminalService.setActiveInstance(existing[0]);
-				this._logService.trace(`[SessionsTerminal] Created terminal ${existing[0].instanceId} for ${cwd.fsPath}`);
+				const createdInstance = this._getAvailableTerminal(await this._terminalService.createTerminal({ config: { cwd } }), `activate created terminal for ${cwd.fsPath}`);
+				if (!createdInstance) {
+					return [];
+				}
+				existing = [createdInstance];
+				this._terminalService.setActiveInstance(createdInstance);
+				this._logService.trace(`[SessionsTerminal] Created terminal ${createdInstance.instanceId} for ${cwd.fsPath}`);
 			} catch (e) {
 				this._logService.trace(`[SessionsTerminal] Cannot create terminal for ${cwd.fsPath}: ${e}`);
 				return [];
@@ -159,6 +167,15 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		return result;
 	}
 
+	private _getAvailableTerminal(instance: ITerminalInstance, action: string): ITerminalInstance | undefined {
+		const currentInstance = this._terminalService.getInstanceFromId(instance.instanceId);
+		if (!currentInstance || currentInstance.isDisposed) {
+			this._logService.trace(`[SessionsTerminal] Cannot ${action}; terminal ${instance.instanceId} is no longer available`);
+			return undefined;
+		}
+		return currentInstance;
+	}
+
 	/**
 	 * Shows background terminals whose initial cwd matches the active key and
 	 * hides foreground terminals whose initial cwd does not match.
@@ -174,22 +191,32 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			} catch {
 				continue;
 			}
+			const currentInstance = this._getAvailableTerminal(instance, `update visibility for ${cwd}`);
+			if (!currentInstance) {
+				continue;
+			}
 
-			const isForeground = this._terminalService.foregroundInstances.includes(instance);
-			const isForceVisible = forceForegroundTerminalIds.includes(instance.instanceId);
+			const isForeground = this._terminalService.foregroundInstances.includes(currentInstance);
+			const isForceVisible = forceForegroundTerminalIds.includes(currentInstance.instanceId);
 			const belongsToActiveSession = cwd === activeKey;
 			if ((belongsToActiveSession || isForceVisible) && !isForeground) {
-				toShow.push(instance);
+				toShow.push(currentInstance);
 			} else if (!belongsToActiveSession && !isForceVisible && isForeground) {
-				toHide.push(instance);
+				toHide.push(currentInstance);
 			}
 		}
 
 		for (const instance of toShow) {
-			await this._terminalService.showBackgroundTerminal(instance, true);
+			const availableInstance = this._getAvailableTerminal(instance, 'show background terminal');
+			if (availableInstance) {
+				await this._terminalService.showBackgroundTerminal(availableInstance, true);
+			}
 		}
 		for (const instance of toHide) {
-			this._terminalService.moveToBackground(instance);
+			const availableInstance = this._getAvailableTerminal(instance, 'move terminal to background');
+			if (availableInstance) {
+				this._terminalService.moveToBackground(availableInstance);
+			}
 		}
 
 		// Set the terminal with the most recent command as active
@@ -215,8 +242,12 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			try {
 				const cwd = (await instance.getInitialCwd()).toLowerCase();
 				if (cwd === key) {
-					this._terminalService.safeDisposeTerminal(instance);
-					this._logService.trace(`[SessionsTerminal] Closed archived terminal ${instance.instanceId}`);
+					const availableInstance = this._getAvailableTerminal(instance, `close archived terminal for ${fsPath}`);
+					if (!availableInstance) {
+						continue;
+					}
+					this._terminalService.safeDisposeTerminal(availableInstance);
+					this._logService.trace(`[SessionsTerminal] Closed archived terminal ${availableInstance.instanceId}`);
 				}
 			} catch {
 				// ignore

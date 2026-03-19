@@ -9,7 +9,7 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
+import { IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
@@ -220,6 +220,14 @@ export class MockChatSessionsService implements IChatSessionsService {
 
 	supportsDelegationForSessionType(chatSessionType: string): boolean {
 		return this.contributions.find(c => c.type === chatSessionType)?.supportsDelegation !== false;
+	}
+
+	sessionSupportsFork(_sessionResource: URI): boolean {
+		return false;
+	}
+
+	async forkChatSession(_sessionResource: URI, _request: IChatSessionRequestHistoryItem | undefined, _token: CancellationToken): Promise<IChatSessionItem> {
+		throw new Error('Not implemented');
 	}
 
 	getContentProviderSchemes(): string[] {
