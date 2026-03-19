@@ -41,11 +41,6 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 				this._track(e.editor);
 			}
 		}));
-		this._register(this.editorService.onDidCloseEditor(e => {
-			if (e.editor instanceof BrowserEditorInput) {
-				this._knownBrowsers.deleteAndDispose(e.editor.id);
-			}
-		}));
 		this._register(this.editorService.onDidActiveEditorChange(() => this._syncActiveBrowserTab()));
 
 		// Initial sync
@@ -102,8 +97,10 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 			this._proxy.$onDidChangeBrowserTabState(input.id, this._toDto(input));
 		}));
 		disposables.add(input.onWillDispose(() => {
-			this._proxy.$onDidCloseBrowserTab(input.id);
 			this._knownBrowsers.deleteAndDispose(input.id);
+		}));
+		disposables.add(toDisposable(() => {
+			this._proxy.$onDidCloseBrowserTab(input.id);
 		}));
 
 		this._knownBrowsers.set(input.id, { input, dispose: () => disposables.dispose() });
