@@ -42,7 +42,6 @@ import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IChatWidget } from '../chat.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 
 export interface IAgentSessionsControlOptions {
 	readonly overrideStyles: IStyleOverride<IListStyles>;
@@ -109,7 +108,6 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -251,7 +249,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			...this.options,
 			isGroupedByRepository: () => this.options.filter.groupResults?.() === AgentSessionsGrouping.Repository,
 		}, approvalModel, activeSessionResource));
-		const sessionFilter = this._register(new AgentSessionsDataSource(this.options.filter, sorter, this.logService));
+		const sessionFilter = this._register(new AgentSessionsDataSource(this.options.filter, sorter));
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
 			container,

@@ -281,7 +281,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	title: localize2('filterAgentSessions', "Filter Sessions"),
 	group: 'navigation',
 	order: 3,
-	icon: Codicon.filter,
+	icon: Codicon.settings,
 	when: ContextKeyExpr.equals('view', SessionsViewId)
 } satisfies ISubmenuItem);
 
@@ -290,36 +290,12 @@ registerAction2(class GroupByRepositoryAction extends Action2 {
 		super({
 			id: 'sessionsView.groupByRepository',
 			title: localize2('groupByRepository', "Group by Repository"),
-			icon: Codicon.repo,
 			category: SessionsCategories.Sessions,
+			toggled: IsGroupedByRepositoryContext,
 			menu: [{
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				order: 1,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SessionsViewId), IsGroupedByRepositoryContext.negate()),
-			}]
-		});
-	}
-
-	override run(accessor: ServicesAccessor) {
-		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<AgenticSessionsViewPane>(SessionsViewId);
-		view?.toggleGroupByRepository();
-	}
-});
-
-registerAction2(class GroupByDateAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessionsView.groupByDate',
-			title: localize2('groupByDate', "Group by Date"),
-			icon: Codicon.history,
-			category: SessionsCategories.Sessions,
-			menu: [{
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				order: 1,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SessionsViewId), IsGroupedByRepositoryContext),
+				id: SessionsViewFilterSubMenu,
+				group: 'grouping',
+				order: 0,
 			}]
 		});
 	}
