@@ -582,11 +582,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 
 		try {
-			const updatesToSend = updates.map(update => ({
-				optionId: update.optionId,
-				value: update.value === undefined ? undefined : (typeof update.value === 'string' ? update.value : update.value.id)
-			}));
-			await provider.provider.provideHandleOptionsChange(sessionResource, updatesToSend, token);
+			provider.provider.provideHandleOptionsChange(sessionResource, updates, token);
 		} catch (error) {
 			this._logService.error(`Error calling provideHandleOptionsChange for handle ${handle}, sessionResource ${sessionResource}:`, error);
 		}
