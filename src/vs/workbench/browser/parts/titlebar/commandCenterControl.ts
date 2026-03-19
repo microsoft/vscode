@@ -147,8 +147,9 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							container.setAttribute('aria-description', this.getTooltip());
 
 							// When agent control mode is 'compact', hide search icon and left-align the label
+							// Backward compat: the old boolean setting (true) and the new default (undefined) both map to compact
 							const agentControlValue = that._configurationService.getValue('chat.agentsControl.enabled');
-							const isCompactMode = agentControlValue === 'compact';
+							const isCompactMode = agentControlValue !== false && agentControlValue !== 'hidden';
 							container.classList.toggle('compact-mode', isCompactMode);
 
 							const action = this.action;
