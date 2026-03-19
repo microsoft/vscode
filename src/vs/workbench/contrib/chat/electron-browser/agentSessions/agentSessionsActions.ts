@@ -15,6 +15,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isMacintosh, isWindows } from '../../../../../base/common/platform.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 
 export class OpenSessionsWindowAction extends Action2 {
 	constructor() {
@@ -30,8 +31,9 @@ export class OpenSessionsWindowAction extends Action2 {
 	async run(accessor: ServicesAccessor) {
 		const openerService = accessor.get(IOpenerService);
 		const productService = accessor.get(IProductService);
+		const environmentService = accessor.get(IWorkbenchEnvironmentService);
 
-		if (isWindows || isMacintosh) {
+		if (environmentService.isBuilt && (isMacintosh || isWindows)) {
 			const scheme = productService.quality === 'stable'
 				? 'vscode-sessions'
 				: productService.quality === 'exploration'
