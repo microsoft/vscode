@@ -18,7 +18,7 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../../base/common/mime.js';
 import { derived, derivedOpts, IObservable, IReader, observableFromEventOpts, ObservableSet, observableSignal, transaction } from '../../../../../base/common/observable.js';
-import { PerfTracer } from '../../../../../base/common/performance.js';
+import { getPerfTracer } from '../../../../../base/common/performance.js';
 import Severity from '../../../../../base/common/severity.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -639,7 +639,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				throw new CancellationError();
 			}
 
-			const trace = dto.chatRequestId ? PerfTracer.get('code/chat/').find('requestId', dto.chatRequestId) : undefined;
+			const trace = dto.chatRequestId ? getPerfTracer('code/chat')?.findTraceByCorrelation('requestId', dto.chatRequestId) : undefined;
 			trace?.mark('willInvokeTool');
 			invocationTimeWatch = StopWatch.create(true);
 			toolResult = await tool.impl.invoke(dto, countTokens, {

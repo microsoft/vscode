@@ -9,7 +9,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { PerfTracer } from '../../../../../../base/common/performance.js';
+import { getPerfTracer } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
@@ -122,7 +122,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const trace = invocation.chatRequestId ? PerfTracer.get('code/chat/').find('requestId', invocation.chatRequestId) : undefined;
+		const trace = invocation.chatRequestId ? getPerfTracer('code/chat')?.findTraceByCorrelation('requestId', invocation.chatRequestId) : undefined;
 		trace?.mark('subagent/willInvoke');
 
 		const args = invocation.parameters as IRunSubagentToolInputParams;

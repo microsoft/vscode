@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { clearMarks, getMarks, mark, PerformanceMark, PerfTracer } from '../../common/performance.js';
+import { clearMarks, createLocalPerfTracer, createPerfTracer, getMarks, getPerfTracer, mark, PerformanceMark } from '../../common/performance.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 function marksFor(prefix: string): PerformanceMark[] {
@@ -28,21 +28,46 @@ suite('PerfTracer', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('singleton', () => {
-		test('get() returns the same instance for the same prefix', () => {
+	suite('createPerfTracer / getPerfTracer', () => {
+		test('createPerfTracer() registers and getPerfTracer() returns it', () => {
 			const p = uniquePrefix();
-			assert.strictEqual(PerfTracer.get(p), PerfTracer.get(p));
+			const tracer = createPerfTracer(p);
+			assert.strictEqual(getPerfTracer(p), tracer);
+			tracer.dispose();
 		});
 
-		test('get() returns different instances for different prefixes', () => {
-			assert.notStrictEqual(PerfTracer.get(uniquePrefix()), PerfTracer.get(uniquePrefix()));
+		test('createPerfTracer() throws on duplicate prefix', () => {
+			const p = uniquePrefix();
+			const tracer = createPerfTracer(p);
+			assert.throws(() => createPerfTracer(p));
+			tracer.dispose();
+		});
+
+		test('getPerfTracer() returns undefined for unknown prefix', () => {
+			assert.strictEqual(getPerfTracer(uniquePrefix()), undefined);
+		});
+
+		test('dispose() removes from global registry', () => {
+			const p = uniquePrefix();
+			const tracer = createPerfTracer(p);
+			tracer.dispose();
+			assert.strictEqual(getPerfTracer(p), undefined);
+		});
+
+		test('can re-create after dispose', () => {
+			const p = uniquePrefix();
+			const t1 = createPerfTracer(p);
+			t1.dispose();
+			const t2 = createPerfTracer(p);
+			assert.strictEqual(getPerfTracer(p), t2);
+			t2.dispose();
 		});
 	});
 
 	suite('start() and mark()', () => {
 		test('emits marks with the correct prefix', () => {
 			const p = uniquePrefix();
-			const trace = PerfTracer.get(p).start();
+			const trace = createLocalPerfTracer(p).start();
 			trace.mark('willDo');
 			trace.mark('didDo');
 
@@ -51,7 +76,7 @@ suite('PerfTracer', () => {
 
 		test('all marks from a trace share the same traceId', () => {
 			const p = uniquePrefix();
-			const trace = PerfTracer.get(p).start();
+			const trace = createLocalPerfTracer(p).start();
 			trace.mark('a');
 			trace.mark('b');
 
@@ -61,7 +86,7 @@ suite('PerfTracer', () => {
 
 		test('initial detail is included in all marks', () => {
 			const p = uniquePrefix();
-			const trace = PerfTracer.get(p).start({ sessionResource: 'sess1' });
+			const trace = createLocalPerfTracer(p).start({ sessionResource: 'sess1' });
 			trace.mark('step');
 
 			assert.strictEqual(detailOf(marksFor(p)[0]).sessionResource, 'sess1');
@@ -69,7 +94,7 @@ suite('PerfTracer', () => {
 
 		test('per-mark detail is merged with initial detail', () => {
 			const p = uniquePrefix();
-			const trace = PerfTracer.get(p).start({ session: 'A' });
+			const trace = createLocalPerfTracer(p).start({ session: 'A' });
 			trace.mark('step', { requestId: 'req1' });
 
 			const detail = detailOf(marksFor(p)[0]);
@@ -80,7 +105,7 @@ suite('PerfTracer', () => {
 
 		test('each start() assigns a unique traceId', () => {
 			const p = uniquePrefix();
-			const tracer = PerfTracer.get(p);
+			const tracer = createLocalPerfTracer(p);
 
 			const t1 = tracer.start();
 			t1.mark('a');
@@ -95,7 +120,7 @@ suite('PerfTracer', () => {
 	suite('done() and cleanup', () => {
 		test('done() then start() clears completed trace marks', () => {
 			const p = uniquePrefix();
-			const tracer = PerfTracer.get(p);
+			const tracer = createLocalPerfTracer(p);
 
 			const t1 = tracer.start();
 			t1.mark('old');
@@ -112,7 +137,7 @@ suite('PerfTracer', () => {
 
 		test('start() does not clear marks from in-flight (not done) traces', () => {
 			const p = uniquePrefix();
-			const tracer = PerfTracer.get(p);
+			const tracer = createLocalPerfTracer(p);
 
 			const t1 = tracer.start();
 			t1.mark('inflight');
@@ -125,7 +150,7 @@ suite('PerfTracer', () => {
 
 		test('multiple done traces are all cleaned up on next start()', () => {
 			const p = uniquePrefix();
-			const tracer = PerfTracer.get(p);
+			const tracer = createLocalPerfTracer(p);
 
 			const t1 = tracer.start();
 			t1.mark('t1');
@@ -142,7 +167,7 @@ suite('PerfTracer', () => {
 
 		test('done() is idempotent', () => {
 			const p = uniquePrefix();
-			const tracer = PerfTracer.get(p);
+			const tracer = createLocalPerfTracer(p);
 
 			const t = tracer.start();
 			t.mark('step');
@@ -157,7 +182,7 @@ suite('PerfTracer', () => {
 			const p = uniquePrefix();
 			mark(`${p}noDetail`);
 
-			const tracer = PerfTracer.get(p);
+			const tracer = createLocalPerfTracer(p);
 			const t = tracer.start();
 			t.mark('withDetail');
 			t.done();
@@ -172,7 +197,7 @@ suite('PerfTracer', () => {
 			const p2 = uniquePrefix();
 			mark(`${p2}untouched`);
 
-			const tracer = PerfTracer.get(p1);
+			const tracer = createLocalPerfTracer(p1);
 			const t = tracer.start();
 			t.mark('step');
 			t.done();
@@ -185,107 +210,115 @@ suite('PerfTracer', () => {
 		test('different prefix tracers do not interfere with each other', () => {
 			const pA = uniquePrefix();
 			const pB = uniquePrefix();
+			const tracerA = createLocalPerfTracer(pA);
+			const tracerB = createLocalPerfTracer(pB);
 
-			const tA = PerfTracer.get(pA).start();
+			const tA = tracerA.start();
 			tA.mark('step');
 			tA.done();
 
-			PerfTracer.get(pB).start().mark('step');
+			tracerB.start().mark('step');
 
 			// Cleaning A should not affect B
-			PerfTracer.get(pA).start().mark('newStep');
+			tracerA.start().mark('newStep');
 
 			assert.deepStrictEqual(markNames(pA), [`${pA}newStep`]);
 			assert.deepStrictEqual(markNames(pB), [`${pB}step`]);
 		});
 	});
 
-	suite('register() and find()', () => {
-		test('find() returns undefined when no trace is registered', () => {
+	suite('registerCorrelation() and findTraceByCorrelation()', () => {
+		test('findTraceByCorrelation() returns undefined when no trace is registered', () => {
 			const p = uniquePrefix();
-			assert.strictEqual(PerfTracer.get(p).find('requestId', 'nonexistent'), undefined);
+			assert.strictEqual(createLocalPerfTracer(p).findTraceByCorrelation('requestId', 'nonexistent'), undefined);
 		});
 
-		test('register() makes trace findable', () => {
+		test('registerCorrelation() makes trace findable', () => {
 			const p = uniquePrefix();
-			const trace = PerfTracer.get(p).start();
-			trace.register('requestId', 'req1');
+			const tracer = createLocalPerfTracer(p);
+			const trace = tracer.start();
+			trace.registerCorrelation('requestId', 'req1');
 
-			const found = PerfTracer.get(p).find('requestId', 'req1');
+			const found = tracer.findTraceByCorrelation('requestId', 'req1');
 			assert.strictEqual(found, trace);
 		});
 
-		test('find() returns undefined for wrong value', () => {
+		test('findTraceByCorrelation() returns undefined for wrong value', () => {
 			const p = uniquePrefix();
-			const trace = PerfTracer.get(p).start();
-			trace.register('requestId', 'req1');
+			const tracer = createLocalPerfTracer(p);
+			const trace = tracer.start();
+			trace.registerCorrelation('requestId', 'req1');
 
-			assert.strictEqual(PerfTracer.get(p).find('requestId', 'req2'), undefined);
+			assert.strictEqual(tracer.findTraceByCorrelation('requestId', 'req2'), undefined);
 		});
 
-		test('find() returns undefined for wrong key', () => {
+		test('findTraceByCorrelation() returns undefined for wrong key', () => {
 			const p = uniquePrefix();
-			const trace = PerfTracer.get(p).start();
-			trace.register('requestId', 'req1');
+			const tracer = createLocalPerfTracer(p);
+			const trace = tracer.start();
+			trace.registerCorrelation('requestId', 'req1');
 
-			assert.strictEqual(PerfTracer.get(p).find('sessionId', 'req1'), undefined);
+			assert.strictEqual(tracer.findTraceByCorrelation('sessionId', 'req1'), undefined);
 		});
 
-		test('done() unregisters the trace from find()', () => {
+		test('done() unregisters the trace from findTraceByCorrelation()', () => {
 			const p = uniquePrefix();
-			const trace = PerfTracer.get(p).start();
-			trace.register('requestId', 'req1');
+			const tracer = createLocalPerfTracer(p);
+			const trace = tracer.start();
+			trace.registerCorrelation('requestId', 'req1');
 			trace.done();
 
-			assert.strictEqual(PerfTracer.get(p).find('requestId', 'req1'), undefined);
+			assert.strictEqual(tracer.findTraceByCorrelation('requestId', 'req1'), undefined);
 		});
 
 		test('multiple registrations on the same trace', () => {
 			const p = uniquePrefix();
-			const trace = PerfTracer.get(p).start();
-			trace.register('sessionResource', 'sess1');
-			trace.register('requestId', 'req1');
+			const tracer = createLocalPerfTracer(p);
+			const trace = tracer.start();
+			trace.registerCorrelation('sessionResource', 'sess1');
+			trace.registerCorrelation('requestId', 'req1');
 
-			assert.strictEqual(PerfTracer.get(p).find('sessionResource', 'sess1'), trace);
-			assert.strictEqual(PerfTracer.get(p).find('requestId', 'req1'), trace);
+			assert.strictEqual(tracer.findTraceByCorrelation('sessionResource', 'sess1'), trace);
+			assert.strictEqual(tracer.findTraceByCorrelation('requestId', 'req1'), trace);
 		});
 
 		test('done() unregisters all registrations', () => {
 			const p = uniquePrefix();
-			const trace = PerfTracer.get(p).start();
-			trace.register('sessionResource', 'sess1');
-			trace.register('requestId', 'req1');
+			const tracer = createLocalPerfTracer(p);
+			const trace = tracer.start();
+			trace.registerCorrelation('sessionResource', 'sess1');
+			trace.registerCorrelation('requestId', 'req1');
 			trace.done();
 
-			assert.strictEqual(PerfTracer.get(p).find('sessionResource', 'sess1'), undefined);
-			assert.strictEqual(PerfTracer.get(p).find('requestId', 'req1'), undefined);
+			assert.strictEqual(tracer.findTraceByCorrelation('sessionResource', 'sess1'), undefined);
+			assert.strictEqual(tracer.findTraceByCorrelation('requestId', 'req1'), undefined);
 		});
 
 		test('concurrent traces can be found independently', () => {
 			const p = uniquePrefix();
-			const tracer = PerfTracer.get(p);
+			const tracer = createLocalPerfTracer(p);
 
 			const t1 = tracer.start();
-			t1.register('requestId', 'req1');
+			t1.registerCorrelation('requestId', 'req1');
 
 			const t2 = tracer.start();
-			t2.register('requestId', 'req2');
+			t2.registerCorrelation('requestId', 'req2');
 
-			assert.strictEqual(tracer.find('requestId', 'req1'), t1);
-			assert.strictEqual(tracer.find('requestId', 'req2'), t2);
+			assert.strictEqual(tracer.findTraceByCorrelation('requestId', 'req1'), t1);
+			assert.strictEqual(tracer.findTraceByCorrelation('requestId', 'req2'), t2);
 		});
 
 		test('downstream code can emit marks to a joined trace', () => {
 			const p = uniquePrefix();
-			const tracer = PerfTracer.get(p);
+			const tracer = createLocalPerfTracer(p);
 
 			// Owner creates and registers
 			const trace = tracer.start({ sessionResource: 'sess1' });
 			trace.mark('willSendRequest');
-			trace.register('requestId', 'req1');
+			trace.registerCorrelation('requestId', 'req1');
 
 			// Downstream joins and emits
-			const joined = tracer.find('requestId', 'req1');
+			const joined = tracer.findTraceByCorrelation('requestId', 'req1');
 			joined?.mark('willInvokeAgent');
 			joined?.mark('didInvokeAgent');
 
@@ -303,18 +336,18 @@ suite('PerfTracer', () => {
 
 		test('multiple tool calls within one request all use the same trace', () => {
 			const p = uniquePrefix();
-			const tracer = PerfTracer.get(p);
+			const tracer = createLocalPerfTracer(p);
 
 			const trace = tracer.start();
-			trace.register('requestId', 'req1');
+			trace.registerCorrelation('requestId', 'req1');
 			trace.mark('willSendRequest');
 
 			// Simulate two tool invocations — both find the same trace
-			const toolTrace1 = tracer.find('requestId', 'req1');
+			const toolTrace1 = tracer.findTraceByCorrelation('requestId', 'req1');
 			toolTrace1?.mark('willInvokeTool');
 			toolTrace1?.mark('didInvokeTool');
 
-			const toolTrace2 = tracer.find('requestId', 'req1');
+			const toolTrace2 = tracer.findTraceByCorrelation('requestId', 'req1');
 			toolTrace2?.mark('willInvokeTool');
 			toolTrace2?.mark('didInvokeTool');
 
@@ -332,21 +365,21 @@ suite('PerfTracer', () => {
 			assert.strictEqual(marksFor(p).length, 0);
 		});
 
-		test('find() on a different prefix returns undefined', () => {
+		test('findTraceByCorrelation() on a different prefix returns undefined', () => {
 			const p1 = uniquePrefix();
 			const p2 = uniquePrefix();
 
-			const trace = PerfTracer.get(p1).start();
-			trace.register('requestId', 'req1');
+			const trace = createLocalPerfTracer(p1).start();
+			trace.registerCorrelation('requestId', 'req1');
 
-			assert.strictEqual(PerfTracer.get(p2).find('requestId', 'req1'), undefined);
+			assert.strictEqual(createLocalPerfTracer(p2).findTraceByCorrelation('requestId', 'req1'), undefined);
 		});
 	});
 
 	suite('real-world chat scenario', () => {
 		test('full request lifecycle: owner + agent + tool + instructions', () => {
 			const p = uniquePrefix();
-			const tracer = PerfTracer.get(p);
+			const tracer = createLocalPerfTracer(p);
 
 			// 1. ChatService starts a trace (owner)
 			const trace = tracer.start({ sessionResource: 'sess1' });
@@ -354,21 +387,21 @@ suite('PerfTracer', () => {
 			trace.mark('willSendRequestAsync');
 
 			// 2. Request model is created — register requestId
-			trace.register('requestId', 'req-abc');
+			trace.registerCorrelation('requestId', 'req-abc');
 
 			// 3. ComputeAutomaticInstructions joins via sessionResource
-			trace.register('sessionResource', 'sess1');
-			const instrTrace = tracer.find('sessionResource', 'sess1');
+			trace.registerCorrelation('sessionResource', 'sess1');
+			const instrTrace = tracer.findTraceByCorrelation('sessionResource', 'sess1');
 			instrTrace?.mark('willCollectInstructions');
 			instrTrace?.mark('didCollectInstructions');
 
 			// 4. ChatAgentService joins via requestId
-			const agentTrace = tracer.find('requestId', 'req-abc');
+			const agentTrace = tracer.findTraceByCorrelation('requestId', 'req-abc');
 			agentTrace?.mark('willInvokeAgent');
 
 			// 5. Multiple tool calls join via requestId
 			for (let i = 0; i < 3; i++) {
-				const toolTrace = tracer.find('requestId', 'req-abc');
+				const toolTrace = tracer.findTraceByCorrelation('requestId', 'req-abc');
 				toolTrace?.mark('willInvokeTool');
 				toolTrace?.mark('didInvokeTool');
 			}
@@ -397,31 +430,31 @@ suite('PerfTracer', () => {
 
 		test('parallel requests in same session maintain separate traces', () => {
 			const p = uniquePrefix();
-			const tracer = PerfTracer.get(p);
+			const tracer = createLocalPerfTracer(p);
 
 			const trace1 = tracer.start();
-			trace1.register('requestId', 'req1');
+			trace1.registerCorrelation('requestId', 'req1');
 			trace1.mark('trace1/willSendRequest');
 
 			const trace2 = tracer.start();
-			trace2.register('requestId', 'req2');
+			trace2.registerCorrelation('requestId', 'req2');
 			trace2.mark('trace2/willSendRequest');
 
 			// Both traces are independently findable
-			assert.strictEqual(tracer.find('requestId', 'req1'), trace1);
-			assert.strictEqual(tracer.find('requestId', 'req2'), trace2);
+			assert.strictEqual(tracer.findTraceByCorrelation('requestId', 'req1'), trace1);
+			assert.strictEqual(tracer.findTraceByCorrelation('requestId', 'req2'), trace2);
 
 			// Downstream emits to correct traces
-			tracer.find('requestId', 'req1')?.mark('trace1/willInvokeAgent');
-			tracer.find('requestId', 'req2')?.mark('trace2/willInvokeAgent');
+			tracer.findTraceByCorrelation('requestId', 'req1')?.mark('trace1/willInvokeAgent');
+			tracer.findTraceByCorrelation('requestId', 'req2')?.mark('trace2/willInvokeAgent');
 
 			// trace1 completes
 			trace1.mark('trace1/didCompleteRequest');
 			trace1.done();
 
 			// trace1 is no longer findable, trace2 still is
-			assert.strictEqual(tracer.find('requestId', 'req1'), undefined);
-			assert.strictEqual(tracer.find('requestId', 'req2'), trace2);
+			assert.strictEqual(tracer.findTraceByCorrelation('requestId', 'req1'), undefined);
+			assert.strictEqual(tracer.findTraceByCorrelation('requestId', 'req2'), trace2);
 
 			// Next start() clears trace1's marks but not trace2's
 			tracer.start();
@@ -433,6 +466,47 @@ suite('PerfTracer', () => {
 			assert.ok(remainingNames.some(n => n.includes('trace2/')));
 			// trace1's marks should be gone
 			assert.ok(!remainingNames.some(n => n.includes('trace1/')));
+		});
+	});
+
+	suite('dispose()', () => {
+		test('dispose() clears all marks with the prefix', () => {
+			const p = uniquePrefix();
+			const tracer = createLocalPerfTracer(p);
+			const trace = tracer.start();
+			trace.mark('a');
+			trace.mark('b');
+
+			tracer.dispose();
+			assert.strictEqual(marksFor(p).length, 0);
+		});
+
+		test('dispose() prevents further start() calls', () => {
+			const p = uniquePrefix();
+			const tracer = createLocalPerfTracer(p);
+			tracer.dispose();
+
+			assert.throws(() => tracer.start());
+		});
+
+		test('findTraceByCorrelation() returns undefined after dispose', () => {
+			const p = uniquePrefix();
+			const tracer = createLocalPerfTracer(p);
+			const trace = tracer.start();
+			trace.registerCorrelation('requestId', 'req1');
+
+			tracer.dispose();
+			assert.strictEqual(tracer.findTraceByCorrelation('requestId', 'req1'), undefined);
+		});
+
+		test('PerfTrace.dispose() is equivalent to done()', () => {
+			const p = uniquePrefix();
+			const tracer = createLocalPerfTracer(p);
+			const trace = tracer.start();
+			trace.registerCorrelation('requestId', 'req1');
+			trace.dispose();
+
+			assert.strictEqual(tracer.findTraceByCorrelation('requestId', 'req1'), undefined);
 		});
 	});
 });

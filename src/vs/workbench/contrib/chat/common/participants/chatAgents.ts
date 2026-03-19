@@ -27,7 +27,7 @@ import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ILanguageModelsService } from '../languageModels.js';
-import { PerfTracer } from '../../../../../base/common/performance.js';
+import { getPerfTracer } from '../../../../../base/common/performance.js';
 
 //#region agent service, commands etc
 
@@ -508,7 +508,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	async invokeAgent(id: string, request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
-		const trace = PerfTracer.get('code/chat/').find('requestId', request.requestId);
+		const trace = getPerfTracer('code/chat')?.findTraceByCorrelation('requestId', request.requestId);
 		trace?.mark('willInvokeAgent');
 		const data = this._agents.get(id);
 		if (!data?.impl) {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IDisposable } from './lifecycle.js';
 import type { INodeProcess } from './platform.js';
 
 function _definePolyfillMarks(timeOrigin?: number) {
@@ -164,59 +165,89 @@ export interface PerformanceMark {
  */
 export const getMarks: () => PerformanceMark[] = perf.getMarks;
 
+const _tracers = new Map<string, PerfTracer>();
+
+/**
+ * Creates a new {@link PerfTracer} with the given prefix but does **not** register it in the global registry.
+ * Use this for multi-instance components (e.g. widgets) where multiple tracers share the same prefix.
+ * A trailing `/` is appended to the prefix automatically.
+ */
+export function createLocalPerfTracer(prefix: string): PerfTracer {
+	const normalizedPrefix = prefix.endsWith('/') ? prefix : prefix + '/';
+	return new PerfTracer(normalizedPrefix);
+}
+
+/**
+ * Creates a new {@link PerfTracer} with the given prefix and registers it in the global registry.
+ * Throws if a tracer with the same prefix already exists.
+ * A trailing `/` is appended to the prefix automatically (e.g. `'code/chat'` → `'code/chat/'`).
+ * Use {@link getPerfTracer} to look up a registered tracer from downstream code.
+ */
+export function createPerfTracer(prefix: string): PerfTracer {
+	const normalizedPrefix = prefix.endsWith('/') ? prefix : prefix + '/';
+	if (_tracers.has(normalizedPrefix)) {
+		throw new Error(`PerfTracer with prefix "${normalizedPrefix}" already exists`);
+	}
+	const tracer = new PerfTracer(normalizedPrefix);
+	_tracers.set(normalizedPrefix, tracer);
+	return tracer;
+}
+
+/**
+ * Returns the globally registered {@link PerfTracer} for the given prefix, or `undefined` if none exists.
+ * A trailing `/` is appended to the prefix automatically.
+ */
+export function getPerfTracer(prefix: string): PerfTracer | undefined {
+	const normalizedPrefix = prefix.endsWith('/') ? prefix : prefix + '/';
+	return _tracers.get(normalizedPrefix);
+}
+
 /**
  * A reusable performance tracing helper that manages mark lifecycle within a given prefix namespace.
- * Use `PerfTracer.get(prefix)` to obtain a singleton instance for a given prefix.
+ * Use {@link createPerfTracer} to create a globally registered instance,
+ * or `new PerfTracer(prefix)` for a local instance that is not in the global registry.
  *
  * Lifecycle:
  * - The **owner** calls `tracer.start(detail?)` to create a new trace (and clean up completed ones).
- * - The owner calls `trace.register(key, value)` once a correlation ID is known (e.g., requestId).
- * - **Downstream code** calls `tracer.find(key, value)` to join an existing trace and emit marks to it.
+ * - The owner calls `trace.registerCorrelation(key, value)` once a correlation ID is known (e.g., requestId).
+ * - **Downstream code** calls `getPerfTracer(prefix)?.findTraceByCorrelation(key, value)` to join an existing trace and emit marks to it.
  * - The owner calls `trace.done()` when the operation completes. Marks are cleaned on the next `start()`.
+ * - The owner calls `tracer.dispose()` when the component is torn down, clearing all remaining marks.
  *
  * ```
  * // Owner (e.g. chatServiceImpl)
- * const tracer = PerfTracer.get('code/chat/');
+ * const tracer = createPerfTracer('code/chat');
  * const trace = tracer.start({ sessionResource: '...' });
  * trace.mark('willSendRequest');
- * trace.register('requestId', request.id);
+ * trace.registerCorrelation('requestId', request.id);
  * // ...
  * trace.done();
+ * tracer.dispose(); // on component teardown
  *
  * // Downstream (e.g. chatAgents)
- * const trace = PerfTracer.get('code/chat/').find('requestId', id);
+ * const trace = getPerfTracer('code/chat')?.findTraceByCorrelation('requestId', id);
  * trace?.mark('willInvokeAgent');
  * trace?.mark('didInvokeAgent');
  * // NO .done() — doesn't own the lifecycle
  * ```
  */
-export class PerfTracer {
-
-	private static readonly _instances = new Map<string, PerfTracer>();
-
-	/**
-	 * Returns the singleton `PerfTracer` for the given prefix. Creates one if it doesn't exist.
-	 */
-	static get(prefix: string): PerfTracer {
-		let instance = PerfTracer._instances.get(prefix);
-		if (!instance) {
-			instance = new PerfTracer(prefix);
-			PerfTracer._instances.set(prefix, instance);
-		}
-		return instance;
-	}
+class PerfTracer implements IDisposable {
 
 	private _nextTraceId = 0;
 	private readonly _doneTraceIds = new Set<string>();
 	private readonly _activeTraces = new Map<string, PerfTrace>(); // "key:value" -> trace
+	private _disposed = false;
 
-	private constructor(private readonly _prefix: string) { }
+	constructor(private readonly _prefix: string) { }
 
 	/**
 	 * Starts a new trace. Clears marks from any previously completed traces.
 	 * Returns a {@link PerfTrace} that can be used to emit marks and signal completion.
 	 */
 	start(detail?: Record<string, unknown>): PerfTrace {
+		if (this._disposed) {
+			throw new Error('PerfTracer is disposed');
+		}
 		if (this._doneTraceIds.size > 0) {
 			clearMarks(this._prefix, [...this._doneTraceIds].map(traceId => ({ traceId })));
 			this._doneTraceIds.clear();
@@ -229,12 +260,32 @@ export class PerfTracer {
 	 * Finds an active trace registered with the given key/value pair.
 	 * Returns `undefined` if no matching trace is found.
 	 */
-	find(key: string, value: string): PerfTrace | undefined {
+	findTraceByCorrelation(key: string, value: string): PerfTrace | undefined {
+		if (this._disposed) {
+			return undefined;
+		}
 		return this._activeTraces.get(`${key}:${value}`);
+	}
+
+	/**
+	 * Disposes this tracer: clears all marks with this prefix, unregisters all active traces,
+	 * and removes the tracer from the global registry (if registered via {@link createPerfTracer}).
+	 */
+	dispose(): void {
+		if (this._disposed) {
+			return;
+		}
+		this._disposed = true;
+		clearMarks(this._prefix);
+		this._doneTraceIds.clear();
+		this._activeTraces.clear();
+		if (_tracers.get(this._prefix) === this) {
+			_tracers.delete(this._prefix);
+		}
 	}
 }
 
-export class PerfTrace {
+export class PerfTrace implements IDisposable {
 
 	private readonly _registrations: string[] = [];
 
@@ -247,9 +298,9 @@ export class PerfTrace {
 	) { }
 
 	/**
-	 * Registers this trace so downstream code can find it via `tracer.find(key, value)`.
+	 * Registers this trace so downstream code can find it via `tracer.findTraceByCorrelation(key, value)`.
 	 */
-	register(key: string, value: string): void {
+	registerCorrelation(key: string, value: string): void {
 		const registrationKey = `${key}:${value}`;
 		this._registrations.push(registrationKey);
 		this._activeTraces.set(registrationKey, this);
@@ -272,5 +323,9 @@ export class PerfTrace {
 			this._activeTraces.delete(key);
 		}
 		this._registrations.length = 0;
+	}
+
+	dispose(): void {
+		this.done();
 	}
 }

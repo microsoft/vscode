@@ -5,7 +5,7 @@
 
 import { DeferredPromise, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { PerfTrace, PerfTracer } from '../../../../../base/common/performance.js';
+import { PerfTrace, createPerfTracer } from '../../../../../base/common/performance.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -106,7 +106,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _sessionModels: ChatModelStore;
 	private readonly _pendingRequests = this._register(new DisposableResourceMap<CancellableRequest>());
 	private readonly _queuedRequestDeferreds = new Map<string, DeferredPromise<ChatSendResult>>();
-	private readonly _perfTracer = PerfTracer.get('code/chat/');
+	private readonly _perfTracer = this._register(createPerfTracer('code/chat'));
 	private _saveModelsEnabled = true;
 
 	private _transferredSessionResource: URI | undefined;
@@ -808,7 +808,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	async sendRequest(sessionResource: URI, request: string, options?: IChatSendRequestOptions): Promise<ChatSendResult> {
 		const trace = this._perfTracer.start({ sessionResource: sessionResource.toString() });
-		trace.register('sessionResource', sessionResource.toString());
+		trace.registerCorrelation('sessionResource', sessionResource.toString());
 		trace.mark('willSendRequest');
 		this.trace('sendRequest', `sessionResource: ${sessionResource.toString()}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 
@@ -1100,7 +1100,7 @@ export class ChatService extends Disposable implements IChatService {
 					const prepareChatAgentRequest = (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel, isParticipantDetected?: boolean): IChatAgentRequest => {
 						const initVariableData: IChatRequestVariableData = { variables: [] };
 						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, agent, command, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get());
-						trace.register('requestId', request.id);
+						trace.registerCorrelation('requestId', request.id);
 
 						let variableData: IChatRequestVariableData;
 						let message: string;
