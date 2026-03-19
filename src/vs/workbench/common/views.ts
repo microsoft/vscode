@@ -385,6 +385,8 @@ export interface IViewContainerModel {
 	setSizes(newSizes: readonly { id: string; size: number }[]): void;
 
 	move(from: string, to: string): void;
+
+	refreshContainerInfo(): void;
 }
 
 export enum ViewContentGroups {

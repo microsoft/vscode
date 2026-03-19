@@ -12,13 +12,13 @@ import { IObjectTreeElement, ITreeNode } from '../../../../base/browser/ui/tree/
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IObservableWithChange, observableFromEvent, ObservablePromise, observableValue } from '../../../../base/common/observable.js';
 import { basename, dirname } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize, localize2 } from '../../../../nls.js';
+import { ILocalizedString, localize, localize2 } from '../../../../nls.js';
 import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId, Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -53,7 +53,6 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { chatEditingWidgetFileStateContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, ModifiedFileEntryState } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
-import { IActivityService, NumberBadge } from '../../../../workbench/services/activity/common/activity.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -70,6 +69,15 @@ const $ = dom.$;
 
 export const CHANGES_VIEW_CONTAINER_ID = 'workbench.view.agentSessions.changesContainer';
 export const CHANGES_VIEW_ID = 'workbench.view.agentSessions.changes';
+
+// Dynamic title for the Changes view container tab.
+// Uses a getter so that ViewContainerModel.updateContainerInfo() picks up
+// the latest value each time it re-reads viewContainer.title.value.
+let _changesContainerTitleValue = localize('changes', 'Changes');
+export const changesContainerTitle: ILocalizedString = {
+	original: 'Changes',
+	get value() { return _changesContainerTitleValue; }
+};
 const RUN_SESSION_CODE_REVIEW_ACTION_ID = 'sessions.codeReview.run';
 
 // --- View Mode
@@ -206,6 +214,12 @@ function buildTreeChildren(items: IChangesFileItem[]): IObjectTreeElement<Change
 
 export class ChangesViewPane extends ViewPane {
 
+	private _fileCountTitle: string | undefined;
+
+	public override get singleViewPaneContainerTitle(): string | undefined {
+		return this._fileCountTitle;
+	}
+
 	private bodyContainer: HTMLElement | undefined;
 	private welcomeContainer: HTMLElement | undefined;
 	private contentContainer: HTMLElement | undefined;
@@ -260,9 +274,6 @@ export class ChangesViewPane extends ViewPane {
 		return this.activeSessionHasChangesObs;
 	}
 
-	// Badge for file count
-	private readonly badgeDisposable = this._register(new MutableDisposable());
-
 	constructor(
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -276,7 +287,6 @@ export class ChangesViewPane extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IActivityService private readonly activityService: IActivityService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -382,14 +392,19 @@ export class ChangesViewPane extends ViewPane {
 		}).recomputeInitiallyAndOnChange(this._store);
 	}
 
-	private updateBadge(fileCount: number): void {
-		if (fileCount > 0) {
-			const message = fileCount === 1
-				? localize('changesView.oneFileChanged', '1 file changed')
-				: localize('changesView.filesChanged', '{0} files changed', fileCount);
-			this.badgeDisposable.value = this.activityService.showViewActivity(CHANGES_VIEW_ID, { badge: new NumberBadge(fileCount, () => message) });
-		} else {
-			this.badgeDisposable.clear();
+	private updateFileCountTitle(fileCount: number): void {
+		this._fileCountTitle = fileCount > 0
+			? localize('changesView.titleWithCount', '{0} Changes', fileCount)
+			: undefined;
+		this._onDidChangeTitleArea.fire();
+
+		// Update the view container tab label in the composite bar.
+		// The tab reads from viewContainerModel.title which is refreshed
+		// by updateContainerInfo() reading our dynamic changesContainerTitle.
+		_changesContainerTitleValue = this._fileCountTitle ?? localize('changes', 'Changes');
+		const viewContainer = this.viewDescriptorService.getViewContainerById(CHANGES_VIEW_CONTAINER_ID);
+		if (viewContainer) {
+			this.viewDescriptorService.getViewContainerModel(viewContainer).refreshContainerInfo();
 		}
 	}
 
@@ -860,12 +875,12 @@ export class ChangesViewPane extends ViewPane {
 			dom.setVisibility(!hasEntries, this.welcomeContainer!);
 		}));
 
-		// Update badge when file count changes
+		// Update title when file count changes
 		this.renderDisposables.add(autorun(reader => {
-			this.updateBadge(topLevelStats.read(reader).files);
+			this.updateFileCountTitle(topLevelStats.read(reader).files);
 		}));
 
-		// Update summary text (line counts only, file count is shown in badge)
+		// Update summary text (line counts only)
 		if (this.summaryContainer) {
 			dom.clearNode(this.summaryContainer);
 

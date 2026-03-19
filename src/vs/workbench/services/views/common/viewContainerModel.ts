@@ -343,6 +343,10 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		this.updateContainerInfo();
 	}
 
+	refreshContainerInfo(): void {
+		this.updateContainerInfo();
+	}
+
 	private updateContainerInfo(): void {
 		/* Use default container info if one of the visible view descriptors belongs to the current container by default */
 		const useDefaultContainerInfo = this.viewContainer.alwaysUseContainerInfo || this.visibleViewDescriptors.length === 0 || this.visibleViewDescriptors.some(v => Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViewContainer(v.id) === this.viewContainer);
