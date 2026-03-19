@@ -553,8 +553,9 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Empty state container
 		this.emptyStateContainer = DOM.append(this.element, $('.list-empty-state'));
-		this.emptyStateIcon = DOM.append(this.emptyStateContainer, $('.empty-state-icon'));
-		this.emptyStateText = DOM.append(this.emptyStateContainer, $('.empty-state-text'));
+		const emptyStateHeader = DOM.append(this.emptyStateContainer, $('.empty-state-header'));
+		this.emptyStateIcon = DOM.append(emptyStateHeader, $('.empty-state-icon'));
+		this.emptyStateText = DOM.append(emptyStateHeader, $('.empty-state-text'));
 		this.emptyStateSubtext = DOM.append(this.emptyStateContainer, $('.empty-state-subtext'));
 		this.emptyStateContainer.style.display = 'none';
 

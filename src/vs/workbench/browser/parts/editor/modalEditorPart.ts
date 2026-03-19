@@ -170,7 +170,11 @@ export class ModalEditorPart {
 		const resizableElement = new ResizableHTMLElement();
 		disposables.add(toDisposable(() => resizableElement.dispose()));
 		resizableElement.domNode.classList.add('modal-editor-resizable');
-		resizableElement.minSize = new Dimension(MODAL_MIN_WIDTH, MODAL_MIN_HEIGHT);
+		const configuredMinWidth = options?.minWidth ?? this.configurationService.getValue<number>('workbench.editor.modalMinWidth');
+		const effectiveMinWidth = (typeof configuredMinWidth === 'number' && Number.isFinite(configuredMinWidth) && configuredMinWidth >= MODAL_MIN_WIDTH)
+			? configuredMinWidth
+			: MODAL_MIN_WIDTH;
+		resizableElement.minSize = new Dimension(effectiveMinWidth, MODAL_MIN_HEIGHT);
 		modalElement.appendChild(resizableElement.domNode);
 
 		const shadowElement = resizableElement.domNode.appendChild($('.modal-editor-shadow'));
