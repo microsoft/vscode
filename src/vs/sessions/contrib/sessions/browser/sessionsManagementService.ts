@@ -84,9 +84,9 @@ export interface ISessionsManagementService {
 	openNewSessionView(): void;
 
 	/**
-	 * Returns the repository URI for the given agent session, if available.
+	 * Returns the repository URI for the given session resource, if available.
 	 */
-	getSessionRepositoryUri(session: IAgentSession): URI | undefined;
+	getSessionRepositoryUri(sessionResource: URI): URI | undefined;
 
 	/**
 	 * Create a pending session object for the given target type.
