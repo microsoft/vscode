@@ -9,13 +9,6 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { createCancelablePromise, raceCancellablePromises } from '../../../base/common/async.js';
 
-declare module 'playwright-core' {
-	interface Page {
-		// A hidden Playwright method that returns an AI-friendly snapshot of the page.
-		_snapshotForAI(options?: { track?: string }): Promise<{ full: string; incremental?: string }>;
-	}
-}
-
 /**
  * Wrapper around a Playwright page that tracks additional state like active dialogs and recent console messages,
  * and can produce a summary of the page's current state for use in tools.
@@ -165,7 +158,7 @@ export class PlaywrightTab {
 			this._needsFullSnapshot = false;
 		}
 
-		const snapshotFromPage = await this.safeRunAgainstPage((page) => page._snapshotForAI({ track: 'response' })).catch(() => {
+		const snapshotFromPage = await this.safeRunAgainstPage((page) => page.snapshotForAI({ track: 'response', mode: full ? 'full' : 'incremental' })).catch(() => {
 			this._needsFullSnapshot = true;
 			return undefined;
 		});
@@ -174,7 +167,7 @@ export class PlaywrightTab {
 		const logs = this._logs;
 		this._logs = [];
 
-		const snapshot = (full ? snapshotFromPage?.full : snapshotFromPage?.incremental ?? snapshotFromPage?.full)?.trim() ?? '';
+		const snapshot = snapshotFromPage?.trim() ?? '';
 
 		return [
 			...(title ? [`Page Title: ${title}`] : []),
