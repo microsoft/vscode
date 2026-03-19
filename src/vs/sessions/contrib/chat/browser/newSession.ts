@@ -51,7 +51,7 @@ export interface INewSession extends IDisposable {
 	setMode(mode: IChatMode | undefined): void;
 	setQuery(query: string): void;
 	setAttachedContext(context: IChatRequestVariableEntry[] | undefined): void;
-	setOption(optionId: string, value: IChatSessionProviderOptionItem): void;
+	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void;
 }
 
 const REPOSITORY_OPTION_ID = 'repository';
@@ -107,10 +107,10 @@ export class CopilotCLISession extends Disposable implements INewSession {
 		super();
 		if (defaultRepoUri) {
 			this._repoUri = defaultRepoUri;
-			this.setOption(REPOSITORY_OPTION_ID, { id: defaultRepoUri.fsPath, name: defaultRepoUri.fsPath });
+			this.setOption(REPOSITORY_OPTION_ID, defaultRepoUri.fsPath);
 		}
 		this._isolationMode = 'worktree';
-		this.setOption(ISOLATION_OPTION_ID, { id: 'worktree', name: 'worktree' });
+		this.setOption(ISOLATION_OPTION_ID, 'worktree');
 	}
 
 	setProject(project: SessionWorkspace): void {
@@ -120,7 +120,7 @@ export class CopilotCLISession extends Disposable implements INewSession {
 		this._branch = undefined;
 		this._onDidChange.fire('repoUri');
 		this._onDidChange.fire('disabled');
-		this.setOption(REPOSITORY_OPTION_ID, { id: project.uri.fsPath, name: project.uri.fsPath });
+		this.setOption(REPOSITORY_OPTION_ID, project.uri.fsPath);
 	}
 
 	setIsolationMode(mode: IsolationMode): void {
@@ -128,7 +128,7 @@ export class CopilotCLISession extends Disposable implements INewSession {
 			this._isolationMode = mode;
 			this._onDidChange.fire('isolationMode');
 			this._onDidChange.fire('disabled');
-			this.setOption(ISOLATION_OPTION_ID, { id: mode, name: mode });
+			this.setOption(ISOLATION_OPTION_ID, mode);
 		}
 	}
 
@@ -137,7 +137,7 @@ export class CopilotCLISession extends Disposable implements INewSession {
 			this._branch = branch;
 			this._onDidChange.fire('branch');
 			this._onDidChange.fire('disabled');
-			this.setOption(BRANCH_OPTION_ID, { id: branch ?? '', name: branch ?? '' });
+			this.setOption(BRANCH_OPTION_ID, branch ?? '');
 		}
 	}
 
@@ -150,7 +150,7 @@ export class CopilotCLISession extends Disposable implements INewSession {
 			this._mode = mode;
 			this._onDidChange.fire('agent');
 			const modeName = mode?.isBuiltin ? undefined : mode?.name.get();
-			this.setOption(AGENT_OPTION_ID, { id: mode?.id ?? '', name: modeName ?? '' });
+			this.setOption(AGENT_OPTION_ID, modeName ?? '');
 		}
 	}
 
@@ -162,8 +162,12 @@ export class CopilotCLISession extends Disposable implements INewSession {
 		this._attachedContext = context;
 	}
 
-	setOption(optionId: string, value: IChatSessionProviderOptionItem): void {
-		this.selectedOptions.set(optionId, value);
+	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void {
+		if (typeof value === 'string') {
+			this.selectedOptions.set(optionId, { id: value, name: value });
+		} else {
+			this.selectedOptions.set(optionId, value);
+		}
 		this.chatSessionsService.notifySessionOptionsChange(
 			this.resource,
 			[{ optionId, value }]
@@ -262,7 +266,7 @@ export class RemoteNewSession extends Disposable implements INewSession {
 		this._attachedContext = context;
 	}
 
-	setOption(optionId: string, value: IChatSessionProviderOptionItem): void {
+	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void {
 		if (typeof value !== 'string') {
 			this.selectedOptions.set(optionId, value);
 		}
@@ -345,10 +349,15 @@ export class RemoteNewSession extends Disposable implements INewSession {
 		}
 		// Check for extension-set session option
 		const sessionOption = this.chatSessionsService.getSessionOption(this.resource, group.id);
-		if (sessionOption) {
+		if (sessionOption && typeof sessionOption !== 'string') {
 			return sessionOption;
 		}
-
+		if (typeof sessionOption === 'string') {
+			const item = group.items.find(i => i.id === sessionOption.trim());
+			if (item) {
+				return item;
+			}
+		}
 		// Default to first item marked as default, or first item
 		return group.items.find(i => i.default === true) ?? group.items[0];
 	}
