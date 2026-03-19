@@ -14,12 +14,14 @@ import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IHoverPositionOptions } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -211,7 +213,6 @@ export function buildModelPickerItems(
 	showFeatured: boolean,
 	hoverPosition?: IHoverPositionOptions,
 	languageModelsService?: ILanguageModelsService,
-	onModelPickerInteraction?: (interaction: ChatModelPickerInteraction) => void,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
@@ -353,7 +354,7 @@ export function buildModelPickerItems(
 					if (item.kind === 'available') {
 						items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect, languageModelsService!), item.model, hoverPosition, languageModelsService));
 					} else {
-						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, undefined, hoverPosition, onModelPickerInteraction));
+						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, undefined, hoverPosition));
 					}
 				}
 			}
@@ -402,7 +403,7 @@ export function buildModelPickerItems(
 				for (const model of otherModels) {
 					const entry = controlModels[model.metadata.id] ?? controlModels[model.identifier];
 					if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
-						items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other, hoverPosition, onModelPickerInteraction));
+						items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other, hoverPosition));
 					} else {
 						items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other), model, hoverPosition, languageModelsService));
 					}
@@ -466,7 +467,6 @@ function createUnavailableModelItem(
 	updateStateType: StateType,
 	section?: string,
 	hoverPosition?: IHoverPositionOptions,
-	onModelPickerInteraction?: (interaction: ChatModelPickerInteraction) => void,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	let description: string | MarkdownString | undefined;
 
@@ -511,13 +511,6 @@ function createUnavailableModelItem(
 		className: 'chat-model-picker-unavailable',
 		section,
 		hover: { content: hoverContent, position: hoverPosition },
-		onDescriptionLinkActivated: () => {
-			if (reason === 'upgrade') {
-				onModelPickerInteraction?.('premiumModelUpgradePlanClicked');
-			} else if (reason === 'admin') {
-				onModelPickerInteraction?.('disabledModelContactAdminClicked');
-			}
-		}
 	};
 }
 
@@ -558,6 +551,7 @@ export class ModelPickerWidget extends Disposable {
 		private readonly _hoverPosition: IHoverPositionOptions | undefined,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IProductService private readonly _productService: IProductService,
@@ -672,7 +666,6 @@ export class ModelPickerWidget extends Disposable {
 			this._delegate.showFeatured(),
 			this._hoverPosition,
 			this._languageModelsService,
-			logModelPickerInteraction,
 		);
 
 		const listOptions = {
@@ -685,6 +678,14 @@ export class ModelPickerWidget extends Disposable {
 				if (section === ModelPickerSection.Other) {
 					logModelPickerInteraction(collapsed ? 'otherModelsCollapsed' : 'otherModelsExpanded');
 				}
+			},
+			descriptionActionHandler: (uri: URI, item: IActionListItem<unknown>) => {
+				if (uri.scheme === 'command' && uri.path === 'workbench.action.chat.upgradePlan') {
+					logModelPickerInteraction('premiumModelUpgradePlanClicked');
+				} else if (item.className === 'chat-model-picker-unavailable') {
+					logModelPickerInteraction('disabledModelContactAdminClicked');
+				}
+				void this._openerService.open(uri, { allowCommands: true });
 			},
 			minWidth: 200,
 		};

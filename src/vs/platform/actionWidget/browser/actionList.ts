@@ -64,10 +64,6 @@ export interface IActionListItem<T> {
 	readonly label?: string;
 	readonly description?: string | IMarkdownString;
 	/**
-	 * Optional callback invoked when a markdown link inside the description is activated.
-	 */
-	readonly onDescriptionLinkActivated?: () => void;
-	/**
 	 * Optional hover configuration shown when focusing/hovering over the item.
 	 */
 	readonly hover?: IActionListItemHover;
@@ -197,6 +193,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _onRemoveItem: ((item: IActionListItem<T>) => void) | undefined,
 		private readonly _onSubmenuIndicatorHover: ((element: IActionListItem<T>, indicator: HTMLElement, disposables: DisposableStore) => void) | undefined,
 		private _hasAnySubmenuActions: boolean,
+		private readonly _descriptionActionHandler: ((uri: URI, item: IActionListItem<T>) => void) | undefined,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
@@ -288,8 +285,8 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			} else {
 				const rendered = renderMarkdown(element.description, {
 					actionHandler: (content: string) => {
-						element.onDescriptionLinkActivated?.();
-						this._openerService.open(URI.parse(content), { allowCommands: true });
+						const uri = URI.parse(content);
+						this._descriptionActionHandler?.(uri, element) ?? this._openerService.open(uri, { allowCommands: true });
 					}
 				});
 				data.elementDisposables.add(rendered);
@@ -410,6 +407,12 @@ export interface IActionListOptions {
 	readonly minWidth?: number;
 
 	/**
+	 * Optional markdown link action handler for item descriptions.
+	 * When unset, links open via the opener service with command links allowed.
+	 */
+	readonly descriptionActionHandler?: (uri: URI, item: IActionListItem<unknown>) => void;
+
+	/**
 	 * Optional callback fired when a section's collapsed state changes.
 	 */
 	readonly onDidToggleSection?: (section: string, collapsed: boolean) => void;
@@ -528,7 +531,7 @@ export class ActionListWidget<T> extends Disposable {
 		const hasAnySubmenuActions = items.some(item => !!item.submenuActions?.length);
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<T>(preview, (item) => this._removeItem(item), (element, indicator, disposables) => this._wireSubmenuIndicator(element, indicator, disposables), hasAnySubmenuActions, this._keybindingService, this._openerService),
+			new ActionItemRenderer<T>(preview, (item) => this._removeItem(item), (element, indicator, disposables) => this._wireSubmenuIndicator(element, indicator, disposables), hasAnySubmenuActions, this._options?.descriptionActionHandler, this._keybindingService, this._openerService),
 			new HeaderRenderer(),
 			new SeparatorRenderer(),
 		], {
