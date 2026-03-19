@@ -16,7 +16,7 @@ import { IWorkspace, IWorkspaceContextService } from '../../../../platform/works
 import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../contrib/chat/common/customizationHarnessService.js';
 import { PromptsType } from '../../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IPromptPath, IExtensionPromptPath } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { AICustomizationManagementSection } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationListWidget } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationListWidget.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
@@ -36,11 +36,7 @@ const defaultFilter: IStorageSourceFilter = {
 };
 
 interface IFixtureInstructionFile {
-	readonly uri: URI;
-	readonly storage: PromptsStorage;
-	readonly type: PromptsType;
-	readonly name?: string;
-	readonly description?: string;
+	readonly promptPath: IPromptPath;
 	/** If set, this instruction file has an applyTo pattern (on-demand). */
 	readonly applyTo?: string;
 }
@@ -53,14 +49,7 @@ function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], a
 		override getDisabledPromptFiles(): ResourceSet { return new ResourceSet(); }
 		override async listPromptFiles(type: PromptsType) {
 			if (type === PromptsType.instructions) {
-				return instructionFiles.map(f => ({
-					uri: f.uri,
-					storage: f.storage,
-					type: f.type,
-					name: f.name,
-					description: f.description,
-					applyTo: f.applyTo,
-				}));
+				return instructionFiles.map(f => f.promptPath);
 			}
 			return [];
 		}
@@ -167,14 +156,14 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 		labels: { kind: 'screenshot' },
 		render: ctx => renderInstructionsTab(ctx, [
 			// Always-active instructions (no applyTo)
-			{ uri: URI.file('/workspace/.github/instructions/coding-standards.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Coding Standards', description: 'Repository-wide coding standards' },
-			{ uri: URI.file('/home/dev/.copilot/instructions/my-style.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, name: 'My Style', description: 'Personal coding style preferences' },
+			{ promptPath: { uri: URI.file('/workspace/.github/instructions/coding-standards.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Coding Standards', description: 'Repository-wide coding standards' } },
+			{ promptPath: { uri: URI.file('/home/dev/.copilot/instructions/my-style.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, name: 'My Style', description: 'Personal coding style preferences' } },
 			// Always-included instruction (applyTo: **)
-			{ uri: URI.file('/workspace/.github/instructions/general-guidelines.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'General Guidelines', description: 'General development guidelines', applyTo: '**' },
+			{ promptPath: { uri: URI.file('/workspace/.github/instructions/general-guidelines.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'General Guidelines', description: 'General development guidelines' }, applyTo: '**' },
 			// On-demand instructions (with applyTo pattern)
-			{ uri: URI.file('/workspace/.github/instructions/testing-guidelines.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Testing Guidelines', description: 'Testing best practices', applyTo: '**/*.test.ts' },
-			{ uri: URI.file('/workspace/.github/instructions/security-review.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Security Review', description: 'Security review checklist', applyTo: 'src/auth/**' },
-			{ uri: URI.file('/home/dev/.copilot/instructions/typescript-rules.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, name: 'TypeScript Rules', description: 'TypeScript conventions', applyTo: '**/*.ts' },
+			{ promptPath: { uri: URI.file('/workspace/.github/instructions/testing-guidelines.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Testing Guidelines', description: 'Testing best practices' }, applyTo: '**/*.test.ts' },
+			{ promptPath: { uri: URI.file('/workspace/.github/instructions/security-review.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Security Review', description: 'Security review checklist' }, applyTo: 'src/auth/**' },
+			{ promptPath: { uri: URI.file('/home/dev/.copilot/instructions/typescript-rules.instructions.md'), storage: PromptsStorage.extension, type: PromptsType.instructions, name: 'TypeScript Rules', description: 'TypeScript conventions', extension: undefined!, source: undefined! } satisfies IExtensionPromptPath, applyTo: '**/*.ts' },
 		], [
 			// Agent instruction files (AGENTS.md, copilot-instructions.md)
 			{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentFileType.agentsMd },
