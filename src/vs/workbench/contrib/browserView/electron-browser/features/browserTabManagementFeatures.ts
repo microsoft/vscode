@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroupsService, GroupsOrder } from '../../../../services/editor/common/editorGroupsService.js';
 import { GroupIdentifier } from '../../../../common/editor.js';
-import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPickSeparator, QuickInputButtonLocation } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPickSeparator, QuickInputButtonLocation, IQuickPick } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -19,9 +19,15 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
-import { BrowserActionCategory } from '../browserViewActions.js';
+import { BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup } from '../browserViewActions.js';
 import { logBrowserOpen } from '../../../../../platform/browserView/common/browserViewTelemetry.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
+
+export const CONTEXT_BROWSER_EDITOR_OPEN = new RawContextKey<boolean>('browserEditorOpen', false, localize('browser.editorOpen', "Whether any browser editor is currently open"));
 
 interface IBrowserQuickPickItem extends IQuickPickItem {
 	groupId: GroupIdentifier;
@@ -40,8 +46,8 @@ const closeAllButtonItem: IQuickInputButton = {
 };
 
 const IP_ADDRESS_PATTERN = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?(\/|$)/;
-const URL_LIKE_PATTERN = /^[\w-]+(\.[\w-]+)+(\/\S*)?$/;
-const LOCALHOST_PATTERN = /^localhost:\d+(\/\S*)?$/;
+const URL_LIKE_PATTERN = /^[\w-]+(\.[\w-]+)+(:\d+)?(\/\S*)?$/;
+const LOCALHOST_PATTERN = /^localhost(:\d+)?(\/\S*)?$/;
 
 /**
  * Checks if the input looks like a URL and returns the full URL with protocol,
@@ -77,7 +83,7 @@ function tryParseAsUrl(value: string): string | undefined {
  */
 class BrowserTabQuickPick extends Disposable {
 
-	private readonly _quickPick;
+	private readonly _quickPick: IQuickPick<IBrowserQuickPickItem, { useSeparators: true }>;
 	private readonly _itemListeners = this._register(new DisposableStore());
 	private _resolvedUrl: string | undefined;
 
@@ -255,14 +261,24 @@ class BrowserTabQuickPick extends Disposable {
 
 class QuickOpenBrowserAction extends Action2 {
 	constructor() {
+		const neverShowInTitleBar = ContextKeyExpr.equals('config.workbench.browser.showInTitleBar', false);
 		super({
-			id: 'workbench.action.browser.quickOpen',
+			id: BrowserViewCommandId.QuickOpen,
 			title: localize2('browser.quickOpenAction', "Quick Open Browser Tab..."),
+			icon: Codicon.globe,
 			category: BrowserActionCategory,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
+				win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA },
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA },
+				// On Linux, Ctrl+Shift+A is mapped to editor block comments. Don't set a keybinding to avoid conflicts.
+			},
+			menu: {
+				id: MenuId.TitleBar,
+				group: 'navigation',
+				order: 10,
+				when: ContextKeyExpr.and(CONTEXT_BROWSER_EDITOR_OPEN, neverShowInTitleBar.negate()),
 			}
 		});
 	}
@@ -273,4 +289,123 @@ class QuickOpenBrowserAction extends Action2 {
 	}
 }
 
+interface IOpenBrowserOptions {
+	url?: string;
+	openToSide?: boolean;
+}
+
+class OpenIntegratedBrowserAction extends Action2 {
+	constructor() {
+		super({
+			id: BrowserViewCommandId.Open,
+			title: localize2('browser.openAction', "Open Integrated Browser"),
+			category: BrowserActionCategory,
+			icon: Codicon.globe,
+			f1: true,
+			menu: {
+				id: MenuId.TitleBar,
+				group: 'navigation',
+				order: 10,
+				when: ContextKeyExpr.and(
+					// This is a hack to work around `true` just testing for truthiness of the key. It works since `1 == true` in JS.
+					ContextKeyExpr.equals('config.workbench.browser.showInTitleBar', 1),
+					CONTEXT_BROWSER_EDITOR_OPEN.negate()
+				)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, urlOrOptions?: string | IOpenBrowserOptions): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const telemetryService = accessor.get(ITelemetryService);
+
+		// Parse arguments
+		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
+		const resource = BrowserViewUri.forId(generateUuid());
+		const group = options.openToSide ? SIDE_GROUP : ACTIVE_GROUP;
+
+		logBrowserOpen(telemetryService, options.url ? 'commandWithUrl' : 'commandWithoutUrl');
+
+		const editorPane = await editorService.openEditor({ resource, options: { viewState: { url: options.url } } }, group);
+
+		// Lock the group when opening to the side
+		if (options.openToSide && editorPane?.group) {
+			editorPane.group.lock(true);
+		}
+	}
+}
+
+class NewTabAction extends Action2 {
+	constructor() {
+		super({
+			id: BrowserViewCommandId.NewTab,
+			title: localize2('browser.newTabAction', "New Tab"),
+			category: BrowserActionCategory,
+			f1: true,
+			precondition: BROWSER_EDITOR_ACTIVE,
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: BrowserActionGroup.Tabs,
+				order: 1,
+			},
+			// When already in a browser, Ctrl/Cmd + T opens a new tab
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over search actions
+				primary: KeyMod.CtrlCmd | KeyCode.KeyT,
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, _browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const telemetryService = accessor.get(ITelemetryService);
+		const resource = BrowserViewUri.forId(generateUuid());
+
+		logBrowserOpen(telemetryService, 'newTabCommand');
+
+		await editorService.openEditor({ resource });
+	}
+}
+
 registerAction2(QuickOpenBrowserAction);
+registerAction2(OpenIntegratedBrowserAction);
+registerAction2(NewTabAction);
+
+registerAction2(class ToggleBrowserTitleBarButton extends ToggleTitleBarConfigAction {
+	constructor() {
+		super('workbench.browser.showInTitleBar', localize('toggle.browser', 'Integrated Browser'), localize('toggle.browserDescription', "Toggle visibility of the Integrated Browser button in title bar"), 8);
+	}
+});
+
+/**
+ * Tracks whether any browser editor is open across all editor groups and
+ * keeps the `browserEditorOpen` context key in sync.
+ */
+class BrowserEditorOpenContextKeyContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.browserEditorOpenContextKey';
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IEditorService editorService: IEditorService,
+	) {
+		super();
+
+		const contextKey = CONTEXT_BROWSER_EDITOR_OPEN.bindTo(contextKeyService);
+		const update = () => contextKey.set(editorService.editors.some(e => e instanceof BrowserEditorInput));
+
+		update();
+
+		this._register(editorService.onWillOpenEditor(e => {
+			if (e.editor instanceof BrowserEditorInput) {
+				contextKey.set(true);
+			}
+		}));
+		this._register(editorService.onDidCloseEditor(e => {
+			if (e.editor instanceof BrowserEditorInput) {
+				update();
+			}
+		}));
+	}
+}
+
+registerWorkbenchContribution2(BrowserEditorOpenContextKeyContribution.ID, BrowserEditorOpenContextKeyContribution, WorkbenchPhase.AfterRestored);

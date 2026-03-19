@@ -36,8 +36,8 @@ import { logBrowserOpen } from '../../../../platform/browserView/common/browserV
 // Register actions and browser features
 import './browserViewActions.js';
 import './features/browserEditorChatFeatures.js';
-import './features/browserQuickOpenFeature.js';
 import './features/browserEditorZoomFeature.js';
+import './features/browserTabManagementFeatures.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -155,8 +155,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	...workbenchConfigurationNodeBase,
 	properties: {
 		'workbench.browser.showInTitleBar': {
-			type: 'boolean',
-			default: false,
+			type: ['boolean', 'string'],
+			enum: [true, false, 'whenOpen'],
+			enumDescriptions: [
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'browser.showInTitleBar.true' }, 'The button is always shown in the title bar.'),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'browser.showInTitleBar.false' }, 'The button is never shown in the title bar.'),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'browser.showInTitleBar.whenOpen' }, 'The button is shown in the title bar when a browser editor is open.')
+			],
+			default: 'whenOpen',
 			experiment: { mode: 'startup' },
 			description: localize(
 				{ comment: ['This is the description for a setting.'], key: 'browser.showInTitleBar' },

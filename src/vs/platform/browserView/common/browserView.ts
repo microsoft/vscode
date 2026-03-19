@@ -12,6 +12,7 @@ const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
 	Open = `${commandPrefix}.open`,
 	NewTab = `${commandPrefix}.newTab`,
+	QuickOpen = `${commandPrefix}.quickOpen`,
 	GoBack = `${commandPrefix}.goBack`,
 	GoForward = `${commandPrefix}.goForward`,
 	Reload = `${commandPrefix}.reload`,
