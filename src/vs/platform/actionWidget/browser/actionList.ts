@@ -64,6 +64,10 @@ export interface IActionListItem<T> {
 	readonly label?: string;
 	readonly description?: string | IMarkdownString;
 	/**
+	 * Optional callback invoked when a markdown link inside the description is activated.
+	 */
+	readonly onDescriptionLinkActivated?: () => void;
+	/**
 	 * Optional hover configuration shown when focusing/hovering over the item.
 	 */
 	readonly hover?: IActionListItemHover;
@@ -284,6 +288,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			} else {
 				const rendered = renderMarkdown(element.description, {
 					actionHandler: (content: string) => {
+						element.onDescriptionLinkActivated?.();
 						this._openerService.open(URI.parse(content), { allowCommands: true });
 					}
 				});
@@ -403,6 +408,11 @@ export interface IActionListOptions {
 	 * Minimum width for the action list.
 	 */
 	readonly minWidth?: number;
+
+	/**
+	 * Optional callback fired when a section's collapsed state changes.
+	 */
+	readonly onDidToggleSection?: (section: string, collapsed: boolean) => void;
 
 	/**
 	 * When true, descriptions are rendered as subtext below the title
@@ -638,6 +648,7 @@ export class ActionListWidget<T> extends Disposable {
 		} else {
 			this._collapsedSections.add(section);
 		}
+		this._options?.onDidToggleSection?.(section, this._collapsedSections.has(section));
 		this._applyFilter();
 	}
 

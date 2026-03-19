@@ -74,6 +74,18 @@ type ChatModelChangeEvent = {
 	toModel: string | TelemetryTrustedValue<string>;
 };
 
+type ChatModelPickerInteraction = 'disabledModelContactAdminClicked' | 'premiumModelUpgradePlanClicked' | 'otherModelsExpanded' | 'otherModelsCollapsed';
+
+type ChatModelPickerInteractionClassification = {
+	owner: 'lramos15';
+	comment: 'Reporting interactions in the chat model picker';
+	interaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model picker interaction that occurred' };
+};
+
+type ChatModelPickerInteractionEvent = {
+	interaction: ChatModelPickerInteraction;
+};
+
 function createModelItem(
 	action: IActionWidgetDropdownAction & { section?: string },
 	model?: ILanguageModelChatMetadataAndIdentifier,
@@ -199,6 +211,7 @@ export function buildModelPickerItems(
 	showFeatured: boolean,
 	hoverPosition?: IHoverPositionOptions,
 	languageModelsService?: ILanguageModelsService,
+	onModelPickerInteraction?: (interaction: ChatModelPickerInteraction) => void,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
@@ -340,7 +353,7 @@ export function buildModelPickerItems(
 					if (item.kind === 'available') {
 						items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect, languageModelsService!), item.model, hoverPosition, languageModelsService));
 					} else {
-						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, undefined, hoverPosition));
+						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, undefined, hoverPosition, onModelPickerInteraction));
 					}
 				}
 			}
@@ -389,7 +402,7 @@ export function buildModelPickerItems(
 				for (const model of otherModels) {
 					const entry = controlModels[model.metadata.id] ?? controlModels[model.identifier];
 					if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
-						items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other, hoverPosition));
+						items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other, hoverPosition, onModelPickerInteraction));
 					} else {
 						items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other), model, hoverPosition, languageModelsService));
 					}
@@ -453,6 +466,7 @@ function createUnavailableModelItem(
 	updateStateType: StateType,
 	section?: string,
 	hoverPosition?: IHoverPositionOptions,
+	onModelPickerInteraction?: (interaction: ChatModelPickerInteraction) => void,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	let description: string | MarkdownString | undefined;
 
@@ -497,6 +511,13 @@ function createUnavailableModelItem(
 		className: 'chat-model-picker-unavailable',
 		section,
 		hover: { content: hoverContent, position: hoverPosition },
+		onDescriptionLinkActivated: () => {
+			if (reason === 'upgrade') {
+				onModelPickerInteraction?.('premiumModelUpgradePlanClicked');
+			} else if (reason === 'admin') {
+				onModelPickerInteraction?.('disabledModelContactAdminClicked');
+			}
+		}
 	};
 }
 
@@ -632,6 +653,9 @@ export class ModelPickerWidget extends Disposable {
 		const controlModelsForTier = isPro ? manifest.paid : manifest.free;
 		const canShowManageModelsAction = this._delegate.showManageModelsAction() && shouldShowManageModelsAction(this._entitlementService);
 		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService) : undefined;
+		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {
+			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
+		};
 		const items = buildModelPickerItems(
 			models,
 			this._selectedModel?.identifier,
@@ -648,6 +672,7 @@ export class ModelPickerWidget extends Disposable {
 			this._delegate.showFeatured(),
 			this._hoverPosition,
 			this._languageModelsService,
+			logModelPickerInteraction,
 		);
 
 		const listOptions = {
@@ -656,6 +681,11 @@ export class ModelPickerWidget extends Disposable {
 			filterActions: showFilter && manageModelsAction ? [manageModelsAction] : undefined,
 			focusFilterOnOpen: true,
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
+			onDidToggleSection: (section: string, collapsed: boolean) => {
+				if (section === ModelPickerSection.Other) {
+					logModelPickerInteraction(collapsed ? 'otherModelsCollapsed' : 'otherModelsExpanded');
+				}
+			},
 			minWidth: 200,
 		};
 		const previouslyFocusedElement = dom.getActiveElement();
