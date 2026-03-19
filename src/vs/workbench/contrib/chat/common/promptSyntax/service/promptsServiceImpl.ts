@@ -796,9 +796,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const entryPromise = (async () => {
 			// For skills, validate that the file follows the required structure
 			if (type === PromptsType.skill) {
-				const validated = await this.validateAndSanitizeSkillFile(uri, CancellationToken.None);
-				name = validated.name;
-				description = validated.description;
+				try {
+					const validated = await this.validateAndSanitizeSkillFile(uri, CancellationToken.None);
+					name = validated.name;
+					description = validated.description;
+				} catch (e) {
+					const msg = e instanceof Error ? e.message : String(e);
+					this.logger.error(`[registerContributedFile] Failed to validate contributed skill file from extension ${extension.identifier.value}: ${uri}`, msg);
+					throw e;
+				}
 			}
 
 			try {
