@@ -14,6 +14,7 @@ import { rgPath } from '@vscode/ripgrep';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession, IAgentDescriptor, IAgentAttachment } from '../../common/agentService.js';
+import { PermissionKind, type PolicyState } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isHiddenTool } from './copilotToolDisplay.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 
@@ -164,7 +165,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			supportsReasoningEffort: m.capabilities.supports.reasoningEffort,
 			supportedReasoningEfforts: m.supportedReasoningEfforts,
 			defaultReasoningEffort: m.defaultReasoningEffort,
-			policyState: m.policy?.state,
+			policyState: m.policy?.state as PolicyState | undefined,
 			billingMultiplier: m.billing?.multiplier,
 		}));
 		this._logService.info(`[Copilot] Found ${result.length} models`);
@@ -304,9 +305,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const deferred = new DeferredPromise<boolean>();
 		this._pendingPermissions.set(requestId, { sessionId: invocation.sessionId, deferred });
 
-		const permissionKind = (['shell', 'write', 'mcp', 'read', 'url'] as const).includes(request.kind as 'shell')
-			? request.kind as 'shell' | 'write' | 'mcp' | 'read' | 'url'
-			: 'read'; // Treat unknown kinds as read (safest default)
+		const permissionKind = ([PermissionKind.Shell, PermissionKind.Write, PermissionKind.Mcp, PermissionKind.Read, PermissionKind.Url] as const).includes(request.kind as PermissionKind)
+			? request.kind as PermissionKind
+			: PermissionKind.Read; // Treat unknown kinds as read (safest default)
 
 		// Fire the event so the renderer can handle it
 		this._onDidSessionProgress.fire({

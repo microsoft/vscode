@@ -28,6 +28,7 @@ export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>(
 export interface ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): Promise<boolean>;
+	getOS(): Promise<OperatingSystem>;
 	wrapCommand(command: string): string;
 	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
@@ -89,12 +90,17 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	}
 
 	public async isEnabled(): Promise<boolean> {
-		this._remoteEnvDetails = await this._remoteEnvDetailsPromise;
-		this._os = this._remoteEnvDetails ? this._remoteEnvDetails.os : OS;
-		if (this._os === OperatingSystem.Windows) {
+		const os = await this.getOS();
+		if (os === OperatingSystem.Windows) {
 			return false;
 		}
 		return this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled);
+	}
+
+	public async getOS(): Promise<OperatingSystem> {
+		this._remoteEnvDetails = await this._remoteEnvDetailsPromise;
+		this._os = this._remoteEnvDetails ? this._remoteEnvDetails.os : OS;
+		return this._os;
 	}
 
 	public wrapCommand(command: string): string {

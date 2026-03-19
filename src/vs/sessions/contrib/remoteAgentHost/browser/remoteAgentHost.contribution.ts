@@ -51,9 +51,10 @@ class ConnectionState extends Disposable {
 	constructor(
 		clientId: string,
 		readonly name: string | undefined,
+		logService: ILogService,
 	) {
 		super();
-		this.clientState = this.store.add(new SessionClientState(clientId));
+		this.clientState = this.store.add(new SessionClientState(clientId, logService));
 	}
 }
 
@@ -142,7 +143,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			return;
 		}
 
-		const connState = new ConnectionState(connection.clientId, name);
+		const connState = new ConnectionState(connection.clientId, name, this._logService);
 		this._connections.set(address, connState);
 		const store = connState.store;
 

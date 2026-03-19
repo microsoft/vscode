@@ -97,7 +97,6 @@ export class ComputeAutomaticInstructions {
 	}
 
 	public async collect(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
-		mark('code/chat/willCollectInstructions');
 
 		const instructionFiles = await this._promptsService.getInstructionFiles(token, this._sessionResource);
 
@@ -122,7 +121,6 @@ export class ComputeAutomaticInstructions {
 		}
 
 		this.sendTelemetry(telemetryEvent);
-		mark('code/chat/didCollectInstructions');
 	}
 
 	private sendTelemetry(telemetryEvent: InstructionsCollectionEvent): void {

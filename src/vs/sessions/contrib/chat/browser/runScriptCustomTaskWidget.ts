@@ -28,7 +28,7 @@ export interface IRunScriptCustomTaskWidgetState {
 	readonly target?: TaskStorageTarget;
 	readonly targetDisabledReason?: string;
 	readonly runOn?: typeof WORKTREE_CREATED_RUN_ON;
-	readonly submitLabel?: string;
+	readonly mode?: 'add' | 'add-existing' | 'configure';
 }
 
 export interface IRunScriptCustomTaskWidgetResult {
@@ -51,6 +51,12 @@ export class RunScriptCustomTaskWidget extends Disposable {
 	private readonly _labelLocked: boolean;
 	private readonly _commandLocked: boolean;
 	private readonly _targetLocked: boolean;
+	private readonly _isExistingTask: boolean;
+	private readonly _isAddExistingTask: boolean;
+	private readonly _initialLabel: string;
+	private readonly _initialCommand: string;
+	private readonly _initialRunOn: boolean;
+	private readonly _initialTarget: TaskStorageTarget;
 	private _selectedTarget: TaskStorageTarget;
 
 	private readonly _onDidSubmit = this._register(new Emitter<IRunScriptCustomTaskWidgetResult>());
@@ -65,7 +71,13 @@ export class RunScriptCustomTaskWidget extends Disposable {
 		this._labelLocked = !!state.labelDisabledReason;
 		this._commandLocked = !!state.commandDisabledReason;
 		this._targetLocked = !!state.targetDisabledReason && state.target !== undefined;
+		this._isExistingTask = state.mode === 'configure';
+		this._isAddExistingTask = state.mode === 'add-existing';
 		this._selectedTarget = state.target ?? (state.targetDisabledReason ? 'user' : 'workspace');
+		this._initialLabel = state.label ?? '';
+		this._initialCommand = state.command ?? '';
+		this._initialRunOn = state.runOn === WORKTREE_CREATED_RUN_ON;
+		this._initialTarget = this._selectedTarget;
 
 		this.domNode = dom.$('.run-script-action-widget');
 
@@ -73,7 +85,7 @@ export class RunScriptCustomTaskWidget extends Disposable {
 		dom.append(labelSection, dom.$('label.run-script-action-label', undefined, localize('labelFieldLabel', "Name")));
 		const labelInputContainer = dom.append(labelSection, dom.$('.run-script-action-input'));
 		this._labelInput = this._register(new InputBox(labelInputContainer, undefined, {
-			placeholder: localize('enterLabelPlaceholder', "Enter a name for this action (optional)"),
+			placeholder: localize('enterLabelPlaceholder', "Enter a name for this task (optional)"),
 			tooltip: state.labelDisabledReason,
 			ariaLabel: localize('enterLabelAriaLabel', "Task name"),
 			inputBoxStyles: defaultInputBoxStyles,
@@ -102,7 +114,7 @@ export class RunScriptCustomTaskWidget extends Disposable {
 		const runOnRow = dom.append(runOnSection, dom.$('.run-script-action-option-row'));
 		this._runOnCheckbox = this._register(new Checkbox(localize('runOnWorktreeCreated', "Run When Worktree Is Created"), state.runOn === WORKTREE_CREATED_RUN_ON, defaultCheckboxStyles));
 		runOnRow.appendChild(this._runOnCheckbox.domNode);
-		const runOnText = dom.append(runOnRow, dom.$('span.run-script-action-option-text', undefined, localize('runOnWorktreeCreatedDescription', "Automatically run this action when the session worktree is created")));
+		const runOnText = dom.append(runOnRow, dom.$('span.run-script-action-option-text', undefined, localize('runOnWorktreeCreatedDescription', "Automatically run this task when the session worktree is created")));
 		this._register(dom.addDisposableListener(runOnText, dom.EventType.CLICK, () => this._runOnCheckbox.checked = !this._runOnCheckbox.checked));
 
 		const storageSection = dom.append(this.domNode, dom.$('.run-script-action-section'));
@@ -113,13 +125,13 @@ export class RunScriptCustomTaskWidget extends Disposable {
 			items: [
 				{
 					text: localize('workspaceStorageLabel', "Workspace"),
-					tooltip: storageDisabledReason ?? localize('workspaceStorageTooltip', "Save this action in the current workspace"),
+					tooltip: storageDisabledReason ?? localize('workspaceStorageTooltip', "Save this task in the current workspace"),
 					isActive: this._selectedTarget === 'workspace',
 					disabled: workspaceTargetDisabled,
 				},
 				{
 					text: localize('userStorageLabel', "User"),
-					tooltip: this._targetLocked ? storageDisabledReason : localize('userStorageTooltip', "Save this action in your user tasks and make it available in all sessions"),
+					tooltip: this._targetLocked ? storageDisabledReason : localize('userStorageTooltip', "Save this task in your user tasks and make it available in all sessions"),
 					isActive: this._selectedTarget === 'user',
 					disabled: this._targetLocked,
 				}
@@ -135,13 +147,15 @@ export class RunScriptCustomTaskWidget extends Disposable {
 		this._cancelButton = this._register(new Button(buttonRow, { ...defaultButtonStyles, secondary: true }));
 		this._cancelButton.label = localize('cancelAddAction', "Cancel");
 		this._submitButton = this._register(new Button(buttonRow, defaultButtonStyles));
-		this._submitButton.label = state.submitLabel ?? localize('confirmAddAction', "Add Action");
+		this._submitButton.label = this._getSubmitLabel();
 
-		this._register(this._labelInput.onDidChange(() => this._updateButtonEnablement()));
-		this._register(this._commandInput.onDidChange(() => this._updateButtonEnablement()));
+		this._register(this._labelInput.onDidChange(() => this._updateButtonState()));
+		this._register(this._commandInput.onDidChange(() => this._updateButtonState()));
 		this._register(this._storageOptions.onDidSelect(index => {
 			this._selectedTarget = index === 0 ? 'workspace' : 'user';
+			this._updateButtonState();
 		}));
+		this._register(this._runOnCheckbox.onChange(() => this._updateButtonState()));
 		this._register(this._submitButton.onDidClick(() => this._submit()));
 		this._register(this._cancelButton.onDidClick(() => this._onDidCancel.fire()));
 		this._register(dom.addDisposableListener(this._labelInput.inputElement, dom.EventType.KEY_DOWN, event => {
@@ -169,7 +183,7 @@ export class RunScriptCustomTaskWidget extends Disposable {
 			}
 		}));
 
-		this._updateButtonEnablement();
+		this._updateButtonState();
 	}
 
 	focus(): void {
@@ -199,7 +213,31 @@ export class RunScriptCustomTaskWidget extends Disposable {
 		});
 	}
 
-	private _updateButtonEnablement(): void {
+	private _updateButtonState(): void {
 		this._submitButton.enabled = this._commandInput.value.trim().length > 0;
+		this._submitButton.label = this._getSubmitLabel();
+	}
+
+	private _getSubmitLabel(): string {
+		if (this._isAddExistingTask) {
+			return localize('confirmAddToSessions', "Add to Sessions Window");
+		}
+		if (!this._isExistingTask) {
+			return localize('confirmAddTask', "Add Task");
+		}
+
+		const targetChanged = this._selectedTarget !== this._initialTarget;
+		const labelChanged = this._labelInput.value !== this._initialLabel;
+		const commandChanged = this._commandInput.value !== this._initialCommand;
+		const runOnChanged = this._runOnCheckbox.checked !== this._initialRunOn;
+		const otherChanged = labelChanged || commandChanged || runOnChanged;
+
+		if (targetChanged && otherChanged) {
+			return localize('confirmMoveAndUpdateTask', "Move and Update Task");
+		}
+		if (targetChanged) {
+			return localize('confirmMoveTask', "Move Task");
+		}
+		return localize('confirmUpdateTask', "Update Task");
 	}
 }
