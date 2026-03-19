@@ -247,7 +247,7 @@
 			background-color: var(--vscode-list-hoverBackground);
 		}
 
-		/* Single-select: highlight entire row when selected */
+		/* Single-select: highlight entire row when selected (list not focused) */
 		.chat-question-list-item.selected {
 			background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
 			color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
@@ -270,6 +270,27 @@
 			}
 		}
 
+		/* When the question list has focus, use active selection styling */
+		.chat-question-list:focus .chat-question-list-item.selected {
+			background-color: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
+			color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+
+			.chat-question-label {
+				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+			}
+
+			.chat-question-list-label-desc {
+				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+			}
+
+			.chat-question-list-indicator.codicon-check {
+				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+			}
+
+			.chat-question-list-number {
+				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+			}
+		}
 		.chat-question-list-item.selected:hover {
 			background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
 		}
