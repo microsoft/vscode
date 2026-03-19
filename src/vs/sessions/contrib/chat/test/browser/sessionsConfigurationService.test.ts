@@ -18,6 +18,7 @@ import { IActiveSessionItem, ISessionsManagementService } from '../../../session
 import { INonSessionTaskEntry, ISessionsConfigurationService, SessionsConfigurationService, ITaskEntry } from '../../browser/sessionsConfigurationService.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 
 function makeSession(opts: { repository?: URI; worktree?: URI } = {}): IActiveSessionItem {
 	return {
@@ -698,7 +699,7 @@ suite('SessionsConfigurationService', () => {
 		assert.strictEqual(createdTerminals.length, 2, 'should create two terminals for different worktrees');
 	});
 
-	test('runs worktreeCreated session tasks when a session gains a worktree', async () => {
+	test('runs worktreeCreated session tasks when a session gains a worktree', runWithFakedTimers(async scheduler => {
 		const sessionResource = URI.parse('file:///session-worktree-created');
 		const worktreeTasksUri = URI.parse('file:///worktree/.vscode/tasks.json');
 		const userTasksUri = URI.from({ scheme: userSettingsUri.scheme, path: '/user/tasks.json' });
@@ -709,16 +710,16 @@ suite('SessionsConfigurationService', () => {
 		fileContents.set(userTasksUri.toString(), tasksJsonContent([]));
 
 		activeSessionObs.set({ ...makeSession({ repository: repoUri }), resource: sessionResource }, undefined);
-		await new Promise(r => setTimeout(r, 20));
+		await scheduler.tick(20);
 
 		activeSessionObs.set({ ...makeSession({ repository: repoUri, worktree: worktreeUri }), resource: sessionResource }, undefined);
-		await new Promise(r => setTimeout(r, 350));
+		await scheduler.tick(350);
 
 		assert.strictEqual(sentCommands.length, 1);
 		assert.strictEqual(sentCommands[0].command, 'npm run build');
-	});
+	}));
 
-	test('runs worktreeCreated task only for latest worktree when worktree changes quickly', async () => {
+	test('runs worktreeCreated task only for latest worktree when worktree changes quickly', runWithFakedTimers(async scheduler => {
 		const sessionResource = URI.parse('file:///session-worktree-switch');
 		const wt1 = URI.parse('file:///worktree1');
 		const wt2 = URI.parse('file:///worktree2');
@@ -735,15 +736,15 @@ suite('SessionsConfigurationService', () => {
 		fileContents.set(userTasksUri.toString(), tasksJsonContent([]));
 
 		activeSessionObs.set({ ...makeSession({ repository: repoUri }), resource: sessionResource }, undefined);
-		await new Promise(r => setTimeout(r, 20));
+		await scheduler.tick(20);
 
 		activeSessionObs.set({ ...makeSession({ repository: repoUri, worktree: wt1 }), resource: sessionResource }, undefined);
 		activeSessionObs.set({ ...makeSession({ repository: repoUri, worktree: wt2 }), resource: sessionResource }, undefined);
 
-		await new Promise(r => setTimeout(r, 350));
+		await scheduler.tick(350);
 
 		assert.strictEqual(sentCommands.length, 1);
 		assert.strictEqual(sentCommands[0].command, 'echo wt2');
-	});
+	}));
 
 });
