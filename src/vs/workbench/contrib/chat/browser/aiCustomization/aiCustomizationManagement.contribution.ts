@@ -47,6 +47,7 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { AgentPluginItemKind } from '../agentPluginEditor/agentPluginItems.js';
 
 //#region Telemetry
 
@@ -152,6 +153,20 @@ function extractPromptType(context: AICustomizationContext): PromptsType | undef
 		return undefined;
 	}
 	return context.promptType;
+}
+
+/**
+ * Extracts the parent plugin URI from context, if present.
+ */
+function extractPluginUri(context: AICustomizationContext): URI | undefined {
+	if (URI.isUri(context) || typeof context === 'string') {
+		return undefined;
+	}
+	const raw = context.pluginUri;
+	if (!raw) {
+		return undefined;
+	}
+	return URI.isUri(raw) ? raw : typeof raw === 'string' ? URI.parse(raw) : undefined;
 }
 
 // Open file action
@@ -433,6 +448,52 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('uninstallPlugin', "Uninstall Plugin") },
 	group: '4_modify',
 	order: 1,
+	when: WHEN_ITEM_IS_PLUGIN,
+});
+
+// Show Plugin action - navigates to the parent plugin detail page
+const SHOW_PLUGIN_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.showPlugin';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: SHOW_PLUGIN_AI_CUSTOMIZATION_ID,
+			title: localize2('showPlugin', "Show Plugin"),
+		});
+	}
+	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		const agentPluginService = accessor.get(IAgentPluginService);
+		const editorService = accessor.get(IEditorService);
+
+		const pluginUri = extractPluginUri(context);
+		if (!pluginUri) {
+			return;
+		}
+		const plugin = agentPluginService.plugins.get().find(p => p.uri.toString() === pluginUri.toString());
+		if (!plugin) {
+			return;
+		}
+
+		const item = {
+			kind: AgentPluginItemKind.Installed as const,
+			name: plugin.label,
+			description: plugin.fromMarketplace?.description ?? '',
+			marketplace: plugin.fromMarketplace?.marketplace,
+			plugin,
+		};
+
+		// Try to show within the active AI Customization editor (with back navigation)
+		const input = AICustomizationManagementEditorInput.getOrCreate();
+		const pane = await editorService.openEditor(input, { pinned: true });
+		if (pane instanceof AICustomizationManagementEditor) {
+			await pane.showPluginDetail(item);
+		}
+	}
+});
+
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: SHOW_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('showPlugin', "Show Plugin") },
+	group: '1_open',
+	order: 2,
 	when: WHEN_ITEM_IS_PLUGIN,
 });
 
