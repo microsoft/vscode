@@ -30,6 +30,7 @@ import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageM
 import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../../services/chat/common/chatEntitlementService.js';
 import * as semver from '../../../../../../base/common/semver/semver.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IUpdateService, StateType } from '../../../../../../platform/update/common/update.js';
 
 function isVersionAtLeast(current: string, required: string): boolean {
@@ -557,6 +558,7 @@ export class ModelPickerWidget extends Disposable {
 		@IProductService private readonly _productService: IProductService,
 		@IChatEntitlementService private readonly _entitlementService: IChatEntitlementService,
 		@IUpdateService private readonly _updateService: IUpdateService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -683,7 +685,7 @@ export class ModelPickerWidget extends Disposable {
 			linkHandler: (uri: URI) => {
 				if (uri.scheme === 'command' && uri.path === 'workbench.action.chat.upgradePlan') {
 					logModelPickerInteraction('premiumModelUpgradePlanClicked');
-				} else if (manageSettingsUrl && uri.toString().startsWith(manageSettingsUrl)) {
+				} else if (manageSettingsUrl && this._uriIdentityService.extUri.isEqual(uri, URI.parse(manageSettingsUrl))) {
 					logModelPickerInteraction('disabledModelContactAdminClicked');
 				}
 				void this._openerService.open(uri, { allowCommands: true });
