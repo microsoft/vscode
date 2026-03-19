@@ -32,7 +32,7 @@ import '../../../../platform/theme/common/colors/listColors.js';
 // ============================================================================
 
 const defaultFilter: IStorageSourceFilter = {
-	sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension],
+	sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, PromptsStorage.extension],
 };
 
 interface IFixtureInstructionFile {
