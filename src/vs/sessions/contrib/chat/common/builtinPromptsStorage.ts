@@ -25,4 +25,6 @@ export interface IBuiltinPromptPath {
 	readonly uri: URI;
 	readonly storage: AICustomizationPromptsStorage;
 	readonly type: PromptsType;
+	readonly name?: string;
+	readonly description?: string;
 }

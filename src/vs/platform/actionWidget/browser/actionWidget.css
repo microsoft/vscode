@@ -310,3 +310,44 @@
 .action-widget .action-list-filter-actions .action-label:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
+
+/* Anchor for the absolutely-positioned submenu panel */
+.action-widget .actionList {
+	position: relative;
+}
+
+.action-widget .action-list-submenu-indicator {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	flex-shrink: 0;
+	border-radius: 4px;
+	margin-right: 2px;
+}
+
+.action-widget .action-list-submenu-indicator.has-submenu {
+	cursor: pointer;
+	opacity: 0.6;
+}
+
+.action-widget .monaco-list-row.action .action-list-submenu-indicator.codicon {
+	display: flex;
+	font-size: 16px;
+}
+
+.action-widget .action-list-submenu-indicator.has-submenu:hover {
+	opacity: 1;
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.action-list-submenu-panel {
+	background-color: var(--vscode-menu-background);
+	color: var(--vscode-menu-foreground);
+	border: 1px solid var(--vscode-menu-border, var(--vscode-editorHoverWidget-border));
+	border-radius: 5px;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	z-index: 50;
+	width: fit-content;
+}

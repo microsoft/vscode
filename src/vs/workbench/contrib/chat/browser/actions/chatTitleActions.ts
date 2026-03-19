@@ -45,12 +45,12 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig))
+					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig), ChatContextKeys.lockedToCodingAgent.negate())
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig))
+					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig), ChatContextKeys.lockedToCodingAgent.negate())
 				}]
 			});
 		}
@@ -92,12 +92,12 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 3,
-					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ContextKeyExpr.has(enableFeedbackConfig))
+					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ContextKeyExpr.has(enableFeedbackConfig), ChatContextKeys.lockedToCodingAgent.negate())
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig))
+					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig), ChatContextKeys.lockedToCodingAgent.negate())
 				}]
 			});
 		}
@@ -188,12 +188,13 @@ export function registerChatTitleActions() {
 						group: 'navigation',
 						when: ContextKeyExpr.and(
 							ChatContextKeys.isResponse,
-							ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key))
+							ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key),
+							ChatContextKeys.lockedToCodingAgent.negate())
 					},
 					{
 						id: MenuId.ChatEditingWidgetToolbar,
 						group: 'navigation',
-						when: applyingChatEditsFailedContextKey,
+						when: ContextKeyExpr.and(applyingChatEditsFailedContextKey, ChatContextKeys.lockedToCodingAgent.negate()),
 						order: 0
 					}
 				]
@@ -283,7 +284,7 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					isHiddenByDefault: true,
-					when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, ChatContextKeys.isResponse, ChatContextKeys.responseIsFiltered.negate())
+					when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, ChatContextKeys.isResponse, ChatContextKeys.responseIsFiltered.negate(), ChatContextKeys.lockedToCodingAgent.negate())
 				}
 			});
 		}

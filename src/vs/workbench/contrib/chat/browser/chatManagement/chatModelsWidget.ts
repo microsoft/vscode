@@ -792,6 +792,21 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IActionsColumnTemplateData): void {
+		const configActions = this.languageModelsService.getModelConfigurationActions(entry.model.identifier);
+		if (configActions.length === 0 && !entry.model.metadata.configurationSchema) {
+			return;
+		}
+
+		const secondaryActions: IAction[] = [...configActions];
+
+		// Always add "Configure..." as fallback for complex properties
+		secondaryActions.push(toAction({
+			id: 'configureModel',
+			label: localize('models.configureModel', 'Configure...'),
+			run: () => this.languageModelsService.configureModel(entry.model.identifier)
+		}));
+
+		templateData.actionBar.setActions([], secondaryActions);
 	}
 }
 
@@ -1180,6 +1195,15 @@ export class ChatModelsWidget extends Disposable {
 					enabled: hiddenModels.length > 0,
 					run: () => this.viewModel.setModelsVisibility(selectedModelEntries, true)
 				}));
+
+				// Show per-model configuration actions for a single model
+				if (selectedModelEntries.length === 1) {
+					const configActions = this.languageModelsService.getModelConfigurationActions(selectedModelEntries[0].model.identifier);
+					if (configActions.length) {
+						actions.push(new Separator());
+						actions.push(...configActions);
+					}
+				}
 
 				// Show configure action if all models are from the same group
 				configureGroup = selectedModelEntries[0].model.provider.group.name;

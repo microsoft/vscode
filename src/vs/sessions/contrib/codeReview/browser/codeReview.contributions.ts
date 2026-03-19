@@ -19,10 +19,10 @@ import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browse
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { CodeReviewService, CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from './codeReviewService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { getSessionEditorComments } from '../../agentFeedback/browser/sessionEditorComments.js';
+import { CodeReviewService, CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, MAX_CODE_REVIEWS_PER_SESSION_VERSION, PRReviewStateKind } from './codeReviewService.js';
 
 registerSingleton(ICodeReviewService, CodeReviewService, InstantiationType.Delayed);
 
@@ -82,6 +82,7 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 			// If there are existing comments (code review or PR review), navigate to the first one
 			const reviewState = codeReviewService.getReviewState(resource).get();
 			const prReviewState = codeReviewService.getPRReviewState(resource).get();
+			const reviewCount = reviewState.kind !== CodeReviewStateKind.Idle && reviewState.version === version ? reviewState.reviewCount : 0;
 			const codeReviewCount = reviewState.kind === CodeReviewStateKind.Result && reviewState.version === version ? reviewState.comments.length : 0;
 			const prReviewCount = prReviewState.kind === PRReviewStateKind.Loaded ? prReviewState.comments.length : 0;
 
@@ -96,6 +97,10 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 				if (first) {
 					await agentFeedbackService.revealSessionComment(resource, first.id, first.resourceUri, first.range);
 				}
+				return;
+			}
+
+			if (reviewCount >= MAX_CODE_REVIEWS_PER_SESSION_VERSION) {
 				return;
 			}
 
@@ -147,6 +152,7 @@ class CodeReviewToolbarContribution extends Disposable implements IWorkbenchCont
 			const version = getCodeReviewVersion(files);
 			const reviewState = this._codeReviewService.getReviewState(sessionResource).read(reader);
 			const prReviewState = this._codeReviewService.getPRReviewState(sessionResource).read(reader);
+			const reviewCount = reviewState.kind !== CodeReviewStateKind.Idle && reviewState.version === version ? reviewState.reviewCount : 0;
 
 			const codeReviewCount = reviewState.kind === CodeReviewStateKind.Result && reviewState.version === version ? reviewState.comments.length : 0;
 			const prReviewCount = prReviewState.kind === PRReviewStateKind.Loaded ? prReviewState.comments.length : 0;
@@ -166,10 +172,16 @@ class CodeReviewToolbarContribution extends Disposable implements IWorkbenchCont
 				tooltip = totalCommentCount === 1
 					? localize('sessions.runCodeReview.tooltip.oneUnresolved', "1 review comment unresolved.")
 					: localize('sessions.runCodeReview.tooltip.manyUnresolved', "{0} review comments unresolved.", totalCommentCount);
-			} else if (reviewState.kind === CodeReviewStateKind.Result && reviewState.version === version) {
+			} else if (reviewCount >= MAX_CODE_REVIEWS_PER_SESSION_VERSION) {
 				canRunCodeReview = false;
-				tooltip = localize('sessions.runCodeReview.tooltip.allResolved', "All review comments have been addressed.");
-				icon = Codicon.comment;
+				tooltip = localize('sessions.runCodeReview.tooltip.limitReached', "Maximum of {0} code reviews reached for this session version.", MAX_CODE_REVIEWS_PER_SESSION_VERSION);
+				icon = Codicon.codeReview;
+			} else if (reviewState.kind === CodeReviewStateKind.Result && reviewState.version === version) {
+				canRunCodeReview = true;
+				tooltip = reviewState.didProduceComments
+					? localize('sessions.runCodeReview.tooltip.runAgain', "Run another code review.")
+					: localize('sessions.runCodeReview.tooltip.noCommentsRunAgain', "Previous code review produced no comments. Run code review again.");
+				icon = reviewState.didProduceComments ? Codicon.comment : Codicon.codeReview;
 			}
 
 			canRunCodeReviewContext.set(canRunCodeReview);

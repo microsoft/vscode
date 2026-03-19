@@ -10,7 +10,7 @@ import * as os from 'os';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgent, IAgentAttachment } from '../common/agentService.js';
-import type { ISessionAction } from '../common/state/sessionActions.js';
+import { ActionType, type ISessionAction } from '../common/state/sessionActions.js';
 import { IBrowseDirectoryResult, ICreateSessionParams, AHP_PROVIDER_NOT_FOUND, JSON_RPC_INTERNAL_ERROR, ProtocolError, IDirectoryEntry } from '../common/state/sessionProtocol.js';
 import {
 	type ISessionModelInfo,
@@ -79,7 +79,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			}
 			return { provider: d.provider, displayName: d.displayName, description: d.description, models };
 		}));
-		this._stateManager.dispatchServerAction({ type: 'root/agentsChanged', agents: infos });
+		this._stateManager.dispatchServerAction({ type: ActionType.RootAgentsChanged, agents: infos });
 	}
 
 	// ---- Agent registration -------------------------------------------------
@@ -119,11 +119,11 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 
 	handleAction(action: ISessionAction): void {
 		switch (action.type) {
-			case 'session/turnStarted': {
+			case ActionType.SessionTurnStarted: {
 				const agent = this._options.getAgent(action.session);
 				if (!agent) {
 					this._stateManager.dispatchServerAction({
-						type: 'session/error',
+						type: ActionType.SessionError,
 						session: action.session,
 						turnId: action.turnId,
 						error: { errorType: 'noAgent', message: 'No agent found for session' },
@@ -138,7 +138,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments).catch(err => {
 					this._logService.error('[AgentSideEffects] sendMessage failed', err);
 					this._stateManager.dispatchServerAction({
-						type: 'session/error',
+						type: ActionType.SessionError,
 						session: action.session,
 						turnId: action.turnId,
 						error: { errorType: 'sendFailed', message: String(err) },
@@ -146,7 +146,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				});
 				break;
 			}
-			case 'session/permissionResolved': {
+			case ActionType.SessionPermissionResolved: {
 				const providerId = this._pendingPermissions.get(action.requestId);
 				if (providerId) {
 					this._pendingPermissions.delete(action.requestId);
@@ -157,14 +157,14 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				}
 				break;
 			}
-			case 'session/turnCancelled': {
+			case ActionType.SessionTurnCancelled: {
 				const agent = this._options.getAgent(action.session);
 				agent?.abortSession(URI.parse(action.session)).catch(err => {
 					this._logService.error('[AgentSideEffects] abortSession failed', err);
 				});
 				break;
 			}
-			case 'session/modelChanged': {
+			case ActionType.SessionModelChanged: {
 				const agent = this._options.getAgent(action.session);
 				agent?.changeModel?.(URI.parse(action.session), action.model).catch(err => {
 					this._logService.error('[AgentSideEffects] changeModel failed', err);
@@ -200,7 +200,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			modifiedAt: Date.now(),
 		};
 		this._stateManager.createSession(summary);
-		this._stateManager.dispatchServerAction({ type: 'session/ready', session });
+		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session });
 	}
 
 	handleDisposeSession(session: ProtocolURI): void {

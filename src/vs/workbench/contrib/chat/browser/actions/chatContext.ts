@@ -21,19 +21,16 @@ import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.
 import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../attachments/chatContextPickService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { ILanguageModelToolsService, isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
+import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../widget/input/editor/chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
 import { createDebugEventsAttachment } from '../chatDebug/chatDebugAttachment.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 
 /**
  * Command ID that extensions can call to enable debug tools for the current
@@ -49,36 +46,8 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatContextPickService contextPickService: IChatContextPickService,
-		@IChatDebugService chatDebugService: IChatDebugService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
-		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		super();
-
-		// Bind at the global context key service level so the tools service can evaluate it.
-		// Widget-scoped keys are not reliably visible to singleton services during async request processing.
-		const hasDebugToolsKey = ChatContextKeys.chatSessionHasDebugTools.bindTo(contextKeyService);
-		this._store.add(chatWidgetService.onDidChangeFocusedSession(() => {
-			const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
-			hasDebugToolsKey.set(!!sessionResource && chatDebugService.hasAttachedDebugData(sessionResource));
-			languageModelToolsService.flushToolUpdates();
-		}));
-		this._store.add(chatDebugService.onDidAttachDebugData(sessionResource => {
-			const focusedSession = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
-			if (focusedSession && focusedSession.toString() === sessionResource.toString()) {
-				hasDebugToolsKey.set(true);
-				languageModelToolsService.flushToolUpdates();
-			}
-		}));
-
-		// Register a command that extensions can call to enable debug tools
-		// for the current session. This sets the context key AND flushes the
-		// tools service synchronously so the change is visible immediately.
-		this._store.add(CommandsRegistry.registerCommand(EnableChatDebugToolsCommandId, () => {
-			hasDebugToolsKey.set(true);
-			languageModelToolsService.flushToolUpdates();
-		}));
 
 		// ###############################################################################################
 		//

@@ -92,11 +92,6 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 					label: option,
 					data: () => this.confirmWith(this.toolInvocation, { type: ToolConfirmKind.UserAction, selectedButton: option }),
 				}))
-			},
-			{
-				label: localize('cancel', 'Cancel'),
-				data: () => this.confirmWith(this.toolInvocation, { type: ToolConfirmKind.Skipped }),
-				isSecondary: true,
 			}
 		];
 	}

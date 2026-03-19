@@ -18,6 +18,7 @@ export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 	public readonly completion = new DeferredPromise<{ answers: IChatQuestionAnswers | undefined }>();
 	public draftAnswers: IChatQuestionAnswers | undefined;
 	public draftCurrentIndex: number | undefined;
+	public draftCollapsed: boolean | undefined;
 
 	constructor(
 		public questions: IChatQuestion[],

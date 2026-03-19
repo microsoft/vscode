@@ -38,7 +38,7 @@ export interface IChatSlashData {
 
 	locations: ChatAgentLocation[];
 	modes?: ChatModeKind[];
-	target?: Target;
+	targets?: Target[];
 }
 
 export interface IChatSlashFragment {

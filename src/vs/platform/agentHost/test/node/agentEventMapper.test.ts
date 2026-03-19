@@ -31,6 +31,7 @@ import type {
 	ITurnCompleteAction,
 	IUsageAction,
 } from '../../common/state/sessionActions.js';
+import { PermissionKind } from '../../common/state/sessionState.js';
 import { mapProgressEventToActions } from '../../node/agentEventMapper.js';
 
 /** Helper: flatten the result of mapProgressEventToActions into an array. */
@@ -188,7 +189,7 @@ suite('AgentEventMapper', () => {
 			session,
 			type: 'permission_request',
 			requestId: 'perm-1',
-			permissionKind: 'shell',
+			permissionKind: PermissionKind.Shell,
 			toolCallId: 'tc-2',
 			fullCommandText: 'rm -rf /',
 			intention: 'Delete all files',

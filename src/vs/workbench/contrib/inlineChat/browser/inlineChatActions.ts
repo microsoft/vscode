@@ -31,7 +31,6 @@ import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { ChatRequestQueueKind } from '../../chat/common/chatService/chatService.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
 
-
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 CommandsRegistry.registerCommandAlias('interactive.acceptChanges', ACTION_ACCEPT_CHANGES);
 
@@ -607,6 +606,6 @@ export class QueueInChatAction extends AbstractInlineChatAction {
 		if (selection && !selection.isEmpty()) {
 			await widget.attachmentModel.addFile(editor.getModel().uri, selection);
 		}
-		await widget.acceptInput(value, { alwaysQueue: true, queue: ChatRequestQueueKind.Queued });
+		await widget.acceptInput(value, { queue: ChatRequestQueueKind.Queued });
 	}
 }

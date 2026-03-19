@@ -38,6 +38,12 @@ export interface INewPromptOptions {
 	readonly targetFolder?: URI;
 	readonly targetStorage?: PromptsStorage;
 	readonly openFile?: (uri: URI) => Promise<ICodeEditor | undefined>;
+	/**
+	 * Override the file extension (e.g. `.md` for Claude rules instead of
+	 * `.instructions.md`). When set, the name picker uses this extension
+	 * instead of the default for the prompt type.
+	 */
+	readonly fileExtension?: string;
 }
 
 class AbstractNewPromptFileAction extends Action2 {
@@ -83,7 +89,7 @@ class AbstractNewPromptFileAction extends Action2 {
 			storage = selectedFolder.storage;
 		}
 
-		const fileName = await instaService.invokeFunction(askForPromptFileName, this.type, folderUri);
+		const fileName = await instaService.invokeFunction(askForPromptFileName, this.type, folderUri, undefined, options?.fileExtension);
 		if (!fileName) {
 			return;
 		}

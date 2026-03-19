@@ -7,8 +7,8 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { AICustomizationItemMenuId } from './aiCustomizationTreeView.js';
-import { AICustomizationItemTypeContextKey } from './aiCustomizationTreeViewViews.js';
+import { AI_CUSTOMIZATION_VIEW_ID, AICustomizationItemMenuId } from './aiCustomizationTreeView.js';
+import { AICustomizationItemDisabledContextKey, AICustomizationItemStorageContextKey, AICustomizationItemTypeContextKey, AICustomizationViewPane } from './aiCustomizationTreeViewViews.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -17,6 +17,9 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IFileService, FileSystemProviderCapabilities } from '../../../../platform/files/common/files.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { BUILTIN_STORAGE } from '../../chat/common/builtinPromptsStorage.js';
 
 //#region Utilities
 
@@ -24,13 +27,13 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
  * Type for context passed to actions from tree context menus.
  * Handles both direct URI arguments and serialized context objects.
  */
-type URIContext = { uri: URI | string;[key: string]: unknown } | URI | string;
+type ItemContext = { uri: URI | string; promptType?: string; disabled?: boolean;[key: string]: unknown } | URI | string;
 
 /**
  * Extracts a URI from various context formats.
  * Context can be a URI, string, or an object with uri property.
  */
-function extractURI(context: URIContext): URI {
+function extractURI(context: ItemContext): URI {
 	if (URI.isUri(context)) {
 		return context;
 	}
@@ -57,7 +60,7 @@ registerAction2(class extends Action2 {
 			icon: Codicon.goToFile,
 		});
 	}
-	async run(accessor: ServicesAccessor, context: URIContext): Promise<void> {
+	async run(accessor: ServicesAccessor, context: ItemContext): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		await editorService.openEditor({
 			resource: extractURI(context)
@@ -76,7 +79,7 @@ registerAction2(class extends Action2 {
 			icon: Codicon.play,
 		});
 	}
-	async run(accessor: ServicesAccessor, context: URIContext): Promise<void> {
+	async run(accessor: ServicesAccessor, context: ItemContext): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 		await commandService.executeCommand('workbench.action.chat.run.prompt.current', extractURI(context));
 	}
@@ -92,7 +95,7 @@ registerAction2(class extends Action2 {
 			icon: Codicon.trash,
 		});
 	}
-	async run(accessor: ServicesAccessor, context: URIContext): Promise<void> {
+	async run(accessor: ServicesAccessor, context: ItemContext): Promise<void> {
 		const fileService = accessor.get(IFileService);
 		const dialogService = accessor.get(IDialogService);
 		const uri = extractURI(context);
@@ -124,7 +127,7 @@ registerAction2(class extends Action2 {
 			icon: Codicon.clippy,
 		});
 	}
-	async run(accessor: ServicesAccessor, context: URIContext): Promise<void> {
+	async run(accessor: ServicesAccessor, context: ItemContext): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
 		const uri = extractURI(context);
 		const textToCopy = uri.scheme === 'file' ? uri.fsPath : uri.toString(true);
@@ -165,6 +168,116 @@ MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 	command: { id: DELETE_AI_CUSTOMIZATION_FILE_ID, title: localize('delete', "Delete") },
 	group: '3_modify',
 	order: 10,
+});
+
+// Disable item action
+const DISABLE_AI_CUSTOMIZATION_ITEM_ID = 'aiCustomization.disableItem';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: DISABLE_AI_CUSTOMIZATION_ITEM_ID,
+			title: localize2('disable', "Disable"),
+			icon: Codicon.eyeClosed,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: ItemContext): Promise<void> {
+		if (typeof context !== 'object' || URI.isUri(context)) {
+			return;
+		}
+		const promptsService = accessor.get(IPromptsService);
+		const viewsService = accessor.get(IViewsService);
+		const uri = extractURI(context);
+		const promptType = context.promptType as PromptsType | undefined;
+		if (!promptType) {
+			return;
+		}
+
+		const disabled = promptsService.getDisabledPromptFiles(promptType);
+		disabled.add(uri);
+		promptsService.setDisabledPromptFiles(promptType, disabled);
+
+		const view = viewsService.getActiveViewWithId<AICustomizationViewPane>(AI_CUSTOMIZATION_VIEW_ID);
+		view?.refresh();
+	}
+});
+
+// Enable item action
+const ENABLE_AI_CUSTOMIZATION_ITEM_ID = 'aiCustomization.enableItem';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: ENABLE_AI_CUSTOMIZATION_ITEM_ID,
+			title: localize2('enable', "Enable"),
+			icon: Codicon.eye,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: ItemContext): Promise<void> {
+		if (typeof context !== 'object' || URI.isUri(context)) {
+			return;
+		}
+		const promptsService = accessor.get(IPromptsService);
+		const viewsService = accessor.get(IViewsService);
+		const uri = extractURI(context);
+		const promptType = context.promptType as PromptsType | undefined;
+		if (!promptType) {
+			return;
+		}
+
+		const disabled = promptsService.getDisabledPromptFiles(promptType);
+		disabled.delete(uri);
+		promptsService.setDisabledPromptFiles(promptType, disabled);
+
+		const view = viewsService.getActiveViewWithId<AICustomizationViewPane>(AI_CUSTOMIZATION_VIEW_ID);
+		view?.refresh();
+	}
+});
+
+// Context menu: Disable (shown when builtin item is enabled)
+MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
+	command: { id: DISABLE_AI_CUSTOMIZATION_ITEM_ID, title: localize('disable', "Disable") },
+	group: '4_toggle',
+	order: 1,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, false),
+		ContextKeyExpr.equals(AICustomizationItemStorageContextKey.key, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AICustomizationItemTypeContextKey.key, PromptsType.skill),
+	),
+});
+
+// Context menu: Enable (shown when builtin item is disabled)
+MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
+	command: { id: ENABLE_AI_CUSTOMIZATION_ITEM_ID, title: localize('enable', "Enable") },
+	group: '4_toggle',
+	order: 1,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, true),
+		ContextKeyExpr.equals(AICustomizationItemStorageContextKey.key, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AICustomizationItemTypeContextKey.key, PromptsType.skill),
+	),
+});
+
+// Inline hover: Disable (shown when builtin item is enabled)
+MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
+	command: { id: DISABLE_AI_CUSTOMIZATION_ITEM_ID, title: localize('disable', "Disable"), icon: Codicon.eyeClosed },
+	group: 'inline',
+	order: 5,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, false),
+		ContextKeyExpr.equals(AICustomizationItemStorageContextKey.key, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AICustomizationItemTypeContextKey.key, PromptsType.skill),
+	),
+});
+
+// Inline hover: Enable (shown when builtin item is disabled)
+MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
+	command: { id: ENABLE_AI_CUSTOMIZATION_ITEM_ID, title: localize('enable', "Enable"), icon: Codicon.eye },
+	group: 'inline',
+	order: 5,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, true),
+		ContextKeyExpr.equals(AICustomizationItemStorageContextKey.key, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AICustomizationItemTypeContextKey.key, PromptsType.skill),
+	),
 });
 
 //#endregion

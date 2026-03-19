@@ -2809,7 +2809,7 @@ export namespace ChatResponseResource {
 		}
 
 		const parts = uri.path.split('/');
-		if (parts.length < 5) {
+		if (parts.length < 4) {
 			return undefined;
 		}
 

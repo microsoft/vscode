@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -11,10 +12,12 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
 import type { ISerializableChatData } from '../../common/model/chatModel.js';
 import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { IChatSessionRequestHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ChatTreeItem, ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 
@@ -34,7 +37,13 @@ export function registerChatForkActions() {
 						id: MenuId.ChatMessageCheckpoint,
 						group: 'navigation',
 						order: 3,
-						when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.lockedToCodingAgent.negate())
+						when: ContextKeyExpr.and(
+							ChatContextKeys.isRequest,
+							ContextKeyExpr.or(
+								ChatContextKeys.lockedToCodingAgent.negate(),
+								ChatContextKeys.chatSessionSupportsFork
+							)
+						)
 					}
 				]
 			});
@@ -43,12 +52,22 @@ export function registerChatForkActions() {
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const chatService = accessor.get(IChatService);
+			const chatSessionsService = accessor.get(IChatSessionsService);
+			const progressService = accessor.get(IProgressService);
 			const forkedTitlePrefix = localize('chat.forked.titlePrefix', "Forked: ");
 
 			// When invoked via /fork slash command, args[0] is a URI (sessionResource).
 			// Fork at the last request in that session.
 			if (URI.isUri(args[0])) {
 				const sourceSessionResource = args[0];
+
+				// Check if this is a contributed session that supports forking
+				const contentProviderSchemes = chatSessionsService.getContentProviderSchemes();
+				if (contentProviderSchemes.includes(sourceSessionResource.scheme)) {
+					await forkContributedChatSession(sourceSessionResource, undefined, false, chatSessionsService, chatWidgetService, progressService);
+					return;
+				}
+
 				const chatModel = chatService.getSession(sourceSessionResource);
 				if (!chatModel) {
 					return;
@@ -117,14 +136,40 @@ export function registerChatForkActions() {
 				return;
 			}
 
-			const chatModel = chatService.getSession(sessionResource);
-			if (!chatModel) {
-				return;
-			}
-
 			// Get all requests and find the target request index
 			const targetRequestId = isRequestVM(item) ? item.id : isResponseVM(item) ? item.requestId : undefined;
 			if (!targetRequestId) {
+				return;
+			}
+
+			// Check if this is a contributed session that supports forking
+			const contentProviderSchemes = chatSessionsService.getContentProviderSchemes();
+			if (contentProviderSchemes.includes(sessionResource.scheme)) {
+				const contributedSession = await chatSessionsService.getOrCreateChatSession(sessionResource, CancellationToken.None);
+				let request = contributedSession.history.find((entry): entry is IChatSessionRequestHistoryItem => entry.type === 'request' && entry.id === targetRequestId);
+				if (!request) {
+					const chatModel = chatService.getSession(sessionResource);
+					const serializedData = chatModel?.toJSON();
+					for (const [, entry] of serializedData?.requests.entries() ?? []) {
+						if (entry.requestId === targetRequestId) {
+							request = {
+								id: entry.requestId,
+								type: 'request',
+								prompt: typeof entry.message === 'string' ? entry.message : entry.message.text,
+								participant: entry.agent?.id ?? '',
+								variableData: entry.variableData,
+								modelId: entry.modelId,
+							};
+							break;
+						}
+					}
+				}
+				await forkContributedChatSession(sessionResource, request, true, chatSessionsService, chatWidgetService, progressService);
+				return;
+			}
+
+			const chatModel = chatService.getSession(sessionResource);
+			if (!chatModel) {
 				return;
 			}
 
@@ -186,4 +231,27 @@ export function registerChatForkActions() {
 			modelRef.dispose();
 		}
 	});
+}
+
+async function forkContributedChatSession(sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, openForkedSessionImmediately: boolean, chatSessionsService: IChatSessionsService, chatWidgetService: IChatWidgetService, progressService: IProgressService) {
+	const forkedItem = await progressService.withProgress(
+		{ location: ProgressLocation.Notification, title: localize('forking', "Forking session...") },
+		async () => {
+			const cts = new CancellationTokenSource();
+			try {
+				return await chatSessionsService.forkChatSession(sourceSessionResource, request, cts.token);
+			} finally {
+				cts.dispose();
+			}
+		}
+	);
+	if (forkedItem) {
+		if (openForkedSessionImmediately) {
+			await chatWidgetService.openSession(forkedItem.resource, ChatViewPaneTarget);
+		} else {
+			setTimeout(async () => {
+				await chatWidgetService.openSession(forkedItem.resource, ChatViewPaneTarget);
+			}, 0);
+		}
+	}
 }

@@ -31,11 +31,12 @@ import { getContextMenuActions } from '../../../../contrib/mcp/browser/mcpServer
 import { LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { workspaceIcon, userIcon, mcpServerIcon, builtinIcon } from './aiCustomizationIcons.js';
+import { workspaceIcon, userIcon, mcpServerIcon, builtinIcon, extensionIcon } from './aiCustomizationIcons.js';
 import { formatDisplayName, truncateToFirstSentence } from './aiCustomizationListWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService, CustomizationHarness } from '../../common/customizationHarnessService.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 
 const $ = DOM.$;
@@ -46,7 +47,7 @@ const MCP_ITEM_HEIGHT = 36;
  * Represents a collapsible group header in the MCP server list.
  */
 interface IMcpGroupHeaderEntry extends ICustomizationGroupHeaderEntry {
-	readonly scope: LocalMcpServerScope | 'builtin';
+	readonly scope: LocalMcpServerScope | 'builtin' | 'extension';
 }
 
 /**
@@ -102,6 +103,7 @@ interface IMcpServerItemTemplateData {
 	readonly name: HTMLElement;
 	readonly description: HTMLElement;
 	readonly status: HTMLElement;
+	readonly bridgedBadge: HTMLElement;
 	readonly disposables: DisposableStore;
 }
 
@@ -114,6 +116,8 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 	constructor(
 		@IMcpService private readonly mcpService: IMcpService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IMcpServerItemTemplateData {
@@ -123,16 +127,32 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 		typeIcon.classList.add(...ThemeIcon.asClassNameArray(mcpServerIcon));
 
 		const details = DOM.append(container, $('.mcp-server-details'));
-		const name = DOM.append(details, $('.mcp-server-name'));
+		const nameRow = DOM.append(details, $('.mcp-server-name-row'));
+		const name = DOM.append(nameRow, $('.mcp-server-name'));
+
+		const bridgedBadge = DOM.append(nameRow, $('.mcp-bridged-badge'));
+		bridgedBadge.textContent = localize('bridged', "Bridged");
+
 		const description = DOM.append(details, $('.mcp-server-description'));
 
 		const status = DOM.append(container, $('.mcp-server-status'));
 
-		return { container, typeIcon, name, description, status, disposables: new DisposableStore() };
+		return { container, typeIcon, name, description, status, bridgedBadge, disposables: new DisposableStore() };
 	}
 
 	renderElement(element: IMcpServerItemEntry | IMcpBuiltinItemEntry, index: number, templateData: IMcpServerItemTemplateData): void {
 		templateData.disposables.clear();
+
+		// Show/hide the "Bridged" badge based on active harness
+		templateData.disposables.add(autorun(reader => {
+			const activeId = this.harnessService.activeHarness.read(reader);
+			templateData.bridgedBadge.style.display = activeId !== CustomizationHarness.VSCode ? '' : 'none';
+		}));
+		templateData.disposables.add(this.hoverService.setupManagedHover(
+			getDefaultHoverDelegate('mouse'),
+			templateData.bridgedBadge,
+			localize('bridgedHover', "This server is managed by VS Code and forwarded to all compatible agent sessions."),
+		));
 
 		if (element.type === 'builtin-item') {
 			templateData.container.classList.add('builtin');
@@ -687,30 +707,63 @@ export class McpListWidget extends Disposable {
 			isFirst = false;
 		}
 
-		// Add built-in / extension-provided servers
+		// Add extension-provided and built-in servers
 		if (builtinServers.length > 0) {
-			const collapsed = this.collapsedGroups.has('builtin');
-			entries.push({
-				type: 'group-header',
-				id: 'mcp-group-builtin',
-				scope: 'builtin',
-				label: localize('builtInGroup', "Built-in"),
-				icon: builtinIcon,
-				count: builtinServers.length,
-				isFirst,
-				description: localize('builtInGroupDescription', "MCP servers built into VS Code. These are available automatically."),
-				collapsed,
-			});
-			if (!collapsed) {
-				for (const server of builtinServers) {
-					entries.push({
-						type: 'builtin-item',
-						id: `builtin-${server.definition.id}`,
-						label: server.definition.label,
-						description: '',
-						collectionId: server.collection.id,
-					});
+			const extensionServers = builtinServers.filter(s => s.collection.id.startsWith('ext.'));
+			const otherBuiltinServers = builtinServers.filter(s => !s.collection.id.startsWith('ext.'));
+
+			if (extensionServers.length > 0) {
+				const collapsed = this.collapsedGroups.has('extension');
+				entries.push({
+					type: 'group-header',
+					id: 'mcp-group-extension',
+					scope: 'extension',
+					label: localize('extensionGroup', "Extensions"),
+					icon: extensionIcon,
+					count: extensionServers.length,
+					isFirst,
+					description: localize('extensionGroupDescription', "MCP servers contributed by installed VS Code extensions."),
+					collapsed,
+				});
+				if (!collapsed) {
+					for (const server of extensionServers) {
+						entries.push({
+							type: 'builtin-item',
+							id: `builtin-${server.definition.id}`,
+							label: server.definition.label,
+							description: '',
+							collectionId: server.collection.id,
+						});
+					}
 				}
+				isFirst = false;
+			}
+
+			if (otherBuiltinServers.length > 0) {
+				const collapsed = this.collapsedGroups.has('builtin');
+				entries.push({
+					type: 'group-header',
+					id: 'mcp-group-builtin',
+					scope: 'builtin',
+					label: localize('builtInGroup', "Built-in"),
+					icon: builtinIcon,
+					count: otherBuiltinServers.length,
+					isFirst,
+					description: localize('builtInGroupDescription', "MCP servers built into VS Code. These are available automatically."),
+					collapsed,
+				});
+				if (!collapsed) {
+					for (const server of otherBuiltinServers) {
+						entries.push({
+							type: 'builtin-item',
+							id: `builtin-${server.definition.id}`,
+							label: server.definition.label,
+							description: '',
+							collectionId: server.collection.id,
+						});
+					}
+				}
+				isFirst = false;
 			}
 		}
 

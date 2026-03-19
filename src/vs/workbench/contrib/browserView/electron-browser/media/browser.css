@@ -58,6 +58,7 @@
 		flex: 1;
 		display: flex;
 		align-items: center;
+		min-width: 0;
 		background-color: var(--vscode-input-background);
 		border: 1px solid var(--vscode-input-border);
 		border-radius: var(--vscode-cornerRadius-small);
@@ -81,6 +82,12 @@
 		text-overflow: ellipsis;
 		overflow: hidden;
 		white-space: nowrap;
+	}
+
+	.browser-url-bar-widgets {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
 	}
 
 	.browser-zoom-pill {

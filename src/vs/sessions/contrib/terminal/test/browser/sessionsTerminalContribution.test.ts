@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -23,6 +23,20 @@ import { TestPathService } from '../../../../../workbench/test/browser/workbench
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
 
 const HOME_DIR = URI.file('/home/user');
+
+class TestLogService extends NullLogService {
+	readonly traces: string[] = [];
+
+	override trace(message: string, ...args: unknown[]): void {
+		this.traces.push([message, ...args].join(' '));
+	}
+}
+
+type TestTerminalInstance = ITerminalInstance & {
+	_testCommandHistory: { timestamp: number }[];
+	_testSetDisposed(disposed: boolean): void;
+	_testSetShellLaunchConfig(shellLaunchConfig: ITerminalInstance['shellLaunchConfig']): void;
+};
 
 function makeAgentSession(opts: {
 	repository?: URI;
@@ -54,8 +68,10 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 	} as IActiveSessionItem;
 }
 
-function makeTerminalInstance(id: number, cwd: string): ITerminalInstance & { _testCommandHistory: { timestamp: number }[] } {
+function makeTerminalInstance(id: number, cwd: string): TestTerminalInstance {
 	const commandHistory: { timestamp: number }[] = [];
+	let isDisposed = false;
+	let shellLaunchConfig: ITerminalInstance['shellLaunchConfig'] = {} as ITerminalInstance['shellLaunchConfig'];
 	const capabilities = {
 		get(cap: TerminalCapability) {
 			if (cap === TerminalCapability.CommandDetection && commandHistory.length > 0) {
@@ -67,15 +83,22 @@ function makeTerminalInstance(id: number, cwd: string): ITerminalInstance & { _t
 
 	return {
 		instanceId: id,
-		isDisposed: false,
+		get isDisposed() { return isDisposed; },
+		get shellLaunchConfig() { return shellLaunchConfig; },
 		getInitialCwd: () => Promise.resolve(cwd),
 		capabilities,
 		_testCommandHistory: commandHistory,
-	} as unknown as ITerminalInstance & { _testCommandHistory: { timestamp: number }[] };
+		_testSetDisposed(disposed: boolean) {
+			isDisposed = disposed;
+		},
+		_testSetShellLaunchConfig(value: ITerminalInstance['shellLaunchConfig']) {
+			shellLaunchConfig = value;
+		},
+	} as unknown as TestTerminalInstance;
 }
 
 function addCommandToInstance(instance: ITerminalInstance, timestamp: number): void {
-	(instance as ITerminalInstance & { _testCommandHistory: { timestamp: number }[] })._testCommandHistory.push({ timestamp });
+	(instance as TestTerminalInstance)._testCommandHistory.push({ timestamp });
 }
 
 suite('SessionsTerminalContribution', () => {
@@ -83,6 +106,7 @@ suite('SessionsTerminalContribution', () => {
 	let contribution: SessionsTerminalContribution;
 	let activeSessionObs: ReturnType<typeof observableValue<IActiveSessionItem | undefined>>;
 	let onDidChangeSessionArchivedState: Emitter<IAgentSession>;
+	let onDidCreateInstance: Emitter<ITerminalInstance>;
 
 	let createdTerminals: { cwd: URI }[];
 	let activeInstanceSet: number[];
@@ -93,6 +117,8 @@ suite('SessionsTerminalContribution', () => {
 	let backgroundedInstances: Set<number>;
 	let moveToBackgroundCalls: number[];
 	let showBackgroundCalls: number[];
+	let disposeOnCreatePaths: Set<string>;
+	let logService: TestLogService;
 
 	setup(() => {
 		createdTerminals = [];
@@ -104,20 +130,23 @@ suite('SessionsTerminalContribution', () => {
 		backgroundedInstances = new Set();
 		moveToBackgroundCalls = [];
 		showBackgroundCalls = [];
+		disposeOnCreatePaths = new Set();
+		logService = new TestLogService();
 
 		const instantiationService = store.add(new TestInstantiationService());
 
 		activeSessionObs = observableValue('activeSession', undefined);
 		onDidChangeSessionArchivedState = store.add(new Emitter<IAgentSession>());
+		onDidCreateInstance = store.add(new Emitter<ITerminalInstance>());
 
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ILogService, logService);
 
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override activeSession = activeSessionObs;
 		});
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
-			override onDidCreateInstance = Event.None;
+			override onDidCreateInstance = onDidCreateInstance.event;
 			override get instances(): readonly ITerminalInstance[] {
 				return [...terminalInstances.values()];
 			}
@@ -131,6 +160,10 @@ suite('SessionsTerminalContribution', () => {
 				const instance = makeTerminalInstance(id, cwdStr);
 				createdTerminals.push({ cwd: opts?.config?.cwd });
 				terminalInstances.set(id, instance);
+				if (disposeOnCreatePaths.has(cwdStr)) {
+					instance._testSetDisposed(true);
+					terminalInstances.delete(id);
+				}
 				return instance;
 			}
 			override getInstanceFromId(id: number): ITerminalInstance | undefined {
@@ -144,6 +177,7 @@ suite('SessionsTerminalContribution', () => {
 			}
 			override async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
 				disposedInstances.push(instance);
+				(instance as TestTerminalInstance)._testSetDisposed(true);
 				terminalInstances.delete(instance.instanceId);
 				backgroundedInstances.delete(instance.instanceId);
 			}
@@ -317,6 +351,17 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(createdTerminals.length, 1, 'should match case-insensitively');
 	});
 
+	test('ensureTerminal does not activate a terminal disposed during creation', async () => {
+		const cwd = URI.file('/test-cwd');
+		disposeOnCreatePaths.add(cwd.fsPath);
+
+		const instances = await contribution.ensureTerminal(cwd, false);
+
+		assert.strictEqual(instances.length, 0);
+		assert.strictEqual(activeInstanceSet.length, 0);
+		assert.ok(logService.traces.some(message => message.includes(`Cannot activate created terminal for ${cwd.fsPath}; terminal 1 is no longer available`)));
+	});
+
 	// --- onDidChangeSessionArchivedState ---
 
 	test('closes terminals when session is archived', async () => {
@@ -451,6 +496,28 @@ suite('SessionsTerminalContribution', () => {
 
 		assert.strictEqual(createdTerminals.length, 0, 'should reuse existing terminal, not create a new one');
 		assert.ok(showBackgroundCalls.includes(existingInstance.instanceId), 'should show the existing terminal');
+	});
+
+	test('does not background a restored terminal that is disposed before cwd resolves', async () => {
+		let resolveInitialCwd: ((cwd: string) => void) | undefined;
+		const restoredInstance = makeTerminalInstance(nextInstanceId++, '/restored');
+		restoredInstance._testSetShellLaunchConfig({ attachPersistentProcess: {} as never } as ITerminalInstance['shellLaunchConfig']);
+		restoredInstance.getInitialCwd = () => new Promise<string>(resolve => {
+			resolveInitialCwd = resolve;
+		});
+		terminalInstances.set(restoredInstance.instanceId, restoredInstance);
+
+		activeSessionObs.set(makeAgentSession({ worktree: URI.file('/active'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		onDidCreateInstance.fire(restoredInstance);
+		restoredInstance._testSetDisposed(true);
+		terminalInstances.delete(restoredInstance.instanceId);
+		resolveInitialCwd?.('/other');
+		await tick();
+
+		assert.ok(!moveToBackgroundCalls.includes(restoredInstance.instanceId), 'disposed restored terminal should not be backgrounded');
+		assert.ok(logService.traces.some(message => message.includes('Cannot hide restored terminal for /other; terminal') && message.includes('is no longer available')));
 	});
 
 	test('hides pre-existing terminal with non-matching cwd when session changes', async () => {

@@ -2146,6 +2146,77 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: none;
 }
 
+/* Chat artifacts widget — collapsible list of session artifacts */
+.chat-artifacts-widget {
+	display: flex;
+	flex-direction: column;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-chat-requestBorder);
+}
+
+.chat-artifacts-widget .chat-artifacts-header {
+	padding: 3px;
+	width: 100%;
+	display: flex;
+	box-sizing: border-box;
+}
+
+.chat-artifacts-widget .chat-artifacts-label {
+	width: 100%;
+}
+
+.chat-artifacts-widget .chat-artifacts-label .monaco-button {
+	width: 100%;
+	border: none;
+	text-align: initial;
+	justify-content: initial;
+	gap: 0;
+}
+
+.chat-artifacts-widget .chat-artifacts-label .monaco-button .codicon {
+	font-size: 16px;
+}
+
+.chat-artifacts-widget .chat-artifacts-list {
+	width: 100%;
+	padding: 0 3px 4px;
+	box-sizing: border-box;
+}
+
+.chat-artifacts-widget .chat-artifacts-list .monaco-list .monaco-list-row {
+	border-radius: 4px;
+}
+
+.chat-artifacts-widget .chat-artifacts-list .monaco-list .monaco-list-row:hover {
+	background-color: var(--vscode-list-hoverBackground) !important;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0 6px;
+	height: 100%;
+	cursor: pointer;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-icon {
+	font-size: 14px;
+	display: flex;
+	align-items: center;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 13px;
+}
+
+.chat-artifacts-widget.chat-artifacts-collapsed .chat-artifacts-list {
+	display: none;
+}
+
 .interactive-session .checkpoint-file-changes-summary {
 	display: flex;
 	flex-direction: column;
@@ -2900,7 +2971,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		display: none;
 	}
 
-	.interactive-item-container .header.partially-disabled .detail.show-checkmarks {
+	.interactive-item-container.show-checkmarks .header.partially-disabled .detail {
 		margin-left: 4px;
 
 		.codicon-check {

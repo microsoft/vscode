@@ -141,8 +141,17 @@ export class TestContext {
 	public error(message: string): never {
 		const line = `[${new Date().toISOString()}] ERROR: ${message}`;
 		this.consoleOutputs.push(line);
-		console.error(line);
+		console.error(`##vso[task.logissue type=error]${line}`);
 		throw new Error(message);
+	}
+
+	/**
+	 * Logs a warning message with a timestamp.
+	 */
+	public warn(message: string) {
+		const line = `[${new Date().toISOString()}] WARNING: ${message}`;
+		this.consoleOutputs.push(line);
+		console.warn(`##vso[task.logissue type=warning]${line}`);
 	}
 
 	/**
@@ -220,7 +229,7 @@ export class TestContext {
 				fs.rmSync(dir, { recursive: true, force: true });
 				this.log(`Deleted temp directory: ${dir}`);
 			} catch (error) {
-				this.log(`Failed to delete temp directory: ${dir}: ${error}`);
+				this.warn(`Failed to delete temp directory: ${dir}: ${error}`);
 			}
 		}
 		this.tempDirs.clear();
@@ -229,7 +238,7 @@ export class TestContext {
 			try {
 				this.deleteWslDir(dir);
 			} catch (error) {
-				this.log(`Failed to delete WSL temp directory: ${dir}: ${error}`);
+				this.warn(`Failed to delete WSL temp directory: ${dir}: ${error}`);
 			}
 		}
 		this.wslTempDirs.clear();
@@ -247,7 +256,7 @@ export class TestContext {
 		for (let attempt = 0; attempt < maxRetries; attempt++) {
 			if (attempt > 0) {
 				const delay = Math.pow(2, attempt - 1) * 1000;
-				this.log(`Retrying fetch (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
+				this.warn(`Retrying fetch (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
 				await new Promise(resolve => setTimeout(resolve, delay));
 			}
 
@@ -266,7 +275,7 @@ export class TestContext {
 				return response as Response & { body: NodeJS.ReadableStream };
 			} catch (error) {
 				lastError = error instanceof Error ? error : new Error(String(error));
-				this.log(`Fetch attempt ${attempt + 1} failed: ${lastError.message}`);
+				this.warn(`Fetch attempt ${attempt + 1} failed: ${lastError.message}`);
 			}
 		}
 
@@ -1091,7 +1100,7 @@ export class TestContext {
 			await page.screenshot({ path: screenshotPath, fullPage: true });
 			this.log(`Screenshot saved to: ${screenshotPath}`);
 		} catch (e) {
-			this.log(`Failed to capture screenshot: ${e instanceof Error ? e.message : String(e)}`);
+			this.warn(`Failed to capture screenshot: ${e instanceof Error ? e.message : String(e)}`);
 		}
 	}
 

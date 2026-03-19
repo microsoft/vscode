@@ -51,6 +51,11 @@
 		inset 0 var(--vscode-shadow-depth-y);
 }
 
+/* Must appear after positional variants so source-order wins at equal specificity */
+.monaco-workbench.no-shadows.vs .part.editor::after {
+	box-shadow: none;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container {
 	height: 100%;
 }

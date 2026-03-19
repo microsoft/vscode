@@ -12,7 +12,7 @@ import { ActionListItemKind, IActionListItem } from '../../../../../../../platfo
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { buildModelPickerItems, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IModelControlEntry } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 
 function createStubEntitlementService(opts?: { entitlement?: ChatEntitlement; isInternal?: boolean; anonymous?: boolean }): IChatEntitlementService {
@@ -69,6 +69,8 @@ const stubManageModelsAction: IActionWidgetDropdownAction = {
 	run: () => { }
 };
 
+const stubLanguageModelsService = { getModelConfigurationActions: () => [], getModelConfiguration: () => undefined } as unknown as ILanguageModelsService;
+
 function callBuild(
 	models: ILanguageModelChatMetadataAndIdentifier[],
 	opts: {
@@ -103,6 +105,8 @@ function callBuild(
 		entitlementService,
 		opts.showUnavailableFeatured ?? true,
 		opts.showFeatured ?? true,
+		undefined,
+		stubLanguageModelsService,
 	);
 }
 
@@ -480,6 +484,8 @@ suite('buildModelPickerItems', () => {
 			stubChatEntitlementService,
 			true,
 			true,
+			undefined,
+			stubLanguageModelsService,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem?.item);
@@ -565,6 +571,8 @@ suite('buildModelPickerItems', () => {
 			businessEntitlementService,
 			true,
 			true,
+			undefined,
+			stubLanguageModelsService,
 		);
 
 		const adminItem = getActionItems(items).find(a => a.label === 'Missing Model');
@@ -650,6 +658,8 @@ suite('buildModelPickerItems', () => {
 			anonymousEntitlementService,
 			true,
 			true,
+			undefined,
+			stubLanguageModelsService,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem?.item);

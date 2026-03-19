@@ -1123,6 +1123,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			this.workbenchGrid.exitMaximizedView();
 		}
 
+		const panelHadFocus = !hidden || this.hasFocus(Parts.PANEL_PART);
+
 		this.partVisibility.panel = !hidden;
 		this.mainContainer.classList.toggle(LayoutClasses.PANEL_HIDDEN, hidden);
 
@@ -1135,15 +1137,24 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		// If panel becomes hidden, also hide the current active pane composite
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
 			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Panel);
+
+			// Focus the chat bar when hiding the panel if it had focus
+			if (panelHadFocus) {
+				this.focusPart(Parts.CHATBAR_PART);
+			}
 		}
 
-		// If panel becomes visible, show last active panel or default
-		if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
-			const panelToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Panel) ??
-				this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id;
-			if (panelToOpen) {
-				this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.Panel);
+		// If panel becomes visible, show last active panel or default and focus it
+		if (!hidden) {
+			if (!this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
+				const panelToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Panel) ??
+					this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id;
+				if (panelToOpen) {
+					this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.Panel);
+				}
 			}
+
+			this.focusPart(Parts.PANEL_PART);
 		}
 	}
 

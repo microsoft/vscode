@@ -58,7 +58,7 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionProject.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionWorkspace.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
@@ -85,14 +85,12 @@ const changesViewModeContextKey = new RawContextKey<ChangesViewMode>('changesVie
 
 const enum ChangesVersionMode {
 	AllChanges = 'allChanges',
-	LastTurn = 'lastTurn',
-	Uncommitted = 'uncommitted'
+	LastTurn = 'lastTurn'
 }
 
 const changesVersionModeContextKey = new RawContextKey<ChangesVersionMode>('sessions.changesVersionMode', ChangesVersionMode.AllChanges);
 const isMergeBaseBranchProtectedContextKey = new RawContextKey<boolean>('sessions.isMergeBaseBranchProtected', false);
 const hasOpenPullRequestContextKey = new RawContextKey<boolean>('sessions.hasOpenPullRequest', false);
-const hasUncommittedChangesContextKey = new RawContextKey<boolean>('sessions.hasUncommittedChanges', false);
 
 // --- List Item
 
@@ -256,7 +254,6 @@ export class ChangesViewPane extends ViewPane {
 	private readonly activeSession: IObservableWithChange<IActiveSessionItem | undefined>;
 	private readonly activeSessionFileCountObs: IObservableWithChange<number>;
 	private readonly activeSessionHasChangesObs: IObservableWithChange<boolean>;
-	private readonly activeSessionRepositoryChangesObs: IObservableWithChange<IChangesFileItem[] | undefined>;
 	private readonly activeSessionRepositoryObs: IObservableWithChange<IGitRepository | undefined>;
 
 	get activeSessionHasChanges(): IObservable<boolean> {
@@ -330,33 +327,6 @@ export class ChangesViewPane extends ViewPane {
 			}
 
 			return activeSessionRepositoryPromise.read(reader);
-		});
-
-		this.activeSessionRepositoryChangesObs = derived(reader => {
-			const repository = this.activeSessionRepositoryObs.read(reader);
-			if (!repository) {
-				return undefined;
-			}
-
-			const state = repository.state.read(reader);
-			const headCommit = state?.HEAD?.commit;
-			return (state?.workingTreeChanges ?? []).map(change => {
-				const isDeletion = change.modifiedUri === undefined;
-				const isAddition = change.originalUri === undefined;
-				const fileUri = change.modifiedUri ?? change.uri;
-				return {
-					type: 'file',
-					uri: fileUri,
-					originalUri: isDeletion || !headCommit ? change.originalUri
-						: fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: headCommit }) }),
-					state: ModifiedFileEntryState.Accepted,
-					isDeletion,
-					changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
-					reviewCommentCount: 0,
-					linesAdded: 0,
-					linesRemoved: 0,
-				} satisfies IChangesFileItem;
-			});
 		});
 
 		this.activeSessionFileCountObs = this.createActiveSessionFileCountObservable();
@@ -616,14 +586,48 @@ export class ChangesViewPane extends ViewPane {
 			return repository?.state.read(reader)?.HEAD?.commit;
 		});
 
+		const lastCheckpointRefObs = derived(reader => {
+			const sessionResource = activeSessionResource.read(reader);
+			if (!sessionResource) {
+				return undefined;
+			}
+
+			sessionsChangedSignal.read(reader);
+			const model = this.agentSessionsService.getSession(sessionResource);
+
+			return model?.metadata?.lastCheckpointRef as string | undefined;
+		});
+
+		const beforeLastCheckpointRefObs = derived(reader => {
+			const lastCheckpointRef = lastCheckpointRefObs.read(reader);
+			if (!lastCheckpointRef) {
+				return undefined;
+			}
+
+			const checkpointSegments = lastCheckpointRef.split('/');
+			const turnCount = parseInt(checkpointSegments.pop() ?? '-1', 10);
+			if (!Number.isFinite(turnCount) || turnCount <= 0) {
+				return undefined;
+			}
+
+			checkpointSegments.push(`${turnCount - 1}`);
+			return checkpointSegments.join('/');
+		});
+
 		const lastTurnChangesObs = derived(reader => {
 			const repository = this.activeSessionRepositoryObs.read(reader);
 			const headCommit = headCommitObs.read(reader);
+
 			if (!repository || !headCommit) {
 				return constObservable(undefined);
 			}
 
-			return new ObservablePromise(repository.diffBetweenWithStats(`${headCommit}^`, headCommit)).resolvedValue;
+			const lastCheckpointRef = lastCheckpointRefObs.read(reader);
+			const beforeLastCheckpointRef = beforeLastCheckpointRefObs.read(reader);
+
+			return lastCheckpointRef && beforeLastCheckpointRef
+				? new ObservablePromise(repository.diffBetweenWithStats2(`${beforeLastCheckpointRef}..${lastCheckpointRef}`)).resolvedValue
+				: new ObservablePromise(repository.diffBetweenWithStats(`${headCommit}^`, headCommit)).resolvedValue;
 		});
 
 		// Combine both entry sources for display
@@ -632,21 +636,35 @@ export class ChangesViewPane extends ViewPane {
 			const versionMode = this.versionModeObs.read(reader);
 			const editEntries = editSessionEntriesObs.read(reader);
 			const sessionFiles = sessionFilesObs.read(reader);
-			const repositoryFiles = this.activeSessionRepositoryChangesObs.read(reader) ?? [];
 			const lastTurnDiffChanges = lastTurnChangesObs.read(reader).read(reader);
 
 			let sourceEntries: IChangesFileItem[];
-			if (versionMode === ChangesVersionMode.Uncommitted) {
-				sourceEntries = repositoryFiles;
-			} else if (versionMode === ChangesVersionMode.LastTurn) {
+			if (versionMode === ChangesVersionMode.LastTurn) {
 				const diffChanges = lastTurnDiffChanges ?? [];
-				const parentRef = headCommit ? `${headCommit}^` : '';
+				const lastCheckpointRef = lastCheckpointRefObs.read(undefined);
+				const beforeLastCheckpointRef = beforeLastCheckpointRefObs.read(undefined);
+
+				const ref = lastCheckpointRef
+					? lastCheckpointRef
+					: headCommit;
+
+				const parentRef = beforeLastCheckpointRef
+					? beforeLastCheckpointRef
+					: headCommit ? `${headCommit}^` : undefined;
+
 				sourceEntries = diffChanges.map(change => {
 					const isDeletion = change.modifiedUri === undefined;
 					const isAddition = change.originalUri === undefined;
-					const fileUri = change.modifiedUri ?? change.uri;
-					const originalUri = isAddition ? change.originalUri
-						: headCommit ? fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: parentRef }) })
+					const uri = change.modifiedUri ?? change.uri;
+					const fileUri = isDeletion
+						? uri
+						: ref
+							? uri.with({ scheme: 'git', query: JSON.stringify({ path: uri.fsPath, ref }) })
+							: uri;
+					const originalUri = isAddition
+						? change.originalUri
+						: parentRef
+							? fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: parentRef }) })
 							: change.originalUri;
 					return {
 						type: 'file',
@@ -661,7 +679,7 @@ export class ChangesViewPane extends ViewPane {
 					} satisfies IChangesFileItem;
 				});
 			} else {
-				sourceEntries = [...editEntries, ...sessionFiles, ...repositoryFiles];
+				sourceEntries = [...editEntries, ...sessionFiles];
 			}
 
 			const resources = new Set();
@@ -679,7 +697,6 @@ export class ChangesViewPane extends ViewPane {
 		const topLevelStats = derived(reader => {
 			const editEntries = editSessionEntriesObs.read(reader);
 			const sessionFiles = sessionFilesObs.read(reader);
-			const repositoryFiles = this.activeSessionRepositoryChangesObs.read(reader) ?? [];
 			const entries = combinedEntriesObs.read(reader);
 
 			let added = 0, removed = 0;
@@ -690,7 +707,7 @@ export class ChangesViewPane extends ViewPane {
 			}
 
 			const files = entries.length;
-			const isSessionMenu = editEntries.length === 0 && (sessionFiles.length > 0 || repositoryFiles.length > 0);
+			const isSessionMenu = editEntries.length === 0 && sessionFiles.length > 0;
 
 			return { files, added, removed, isSessionMenu };
 		});
@@ -734,13 +751,6 @@ export class ChangesViewPane extends ViewPane {
 			});
 
 			this.renderDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, this.scopedContextKeyService, r => hasAgentSessionChangesObs.read(r)));
-
-			const hasUncommittedChangesObs = derived(reader => {
-				const repositoryFiles = this.activeSessionRepositoryChangesObs.read(reader);
-				return (repositoryFiles?.length ?? 0) > 0;
-			});
-
-			this.renderDisposables.add(bindContextKey(hasUncommittedChangesContextKey, this.scopedContextKeyService, r => hasUncommittedChangesObs.read(r)));
 
 			const isMergeBaseBranchProtectedObs = derived(reader => {
 				const activeSession = this.activeSession.read(reader);
@@ -1443,27 +1453,3 @@ class LastTurnChangesAction extends Action2 {
 	}
 }
 registerAction2(LastTurnChangesAction);
-
-class UncommittedChangesAction extends Action2 {
-	constructor() {
-		super({
-			id: 'chatEditing.versionsUncommittedChanges',
-			title: localize2('chatEditing.versionsUncommittedChanges', 'Uncommitted Changes'),
-			category: CHAT_CATEGORY,
-			toggled: changesVersionModeContextKey.isEqualTo(ChangesVersionMode.Uncommitted),
-			precondition: hasUncommittedChangesContextKey,
-			menu: [{
-				id: MenuId.ChatEditingSessionChangesVersionsSubmenu,
-				group: '2_uncommitted',
-				order: 1,
-			}],
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getActiveViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
-		view?.setVersionMode(ChangesVersionMode.Uncommitted);
-	}
-}
-registerAction2(UncommittedChangesAction);

@@ -286,3 +286,28 @@
 	z-index: 5;
 	border-left: 2px solid var(--vscode-editorGutter-modifiedBackground);
 }
+
+/* Inline edit textarea */
+.agent-feedback-widget-text.editing {
+	padding: 0;
+}
+
+.agent-feedback-widget-edit-textarea {
+	width: 100%;
+	min-height: 22px;
+	padding: 4px 6px;
+	border: 1px solid var(--vscode-focusBorder);
+	border-radius: 4px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-size: 12px;
+	line-height: 1.4;
+	resize: none;
+	overflow: hidden;
+	box-sizing: border-box;
+}
+
+.agent-feedback-widget-edit-textarea:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+}

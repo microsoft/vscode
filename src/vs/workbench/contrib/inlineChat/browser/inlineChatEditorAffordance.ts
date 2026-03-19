@@ -192,6 +192,19 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 				this._hide();
 			}
 		}));
+
+		this._store.add(this._editor.onDidScrollChange(() => {
+			const sel = selection.get();
+			if (!sel) {
+				return;
+			}
+			const isInViewport = this._isPositionInViewport();
+			if (isInViewport && !this._isVisible) {
+				this._show(sel);
+			} else if (!isInViewport && this._isVisible) {
+				this._hide();
+			}
+		}));
 	}
 
 	private _show(selection: Selection): void {
@@ -258,6 +271,30 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 			position: { lineNumber: effectiveLineNumber, column: effectiveColumnNumber },
 			preference: [ContentWidgetPositionPreference.EXACT],
 		};
+	}
+
+	private _isPositionInViewport(): boolean {
+		const widgetPosition = this._position?.position;
+		if (!widgetPosition) {
+			return false;
+		}
+
+		// Check vertical visibility
+		const visibleRanges = this._editor.getVisibleRanges();
+		const isLineVisible = visibleRanges.some(range =>
+			widgetPosition.lineNumber >= range.startLineNumber && widgetPosition.lineNumber <= range.endLineNumber
+		);
+		if (!isLineVisible) {
+			return false;
+		}
+
+		// Check horizontal visibility
+		const scrolledPos = this._editor.getScrolledVisiblePosition(widgetPosition);
+		if (!scrolledPos) {
+			return false;
+		}
+		const layoutInfo = this._editor.getOptions().get(EditorOption.layoutInfo);
+		return scrolledPos.left >= 0 && scrolledPos.left <= layoutInfo.width;
 	}
 
 	private _hide(): void {

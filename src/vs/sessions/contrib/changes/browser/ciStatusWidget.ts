@@ -499,7 +499,7 @@ function buildFixChecksPrompt(failedChecks: ReadonlyArray<{ check: IGitHubCIChec
 function getHeaderIconAndClass(checks: readonly IGitHubCICheck[], overallStatus: GitHubCIOverallStatus): { icon: ThemeIcon; className: string } {
 	const counts = getCheckCounts(checks);
 	if (counts.running > 0) {
-		return { icon: Codicon.loading, className: 'ci-status-running' };
+		return { icon: Codicon.clock, className: 'ci-status-running' };
 	}
 
 	switch (overallStatus) {
@@ -517,7 +517,7 @@ function getHeaderIconAndClass(checks: readonly IGitHubCICheck[], overallStatus:
 function getCheckIcon(check: IGitHubCICheck): ThemeIcon {
 	switch (check.status) {
 		case GitHubCheckStatus.InProgress:
-			return Codicon.loading;
+			return Codicon.clock;
 		case GitHubCheckStatus.Queued:
 			return Codicon.circleFilled;
 		case GitHubCheckStatus.Completed:

@@ -27,6 +27,7 @@ import { renderCustomizationDiscoveryContent, fileListToPlainText } from './chat
 import { renderUserMessageContent, renderAgentResponseContent, messageEventToPlainText, renderResolvedMessageContent, resolvedMessageToPlainText } from './chatDebugMessageContentRenderer.js';
 import { renderToolCallContent, toolCallContentToPlainText } from './chatDebugToolCallContentRenderer.js';
 import { renderModelTurnContent, modelTurnContentToPlainText } from './chatDebugModelTurnContentRenderer.js';
+import { renderHookContent, hookContentToPlainText } from './chatDebugHookContentRenderer.js';
 
 const $ = DOM.$;
 
@@ -198,6 +199,16 @@ export class ChatDebugDetailPanel extends Disposable {
 		} else if (resolved && resolved.kind === 'modelTurn') {
 			this.currentDetailText = modelTurnContentToPlainText(resolved);
 			const { element: contentEl, disposables: contentDisposables } = await renderModelTurnContent(resolved, this.languageService, this.clipboardService, this.scrollable);
+			if (this.currentDetailEventId !== event.id) {
+				// Another event was selected while we were rendering
+				contentDisposables.dispose();
+				return;
+			}
+			this.detailDisposables.add(contentDisposables);
+			this.contentContainer.appendChild(contentEl);
+		} else if (resolved && resolved.kind === 'hook') {
+			this.currentDetailText = hookContentToPlainText(resolved);
+			const { element: contentEl, disposables: contentDisposables } = await renderHookContent(resolved, this.languageService, this.clipboardService, this.scrollable);
 			if (this.currentDetailEventId !== event.id) {
 				// Another event was selected while we were rendering
 				contentDisposables.dispose();

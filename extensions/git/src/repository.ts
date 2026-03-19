@@ -3418,7 +3418,7 @@ function retargetTaskToWorktree(task: Task, worktreePath: string): Task | undefi
 	worktreeTask.detail = task.detail;
 	worktreeTask.group = task.group;
 	worktreeTask.isBackground = task.isBackground;
-	worktreeTask.presentationOptions = { reveal: TaskRevealKind.Never, panel: TaskPanelKind.New, ...task.presentationOptions };
+	worktreeTask.presentationOptions = { ...task.presentationOptions, reveal: TaskRevealKind.Never, panel: TaskPanelKind.New };
 	worktreeTask.runOptions = { ...task.runOptions };
 
 	return worktreeTask;

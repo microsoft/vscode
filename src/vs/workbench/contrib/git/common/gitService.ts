@@ -74,6 +74,7 @@ export interface IGitRepository {
 
 	getRefs(query: GitRefQuery, token?: CancellationToken): Promise<GitRef[]>;
 	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<GitDiffChange[]>;
+	diffBetweenWithStats2(ref: string, path?: string): Promise<GitDiffChange[]>;
 }
 
 export interface IGitExtensionDelegate {
@@ -82,6 +83,7 @@ export interface IGitExtensionDelegate {
 
 	getRefs(root: URI, query?: GitRefQuery, token?: CancellationToken): Promise<GitRef[]>;
 	diffBetweenWithStats(root: URI, ref1: string, ref2: string, path?: string): Promise<GitDiffChange[]>;
+	diffBetweenWithStats2(root: URI, ref: string, path?: string): Promise<GitDiffChange[]>;
 }
 
 export const IGitService = createDecorator<IGitService>('gitService');

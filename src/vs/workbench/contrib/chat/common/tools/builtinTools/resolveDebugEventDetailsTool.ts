@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { localize } from '../../../../../../nls.js';
 import { ChatContextKeys } from '../../actions/chatContextKeys.js';
-import { IChatDebugEvent, IChatDebugResolvedEventContent, IChatDebugService } from '../../chatDebugService.js';
+import { ChatDebugHookResult, IChatDebugEvent, IChatDebugResolvedEventContent, IChatDebugService } from '../../chatDebugService.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../languageModelToolsService.js';
 
 export const ResolveDebugEventDetailsToolId = 'vscode_resolveDebugEventDetails_internal';
@@ -36,20 +36,27 @@ function formatResolvedContent(content: IChatDebugResolvedEventContent): string 
 		case 'text':
 			return content.value;
 		case 'fileList': {
-			const lines: string[] = [`File list (${content.discoveryType}):`];
+			const lines: string[] = [localize('formatResolvedContent.fileList', "File list ({0}):", content.discoveryType)];
 			if (content.sourceFolders) {
 				for (const folder of content.sourceFolders) {
-					lines.push(`  Source folder: ${folder.uri.toString()} (${folder.storage})`);
+					lines.push(localize('formatResolvedContent.sourceFolder', "  Source folder: {0} ({1})", folder.uri.toString(), folder.storage));
 				}
 			}
 			for (const file of content.files) {
-				const status = file.status === 'loaded' ? 'loaded' : `skipped${file.skipReason ? `: ${file.skipReason}` : ''}`;
+				const status = file.status === 'loaded'
+					? localize('formatResolvedContent.loaded', "loaded")
+					: file.skipReason
+						? localize('formatResolvedContent.skippedWithReason', "skipped: {0}", file.skipReason)
+						: localize('formatResolvedContent.skipped', "skipped");
 				lines.push(`  ${file.uri.toString()} [${status}]`);
 			}
 			return lines.join('\n');
 		}
 		case 'message': {
-			const lines: string[] = [`${content.type === 'user' ? 'User' : 'Agent'} message: ${content.message}`];
+			const messageType = content.type === 'user'
+				? localize('formatResolvedContent.userMessage', "User message: {0}", content.message)
+				: localize('formatResolvedContent.agentMessage', "Agent message: {0}", content.message);
+			const lines: string[] = [messageType];
 			for (const section of content.sections) {
 				lines.push(`--- ${section.name} ---`);
 				lines.push(section.content);
@@ -57,43 +64,73 @@ function formatResolvedContent(content: IChatDebugResolvedEventContent): string 
 			return lines.join('\n');
 		}
 		case 'toolCall': {
-			const lines: string[] = [`Tool call: ${content.toolName}`];
+			const lines: string[] = [localize('formatResolvedContent.toolCall', "Tool call: {0}", content.toolName)];
 			if (content.result) {
-				lines.push(`Result: ${content.result}`);
+				lines.push(localize('formatResolvedContent.result', "Result: {0}", content.result));
 			}
 			if (content.durationInMillis !== undefined) {
-				lines.push(`Duration: ${content.durationInMillis}ms`);
+				lines.push(localize('formatResolvedContent.duration', "Duration: {0}ms", content.durationInMillis));
 			}
 			if (content.input) {
-				lines.push(`Input:\n${content.input}`);
+				lines.push(localize('formatResolvedContent.input', "Input:") + '\n' + content.input);
 			}
 			if (content.output) {
-				lines.push(`Output:\n${content.output}`);
+				lines.push(localize('formatResolvedContent.output', "Output:") + '\n' + content.output);
 			}
 			return lines.join('\n');
 		}
 		case 'modelTurn': {
-			const lines: string[] = [`Model turn: ${content.requestName}`];
+			const lines: string[] = [localize('formatResolvedContent.modelTurn', "Model turn: {0}", content.requestName)];
 			if (content.model) {
-				lines.push(`Model: ${content.model}`);
+				lines.push(localize('formatResolvedContent.model', "Model: {0}", content.model));
 			}
 			if (content.status) {
-				lines.push(`Status: ${content.status}`);
+				lines.push(localize('formatResolvedContent.status', "Status: {0}", content.status));
 			}
 			if (content.durationInMillis !== undefined) {
-				lines.push(`Duration: ${content.durationInMillis}ms`);
+				lines.push(localize('formatResolvedContent.duration', "Duration: {0}ms", content.durationInMillis));
 			}
 			if (content.inputTokens !== undefined || content.outputTokens !== undefined) {
-				lines.push(`Tokens: input=${content.inputTokens ?? '?'}, output=${content.outputTokens ?? '?'}, cached=${content.cachedTokens ?? '?'}, total=${content.totalTokens ?? '?'}`);
+				lines.push(localize('formatResolvedContent.tokens', "Tokens: input={0}, output={1}, cached={2}, total={3}", content.inputTokens ?? '?', content.outputTokens ?? '?', content.cachedTokens ?? '?', content.totalTokens ?? '?'));
 			}
 			if (content.errorMessage) {
-				lines.push(`Error: ${content.errorMessage}`);
+				lines.push(localize('formatResolvedContent.error', "Error: {0}", content.errorMessage));
 			}
 			if (content.sections) {
 				for (const section of content.sections) {
 					lines.push(`--- ${section.name} ---`);
 					lines.push(section.content);
 				}
+			}
+			return lines.join('\n');
+		}
+		case 'hook': {
+			const lines: string[] = [localize('formatResolvedContent.hook', "Hook: {0}", content.hookType)];
+			if (content.command) {
+				lines.push(localize('formatResolvedContent.command', "Command: {0}", content.command));
+			}
+			if (content.result !== undefined) {
+				const resultText = content.result === ChatDebugHookResult.Success
+					? localize('formatResolvedContent.hookResult.success', "Success")
+					: content.result === ChatDebugHookResult.Error
+						? localize('formatResolvedContent.hookResult.error', "Error")
+						: localize('formatResolvedContent.hookResult.nonBlockingError', "Non-blocking Error");
+				lines.push(localize('formatResolvedContent.result', "Result: {0}", resultText));
+			}
+			if (content.exitCode !== undefined) {
+				lines.push(localize('formatResolvedContent.exitCode', "Exit Code: {0}", content.exitCode));
+			}
+			if (content.durationInMillis !== undefined) {
+				lines.push(localize('formatResolvedContent.duration', "Duration: {0}ms", content.durationInMillis));
+			}
+			if (content.input) {
+				lines.push(localize('formatResolvedContent.input', "Input:") + '\n' + content.input);
+			}
+			if (content.output) {
+				lines.push(localize('formatResolvedContent.output', "Output:") + '\n' + content.output);
+			}
+			if (content.errorMessage) {
+				lines.push(localize('formatResolvedContent.error', "Error: {0}", content.errorMessage));
 			}
 			return lines.join('\n');
 		}
@@ -156,28 +193,28 @@ export class ResolveDebugEventDetailsTool implements IToolImpl {
 		const eventId = invocation.parameters['eventId'];
 		if (typeof eventId !== 'string' || !eventId) {
 			return {
-				content: [{ kind: 'text', value: 'Error: eventId parameter is required.' }],
+				content: [{ kind: 'text', value: localize('resolveDebugEventDetails.errorEventIdRequired', "Error: eventId parameter is required.") }],
 			};
 		}
 
 		const sessionResource = invocation.context?.sessionResource;
 		if (!sessionResource) {
 			return {
-				content: [{ kind: 'text', value: 'Error: no chat session context available.' }],
+				content: [{ kind: 'text', value: localize('resolveDebugEventDetails.errorNoSession', "Error: no chat session context available.") }],
 			};
 		}
 
 		const sessionEvents = this.chatDebugService.getEvents(sessionResource);
 		if (!sessionEvents.some(e => e.id === eventId)) {
 			return {
-				content: [{ kind: 'text', value: `No event with ID "${eventId}" found in the current session.` }],
+				content: [{ kind: 'text', value: localize('resolveDebugEventDetails.errorEventNotFound', "No event with ID \"{0}\" found in the current session.", eventId) }],
 			};
 		}
 
 		const resolved = await this.chatDebugService.resolveEvent(eventId);
 		if (!resolved) {
 			return {
-				content: [{ kind: 'text', value: `No details found for event ID: ${eventId}` }],
+				content: [{ kind: 'text', value: localize('resolveDebugEventDetails.errorNoDetails', "No details found for event ID: {0}", eventId) }],
 			};
 		}
 

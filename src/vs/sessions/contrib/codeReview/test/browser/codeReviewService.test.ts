@@ -18,9 +18,9 @@ import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } 
 import { IAgentSession, IAgentSessionsModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { CodeReviewService, CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService } from '../../browser/codeReviewService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { IActiveSessionItem, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { ICodeReviewService, CodeReviewService, CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion } from '../../browser/codeReviewService.js';
 
 suite('CodeReviewService', () => {
 
@@ -249,6 +249,7 @@ suite('CodeReviewService', () => {
 		assert.strictEqual(state.kind, CodeReviewStateKind.Loading);
 		if (state.kind === CodeReviewStateKind.Loading) {
 			assert.strictEqual(state.version, 'v1');
+			assert.strictEqual(state.reviewCount, 1);
 		}
 
 		// Resolve to avoid leaking
@@ -301,6 +302,7 @@ suite('CodeReviewService', () => {
 		assert.strictEqual(state.kind, CodeReviewStateKind.Result);
 		if (state.kind === CodeReviewStateKind.Result) {
 			assert.strictEqual(state.version, 'v1');
+			assert.strictEqual(state.reviewCount, 1);
 			assert.strictEqual(state.comments.length, 2);
 			assert.strictEqual(state.comments[0].body, 'Bug found');
 			assert.strictEqual(state.comments[0].kind, 'bug');
@@ -320,6 +322,7 @@ suite('CodeReviewService', () => {
 		assert.strictEqual(state.kind, CodeReviewStateKind.Error);
 		if (state.kind === CodeReviewStateKind.Error) {
 			assert.strictEqual(state.version, 'v1');
+			assert.strictEqual(state.reviewCount, 1);
 			assert.strictEqual(state.reason, 'Auth failed');
 		}
 	});
@@ -354,6 +357,7 @@ suite('CodeReviewService', () => {
 		const state = service.getReviewState(session).get();
 		assert.strictEqual(state.kind, CodeReviewStateKind.Error);
 		if (state.kind === CodeReviewStateKind.Error) {
+			assert.strictEqual(state.reviewCount, 1);
 			assert.ok(state.reason.includes('Network error'));
 		}
 	});
@@ -372,8 +376,8 @@ suite('CodeReviewService', () => {
 		commandService.resolveExecution({ type: 'success', comments: [] });
 	});
 
-	test('requestReview is a no-op when result exists for the same version', async () => {
-		commandService.result = { type: 'success', comments: [] };
+	test('requestReview is a no-op when unresolved comments exist for the same version', async () => {
+		commandService.result = { type: 'success', comments: [{ uri: fileA, range: new Range(1, 1, 1, 1), body: 'comment' }] };
 		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
 		await tick();
 
@@ -383,6 +387,71 @@ suite('CodeReviewService', () => {
 		// Should still have the result
 		const state = service.getReviewState(session).get();
 		assert.strictEqual(state.kind, CodeReviewStateKind.Result);
+		if (state.kind === CodeReviewStateKind.Result) {
+			assert.strictEqual(state.comments.length, 1);
+		}
+	});
+
+	test('requestReview reruns when previous result for the same version had no comments', async () => {
+		commandService.result = { type: 'success', comments: [] };
+		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+		await tick();
+
+		commandService.deferNextExecution();
+		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+
+		const state = service.getReviewState(session).get();
+		assert.strictEqual(state.kind, CodeReviewStateKind.Loading);
+
+		commandService.resolveExecution({ type: 'success', comments: [] });
+		await tick();
+	});
+
+	test('requestReview reruns when all comments for the same version were removed', async () => {
+		commandService.result = { type: 'success', comments: [{ uri: fileA, range: new Range(1, 1, 1, 1), body: 'comment' }] };
+		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+		await tick();
+
+		const initialState = service.getReviewState(session).get();
+		assert.strictEqual(initialState.kind, CodeReviewStateKind.Result);
+		if (initialState.kind !== CodeReviewStateKind.Result) {
+			return;
+		}
+
+		service.removeComment(session, initialState.comments[0].id);
+
+		commandService.deferNextExecution();
+		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+
+		const state = service.getReviewState(session).get();
+		assert.strictEqual(state.kind, CodeReviewStateKind.Loading);
+
+		commandService.resolveExecution({ type: 'success', comments: [] });
+		await tick();
+	});
+
+	test('requestReview is a no-op after five reviews for the same version', async () => {
+		commandService.result = { type: 'success', comments: [] };
+
+		for (let i = 0; i < 5; i++) {
+			service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+			await tick();
+		}
+
+		const stateBefore = service.getReviewState(session).get();
+		assert.strictEqual(stateBefore.kind, CodeReviewStateKind.Result);
+		if (stateBefore.kind === CodeReviewStateKind.Result) {
+			assert.strictEqual(stateBefore.reviewCount, 5);
+		}
+
+		commandService.deferNextExecution();
+		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+
+		const stateAfter = service.getReviewState(session).get();
+		assert.strictEqual(stateAfter.kind, CodeReviewStateKind.Result);
+		if (stateAfter.kind === CodeReviewStateKind.Result) {
+			assert.strictEqual(stateAfter.reviewCount, 5);
+		}
 	});
 
 	test('requestReview for a new version replaces loading state', async () => {
@@ -759,6 +828,7 @@ suite('CodeReviewService', () => {
 		const reviewData = stored[session.toString()];
 		assert.ok(reviewData);
 		assert.strictEqual(reviewData.version, 'v1');
+		assert.strictEqual(reviewData.reviewCount, 1);
 		assert.strictEqual(reviewData.comments.length, 1);
 		assert.strictEqual(reviewData.comments[0].body, 'Persisted comment');
 	});
@@ -777,6 +847,7 @@ suite('CodeReviewService', () => {
 		assert.strictEqual(state.kind, CodeReviewStateKind.Result);
 		if (state.kind === CodeReviewStateKind.Result) {
 			assert.strictEqual(state.version, 'v1');
+			assert.strictEqual(state.reviewCount, 1);
 			assert.strictEqual(state.comments.length, 1);
 			assert.strictEqual(state.comments[0].body, 'Restored comment');
 			assert.strictEqual(state.comments[0].uri.toString(), fileA.toString());

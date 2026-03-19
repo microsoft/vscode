@@ -452,6 +452,7 @@ suite('OutputMonitor', () => {
 		test('detects VS Code task completion messages', () => {
 			assert.strictEqual(detectsVSCodeTaskFinishMessage('Press any key to close the terminal.'), true);
 			assert.strictEqual(detectsVSCodeTaskFinishMessage('Terminal will be reused by tasks, press any key to close it.'), true);
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('The terminal will be reused by tasks. Press any key to close. Please provide the required input to the terminal.'), true);
 			// Case insensitive
 			assert.strictEqual(detectsVSCodeTaskFinishMessage('press any key to close the terminal.'), true);
 			assert.strictEqual(detectsVSCodeTaskFinishMessage('PRESS ANY KEY TO CLOSE THE TERMINAL.'), true);

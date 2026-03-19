@@ -521,11 +521,20 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return undefined;
 		}
 
-		const lineNumber = selection.getStartPosition().lineNumber;
+		const position = selection.getStartPosition();
+		const lineNumber = position.lineNumber;
 		const isModifiedEditor = diffEditor.getModifiedEditor() === this._editor;
 		for (const change of diffResult.changes2) {
 			const lineRange = isModifiedEditor ? change.modified : change.original;
 			if (!lineRange.isEmpty && lineRange.contains(lineNumber)) {
+				// Don't show when cursor is at the start or end position of the hunk
+				const isAtHunkStart = lineNumber === lineRange.startLineNumber && position.column === 1;
+				const lastHunkLine = lineRange.endLineNumberExclusive - 1;
+				const model = this._editor.getModel();
+				const isAtHunkEnd = model && lineNumber === lastHunkLine && position.column === model.getLineMaxColumn(lastHunkLine);
+				if (isAtHunkStart || isAtHunkEnd) {
+					return undefined;
+				}
 				return {
 					startLineNumber: lineRange.startLineNumber,
 					endLineNumberExclusive: lineRange.endLineNumberExclusive,

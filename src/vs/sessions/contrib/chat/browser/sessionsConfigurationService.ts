@@ -49,6 +49,14 @@ export interface INonSessionTaskEntry {
 	readonly target: TaskStorageTarget;
 }
 
+/**
+ * A session task together with the storage target it was loaded from.
+ */
+export interface ISessionTaskWithTarget {
+	readonly task: ITaskEntry;
+	readonly target: TaskStorageTarget;
+}
+
 interface ITasksJson {
 	version?: string;
 	tasks?: ITaskEntry[];
@@ -59,9 +67,10 @@ export interface ISessionsConfigurationService {
 
 	/**
 	 * Observable list of tasks with `inSessions: true`, automatically
-	 * updated when the tasks.json file changes.
+	 * updated when the tasks.json file changes. Each entry includes the
+	 * storage target the task was loaded from.
 	 */
-	getSessionTasks(session: IActiveSessionItem): IObservable<readonly ITaskEntry[]>;
+	getSessionTasks(session: IActiveSessionItem): IObservable<readonly ISessionTaskWithTarget[]>;
 
 	/**
 	 * Returns tasks that do NOT have `inSessions: true` — used as
@@ -82,15 +91,31 @@ export interface ISessionsConfigurationService {
 	createAndAddTask(label: string | undefined, command: string, session: IActiveSessionItem, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<ITaskEntry | undefined>;
 
 	/**
+	 * Updates an existing task entry, optionally moving it between user and
+	 * workspace storage.
+	 */
+	updateTask(originalTaskLabel: string, updatedTask: ITaskEntry, session: IActiveSessionItem, currentTarget: TaskStorageTarget, newTarget: TaskStorageTarget): Promise<void>;
+
+	/**
+	 * Removes an existing task entry from its tasks.json.
+	 */
+	removeTask(taskLabel: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<void>;
+
+	/**
 	 * Runs a task entry in a terminal, resolving the correct platform
 	 * command and using the session worktree as cwd.
 	 */
 	runTask(task: ITaskEntry, session: IActiveSessionItem): Promise<void>;
 
 	/**
-	 * Observable label of the most recently run task for the given repository.
+	 * Observable label of the pinned task for the given repository.
 	 */
-	getLastRunTaskLabel(repository: URI | undefined): IObservable<string | undefined>;
+	getPinnedTaskLabel(repository: URI | undefined): IObservable<string | undefined>;
+
+	/**
+	 * Sets or clears the pinned task for the given repository.
+	 */
+	setPinnedTaskLabel(repository: URI | undefined, taskLabel: string | undefined): void;
 }
 
 export const ISessionsConfigurationService = createDecorator<ISessionsConfigurationService>('sessionsConfigurationService');
@@ -99,16 +124,16 @@ export class SessionsConfigurationService extends Disposable implements ISession
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly _LAST_RUN_TASK_LABELS_KEY = 'agentSessions.lastRunTaskLabels';
+	private static readonly _PINNED_TASK_LABELS_KEY = 'agentSessions.pinnedTaskLabels';
 	private static readonly _SUPPORTED_TASK_TYPES = new Set(['shell', 'npm']);
 
-	private readonly _sessionTasks = observableValue<readonly ITaskEntry[]>(this, []);
+	private readonly _sessionTasks = observableValue<readonly ISessionTaskWithTarget[]>(this, []);
 	private readonly _fileWatcher = this._register(new MutableDisposable());
 	/** Maps `cwd.toString() + command` to the terminal `instanceId`. */
 	private readonly _taskTerminals = new Map<string, number>();
 	private readonly _knownSessionWorktrees = new Map<string, string | undefined>();
-	private readonly _lastRunTaskLabels: Map<string, string>;
-	private readonly _lastRunTaskObservables = new Map<string, ReturnType<typeof observableValue<string | undefined>>>();
+	private readonly _pinnedTaskLabels: Map<string, string>;
+	private readonly _pinnedTaskObservables = new Map<string, ReturnType<typeof observableValue<string | undefined>>>();
 
 	private _watchedResource: URI | undefined;
 	private _lastRefreshedFolder: URI | undefined;
@@ -122,7 +147,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
-		this._lastRunTaskLabels = this._loadLastRunTaskLabels();
+		this._pinnedTaskLabels = this._loadPinnedTaskLabels();
 
 		this._register(autorun(reader => {
 			const activeSession = this._sessionsManagementService.activeSession.read(reader);
@@ -130,7 +155,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		}));
 	}
 
-	getSessionTasks(session: IActiveSessionItem): IObservable<readonly ITaskEntry[]> {
+	getSessionTasks(session: IActiveSessionItem): IObservable<readonly ISessionTaskWithTarget[]> {
 		const folder = session.worktree ?? session.repository;
 		if (folder) {
 			this._ensureFileWatch(folder);
@@ -229,6 +254,79 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		return newTask;
 	}
 
+	async updateTask(originalTaskLabel: string, updatedTask: ITaskEntry, session: IActiveSessionItem, currentTarget: TaskStorageTarget, newTarget: TaskStorageTarget): Promise<void> {
+		const currentTasksJsonUri = this._getTasksJsonUri(session, currentTarget);
+		const newTasksJsonUri = this._getTasksJsonUri(session, newTarget);
+		if (!currentTasksJsonUri || !newTasksJsonUri) {
+			return;
+		}
+
+		const currentTasksJson = await this._readTasksJson(currentTasksJsonUri);
+		const currentTasks = currentTasksJson.tasks ?? [];
+		const currentIndex = currentTasks.findIndex(task => task.label === originalTaskLabel);
+		if (currentIndex === -1) {
+			return;
+		}
+
+		if (currentTasksJsonUri.toString() === newTasksJsonUri.toString()) {
+			await this._jsonEditingService.write(currentTasksJsonUri, [
+				{ path: ['tasks', currentIndex], value: updatedTask },
+			], true);
+		} else {
+			const newTasksJson = await this._readTasksJson(newTasksJsonUri);
+			const newTasks = newTasksJson.tasks ?? [];
+
+			await this._jsonEditingService.write(currentTasksJsonUri, [
+				{ path: ['tasks'], value: currentTasks.filter((_, taskIndex) => taskIndex !== currentIndex) },
+			], true);
+
+			await this._jsonEditingService.write(newTasksJsonUri, [
+				{ path: ['version'], value: newTasksJson.version ?? '2.0.0' },
+				{ path: ['tasks'], value: [...newTasks, updatedTask] },
+			], true);
+		}
+
+		if (currentTarget === 'workspace' || newTarget === 'workspace') {
+			await this._commitTasksFile(session);
+		}
+
+		if (session.repository) {
+			const key = session.repository.toString();
+			if (this._pinnedTaskLabels.get(key) === originalTaskLabel) {
+				this._setPinnedTaskLabelForKey(key, updatedTask.label);
+			}
+		}
+	}
+
+	async removeTask(taskLabel: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<void> {
+		const tasksJsonUri = this._getTasksJsonUri(session, target);
+		if (!tasksJsonUri) {
+			return;
+		}
+
+		const tasksJson = await this._readTasksJson(tasksJsonUri);
+		const tasks = tasksJson.tasks ?? [];
+		const index = tasks.findIndex(t => t.label === taskLabel);
+		if (index === -1) {
+			return;
+		}
+
+		await this._jsonEditingService.write(tasksJsonUri, [
+			{ path: ['tasks'], value: tasks.filter((_, taskIndex) => taskIndex !== index) },
+		], true);
+
+		if (target === 'workspace') {
+			await this._commitTasksFile(session);
+		}
+
+		if (session.repository) {
+			const key = session.repository.toString();
+			if (this._pinnedTaskLabels.get(key) === taskLabel) {
+				this._setPinnedTaskLabelForKey(key, undefined);
+			}
+		}
+	}
+
 	async runTask(task: ITaskEntry, session: IActiveSessionItem): Promise<void> {
 		const command = this._resolveCommand(task);
 		if (!command) {
@@ -253,29 +351,28 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		await terminal.sendText(command, true);
 		this._terminalService.setActiveInstance(terminal);
 		await this._terminalService.revealActiveTerminal();
-
-		if (session.repository) {
-			const key = session.repository.toString();
-			this._lastRunTaskLabels.set(key, task.label);
-			this._saveLastRunTaskLabels();
-			const obs = this._lastRunTaskObservables.get(key);
-			if (obs) {
-				transaction(tx => obs.set(task.label, tx));
-			}
-		}
 	}
 
-	getLastRunTaskLabel(repository: URI | undefined): IObservable<string | undefined> {
+	getPinnedTaskLabel(repository: URI | undefined): IObservable<string | undefined> {
 		if (!repository) {
-			return observableValue('lastRunTaskLabel', undefined);
+			return observableValue('pinnedTaskLabel', undefined);
 		}
+
 		const key = repository.toString();
-		let obs = this._lastRunTaskObservables.get(key);
+		let obs = this._pinnedTaskObservables.get(key);
 		if (!obs) {
-			obs = observableValue('lastRunTaskLabel', this._lastRunTaskLabels.get(key));
-			this._lastRunTaskObservables.set(key, obs);
+			obs = observableValue('pinnedTaskLabel', this._pinnedTaskLabels.get(key));
+			this._pinnedTaskObservables.set(key, obs);
 		}
 		return obs;
+	}
+
+	setPinnedTaskLabel(repository: URI | undefined, taskLabel: string | undefined): void {
+		if (!repository) {
+			return;
+		}
+
+		this._setPinnedTaskLabelForKey(repository.toString(), taskLabel);
 	}
 
 	// --- private helpers ---
@@ -421,9 +518,15 @@ export class SessionsConfigurationService extends Disposable implements ISession
 
 		const disposables = new DisposableStore();
 
+		// Watch workspace tasks.json
 		disposables.add(this._fileService.watch(tasksUri));
+
+		// Also watch user-level tasks.json so that user session tasks changes refresh the observable
+		const userUri = joinPath(dirname(this._preferencesService.userSettingsResource), 'tasks.json');
+		disposables.add(this._fileService.watch(userUri));
+
 		disposables.add(this._fileService.onDidFilesChange(e => {
-			if (e.affects(tasksUri)) {
+			if (e.affects(tasksUri) || e.affects(userUri)) {
 				this._refreshSessionTasks(folder);
 			}
 		}));
@@ -439,12 +542,16 @@ export class SessionsConfigurationService extends Disposable implements ISession
 
 		const tasksUri = joinPath(folder, '.vscode', 'tasks.json');
 		const tasksJson = await this._readTasksJson(tasksUri);
-		const sessionTasks = (tasksJson.tasks ?? []).filter(t => t.inSessions && this._isSupportedTask(t));
+		const sessionTasks: ISessionTaskWithTarget[] = (tasksJson.tasks ?? [])
+			.filter(t => t.inSessions && this._isSupportedTask(t))
+			.map(t => ({ task: t, target: 'workspace' as TaskStorageTarget }));
 
 		// Also include user-level session tasks
 		const userUri = joinPath(dirname(this._preferencesService.userSettingsResource), 'tasks.json');
 		const userJson = await this._readTasksJson(userUri);
-		const userSessionTasks = (userJson.tasks ?? []).filter(t => t.inSessions && this._isSupportedTask(t));
+		const userSessionTasks: ISessionTaskWithTarget[] = (userJson.tasks ?? [])
+			.filter(t => t.inSessions && this._isSupportedTask(t))
+			.map(t => ({ task: t, target: 'user' as TaskStorageTarget }));
 
 		transaction(tx => this._sessionTasks.set([...sessionTasks, ...userSessionTasks], tx));
 	}
@@ -458,8 +565,8 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		await this._sessionsManagementService.commitWorktreeFiles(session, [tasksUri]);
 	}
 
-	private _loadLastRunTaskLabels(): Map<string, string> {
-		const raw = this._storageService.get(SessionsConfigurationService._LAST_RUN_TASK_LABELS_KEY, StorageScope.APPLICATION);
+	private _loadPinnedTaskLabels(): Map<string, string> {
+		const raw = this._storageService.get(SessionsConfigurationService._PINNED_TASK_LABELS_KEY, StorageScope.APPLICATION);
 		if (raw) {
 			try {
 				return new Map(Object.entries(JSON.parse(raw)));
@@ -470,12 +577,27 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		return new Map();
 	}
 
-	private _saveLastRunTaskLabels(): void {
+	private _savePinnedTaskLabels(): void {
 		this._storageService.store(
-			SessionsConfigurationService._LAST_RUN_TASK_LABELS_KEY,
-			JSON.stringify(Object.fromEntries(this._lastRunTaskLabels)),
+			SessionsConfigurationService._PINNED_TASK_LABELS_KEY,
+			JSON.stringify(Object.fromEntries(this._pinnedTaskLabels)),
 			StorageScope.APPLICATION,
 			StorageTarget.USER
 		);
+	}
+
+	private _setPinnedTaskLabelForKey(key: string, taskLabel: string | undefined): void {
+		if (taskLabel === undefined) {
+			this._pinnedTaskLabels.delete(key);
+		} else {
+			this._pinnedTaskLabels.set(key, taskLabel);
+		}
+
+		this._savePinnedTaskLabels();
+
+		const obs = this._pinnedTaskObservables.get(key);
+		if (obs) {
+			transaction(tx => obs.set(taskLabel, tx));
+		}
 	}
 }

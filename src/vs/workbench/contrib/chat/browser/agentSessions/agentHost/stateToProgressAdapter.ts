@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { TurnState, getToolOutputText, type ICompletedToolCall, type IPermissionRequest, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { PermissionKind, ToolCallStatus, TurnState, getToolOutputText, type ICompletedToolCall, type IPermissionRequest, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind, getToolLanguage } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { type IChatProgress, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
@@ -49,12 +49,12 @@ export function turnsToHistory(turns: readonly ITurn[], participantId: string): 
  */
 function completedToolCallToSerialized(tc: ICompletedToolCall): IChatToolInvocationSerialized {
 	const isTerminal = getToolKind(tc) === 'terminal';
-	const isSuccess = tc.status === 'completed' && tc.success;
+	const isSuccess = tc.status === ToolCallStatus.Completed && tc.success;
 	const invocationMsg = stringOrMarkdownToString(tc.invocationMessage) ?? '';
 
 	let toolSpecificData: IChatTerminalToolInvocationData | undefined;
 	if (isTerminal && tc.toolInput) {
-		const toolOutput = tc.status === 'completed' ? getToolOutputText(tc) : undefined;
+		const toolOutput = tc.status === ToolCallStatus.Completed ? getToolOutputText(tc) : undefined;
 		toolSpecificData = {
 			kind: 'terminal',
 			commandLine: { original: tc.toolInput },
@@ -117,7 +117,7 @@ export function toolCallStateToInvocation(tc: IToolCallState): ChatToolInvocatio
 	if (getToolKind(tc) === 'terminal') {
 		invocation.toolSpecificData = {
 			kind: 'terminal',
-			commandLine: { original: tc.status !== 'streaming' ? (tc.toolInput ?? '') : '' },
+			commandLine: { original: tc.status !== ToolCallStatus.Streaming ? (tc.toolInput ?? '') : '' },
 			language: getToolLanguage(tc) ?? 'shellscript',
 		} satisfies IChatTerminalToolInvocationData;
 	}
@@ -135,7 +135,7 @@ export function permissionToConfirmation(perm: IPermissionRequest): ChatToolInvo
 	let toolSpecificData: IChatTerminalToolInvocationData | IChatToolInputInvocationData | undefined;
 
 	switch (perm.permissionKind) {
-		case 'shell': {
+		case PermissionKind.Shell: {
 			title = perm.intention ?? 'Run command';
 			toolSpecificData = perm.fullCommandText ? {
 				kind: 'terminal',
@@ -144,14 +144,14 @@ export function permissionToConfirmation(perm: IPermissionRequest): ChatToolInvo
 			} : undefined;
 			break;
 		}
-		case 'write': {
+		case PermissionKind.Write: {
 			title = perm.path ? `Edit ${perm.path}` : 'Edit file';
 			let rawInput: unknown;
 			try { rawInput = perm.rawRequest ? JSON.parse(perm.rawRequest) : { path: perm.path }; } catch { rawInput = { path: perm.path }; }
 			toolSpecificData = { kind: 'input', rawInput };
 			break;
 		}
-		case 'mcp': {
+		case PermissionKind.Mcp: {
 			const toolTitle = perm.toolName ?? 'MCP Tool';
 			title = perm.serverName ? `${perm.serverName}: ${toolTitle}` : toolTitle;
 			let rawInput: unknown;
@@ -159,7 +159,7 @@ export function permissionToConfirmation(perm: IPermissionRequest): ChatToolInvo
 			toolSpecificData = { kind: 'input', rawInput };
 			break;
 		}
-		case 'read': {
+		case PermissionKind.Read: {
 			title = perm.intention ?? 'Read file';
 			let rawInput: unknown;
 			try { rawInput = perm.rawRequest ? JSON.parse(perm.rawRequest) : { path: perm.path, intention: perm.intention }; } catch { rawInput = { path: perm.path, intention: perm.intention }; }
@@ -202,8 +202,8 @@ export function permissionToConfirmation(perm: IPermissionRequest): ChatToolInvo
  * protocol's tool-call state, transitioning it to the completed state.
  */
 export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: IToolCallState): void {
-	const isCompleted = tc.status === 'completed';
-	const isCancelled = tc.status === 'cancelled';
+	const isCompleted = tc.status === ToolCallStatus.Completed;
+	const isCancelled = tc.status === ToolCallStatus.Cancelled;
 	const isTerminal = invocation.toolSpecificData?.kind === 'terminal' || getToolKind(tc) === 'terminal';
 
 	if (isTerminal && (isCompleted || isCancelled)) {

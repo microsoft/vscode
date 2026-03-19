@@ -37,6 +37,7 @@ export interface ICarouselImage {
 	readonly name: string;
 	readonly mimeType: string;
 	readonly data: Uint8Array;
+	readonly caption?: string;
 }
 
 export interface ICarouselSection {
@@ -99,7 +100,7 @@ export async function collectCarouselSections(
 		if (dedupedImages.length > 0) {
 			sections.push({
 				title: request?.messageText ?? extractedTitle,
-				images: dedupedImages.map(({ id, name, mimeType, data }) => ({ id, name, mimeType, data: data.buffer }))
+				images: dedupedImages.map(({ id, name, mimeType, data, caption }) => ({ id, name, mimeType, data: data.buffer, caption }))
 			});
 		}
 	}
@@ -117,7 +118,7 @@ export async function collectCarouselSections(
 		if (dedupedImages.length > 0) {
 			sections.push({
 				title: item.messageText,
-				images: dedupedImages.map(({ id, name, mimeType, data }) => ({ id, name, mimeType, data: data.buffer }))
+				images: dedupedImages.map(({ id, name, mimeType, data, caption }) => ({ id, name, mimeType, data: data.buffer, caption }))
 			});
 		}
 	}

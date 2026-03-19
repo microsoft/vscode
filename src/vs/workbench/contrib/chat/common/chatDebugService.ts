@@ -20,6 +20,18 @@ export enum ChatDebugLogLevel {
 }
 
 /**
+ * The result of a hook execution.
+ */
+export enum ChatDebugHookResult {
+	/** The hook executed successfully (exit code 0). */
+	Success = 0,
+	/** The hook returned a blocking error (exit code 2). */
+	Error = 1,
+	/** The hook returned a non-blocking warning (other non-zero exit codes). */
+	NonBlockingError = 2
+}
+
+/**
  * Common properties shared by all chat debug event types.
  */
 export interface IChatDebugEventCommon {
@@ -332,9 +344,25 @@ export interface IChatDebugEventModelTurnContent {
 }
 
 /**
+ * Structured hook execution content for a resolved debug event.
+ * Contains the hook type, command, input, output, and result for rich rendering.
+ */
+export interface IChatDebugEventHookContent {
+	readonly kind: 'hook';
+	readonly hookType: string;
+	readonly command?: string;
+	readonly result?: ChatDebugHookResult;
+	readonly durationInMillis?: number;
+	readonly input?: string;
+	readonly output?: string;
+	readonly exitCode?: number;
+	readonly errorMessage?: string;
+}
+
+/**
  * Union of all resolved event content types.
  */
-export type IChatDebugResolvedEventContent = IChatDebugEventTextContent | IChatDebugEventFileListContent | IChatDebugEventMessageContent | IChatDebugEventToolCallContent | IChatDebugEventModelTurnContent;
+export type IChatDebugResolvedEventContent = IChatDebugEventTextContent | IChatDebugEventFileListContent | IChatDebugEventMessageContent | IChatDebugEventToolCallContent | IChatDebugEventModelTurnContent | IChatDebugEventHookContent;
 
 /**
  * Provider interface for debug events.

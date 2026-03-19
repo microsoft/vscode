@@ -78,4 +78,28 @@ suite('CommandLineSandboxRewriter', () => {
 		strictEqual(result?.reasoning, 'Wrapped command for sandbox execution');
 		deepStrictEqual(calls, ['getSandboxConfigPath', 'wrapCommand']);
 	});
+
+	test('does not wrap command when sandbox bypass was explicitly requested', async () => {
+		const calls: string[] = [];
+		stubSandboxService({
+			isEnabled: async () => true,
+			wrapCommand: command => {
+				calls.push(`wrap:${command}`);
+				return `wrapped:${command}`;
+			},
+			getSandboxConfigPath: async () => {
+				calls.push('config');
+				return '/tmp/sandbox.json';
+			},
+		});
+
+		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter));
+		const result = await rewriter.rewrite({
+			...createRewriteOptions('echo hello'),
+			requestUnsandboxedExecution: true,
+		});
+
+		strictEqual(result, undefined);
+		deepStrictEqual(calls, []);
+	});
 });

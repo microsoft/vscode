@@ -745,6 +745,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
 		const progressMessageAtBottomOfResponse = checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse);
 		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length && !progressMessageAtBottomOfResponse);
+
+		// Toggle show-checkmarks class at the container level for the accessibility setting,
+		// so child content parts can use CSS descendant selectors instead of each subscribing individually.
+		const updateContainerCheckmarks = () => templateData.rowContainer.classList.toggle('show-checkmarks', !!this.configService.getValue<boolean>(AccessibilityWorkbenchSettingId.ShowChatCheckmarks));
+		updateContainerCheckmarks();
+		templateData.elementDisposables.add(this.configService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityWorkbenchSettingId.ShowChatCheckmarks)) {
+				updateContainerCheckmarks();
+			}
+		}));
+
 		if (!this.rendererOptions.noHeader) {
 			this.renderAvatar(element, templateData);
 		}
@@ -760,8 +771,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.checkpointToolbar.context = element;
+		const supportsForkOrRestoration = this.rendererOptions.supportsFork || (this.rendererOptions.restorable ?? true);
 		const checkpointEnabled = this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled)
-			&& (this.rendererOptions.restorable ?? true);
+			&& supportsForkOrRestoration;
 		const isPendingRequest = isRequestVM(element) && !!element.pendingKind;
 
 		templateData.checkpointContainer.classList.toggle('hidden', isResponseVM(element) || isPendingRequest || !(checkpointEnabled));
@@ -929,14 +941,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			dom.append(templateData.detail, $('span.confirmation-text', undefined, localize('chatConfirmationAction', 'Selected "{0}"', element.confirmation)));
 			templateData.header?.classList.remove('header-disabled');
 			templateData.header?.classList.add('partially-disabled');
-
-			const updateCheckmarks = () => templateData.detail.classList.toggle('show-checkmarks', !!this.configService.getValue<boolean>(AccessibilityWorkbenchSettingId.ShowChatCheckmarks));
-			updateCheckmarks();
-			templateData.elementDisposables.add(this.configService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(AccessibilityWorkbenchSettingId.ShowChatCheckmarks)) {
-					updateCheckmarks();
-				}
-			}));
 		}
 	}
 
@@ -1244,7 +1248,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatContentDiff(partsToRender: ReadonlyArray<IChatRendererContent | null>, contentForThisTurn: ReadonlyArray<IChatRendererContent>, element: IChatResponseViewModel, elementIndex: number, templateData: IChatListItemTemplate): void {
 		const renderedParts = templateData.renderedParts ?? [];
 		templateData.renderedParts = renderedParts;
-		const lastMarkdownIndex = partsToRender.findLastIndex(part => part?.kind === 'markdownContent');
 		let codeBlockStartIndex = 0;
 		let treeStartIndex = 0;
 		partsToRender.forEach((partToRender, contentIndex) => {
@@ -1260,7 +1263,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 
 			const alreadyRenderedPart = templateData.renderedParts?.[contentIndex];
-			const isFinalAnswerPart = partToRender?.kind === 'markdownContent' && contentIndex === lastMarkdownIndex && element.isComplete;
 
 			if (!partToRender) {
 				// null=no change
@@ -1278,7 +1280,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}
 					renderedParts[contentIndex] = alreadyRenderedPart;
 					return;
-				} else if (alreadyRenderedPart instanceof ChatThinkingContentPart && this.shouldPinPart(partToRender, element) && !isFinalAnswerPart) {
+				} else if (alreadyRenderedPart instanceof ChatThinkingContentPart && this.shouldPinPart(partToRender, element)) {
 					// keep existing thinking part if we are pinning it (combining tool calls into it)
 					renderedParts[contentIndex] = alreadyRenderedPart;
 					return;
@@ -1314,7 +1316,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			// combine tool invocations into thinking part if needed. render the tool, but do not replace the working spinner with the new part's dom node since it is already inside the thinking part.
 			const lastThinking = this.getLastThinkingPart(renderedParts);
-			if (lastThinking && (partToRender.kind === 'toolInvocation' || partToRender.kind === 'toolInvocationSerialized' || partToRender.kind === 'markdownContent' || partToRender.kind === 'textEditGroup' || partToRender.kind === 'hook') && this.shouldPinPart(partToRender, element) && !isFinalAnswerPart) {
+			if (lastThinking && (partToRender.kind === 'toolInvocation' || partToRender.kind === 'toolInvocationSerialized' || partToRender.kind === 'markdownContent' || partToRender.kind === 'textEditGroup' || partToRender.kind === 'hook') && this.shouldPinPart(partToRender, element)) {
 				const newPart = this.renderChatContentPart(partToRender, templateData, context);
 				if (newPart) {
 					renderedParts[contentIndex] = newPart;
@@ -1474,17 +1476,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private diff(renderedParts: ReadonlyArray<IChatContentPart>, contentToRender: ReadonlyArray<IChatRendererContent>, element: ChatTreeItem): ReadonlyArray<IChatRendererContent | null> {
 		const diff: (IChatRendererContent | null)[] = [];
-		const elementIsComplete = isResponseVM(element) && element.isComplete;
-		const lastMarkdownContentIndex = contentToRender.findLastIndex(part => part.kind === 'markdownContent');
 		for (let i = 0; i < contentToRender.length; i++) {
 			const content = contentToRender[i];
 			const renderedPart = renderedParts[i];
-			const isFinalAnswerPart = content.kind === 'markdownContent' && i === lastMarkdownContentIndex && elementIsComplete;
-
-			if (isFinalAnswerPart && this.isRenderedPartInsideThinking(renderedPart)) {
-				diff.push(content);
-				continue;
-			}
 
 			if (!renderedPart || !renderedPart.hasSameContent(content, contentToRender.slice(i + 1), element)) {
 				diff.push(content);
@@ -1495,13 +1489,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		return diff;
-	}
-
-	private isRenderedPartInsideThinking(renderedPart: IChatContentPart | undefined): boolean {
-		if (!renderedPart?.domNode) {
-			return false;
-		}
-		return !!dom.findParentWithClass(renderedPart.domNode, 'chat-thinking-box');
 	}
 
 	private hasEditCodeblockUri(part: IChatRendererContent): boolean {
@@ -1969,10 +1956,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Factory that creates the tool invocation part with all necessary setup
 		let lazilyCreatedPart: ChatToolInvocationPart | undefined = undefined;
-		const createToolPart = (): { domNode: HTMLElement; part: ChatToolInvocationPart } => {
+		const createToolPart = (): { domNode: HTMLElement; disposable: ChatToolInvocationPart; part: ChatToolInvocationPart } => {
 			lazilyCreatedPart = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.chatContentMarkdownRenderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth.get(), this._toolInvocationCodeBlockCollection, this._announcedToolProgressKeys, codeBlockStartIndex);
 			this.handleRenderedCodeblocks(context.element, lazilyCreatedPart, codeBlockStartIndex);
-			return { domNode: lazilyCreatedPart.domNode, part: lazilyCreatedPart };
+			return { domNode: lazilyCreatedPart.domNode, disposable: lazilyCreatedPart, part: lazilyCreatedPart };
 		};
 
 		// handling for when we want to put tool invocations inside a thinking part
@@ -2028,7 +2015,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		thinkingPart: ChatThinkingContentPart,
 		getCreatedPart: () => ChatToolInvocationPart | undefined,
-		createToolPart: () => { domNode: HTMLElement; part: ChatToolInvocationPart },
+		createToolPart: () => { domNode: HTMLElement; disposable: ChatToolInvocationPart; part: ChatToolInvocationPart },
 		context: IChatContentPartRenderContext,
 		templateData: IChatListItemTemplate
 	): void {
@@ -2360,9 +2347,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderMarkdown(markdown: IChatMarkdownContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
 		const element = context.element;
-		const isFinalRenderPass = isResponseVM(element) && element.isComplete && !element.renderData;
-		const lastPinnedPartIndex = isFinalRenderPass ? context.content.findLastIndex(c => c.kind === 'thinking' || c.kind === 'toolInvocation' || c.kind === 'toolInvocationSerialized') : -1;
-		const isFinalAnswerPart = isFinalRenderPass && context.contentIndex > lastPinnedPartIndex;
 		const isBlankMarkdown = !markdown.content.value.trim();
 		// Don't finalize thinking if the markdown has an incomplete codeblock with a
 		// vscode_codeblock_uri tag — the isEdit annotation may not have arrived yet.
@@ -2370,7 +2354,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const hasPendingEditCodeblock = isResponseVM(element) && !element.isComplete
 			&& hasCodeblockUriTag(markdown.content.value)
 			&& !codeblockHasClosingBackticks(markdown.content.value);
-		if ((!this.hasEditCodeblockUri(markdown) || isFinalAnswerPart) && !isBlankMarkdown && !hasPendingEditCodeblock) {
+		if (!this.hasEditCodeblockUri(markdown) && !isBlankMarkdown && !hasPendingEditCodeblock) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
@@ -2426,7 +2410,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex);
 
 		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
-		if (isResponseVM(context.element) && collapsedToolsMode !== CollapsedToolsDisplayMode.Off && !isFinalAnswerPart) {
+		if (isResponseVM(context.element) && collapsedToolsMode !== CollapsedToolsDisplayMode.Off) {
 
 			// append to thinking part when the codeblock is complete
 			const isComplete = this.isCodeblockComplete(markdown, context.element);

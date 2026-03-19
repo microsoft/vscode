@@ -143,7 +143,7 @@ class SlashCommandCompletions extends Disposable {
 							if (c.modes && c.modes.length && !c.modes.includes(ChatModeKind.Agent)) {
 								return false;
 							}
-							if (c.target && customAgentTarget && c.target !== customAgentTarget) {
+							if (c.targets && customAgentTarget && !c.targets.includes(customAgentTarget)) {
 								return false;
 							}
 							return true;

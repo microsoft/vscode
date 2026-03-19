@@ -100,7 +100,8 @@ enum LayoutClasses {
 	STATUSBAR_HIDDEN = 'nostatusbar',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized',
-	WINDOW_BORDER = 'border'
+	WINDOW_BORDER = 'border',
+	NO_SHADOWS = 'no-shadows'
 }
 
 interface IPathToOpen extends IPath {
@@ -426,6 +427,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.doUpdateLayoutConfiguration();
 			}
 
+			// Shadows
+			if (e.affectsConfiguration(LayoutSettings.SHADOWS)) {
+				this.updateShadows();
+			}
+
 			// Auxiliary Sidebar
 			if (e.affectsConfiguration(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED)) {
 				const forceMaximized = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED);
@@ -586,6 +592,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Centered Layout
 		this.editorGroupService.whenRestored.then(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED), skipLayout));
+	}
+
+	private isShadowsDisabled(): boolean {
+		return this.configurationService.getValue<boolean>(LayoutSettings.SHADOWS) === false;
+	}
+
+	private updateShadows(): void {
+		const noShadows = this.isShadowsDisabled();
+
+		for (const container of Array.from(this.containers)) {
+			container.classList.toggle(LayoutClasses.NO_SHADOWS, noShadows);
+		}
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -1857,7 +1875,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.PANEL_PART) ? LayoutClasses.PANEL_HIDDEN : undefined,
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
-			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined
+			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
+			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined
 		]);
 	}
 

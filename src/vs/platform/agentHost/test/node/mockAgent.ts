@@ -6,6 +6,7 @@
 import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentMessageEvent, type IAgentModelInfo, type IAgentProgressEvent, type IAgentSessionMetadata, type IAgentToolCompleteEvent, type IAgentToolStartEvent } from '../../common/agentService.js';
+import { PermissionKind } from '../../common/state/sessionState.js';
 
 /**
  * General-purpose mock agent for unit tests. Tracks all method calls
@@ -149,10 +150,10 @@ export class ScriptedMockAgent implements IAgent {
 					type: 'permission_request',
 					session,
 					requestId: 'perm-1',
-					permissionKind: 'shell',
+					permissionKind: PermissionKind.Shell,
 					fullCommandText: 'echo test',
 					intention: 'Run a test command',
-					rawRequest: JSON.stringify({ permissionKind: 'shell', fullCommandText: 'echo test', intention: 'Run a test command' }),
+					rawRequest: JSON.stringify({ permissionKind: PermissionKind.Shell, fullCommandText: 'echo test', intention: 'Run a test command' }),
 				};
 				setTimeout(() => this._onDidSessionProgress.fire(permEvent), 10);
 				this._pendingPermissions.set('perm-1', (approved) => {

@@ -55,7 +55,9 @@ export class ImageCarouselEditor extends EditorPane {
 		imageArea: HTMLElement;
 		mainImageContainer: HTMLElement;
 		mainImage: HTMLImageElement;
-		caption: HTMLElement;
+		captionText: HTMLElement;
+		captionSeparator: HTMLElement;
+		counter: HTMLElement;
 		prevBtn: HTMLButtonElement;
 		nextBtn: HTMLButtonElement;
 		sectionsContainer: HTMLElement;
@@ -134,7 +136,11 @@ export class ImageCarouselEditor extends EditorPane {
 				]),
 			]),
 			h('div.bottom-bar@bottomBar', [
-				h('div.image-caption@caption'),
+				h('div.image-info-bar', [
+					h('span.caption-text@captionText'),
+					h('span.caption-separator@captionSeparator'),
+					h('span.image-counter@counter'),
+				]),
 				h('div.sections-container@sectionsContainer'),
 			]),
 		]);
@@ -144,7 +150,9 @@ export class ImageCarouselEditor extends EditorPane {
 			imageArea: elements.imageArea,
 			mainImageContainer: elements.mainImageContainer,
 			mainImage: elements.mainImage as HTMLImageElement,
-			caption: elements.caption,
+			captionText: elements.captionText,
+			captionSeparator: elements.captionSeparator,
+			counter: elements.counter,
 			prevBtn: elements.prevBtn as HTMLButtonElement,
 			nextBtn: elements.nextBtn as HTMLButtonElement,
 			sectionsContainer: elements.sectionsContainer,
@@ -300,14 +308,17 @@ export class ImageCarouselEditor extends EditorPane {
 		// Reset zoom when switching images
 		this._applyZoom('fit');
 
-		// Update caption
+		// Update info bar: caption + separator + counter
 		if (currentImage.caption) {
-			this._elements.caption.textContent = currentImage.caption;
-			this._elements.caption.style.display = '';
+			this._elements.captionText.textContent = currentImage.caption;
+			this._elements.captionText.style.display = '';
+			this._elements.captionSeparator.style.display = '';
 		} else {
-			this._elements.caption.textContent = '';
-			this._elements.caption.style.display = 'none';
+			this._elements.captionText.textContent = '';
+			this._elements.captionText.style.display = 'none';
+			this._elements.captionSeparator.style.display = 'none';
 		}
+		this._elements.counter.textContent = localize('imageCarousel.counter', "{0} / {1}", this._currentIndex + 1, this._flatImages.length);
 
 		// Update button states
 		this._elements.prevBtn.disabled = this._currentIndex === 0;

@@ -8,6 +8,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -315,6 +316,32 @@ export class ChatLanguageModelsDataContribution extends Disposable implements IW
 	private updateSchema(registry: IJSONContributionRegistry): void {
 		const vendors = this.languageModelsService.getVendors();
 
+		// Build per-model configuration schemas
+		const modelSchemas: IJSONSchema[] = [];
+		const modelIds = this.languageModelsService.getLanguageModelIds();
+		for (const modelId of modelIds) {
+			const metadata = this.languageModelsService.lookupLanguageModel(modelId);
+			if (metadata?.configurationSchema) {
+				modelSchemas.push({
+					if: {
+						properties: {
+							vendor: { const: metadata.vendor }
+						}
+					},
+					then: {
+						properties: {
+							settings: {
+								type: 'object',
+								properties: {
+									[metadata.id]: metadata.configurationSchema
+								}
+							}
+						}
+					}
+				});
+			}
+		}
+
 		const schema: IJSONSchema = {
 			type: 'array',
 			items: {
@@ -323,16 +350,23 @@ export class ChatLanguageModelsDataContribution extends Disposable implements IW
 						type: 'string',
 						enum: vendors.map(v => v.vendor)
 					},
-					name: { type: 'string' }
+					name: { type: 'string' },
+					settings: {
+						type: 'object',
+						description: localize('settings.perModelConfig', "Per-model settings"),
+					}
 				},
-				allOf: vendors.map(vendor => ({
-					if: {
-						properties: {
-							vendor: { const: vendor.vendor }
-						}
-					},
-					then: vendor.configuration
-				})),
+				allOf: [
+					...vendors.map(vendor => ({
+						if: {
+							properties: {
+								vendor: { const: vendor.vendor }
+							}
+						},
+						then: vendor.configuration
+					})),
+					...modelSchemas
+				],
 				required: ['vendor', 'name']
 			}
 		};

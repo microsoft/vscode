@@ -240,7 +240,7 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "Run and Compile Dev Sessions",
+			"label": "Run and Compile Sessions - OSS",
 			"type": "shell",
 			"command": "npm run transpile-client && ./scripts/code.sh",
 			"windows": {
@@ -249,6 +249,16 @@
 			"args": [
 				"--sessions"
 			],
+			"inSessions": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run and Compile Code - OSS",
+			"type": "shell",
+			"command": "npm run transpile-client && ./scripts/code.sh",
+			"windows": {
+				"command": "npm run transpile-client && .\\scripts\\code.bat"
+			},
 			"inSessions": true,
 			"problemMatcher": []
 		},

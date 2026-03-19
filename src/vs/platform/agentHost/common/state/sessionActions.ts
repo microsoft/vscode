@@ -57,14 +57,10 @@ export {
 // Consumers use these shorter names; they're type-only aliases.
 
 import type {
-	IActionEnvelope as _IActionEnvelope,
 	IRootAgentsChangedAction,
 	IRootActiveSessionsChangedAction,
-	ISessionCreationFailedAction,
 	ISessionDeltaAction,
-	ISessionErrorAction,
 	ISessionModelChangedAction,
-	ISessionReadyAction,
 	ISessionReasoningAction,
 	ISessionResponsePartAction,
 	ISessionPermissionRequestAction,
@@ -80,18 +76,20 @@ import type {
 	ISessionTurnCompleteAction,
 	ISessionTurnStartedAction,
 	ISessionUsageAction,
-	ISessionServerToolsChangedAction,
-	ISessionActiveClientChangedAction,
-	ISessionActiveClientToolsChangedAction,
 	IStateAction,
 } from './protocol/actions.js';
 
 import type { IProtocolNotification } from './protocol/notifications.js';
+import type { IRootAction as IRootAction_, ISessionAction as ISessionAction_, IClientSessionAction as IClientSessionAction_, IServerSessionAction as IServerSessionAction_ } from './protocol/action-origin.generated.js';
+
+export type IRootAction = IRootAction_;
+export type ISessionAction = ISessionAction_;
+export type IClientSessionAction = IClientSessionAction_;
+export type IServerSessionAction = IServerSessionAction_;
 
 // Root actions
 export type IAgentsChangedAction = IRootAgentsChangedAction;
 export type IActiveSessionsChangedAction = IRootActiveSessionsChangedAction;
-export type IRootAction = IAgentsChangedAction | IActiveSessionsChangedAction;
 
 // Session actions — short aliases
 export type ITurnStartedAction = ISessionTurnStartedAction;
@@ -113,32 +111,6 @@ export type ITitleChangedAction = ISessionTitleChangedAction;
 export type IUsageAction = ISessionUsageAction;
 export type IReasoningAction = ISessionReasoningAction;
 export type IModelChangedAction = ISessionModelChangedAction;
-
-/** Union of all session-scoped actions. */
-export type ISessionAction =
-	| ISessionReadyAction
-	| ISessionCreationFailedAction
-	| ISessionTurnStartedAction
-	| ISessionDeltaAction
-	| ISessionResponsePartAction
-	| ISessionToolCallStartAction
-	| ISessionToolCallDeltaAction
-	| ISessionToolCallReadyAction
-	| ISessionToolCallConfirmedAction
-	| ISessionToolCallCompleteAction
-	| ISessionToolCallResultConfirmedAction
-	| ISessionPermissionRequestAction
-	| ISessionPermissionResolvedAction
-	| ISessionTurnCompleteAction
-	| ISessionTurnCancelledAction
-	| ISessionErrorAction
-	| ISessionTitleChangedAction
-	| ISessionUsageAction
-	| ISessionReasoningAction
-	| ISessionModelChangedAction
-	| ISessionServerToolsChangedAction
-	| ISessionActiveClientChangedAction
-	| ISessionActiveClientToolsChangedAction;
 
 // Notifications
 export type INotification = IProtocolNotification;

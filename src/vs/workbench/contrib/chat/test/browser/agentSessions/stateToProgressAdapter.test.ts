@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { TurnState, type ICompletedToolCall, type IPermissionRequest, type IToolCallRunningState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ToolCallStatus, ToolCallConfirmationReason, PermissionKind, ToolResultContentType, TurnState, type ICompletedToolCall, type IPermissionRequest, type IToolCallRunningState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocationSerialized, type IChatMarkdownContent } from '../../../common/chatService/chatService.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory, toolCallStateToInvocation, permissionToConfirmation, finalizeToolInvocation } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -18,21 +18,21 @@ function createToolCallState(overrides?: Partial<IToolCallRunningState>): IToolC
 		toolName: 'test_tool',
 		displayName: 'Test Tool',
 		invocationMessage: 'Running test tool...',
-		status: 'running',
-		confirmed: 'not-needed',
+		status: ToolCallStatus.Running,
+		confirmed: ToolCallConfirmationReason.NotNeeded,
 		...overrides,
 	};
 }
 
 function createCompletedToolCall(overrides?: Partial<ICompletedToolCall>): ICompletedToolCall {
 	return {
-		status: 'completed',
+		status: ToolCallStatus.Completed,
 		toolCallId: 'tc-1',
 		toolName: 'test_tool',
 		displayName: 'Test Tool',
 		invocationMessage: 'Running test tool...',
 		success: true,
-		confirmed: 'not-needed',
+		confirmed: ToolCallConfirmationReason.NotNeeded,
 		pastTenseMessage: 'Ran test tool',
 		...overrides,
 	} as ICompletedToolCall;
@@ -54,7 +54,7 @@ function createTurn(overrides?: Partial<ITurn>): ITurn {
 function createPermission(overrides?: Partial<IPermissionRequest>): IPermissionRequest {
 	return {
 		requestId: 'perm-1',
-		permissionKind: 'shell',
+		permissionKind: PermissionKind.Shell,
 		...overrides,
 	};
 }
@@ -103,7 +103,7 @@ suite('stateToProgressAdapter', () => {
 				toolCalls: [createCompletedToolCall({
 					_meta: { toolKind: 'terminal', language: 'shellscript' },
 					toolInput: 'echo hello',
-					content: [{ type: 'text', text: 'hello' }],
+					content: [{ type: ToolResultContentType.Text, text: 'hello' }],
 					success: true,
 				})],
 			});
@@ -157,7 +157,7 @@ suite('stateToProgressAdapter', () => {
 				toolCalls: [createCompletedToolCall({
 					_meta: { toolKind: 'terminal' },
 					toolInput: 'bad-command',
-					content: [{ type: 'text', text: 'error' }],
+					content: [{ type: ToolResultContentType.Text, text: 'error' }],
 					success: false,
 				})],
 			});
@@ -183,7 +183,7 @@ suite('stateToProgressAdapter', () => {
 				toolName: 'my_tool',
 				displayName: 'My Tool',
 				invocationMessage: 'Doing stuff',
-				status: 'running',
+				status: ToolCallStatus.Running,
 			});
 
 			const invocation = toolCallStateToInvocation(tc);
@@ -217,7 +217,7 @@ suite('stateToProgressAdapter', () => {
 
 		test('shell permission has terminal data', () => {
 			const perm = createPermission({
-				permissionKind: 'shell',
+				permissionKind: PermissionKind.Shell,
 				fullCommandText: 'rm -rf /',
 				intention: 'Delete everything',
 			});
@@ -231,7 +231,7 @@ suite('stateToProgressAdapter', () => {
 
 		test('mcp permission uses server + tool name as title', () => {
 			const perm = createPermission({
-				permissionKind: 'mcp',
+				permissionKind: PermissionKind.Mcp,
 				serverName: 'My Server',
 				toolName: 'my_tool',
 			});
@@ -243,7 +243,7 @@ suite('stateToProgressAdapter', () => {
 
 		test('write permission has input data', () => {
 			const perm = createPermission({
-				permissionKind: 'write',
+				permissionKind: PermissionKind.Write,
 				path: '/test.ts',
 				rawRequest: '{"path":"/test.ts","content":"hello"}',
 			});
@@ -260,22 +260,22 @@ suite('stateToProgressAdapter', () => {
 			const tc = createToolCallState({
 				_meta: { toolKind: 'terminal' },
 				toolInput: 'echo hi',
-				status: 'running',
+				status: ToolCallStatus.Running,
 			});
 			const invocation = toolCallStateToInvocation(tc);
 
 			finalizeToolInvocation(invocation, {
-				status: 'completed',
+				status: ToolCallStatus.Completed,
 				toolCallId: 'tc-1',
 				toolName: 'test_tool',
 				displayName: 'Test Tool',
 				invocationMessage: 'Running test tool...',
 				_meta: { toolKind: 'terminal' },
 				toolInput: 'echo hi',
-				confirmed: 'not-needed',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
 				success: true,
 				pastTenseMessage: 'Ran echo hi',
-				content: [{ type: 'text', text: 'output text' }],
+				content: [{ type: ToolResultContentType.Text, text: 'output text' }],
 			});
 
 			assert.ok(invocation.toolSpecificData);
@@ -287,17 +287,17 @@ suite('stateToProgressAdapter', () => {
 
 		test('finalizes failed tool with error message', () => {
 			const tc = createToolCallState({
-				status: 'running',
+				status: ToolCallStatus.Running,
 			});
 			const invocation = toolCallStateToInvocation(tc);
 
 			finalizeToolInvocation(invocation, {
-				status: 'completed',
+				status: ToolCallStatus.Completed,
 				toolCallId: 'tc-1',
 				toolName: 'test_tool',
 				displayName: 'Test Tool',
 				invocationMessage: 'Running test tool...',
-				confirmed: 'not-needed',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
 				success: false,
 				pastTenseMessage: 'Failed',
 				error: { message: 'timeout' },

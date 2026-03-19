@@ -10,11 +10,10 @@ import { IApplicationStorageMainService } from '../../storage/electron-main/stor
 import { BrowserViewStorageScope } from '../common/browserView.js';
 import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust.js';
 
-// Same as webviews
+// Same as webviews, minus clipboard-read
 const allowedPermissions = new Set([
 	'pointerLock',
 	'notifications',
-	'clipboard-read',
 	'clipboard-sanitized-write'
 ]);
 

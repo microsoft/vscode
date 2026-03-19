@@ -54,8 +54,10 @@ export enum ChatConfiguration {
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 	ChatCustomizationMenuEnabled = 'chat.customizationsMenu.enabled',
+	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
 	AutopilotEnabled = 'chat.autopilot.enabled',
 	ImageCarouselEnabled = 'chat.imageCarousel.enabled',
+	ArtifactsEnabled = 'chat.artifacts.enabled',
 }
 
 /**

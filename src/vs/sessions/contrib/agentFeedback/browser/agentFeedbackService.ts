@@ -69,6 +69,11 @@ export interface IAgentFeedbackService {
 	removeFeedback(sessionResource: URI, feedbackId: string): void;
 
 	/**
+	 * Update the text of an existing feedback item.
+	 */
+	updateFeedback(sessionResource: URI, feedbackId: string, newText: string): void;
+
+	/**
 	 * Get all feedback items for a session.
 	 */
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[];
@@ -216,6 +221,25 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 				this._sessionUpdatedOrder.delete(key);
 			}
 
+			this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
+		}
+	}
+
+	updateFeedback(sessionResource: URI, feedbackId: string, newText: string): void {
+		const key = sessionResource.toString();
+		const feedbackItems = this._feedbackBySession.get(key);
+		if (!feedbackItems) {
+			return;
+		}
+
+		const idx = feedbackItems.findIndex(f => f.id === feedbackId);
+		if (idx >= 0) {
+			const existing = feedbackItems[idx];
+			feedbackItems[idx] = {
+				...existing,
+				text: newText,
+			};
+			this._sessionUpdatedOrder.set(key, ++this._sessionUpdatedSequence);
 			this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
 		}
 	}

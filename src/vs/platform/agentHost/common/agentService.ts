@@ -8,6 +8,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IActionEnvelope, INotification, ISessionAction } from './state/sessionActions.js';
 import type { IBrowseDirectoryResult, IStateSnapshot } from './state/sessionProtocol.js';
+import { AttachmentType, PermissionKind, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -52,7 +53,7 @@ export interface IAgentCreateSessionConfig {
 
 /** Serializable attachment passed alongside a message to the agent host. */
 export interface IAgentAttachment {
-	readonly type: 'file' | 'directory' | 'selection';
+	readonly type: AttachmentType;
 	readonly path: string;
 	readonly displayName?: string;
 	/** For selections: the selected text. */
@@ -74,7 +75,7 @@ export interface IAgentModelInfo {
 	readonly supportsReasoningEffort: boolean;
 	readonly supportedReasoningEfforts?: readonly string[];
 	readonly defaultReasoningEffort?: string;
-	readonly policyState?: 'enabled' | 'disabled' | 'unconfigured';
+	readonly policyState?: PolicyState;
 	readonly billingMultiplier?: number;
 }
 
@@ -190,7 +191,7 @@ export interface IAgentPermissionRequestEvent extends IAgentProgressEventBase {
 	/** Unique ID for correlating the response. */
 	readonly requestId: string;
 	/** The kind of permission being requested. */
-	readonly permissionKind: 'shell' | 'write' | 'mcp' | 'read' | 'url';
+	readonly permissionKind: PermissionKind;
 	/** The tool call ID that triggered this permission request. */
 	readonly toolCallId?: string;
 	/** File path involved (for read/write). */

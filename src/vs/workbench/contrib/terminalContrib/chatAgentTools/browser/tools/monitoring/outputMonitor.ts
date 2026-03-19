@@ -1069,7 +1069,13 @@ const taskFinishMessages = [
 	// "Press any key to close the terminal." (with exit code placeholder removed for matching)
 	localize('exitCode.closeTerminal', "Press any key to close the terminal."),
 	localize('exitCode.reuseTerminal', "Press any key to close the terminal."),
+	// Punctuation variant: "The terminal will be reused by tasks. Press any key to close."
+	localize('reuseTerminal.pressClose', "The terminal will be reused by tasks. Press any key to close."),
 ];
+
+const normalizedTaskFinishMessages = taskFinishMessages.map(msg =>
+	msg.replace(/[\s.,:;!?"'`()[\]{}<>\-_/\\]+/g, '').toLowerCase()
+);
 
 /**
  * Detects VS Code's specific task completion messages like:
@@ -1080,9 +1086,9 @@ const taskFinishMessages = [
  * that can split words across lines (e.g., "t\no" instead of "to").
  */
 export function detectsVSCodeTaskFinishMessage(cursorLine: string): boolean {
-	// Remove all whitespace to handle line wrapping that splits words mid-word
-	const normalized = cursorLine.replace(/\s/g, '').toLowerCase();
-	return taskFinishMessages.some(msg => normalized.includes(msg.replace(/\s/g, '').toLowerCase()));
+	// Be tolerant to whitespace, punctuation, and line wrapping that can split words mid-word.
+	const compact = cursorLine.replace(/[\s.,:;!?"'`()[\]{}<>\-_/\\]+/g, '').toLowerCase();
+	return normalizedTaskFinishMessages.some(msg => compact.includes(msg));
 }
 
 /**

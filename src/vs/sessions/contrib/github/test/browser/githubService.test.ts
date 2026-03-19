@@ -10,7 +10,7 @@ import { NullLogService, ILogService } from '../../../../../platform/log/common/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { GitHubService } from '../../browser/githubService.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../../sessions/common/sessionProject.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../../sessions/common/sessionWorkspace.js';
 import { IActiveSessionItem } from '../../../sessions/browser/sessionsManagementService.js';
 
 suite('GitHubService', () => {

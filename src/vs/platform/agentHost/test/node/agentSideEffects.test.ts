@@ -14,8 +14,8 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
-import { IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
-import { SessionStatus } from '../../common/state/sessionState.js';
+import { ActionType, IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
+import { PermissionKind, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { SessionStateManager } from '../../node/sessionStateManager.js';
 import { MockAgent } from './mockAgent.js';
@@ -42,12 +42,12 @@ suite('AgentSideEffects', () => {
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
 		});
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri.toString() });
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri.toString() });
 	}
 
 	function startTurn(turnId: string): void {
 		stateManager.dispatchClientAction(
-			{ type: 'session/turnStarted', session: sessionUri.toString(), turnId, userMessage: { text: 'hello' } },
+			{ type: ActionType.SessionTurnStarted, session: sessionUri.toString(), turnId, userMessage: { text: 'hello' } },
 			{ clientId: 'test', clientSeq: 1 },
 		);
 	}
@@ -84,7 +84,7 @@ suite('AgentSideEffects', () => {
 		test('calls sendMessage on the agent', async () => {
 			setupSession();
 			const action: ISessionAction = {
-				type: 'session/turnStarted',
+				type: ActionType.SessionTurnStarted,
 				session: sessionUri.toString(),
 				turnId: 'turn-1',
 				userMessage: { text: 'hello world' },
@@ -109,13 +109,13 @@ suite('AgentSideEffects', () => {
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			noAgentSideEffects.handleAction({
-				type: 'session/turnStarted',
+				type: ActionType.SessionTurnStarted,
 				session: sessionUri.toString(),
 				turnId: 'turn-1',
 				userMessage: { text: 'hello' },
 			});
 
-			const errorAction = envelopes.find(e => e.action.type === 'session/error');
+			const errorAction = envelopes.find(e => e.action.type === ActionType.SessionError);
 			assert.ok(errorAction, 'should dispatch session/error');
 		});
 	});
@@ -127,7 +127,7 @@ suite('AgentSideEffects', () => {
 		test('calls abortSession on the agent', async () => {
 			setupSession();
 			sideEffects.handleAction({
-				type: 'session/turnCancelled',
+				type: ActionType.SessionTurnCancelled,
 				session: sessionUri.toString(),
 				turnId: 'turn-1',
 			});
@@ -152,14 +152,14 @@ suite('AgentSideEffects', () => {
 				session: sessionUri,
 				type: 'permission_request',
 				requestId: 'perm-1',
-				permissionKind: 'write',
+				permissionKind: PermissionKind.Write,
 				path: 'file.ts',
 				rawRequest: '{}',
 			});
 
 			// Now resolve it
 			sideEffects.handleAction({
-				type: 'session/permissionResolved',
+				type: ActionType.SessionPermissionResolved,
 				session: sessionUri.toString(),
 				turnId: 'turn-1',
 				requestId: 'perm-1',
@@ -177,7 +177,7 @@ suite('AgentSideEffects', () => {
 		test('calls changeModel on the agent', async () => {
 			setupSession();
 			sideEffects.handleAction({
-				type: 'session/modelChanged',
+				type: ActionType.SessionModelChanged,
 				session: sessionUri.toString(),
 				model: 'gpt-5',
 			});
@@ -202,7 +202,7 @@ suite('AgentSideEffects', () => {
 
 			agent.fireProgress({ session: sessionUri, type: 'delta', messageId: 'msg-1', content: 'hi' });
 
-			assert.ok(envelopes.some(e => e.action.type === 'session/delta'));
+			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionDelta));
 		});
 
 		test('returns a disposable that stops listening', () => {
@@ -214,11 +214,11 @@ suite('AgentSideEffects', () => {
 			const listener = sideEffects.registerProgressListener(agent);
 
 			agent.fireProgress({ session: sessionUri, type: 'delta', messageId: 'msg-1', content: 'before' });
-			assert.strictEqual(envelopes.filter(e => e.action.type === 'session/delta').length, 1);
+			assert.strictEqual(envelopes.filter(e => e.action.type === ActionType.SessionDelta).length, 1);
 
 			listener.dispose();
 			agent.fireProgress({ session: sessionUri, type: 'delta', messageId: 'msg-2', content: 'after' });
-			assert.strictEqual(envelopes.filter(e => e.action.type === 'session/delta').length, 1);
+			assert.strictEqual(envelopes.filter(e => e.action.type === ActionType.SessionDelta).length, 1);
 		});
 	});
 
@@ -232,7 +232,7 @@ suite('AgentSideEffects', () => {
 
 			await sideEffects.handleCreateSession({ session: sessionUri.toString(), provider: 'mock' });
 
-			const ready = envelopes.find(e => e.action.type === 'session/ready');
+			const ready = envelopes.find(e => e.action.type === ActionType.SessionReady);
 			assert.ok(ready, 'should dispatch session/ready');
 		});
 
@@ -318,7 +318,7 @@ suite('AgentSideEffects', () => {
 			// Model fetch is async — wait for it
 			await new Promise(r => setTimeout(r, 50));
 
-			const action = envelopes.find(e => e.action.type === 'root/agentsChanged');
+			const action = envelopes.find(e => e.action.type === ActionType.RootAgentsChanged);
 			assert.ok(action, 'should dispatch root/agentsChanged');
 		});
 	});
