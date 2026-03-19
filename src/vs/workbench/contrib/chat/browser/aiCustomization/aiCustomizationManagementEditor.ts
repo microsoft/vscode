@@ -287,6 +287,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private pluginDetailContainer: HTMLElement | undefined;
 	private embeddedPluginEditor: AgentPluginEditor | undefined;
 	private readonly pluginDetailDisposables = this._register(new DisposableStore());
+	/** Section to restore when navigating back from plugin detail (when opened from a non-plugin section). */
+	private pluginDetailReturnSection: AICustomizationManagementSection | undefined;
 
 	private dimension: DOM.Dimension | undefined;
 	private readonly sections: ISectionItem[] = [];
@@ -775,6 +777,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.editorDisposables.add(this.mcpListWidget.onDidSelectServer(server => {
 				this.showEmbeddedMcpDetail(server);
 			}));
+
+			this.editorDisposables.add(this.mcpListWidget.onDidRequestShowPlugin(item => {
+				this.showPluginDetail(item);
+			}));
 		}
 
 		// Container for Plugins content
@@ -788,6 +794,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.createEmbeddedPluginDetail();
 
 			this.editorDisposables.add(this.pluginListWidget.onDidSelectPlugin(item => {
+				this.pluginDetailReturnSection = undefined;
 				this.showEmbeddedPluginDetail(item);
 			}));
 		}
@@ -1794,16 +1801,40 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
+	/**
+	 * Public method to show a plugin detail from any section (e.g. from "Show Plugin" context menu).
+	 * Saves the current section so the back button returns the user to it.
+	 */
+	public async showPluginDetail(item: IAgentPluginItem): Promise<void> {
+		if (this.selectedSection !== AICustomizationManagementSection.Plugins) {
+			this.pluginDetailReturnSection = this.selectedSection;
+		}
+		await this.showEmbeddedPluginDetail(item);
+	}
+
 	private goBackFromPluginDetail(): void {
 		this.pluginDetailDisposables.clear();
 		this.embeddedPluginEditor?.clearInput();
-		this.viewMode = 'list';
-		this.updateContentVisibility();
+
+		const returnSection = this.pluginDetailReturnSection;
+		this.pluginDetailReturnSection = undefined;
+
+		if (returnSection) {
+			// Return to the section the user was on before opening the plugin detail.
+			// selectSection may early-return when the section hasn't changed, so always
+			// ensure viewMode and content visibility are updated.
+			this.viewMode = 'list';
+			this.updateContentVisibility();
+			this.selectSection(returnSection);
+		} else {
+			this.viewMode = 'list';
+			this.updateContentVisibility();
+			this.pluginListWidget?.focusSearch();
+		}
 
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
-		this.pluginListWidget?.focusSearch();
 	}
 
 	//#endregion
