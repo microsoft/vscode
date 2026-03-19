@@ -26,7 +26,6 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IUndoRedoElement, IUndoRedoService, UndoRedoElementType } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { IEditorPane, SaveReason } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
@@ -108,18 +107,12 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			const notebookService = accessor.get(INotebookService);
 			const resolver = accessor.get(INotebookEditorModelResolverService);
 			const configurationServie = accessor.get(IConfigurationService);
-			const telemetryService = accessor.get(ITelemetryService);
 			const resourceRef: IReference<IResolvedNotebookEditorModel> = await resolver.resolve(uri);
 			const notebook = resourceRef.object.notebook;
 			const originalUri = getNotebookSnapshotFileURI(telemetryInfo.sessionResource, telemetryInfo.requestId, generateUuid(), notebook.uri.scheme === Schemas.untitled ? `/${notebook.uri.path}` : notebook.uri.path, notebook.viewType);
 			const [options, buffer] = await Promise.all([
 				notebookService.withNotebookDataProvider(resourceRef.object.notebook.notebookType),
 				notebookService.createNotebookTextDocumentSnapshot(notebook.uri, SnapshotContext.Backup, CancellationToken.None).then(s => streamToBuffer(s))
-					.catch(e => {
-						// When backup snapshot fails (e.g. outputs exceed size limit), fall back to Save context.
-						telemetryService.publicLogError2<NotebookSnapshotErrorEvent, NotebookSnapshotErrorClassification>('chatEditing/notebookSnapshotError', { operation: 'create', errorMessage: String(e?.message ?? e) });
-						return notebookService.createNotebookTextDocumentSnapshot(notebook.uri, SnapshotContext.Save, CancellationToken.None).then(s => streamToBuffer(s));
-					})
 			]);
 			const disposables = new DisposableStore();
 			// Register so that we can load this from file system.
@@ -197,7 +190,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		@INotebookLoggingService private readonly loggingService: INotebookLoggingService,
 		@INotebookEditorModelResolverService private readonly notebookResolver: INotebookEditorModelResolverService,
 		@IAiEditTelemetryService aiEditTelemetryService: IAiEditTelemetryService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super(modifiedResourceRef.object.notebook.uri, telemetryInfo, kind, configurationService, fileConfigService, chatService, fileService, undoRedoService, instantiationService, aiEditTelemetryService);
 		this.initialContentComparer = new SnapshotComparer(initialContent);
@@ -920,7 +912,12 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	public getCurrentSnapshot() {
-		return createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
+		try {
+			return createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
+		} catch (e) {
+			this.loggingService.error('Notebook Chat', `Error creating snapshot for ${this.modifiedModel.uri}: ${e}`);
+			return this.initialContent;
+		}
 	}
 
 	override createSnapshot(chatSessionResource: URI, requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
@@ -929,13 +926,13 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		try {
 			original = createSnapshot(this.originalModel, this.transientOptions, this.configurationService);
 		} catch (e) {
-			this.telemetryService.publicLogError2<NotebookSnapshotErrorEvent, NotebookSnapshotErrorClassification>('chatEditing/notebookSnapshotError', { operation: 'snapshotOriginal', errorMessage: String(e?.message ?? e) });
+			this.loggingService.error('Notebook Chat', `Error creating snapshot for original ${this.originalModel.uri}: ${e}`);
 			original = this.initialContent;
 		}
 		try {
 			current = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
 		} catch (e) {
-			this.telemetryService.publicLogError2<NotebookSnapshotErrorEvent, NotebookSnapshotErrorClassification>('chatEditing/notebookSnapshotError', { operation: 'snapshotCurrent', errorMessage: String(e?.message ?? e) });
+			this.loggingService.error('Notebook Chat', `Error creating snapshot for modified ${this.modifiedModel.uri}: ${e}`);
 			current = this.initialContent;
 		}
 		return {
@@ -1130,15 +1127,3 @@ function generateCellHash(cellUri: URI) {
 	hash.update(cellUri.toString());
 	return hash.digest().substring(0, 8);
 }
-
-type NotebookSnapshotErrorEvent = {
-	operation: string;
-	errorMessage: string;
-};
-
-type NotebookSnapshotErrorClassification = {
-	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The snapshot operation that failed (create, snapshotOriginal, snapshotCurrent).' };
-	errorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error message from the failed snapshot.' };
-	owner: 'AamundM';
-	comment: 'Tracks notebook snapshot failures in chat editing, e.g. when outputs exceed the backup size limit.';
-};
