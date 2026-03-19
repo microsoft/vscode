@@ -601,12 +601,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	private async computePromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
 		const promptFiles = await this.listPromptFiles(PromptsType.prompt, token);
-		const disabledPrompts = this.getDisabledPromptFiles(PromptsType.prompt);
 		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
 		const skills = useAgentSkills ? await this.listPromptFiles(PromptsType.skill, token) : [];
 		const disabledSkills = this.getDisabledPromptFiles(PromptsType.skill);
 		const slashCommandFiles = [
-			...promptFiles.filter(p => !disabledPrompts.has(p.uri)),
+			...promptFiles,
 			...skills.filter(s => !disabledSkills.has(s.uri)),
 		];
 		const details = await Promise.all(slashCommandFiles.map(async promptPath => {
@@ -1014,6 +1013,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			this.cachedCustomAgents.refresh();
 		} else if (type === PromptsType.skill) {
 			this.cachedSkills.refresh();
+			this.cachedSlashCommands.refresh();
 		} else if (type === PromptsType.prompt) {
 			this.cachedSlashCommands.refresh();
 		} else if (type === PromptsType.instructions) {
