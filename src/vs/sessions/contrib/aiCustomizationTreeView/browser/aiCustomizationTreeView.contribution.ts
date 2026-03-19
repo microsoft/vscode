@@ -7,7 +7,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { AICustomizationItemMenuId } from './aiCustomizationTreeView.js';
+import { AI_CUSTOMIZATION_VIEW_ID, AICustomizationItemMenuId } from './aiCustomizationTreeView.js';
 import { AICustomizationItemDisabledContextKey, AICustomizationItemStorageContextKey, AICustomizationItemTypeContextKey, AICustomizationViewPane } from './aiCustomizationTreeViewViews.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -19,7 +19,6 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { AI_CUSTOMIZATION_VIEW_ID } from './aiCustomizationTreeView.js';
 import { BUILTIN_STORAGE } from '../../chat/common/builtinPromptsStorage.js';
 
 //#region Utilities
