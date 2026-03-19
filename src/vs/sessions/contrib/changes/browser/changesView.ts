@@ -13,7 +13,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable, IObservableWithChange, ObservablePromise, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IObservableWithChange, ISettableObservable, ObservablePromise, observableSignalFromEvent, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { basename, dirname } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -23,7 +23,7 @@ import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/but
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId, Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -35,7 +35,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -210,13 +210,31 @@ class ChangesViewModel extends Disposable {
 	readonly activeSessionRepositoryObs: IObservableWithChange<IGitRepository | undefined>;
 	readonly activeSessionChangesObs: IObservable<readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[]>;
 
+	readonly versionModeObs: ISettableObservable<ChangesVersionMode>;
+	setVersionMode(mode: ChangesVersionMode): void {
+		if (this.versionModeObs.get() === mode) {
+			return;
+		}
+		this.versionModeObs.set(mode, undefined);
+	}
+
+	readonly viewModeObs: ISettableObservable<ChangesViewMode>;
+	setViewMode(mode: ChangesViewMode): void {
+		if (this.viewModeObs.get() === mode) {
+			return;
+		}
+		this.viewModeObs.set(mode, undefined);
+	}
+
 	constructor(
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IGitService private readonly gitService: IGitService,
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
+		// Active session changes
 		this.sessionsChangedSignal = observableSignalFromEvent(this,
 			this.agentSessionsService.model.onDidChangeSessions);
 
@@ -263,6 +281,18 @@ class ChangesViewModel extends Disposable {
 
 			return activeSessionRepositoryPromise.read(reader);
 		});
+
+		// Version mode
+		this.versionModeObs = observableValue<ChangesVersionMode>(this, ChangesVersionMode.AllChanges);
+
+		this._register(runOnChange(this.activeSessionResourceObs, () => {
+			this.setVersionMode(ChangesVersionMode.AllChanges);
+		}));
+
+		// View mode
+		const storedMode = this.storageService.get('changesView.viewMode', StorageScope.WORKSPACE);
+		const initialMode = storedMode === ChangesViewMode.Tree ? ChangesViewMode.Tree : ChangesViewMode.List;
+		this.viewModeObs = observableValue<ChangesViewMode>(this, initialMode);
 	}
 }
 
@@ -288,33 +318,7 @@ export class ChangesViewPane extends ViewPane {
 	private currentBodyHeight = 0;
 	private currentBodyWidth = 0;
 
-	// View mode (list vs tree)
-	private readonly viewModeObs: ReturnType<typeof observableValue<ChangesViewMode>>;
-	private readonly viewModeContextKey: IContextKey<ChangesViewMode>;
-
-	get viewMode(): ChangesViewMode { return this.viewModeObs.get(); }
-	set viewMode(mode: ChangesViewMode) {
-		if (this.viewModeObs.get() === mode) {
-			return;
-		}
-		this.viewModeObs.set(mode, undefined);
-		this.viewModeContextKey.set(mode);
-		this.storageService.store('changesView.viewMode', mode, StorageScope.WORKSPACE, StorageTarget.USER);
-	}
-
-	// Version mode (all changes, last turn, uncommitted)
-	private readonly versionModeObs = observableValue<ChangesVersionMode>(this, ChangesVersionMode.AllChanges);
-	private readonly versionModeContextKey: IContextKey<ChangesVersionMode>;
-
-	setVersionMode(mode: ChangesVersionMode): void {
-		if (this.versionModeObs.get() === mode) {
-			return;
-		}
-		this.versionModeObs.set(mode, undefined);
-		this.versionModeContextKey.set(mode);
-	}
-
-	private readonly viewModel: ChangesViewModel;
+	readonly viewModel: ChangesViewModel;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -332,7 +336,6 @@ export class ChangesViewPane extends ViewPane {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IStorageService private readonly storageService: IStorageService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 	) {
@@ -340,25 +343,22 @@ export class ChangesViewPane extends ViewPane {
 
 		this.viewModel = this.instantiationService.createInstance(ChangesViewModel);
 
-		// View mode
-		const storedMode = this.storageService.get('changesView.viewMode', StorageScope.WORKSPACE);
-		const initialMode = storedMode === ChangesViewMode.Tree ? ChangesViewMode.Tree : ChangesViewMode.List;
-
-		this.viewModeObs = observableValue<ChangesViewMode>(this, initialMode);
-		this.viewModeContextKey = changesViewModeContextKey.bindTo(contextKeyService);
-		this.viewModeContextKey.set(initialMode);
-
 		// Version mode
-		this.versionModeContextKey = changesVersionModeContextKey.bindTo(contextKeyService);
-		this.versionModeContextKey.set(ChangesVersionMode.AllChanges);
+		this._register(bindContextKey(changesVersionModeContextKey, this.scopedContextKeyService, reader => {
+			return this.viewModel.versionModeObs.read(reader);
+		}));
 
-		// Set chatSessionType on the view's context key service so ViewTitle
-		// menu items can use it in their `when` clauses. Update reactively
-		// when the active session changes.
-		const viewSessionTypeKey = this.scopedContextKeyService.createKey<string>(ChatContextKeys.agentSessionType.key, '');
-		this._register(autorun(reader => {
+		// View mode
+		this._register(bindContextKey(changesViewModeContextKey, this.scopedContextKeyService, reader => {
+			return this.viewModel.viewModeObs.read(reader);
+		}));
+
+		// Set chatSessionType on the view's context key service so ViewTitlev menu items
+		// can use it in their `when` clauses. Update reactively when the active session
+		// changes.
+		this._register(bindContextKey(ChatContextKeys.agentSessionType, this.scopedContextKeyService, reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
-			viewSessionTypeKey.set(activeSession?.providerType ?? '');
+			return activeSession?.providerType ?? '';
 		}));
 
 		// Badge
@@ -546,9 +546,9 @@ export class ChangesViewPane extends ViewPane {
 		// Combine both entry sources for display
 		const combinedEntriesObs = derived(reader => {
 			const headCommit = headCommitObs.read(reader);
-			const versionMode = this.versionModeObs.read(reader);
 			const sessionFiles = sessionFilesObs.read(reader);
 			const lastTurnDiffChanges = lastTurnChangesObs.read(reader).read(reader);
+			const versionMode = this.viewModel.versionModeObs.read(reader);
 
 			let sourceEntries: IChangesFileItem[];
 			if (versionMode === ChangesVersionMode.LastTurn) {
@@ -791,7 +791,7 @@ export class ChangesViewPane extends ViewPane {
 					},
 					compressionEnabled: true,
 					twistieAdditionalCssClass: (e: unknown) => {
-						return this.viewMode === ChangesViewMode.List
+						return this.viewModel.viewModeObs.get() === ChangesViewMode.List
 							? 'force-no-twistie'
 							: undefined;
 					},
@@ -886,7 +886,7 @@ export class ChangesViewPane extends ViewPane {
 		// Update tree data with combined entries
 		this.renderDisposables.add(autorun(reader => {
 			const entries = combinedEntriesObs.read(reader);
-			const viewMode = this.viewModeObs.read(reader);
+			const viewMode = this.viewModel.viewModeObs.read(reader);
 
 			if (!this.tree) {
 				return;
@@ -1233,7 +1233,7 @@ class SetChangesListViewModeAction extends ViewAction<ChangesViewPane> {
 	}
 
 	async runInView(_: ServicesAccessor, view: ChangesViewPane): Promise<void> {
-		view.viewMode = ChangesViewMode.List;
+		view.viewModel.setViewMode(ChangesViewMode.List);
 	}
 }
 
@@ -1256,7 +1256,7 @@ class SetChangesTreeViewModeAction extends ViewAction<ChangesViewPane> {
 	}
 
 	async runInView(_: ServicesAccessor, view: ChangesViewPane): Promise<void> {
-		view.viewMode = ChangesViewMode.Tree;
+		view.viewModel.setViewMode(ChangesViewMode.Tree);
 	}
 }
 
@@ -1292,7 +1292,7 @@ class AllChangesAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getActiveViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
-		view?.setVersionMode(ChangesVersionMode.AllChanges);
+		view?.viewModel.setVersionMode(ChangesVersionMode.AllChanges);
 	}
 }
 registerAction2(AllChangesAction);
@@ -1315,7 +1315,7 @@ class LastTurnChangesAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getActiveViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
-		view?.setVersionMode(ChangesVersionMode.LastTurn);
+		view?.viewModel.setVersionMode(ChangesVersionMode.LastTurn);
 	}
 }
 registerAction2(LastTurnChangesAction);
