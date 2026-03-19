@@ -13,6 +13,7 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { basename, dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -22,7 +23,7 @@ import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promp
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { AGENT_MD_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon, pluginIcon, builtinIcon } from './aiCustomizationIcons.js';
-import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AICustomizationManagementItemMenuId, AICustomizationManagementSection, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
+import { AI_CUSTOMIZATION_ITEM_DISABLED_KEY, AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AICustomizationManagementItemMenuId, AICustomizationManagementSection, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { Delayer } from '../../../../../base/common/async.js';
@@ -88,6 +89,7 @@ export interface IAICustomizationListItem {
 	readonly description?: string;
 	readonly storage: PromptsStorage;
 	readonly promptType: PromptsType;
+	readonly disabled: boolean;
 	/** When set, overrides `storage` for display grouping purposes. */
 	readonly groupKey?: string;
 	nameMatches?: IMatch[];
@@ -310,6 +312,9 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			};
 		}));
 
+		// Apply disabled styling
+		templateData.container.classList.toggle('disabled', element.disabled);
+
 		// Name with highlights — nameMatches are pre-computed against the formatted display name
 		const displayName = formatDisplayName(element.name);
 		templateData.nameLabel.set(displayName, element.nameMatches);
@@ -359,6 +364,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			[AI_CUSTOMIZATION_ITEM_TYPE_KEY, element.promptType],
 			[AI_CUSTOMIZATION_ITEM_STORAGE_KEY, element.storage],
 			[AI_CUSTOMIZATION_ITEM_URI_KEY, element.uri.toString()],
+			[AI_CUSTOMIZATION_ITEM_DISABLED_KEY, element.disabled],
 		]);
 
 		const menu = templateData.elementDisposables.add(
@@ -560,9 +566,12 @@ export class AICustomizationListWidget extends Disposable {
 						if (entry.type === 'group-header') {
 							return localize('groupAriaLabel', "{0}, {1} items, {2}", entry.label, entry.count, entry.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 						}
-						return entry.item.description
+						const nameAndDesc = entry.item.description
 							? localize('itemAriaLabel', "{0}, {1}", entry.item.name, entry.item.description)
 							: entry.item.name;
+						return entry.item.disabled
+							? localize('itemAriaLabelDisabled', "{0}, disabled", nameAndDesc)
+							: nameAndDesc;
 					},
 					getWidgetAriaLabel: () => localize('listAriaLabel', "Chat Customizations"),
 				},
@@ -591,6 +600,7 @@ export class AICustomizationListWidget extends Disposable {
 		// Subscribe to prompt service changes
 		this._register(this.promptsService.onDidChangeCustomAgents(() => this.refresh()));
 		this._register(this.promptsService.onDidChangeSlashCommands(() => this.refresh()));
+		this._register(this.promptsService.onDidChangeSkills(() => this.refresh()));
 
 		// Refresh on file deletions so the list updates after inline delete actions
 		this._register(this.fileService.onDidFilesChange(e => {
@@ -636,6 +646,7 @@ export class AICustomizationListWidget extends Disposable {
 			[AI_CUSTOMIZATION_ITEM_TYPE_KEY, item.promptType],
 			[AI_CUSTOMIZATION_ITEM_STORAGE_KEY, item.storage],
 			[AI_CUSTOMIZATION_ITEM_URI_KEY, item.uri.toString()],
+			[AI_CUSTOMIZATION_ITEM_DISABLED_KEY, item.disabled],
 		]);
 
 		// Get menu actions, excluding inline actions to avoid duplicates
@@ -921,6 +932,7 @@ export class AICustomizationListWidget extends Disposable {
 	private async fetchItemsForSection(section: AICustomizationManagementSection): Promise<IAICustomizationListItem[]> {
 		const promptType = sectionToPromptType(section);
 		const items: IAICustomizationListItem[] = [];
+		const disabledUris = this.promptsService.getDisabledPromptFiles(promptType);
 
 
 		if (promptType === PromptsType.agent) {
@@ -936,14 +948,17 @@ export class AICustomizationListWidget extends Disposable {
 					description: agent.description,
 					storage: agent.source.storage,
 					promptType,
+					disabled: disabledUris.has(agent.uri),
 				});
 			}
 		} else if (promptType === PromptsType.skill) {
-			// Use findAgentSkills which has parsed name/description from frontmatter
+			// Use findAgentSkills for enabled skills (has parsed name/description from frontmatter)
 			const skills = await this.promptsService.findAgentSkills(CancellationToken.None);
+			const seenUris = new ResourceSet();
 			for (const skill of skills || []) {
 				const filename = basename(skill.uri);
 				const skillName = skill.name || basename(dirname(skill.uri)) || filename;
+				seenUris.add(skill.uri);
 				items.push({
 					id: skill.uri.toString(),
 					uri: skill.uri,
@@ -952,7 +967,27 @@ export class AICustomizationListWidget extends Disposable {
 					description: skill.description,
 					storage: skill.storage,
 					promptType,
+					disabled: false,
 				});
+			}
+			// Also include disabled skills from the raw file list
+			if (disabledUris.size > 0) {
+				const allSkillFiles = await this.promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None);
+				for (const file of allSkillFiles) {
+					if (!seenUris.has(file.uri) && disabledUris.has(file.uri)) {
+						const filename = basename(file.uri);
+						items.push({
+							id: file.uri.toString(),
+							uri: file.uri,
+							name: file.name || basename(dirname(file.uri)) || filename,
+							filename,
+							description: file.description,
+							storage: file.storage,
+							promptType,
+							disabled: true,
+						});
+					}
+				}
 			}
 		} else if (promptType === PromptsType.prompt) {
 			// Use getPromptSlashCommands which has parsed name/description from frontmatter
@@ -971,6 +1006,7 @@ export class AICustomizationListWidget extends Disposable {
 					description: command.description,
 					storage: command.promptPath.storage,
 					promptType,
+					disabled: disabledUris.has(command.promptPath.uri),
 				});
 			}
 		} else if (promptType === PromptsType.hook) {
@@ -1003,6 +1039,7 @@ export class AICustomizationListWidget extends Disposable {
 									description: truncatedCmd || localize('hookUnset', "(unset)"),
 									storage: hookFile.storage,
 									promptType,
+									disabled: disabledUris.has(hookFile.uri),
 								});
 							}
 						}
@@ -1020,6 +1057,7 @@ export class AICustomizationListWidget extends Disposable {
 						filename,
 						storage: hookFile.storage,
 						promptType,
+						disabled: disabledUris.has(hookFile.uri),
 					});
 				}
 			}
@@ -1050,6 +1088,7 @@ export class AICustomizationListWidget extends Disposable {
 							storage: agent.source.storage,
 							groupKey: 'agents',
 							promptType,
+							disabled: disabledUris.has(agent.uri),
 						});
 					}
 				}
@@ -1096,6 +1135,7 @@ export class AICustomizationListWidget extends Disposable {
 					description: item.description,
 					storage: item.storage,
 					promptType,
+					disabled: disabledUris.has(item.uri),
 				};
 			};
 
