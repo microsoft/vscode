@@ -1163,9 +1163,9 @@ suite('ComputeAutomaticInstructions', () => {
 				assert.strictEqual(event.data.skillStorage, 'local', 'skillStorage should be local for workspace skills');
 				// Local skills have no extension or plugin provenance
 				assert.strictEqual(event.data.extensionIdHash, '', 'extensionIdHash should be empty for local skills');
-				assert.strictEqual(event.data.extensionVersionHash, '', 'extensionVersionHash should be empty for local skills');
+				assert.strictEqual(event.data.extensionVersion, '', 'extensionVersion should be empty for local skills');
 				assert.strictEqual(event.data.pluginNameHash, '', 'pluginNameHash should be empty for local skills');
-				assert.strictEqual(event.data.pluginVersionHash, '', 'pluginVersionHash should be empty for local skills');
+				assert.strictEqual(event.data.pluginVersion, '', 'pluginVersion should be empty for local skills');
 			}
 
 			// The two events should have different name hashes (different skill names)

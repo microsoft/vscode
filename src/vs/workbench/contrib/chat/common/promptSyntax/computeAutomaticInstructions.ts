@@ -144,9 +144,9 @@ export class ComputeAutomaticInstructions {
 			skillStorage: string;
 			skillContentHash: string;
 			extensionIdHash: string;
-			extensionVersionHash: string;
+			extensionVersion: string;
 			pluginNameHash: string;
-			pluginVersionHash: string;
+			pluginVersion: string;
 		};
 
 		type SkillLoadedIntoContextClassification = {
@@ -154,9 +154,9 @@ export class ComputeAutomaticInstructions {
 			skillStorage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The storage source of the skill (local, user, extension, plugin, internal).' };
 			skillContentHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the SKILL.md file content to detect modifications.' };
 			extensionIdHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the contributing extension identifier, empty if none.' };
-			extensionVersionHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the contributing extension version, empty if none.' };
+			extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Semver version of the contributing extension, empty if none.' };
 			pluginNameHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the plugin display name, empty if not from a plugin.' };
-			pluginVersionHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the plugin marketplace version, empty if unavailable.' };
+			pluginVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Semver version of the plugin, empty if unavailable.' };
 			owner: 'manishj, dbreshears';
 			comment: 'Tracks individual skill loading into agent context with provenance metadata.';
 		};
@@ -172,18 +172,16 @@ export class ComputeAutomaticInstructions {
 
 		const provenance = skill.provenance;
 		const extensionIdHash = provenance?.extensionId ? await hashAsync(provenance.extensionId) : '';
-		const extensionVersionHash = provenance?.extensionVersion ? await hashAsync(provenance.extensionVersion) : '';
 		const pluginNameHash = provenance?.pluginName ? await hashAsync(provenance.pluginName) : '';
-		const pluginVersionHash = provenance?.pluginVersion ? await hashAsync(provenance.pluginVersion) : '';
 
 		this._telemetryService.publicLog2<SkillLoadedIntoContextEvent, SkillLoadedIntoContextClassification>('skillLoadedIntoContext', {
 			skillNameHash: nameHash,
 			skillStorage: skill.storage,
 			skillContentHash: contentHash,
 			extensionIdHash,
-			extensionVersionHash,
+			extensionVersion: provenance?.extensionVersion ?? '',
 			pluginNameHash,
-			pluginVersionHash,
+			pluginVersion: provenance?.pluginVersion ?? '',
 		});
 	}
 
