@@ -114,7 +114,8 @@ suite('RunInTerminalTool', () => {
 			wrapCommand: (command: string) => `sandbox:${command}`,
 			getSandboxConfigPath: async () => sandboxEnabled ? '/tmp/sandbox.json' : undefined,
 			getTempDir: () => undefined,
-			setNeedsForceUpdateConfigFile: () => { }
+			setNeedsForceUpdateConfigFile: () => { },
+			getOS: async () => OperatingSystem.Linux,
 		};
 		instantiationService.stub(ITerminalSandboxService, terminalSandboxService);
 
