@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroupsService, GroupsOrder } from '../../../../services/editor/common/editorGroupsService.js';
-import { GroupIdentifier } from '../../../../common/editor.js';
+import { EditorsOrder, GroupIdentifier } from '../../../../common/editor.js';
 import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPickSeparator, QuickInputButtonLocation, IQuickPick } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -25,7 +25,14 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
+import { IExternalOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { isLocalhostAuthority } from '../../../../../platform/url/common/trustedDomains.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 
 export const CONTEXT_BROWSER_EDITOR_OPEN = new RawContextKey<boolean>('browserEditorOpen', false, localize('browser.editorOpen', "Whether any browser editor is currently open"));
 
@@ -45,37 +52,6 @@ const closeAllButtonItem: IQuickInputButton = {
 	location: QuickInputButtonLocation.Inline
 };
 
-const IP_ADDRESS_PATTERN = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?(\/|$)/;
-const URL_LIKE_PATTERN = /^[\w-]+(\.[\w-]+)+(:\d+)?(\/\S*)?$/;
-const LOCALHOST_PATTERN = /^localhost(:\d+)?(\/\S*)?$/;
-
-/**
- * Checks if the input looks like a URL and returns the full URL with protocol,
- * or `undefined` if it doesn't look like a URL.
- */
-function tryParseAsUrl(value: string): string | undefined {
-	value = value.trim();
-	if (!value) {
-		return undefined;
-	}
-
-	// Already has a protocol
-	if (/^https?:\/\//i.test(value)) {
-		return value;
-	}
-
-	// localhost or IP address default to http
-	if (LOCALHOST_PATTERN.test(value) || IP_ADDRESS_PATTERN.test(value)) {
-		return `http://${value}`;
-	}
-
-	// foo.bar style domains default to https
-	if (URL_LIKE_PATTERN.test(value)) {
-		return `https://${value}`;
-	}
-
-	return undefined;
-}
 
 /**
  * Manages a quick pick that lists all open browser tabs grouped by editor group,
@@ -85,15 +61,6 @@ class BrowserTabQuickPick extends Disposable {
 
 	private readonly _quickPick: IQuickPick<IBrowserQuickPickItem, { useSeparators: true }>;
 	private readonly _itemListeners = this._register(new DisposableStore());
-	private _resolvedUrl: string | undefined;
-
-	private readonly _openUrlPick: IBrowserQuickPickItem = {
-		groupId: -1,
-		editor: undefined!,
-		label: '',
-		iconClass: ThemeIcon.asClassName(Codicon.globe),
-		alwaysShow: true,
-	};
 
 	private readonly _openNewTabPick: IBrowserQuickPickItem = {
 		groupId: -1,
@@ -116,14 +83,6 @@ class BrowserTabQuickPick extends Disposable {
 		this._quickPick.matchOnDescription = true;
 		this._quickPick.sortByLabel = false;
 		this._quickPick.buttons = [closeAllButtonItem];
-
-		this._register(this._quickPick.onDidChangeValue(value => {
-			this._resolvedUrl = tryParseAsUrl(value);
-			if (this._resolvedUrl) {
-				this._openUrlPick.label = localize('browser.openUrl', "Open {0} in New Tab", this._resolvedUrl);
-			}
-			this._buildItems();
-		}));
 
 		this._register(this._quickPick.onDidTriggerItemButton(async ({ item }) => {
 			if (!item.editor) {
@@ -157,12 +116,6 @@ class BrowserTabQuickPick extends Disposable {
 				logBrowserOpen(telemetryService, 'quickOpenWithoutUrl');
 				await this._editorService.openEditor({
 					resource: BrowserViewUri.forId(generateUuid()),
-				});
-			} else if (selected === this._openUrlPick && this._resolvedUrl) {
-				logBrowserOpen(telemetryService, 'quickOpenWithUrl');
-				await this._editorService.openEditor({
-					resource: BrowserViewUri.forId(generateUuid()),
-					options: { viewState: { url: this._resolvedUrl } },
 				});
 			} else {
 				await this._editorService.openEditor(selected.editor, selected.groupId);
@@ -246,9 +199,6 @@ class BrowserTabQuickPick extends Disposable {
 		}
 
 		picks.push({ type: 'separator' });
-		if (this._resolvedUrl) {
-			picks.push(this._openUrlPick);
-		}
 		picks.push(this._openNewTabPick);
 
 		this._quickPick.keepScrollPosition = true;
@@ -270,9 +220,10 @@ class QuickOpenBrowserAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA },
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA },
-				// On Linux, Ctrl+Shift+A is mapped to editor block comments. Don't set a keybinding to avoid conflicts.
+				// Note: on Linux this conflicts with the "toggle block comment" keybinding.
+				//       it's not as problem at the moment becase oh the `when`, but worth noting for the future.
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
+				when: BROWSER_EDITOR_ACTIVE
 			},
 			menu: {
 				id: MenuId.TitleBar,
@@ -367,9 +318,61 @@ class NewTabAction extends Action2 {
 	}
 }
 
+class CloseAllBrowserTabsAction extends Action2 {
+	constructor() {
+		super({
+			id: BrowserViewCommandId.CloseAll,
+			title: localize2('browser.closeAll', "Close All Browser Tabs"),
+			category: BrowserActionCategory,
+			f1: true,
+			precondition: CONTEXT_BROWSER_EDITOR_OPEN,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		for (const group of editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE)) {
+			const browserEditors = group.getEditors(EditorsOrder.SEQUENTIAL).filter((e): e is BrowserEditorInput => e instanceof BrowserEditorInput);
+			if (browserEditors.length > 0) {
+				await group.closeEditors(browserEditors);
+			}
+		}
+	}
+}
+
+class CloseAllBrowserTabsInGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: BrowserViewCommandId.CloseAllInGroup,
+			title: localize2('browser.closeAllInGroup', "Close All Browser Tabs in Group"),
+			category: BrowserActionCategory,
+			f1: true,
+			precondition: BROWSER_EDITOR_ACTIVE,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const editorService = accessor.get(IEditorService);
+		const group = editorGroupsService.getGroup(editorService.activeEditorPane?.group?.id ?? editorGroupsService.activeGroup.id);
+		if (!group) {
+			return;
+		}
+		const browserEditors = group.getEditors(EditorsOrder.SEQUENTIAL).filter((e): e is BrowserEditorInput => e instanceof BrowserEditorInput);
+		if (browserEditors.length > 0) {
+			await group.closeEditors(browserEditors);
+		}
+	}
+}
+
+// Register as "Close All Browser Tabs" action in editor title menu to align with the regular "Close All" action
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: BrowserViewCommandId.CloseAllInGroup, title: localize('browser.closeAllInGroupShort', "Close All Browser Tabs") }, group: '1_close', order: 55, when: BROWSER_EDITOR_ACTIVE });
+
 registerAction2(QuickOpenBrowserAction);
 registerAction2(OpenIntegratedBrowserAction);
 registerAction2(NewTabAction);
+registerAction2(CloseAllBrowserTabsAction);
+registerAction2(CloseAllBrowserTabsInGroupAction);
 
 registerAction2(class ToggleBrowserTitleBarButton extends ToggleTitleBarConfigAction {
 	constructor() {
@@ -409,3 +412,76 @@ class BrowserEditorOpenContextKeyContribution extends Disposable implements IWor
 }
 
 registerWorkbenchContribution2(BrowserEditorOpenContextKeyContribution.ID, BrowserEditorOpenContextKeyContribution, WorkbenchPhase.AfterRestored);
+
+/**
+ * Opens localhost URLs in the Integrated Browser when the setting is enabled.
+ */
+class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IExternalOpener {
+	static readonly ID = 'workbench.contrib.localhostLinkOpener';
+
+	constructor(
+		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
+	) {
+		super();
+
+		this._register(openerService.registerExternalOpener(this));
+	}
+
+	async openExternal(href: string, _ctx: { sourceUri: URI; preferredOpenerId?: string }, _token: CancellationToken): Promise<boolean> {
+		if (!this.configurationService.getValue<boolean>('workbench.browser.openLocalhostLinks')) {
+			return false;
+		}
+
+		try {
+			const parsed = new URL(href);
+			if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+				return false;
+			}
+			if (!isLocalhostAuthority(parsed.host)) {
+				return false;
+			}
+		} catch {
+			return false;
+		}
+
+		logBrowserOpen(this.telemetryService, 'localhostLinkOpener');
+
+		const browserUri = BrowserViewUri.forId(generateUuid());
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href } } });
+		return true;
+	}
+}
+
+registerWorkbenchContribution2(LocalhostLinkOpenerContribution.ID, LocalhostLinkOpenerContribution, WorkbenchPhase.BlockStartup);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	...workbenchConfigurationNodeBase,
+	properties: {
+		'workbench.browser.showInTitleBar': {
+			type: ['boolean', 'string'],
+			enum: [true, false, 'whenOpen'],
+			enumDescriptions: [
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'browser.showInTitleBar.true' }, 'The button is always shown in the title bar.'),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'browser.showInTitleBar.false' }, 'The button is never shown in the title bar.'),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'browser.showInTitleBar.whenOpen' }, 'The button is shown in the title bar when a browser editor is open.')
+			],
+			default: 'whenOpen',
+			experiment: { mode: 'startup' },
+			description: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.showInTitleBar' },
+				'Controls whether the Integrated Browser button is shown in the title bar.'
+			)
+		},
+		'workbench.browser.openLocalhostLinks': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.openLocalhostLinks' },
+				'When enabled, localhost links from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
+			)
+		}
+	}
+});
