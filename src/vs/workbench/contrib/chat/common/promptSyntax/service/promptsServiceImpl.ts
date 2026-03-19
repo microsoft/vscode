@@ -833,7 +833,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					description = validated.description;
 				} catch (e) {
 					const msg = e instanceof Error ? e.message : String(e);
-					this.logger.error(`[registerContributedFile] Failed to validate contributed skill file from extension ${extension.identifier.value}: ${uri}`, msg);
+					this.logger.error(`[registerContributedFile] Extension '${extension.identifier.value}' failed to validate skill file: ${uri}`, msg);
 					throw e;
 				}
 			}
@@ -1477,8 +1477,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				nameToUri.set(sanitizedName, uri);
 				const disableModelInvocation = parsedFile.header?.disableModelInvocation === true;
 				const userInvocable = parsedFile.header?.userInvocable !== false;
-				const sanitizedDescription = description ? this.truncateAgentSkillDescription(description, uri) : undefined;
-				files.push({ uri, storage, status: 'loaded', name: sanitizedName, description: sanitizedDescription, extensionId, source, disableModelInvocation, userInvocable });
+				files.push({ uri, storage, status: 'loaded', name: sanitizedName, description, extensionId, source, disableModelInvocation, userInvocable });
 
 				// Track skill type
 				skillsBySource.set(source, (skillsBySource.get(source) || 0) + 1);
