@@ -171,6 +171,8 @@ export interface IAgentSessionsControl {
 
 	clearFocus(): void;
 	hasFocusOrSelection(): boolean;
+
+	collapseAllSections(): void;
 }
 
 export const agentSessionReadIndicatorForeground = registerColor(

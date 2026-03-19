@@ -421,7 +421,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.contextMenuService.showContextMenu({
 			getActions: () => Separator.join(...menu.getActions({ arg: section, shouldForwardArgs: true }).map(([, actions]) => actions)),
 			getAnchor: () => anchor,
-			getActionsContext: () => section,
+			getActionsContext: () => this,
 		});
 
 		menu.dispose();
@@ -507,6 +507,19 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 	refresh(): Promise<void> {
 		return this.agentSessionsService.model.resolve(undefined);
+	}
+
+	collapseAllSections(): void {
+		if (!this.sessionsList) {
+			return;
+		}
+
+		const model = this.agentSessionsService.model;
+		for (const child of this.sessionsList.getNode(model).children) {
+			if (isAgentSessionSection(child.element) && !child.collapsed) {
+				this.sessionsList.collapse(child.element);
+			}
+		}
 	}
 
 	async update(): Promise<void> {
