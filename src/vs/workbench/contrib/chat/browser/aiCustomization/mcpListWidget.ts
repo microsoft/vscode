@@ -443,9 +443,10 @@ export class McpListWidget extends Disposable {
 
 		// Empty state
 		this.emptyContainer = DOM.append(this.element, $('.mcp-empty-state'));
-		const emptyIcon = DOM.append(this.emptyContainer, $('.empty-icon'));
+		const emptyHeader = DOM.append(this.emptyContainer, $('.empty-state-header'));
+		const emptyIcon = DOM.append(emptyHeader, $('.empty-icon'));
 		emptyIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.server));
-		this.emptyText = DOM.append(this.emptyContainer, $('.empty-text'));
+		this.emptyText = DOM.append(emptyHeader, $('.empty-text'));
 		this.emptySubtext = DOM.append(this.emptyContainer, $('.empty-subtext'));
 
 		// List container
