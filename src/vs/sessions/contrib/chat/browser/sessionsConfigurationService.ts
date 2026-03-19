@@ -512,7 +512,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 			return;
 		}
 
-		const activeSession = this._sessionsManagementService.getActiveSession();
+		const activeSession = this._sessionsManagementService.activeSession.get();
 		if (!activeSession || activeSession.resource.toString() !== sessionKey || activeSession.worktree?.toString() !== worktree) {
 			return;
 		}
@@ -533,7 +533,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 			return;
 		}
 
-		const latestSession = this._sessionsManagementService.getActiveSession();
+		const latestSession = this._sessionsManagementService.activeSession.get();
 		if (!latestSession || latestSession.resource.toString() !== sessionKey || latestSession.worktree?.toString() !== worktree) {
 			return;
 		}
