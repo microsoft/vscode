@@ -5,7 +5,6 @@
 
 import { DeferredPromise, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { mark } from '../../../../../base/common/performance.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -749,7 +748,6 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void> {
-		mark('code/chat/willResendRequest');
 		const model = this._sessionModels.get(request.session.sessionResource);
 		if (!model && model !== request.session) {
 			throw new Error(`Unknown session: ${request.session.sessionResource}`);
@@ -805,7 +803,6 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async sendRequest(sessionResource: URI, request: string, options?: IChatSendRequestOptions): Promise<ChatSendResult> {
-		mark('code/chat/willSendRequest');
 		this.trace('sendRequest', `sessionResource: ${sessionResource.toString()}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 
 
@@ -893,7 +890,7 @@ export class ChatService extends Disposable implements IChatService {
 		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 
 		// This method is only returning whether the request was accepted - don't block on the actual request
-		const result = {
+		return {
 			kind: 'sent',
 			newSessionResource,
 			data: {
@@ -901,10 +898,7 @@ export class ChatService extends Disposable implements IChatService {
 				agent,
 				slashCommand: agentSlashCommandPart?.command,
 			},
-		} as const;
-
-		mark('code/chat/didSendRequest');
-		return result;
+		};
 	}
 
 	private parseChatRequest(sessionResource: URI, request: string, location: ChatAgentLocation, options: IChatSendRequestOptions | undefined): IParsedChatRequest {
@@ -939,7 +933,6 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private _sendRequestAsync(model: ChatModel, sessionResource: URI, parsedRequest: IParsedChatRequest, attempt: number, enableCommandDetection: boolean, defaultAgent: IChatAgentData, location: ChatAgentLocation, options?: IChatSendRequestOptions): IChatSendRequestResponseState {
-		mark('code/chat/willSendRequestAsync');
 		const followupsCancelToken = this.refreshFollowupsCancellationToken(sessionResource);
 		let request: ChatRequestModel | undefined;
 		const agentPart = parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
@@ -1331,7 +1324,6 @@ export class ChatService extends Disposable implements IChatService {
 		this._pendingRequests.set(model.sessionResource, cancellableRequest);
 		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'sendRequest', chatSessionId: chatSessionResourceToId(model.sessionResource) });
 		rawResponsePromise.finally(() => {
-			mark('code/chat/didCompleteRequest');
 			if (this._pendingRequests.get(model.sessionResource) === cancellableRequest) {
 				this._pendingRequests.deleteAndDispose(model.sessionResource);
 				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'sendRequestComplete', requestId: cancellableRequest.requestId, chatSessionId: chatSessionResourceToId(model.sessionResource) });
@@ -1635,34 +1627,15 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		// Detect an in-flight request that was dequeued and started on the old session
-		const lastRequest = model.lastRequest;
-		const inFlightRequest = lastRequest?.response && !lastRequest.response.isComplete ? lastRequest : undefined;
-		// Capture send options before cancelling, since cancellation disposes the tracking
-		const inFlightSendOptions = inFlightRequest ? this._pendingRequests.get(originalResource)?.sendOptions : undefined;
-
 		const pendingRequests = [...model.getPendingRequests()];
 
-		if (!inFlightRequest && pendingRequests.length === 0) {
+		if (pendingRequests.length === 0) {
 			return;
-		}
-
-		// Cancel the in-flight request on the old session
-		if (inFlightRequest) {
-			void this.cancelCurrentRequestForSession(originalResource);
 		}
 
 		// Remove each remaining pending request from the original session
 		for (const pending of pendingRequests) {
 			this.removePendingRequest(originalResource, pending.request.id);
-		}
-
-		// Re-send the cancelled in-flight request first (it was ahead of the queued ones)
-		if (inFlightRequest) {
-			void this.sendRequest(targetResource, inFlightRequest.message.text, {
-				...inFlightSendOptions,
-				queue: ChatRequestQueueKind.Queued,
-			});
 		}
 
 		// Re-send remaining queued requests

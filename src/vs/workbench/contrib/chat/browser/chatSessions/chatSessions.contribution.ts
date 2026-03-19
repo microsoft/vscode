@@ -235,15 +235,14 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 
 class ContributedChatSessionData extends Disposable {
 
-	private readonly _optionsCache = new Map< /* 'models' */ string, IChatSessionProviderOptionItem>();
-
-	public getOption(optionId: string): IChatSessionProviderOptionItem | undefined {
+	private readonly _optionsCache: Map<string /* 'models' */, string | IChatSessionProviderOptionItem>;
+	public getOption(optionId: string): string | IChatSessionProviderOptionItem | undefined {
 		return this._optionsCache.get(optionId);
 	}
-	public getAllOptions(): IterableIterator<[string, IChatSessionProviderOptionItem]> {
+	public getAllOptions(): IterableIterator<[string, string | IChatSessionProviderOptionItem]> {
 		return this._optionsCache.entries();
 	}
-	public setOption(optionId: string, value: IChatSessionProviderOptionItem): void {
+	public setOption(optionId: string, value: string | IChatSessionProviderOptionItem): void {
 		this._optionsCache.set(optionId, value);
 	}
 
@@ -251,11 +250,12 @@ class ContributedChatSessionData extends Disposable {
 		readonly session: IChatSession,
 		readonly chatSessionType: string,
 		readonly resource: URI,
-		readonly options: Record<string, IChatSessionProviderOptionItem> | undefined,
+		readonly options: Record<string, string | IChatSessionProviderOptionItem> | undefined,
 		private readonly onWillDispose: (resource: URI) => void
 	) {
 		super();
 
+		this._optionsCache = new Map<string, string | IChatSessionProviderOptionItem>();
 		if (options) {
 			for (const [key, value] of Object.entries(options)) {
 				this._optionsCache.set(key, value);
@@ -304,7 +304,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly inProgressMap: Map<string, number> = new Map();
 	private readonly _sessionTypeOptions: Map<string, IChatSessionProviderOptionGroup[]> = new Map();
-	private readonly _sessionTypeNewSessionOptions: Map<string, Record<string, IChatSessionProviderOptionItem>> = new Map();
+	private readonly _sessionTypeNewSessionOptions: Map<string, Record<string, string | IChatSessionProviderOptionItem>> = new Map();
 
 	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
 	private readonly _resourceAliases = new ResourceMap<URI>(); // real resource -> untitled resource
@@ -1106,24 +1106,24 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return !!session && !!session.options && Object.keys(session.options).length > 0;
 	}
 
-	public getSessionOptions(sessionResource: URI): Map<string, IChatSessionProviderOptionItem> | undefined {
+	public getSessionOptions(sessionResource: URI): Map<string, string> | undefined {
 		const session = this._sessions.get(this._resolveResource(sessionResource));
 		if (!session) {
 			return undefined;
 		}
-		const result = new Map<string, IChatSessionProviderOptionItem>();
+		const result = new Map<string, string>();
 		for (const [key, value] of session.getAllOptions()) {
-			result.set(key, value);
+			result.set(key, typeof value === 'string' ? value : value.id);
 		}
 		return result.size > 0 ? result : undefined;
 	}
 
-	public getSessionOption(sessionResource: URI, optionId: string): IChatSessionProviderOptionItem | undefined {
+	public getSessionOption(sessionResource: URI, optionId: string): string | IChatSessionProviderOptionItem | undefined {
 		const session = this._sessions.get(this._resolveResource(sessionResource));
 		return session?.getOption(optionId);
 	}
 
-	public setSessionOption(sessionResource: URI, optionId: string, value: IChatSessionProviderOptionItem): boolean {
+	public setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean {
 		const session = this._sessions.get(this._resolveResource(sessionResource));
 		return !!session?.setOption(optionId, value);
 	}
@@ -1160,18 +1160,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._sessionTypeOptions.get(chatSessionType);
 	}
 
-	public getNewSessionOptionsForSessionType(chatSessionType: string): Record<string, IChatSessionProviderOptionItem> | undefined {
+	public getNewSessionOptionsForSessionType(chatSessionType: string): Record<string, string | IChatSessionProviderOptionItem> | undefined {
 		return this._sessionTypeNewSessionOptions.get(chatSessionType);
 	}
 
-	public setNewSessionOptionsForSessionType(chatSessionType: string, options: Record<string, IChatSessionProviderOptionItem>): void {
+	public setNewSessionOptionsForSessionType(chatSessionType: string, options: Record<string, string | IChatSessionProviderOptionItem>): void {
 		this._sessionTypeNewSessionOptions.set(chatSessionType, options);
 	}
 
 	/**
 	 * Notify extension about option changes for a session
 	 */
-	public async notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem }>): Promise<void> {
+	public async notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): Promise<void> {
 		if (!updates.length) {
 			return;
 		}
@@ -1291,7 +1291,7 @@ export enum ChatSessionPosition {
 type NewChatSessionSendOptions = {
 	readonly prompt: string;
 	readonly attachedContext?: IChatRequestVariableEntry[];
-	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem }>;
+	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | { id: string; name: string } }>;
 };
 
 export type NewChatSessionOpenOptions = {

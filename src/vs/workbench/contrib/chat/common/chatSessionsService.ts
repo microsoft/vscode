@@ -175,9 +175,10 @@ export interface IChatSession extends IDisposable {
 	readonly history: readonly IChatSessionHistoryItem[];
 
 	/**
-	 * Session options as key-value pairs. Keys correspond to option group IDs (e.g., 'models', 'subagents').
+	 * Session options as key-value pairs. Keys correspond to option group IDs (e.g., 'models', 'subagents')
+	 * and values are either the selected option item IDs (string) or full option items (for locked state).
 	 */
-	readonly options?: Record<string, IChatSessionProviderOptionItem>;
+	readonly options?: Record<string, string | IChatSessionProviderOptionItem>;
 
 	readonly progressObs?: IObservable<IChatProgress[]>;
 	readonly isCompleteObs?: IObservable<boolean>;
@@ -216,7 +217,7 @@ export interface IChatNewSessionRequest {
 	readonly prompt: string;
 	readonly command?: string;
 
-	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem }>;
+	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>;
 }
 
 export interface IChatSessionItemsDelta {
@@ -241,7 +242,7 @@ export interface IChatSessionItemController {
  */
 export interface IChatSessionOptionsWillNotifyExtensionEvent extends IWaitUntil {
 	readonly sessionResource: URI;
-	readonly updates: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem }>;
+	readonly updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>;
 }
 
 export type ResolvedChatSessionsExtensionPoint = Omit<IChatSessionsExtensionPoint, 'icon'> & {
@@ -302,9 +303,9 @@ export interface IChatSessionsService {
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 
 	hasAnySessionOptions(sessionResource: URI): boolean;
-	getSessionOptions(sessionResource: URI): Map<string, IChatSessionProviderOptionItem> | undefined;
-	getSessionOption(sessionResource: URI, optionId: string): IChatSessionProviderOptionItem | undefined;
-	setSessionOption(sessionResource: URI, optionId: string, value: IChatSessionProviderOptionItem): boolean;
+	getSessionOptions(sessionResource: URI): Map<string, string> | undefined;
+	getSessionOption(sessionResource: URI, optionId: string): string | IChatSessionProviderOptionItem | undefined;
+	setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean;
 
 	/**
 	 * Fired when options for a chat session change.
@@ -352,15 +353,15 @@ export interface IChatSessionsService {
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
 	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void;
 
-	getNewSessionOptionsForSessionType(chatSessionType: string): Record<string, IChatSessionProviderOptionItem> | undefined;
-	setNewSessionOptionsForSessionType(chatSessionType: string, options: Record<string, IChatSessionProviderOptionItem>): void;
+	getNewSessionOptionsForSessionType(chatSessionType: string): Record<string, string | IChatSessionProviderOptionItem> | undefined;
+	setNewSessionOptionsForSessionType(chatSessionType: string, options: Record<string, string | IChatSessionProviderOptionItem>): void;
 	/**
 	 * Event fired when session options change and need to be sent to the extension.
 	 * MainThreadChatSessions subscribes to this to forward changes to the extension host.
 	 * Uses IWaitUntil pattern to allow listeners to register async work.
 	 */
 	readonly onRequestNotifyExtension: Event<IChatSessionOptionsWillNotifyExtensionEvent>;
-	notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem }>): Promise<void>;
+	notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): Promise<void>;
 
 	getInProgressSessionDescription(chatModel: IChatModel): string | undefined;
 

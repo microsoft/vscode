@@ -44,8 +44,8 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 	readonly providerHandle: number;
 	readonly history: Array<IChatSessionHistoryItem>;
 	title?: string;
-	private _options?: Record<string, IChatSessionProviderOptionItem>;
-	public get options(): Record<string, IChatSessionProviderOptionItem> | undefined {
+	private _options?: Record<string, string | IChatSessionProviderOptionItem>;
+	public get options(): Record<string, string | IChatSessionProviderOptionItem> | undefined {
 		return this._options;
 	}
 	private readonly _progressObservable = observableValue<IChatProgress[]>(this, []);
@@ -546,7 +546,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		controller.addOrUpdateItem(resolvedItem);
 	}
 
-	$onDidChangeChatSessionOptions(handle: number, sessionResourceComponents: UriComponents, updates: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem }>): void {
+	$onDidChangeChatSessionOptions(handle: number, sessionResourceComponents: UriComponents, updates: ReadonlyArray<{ optionId: string; value: string }>): void {
 		const sessionResource = URI.revive(sessionResourceComponents);
 		warnOnUntitledSessionResource(sessionResource, this._logService);
 		this._chatSessionsService.notifySessionOptionsChange(sessionResource, updates);
@@ -850,7 +850,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	/**
 	 * Notify the extension about option changes for a session
 	 */
-	async notifyOptionsChange(handle: number, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem | undefined }>): Promise<void> {
+	async notifyOptionsChange(handle: number, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem | undefined }>): Promise<void> {
 		this._logService.trace(`[MainThreadChatSessions] notifyOptionsChange: starting proxy call for handle ${handle}, sessionResource ${sessionResource}`);
 		try {
 			await this._proxy.$provideHandleOptionsChange(handle, sessionResource, updates, CancellationToken.None);

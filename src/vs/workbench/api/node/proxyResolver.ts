@@ -107,11 +107,13 @@ export function connectProxyResolver(
 				promises.push(Promise.resolve(https.globalAgent.testCertificates as string[]));
 			}
 			const result = (await Promise.all(promises)).flat();
+			const nodeSystemCertErrors = collectNodeSystemCertErrors(useNodeSystemCerts, extHostLogService);
 			mainThreadTelemetry.$publicLog2<AdditionalCertificatesEvent, AdditionalCertificatesClassification>('additionalCertificates', {
 				count: result.length,
 				isRemote,
 				loadLocalCertificates,
 				useNodeSystemCerts,
+				nodeSystemCertErrors,
 			});
 			return result;
 		},
@@ -283,6 +285,7 @@ type AdditionalCertificatesClassification = {
 	isRemote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this is a remote extension host' };
 	loadLocalCertificates: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether local certificates are loaded' };
 	useNodeSystemCerts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether Node.js system certificates are used' };
+	nodeSystemCertErrors: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Summary of certificate loading errors from tls.getSystemCACertificatesErrors() or a sentinel string when unavailable/disabled' };
 };
 
 type AdditionalCertificatesEvent = {
@@ -290,7 +293,53 @@ type AdditionalCertificatesEvent = {
 	isRemote: boolean;
 	loadLocalCertificates: boolean;
 	useNodeSystemCerts: boolean;
+	nodeSystemCertErrors: string;
 };
+
+function collectNodeSystemCertErrors(useNodeSystemCerts: boolean, logService: ILogService): string {
+	if (!useNodeSystemCerts) {
+		const result = 'Not using Node.js system certificates';
+		logService.debug(`ProxyResolver#collectNodeSystemCertErrors: ${result}`);
+		return result;
+	}
+	// eslint-disable-next-line local/code-no-any-casts
+	if (typeof (tls as any).getSystemCACertificatesErrors !== 'function') {
+		const result = 'tls.getSystemCACertificatesErrors is not available';
+		logService.debug(`ProxyResolver#collectNodeSystemCertErrors: ${result}`);
+		return result;
+	}
+	try {
+		// eslint-disable-next-line local/code-no-any-casts
+		const errors = (tls as any).getSystemCACertificatesErrors();
+		if (!errors || typeof errors !== 'object') {
+			const result = 'tls.getSystemCACertificatesErrors() did not return an object';
+			logService.debug(`ProxyResolver#collectNodeSystemCertErrors: ${result}`);
+			return result;
+		}
+		const counts = new Map<string, { error: string; count: number; code: number | string }>();
+		for (const [category, entries] of Object.entries(errors)) {
+			if (Array.isArray(entries)) {
+				for (const entry of entries as { errorMessage?: string; errorCode?: number }[]) {
+					const code = entry.errorCode ?? 'missing code';
+					const error = `${category}: ${entry.errorMessage ?? 'missing message'}`;
+					const key = `${error} (${code})`;
+					const existing = counts.get(key);
+					if (existing) {
+						existing.count++;
+					} else {
+						counts.set(key, { error, code, count: 1 });
+					}
+				}
+			}
+		}
+		const result = JSON.stringify([...counts.values()].sort((a, b) => b.count - a.count));
+		logService.trace(`ProxyResolver#collectNodeSystemCertErrors: ${result}`);
+		return result;
+	} catch (err) {
+		logService.debug('ProxyResolver#collectNodeSystemCertErrors: Failed to get certificate errors', err);
+		return `Error: ${err instanceof Error ? err.message : String(err)}`;
+	}
+}
 
 type ProxyResolveStatsClassification = {
 	owner: 'chrmarti';

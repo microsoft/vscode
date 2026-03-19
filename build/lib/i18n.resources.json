@@ -679,6 +679,10 @@
 		{
 			"name": "vs/sessions/contrib/welcome",
 			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/chatDebug",
+			"project": "vscode-sessions"
 		}
 	]
 }

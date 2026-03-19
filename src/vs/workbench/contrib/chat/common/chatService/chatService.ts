@@ -31,7 +31,6 @@ import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js
 import { IChatRequestVariableValue } from '../attachments/chatVariables.js';
 import { ChatAgentLocation } from '../constants.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
-import { IChatSessionProviderOptionItem } from '../chatSessionsService.js';
 
 export interface IChatRequest {
 	message: string;
@@ -526,6 +525,10 @@ export interface IChatTerminalToolInvocationData {
 	terminalCommandId?: string;
 	/** Whether the terminal command was started as a background execution */
 	isBackground?: boolean;
+	/** Whether the command was explicitly approved to run outside the sandbox */
+	requestUnsandboxedExecution?: boolean;
+	/** The model-provided reason for requesting sandbox bypass */
+	requestUnsandboxedExecutionReason?: string;
 	/** Serialized URI for the command that was executed in the terminal */
 	terminalCommandUri?: UriComponents;
 	/** Serialized output of the executed command */
@@ -1538,7 +1541,7 @@ export interface IChatService {
 
 export interface IChatSessionContext {
 	readonly chatSessionResource: URI;
-	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem }>;
+	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | { id: string; name: string } }>;
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';
