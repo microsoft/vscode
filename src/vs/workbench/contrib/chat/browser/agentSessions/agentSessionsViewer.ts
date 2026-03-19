@@ -909,17 +909,16 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			}
 
 			const repoName = getRepositoryName(session);
-			if (!repoName) {
+			if (repoName) {
+				let group = repoMap.get(repoName);
+				if (!group) {
+					group = { label: repoName, sessions: [] };
+					repoMap.set(repoName, group);
+				}
+				group.sessions.push(session);
+			} else {
 				otherSessions.push(session);
-				continue;
 			}
-
-			let group = repoMap.get(repoName);
-			if (!group) {
-				group = { label: repoName, sessions: [] };
-				repoMap.set(repoName, group);
-			}
-			group.sessions.push(session);
 		}
 
 		const result: AgentSessionListItem[] = [];
