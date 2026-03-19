@@ -3109,8 +3109,14 @@ export class Repository implements Disposable {
 		}
 
 		if (!this.operations.isIdle()) {
-			this.logger.trace('[Repository][onFileChange] Skip running git status because an operation is running.');
-			return;
+			// Skip if a write operation is running — it will call updateModelState() when it
+			// completes, picking up any file changes. However, Status and Refresh *are*
+			// updateModelState(), so a file change during their execution can produce a stale
+			// snapshot. In that case, fall through and schedule a follow-up refresh.
+			if (!this.operations.isRunning(OperationKind.Status) && !this.operations.isRunning(OperationKind.Refresh)) {
+				this.logger.trace('[Repository][onFileChange] Skip running git status because an operation is running.');
+				return;
+			}
 		}
 
 		this.eventuallyUpdateWhenIdleAndWait();
