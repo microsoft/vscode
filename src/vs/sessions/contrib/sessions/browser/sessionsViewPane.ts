@@ -293,7 +293,7 @@ registerAction2(class GroupByRepositoryAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.groupByRepository',
-			title: localize2('groupByRepository', "Group by Repository"),
+			title: localize2('groupByRepository', "Group by Project"),
 			category: SessionsCategories.Sessions,
 			toggled: IsGroupedByRepositoryContext,
 			menu: [{
