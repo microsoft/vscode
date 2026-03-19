@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
@@ -305,10 +305,46 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async openSessionsWindow(windowId: number | undefined): Promise<void> {
-		await this.windowsMainService.openSessionsWindow({
-			context: OpenContext.API,
-			contextWindowId: windowId,
+		// Launch the sessions sub-app as a separate process, mirroring what
+		// --sessions does in cli.ts. This ensures the sessions window uses
+		// the same user-data directory and product configuration as the
+		// dedicated sessions app (e.g., the embedded macOS .app bundle).
+		if (isMacintosh) {
+			// On macOS, try to launch the embedded .app bundle from
+			// Contents/Applications/ (same logic as cli.ts --sessions).
+			const contentsPath = dirname(dirname(process.execPath));
+			const applicationsPath = join(contentsPath, 'Applications');
+			try {
+				const files = await fs.promises.readdir(applicationsPath);
+				const embeddedApp = files.find(file => file.endsWith('.app'));
+				if (embeddedApp) {
+					const appToLaunch = join(applicationsPath, embeddedApp);
+					this.logService.trace('openSessionsWindow: launching embedded app', appToLaunch);
+					const child = spawn('open', ['-n', '-g', '-a', appToLaunch], {
+						detached: true,
+						stdio: 'ignore'
+					});
+					child.on('error', err => this.logService.error('openSessionsWindow: failed to launch embedded app', err));
+					child.unref();
+					return;
+				}
+			} catch {
+				// Embedded app may not exist (e.g. dev builds), fall through
+			}
+		}
+
+		// On non-macOS or if the embedded app was not found, spawn a new
+		// process with --sessions, matching cli.ts behaviour.
+		const args = process.argv.slice(1).filter(arg => arg !== '--sessions');
+		args.push('--sessions');
+		this.logService.trace('openSessionsWindow: spawning sessions process', process.execPath, args);
+		const child = spawn(process.execPath, args, {
+			detached: true,
+			stdio: 'ignore',
+			env: { ...process.env }
 		});
+		child.on('error', err => this.logService.error('openSessionsWindow: failed to spawn sessions process', err));
+		child.unref();
 	}
 
 	async isFullScreen(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
