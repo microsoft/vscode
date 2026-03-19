@@ -8,6 +8,14 @@
 	flex: 1 1 auto;
 	height: 100%;
 	min-height: 0;
+	display: flex;
+	flex-direction: column;
+
+	.agent-sessions-list-wrapper {
+		flex: 1;
+		min-height: 0;
+		overflow: hidden;
+	}
 
 	.pane-body & .monaco-scrollable-element {
 		padding: 0 6px;
@@ -308,8 +316,9 @@
 		display: flex;
 		align-items: center;
 		font-size: 11px;
-		font-weight: 500;
-		color: var(--vscode-descriptionForeground);
+		font-weight: 600;
+		letter-spacing: 0.04em;
+		color: var(--vscode-foreground);
 		/* align with session item padding */
 		padding: 0 6px;
 
@@ -368,6 +377,29 @@
 				outline: 1px solid var(--vscode-focusBorder);
 				outline-offset: 1px;
 			}
+		}
+	}
+
+	.agent-sessions-archived-more {
+		display: inline-flex;
+		align-items: center;
+		padding: 2px 0 2px 12px;
+		font-size: 11px;
+		color: var(--vscode-descriptionForeground);
+		background: none;
+		border: none;
+		cursor: pointer;
+		text-align: left;
+		width: 100%;
+		box-sizing: border-box;
+
+		&:hover {
+			color: var(--vscode-textLink-foreground);
+		}
+
+		&:focus-visible {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: -1px;
 		}
 	}
 }
