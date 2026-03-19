@@ -252,7 +252,8 @@
 			background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
 			color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 
-			.chat-question-label {
+			.chat-question-list-label,
+			.chat-question-list-label-title {
 				color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 			}
 
