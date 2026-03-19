@@ -852,7 +852,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		const sorter = this.sorter;
 		const sortedSessions = sorter instanceof AgentSessionsSorter
-			? sessions.sort((a, b) => sorter.compare(a, b, isCapped /* special sorting for when results are capped to keep active ones top */))
+			? sessions.sort((a, b) => sorter.compare(a, b, true /* prioritize active sessions to keep in-progress/needs-input ones top within each group */))
 			: sessions.sort(sorter.compare.bind(sorter));
 
 		if (isCapped) {
