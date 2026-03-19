@@ -15,7 +15,7 @@ import { Action2, registerAction2, MenuId } from '../../../../../platform/action
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { BrowserActionCategory, BrowserActionGroup } from '../browserViewActions.js';
-import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import type { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
 const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
