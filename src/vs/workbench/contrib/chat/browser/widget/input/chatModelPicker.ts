@@ -783,7 +783,7 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, la
 				const enumIndex = propSchema.enum?.indexOf(value) ?? -1;
 				const displayValue = enumItemLabels?.[enumIndex] ?? String(value);
 				const label = propSchema.title ?? key;
-				markdown.appendMarkdown(`${label}: ${displayValue}`);
+				markdown.appendText(`${label}: ${displayValue}`);
 				markdown.appendText(`\n`);
 			}
 		}

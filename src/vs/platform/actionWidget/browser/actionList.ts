@@ -444,7 +444,6 @@ export class ActionListWidget<T> extends Disposable {
 	private _submenuHideTimeout: ReturnType<typeof setTimeout> | undefined;
 	private _currentSubmenuWidget: ActionListWidget<IAction> | undefined;
 	private _currentSubmenuElement: IActionListItem<T> | undefined;
-	private _submenuOnOppositeSide = false;
 
 	private readonly _collapsedSections = new Set<string>();
 	private _filterText = '';
@@ -490,9 +489,7 @@ export class ActionListWidget<T> extends Disposable {
 			this._cancelSubmenuHide();
 		}));
 		this._register(dom.addDisposableListener(this._submenuContainer, 'mouseleave', () => {
-			if (!this._submenuOnOppositeSide) {
-				this._scheduleSubmenuHide();
-			}
+			this._scheduleSubmenuHide();
 		}));
 		this._register(toDisposable(() => this._cancelSubmenuHide()));
 
@@ -1186,9 +1183,7 @@ export class ActionListWidget<T> extends Disposable {
 			this._showSubmenuForElement(element, indicator);
 		}));
 		disposables.add(dom.addDisposableListener(indicator, 'mouseleave', () => {
-			if (!this._submenuOnOppositeSide) {
-				this._scheduleSubmenuHide();
-			}
+			this._scheduleSubmenuHide();
 		}));
 	}
 
@@ -1266,13 +1261,11 @@ export class ActionListWidget<T> extends Disposable {
 		const submenuWidth = maxWidth + 10; // account for border/padding
 
 		if (spaceRight >= submenuWidth || spaceRight >= spaceLeft) {
-			// Show on the right (same side as indicator)
+			// Show on the right
 			this._submenuContainer.style.left = `${indicatorRect.right - parentRect.left}px`;
-			this._submenuOnOppositeSide = false;
 		} else {
-			// Show on the left (opposite side from indicator)
+			// Show on the left
 			this._submenuContainer.style.left = `${-submenuWidth}px`;
-			this._submenuOnOppositeSide = true;
 		}
 		this._submenuContainer.style.top = `${indicatorRect.top - parentRect.top - 4}px`;
 
@@ -1305,7 +1298,6 @@ export class ActionListWidget<T> extends Disposable {
 		this._submenuDisposables.clear();
 		this._currentSubmenuWidget = undefined;
 		this._currentSubmenuElement = undefined;
-		this._submenuOnOppositeSide = false;
 		dom.clearNode(this._submenuContainer);
 		this._submenuContainer.style.display = 'none';
 	}
@@ -1345,7 +1337,9 @@ export class ActionListWidget<T> extends Disposable {
 
 			// Set focus immediately for responsive hover feedback
 			this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
-			if (this._currentSubmenuElement !== element) {
+			if (this._currentSubmenuElement === element) {
+				this._cancelSubmenuHide();
+			} else {
 				this._hideSubmenu();
 			}
 
