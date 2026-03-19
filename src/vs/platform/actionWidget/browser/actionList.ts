@@ -193,7 +193,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _onRemoveItem: ((item: IActionListItem<T>) => void) | undefined,
 		private readonly _onSubmenuIndicatorHover: ((element: IActionListItem<T>, indicator: HTMLElement, disposables: DisposableStore) => void) | undefined,
 		private _hasAnySubmenuActions: boolean,
-		private readonly _descriptionActionHandler: ((uri: URI, item: IActionListItem<T>) => void) | undefined,
+		private readonly _linkHandler: ((uri: URI, item: IActionListItem<T>) => void) | undefined,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
@@ -286,7 +286,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 				const rendered = renderMarkdown(element.description, {
 					actionHandler: (content: string) => {
 						const uri = URI.parse(content);
-						this._descriptionActionHandler?.(uri, element) ?? this._openerService.open(uri, { allowCommands: true });
+						this._linkHandler?.(uri, element) ?? this._openerService.open(uri, { allowCommands: true });
 					}
 				});
 				data.elementDisposables.add(rendered);
@@ -407,10 +407,10 @@ export interface IActionListOptions {
 	readonly minWidth?: number;
 
 	/**
-	 * Optional markdown link action handler for item descriptions.
+	 * Optional handler for markdown links activated in item descriptions or hovers.
 	 * When unset, links open via the opener service with command links allowed.
 	 */
-	readonly descriptionActionHandler?: (uri: URI, item: IActionListItem<unknown>) => void;
+	readonly linkHandler?: (uri: URI, item: IActionListItem<unknown>) => void;
 
 	/**
 	 * Optional callback fired when a section's collapsed state changes.
@@ -531,7 +531,7 @@ export class ActionListWidget<T> extends Disposable {
 		const hasAnySubmenuActions = items.some(item => !!item.submenuActions?.length);
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<T>(preview, (item) => this._removeItem(item), (element, indicator, disposables) => this._wireSubmenuIndicator(element, indicator, disposables), hasAnySubmenuActions, this._options?.descriptionActionHandler, this._keybindingService, this._openerService),
+			new ActionItemRenderer<T>(preview, (item) => this._removeItem(item), (element, indicator, disposables) => this._wireSubmenuIndicator(element, indicator, disposables), hasAnySubmenuActions, this._options?.linkHandler, this._keybindingService, this._openerService),
 			new HeaderRenderer(),
 			new SeparatorRenderer(),
 		], {
@@ -1176,10 +1176,14 @@ export class ActionListWidget<T> extends Disposable {
 		}
 
 		const markdown = typeof element.hover!.content === 'string' ? new MarkdownString(element.hover!.content) : element.hover!.content;
+		const linkHandler = this._options?.linkHandler;
 		this._hover.value = this._hoverService.showDelayedHover({
 			content: markdown ?? '',
 			target: rowElement,
 			additionalClasses: ['action-widget-hover'],
+			linkHandler: linkHandler ? (url: string) => {
+				linkHandler(URI.parse(url), element);
+			} : undefined,
 			position: {
 				hoverPosition: HoverPosition.LEFT,
 				forcePosition: false,

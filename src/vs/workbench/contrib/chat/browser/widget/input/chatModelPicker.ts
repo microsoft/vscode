@@ -679,7 +679,7 @@ export class ModelPickerWidget extends Disposable {
 					logModelPickerInteraction(collapsed ? 'otherModelsCollapsed' : 'otherModelsExpanded');
 				}
 			},
-			descriptionActionHandler: (uri: URI, item: IActionListItem<unknown>) => {
+			linkHandler: (uri: URI, item: IActionListItem<unknown>) => {
 				if (uri.scheme === 'command' && uri.path === 'workbench.action.chat.upgradePlan') {
 					logModelPickerInteraction('premiumModelUpgradePlanClicked');
 				} else if (item.className === 'chat-model-picker-unavailable') {
