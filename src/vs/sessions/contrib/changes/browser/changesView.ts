@@ -676,7 +676,7 @@ export class ChangesViewPane extends ViewPane {
 
 				const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
 				const scopedInstantiationService = this.instantiationService.createChild(scopedServiceCollection);
-				this._register(scopedInstantiationService);
+				this.renderDisposables.add(scopedInstantiationService);
 
 				reader.store.add(scopedInstantiationService.createInstance(
 					MenuWorkbenchButtonBar,
