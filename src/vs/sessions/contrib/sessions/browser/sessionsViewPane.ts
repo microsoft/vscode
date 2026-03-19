@@ -110,9 +110,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 			filterMenuId: SessionsViewFilterSubMenu,
 			groupResults: () => this.currentGrouping,
 			allowedProviders: undefined, // TODO: restore to [AgentSessionProviders.Background, AgentSessionProviders.Cloud]
-			providerLabelOverrides: new Map([
-				[AgentSessionProviders.Background, localize('chat.session.providerLabel.local', "Local")],
-			]),
+			hiddenProviders: [AgentSessionProviders.Local],
 		}));
 
 		// Sessions section (top, fills available space)

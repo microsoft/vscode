@@ -37,6 +37,12 @@ export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilte
 	 */
 	readonly providerLabelOverrides?: ReadonlyMap<string, string>;
 
+	/**
+	 * When set, these providers are hidden from the filter menu
+	 * and their sessions are filtered from the view.
+	 */
+	readonly hiddenProviders?: AgentSessionProviders[];
+
 	readonly limitResults?: () => number | undefined;
 	notifyResults?(count: number): void;
 
@@ -141,6 +147,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	private registerProviderActions(disposables: DisposableStore, menuId: MenuId): void {
 		const labelOverrides = this.options.providerLabelOverrides;
+		const hiddenProviders = this.options.hiddenProviders;
 		const resolveLabel = (id: string) => {
 			if (labelOverrides?.has(id)) {
 				return labelOverrides.get(id)!;
@@ -165,6 +172,11 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 					label: resolveLabel(contribution.type)
 				});
 			}
+		}
+
+		// Remove hidden providers from the filter menu
+		if (hiddenProviders?.length) {
+			providers = providers.filter(p => !hiddenProviders.includes(p.id as AgentSessionProviders));
 		}
 
 		const that = this;
@@ -305,6 +317,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		const overrideExclude = this.options?.overrideExclude?.(session);
 		if (typeof overrideExclude === 'boolean') {
 			return overrideExclude;
+		}
+
+		if (this.options.hiddenProviders?.includes(session.providerType as AgentSessionProviders)) {
+			return true;
 		}
 
 		if (this.options.allowedProviders && !this.options.allowedProviders.includes(session.providerType as AgentSessionProviders)) {
