@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../../../base/browser/dom.js';
+import { $, DisposableResizeObserver } from '../../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -128,6 +128,23 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 				this._contentInitialized = true;
 				this._contentElement = this.initContent();
 				this._domNode?.appendChild(this._contentElement);
+
+				const resizeObserver = this._register(new DisposableResizeObserver(() => {
+					if (this._isExpanded.read(undefined) && this._contentElement) {
+						this._contentElement.style.maxHeight = `${this._contentElement.scrollHeight}px`;
+					}
+				}));
+				this._register(resizeObserver.observe(this._contentElement));
+			}
+
+			if (this._contentElement) {
+				if (expanded) {
+					this._contentElement.style.maxHeight = `${this._contentElement.scrollHeight}px`;
+				} else {
+					this._contentElement.style.maxHeight = `${this._contentElement.scrollHeight}px`;
+					void this._contentElement.offsetHeight;
+					this._contentElement.style.maxHeight = '0px';
+				}
 			}
 		}));
 
