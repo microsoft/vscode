@@ -211,7 +211,7 @@ suite('RunInTerminalTool', () => {
 			const preparedInvocation = await executeToolTest({ command: 'echo hello' });
 
 			ok(preparedInvocation, 'Expected prepared invocation to be defined');
-			strictEqual((preparedInvocation.invocationMessage as IMarkdownString).value, '$(lock) Running in sandbox');
+			strictEqual((preparedInvocation.invocationMessage as IMarkdownString).value, '$(lock) Running `echo hello` in sandbox');
 
 			const terminalData = preparedInvocation.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
