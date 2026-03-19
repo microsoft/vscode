@@ -1245,7 +1245,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	public async getInstructionFiles(token: CancellationToken, sessionResource?: URI): Promise<readonly IPromptPath[]> {
 		const sw = StopWatch.create();
-		const result = await this.listPromptFiles(PromptsType.instructions, token);
+		const allFiles = await this.listPromptFiles(PromptsType.instructions, token);
+		const disabledInstructions = this.getDisabledPromptFiles(PromptsType.instructions);
+		const result = allFiles.filter(p => !disabledInstructions.has(p.uri));
 		if (sessionResource) {
 			const elapsed = sw.elapsed();
 			void this.getInstructionsDiscoveryInfo(token).catch(() => undefined).then(discoveryInfo => {
