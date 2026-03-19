@@ -417,6 +417,10 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
+.ai-customization-list-item.disabled {
+	opacity: 0.5;
+}
+
 .ai-customization-list-item .item-left {
 	display: flex;
 	align-items: center;

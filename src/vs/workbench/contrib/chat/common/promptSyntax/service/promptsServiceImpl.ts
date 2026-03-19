@@ -1007,6 +1007,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		this.storageService.store(this.disabledPromptsStorageKeyPrefix + type, JSON.stringify(disabled), StorageScope.PROFILE, StorageTarget.USER);
 		if (type === PromptsType.agent) {
 			this.cachedCustomAgents.refresh();
+		} else if (type === PromptsType.skill) {
+			this.cachedSkills.refresh();
+		} else if (type === PromptsType.prompt) {
+			this.cachedSlashCommands.refresh();
+		} else if (type === PromptsType.instructions) {
+			this._onDidChangeInstructions.fire();
 		}
 	}
 
