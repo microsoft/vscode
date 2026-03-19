@@ -468,13 +468,13 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
-		const st = scrollTop ?? this.lastKnownScrollTop;
-		const ch = contentHeight ?? this.lastKnownContentHeight;
-		const vh = viewportHeight ?? Math.min(ch, THINKING_SCROLL_MAX_HEIGHT);
-		const maxScrollTop = ch - vh;
+		const currentScrollTop = scrollTop ?? this.lastKnownScrollTop;
+		const currentContentHeight = contentHeight ?? this.lastKnownContentHeight;
+		const currentViewportHeight = viewportHeight ?? Math.min(currentContentHeight, THINKING_SCROLL_MAX_HEIGHT);
+		const maxScrollTop = currentContentHeight - currentViewportHeight;
 
-		this.domNode.classList.toggle('chat-thinking-fade-top', st > 5);
-		this.domNode.classList.toggle('chat-thinking-fade-bottom', maxScrollTop > 0 && st < maxScrollTop - 5);
+		this.domNode.classList.toggle('chat-thinking-fade-top', currentScrollTop > 5);
+		this.domNode.classList.toggle('chat-thinking-fade-bottom', maxScrollTop > 0 && currentScrollTop < maxScrollTop - 5);
 	}
 
 	// Schedule a batched scroll dimension update for the next animation frame.
