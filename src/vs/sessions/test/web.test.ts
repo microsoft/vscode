@@ -31,6 +31,8 @@ import { IProcessEnvironment } from '../../base/common/platform.js';
 import { Registry } from '../../platform/registry/common/platform.js';
 import { InMemoryFileSystemProvider } from '../../platform/files/common/inMemoryFilesystemProvider.js';
 import { VSBuffer } from '../../base/common/buffer.js';
+import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
+import { getSingletonServiceDescriptors } from '../../platform/instantiation/common/extensions.js';
 
 /**
  * Mock files pre-seeded in the in-memory file system. These match the
@@ -424,6 +426,9 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 		return {
 			remoteAuthority: undefined,
 			isVirtualProcess: false,
+			isResponsive: true,
+			whenReady: Promise.resolve(),
+			setReady: () => { },
 			onDidRequestDetach: Event.None,
 			attachToProcess: async () => { throw new Error('Not supported'); },
 			attachToRevivedProcess: async () => { throw new Error('Not supported'); },
@@ -481,7 +486,14 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 			},
 			getWslPath: async (original: string, _direction: 'unix-to-win' | 'win-to-unix') => original,
 			getEnvironment: async () => ({}),
+			getLatency: async () => [],
 			getPerformanceMarks: () => [],
+			updateTitle: async () => { },
+			updateIcon: async () => { },
+			setNextCommandId: async () => { },
+			restartPtyHost: () => { },
+			installAutoReply: async () => { },
+			uninstallAllAutoReplies: async () => { },
 			onPtyHostUnresponsive: Event.None,
 			onPtyHostResponsive: Event.None,
 			onPtyHostRestart: Event.None,
@@ -528,14 +540,26 @@ export class TestSessionsBrowserMain extends SessionsBrowserMain {
 		// Register mock-fs:// provider FIRST so all services can resolve workspace files
 		registerMockFileSystemProvider(serviceCollection);
 
-		// Override entitlement service so Sessions thinks user is signed in
-		serviceCollection.set(IChatEntitlementService, new MockChatEntitlementService());
-
-		// Override default account service to hide the "Sign In" button
-		serviceCollection.set(IDefaultAccountService, new MockDefaultAccountService());
-
-		// Override git service so openRepository resolves instantly (no 10s barrier wait)
-		serviceCollection.set(IGitService, new MockGitService());
+		// Override services in the global singleton registry BEFORE the workbench
+		// reads it in initServices(). getSingletonServiceDescriptors() returns a
+		// mutable reference to the internal registry array, so replacing entries
+		// here ensures the workbench picks up our mocks.
+		const registry = getSingletonServiceDescriptors();
+		const overrides: [any, SyncDescriptor<any>][] = [
+			[IChatEntitlementService, new SyncDescriptor(MockChatEntitlementService)],
+			[IDefaultAccountService, new SyncDescriptor(MockDefaultAccountService)],
+			[IGitService, new SyncDescriptor(MockGitService)],
+		];
+		for (const [serviceId, mockDescriptor] of overrides) {
+			const idx = registry.findIndex(([id]) => id === serviceId);
+			if (idx !== -1) {
+				registry[idx] = [serviceId, mockDescriptor];
+				console.log(`[Sessions Web Test] Replaced singleton: ${serviceId}`);
+			} else {
+				registry.push([serviceId, mockDescriptor]);
+				console.log(`[Sessions Web Test] Added singleton: ${serviceId}`);
+			}
+		}
 
 		console.log('[Sessions Web Test] Creating Sessions workbench with mocks');
 		return new SessionsWorkbench(domElement, undefined, serviceCollection, logService);
