@@ -41,7 +41,6 @@ export class KeybindingsExportContribution extends Disposable implements IWorkbe
 		super();
 
 		if (this.productService.quality === 'stable') {
-			console.log(`[${KeybindingsExportContribution.ID}] Skipping export of default keybindings on stable quality.`);
 			return;
 		}
 
