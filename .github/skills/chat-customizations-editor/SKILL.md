@@ -32,7 +32,7 @@ Principle: the UI widgets read everything from the descriptor — no harness-spe
 
 ## Testing
 
-Component explorer fixtures (see `component-fixtures` skill): `aiCustomizationListWidget.fixture.ts`, `aiCustomizationHarness.fixture.ts` under `src/vs/workbench/test/browser/componentFixtures/`.
+Component explorer fixtures (see `component-fixtures` skill): `aiCustomizationListWidget.fixture.ts`, `aiCustomizationManagementEditor.fixture.ts` under `src/vs/workbench/test/browser/componentFixtures/`.
 
 ```bash
 ./scripts/test.sh --grep "applyStorageSourceFilter|customizationCounts"

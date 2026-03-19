@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as DOM from '../../../../base/browser/dom.js';
 import { Dimension } from '../../../../base/browser/dom.js';
+import { IRenderedMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
@@ -15,10 +17,15 @@ import { ITextModelService } from '../../../../editor/common/services/resolverSe
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../platform/list/browser/listService.js';
-import { IWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IRequestService } from '../../../../platform/request/common/request.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
+import { IWebviewService } from '../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createClaudeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots, getClaudeUserRoots } from '../../../contrib/chat/common/customizationHarnessService.js';
 import { PromptsType } from '../../../contrib/chat/common/promptSyntax/promptTypes.js';
@@ -30,6 +37,7 @@ import { IPluginInstallService } from '../../../contrib/chat/common/plugins/plug
 import { AICustomizationManagementEditor } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpServerInstallState } from '../../../contrib/mcp/common/mcpTypes.js';
+import { IMcpRegistry } from '../../../contrib/mcp/common/mcpRegistryTypes.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
 
@@ -43,6 +51,7 @@ import '../../../contrib/chat/browser/aiCustomization/media/aiCustomizationManag
 // ============================================================================
 
 const userHome = URI.file('/home/dev');
+const BUILTIN_STORAGE = 'builtin';
 
 interface IFixtureFile {
 	readonly uri: URI;
@@ -94,12 +103,7 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IRes
 	}();
 }
 
-function createMockHarnessService(activeHarness: CustomizationHarness): ICustomizationHarnessService {
-	const descriptors: readonly IHarnessDescriptor[] = [
-		createVSCodeHarnessDescriptor([PromptsStorage.extension]),
-		createCliHarnessDescriptor(getCliUserRoots(userHome), []),
-		createClaudeHarnessDescriptor(getClaudeUserRoots(userHome), []),
-	];
+function createMockHarnessService(activeHarness: CustomizationHarness, descriptors: readonly IHarnessDescriptor[]): ICustomizationHarnessService {
 	const active = observableValue('activeHarness', activeHarness);
 	return new class extends mock<ICustomizationHarnessService>() {
 		override readonly activeHarness = active;
@@ -171,47 +175,64 @@ const mcpRuntimeServers = [
 	{ definition: { id: 'github-copilot-mcp', label: 'GitHub Copilot' }, collection: { id: 'ext.github.copilot/mcp', label: 'ext.github.copilot/mcp' }, enablement: constObservable(2), connectionState: constObservable({ state: 2 }) },
 ];
 
+interface IRenderEditorOptions {
+	readonly harness: CustomizationHarness;
+	readonly isSessionsWindow?: boolean;
+	readonly managementSections?: readonly AICustomizationManagementSection[];
+	readonly availableHarnesses?: readonly IHarnessDescriptor[];
+}
+
 // ============================================================================
 // Render helper — creates the full management editor
 // ============================================================================
 
-async function renderEditor(ctx: ComponentFixtureContext, harness: CustomizationHarness): Promise<void> {
+async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditorOptions): Promise<void> {
 	const width = 900;
 	const height = 600;
 	ctx.container.style.width = `${width}px`;
 	ctx.container.style.height = `${height}px`;
+
+	const isSessionsWindow = options.isSessionsWindow ?? false;
+	const managementSections = options.managementSections ?? [
+		AICustomizationManagementSection.Agents,
+		AICustomizationManagementSection.Skills,
+		AICustomizationManagementSection.Instructions,
+		AICustomizationManagementSection.Hooks,
+		AICustomizationManagementSection.Prompts,
+		AICustomizationManagementSection.McpServers,
+		AICustomizationManagementSection.Plugins,
+	];
+	const availableHarnesses = options.availableHarnesses ?? [
+		createVSCodeHarnessDescriptor([PromptsStorage.extension]),
+		createCliHarnessDescriptor(getCliUserRoots(userHome), []),
+		createClaudeHarnessDescriptor(getClaudeUserRoots(userHome), []),
+	];
 
 	const allMcpServers = [...mcpWorkspaceServers, ...mcpUserServers];
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
+			const harnessService = createMockHarnessService(options.harness, availableHarnesses);
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
 			reg.defineInstance(IPromptsService, createMockPromptsService(allFiles, agentInstructions));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
-				override readonly isSessionsWindow = false;
+				override readonly isSessionsWindow = isSessionsWindow;
 				override readonly activeProjectRoot = observableValue('root', URI.file('/workspace'));
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
-				override getStorageSourceFilter() { return { sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension] }; }
+				override getStorageSourceFilter(type: PromptsType) { return harnessService.getStorageSourceFilter(type); }
 				override clearOverrideProjectRoot() { }
 				override setOverrideProjectRoot() { }
-				override readonly managementSections = [
-					AICustomizationManagementSection.Agents,
-					AICustomizationManagementSection.Skills,
-					AICustomizationManagementSection.Instructions,
-					AICustomizationManagementSection.Hooks,
-					AICustomizationManagementSection.Prompts,
-					AICustomizationManagementSection.McpServers,
-					AICustomizationManagementSection.Plugins,
-				];
+				override readonly managementSections = managementSections;
 				override async generateCustomization() { }
 			}());
-			reg.defineInstance(ICustomizationHarnessService, createMockHarnessService(harness));
+			reg.defineInstance(ICustomizationHarnessService, harnessService);
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
 				override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
+				override getWorkbenchState(): WorkbenchState { return WorkbenchState.WORKSPACE; }
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;
@@ -227,6 +248,19 @@ async function renderEditor(ctx: ComponentFixtureContext, harness: Customization
 				override readonly onDidChangeDirty = Event.None;
 			}());
 			reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
+			reg.defineInstance(IExtensionService, new class extends mock<IExtensionService>() { }());
+			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() { }());
+			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() { }());
+			reg.defineInstance(IMarkdownRendererService, new class extends mock<IMarkdownRendererService>() {
+				override render() {
+					const rendered: IRenderedMarkdown = {
+						element: DOM.$('span'),
+						dispose() { },
+					};
+					return rendered;
+				}
+			}());
+			reg.defineInstance(IWebviewService, new class extends mock<IWebviewService>() { }());
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
 				override readonly onReset = Event.None;
@@ -236,6 +270,11 @@ async function renderEditor(ctx: ComponentFixtureContext, harness: Customization
 			}());
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
 				override readonly servers = constObservable(mcpRuntimeServers as never[]);
+			}());
+			reg.defineInstance(IMcpRegistry, new class extends mock<IMcpRegistry>() {
+				override readonly collections = constObservable([]);
+				override readonly delegates = constObservable([]);
+				override readonly onDidChangeInputs = Event.None;
 			}());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = constObservable([]);
@@ -273,13 +312,42 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Generate buttons, AGENTS.md shortcut, all storage groups
 	LocalHarness: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, CustomizationHarness.VSCode),
+		render: ctx => renderEditor(ctx, { harness: CustomizationHarness.VSCode }),
+	}),
+
+	// Full editor with Copilot CLI harness — no prompts section, CLI-specific
+	// root files and instruction filtering under .github/.copilot paths.
+	CliHarness: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, { harness: CustomizationHarness.CLI }),
 	}),
 
 	// Full editor with Claude harness — Prompts+Plugins hidden, Agents visible,
 	// "Add CLAUDE.md" button, "New Rule" dropdown, instruction filtering, bridged MCP badge
 	ClaudeHarness: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, CustomizationHarness.Claude),
+		render: ctx => renderEditor(ctx, { harness: CustomizationHarness.Claude }),
+	}),
+
+	// Sessions-window variant of the full editor with workspace override UX
+	// and sessions section ordering.
+	Sessions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.CLI,
+			isSessionsWindow: true,
+			availableHarnesses: [
+				createCliHarnessDescriptor(getCliUserRoots(userHome), [BUILTIN_STORAGE]),
+			],
+			managementSections: [
+				AICustomizationManagementSection.Agents,
+				AICustomizationManagementSection.Skills,
+				AICustomizationManagementSection.Instructions,
+				AICustomizationManagementSection.Prompts,
+				AICustomizationManagementSection.Hooks,
+				AICustomizationManagementSection.McpServers,
+				AICustomizationManagementSection.Plugins,
+			],
+		}),
 	}),
 });
