@@ -12,7 +12,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from '../../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IEditorService, MODAL_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
@@ -20,6 +20,7 @@ import { AICustomizationManagementEditorInput } from './aiCustomizationManagemen
 import {
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID,
+	AI_CUSTOMIZATION_ITEM_DISABLED_KEY,
 	AI_CUSTOMIZATION_ITEM_STORAGE_KEY,
 	AI_CUSTOMIZATION_ITEM_TYPE_KEY,
 	AI_CUSTOMIZATION_ITEM_URI_KEY,
@@ -33,17 +34,20 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { PromptsStorage, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IFileService, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
+import { basename, dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, isMacintosh } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 
 //#region Telemetry
 
@@ -163,9 +167,19 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		await editorService.openEditor({
+		const storage = extractStorage(context);
+
+		const editorPane = await editorService.openEditor({
 			resource: extractURI(context)
 		});
+
+		const codeEditor = getCodeEditor(editorPane?.getControl());
+		if (codeEditor && (storage === PromptsStorage.extension || storage === PromptsStorage.plugin)) {
+			codeEditor.updateOptions({
+				readOnly: true,
+				readOnlyMessage: new MarkdownString(localize('readonlyPluginFile', "This file is provided by a plugin or extension and cannot be edited.")),
+			});
+		}
 	}
 });
 
@@ -231,8 +245,26 @@ registerAction2(class extends Action2 {
 		// For skills, use the parent folder name since skills are structured as <skillname>/SKILL.md.
 		const fileName = isSkill ? basename(dirname(uri)) : basename(uri);
 
-		// Extension, plugin, and built-in files cannot be deleted
-		if (storage === PromptsStorage.extension || storage === PromptsStorage.plugin || storage === BUILTIN_STORAGE) {
+		// Plugin-provided files: offer to uninstall the plugin
+		if (storage === PromptsStorage.plugin) {
+			const agentPluginService = accessor.get(IAgentPluginService);
+			const plugin = agentPluginService.plugins.get().find(p => isEqualOrParent(uri, p.uri));
+			if (plugin) {
+				const result = await dialogService.confirm({
+					message: localize('cannotDeletePluginItem', "This item is provided by the plugin '{0}'", plugin.label),
+					detail: localize('cannotDeletePluginItemDetail', "Individual components from a plugin cannot be removed separately. Would you like to uninstall the entire plugin?"),
+					primaryButton: localize('uninstallPlugin', "Uninstall Plugin"),
+					type: 'question',
+				});
+				if (result.confirmed) {
+					plugin.remove();
+				}
+			}
+			return;
+		}
+
+		// Extension and built-in files cannot be deleted
+		if (storage === PromptsStorage.extension || storage === BUILTIN_STORAGE) {
 			await dialogService.info(
 				localize('cannotDeleteExtension', "Cannot Delete Extension File"),
 				localize('cannotDeleteExtensionDetail', "Files provided by extensions cannot be deleted. You can disable the extension if you no longer want to use this customization.")
@@ -307,6 +339,11 @@ const WHEN_ITEM_IS_DELETABLE = ContextKeyExpr.and(
 	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
 );
 
+/**
+ * When clause that shows an action only for plugin items.
+ */
+const WHEN_ITEM_IS_PLUGIN = ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, PromptsStorage.plugin);
+
 // Register context menu items
 
 // Inline hover actions (shown as icon buttons on hover)
@@ -354,6 +391,148 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	when: WHEN_ITEM_IS_DELETABLE,
 });
 
+// Uninstall Plugin action - shown for plugin-provided items
+const UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.uninstallPlugin';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID,
+			title: localize2('uninstallPlugin', "Uninstall Plugin"),
+			icon: Codicon.trash,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		const agentPluginService = accessor.get(IAgentPluginService);
+		const dialogService = accessor.get(IDialogService);
+
+		const uri = extractURI(context);
+		const plugin = agentPluginService.plugins.get().find(p => isEqualOrParent(uri, p.uri));
+		if (!plugin) {
+			return;
+		}
+
+		const result = await dialogService.confirm({
+			message: localize('confirmUninstallPlugin', "This item is provided by the plugin '{0}'", plugin.label),
+			detail: localize('confirmUninstallPluginDetail', "Individual components from a plugin cannot be removed separately. Would you like to uninstall the entire plugin?"),
+			primaryButton: localize('uninstallPluginBtn', "Uninstall Plugin"),
+			type: 'question',
+		});
+		if (result.confirmed) {
+			plugin.remove();
+		}
+	}
+});
+
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('uninstallPlugin', "Uninstall Plugin"), icon: Codicon.trash },
+	group: 'inline',
+	order: 10,
+	when: WHEN_ITEM_IS_PLUGIN,
+});
+
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('uninstallPlugin', "Uninstall Plugin") },
+	group: '4_modify',
+	order: 1,
+	when: WHEN_ITEM_IS_PLUGIN,
+});
+
+// Disable item action
+const DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID = 'aiCustomizationManagement.disableItem';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID,
+			title: localize2('disable', "Disable"),
+			icon: Codicon.eyeClosed,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		const promptsService = accessor.get(IPromptsService);
+		const uri = extractURI(context);
+		const promptType = extractPromptType(context);
+		if (!promptType) {
+			return;
+		}
+
+		const disabled = promptsService.getDisabledPromptFiles(promptType);
+		disabled.add(uri);
+		promptsService.setDisabledPromptFiles(promptType, disabled);
+	}
+});
+
+// Enable item action
+const ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID = 'aiCustomizationManagement.enableItem';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID,
+			title: localize2('enable', "Enable"),
+			icon: Codicon.eye,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		const promptsService = accessor.get(IPromptsService);
+		const uri = extractURI(context);
+		const promptType = extractPromptType(context);
+		if (!promptType) {
+			return;
+		}
+
+		const disabled = promptsService.getDisabledPromptFiles(promptType);
+		disabled.delete(uri);
+		promptsService.setDisabledPromptFiles(promptType, disabled);
+	}
+});
+
+// Context menu: Disable (shown when builtin item is enabled)
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disable', "Disable") },
+	group: '5_toggle',
+	order: 1,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+	),
+});
+
+// Context menu: Enable (shown when builtin item is disabled)
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable") },
+	group: '5_toggle',
+	order: 1,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+	),
+});
+
+// Inline hover: Disable (shown when builtin item is enabled)
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disable', "Disable"), icon: Codicon.eyeClosed },
+	group: 'inline',
+	order: 5,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+	),
+});
+
+// Inline hover: Enable (shown when builtin item is disabled)
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable"), icon: Codicon.eye },
+	group: 'inline',
+	order: 5,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+	),
+});
+
 //#endregion
 
 //#region Actions
@@ -384,7 +563,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
 				const editorService = accessor.get(IEditorService);
 				const input = AICustomizationManagementEditorInput.getOrCreate();
-				const pane = await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
+				const pane = await editorService.openEditor(input, { pinned: true });
 				if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);
 				}

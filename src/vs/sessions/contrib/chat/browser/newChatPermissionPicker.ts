@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -151,6 +151,7 @@ export class NewChatPermissionPicker extends Disposable {
 			onHide: () => { triggerElement.focus(); },
 		};
 
+		const listOptions: IActionListOptions = { descriptionBelow: true, minWidth: 255 };
 		this.actionWidgetService.show<IPermissionItem>(
 			'permissionPicker',
 			false,
@@ -163,6 +164,7 @@ export class NewChatPermissionPicker extends Disposable {
 				getAriaLabel: (item) => item.label ?? '',
 				getWidgetAriaLabel: () => localize('permissionPicker.ariaLabel', "Permission Picker"),
 			},
+			listOptions,
 		);
 	}
 
@@ -253,5 +255,8 @@ export class NewChatPermissionPicker extends Disposable {
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
 		dom.append(trigger, renderIcon(Codicon.chevronDown));
+
+		trigger.classList.toggle('warning', this._currentLevel === ChatPermissionLevel.Autopilot);
+		trigger.classList.toggle('info', this._currentLevel === ChatPermissionLevel.AutoApprove);
 	}
 }

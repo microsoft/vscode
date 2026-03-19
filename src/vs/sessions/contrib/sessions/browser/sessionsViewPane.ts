@@ -111,7 +111,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 			groupResults: () => this.currentGrouping,
 			allowedProviders: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
 			providerLabelOverrides: new Map([
-				[AgentSessionProviders.Background, localize('chat.session.providerLabel.local', "Local")],
+				[AgentSessionProviders.Background, localize('chat.session.providerLabel.background', "Copilot CLI")],
 			]),
 		}));
 
@@ -141,7 +141,6 @@ export class AgenticSessionsViewPane extends ViewPane {
 			filter: sessionsFilter,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			disableHover: true,
-			showIsolationIcon: true,
 			enableApprovalRow: true,
 			getHoverPosition: () => this.getSessionHoverPosition(),
 			trackActiveEditorSession: () => true,

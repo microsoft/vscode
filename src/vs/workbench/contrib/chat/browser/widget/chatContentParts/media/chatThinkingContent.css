@@ -56,6 +56,9 @@
 		.codicon.codicon-circle-filled {
 			display: none;
 		}
+	}
+
+	&.chat-thinking-active.chat-used-context-collapsed > .chat-used-context-label .monaco-button.monaco-icon-button {
 
 		.chat-thinking-title-shimmer {
 			background: linear-gradient(90deg,
@@ -92,17 +95,32 @@
 		max-height: none;
 	}
 
+	/* Curved connector from the header to the first thinking item */
+	&:not(.chat-used-context-collapsed)::after {
+		content: '';
+		position: absolute;
+		left: 3px;
+		top: 22px;
+		height: 16px;
+		width: 5px;
+		border-left: 1px solid var(--vscode-chat-requestBorder);
+		border-bottom: 1px solid var(--vscode-chat-requestBorder);
+		border-bottom-left-radius: 5px;
+	}
+
 	.monaco-button.hidden,
 	.chat-pinned-preview.hidden {
 		display: none;
 	}
 
 	.chat-used-context-list.chat-thinking-collapsible {
-		border: 1px solid var(--vscode-chat-requestBorder);
-		border-radius: var(--vscode-cornerRadius-medium);
+		border: none;
+		border-radius: 0;
 		margin-bottom: 0;
 		position: relative;
 		overflow: hidden;
+		padding-top: 0;
+		margin-left: 5px;
 
 		.chat-tool-invocation-part {
 			padding: 4px 12px 4px 18px;
@@ -161,15 +179,16 @@
 
 			.chat-used-context.chat-hook-outcome-blocked,
 			.chat-used-context.chat-hook-outcome-warning {
-					padding: 4px 12px 4px 20px;
-					margin-bottom: 0;
-				}
+				padding: 4px 12px 4px 20px;
+				margin-bottom: 0;
+			}
 		}
 
 		.chat-thinking-item.markdown-content {
 			padding: 6px 12px 6px 24px;
 			position: relative;
 			font-size: var(--vscode-chat-font-size-body-s);
+
 			.progress-container {
 				margin-bottom: 0px;
 				padding-top: 0px;
@@ -255,7 +274,6 @@
 			> .chat-thinking-icon .codicon.codicon-book {
 				top: 10px;
 			}
-
 		}
 
 		.chat-thinking-spinner-item {
@@ -326,8 +344,29 @@
 .interactive-session .interactive-response .value .chat-thinking-fixed-mode {
 	outline: none;
 
+	/* Hide the header/collapse button while streaming — it reappears when chat-thinking-streaming is removed */
+	&:has(.chat-thinking-streaming) > .chat-used-context-label {
+		display: none;
+	}
+
 	> .monaco-scrollable-element > .shadow {
 		display: none;
+	}
+
+	/* Directional fade indicators via mask-image on the scrollable viewport */
+	&.chat-thinking-fade-top > .monaco-scrollable-element {
+		mask-image: linear-gradient(to bottom, transparent 0px, black 20px);
+		-webkit-mask-image: linear-gradient(to bottom, transparent 0px, black 20px);
+	}
+
+	&.chat-thinking-fade-bottom > .monaco-scrollable-element {
+		mask-image: linear-gradient(to top, transparent 0px, black 20px);
+		-webkit-mask-image: linear-gradient(to top, transparent 0px, black 20px);
+	}
+
+	&.chat-thinking-fade-top.chat-thinking-fade-bottom > .monaco-scrollable-element {
+		mask-image: linear-gradient(to bottom, transparent 0px, black 20px, black calc(100% - 20px), transparent 100%);
+		-webkit-mask-image: linear-gradient(to bottom, transparent 0px, black 20px, black calc(100% - 20px), transparent 100%);
 	}
 
 	&.chat-used-context-collapsed > .monaco-scrollable-element:has(.chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming)) {
@@ -338,6 +377,42 @@
 		max-height: 200px;
 		overflow: hidden;
 		display: block;
+		margin-left: 0px;
+		padding-left: 0px;
+
+		.chat-tool-invocation-part {
+			padding-left: 13px;
+		}
+
+		.chat-thinking-spinner-item {
+			padding-left: 19px;
+		}
+
+		.chat-used-context.chat-hook-outcome-blocked,
+		.chat-used-context.chat-hook-outcome-warning {
+			padding-left: 15px;
+		}
+
+		.chat-thinking-item.markdown-content {
+			padding-left: 19px;
+		}
+
+		.chat-thinking-tool-wrapper .chat-markdown-part.rendered-markdown {
+			padding-left: 19px;
+		}
+
+		/* chain of thought lines */
+		.chat-thinking-tool-wrapper,
+		.chat-thinking-item.markdown-content,
+		.chat-thinking-spinner-item {
+			&::before {
+				left: 5.5px;
+			}
+
+			> .chat-thinking-icon {
+				left: 0px;
+			}
+		}
 	}
 
 	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming {
@@ -349,10 +424,6 @@
 	&:not(.chat-used-context-collapsed) > .monaco-scrollable-element {
 		overflow: visible;
 		height: auto;
-
-		> .scrollbar {
-			display: none;
-		}
 	}
 
 	.chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming) {

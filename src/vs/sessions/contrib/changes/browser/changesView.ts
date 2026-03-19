@@ -54,11 +54,11 @@ import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChan
 import { chatEditingWidgetFileStateContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, ModifiedFileEntryState } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { IActivityService, NumberBadge } from '../../../../workbench/services/activity/common/activity.js';
-import { IEditorService, MODAL_GROUP, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionWorkspace.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
@@ -85,14 +85,12 @@ const changesViewModeContextKey = new RawContextKey<ChangesViewMode>('changesVie
 
 const enum ChangesVersionMode {
 	AllChanges = 'allChanges',
-	LastTurn = 'lastTurn',
-	Uncommitted = 'uncommitted'
+	LastTurn = 'lastTurn'
 }
 
 const changesVersionModeContextKey = new RawContextKey<ChangesVersionMode>('sessions.changesVersionMode', ChangesVersionMode.AllChanges);
 const isMergeBaseBranchProtectedContextKey = new RawContextKey<boolean>('sessions.isMergeBaseBranchProtected', false);
 const hasOpenPullRequestContextKey = new RawContextKey<boolean>('sessions.hasOpenPullRequest', false);
-const hasUncommittedChangesContextKey = new RawContextKey<boolean>('sessions.hasUncommittedChanges', false);
 
 // --- List Item
 
@@ -256,7 +254,6 @@ export class ChangesViewPane extends ViewPane {
 	private readonly activeSession: IObservableWithChange<IActiveSessionItem | undefined>;
 	private readonly activeSessionFileCountObs: IObservableWithChange<number>;
 	private readonly activeSessionHasChangesObs: IObservableWithChange<boolean>;
-	private readonly activeSessionRepositoryChangesObs: IObservableWithChange<IChangesFileItem[] | undefined>;
 	private readonly activeSessionRepositoryObs: IObservableWithChange<IGitRepository | undefined>;
 
 	get activeSessionHasChanges(): IObservable<boolean> {
@@ -330,33 +327,6 @@ export class ChangesViewPane extends ViewPane {
 			}
 
 			return activeSessionRepositoryPromise.read(reader);
-		});
-
-		this.activeSessionRepositoryChangesObs = derived(reader => {
-			const repository = this.activeSessionRepositoryObs.read(reader);
-			if (!repository) {
-				return undefined;
-			}
-
-			const state = repository.state.read(reader);
-			const headCommit = state?.HEAD?.commit;
-			return (state?.workingTreeChanges ?? []).map(change => {
-				const isDeletion = change.modifiedUri === undefined;
-				const isAddition = change.originalUri === undefined;
-				const fileUri = change.modifiedUri ?? change.uri;
-				return {
-					type: 'file',
-					uri: fileUri,
-					originalUri: isDeletion || !headCommit ? change.originalUri
-						: fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: headCommit }) }),
-					state: ModifiedFileEntryState.Accepted,
-					isDeletion,
-					changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
-					reviewCommentCount: 0,
-					linesAdded: 0,
-					linesRemoved: 0,
-				} satisfies IChangesFileItem;
-			});
 		});
 
 		this.activeSessionFileCountObs = this.createActiveSessionFileCountObservable();
@@ -458,6 +428,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// CI Status widget beneath the card
 		this.ciStatusWidget = this._register(this.instantiationService.createInstance(CIStatusWidget, this.bodyContainer));
+		this._register(this.ciStatusWidget.onDidChangeHeight(() => this.layoutTree()));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
@@ -615,14 +586,48 @@ export class ChangesViewPane extends ViewPane {
 			return repository?.state.read(reader)?.HEAD?.commit;
 		});
 
+		const lastCheckpointRefObs = derived(reader => {
+			const sessionResource = activeSessionResource.read(reader);
+			if (!sessionResource) {
+				return undefined;
+			}
+
+			sessionsChangedSignal.read(reader);
+			const model = this.agentSessionsService.getSession(sessionResource);
+
+			return model?.metadata?.lastCheckpointRef as string | undefined;
+		});
+
+		const beforeLastCheckpointRefObs = derived(reader => {
+			const lastCheckpointRef = lastCheckpointRefObs.read(reader);
+			if (!lastCheckpointRef) {
+				return undefined;
+			}
+
+			const checkpointSegments = lastCheckpointRef.split('/');
+			const turnCount = parseInt(checkpointSegments.pop() ?? '-1', 10);
+			if (!Number.isFinite(turnCount) || turnCount <= 0) {
+				return undefined;
+			}
+
+			checkpointSegments.push(`${turnCount - 1}`);
+			return checkpointSegments.join('/');
+		});
+
 		const lastTurnChangesObs = derived(reader => {
 			const repository = this.activeSessionRepositoryObs.read(reader);
 			const headCommit = headCommitObs.read(reader);
+
 			if (!repository || !headCommit) {
 				return constObservable(undefined);
 			}
 
-			return new ObservablePromise(repository.diffBetweenWithStats(`${headCommit}^`, headCommit)).resolvedValue;
+			const lastCheckpointRef = lastCheckpointRefObs.read(reader);
+			const beforeLastCheckpointRef = beforeLastCheckpointRefObs.read(reader);
+
+			return lastCheckpointRef && beforeLastCheckpointRef
+				? new ObservablePromise(repository.diffBetweenWithStats2(`${beforeLastCheckpointRef}..${lastCheckpointRef}`)).resolvedValue
+				: new ObservablePromise(repository.diffBetweenWithStats(`${headCommit}^`, headCommit)).resolvedValue;
 		});
 
 		// Combine both entry sources for display
@@ -631,21 +636,35 @@ export class ChangesViewPane extends ViewPane {
 			const versionMode = this.versionModeObs.read(reader);
 			const editEntries = editSessionEntriesObs.read(reader);
 			const sessionFiles = sessionFilesObs.read(reader);
-			const repositoryFiles = this.activeSessionRepositoryChangesObs.read(reader) ?? [];
 			const lastTurnDiffChanges = lastTurnChangesObs.read(reader).read(reader);
 
 			let sourceEntries: IChangesFileItem[];
-			if (versionMode === ChangesVersionMode.Uncommitted) {
-				sourceEntries = repositoryFiles;
-			} else if (versionMode === ChangesVersionMode.LastTurn) {
+			if (versionMode === ChangesVersionMode.LastTurn) {
 				const diffChanges = lastTurnDiffChanges ?? [];
-				const parentRef = headCommit ? `${headCommit}^` : '';
+				const lastCheckpointRef = lastCheckpointRefObs.read(undefined);
+				const beforeLastCheckpointRef = beforeLastCheckpointRefObs.read(undefined);
+
+				const ref = lastCheckpointRef
+					? lastCheckpointRef
+					: headCommit;
+
+				const parentRef = beforeLastCheckpointRef
+					? beforeLastCheckpointRef
+					: headCommit ? `${headCommit}^` : undefined;
+
 				sourceEntries = diffChanges.map(change => {
 					const isDeletion = change.modifiedUri === undefined;
 					const isAddition = change.originalUri === undefined;
-					const fileUri = change.modifiedUri ?? change.uri;
-					const originalUri = isAddition ? change.originalUri
-						: headCommit ? fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: parentRef }) })
+					const uri = change.modifiedUri ?? change.uri;
+					const fileUri = isDeletion
+						? uri
+						: ref
+							? uri.with({ scheme: 'git', query: JSON.stringify({ path: uri.fsPath, ref }) })
+							: uri;
+					const originalUri = isAddition
+						? change.originalUri
+						: parentRef
+							? fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: parentRef }) })
 							: change.originalUri;
 					return {
 						type: 'file',
@@ -660,7 +679,7 @@ export class ChangesViewPane extends ViewPane {
 					} satisfies IChangesFileItem;
 				});
 			} else {
-				sourceEntries = [...editEntries, ...sessionFiles, ...repositoryFiles];
+				sourceEntries = [...editEntries, ...sessionFiles];
 			}
 
 			const resources = new Set();
@@ -678,7 +697,6 @@ export class ChangesViewPane extends ViewPane {
 		const topLevelStats = derived(reader => {
 			const editEntries = editSessionEntriesObs.read(reader);
 			const sessionFiles = sessionFilesObs.read(reader);
-			const repositoryFiles = this.activeSessionRepositoryChangesObs.read(reader) ?? [];
 			const entries = combinedEntriesObs.read(reader);
 
 			let added = 0, removed = 0;
@@ -689,7 +707,7 @@ export class ChangesViewPane extends ViewPane {
 			}
 
 			const files = entries.length;
-			const isSessionMenu = editEntries.length === 0 && (sessionFiles.length > 0 || repositoryFiles.length > 0);
+			const isSessionMenu = editEntries.length === 0 && sessionFiles.length > 0;
 
 			return { files, added, removed, isSessionMenu };
 		});
@@ -733,13 +751,6 @@ export class ChangesViewPane extends ViewPane {
 			});
 
 			this.renderDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, this.scopedContextKeyService, r => hasAgentSessionChangesObs.read(r)));
-
-			const hasUncommittedChangesObs = derived(reader => {
-				const repositoryFiles = this.activeSessionRepositoryChangesObs.read(reader);
-				return (repositoryFiles?.length ?? 0) > 0;
-			});
-
-			this.renderDisposables.add(bindContextKey(hasUncommittedChangesContextKey, this.scopedContextKeyService, r => hasUncommittedChangesObs.read(r)));
 
 			const isMergeBaseBranchProtectedObs = derived(reader => {
 				const activeSession = this.activeSession.read(reader);
@@ -944,7 +955,7 @@ export class ChangesViewPane extends ViewPane {
 					}
 				};
 
-				const group = sideBySide ? SIDE_GROUP : MODAL_GROUP;
+				const group = sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
 
 				if (isDeletion && originalUri) {
 					this.editorService.openEditor({
@@ -1053,15 +1064,53 @@ export class ChangesViewPane extends ViewPane {
 		const overviewHeight = this.overviewContainer?.offsetHeight ?? 0;
 		const containerPadding = 8; // 4px top + 4px bottom from .chat-editing-session-container
 		const containerBorder = 2; // 1px top + 1px bottom border
-		const ciWidgetHeight = this.ciStatusWidget?.element.offsetHeight ?? 0;
-		const ciWidgetMargin = ciWidgetHeight > 0 ? 8 : 0; // margin-top on CI widget
 
-		const usedHeight = bodyPadding + actionsHeight + actionsMargin + overviewHeight + containerPadding + containerBorder + ciWidgetHeight + ciWidgetMargin;
-		const availableHeight = Math.max(0, bodyHeight - usedHeight);
+		const fixedUsed = bodyPadding + actionsHeight + actionsMargin + overviewHeight + containerPadding + containerBorder;
 
-		// Limit height to the content so the tree doesn't exceed its items
-		const contentHeight = this.tree.contentHeight;
-		const treeHeight = Math.min(availableHeight, contentHeight);
+		// Determine CI widget space needs
+		const ciWidget = this.ciStatusWidget;
+		const ciVisible = ciWidget?.visible ?? false;
+		const ciHeaderHeight = ciVisible ? CIStatusWidget.HEADER_HEIGHT : 0;
+		const ciMargin = ciVisible ? 8 : 0; // margin-top on CI widget
+		const ciDesiredHeight = ciWidget?.desiredHeight ?? 0;
+
+		const spaceForTreeAndCI = Math.max(0, bodyHeight - fixedUsed - ciMargin);
+
+		// Give the tree priority, then CI gets the rest (with min/max on CI body)
+		const treeContentHeight = this.tree.contentHeight;
+		let treeHeight: number;
+		let ciBodyHeight = 0;
+
+		if (!ciVisible) {
+			treeHeight = Math.min(spaceForTreeAndCI, treeContentHeight);
+		} else {
+			// Reserve space for the CI header
+			const spaceAfterCIHeader = Math.max(0, spaceForTreeAndCI - ciHeaderHeight);
+
+			// Give the tree what it needs first, up to available space
+			treeHeight = Math.min(spaceAfterCIHeader, treeContentHeight);
+
+			// Remaining goes to CI body
+			const remainingForCIBody = Math.max(0, spaceAfterCIHeader - treeHeight);
+			const ciDesiredBodyHeight = Math.max(0, ciDesiredHeight - ciHeaderHeight);
+
+			ciBodyHeight = Math.min(ciDesiredBodyHeight, remainingForCIBody);
+
+			// Ensure CI body gets at least MIN_BODY_HEIGHT if there's content
+			if (ciDesiredBodyHeight > 0 && ciBodyHeight < CIStatusWidget.MIN_BODY_HEIGHT) {
+				const minCIBody = Math.min(CIStatusWidget.MIN_BODY_HEIGHT, ciDesiredBodyHeight);
+				const needed = minCIBody - ciBodyHeight;
+				const canTake = Math.max(0, treeHeight - 0); // tree can shrink to 0
+				const taken = Math.min(needed, canTake);
+				treeHeight -= taken;
+				ciBodyHeight += taken;
+			}
+
+			// Cap CI body at MAX_BODY_HEIGHT
+			ciBodyHeight = Math.min(ciBodyHeight, CIStatusWidget.MAX_BODY_HEIGHT);
+
+			ciWidget!.layout(ciBodyHeight);
+		}
 
 		this.tree.layout(treeHeight, this.currentBodyWidth);
 		this.tree.getHTMLElement().style.height = `${treeHeight}px`;
@@ -1404,27 +1453,3 @@ class LastTurnChangesAction extends Action2 {
 	}
 }
 registerAction2(LastTurnChangesAction);
-
-class UncommittedChangesAction extends Action2 {
-	constructor() {
-		super({
-			id: 'chatEditing.versionsUncommittedChanges',
-			title: localize2('chatEditing.versionsUncommittedChanges', 'Uncommitted Changes'),
-			category: CHAT_CATEGORY,
-			toggled: changesVersionModeContextKey.isEqualTo(ChangesVersionMode.Uncommitted),
-			precondition: hasUncommittedChangesContextKey,
-			menu: [{
-				id: MenuId.ChatEditingSessionChangesVersionsSubmenu,
-				group: '2_uncommitted',
-				order: 1,
-			}],
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getActiveViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
-		view?.setVersionMode(ChangesVersionMode.Uncommitted);
-	}
-}
-registerAction2(UncommittedChangesAction);

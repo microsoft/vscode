@@ -113,7 +113,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	}
 
 	private updateSystemColorTheme(): void {
-		if (isLinux || Setting.DETECT_COLOR_SCHEME.getValue(this.configurationService)) {
+		if (isLinux || this.isAutoDetectColorScheme()) {
 			electron.nativeTheme.themeSource = 'system'; // only with `system` we can detect the system color scheme
 		} else {
 			switch (Setting.SYSTEM_COLOR_THEME.getValue(this.configurationService)) {
@@ -174,11 +174,24 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 			return colorScheme.dark ? ThemeTypeSelector.HC_BLACK : ThemeTypeSelector.HC_LIGHT;
 		}
 
-		if (Setting.DETECT_COLOR_SCHEME.getValue(this.configurationService)) {
+		if (this.isAutoDetectColorScheme()) {
 			return colorScheme.dark ? ThemeTypeSelector.VS_DARK : ThemeTypeSelector.VS;
 		}
 
 		return undefined;
+	}
+
+	isAutoDetectColorScheme(): boolean {
+		if (Setting.DETECT_COLOR_SCHEME.getValue(this.configurationService)) {
+			return true;
+		}
+		// For new installs with no stored theme, auto-detect OS color scheme by default
+		// unless the user has explicitly configured the setting (e.g. via settings sync)
+		if (!this.stateService.getItem(THEME_STORAGE_KEY)) {
+			const { userValue } = this.configurationService.inspect<boolean>(Setting.DETECT_COLOR_SCHEME.key);
+			return userValue === undefined;
+		}
+		return false;
 	}
 
 	getBackgroundColor(): string {

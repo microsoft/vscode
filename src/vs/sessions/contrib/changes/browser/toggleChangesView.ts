@@ -3,16 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { autorun, derivedOpts, IReader } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -32,30 +29,44 @@ export class ToggleChangesViewContribution extends Disposable {
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
-		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatService private readonly chatService: IChatService,
 		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super();
 
-		const activeSessionResourceObs = derivedOpts<URI | undefined>({
-			equalsFn: isEqual,
-		}, (reader) => {
-			return this.sessionManagementService.activeSession.map(activeSession => activeSession?.resource).read(reader);
-		}).recomputeInitiallyAndOnChange(this._store);
+		const activeSessionChangedSignal = observableSignalFromEvent(this,
+			this.agentSessionsService.model.onDidChangeSessions);
 
-		this._register(this.chatService.onDidSubmitRequest(({ chatSessionResource }) => {
-			this.pendingTurnStateByResource.set(chatSessionResource, {
-				hadChangesBeforeSend: this.hasSessionChanges(chatSessionResource),
-				submittedAt: Date.now(),
-			});
+		const activeSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual, }, reader => {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			return activeSession?.resource;
+		});
+
+		const activeSessionHasChangesObs = derived<boolean>(reader => {
+			const sessionResource = activeSessionResourceObs.read(reader);
+			if (!sessionResource) {
+				return false;
+			}
+
+			activeSessionChangedSignal.read(reader);
+			const model = this.agentSessionsService.getSession(sessionResource);
+			const changes = model?.changes instanceof Array ? model.changes : [];
+			return changes.length > 0;
+		});
+
+		// Switch between sessions
+		this._register(autorun(reader => {
+			const activeSessionHasChanges = activeSessionHasChangesObs.read(reader);
+			this.syncAuxiliaryBarVisibility(activeSessionHasChanges);
 		}));
 
-		// When a turn is completed, check if there were changes before the turn and if there are changes after the turn.
-		// If there were no changes before the turn and there are changes after the turn, show the auxiliary bar.
+		// When a turn is completed, check if there were changes before the turn and
+		// if there are changes after the turn. If there were no changes before the
+		// turn and there are changes after the turn, show the auxiliary bar.
 		this._register(autorun((reader) => {
 			const activeSessionResource = activeSessionResourceObs.read(reader);
+			const activeSessionHasChanges = activeSessionHasChangesObs.read(reader);
 			if (!activeSessionResource) {
 				return;
 			}
@@ -71,41 +82,19 @@ export class ToggleChangesViewContribution extends Disposable {
 				return;
 			}
 
-			const hasChangesAfterTurn = this.hasSessionChanges(activeSessionResource, reader);
-			if (!pendingTurnState.hadChangesBeforeSend && hasChangesAfterTurn) {
+			if (!pendingTurnState.hadChangesBeforeSend && activeSessionHasChanges) {
 				this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 			}
 
 			this.pendingTurnStateByResource.delete(activeSessionResource);
 		}));
 
-		// When the session is switched, show the auxiliary bar if there are pending changes from the session
-		this._register(autorun(reader => {
-			const sessionResource = activeSessionResourceObs.read(reader);
-			if (!sessionResource) {
-				this.syncAuxiliaryBarVisibility(false);
-				return;
-			}
-
-			const hasChanges = this.hasSessionChanges(sessionResource, reader);
-			this.syncAuxiliaryBarVisibility(hasChanges);
+		this._register(this.chatService.onDidSubmitRequest(({ chatSessionResource }) => {
+			this.pendingTurnStateByResource.set(chatSessionResource, {
+				hadChangesBeforeSend: activeSessionHasChangesObs.get(),
+				submittedAt: Date.now(),
+			});
 		}));
-	}
-
-	private hasSessionChanges(sessionResource: URI, reader?: IReader): boolean {
-		const isBackgroundSession = getChatSessionType(sessionResource) === AgentSessionProviders.Background;
-
-		let editingSessionCount = 0;
-		if (!isBackgroundSession) {
-			const sessions = this.chatEditingService.editingSessionsObs.read(reader);
-			const editingSession = sessions.find(candidate => isEqual(candidate.chatSessionResource, sessionResource));
-			editingSessionCount = editingSession ? editingSession.entries.read(reader).length : 0;
-		}
-
-		const session = this.agentSessionsService.getSession(sessionResource);
-		const sessionFilesCount = session?.changes instanceof Array ? session.changes.length : 0;
-
-		return editingSessionCount + sessionFilesCount > 0;
 	}
 
 	private syncAuxiliaryBarVisibility(hasChanges: boolean): void {
