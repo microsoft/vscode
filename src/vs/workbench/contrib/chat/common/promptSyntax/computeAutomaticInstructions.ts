@@ -96,9 +96,7 @@ export class ComputeAutomaticInstructions {
 	}
 
 	public async collect(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
-		const trace = this._sessionResource
-			? getPerfTracer('code/chat')?.findTraceByCorrelation('sessionResource', this._sessionResource.toString())
-			: undefined;
+		const trace = getPerfTracer('code/chat')?.findTraceByCorrelation('sessionResource', this._sessionResource?.toString());
 		trace?.mark('willCollectInstructions');
 
 		const instructionFiles = await this._promptsService.getInstructionFiles(token, this._sessionResource);

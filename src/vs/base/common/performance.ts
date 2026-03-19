@@ -258,10 +258,10 @@ class PerfTracer implements IDisposable {
 
 	/**
 	 * Finds an active trace registered with the given key/value pair.
-	 * Returns `undefined` if no matching trace is found.
+	 * Returns `undefined` if no matching trace is found or if the value is not a string.
 	 */
-	findTraceByCorrelation(key: string, value: string): PerfTrace | undefined {
-		if (this._disposed) {
+	findTraceByCorrelation(key: string, value: unknown): PerfTrace | undefined {
+		if (this._disposed || typeof value !== 'string') {
 			return undefined;
 		}
 		return this._activeTraces.get(`${key}:${value}`);
