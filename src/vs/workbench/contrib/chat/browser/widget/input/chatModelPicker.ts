@@ -79,7 +79,7 @@ type ChatModelChangeEvent = {
 type ChatModelPickerInteraction = 'disabledModelContactAdminClicked' | 'premiumModelUpgradePlanClicked' | 'otherModelsExpanded' | 'otherModelsCollapsed';
 
 type ChatModelPickerInteractionClassification = {
-	owner: 'lramos15';
+	owner: 'sandy081';
 	comment: 'Reporting interactions in the chat model picker';
 	interaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model picker interaction that occurred' };
 };
