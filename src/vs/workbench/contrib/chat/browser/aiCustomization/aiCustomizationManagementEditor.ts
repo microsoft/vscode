@@ -303,6 +303,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private folderPickerClearButton: HTMLElement | undefined;
 
 	// Harness dropdown
+	private harnessDropdownContainer: HTMLElement | undefined;
 	private harnessDropdownButton: HTMLElement | undefined;
 	private harnessDropdownIcon: HTMLElement | undefined;
 	private harnessDropdownLabel: HTMLElement | undefined;
@@ -547,9 +548,18 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.selectSection(e.elements[0].id);
 		}));
 
-		// React to harness changes — rebuild visible sections and refresh counts
+		// React to harness changes — rebuild visible sections and refresh counts.
+		// Also track availableHarnesses to handle agent registration/unregistration.
 		this.editorDisposables.add(autorun(reader => {
-			this.harnessService.activeHarness.read(reader);
+			const available = this.harnessService.availableHarnesses.read(reader);
+			const activeId = this.harnessService.activeHarness.read(reader);
+
+			// If the active harness is no longer available, fall back to the default
+			if (!available.some(h => h.id === activeId) && available.length > 0) {
+				this.harnessService.setActiveHarness(available[0].id);
+				return; // setActiveHarness will trigger another autorun cycle
+			}
+
 			this.rebuildVisibleSections();
 			this.updateHarnessDropdown();
 			this.refreshAllPromptsSectionCounts();
@@ -580,12 +590,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (!this.isHarnessSelectorEnabled) {
 			return;
 		}
-		const harnesses = this.harnessService.availableHarnesses.get();
-		if (harnesses.length <= 1) {
-			return;
-		}
 
-		const container = DOM.append(sidebarContent, $('.sidebar-harness-dropdown'));
+		const container = this.harnessDropdownContainer = DOM.append(sidebarContent, $('.sidebar-harness-dropdown'));
 
 		this.harnessDropdownButton = DOM.append(container, $('button.harness-dropdown-button'));
 		this.harnessDropdownButton.setAttribute('aria-label', localize('selectHarness', "Select customization target"));
@@ -603,11 +609,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private updateHarnessDropdown(): void {
-		if (!this.harnessDropdownIcon || !this.harnessDropdownLabel) {
+		if (!this.harnessDropdownContainer || !this.harnessDropdownIcon || !this.harnessDropdownLabel) {
 			return;
 		}
+		const harnesses = this.harnessService.availableHarnesses.get();
+		// Hide dropdown when only one harness is available
+		this.harnessDropdownContainer.style.display = harnesses.length <= 1 ? 'none' : '';
+
 		const activeId = this.harnessService.activeHarness.get();
-		const descriptor = this.harnessService.availableHarnesses.get().find(h => h.id === activeId);
+		const descriptor = harnesses.find(h => h.id === activeId);
 		if (descriptor) {
 			this.harnessDropdownIcon.className = 'harness-dropdown-icon';
 			this.harnessDropdownIcon.classList.add(...ThemeIcon.asClassNameArray(descriptor.icon));
@@ -729,8 +739,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 
 		// Handle manual create actions - open editor directly
-		this.editorDisposables.add(this.listWidget.onDidRequestCreateManual(({ type, target }) => {
-			this.createNewItemManual(type, target);
+		this.editorDisposables.add(this.listWidget.onDidRequestCreateManual(({ type, target, rootFileName }) => {
+			this.createNewItemManual(type, target, rootFileName);
 		}));
 
 		// Container for Models content (only in sessions)
@@ -947,7 +957,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const isMcpSection = this.selectedSection === AICustomizationManagementSection.McpServers;
 		const isPluginsSection = this.selectedSection === AICustomizationManagementSection.Plugins;
 
-		this.promptsContentContainer.style.display = !isEditorMode && !isDetailMode && isPromptsSection ? '' : 'none';
+		if (this.promptsContentContainer) {
+			this.promptsContentContainer.style.display = !isEditorMode && !isDetailMode && isPromptsSection ? '' : 'none';
+		}
 		if (this.modelsContentContainer) {
 			this.modelsContentContainer.style.display = !isEditorMode && !isDetailMode && isModelsSection ? '' : 'none';
 		}
@@ -995,7 +1007,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	/**
 	 * Creates a new prompt file and opens it in the embedded editor.
 	 */
-	private async createNewItemManual(type: PromptsType, target: 'workspace' | 'user' | 'workspace-root'): Promise<void> {
+	private async createNewItemManual(type: PromptsType, target: 'workspace' | 'user' | 'workspace-root', rootFileName?: string): Promise<void> {
 		this.telemetryService.publicLog2<CustomizationEditorCreateItemEvent, CustomizationEditorCreateItemClassification>('chatCustomizationEditor.createItem', {
 			section: this.selectedSection,
 			promptType: type,
@@ -1003,19 +1015,23 @@ export class AICustomizationManagementEditor extends EditorPane {
 			target: target === 'workspace-root' ? 'workspace' : target,
 		});
 
-		// Handle workspace-root files (e.g. AGENTS.md at project root)
+		// Handle workspace-root files (e.g. AGENTS.md or CLAUDE.md at project root).
+		// rootFileName is passed from rootFileShortcuts; falls back to
+		// the section override's rootFile, then AGENTS.md as the default.
 		if (target === 'workspace-root') {
 			const projectRoot = this.workspaceService.getActiveProjectRoot();
 			if (!projectRoot) {
 				return;
 			}
-			const fileUri = URI.joinPath(projectRoot, AGENT_MD_FILENAME);
+			const override = this.harnessService.getActiveDescriptor().sectionOverrides?.get(this.selectedSection);
+			const fileName = rootFileName ?? override?.rootFile ?? AGENT_MD_FILENAME;
+			const fileUri = URI.joinPath(projectRoot, fileName);
 			if (await this.fileService.exists(fileUri)) {
 				// File already exists — just open it
-				await this.showEmbeddedEditor(fileUri, AGENT_MD_FILENAME, PromptsType.instructions, PromptsStorage.local, true);
+				await this.showEmbeddedEditor(fileUri, fileName, PromptsType.instructions, PromptsStorage.local, true);
 			} else {
 				await this.fileService.createFile(fileUri);
-				await this.showEmbeddedEditor(fileUri, AGENT_MD_FILENAME, PromptsType.instructions, PromptsStorage.local, true);
+				await this.showEmbeddedEditor(fileUri, fileName, PromptsType.instructions, PromptsStorage.local, true);
 			}
 			void this.listWidget.refresh();
 			return;
@@ -1052,9 +1068,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Pass it through — the command handles undefined by showing its own
 		// folder picker via askForPromptSourceFolder.
 
+		// When the active harness overrides the file extension (e.g. Claude
+		// rules use .md instead of .instructions.md), pass it through so the
+		// name picker and file creation use the correct extension.
+		const override = this.harnessService.getActiveDescriptor().sectionOverrides?.get(this.selectedSection);
+
 		const options: INewPromptOptions = {
 			targetFolder: targetDir,
 			targetStorage: target === 'user' ? PromptsStorage.user : PromptsStorage.local,
+			fileExtension: override?.fileExtension,
 			openFile: async (uri) => {
 				const isWorkspace = target === 'workspace';
 				await this.showEmbeddedEditor(uri, basename(uri), type, target === 'user' ? PromptsStorage.user : PromptsStorage.local, isWorkspace);
@@ -1112,6 +1134,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 			matchingFolders = projectRoot
 				? allFolders.filter(f => !isEqualOrParent(f.uri, projectRoot))
 				: allFolders;
+
+			// When the active harness restricts user roots, only offer
+			// directories under the harness-accessible user roots
+			// (e.g. Claude → ~/.claude only, not ~/.copilot or profile paths).
+			const filter = this.harnessService.getStorageSourceFilter(type);
+			if (filter.includedUserFileRoots) {
+				const roots = filter.includedUserFileRoots;
+				matchingFolders = matchingFolders.filter(f =>
+					roots.some(root => isEqualOrParent(f.uri, root))
+				);
+			}
 		}
 
 		// Deduplicate by URI (getSourceFolders may return the same path

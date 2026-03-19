@@ -116,7 +116,7 @@ declare module 'vscode' {
 	 *
 	 * @param sessionResource The resource of the chat session being forked.
 	 * @param request The request turn that marks the fork point. The forked session includes all turns
-	 * upto this request turn and includes this request turn itself. If undefined, fork the full session.
+	 * upto this request turn and excludes this request turn itself. If undefined, fork the full session.
 	 * @param token A cancellation token.
 	 * @returns The forked session item.
 	 */
@@ -432,7 +432,7 @@ declare module 'vscode' {
 		 *
 		 * @param sessionResource The resource of the chat session being forked.
 		 * @param request The request turn that marks the fork point. The forked session includes all turns
-		 * until this request turn and includes this request turn itself. If undefined, fork the full session.
+		 * upto this request turn and excludes this request turn itself. If undefined, fork the full session.
 		 * @param token A cancellation token.
 		 * @returns The forked session item.
 		 */
@@ -517,7 +517,7 @@ declare module 'vscode' {
 		/**
 		 * The new value assigned to the option. When `undefined`, the option is cleared.
 		 */
-		readonly value: string | undefined;
+		readonly value: string | ChatSessionProviderOptionItem | undefined;
 	}
 
 	export namespace chat {

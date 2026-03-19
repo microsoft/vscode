@@ -525,6 +525,10 @@ export interface IChatTerminalToolInvocationData {
 	terminalCommandId?: string;
 	/** Whether the terminal command was started as a background execution */
 	isBackground?: boolean;
+	/** Whether the command was explicitly approved to run outside the sandbox */
+	requestUnsandboxedExecution?: boolean;
+	/** The model-provided reason for requesting sandbox bypass */
+	requestUnsandboxedExecutionReason?: string;
 	/** Serialized URI for the command that was executed in the terminal */
 	terminalCommandUri?: UriComponents;
 	/** Serialized output of the executed command */

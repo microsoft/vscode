@@ -3726,6 +3726,7 @@ export interface ExtHostGitExtensionShape {
 	$getRefs(handle: number, query: GitRefQueryDto, token?: CancellationToken): Promise<GitRefDto[]>;
 	$getRepositoryState(handle: number): Promise<GitRepositoryStateDto | undefined>;
 	$diffBetweenWithStats(handle: number, ref1: string, ref2: string, path?: string): Promise<GitDiffChangeDto[]>;
+	$diffBetweenWithStats2(handle: number, ref: string, path?: string): Promise<GitDiffChangeDto[]>;
 }
 
 // --- proxy identifiers
