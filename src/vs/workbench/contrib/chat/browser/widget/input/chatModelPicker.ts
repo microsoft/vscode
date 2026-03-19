@@ -650,6 +650,7 @@ export class ModelPickerWidget extends Disposable {
 		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {
 			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
 		};
+		const manageSettingsUrl = this._productService.defaultChatAgent?.manageSettingsUrl;
 		const items = buildModelPickerItems(
 			models,
 			this._selectedModel?.identifier,
@@ -658,7 +659,7 @@ export class ModelPickerWidget extends Disposable {
 			this._productService.version,
 			this._updateService.state.type,
 			onSelect,
-			this._productService.defaultChatAgent?.manageSettingsUrl,
+			manageSettingsUrl,
 			this._delegate.useGroupedModelPicker(),
 			!showFilter ? manageModelsAction : undefined,
 			this._entitlementService,
@@ -679,10 +680,10 @@ export class ModelPickerWidget extends Disposable {
 					logModelPickerInteraction(collapsed ? 'otherModelsCollapsed' : 'otherModelsExpanded');
 				}
 			},
-			linkHandler: (uri: URI, item: IActionListItem<unknown>) => {
+			linkHandler: (uri: URI) => {
 				if (uri.scheme === 'command' && uri.path === 'workbench.action.chat.upgradePlan') {
 					logModelPickerInteraction('premiumModelUpgradePlanClicked');
-				} else if (item.disabled && uri.scheme !== 'command') {
+				} else if (manageSettingsUrl && uri.toString().startsWith(manageSettingsUrl)) {
 					logModelPickerInteraction('disabledModelContactAdminClicked');
 				}
 				void this._openerService.open(uri, { allowCommands: true });
