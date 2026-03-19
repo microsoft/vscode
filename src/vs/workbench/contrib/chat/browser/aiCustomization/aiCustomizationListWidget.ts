@@ -566,9 +566,12 @@ export class AICustomizationListWidget extends Disposable {
 						if (entry.type === 'group-header') {
 							return localize('groupAriaLabel', "{0}, {1} items, {2}", entry.label, entry.count, entry.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 						}
-						return entry.item.description
+						const nameAndDesc = entry.item.description
 							? localize('itemAriaLabel', "{0}, {1}", entry.item.name, entry.item.description)
 							: entry.item.name;
+						return entry.item.disabled
+							? localize('itemAriaLabelDisabled', "{0}, disabled", nameAndDesc)
+							: nameAndDesc;
 					},
 					getWidgetAriaLabel: () => localize('listAriaLabel', "Chat Customizations"),
 				},

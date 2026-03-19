@@ -155,6 +155,8 @@ export class AgenticPromptsService extends PromptsService {
 			uri: s.uri,
 			storage: BUILTIN_STORAGE,
 			type: PromptsType.skill,
+			name: s.name,
+			description: s.description,
 		}));
 	}
 

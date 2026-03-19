@@ -531,12 +531,14 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 		const cached = this.cache.get(promptType);
 		const disabledUris = this.promptsService.getDisabledPromptFiles(promptType);
 
-		// For skills, use the cached skills data
+		// For skills, use the cached skills data and merge in disabled skills
 		if (promptType === PromptsType.skill) {
 			const skills = cached?.skills || [];
 			const filtered = skills.filter(skill => skill.storage === storage);
-			return filtered
+			const seenUris = new Set<string>();
+			const result: IAICustomizationFileItem[] = filtered
 				.map(skill => {
+					seenUris.add(skill.uri.toString());
 					// Use skill name from frontmatter, or fallback to parent folder name
 					const skillName = skill.name || basename(dirname(skill.uri)) || basename(skill.uri);
 					return {
@@ -550,6 +552,27 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 						disabled: disabledUris.has(skill.uri),
 					};
 				});
+
+			// Include disabled skills not already in the enabled list
+			if (disabledUris.size > 0) {
+				const allSkillFiles = await this.promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None);
+				for (const file of allSkillFiles) {
+					if (file.storage === storage && !seenUris.has(file.uri.toString()) && disabledUris.has(file.uri)) {
+						result.push({
+							type: 'file' as const,
+							id: file.uri.toString(),
+							uri: file.uri,
+							name: file.name || basename(dirname(file.uri)) || basename(file.uri),
+							description: file.description,
+							storage: file.storage,
+							promptType,
+							disabled: true,
+						});
+					}
+				}
+			}
+
+			return result;
 		}
 
 		// Use cached files data (already fetched in getStorageGroups)
