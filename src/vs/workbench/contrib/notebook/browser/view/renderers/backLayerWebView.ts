@@ -1354,7 +1354,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			return this.createMarkupPreview(newContent);
 		}
 
-		const sameContent = newContent.content === entry.content;
+		const sameContent = newContent.content === entry.content && !newContent.forceRefresh;
 		const sameMetadata = (equals(newContent.metadata, entry.metadata));
 		if (!sameContent || !sameMetadata || !entry.visible) {
 			this._sendMessageToWebview({
