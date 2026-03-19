@@ -75,6 +75,10 @@ export class AgenticSessionsViewPane extends ViewPane {
 		if (stored && Object.values(AgentSessionsGrouping).includes(stored as AgentSessionsGrouping)) {
 			this.currentGrouping = stored as AgentSessionsGrouping;
 		}
+
+		// Ensure the view-title context reflects the restored grouping immediately
+		this.isGroupedByRepoKey = IsGroupedByRepositoryContext.bindTo(contextKeyService);
+		this.isGroupedByRepoKey.set(this.currentGrouping === AgentSessionsGrouping.Repository);
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
