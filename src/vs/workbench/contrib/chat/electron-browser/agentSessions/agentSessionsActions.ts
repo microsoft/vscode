@@ -11,6 +11,10 @@ import { ChatEntitlementContextKeys } from '../../../../services/chat/common/cha
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { ProductQualityContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 
 export class OpenSessionsWindowAction extends Action2 {
 	constructor() {
@@ -24,7 +28,20 @@ export class OpenSessionsWindowAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor) {
-		const nativeHostService = accessor.get(INativeHostService);
-		await nativeHostService.openSessionsWindow();
+		const openerService = accessor.get(IOpenerService);
+		const productService = accessor.get(IProductService);
+
+		if (isWindows || isMacintosh) {
+			const scheme = productService.quality === 'stable'
+				? 'vscode-sessions'
+				: productService.quality === 'exploration'
+					? 'vscode-sessions-exploration'
+					: 'vscode-sessions-insiders';
+
+			await openerService.open(URI.from({ scheme }), { openExternal: true });
+		} else {
+			const nativeHostService = accessor.get(INativeHostService);
+			await nativeHostService.openSessionsWindow();
+		}
 	}
 }
