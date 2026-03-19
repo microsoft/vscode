@@ -354,20 +354,6 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 });
 
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
-	command: { id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disable', "Disable"), icon: Codicon.eyeClosed },
-	group: 'inline',
-	order: 5,
-	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
-});
-
-MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
-	command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable"), icon: Codicon.eye },
-	group: 'inline',
-	order: 5,
-	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
-});
-
-MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: DELETE_AI_CUSTOMIZATION_ID, title: localize('delete', "Delete"), icon: Codicon.trash },
 	group: 'inline',
 	order: 10,
@@ -512,6 +498,22 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable") },
 	group: '5_toggle',
 	order: 1,
+	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
+});
+
+// Inline hover: Disable (shown when item is enabled)
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disable', "Disable"), icon: Codicon.eyeClosed },
+	group: 'inline',
+	order: 5,
+	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+});
+
+// Inline hover: Enable (shown when item is disabled)
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable"), icon: Codicon.eye },
+	group: 'inline',
+	order: 5,
 	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
 });
 
