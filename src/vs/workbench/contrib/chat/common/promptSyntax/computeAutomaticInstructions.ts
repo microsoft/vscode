@@ -131,18 +131,10 @@ export class ComputeAutomaticInstructions {
 		this._telemetryService.publicLog2<InstructionsCollectionEvent, InstructionsCollectionClassification>('instructionsCollected', telemetryEvent);
 	}
 
-	private _logSkillLoadedTelemetry(skills: readonly IAgentSkill[]): void {
-		for (const skill of skills) {
-			// Fire-and-forget; errors are silently swallowed
-			this._logSkillTelemetryAsync(skill).catch(() => { });
-		}
-	}
-
-	private async _logSkillTelemetryAsync(skill: IAgentSkill): Promise<void> {
+	private async _logSkillLoadedTelemetry(skills: readonly IAgentSkill[]): Promise<void> {
 		type SkillLoadedIntoContextEvent = {
 			skillNameHash: string;
 			skillStorage: string;
-			skillContentHash: string;
 			extensionIdHash: string;
 			extensionVersion: string;
 			pluginNameHash: string;
@@ -152,7 +144,6 @@ export class ComputeAutomaticInstructions {
 		type SkillLoadedIntoContextClassification = {
 			skillNameHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the skill name loaded into the agent context.' };
 			skillStorage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The storage source of the skill (local, user, extension, plugin, internal).' };
-			skillContentHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the SKILL.md file content to detect modifications.' };
 			extensionIdHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the contributing extension identifier, empty if none.' };
 			extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Semver version of the contributing extension, empty if none.' };
 			pluginNameHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the plugin display name, empty if not from a plugin.' };
@@ -161,28 +152,22 @@ export class ComputeAutomaticInstructions {
 			comment: 'Tracks individual skill loading into agent context with provenance metadata.';
 		};
 
-		const nameHash = await hashAsync(skill.name);
-		let contentHash = '';
-		try {
-			const content = await this._fileService.readFile(skill.uri);
-			contentHash = await hashAsync(content.value.toString());
-		} catch {
-			// If file read fails, leave contentHash empty
+		for (const skill of skills) {
+
+			const provenance = skill.provenance;
+			const nameHash = await hashAsync(skill.name);
+			const extensionIdHash = provenance?.extensionId ? await hashAsync(provenance.extensionId) : '';
+			const pluginNameHash = provenance?.pluginName ? await hashAsync(provenance.pluginName) : '';
+
+			this._telemetryService.publicLog2<SkillLoadedIntoContextEvent, SkillLoadedIntoContextClassification>('skillLoadedIntoContext', {
+				skillNameHash: nameHash,
+				skillStorage: skill.storage,
+				extensionIdHash,
+				extensionVersion: provenance?.extensionVersion ?? '',
+				pluginNameHash,
+				pluginVersion: provenance?.pluginVersion ?? '',
+			});
 		}
-
-		const provenance = skill.provenance;
-		const extensionIdHash = provenance?.extensionId ? await hashAsync(provenance.extensionId) : '';
-		const pluginNameHash = provenance?.pluginName ? await hashAsync(provenance.pluginName) : '';
-
-		this._telemetryService.publicLog2<SkillLoadedIntoContextEvent, SkillLoadedIntoContextClassification>('skillLoadedIntoContext', {
-			skillNameHash: nameHash,
-			skillStorage: skill.storage,
-			skillContentHash: contentHash,
-			extensionIdHash,
-			extensionVersion: provenance?.extensionVersion ?? '',
-			pluginNameHash,
-			pluginVersion: provenance?.pluginVersion ?? '',
-		});
 	}
 
 	/** public for testing */

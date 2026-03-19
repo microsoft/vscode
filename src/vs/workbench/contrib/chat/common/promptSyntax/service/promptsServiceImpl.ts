@@ -1433,21 +1433,20 @@ export class PromptsService extends Disposable implements IPromptsService {
 		allSkills.sort((a, b) => getPriority(a) - getPriority(b));
 
 		// Build maps of URI to extension ID and version
-		const extensionIdByUri = new Map<string, string>();
-		const extensionVersionByUri = new Map<string, string>();
+		const extensionIdByUri = new ResourceMap<string>();
+		const extensionVersionByUri = new ResourceMap<string>();
 		for (const extSkill of extensionSkills) {
-			const uriStr = extSkill.uri.toString();
-			extensionIdByUri.set(uriStr, extSkill.extension.identifier.value);
-			extensionVersionByUri.set(uriStr, extSkill.extension.version);
+			extensionIdByUri.set(extSkill.uri, extSkill.extension.identifier.value);
+			extensionVersionByUri.set(extSkill.uri, extSkill.extension.version);
 		}
 
 		// Build map of plugin skill URI to plugin metadata for provenance
-		const pluginBySkillUri = new Map<string, IAgentPlugin>();
+		const pluginBySkillUri = new ResourceMap<IAgentPlugin>();
 		const allPlugins = this.agentPluginService.plugins.get();
 		for (const pluginPath of pluginSkills) {
-			const plugin = allPlugins.find(p => p.uri.toString() === pluginPath.pluginUri.toString());
+			const plugin = allPlugins.find(p => isEqual(p.uri, pluginPath.pluginUri));
 			if (plugin) {
-				pluginBySkillUri.set(pluginPath.uri.toString(), plugin);
+				pluginBySkillUri.set(pluginPath.uri, plugin);
 			}
 		}
 
@@ -1455,7 +1454,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			const uri = skill.fileUri;
 			const storage = skill.storage;
 			const source = skill.source;
-			const extensionId = extensionIdByUri.get(uri.toString());
+			const extensionId = extensionIdByUri.get(uri);
 
 			try {
 				const parsedFile = await this.parseNew(uri, token);
@@ -1494,10 +1493,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const userInvocable = parsedFile.header?.userInvocable !== false;
 
 				// Build provenance metadata
-				const plugin = pluginBySkillUri.get(uri.toString());
+				const plugin = pluginBySkillUri.get(uri);
 				const provenance: IAgentSkillProvenance = {
 					extensionId,
-					extensionVersion: extensionVersionByUri.get(uri.toString()),
+					extensionVersion: extensionVersionByUri.get(uri),
 					pluginName: plugin?.label,
 					pluginVersion: plugin?.fromMarketplace?.version,
 				};

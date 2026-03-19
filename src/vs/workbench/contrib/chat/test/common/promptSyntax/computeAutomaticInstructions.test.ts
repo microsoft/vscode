@@ -1149,8 +1149,6 @@ suite('ComputeAutomaticInstructions', () => {
 			const variables = new ChatRequestVariableSet();
 
 			await contextComputer.collect(variables, CancellationToken.None);
-
-			// Wait briefly for fire-and-forget telemetry promises to settle
 			await new Promise(resolve => setTimeout(resolve, 50));
 
 			const skillEvents = telemetryEvents.filter(e => e.eventName === 'skillLoadedIntoContext');
@@ -1159,7 +1157,6 @@ suite('ComputeAutomaticInstructions', () => {
 			// Both events should have hashed skill names (non-empty strings)
 			for (const event of skillEvents) {
 				assert.ok(typeof event.data.skillNameHash === 'string' && event.data.skillNameHash.length > 0, 'skillNameHash should be a non-empty string');
-				assert.ok(typeof event.data.skillContentHash === 'string' && event.data.skillContentHash.length > 0, 'skillContentHash should be a non-empty string');
 				assert.strictEqual(event.data.skillStorage, 'local', 'skillStorage should be local for workspace skills');
 				// Local skills have no extension or plugin provenance
 				assert.strictEqual(event.data.extensionIdHash, '', 'extensionIdHash should be empty for local skills');
@@ -1170,8 +1167,6 @@ suite('ComputeAutomaticInstructions', () => {
 
 			// The two events should have different name hashes (different skill names)
 			assert.notStrictEqual(skillEvents[0].data.skillNameHash, skillEvents[1].data.skillNameHash, 'Different skills should have different name hashes');
-			// The two events should have different content hashes (different content)
-			assert.notStrictEqual(skillEvents[0].data.skillContentHash, skillEvents[1].data.skillContentHash, 'Different skills should have different content hashes');
 		});
 
 		test('should not emit skillLoadedIntoContext for skills with disableModelInvocation', async () => {
@@ -1224,7 +1219,6 @@ suite('ComputeAutomaticInstructions', () => {
 			const variables = new ChatRequestVariableSet();
 
 			await contextComputer.collect(variables, CancellationToken.None);
-
 			await new Promise(resolve => setTimeout(resolve, 50));
 
 			const skillEvents = telemetryEvents.filter(e => e.eventName === 'skillLoadedIntoContext');
@@ -1271,7 +1265,6 @@ suite('ComputeAutomaticInstructions', () => {
 			const variables = new ChatRequestVariableSet();
 
 			await contextComputer.collect(variables, CancellationToken.None);
-
 			await new Promise(resolve => setTimeout(resolve, 50));
 
 			const skillEvents = telemetryEvents.filter(e => e.eventName === 'skillLoadedIntoContext');
