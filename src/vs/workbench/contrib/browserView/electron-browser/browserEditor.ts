@@ -49,10 +49,8 @@ import { ILayoutService } from '../../../../platform/layout/browser/layoutServic
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
 export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', true, localize('browser.editorFocused', "Whether the browser editor is focused"));
-export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
 export const CONTEXT_BROWSER_HAS_URL = new RawContextKey<boolean>('browserHasUrl', false, localize('browser.hasUrl', "Whether the browser has a URL loaded"));
 export const CONTEXT_BROWSER_HAS_ERROR = new RawContextKey<boolean>('browserHasError', false, localize('browser.hasError', "Whether the browser has a load error"));
-export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
 
 // Re-export find widget context keys for use in actions
 export { CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE };
@@ -360,10 +358,8 @@ export class BrowserEditor extends EditorPane {
 	private _findWidget!: Lazy<BrowserFindWidget>;
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
-	private _storageScopeContext!: IContextKey<string>;
 	private _hasUrlContext!: IContextKey<boolean>;
 	private _hasErrorContext!: IContextKey<boolean>;
-	private _devToolsOpenContext!: IContextKey<boolean>;
 
 	private readonly _inputDisposables = this._register(new DisposableStore());
 	private overlayManager: BrowserOverlayManager | undefined;
@@ -395,10 +391,8 @@ export class BrowserEditor extends EditorPane {
 		// Bind navigation capability context keys
 		this._canGoBackContext = CONTEXT_BROWSER_CAN_GO_BACK.bindTo(contextKeyService);
 		this._canGoForwardContext = CONTEXT_BROWSER_CAN_GO_FORWARD.bindTo(contextKeyService);
-		this._storageScopeContext = CONTEXT_BROWSER_STORAGE_SCOPE.bindTo(contextKeyService);
 		this._hasUrlContext = CONTEXT_BROWSER_HAS_URL.bindTo(contextKeyService);
 		this._hasErrorContext = CONTEXT_BROWSER_HAS_ERROR.bindTo(contextKeyService);
-		this._devToolsOpenContext = CONTEXT_BROWSER_DEVTOOLS_OPEN.bindTo(contextKeyService);
 
 		// Currently this is always true since it is scoped to the editor container
 		CONTEXT_BROWSER_FOCUSED.bindTo(contextKeyService);
@@ -533,9 +527,6 @@ export class BrowserEditor extends EditorPane {
 		this._model = model;
 		this._onDidChangeModel.fire(model);
 
-		this._storageScopeContext.set(this._model.storageScope);
-		this._devToolsOpenContext.set(this._model.isDevToolsOpen);
-
 		// Update find widget with new model
 		this._findWidget.rawValue?.setModel(this._model);
 
@@ -576,10 +567,6 @@ export class BrowserEditor extends EditorPane {
 				this._onDidFocus?.fire();
 				this.ensureBrowserFocus();
 			}
-		}));
-
-		this._inputDisposables.add(this._model.onDidChangeDevToolsState(e => {
-			this._devToolsOpenContext.set(e.isDevToolsOpen);
 		}));
 
 		this._inputDisposables.add(this._model.onDidRequestNewPage(({ resource, url, location, position }) => {
@@ -1104,8 +1091,6 @@ export class BrowserEditor extends EditorPane {
 		this._canGoForwardContext.reset();
 		this._hasUrlContext.reset();
 		this._hasErrorContext.reset();
-		this._storageScopeContext.reset();
-		this._devToolsOpenContext.reset();
 
 		this._navigationBar.clear();
 		this.setBackgroundImage(undefined);
