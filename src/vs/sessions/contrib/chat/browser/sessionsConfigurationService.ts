@@ -527,7 +527,18 @@ export class SessionsConfigurationService extends Disposable implements ISession
 			return;
 		}
 
-		await this._runWorktreeCreatedTasks(activeSession);
+		// Final staleness check after waiting for worktree availability to ensure
+		// that the active session/worktree has not changed during the await.
+		if (!this._isCurrentWorktreeRun(sessionKey, worktree, runId)) {
+			return;
+		}
+
+		const latestSession = this._sessionsManagementService.getActiveSession();
+		if (!latestSession || latestSession.resource.toString() !== sessionKey || latestSession.worktree?.toString() !== worktree) {
+			return;
+		}
+
+		await this._runWorktreeCreatedTasks(latestSession);
 	}
 
 	private async _waitForWorktreeAvailability(worktree: URI, sessionKey: string, worktreeKey: string, runId: number): Promise<boolean> {
