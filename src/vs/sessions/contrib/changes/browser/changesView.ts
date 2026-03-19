@@ -393,9 +393,17 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	private updateFileCountTitle(fileCount: number): void {
-		this._fileCountTitle = fileCount > 0
+		const nextTitle = fileCount > 0
 			? localize('changesView.titleWithCount', '{0} Changes', fileCount)
 			: undefined;
+
+		// Avoid redundant title area events and container refreshes
+		// when the computed title has not actually changed.
+		if (nextTitle === this._fileCountTitle) {
+			return;
+		}
+
+		this._fileCountTitle = nextTitle;
 		this._onDidChangeTitleArea.fire();
 
 		// Update the view container tab label in the composite bar.
