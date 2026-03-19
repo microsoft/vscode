@@ -3,25 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from '../../../../nls.js';
+import { localize2 } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
-import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewCommandId, BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
-import { ToggleTitleBarConfigAction } from '../../../browser/parts/titlebar/titlebarActions.js';
 
 // Context key expression to check if browser editor is active
 export const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditorInput.EDITOR_ID);
@@ -32,80 +27,6 @@ export enum BrowserActionGroup {
 	Zoom = '2_zoom',
 	Page = '3_page',
 	Settings = '4_settings'
-}
-
-interface IOpenBrowserOptions {
-	url?: string;
-	openToSide?: boolean;
-}
-
-class OpenIntegratedBrowserAction extends Action2 {
-	constructor() {
-		super({
-			id: BrowserViewCommandId.Open,
-			title: localize2('browser.openAction', "Open Integrated Browser"),
-			category: BrowserActionCategory,
-			icon: Codicon.globe,
-			f1: true,
-			menu: {
-				id: MenuId.TitleBar,
-				group: 'navigation',
-				order: 10,
-				when: ContextKeyExpr.equals('config.workbench.browser.showInTitleBar', true)
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor, urlOrOptions?: string | IOpenBrowserOptions): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const telemetryService = accessor.get(ITelemetryService);
-
-		// Parse arguments
-		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
-		const resource = BrowserViewUri.forId(generateUuid());
-		const group = options.openToSide ? SIDE_GROUP : ACTIVE_GROUP;
-
-		logBrowserOpen(telemetryService, options.url ? 'commandWithUrl' : 'commandWithoutUrl');
-
-		const editorPane = await editorService.openEditor({ resource, options: { viewState: { url: options.url } } }, group);
-
-		// Lock the group when opening to the side
-		if (options.openToSide && editorPane?.group) {
-			editorPane.group.lock(true);
-		}
-	}
-}
-
-class NewTabAction extends Action2 {
-	constructor() {
-		super({
-			id: BrowserViewCommandId.NewTab,
-			title: localize2('browser.newTabAction', "New Tab"),
-			category: BrowserActionCategory,
-			f1: true,
-			precondition: BROWSER_EDITOR_ACTIVE,
-			menu: {
-				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Tabs,
-				order: 1,
-			},
-			// When already in a browser, Ctrl/Cmd + T opens a new tab
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over search actions
-				primary: KeyMod.CtrlCmd | KeyCode.KeyT,
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor, _browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const telemetryService = accessor.get(ITelemetryService);
-		const resource = BrowserViewUri.forId(generateUuid());
-
-		logBrowserOpen(telemetryService, 'newTabCommand');
-
-		await editorService.openEditor({ resource });
-	}
 }
 
 class GoBackAction extends Action2 {
@@ -549,8 +470,6 @@ class BrowserFindPreviousAction extends Action2 {
 }
 
 // Register actions
-registerAction2(OpenIntegratedBrowserAction);
-registerAction2(NewTabAction);
 registerAction2(GoBackAction);
 registerAction2(GoForwardAction);
 registerAction2(ReloadAction);
@@ -566,9 +485,3 @@ registerAction2(ShowBrowserFindAction);
 registerAction2(HideBrowserFindAction);
 registerAction2(BrowserFindNextAction);
 registerAction2(BrowserFindPreviousAction);
-
-registerAction2(class ToggleBrowserTitleBarButton extends ToggleTitleBarConfigAction {
-	constructor() {
-		super('workbench.browser.showInTitleBar', localize('toggle.browser', 'Integrated Browser'), localize('toggle.browserDescription', "Toggle visibility of the Integrated Browser button in title bar"), 8);
-	}
-});

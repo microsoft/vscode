@@ -88,6 +88,11 @@ export const AI_CUSTOMIZATION_ITEM_STORAGE_KEY = 'aiCustomizationManagementItemS
 export const AI_CUSTOMIZATION_ITEM_URI_KEY = 'aiCustomizationManagementItemUri';
 
 /**
+ * Context key for the parent plugin URI, set when the item is provided by a plugin.
+ */
+export const AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY = 'aiCustomizationManagementItemPluginUri';
+
+/**
  * Context key indicating whether the item is disabled.
  */
 export const AI_CUSTOMIZATION_ITEM_DISABLED_KEY = 'aiCustomizationManagementItemDisabled';

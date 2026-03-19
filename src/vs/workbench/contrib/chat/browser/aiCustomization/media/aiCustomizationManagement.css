@@ -53,7 +53,7 @@
 	background: transparent;
 	color: var(--vscode-descriptionForeground);
 	cursor: pointer;
-	font-size: 11px;
+	font-size: 13px;
 }
 
 .ai-customization-management-editor .folder-picker-button:hover {
@@ -143,9 +143,7 @@
 	flex-shrink: 0;
 	font-size: 10px;
 	font-weight: 500;
-	background-color: var(--vscode-list-inactiveSelectionBackground);
-	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
-	padding: 0 5px;
+	color: var(--vscode-descriptionForeground);
 	border-radius: 8px;
 	min-width: 14px;
 	text-align: center;
@@ -276,7 +274,7 @@
 	align-items: center;
 	justify-content: center;
 	padding: 48px 24px;
-	gap: 12px;
+	gap: 8px;
 	text-align: center;
 	flex: 1;
 }
@@ -296,7 +294,7 @@
 .ai-customization-list-widget .list-empty-state .empty-state-subtext {
 	font-size: 13px;
 	color: var(--vscode-descriptionForeground);
-	max-width: 300px;
+	max-width: 250px;
 	line-height: 1.4;
 }
 
@@ -309,16 +307,16 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 8px 8px 4px 8px;
+	padding: 4px 8px;
 	cursor: pointer;
 	user-select: none;
 	border-radius: 4px;
 }
 
 /* Spacing above non-first group headers */
-.ai-customization-group-header.has-previous-group {
-	padding-top: 12px;
-}
+/* .ai-customization-group-header.has-previous-group {
+	margin-top: 8px;
+} */
 
 .ai-customization-group-header:hover {
 	background-color: var(--vscode-list-hoverBackground);
@@ -336,13 +334,7 @@
 }
 
 .ai-customization-group-header .group-icon {
-	flex-shrink: 0;
-	width: 16px;
-	height: 16px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	opacity: 0.8;
+	display: none;
 }
 
 .ai-customization-group-header .group-label-group {
@@ -355,9 +347,8 @@
 }
 
 .ai-customization-group-header .group-label {
-	font-size: 11px;
-	font-weight: 600;
-	text-transform: uppercase;
+	font-weight: 500;
+	text-transform: capitalize;
 	letter-spacing: 0.04em;
 	color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
 	overflow: hidden;
@@ -369,9 +360,7 @@
 	flex-shrink: 0;
 	font-size: 10px;
 	font-weight: 500;
-	background-color: var(--vscode-list-inactiveSelectionBackground);
-	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
-	padding: 0 5px;
+	color: var(--vscode-descriptionForeground);
 	border-radius: 8px;
 	min-width: 14px;
 	text-align: center;
@@ -765,7 +754,7 @@
 	align-items: center;
 	justify-content: center;
 	padding: 48px 24px;
-	gap: 12px;
+	gap: 8px;
 	text-align: center;
 	flex: 1;
 }
@@ -785,7 +774,7 @@
 .mcp-list-widget .mcp-empty-state .empty-subtext {
 	font-size: 13px;
 	color: var(--vscode-descriptionForeground);
-	max-width: 300px;
+	max-width: 250px;
 	line-height: 1.4;
 }
 

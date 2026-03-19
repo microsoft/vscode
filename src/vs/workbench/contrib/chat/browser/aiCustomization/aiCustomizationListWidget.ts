@@ -10,7 +10,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { basename, dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
+import { basename, dirname, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
@@ -22,7 +22,8 @@ import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../.
 import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon, pluginIcon, builtinIcon } from './aiCustomizationIcons.js';
-import { AI_CUSTOMIZATION_ITEM_DISABLED_KEY, AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AICustomizationManagementItemMenuId, AICustomizationManagementSection, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
+import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, AICustomizationManagementItemMenuId, AICustomizationManagementSection, BUILTIN_STORAGE, AI_CUSTOMIZATION_ITEM_DISABLED_KEY } from './aiCustomizationManagement.js';
+import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { Delayer } from '../../../../../base/common/async.js';
@@ -92,6 +93,8 @@ export interface IAICustomizationListItem {
 	readonly disabled: boolean;
 	/** When set, overrides `storage` for display grouping purposes. */
 	readonly groupKey?: string;
+	/** URI of the parent plugin, when this item comes from an installed plugin. */
+	readonly pluginUri?: URI;
 	nameMatches?: IMatch[];
 	descriptionMatches?: IMatch[];
 }
@@ -260,6 +263,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IAICustomizationItemTemplateData {
@@ -300,11 +304,16 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		templateData.typeIcon.className = 'item-type-icon';
 		templateData.typeIcon.classList.add(...ThemeIcon.asClassNameArray(promptTypeToIcon(element.promptType)));
 
-		// Hover tooltip: name + full path
+		// Hover tooltip: name + full path + plugin source
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => {
 			const uriLabel = this.labelService.getUriLabel(element.uri, { relative: false });
+			let content = `${element.name}\n${uriLabel}`;
+			const plugin = element.pluginUri && this.agentPluginService.plugins.get().find(p => isEqual(p.uri, element.pluginUri));
+			if (plugin) {
+				content += `\n${localize('fromPlugin', "Plugin: {0}", plugin.label)}`;
+			}
 			return {
-				content: `${element.name}\n${uriLabel}`,
+				content,
 				appearance: {
 					compact: true,
 					skipFadeInAnimation: true,
@@ -357,15 +366,20 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			name: element.name,
 			promptType: element.promptType,
 			storage: element.storage,
+			pluginUri: element.pluginUri?.toString(),
 		};
 
 		// Create scoped context key service with item-specific keys for when-clause filtering
-		const overlay = this.contextKeyService.createOverlay([
+		const overlayPairs: [string, string | boolean][] = [
 			[AI_CUSTOMIZATION_ITEM_TYPE_KEY, element.promptType],
 			[AI_CUSTOMIZATION_ITEM_STORAGE_KEY, element.storage],
 			[AI_CUSTOMIZATION_ITEM_URI_KEY, element.uri.toString()],
 			[AI_CUSTOMIZATION_ITEM_DISABLED_KEY, element.disabled],
-		]);
+		];
+		if (element.pluginUri) {
+			overlayPairs.push([AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, element.pluginUri.toString()]);
+		}
+		const overlay = this.contextKeyService.createOverlay(overlayPairs);
 
 		const menu = templateData.elementDisposables.add(
 			this.menuService.createMenu(AICustomizationManagementItemMenuId, overlay)
@@ -479,6 +493,7 @@ export class AICustomizationListWidget extends Disposable {
 		@IPathService private readonly pathService: IPathService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
+		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
@@ -553,8 +568,9 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Empty state container
 		this.emptyStateContainer = DOM.append(this.element, $('.list-empty-state'));
-		this.emptyStateIcon = DOM.append(this.emptyStateContainer, $('.empty-state-icon'));
-		this.emptyStateText = DOM.append(this.emptyStateContainer, $('.empty-state-text'));
+		const emptyStateHeader = DOM.append(this.emptyStateContainer, $('.empty-state-header'));
+		this.emptyStateIcon = DOM.append(emptyStateHeader, $('.empty-state-icon'));
+		this.emptyStateText = DOM.append(emptyStateHeader, $('.empty-state-text'));
 		this.emptyStateSubtext = DOM.append(this.emptyStateContainer, $('.empty-state-subtext'));
 		this.emptyStateContainer.style.display = 'none';
 
@@ -650,15 +666,20 @@ export class AICustomizationListWidget extends Disposable {
 			name: item.name,
 			promptType: item.promptType,
 			storage: item.storage,
+			pluginUri: item.pluginUri?.toString(),
 		};
 
 		// Create scoped context key service with item-specific keys for when-clause filtering
-		const overlay = this.contextKeyService.createOverlay([
+		const overlayPairs: [string, string | boolean][] = [
 			[AI_CUSTOMIZATION_ITEM_TYPE_KEY, item.promptType],
 			[AI_CUSTOMIZATION_ITEM_STORAGE_KEY, item.storage],
 			[AI_CUSTOMIZATION_ITEM_URI_KEY, item.uri.toString()],
 			[AI_CUSTOMIZATION_ITEM_DISABLED_KEY, item.disabled],
-		]);
+		];
+		if (item.pluginUri) {
+			overlayPairs.push([AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, item.pluginUri.toString()]);
+		}
+		const overlay = this.contextKeyService.createOverlay(overlayPairs);
 
 		// Get menu actions, excluding inline actions to avoid duplicates
 		const actions = this.menuService.getMenuActions(AICustomizationManagementItemMenuId, overlay, {
@@ -1003,6 +1024,7 @@ export class AICustomizationListWidget extends Disposable {
 					description: agent.description,
 					storage: agent.source.storage,
 					promptType,
+					pluginUri: agent.source.storage === PromptsStorage.plugin ? agent.source.pluginUri : undefined,
 					disabled: disabledUris.has(agent.uri),
 				});
 			}
@@ -1022,6 +1044,7 @@ export class AICustomizationListWidget extends Disposable {
 					description: skill.description,
 					storage: skill.storage,
 					promptType,
+					pluginUri: skill.storage === PromptsStorage.plugin ? this.findPluginUri(skill.uri) : undefined,
 					disabled: false,
 				});
 			}
@@ -1061,6 +1084,7 @@ export class AICustomizationListWidget extends Disposable {
 					description: command.description,
 					storage: command.promptPath.storage,
 					promptType,
+					pluginUri: command.promptPath.storage === PromptsStorage.plugin ? command.promptPath.pluginUri : undefined,
 					disabled: disabledUris.has(command.promptPath.uri),
 				});
 			}
@@ -1072,6 +1096,23 @@ export class AICustomizationListWidget extends Disposable {
 			const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
 
 			for (const hookFile of hookFiles) {
+				// Plugins parse their own hooks and emit them individually because they can
+				// be embedded with interpolations in the plugin manifests; don't re-parse them
+				if (hookFile.storage === PromptsStorage.plugin) {
+					const filename = basename(hookFile.uri);
+					items.push({
+						id: hookFile.uri.toString() + ':' + hookFile.name,
+						uri: hookFile.uri,
+						name: hookFile.name || this.getFriendlyName(filename),
+						filename,
+						storage: hookFile.storage,
+						promptType,
+						pluginUri: hookFile.pluginUri,
+						disabled: disabledUris.has(hookFile.uri),
+					});
+					continue;
+				}
+
 				let parsedHooks = false;
 				try {
 					const content = await this.fileService.readFile(hookFile.uri);
@@ -1108,7 +1149,7 @@ export class AICustomizationListWidget extends Disposable {
 					items.push({
 						id: hookFile.uri.toString(),
 						uri: hookFile.uri,
-						name: this.getFriendlyName(filename),
+						name: hookFile.name || this.getFriendlyName(filename),
 						filename,
 						storage: hookFile.storage,
 						promptType,
@@ -1143,6 +1184,7 @@ export class AICustomizationListWidget extends Disposable {
 							storage: agent.source.storage,
 							groupKey: 'agents',
 							promptType,
+							pluginUri: agent.source.storage === PromptsStorage.plugin ? agent.source.pluginUri : undefined,
 							disabled: disabledUris.has(agent.uri),
 						});
 					}
@@ -1190,6 +1232,7 @@ export class AICustomizationListWidget extends Disposable {
 					description: item.description,
 					storage: item.storage,
 					promptType,
+					pluginUri: item.storage === PromptsStorage.plugin ? item.pluginUri : undefined,
 					disabled: disabledUris.has(item.uri),
 				};
 			};
@@ -1411,6 +1454,18 @@ export class AICustomizationListWidget extends Disposable {
 			default:
 				return promptIcon;
 		}
+	}
+
+	/**
+	 * Finds the plugin URI for an item URI by checking the known plugins.
+	 */
+	private findPluginUri(itemUri: URI): URI | undefined {
+		for (const plugin of this.agentPluginService.plugins.get()) {
+			if (isEqualOrParent(itemUri, plugin.uri)) {
+				return plugin.uri;
+			}
+		}
+		return undefined;
 	}
 
 	private getEmptyStateInfo(): { title: string; description: string } {

@@ -11,7 +11,6 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import { BrowserEditor } from './browserEditor.js';
 import { BrowserEditorInput, BrowserEditorSerializer } from '../common/browserEditorInput.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -23,20 +22,12 @@ import { IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../common/
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
 import { BrowserViewCDPService } from './browserViewCDPService.js';
 import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
-import { IExternalOpener, IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { URI } from '../../../../base/common/uri.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 
 // Register actions and browser features
 import './browserViewActions.js';
 import './features/browserEditorChatFeatures.js';
 import './features/browserEditorZoomFeature.js';
+import './features/browserTabManagementFeatures.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -103,73 +94,12 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 
 registerWorkbenchContribution2(BrowserEditorResolverContribution.ID, BrowserEditorResolverContribution, WorkbenchPhase.BlockStartup);
 
-/**
- * Opens localhost URLs in the Integrated Browser when the setting is enabled.
- */
-class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IExternalOpener {
-	static readonly ID = 'workbench.contrib.localhostLinkOpener';
-
-	constructor(
-		@IOpenerService openerService: IOpenerService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEditorService private readonly editorService: IEditorService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
-	) {
-		super();
-
-		this._register(openerService.registerExternalOpener(this));
-	}
-
-	async openExternal(href: string, _ctx: { sourceUri: URI; preferredOpenerId?: string }, _token: CancellationToken): Promise<boolean> {
-		if (!this.configurationService.getValue<boolean>('workbench.browser.openLocalhostLinks')) {
-			return false;
-		}
-
-		try {
-			const parsed = new URL(href);
-			if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-				return false;
-			}
-			if (!isLocalhostAuthority(parsed.host)) {
-				return false;
-			}
-		} catch {
-			return false;
-		}
-
-		logBrowserOpen(this.telemetryService, 'localhostLinkOpener');
-
-		const browserUri = BrowserViewUri.forId(generateUuid());
-		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href } } });
-		return true;
-	}
-}
-
-registerWorkbenchContribution2(LocalhostLinkOpenerContribution.ID, LocalhostLinkOpenerContribution, WorkbenchPhase.BlockStartup);
-
 registerSingleton(IBrowserViewWorkbenchService, BrowserViewWorkbenchService, InstantiationType.Delayed);
 registerSingleton(IBrowserViewCDPService, BrowserViewCDPService, InstantiationType.Delayed);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
 	properties: {
-		'workbench.browser.showInTitleBar': {
-			type: 'boolean',
-			default: false,
-			experiment: { mode: 'startup' },
-			description: localize(
-				{ comment: ['This is the description for a setting.'], key: 'browser.showInTitleBar' },
-				'Controls whether the Integrated Browser button is shown in the title bar.'
-			)
-		},
-		'workbench.browser.openLocalhostLinks': {
-			type: 'boolean',
-			default: false,
-			markdownDescription: localize(
-				{ comment: ['This is the description for a setting.'], key: 'browser.openLocalhostLinks' },
-				'When enabled, localhost links from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
-			)
-		},
 		'workbench.browser.dataStorage': {
 			type: 'string',
 			enum: [
