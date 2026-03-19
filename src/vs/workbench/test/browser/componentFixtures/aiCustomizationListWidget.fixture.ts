@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
-import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -46,14 +46,6 @@ interface IFixtureInstructionFile {
 }
 
 function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], agentInstructionFiles: IResolvedAgentFile[] = []): IPromptsService {
-	// Build a map from URI to applyTo for parseNew
-	const applyToMap = new ResourceMap<string | undefined>();
-	const descriptionMap = new ResourceMap<string | undefined>();
-	for (const file of instructionFiles) {
-		applyToMap.set(file.uri, file.applyTo);
-		descriptionMap.set(file.uri, file.description);
-	}
-
 	return new class extends mock<IPromptsService>() {
 		override readonly onDidChangeCustomAgents = Event.None;
 		override readonly onDidChangeSlashCommands = Event.None;
@@ -74,13 +66,7 @@ function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], a
 		override async listAgentInstructions() { return agentInstructionFiles; }
 		override async getCustomAgents() { return []; }
 		override async parseNew(uri: URI, _token: CancellationToken): Promise<ParsedPromptFile> {
-			const applyTo = applyToMap.get(uri);
-			const description = descriptionMap.get(uri);
-			const header = {
-				get applyTo() { return applyTo; },
-				get description() { return description; },
-			};
-			return new ParsedPromptFile(uri, header as never);
+			return new ParsedPromptFile(uri);
 		}
 	}();
 }
