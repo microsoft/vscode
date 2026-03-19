@@ -443,6 +443,8 @@ export class ActionListWidget<T> extends Disposable {
 	private readonly _submenuContainer: HTMLElement;
 	private _submenuHideTimeout: ReturnType<typeof setTimeout> | undefined;
 	private _currentSubmenuWidget: ActionListWidget<IAction> | undefined;
+	private _currentSubmenuElement: IActionListItem<T> | undefined;
+	private _submenuOnOppositeSide = false;
 
 	private readonly _collapsedSections = new Set<string>();
 	private _filterText = '';
@@ -488,7 +490,9 @@ export class ActionListWidget<T> extends Disposable {
 			this._cancelSubmenuHide();
 		}));
 		this._register(dom.addDisposableListener(this._submenuContainer, 'mouseleave', () => {
-			this._scheduleSubmenuHide();
+			if (!this._submenuOnOppositeSide) {
+				this._scheduleSubmenuHide();
+			}
 		}));
 		this._register(toDisposable(() => this._cancelSubmenuHide()));
 
@@ -1142,6 +1146,9 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
+		if (this._currentSubmenuElement === element) {
+			return;
+		}
 		this._submenuDisposables.clear();
 
 		const rowElement = this._getRowElement(index);
@@ -1179,13 +1186,16 @@ export class ActionListWidget<T> extends Disposable {
 			this._showSubmenuForElement(element, indicator);
 		}));
 		disposables.add(dom.addDisposableListener(indicator, 'mouseleave', () => {
-			this._scheduleSubmenuHide();
+			if (!this._submenuOnOppositeSide) {
+				this._scheduleSubmenuHide();
+			}
 		}));
 	}
 
 	private _showSubmenuForElement(element: IActionListItem<T>, indicator: HTMLElement): void {
 		this._submenuDisposables.clear();
 		this._hover.clear();
+		this._currentSubmenuElement = element;
 		dom.clearNode(this._submenuContainer);
 
 		// Convert submenu actions into ActionListWidget items
@@ -1256,11 +1266,13 @@ export class ActionListWidget<T> extends Disposable {
 		const submenuWidth = maxWidth + 10; // account for border/padding
 
 		if (spaceRight >= submenuWidth || spaceRight >= spaceLeft) {
-			// Show on the right
+			// Show on the right (same side as indicator)
 			this._submenuContainer.style.left = `${indicatorRect.right - parentRect.left}px`;
+			this._submenuOnOppositeSide = false;
 		} else {
-			// Show on the left
+			// Show on the left (opposite side from indicator)
 			this._submenuContainer.style.left = `${-submenuWidth}px`;
+			this._submenuOnOppositeSide = true;
 		}
 		this._submenuContainer.style.top = `${indicatorRect.top - parentRect.top - 4}px`;
 
@@ -1292,6 +1304,8 @@ export class ActionListWidget<T> extends Disposable {
 		this._cancelSubmenuHide();
 		this._submenuDisposables.clear();
 		this._currentSubmenuWidget = undefined;
+		this._currentSubmenuElement = undefined;
+		this._submenuOnOppositeSide = false;
 		dom.clearNode(this._submenuContainer);
 		this._submenuContainer.style.display = 'none';
 	}
@@ -1331,9 +1345,11 @@ export class ActionListWidget<T> extends Disposable {
 
 			// Set focus immediately for responsive hover feedback
 			this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
-			this._hideSubmenu();
+			if (this._currentSubmenuElement !== element) {
+				this._hideSubmenu();
+			}
 
-			if (this._delegate.onHover && !element.disabled && element.kind === ActionListItemKind.Action) {
+			if (this._delegate.onHover && !element.disabled && element.kind === ActionListItemKind.Action && this._currentSubmenuElement !== element) {
 				const result = await this._delegate.onHover(element.item, this.cts.token);
 				const canPreview = result ? result.canPreview : undefined;
 				if (canPreview !== element.canPreview) {
@@ -1535,6 +1551,3 @@ export class ActionList<T> extends Disposable {
 function stripNewlines(str: string): string {
 	return str.replace(/\r\n|\r|\n/g, ' ');
 }
-
-
-
