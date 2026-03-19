@@ -24,6 +24,10 @@ import { IEditorGroupsService } from '../../../services/editor/common/editorGrou
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
+const AI_DISABLED_SETTING = 'chat.disableAIFeatures';
+const AI_CUSTOMIZATION_MENU_ENABLED_SETTING = 'chat.customizationsMenu.enabled';
+const AGENT_STATUS_ENABLED_SETTING = 'chat.agentsControl.enabled';
+
 export class CommandCenterControl {
 
 	private readonly _disposables = new DisposableStore();
@@ -148,12 +152,12 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 
 							// When agent control mode is 'compact', hide search icon and left-align the label
 							// Backward compat: the old boolean setting (true) and the new default (undefined) both map to compact
-							const aiFeaturesDisabled = that._configurationService.getValue<boolean>('chat.disableAIFeatures') === true;
+							const aiFeaturesDisabled = that._configurationService.getValue<boolean>(AI_DISABLED_SETTING) === true;
 							const aiCustomizationsDisabled = that._configurationService.getValue<boolean>('disableAICustomizations') === true
 								|| that._configurationService.getValue<boolean>('workbench.disableAICustomizations') === true
-								|| that._configurationService.getValue<boolean>('chat.customizationsMenu.enabled') === false;
+								|| that._configurationService.getValue<boolean>(AI_CUSTOMIZATION_MENU_ENABLED_SETTING) === false;
 							const forcedHidden = aiFeaturesDisabled && aiCustomizationsDisabled;
-							const agentControlValue = that._configurationService.getValue('chat.agentsControl.enabled');
+							const agentControlValue = that._configurationService.getValue(AGENT_STATUS_ENABLED_SETTING);
 							const isCompactMode = !forcedHidden && (agentControlValue === true || agentControlValue === undefined || agentControlValue === 'compact');
 							container.classList.toggle('compact-mode', isCompactMode);
 

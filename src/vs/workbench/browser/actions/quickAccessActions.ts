@@ -17,6 +17,8 @@ import { ILocalizedString } from '../../../platform/action/common/action.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../platform/quickinput/common/quickAccess.js';
 import { Codicon } from '../../../base/common/codicons.js';
 
+const UNIFIED_AGENTS_BAR_SETTING = 'chat.unifiedAgentsBar.enabled';
+
 //#region Quick access management commands and keys
 
 const globalQuickAccessKeybinding = {
@@ -162,7 +164,7 @@ registerAction2(class QuickAccessAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const openClassicQuickAccess = (): void => {
 			const quickInputService = accessor.get(IQuickInputService);
 			const providerOptions: AnythingQuickAccessProviderRunOptions = {
@@ -177,9 +179,13 @@ registerAction2(class QuickAccessAction extends Action2 {
 
 		const configurationService = accessor.get(IConfigurationService);
 		const commandService = accessor.get(ICommandService);
-		const useUnifiedQuickAccess = configurationService.getValue<boolean>('chat.unifiedAgentsBar.enabled') === true;
+		const useUnifiedQuickAccess = configurationService.getValue<boolean>(UNIFIED_AGENTS_BAR_SETTING) === true;
 		if (useUnifiedQuickAccess) {
-			void commandService.executeCommand('workbench.action.unifiedQuickAccess').then(undefined, () => openClassicQuickAccess());
+			try {
+				await commandService.executeCommand('workbench.action.unifiedQuickAccess');
+			} catch {
+				openClassicQuickAccess();
+			}
 			return;
 		}
 
