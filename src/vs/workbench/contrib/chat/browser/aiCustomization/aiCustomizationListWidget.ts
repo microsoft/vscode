@@ -20,7 +20,6 @@ import { WorkbenchList } from '../../../../../platform/list/browser/listService.
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../../base/browser/ui/list/list.js';
 import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { AGENT_MD_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon, pluginIcon, builtinIcon } from './aiCustomizationIcons.js';
 import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AICustomizationManagementItemMenuId, AICustomizationManagementSection, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
@@ -51,7 +50,8 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ICustomizationHarnessService, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, matchesWorkspaceSubpath, matchesInstructionFileFilter } from '../../common/customizationHarnessService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 
 export { truncateToFirstSentence } from './aiCustomizationListWidgetUtils.js';
 
@@ -403,6 +403,16 @@ export function sectionToPromptType(section: AICustomizationManagementSection): 
 }
 
 /**
+ * An ordered create action for the add button.
+ */
+interface ICreateAction {
+	readonly label: string;
+	readonly enabled: boolean;
+	readonly tooltip?: string;
+	run(): void;
+}
+
+/**
  * Widget that displays a searchable list of AI customization items.
  */
 export class AICustomizationListWidget extends Disposable {
@@ -443,8 +453,8 @@ export class AICustomizationListWidget extends Disposable {
 	private readonly _onDidRequestCreate = this._register(new Emitter<PromptsType>());
 	readonly onDidRequestCreate: Event<PromptsType> = this._onDidRequestCreate.event;
 
-	private readonly _onDidRequestCreateManual = this._register(new Emitter<{ type: PromptsType; target: 'workspace' | 'user' | 'workspace-root' }>());
-	readonly onDidRequestCreateManual: Event<{ type: PromptsType; target: 'workspace' | 'user' | 'workspace-root' }> = this._onDidRequestCreateManual.event;
+	private readonly _onDidRequestCreateManual = this._register(new Emitter<{ type: PromptsType; target: 'workspace' | 'user' | 'workspace-root'; rootFileName?: string }>());
+	readonly onDidRequestCreateManual: Event<{ type: PromptsType; target: 'workspace' | 'user' | 'workspace-root'; rootFileName?: string }> = this._onDidRequestCreateManual.event;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -463,6 +473,7 @@ export class AICustomizationListWidget extends Disposable {
 		@IPathService private readonly pathService: IPathService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.element = $('.ai-customization-list-widget');
@@ -722,120 +733,171 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
-	 * Updates the add button label based on the current section.
+	 * Updates the add button by building a unified action list.
+	 * The first action becomes the primary button; the rest go in the dropdown.
 	 */
 	private updateAddButton(): void {
-		const typeLabel = this.getTypeLabel();
-		const dropdownActions = this.getDropdownActions();
-		const hasDropdown = dropdownActions.length > 0;
+		const actions = this.buildCreateActions();
+		const [primary, ...dropdown] = actions;
+		const hasDropdown = dropdown.length > 0;
 
 		// Toggle which button is visible
 		this.addButton.element.style.display = hasDropdown ? '' : 'none';
 		this.addButtonSimple.element.style.display = hasDropdown ? 'none' : '';
 
-		if (this.workspaceService.isSessionsWindow) {
-			// Sessions: primary is workspace creation
-			const hasWorkspace = this.hasActiveWorkspace();
-			const label = `$(${Codicon.add.id}) New ${typeLabel} (Workspace)`;
+		if (!primary) {
+			this.addButtonSimple.element.style.display = 'none';
+			this.addButton.element.style.display = 'none';
+			return;
+		}
 
-			if (hasDropdown) {
-				this.addButton.label = label;
-				this.addButton.enabled = hasWorkspace;
-				this.addButton.primaryButton.setTitle('');
-				this.addButton.dropdownButton.setTitle('');
-				if (!hasWorkspace) {
-					const disabledTitle = localize('createDisabled', "Open a workspace folder to create customizations.");
-					this.addButton.primaryButton.setTitle(disabledTitle);
-					this.addButton.dropdownButton.setTitle(disabledTitle);
-				}
-			} else {
-				this.addButtonSimple.label = label;
-				this.addButtonSimple.enabled = hasWorkspace;
-				if (!hasWorkspace) {
-					this.addButtonSimple.setTitle(localize('createDisabled', "Open a workspace folder to create customizations."));
-				} else {
-					this.addButtonSimple.setTitle('');
-				}
-			}
+		if (hasDropdown) {
+			this.addButton.label = primary.label;
+			this.addButton.enabled = primary.enabled;
+			this.addButton.primaryButton.setTitle(primary.tooltip ?? '');
+			this.addButton.dropdownButton.setTitle('');
 		} else {
-			// Core: primary is AI generation
-			const label = `$(${Codicon.sparkle.id}) Generate ${typeLabel}`;
-			if (hasDropdown) {
-				this.addButton.label = label;
-				this.addButton.enabled = true;
-				this.addButton.primaryButton.setTitle('');
-				this.addButton.dropdownButton.setTitle('');
-			} else {
-				this.addButtonSimple.label = label;
-				this.addButtonSimple.enabled = true;
-				this.addButtonSimple.setTitle('');
-			}
+			this.addButtonSimple.label = primary.label;
+			this.addButtonSimple.enabled = primary.enabled;
+			this.addButtonSimple.setTitle(primary.tooltip ?? '');
 		}
 	}
 
 	/**
-	 * Gets the dropdown actions for the add button.
-	 * Respects the active harness filter — user-scoped creation is only
-	 * offered when the harness shows all user roots (i.e. "Local").
+	 * Builds an ordered list of create actions for the current section.
+	 * The first entry is the primary button; remaining entries are dropdown items.
 	 */
-	private getDropdownActions(): Action[] {
-		this.dropdownActionDisposables.clear();
+	private buildCreateActions(): ICreateAction[] {
 		const typeLabel = this.getTypeLabel();
-		const actions: Action[] = [];
 		const promptType = sectionToPromptType(this.currentSection);
+		const descriptor = this.harnessService.getActiveDescriptor();
+		const override = descriptor.sectionOverrides?.get(this.currentSection);
+		const hasWorkspace = this.hasActiveWorkspace();
 
-		// Hooks: no user-scoped creation
+		// Full command override (e.g. Claude hooks) — single action, no dropdown
+		if (override?.commandId) {
+			return [{
+				label: `$(${Codicon.add.id}) ${override.label}`,
+				enabled: true,
+				run: () => { this.commandService.executeCommand(override.commandId!); },
+			}];
+		}
+
+		const createTypeLabel = override?.typeLabel ?? typeLabel;
+		const actions: ICreateAction[] = [];
+		const addedTargets = new Set<string>();
+
+		// Root-file primary button (e.g. "Add CLAUDE.md") — only when workspace is open.
+		// Without a workspace, user creation becomes primary and rootFile goes to dropdown.
+		if (override?.rootFile && hasWorkspace) {
+			actions.push({
+				label: `$(${Codicon.add.id}) ${override.label}`,
+				enabled: true,
+				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace-root' }); },
+			});
+			addedTargets.add('workspace-root');
+		}
+
+		// Hooks have a simplified action set
 		if (promptType === PromptsType.hook) {
-			if (this.workspaceService.isSessionsWindow) {
-				// Sessions: no dropdown for hooks
-			} else {
-				// Core: primary is generate, dropdown has configure quick pick
-				if (this.hasActiveWorkspace()) {
-					actions.push(this.dropdownActionDisposables.add(new Action('configureHooks', `$(${Codicon.add.id}) Configure Hooks`, undefined, true, () => {
-						this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' });
-					})));
+			if (!this.workspaceService.isSessionsWindow && !descriptor.hideGenerateButton) {
+				// Core Local: Generate is primary, configure hooks in dropdown
+				actions.push({
+					label: `$(${Codicon.sparkle.id}) Generate ${typeLabel}`,
+					enabled: true,
+					run: () => { this._onDidRequestCreate.fire(promptType); },
+				});
+				if (hasWorkspace) {
+					actions.push({
+						label: `$(${Codicon.add.id}) Configure Hooks`,
+						enabled: true,
+						run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' }); },
+					});
 				}
+			} else if (!override?.commandId) {
+				// Sessions / non-local: workspace creation only
+				actions.push({
+					label: `$(${Codicon.add.id}) New ${typeLabel} (Workspace)`,
+					enabled: hasWorkspace,
+					tooltip: hasWorkspace ? undefined : localize('createDisabled', "Open a workspace folder to create customizations."),
+					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' }); },
+				});
 			}
 			return actions;
 		}
 
-		// User-scoped creation: in core VS Code, only when the harness shows
-		// all user roots (no includedUserFileRoots restriction). Restricted
-		// harnesses like CLI/Claude filter user roots, so creating in the
-		// VS Code profile directory wouldn't be visible in the current view.
-		// In sessions, user creation always targets CLI-accessible paths
-		// (AgenticPromptsService routes to ~/.copilot/...) so it's always valid.
-		const filter = this.harnessService.getStorageSourceFilter(promptType);
-		const showUserCreate = this.workspaceService.isSessionsWindow || !filter.includedUserFileRoots;
+		// Non-hook sections: build the full action list
 
-		if (this.workspaceService.isSessionsWindow) {
-			// Sessions: primary is workspace, dropdown has user
-			if (showUserCreate) {
-				actions.push(this.dropdownActionDisposables.add(new Action('createUser', `$(${Codicon.account.id}) New ${typeLabel} (User)`, undefined, true, () => {
-					this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
-				})));
+		if (!override?.rootFile) {
+			// Determine the primary action (first in list)
+			if (!this.workspaceService.isSessionsWindow && !descriptor.hideGenerateButton) {
+				// Core Local: Generate is primary
+				actions.push({
+					label: `$(${Codicon.sparkle.id}) Generate ${typeLabel}`,
+					enabled: true,
+					run: () => { this._onDidRequestCreate.fire(promptType); },
+				});
+			} else if (hasWorkspace) {
+				// Sessions or non-local harness with workspace: workspace is primary
+				actions.push({
+					label: `$(${Codicon.add.id}) New ${createTypeLabel} (Workspace)`,
+					enabled: true,
+					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' }); },
+				});
+				addedTargets.add('workspace');
+			} else {
+				// No workspace: user is primary
+				actions.push({
+					label: `$(${Codicon.add.id}) New ${createTypeLabel} (User)`,
+					enabled: true,
+					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' }); },
+				});
+				addedTargets.add('user');
 			}
-			// For instructions: offer AGENTS.md at workspace root
-			if (promptType === PromptsType.instructions && this.hasActiveWorkspace()) {
-				actions.push(this.dropdownActionDisposables.add(new Action('createAgentsMd', `$(${Codicon.file.id}) New ${AGENT_MD_FILENAME}`, undefined, true, () => {
-					this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace-root' });
-				})));
-			}
-		} else {
-			// Core: primary is generate, dropdown has workspace + user
-			if (this.hasActiveWorkspace()) {
-				actions.push(this.dropdownActionDisposables.add(new Action('createWorkspace', `$(${Codicon.folder.id}) New ${typeLabel} (Workspace)`, undefined, true, () => {
-					this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' });
-				})));
-			}
-			if (showUserCreate) {
-				actions.push(this.dropdownActionDisposables.add(new Action('createUser', `$(${Codicon.account.id}) New ${typeLabel} (User)`, undefined, true, () => {
-					this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
-				})));
+		}
+
+		// Secondary actions (dropdown) — only add if not already present
+		if (hasWorkspace && !addedTargets.has('workspace')) {
+			actions.push({
+				label: `$(${Codicon.folder.id}) New ${createTypeLabel} (Workspace)`,
+				enabled: true,
+				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' }); },
+			});
+		}
+
+		if (!addedTargets.has('user')) {
+			actions.push({
+				label: `$(${Codicon.account.id}) New ${createTypeLabel} (User)`,
+				enabled: true,
+				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' }); },
+			});
+		}
+
+		// Root-file shortcuts from the descriptor (e.g. "New AGENTS.md")
+		if (hasWorkspace && override?.rootFileShortcuts && !addedTargets.has('workspace-root')) {
+			for (const fileName of override.rootFileShortcuts) {
+				actions.push({
+					label: `$(${Codicon.file.id}) New ${fileName}`,
+					enabled: true,
+					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace-root', rootFileName: fileName }); },
+				});
 			}
 		}
 
 		return actions;
+	}
+
+	/**
+	 * Gets the dropdown actions for the add button (consumed by ButtonWithDropdown).
+	 * Returns all actions except the primary (first) from buildCreateActions.
+	 */
+	private getDropdownActions(): Action[] {
+		this.dropdownActionDisposables.clear();
+		const allActions = this.buildCreateActions();
+		// Skip the first (primary) action
+		return allActions.slice(1).map((a, i) =>
+			this.dropdownActionDisposables.add(new Action(`create_${i}`, a.label, undefined, a.enabled, () => a.run()))
+		);
 	}
 
 	/**
@@ -849,16 +911,9 @@ export class AICustomizationListWidget extends Disposable {
 	 * Executes the primary create action based on context.
 	 */
 	private executePrimaryCreateAction(): void {
-		const promptType = sectionToPromptType(this.currentSection);
-		if (this.workspaceService.isSessionsWindow) {
-			// Sessions: primary creates in workspace
-			if (!this.hasActiveWorkspace()) {
-				return;
-			}
-			this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' });
-		} else {
-			// Core: primary is generate
-			this._onDidRequestCreate.fire(promptType);
+		const actions = this.buildCreateActions();
+		if (actions.length > 0 && actions[0].enabled) {
+			actions[0].run();
 		}
 	}
 
@@ -1115,16 +1170,35 @@ export class AICustomizationListWidget extends Disposable {
 		// Apply workspace subpath filter — when the active harness specifies
 		// workspaceSubpaths, hide workspace-local items that aren't under one
 		// of the recognized sub-paths (e.g. Claude only shows .claude/ items).
+		// Exception: instruction files matched by the harness's instructionFileFilter
+		// are exempt (e.g. CLAUDE.md at workspace root is a Claude-native file
+		// even though it's not under .claude/).
 		const descriptor = this.harnessService.getActiveDescriptor();
 		const subpaths = descriptor.workspaceSubpaths;
+		const instrFilter = descriptor.instructionFileFilter;
 		if (subpaths) {
 			const projectRoot = this.workspaceService.getActiveProjectRoot();
 			for (let i = items.length - 1; i >= 0; i--) {
 				const item = items[i];
 				if (item.storage === PromptsStorage.local && projectRoot && isEqualOrParent(item.uri, projectRoot)) {
 					if (!matchesWorkspaceSubpath(item.uri.path, subpaths)) {
+						// Keep instruction files that match the harness's native patterns
+						if (instrFilter && promptType === PromptsType.instructions && matchesInstructionFileFilter(item.uri.path, instrFilter)) {
+							continue;
+						}
 						items.splice(i, 1);
 					}
+				}
+			}
+		}
+
+		// Apply instruction file filter — when the active harness specifies
+		// instructionFileFilter, hide instruction files that don't match the
+		// recognized patterns (e.g. Claude doesn't support *.instructions.md).
+		if (instrFilter && promptType === PromptsType.instructions) {
+			for (let i = items.length - 1; i >= 0; i--) {
+				if (!matchesInstructionFileFilter(items[i].uri.path, instrFilter)) {
+					items.splice(i, 1);
 				}
 			}
 		}
