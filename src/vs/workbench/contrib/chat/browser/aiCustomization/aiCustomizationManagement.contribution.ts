@@ -493,6 +493,7 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
 	),
 });
 
@@ -504,6 +505,7 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
 	),
 });
 
@@ -515,6 +517,7 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
 	),
 });
 
@@ -526,6 +529,7 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
 	),
 });
 
