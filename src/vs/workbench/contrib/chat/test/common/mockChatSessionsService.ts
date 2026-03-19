@@ -44,7 +44,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 	private contentProviders = new Map<string, IChatSessionContentProvider>();
 	private contributions: IChatSessionsExtensionPoint[] = [];
 	private optionGroups = new Map<string, IChatSessionProviderOptionGroup[]>();
-	private sessionOptions = new ResourceMap<Map<string, IChatSessionProviderOptionItem>>();
+	private sessionOptions = new ResourceMap<Map<string, string>>();
 	private inProgress = new Map<string, number>();
 
 	// For testing: allow triggering events
@@ -173,28 +173,28 @@ export class MockChatSessionsService implements IChatSessionsService {
 		}
 	}
 
-	getNewSessionOptionsForSessionType(_chatSessionType: string): Record<string, IChatSessionProviderOptionItem> | undefined {
+	getNewSessionOptionsForSessionType(_chatSessionType: string): Record<string, string | IChatSessionProviderOptionItem> | undefined {
 		return undefined;
 	}
 
-	setNewSessionOptionsForSessionType(_chatSessionType: string, _options: Record<string, IChatSessionProviderOptionItem>): void {
+	setNewSessionOptionsForSessionType(_chatSessionType: string, _options: Record<string, string | IChatSessionProviderOptionItem>): void {
 		// noop
 	}
 
-	async notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem }>): Promise<void> {
+	async notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): Promise<void> {
 		await this._onRequestNotifyExtension.fireAsync({ sessionResource, updates }, CancellationToken.None);
 	}
 
-	getSessionOptions(sessionResource: URI): Map<string, IChatSessionProviderOptionItem> | undefined {
+	getSessionOptions(sessionResource: URI): Map<string, string> | undefined {
 		const options = this.sessionOptions.get(sessionResource);
 		return options && options.size > 0 ? options : undefined;
 	}
 
-	getSessionOption(sessionResource: URI, optionId: string): IChatSessionProviderOptionItem | undefined {
+	getSessionOption(sessionResource: URI, optionId: string): string | undefined {
 		return this.sessionOptions.get(sessionResource)?.get(optionId);
 	}
 
-	setSessionOption(sessionResource: URI, optionId: string, value: IChatSessionProviderOptionItem): boolean {
+	setSessionOption(sessionResource: URI, optionId: string, value: string): boolean {
 		if (!this.sessionOptions.has(sessionResource)) {
 			this.sessionOptions.set(sessionResource, new Map());
 		}

@@ -1639,7 +1639,7 @@ export type IChatAgentHistoryEntryDto = {
 export interface IChatSessionContextDto {
 	readonly chatSessionResource: UriComponents;
 	readonly isUntitled: boolean;
-	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem }>;
+	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string }>;
 }
 
 export interface ExtHostChatAgentsShape2 {
@@ -3594,16 +3594,16 @@ export type IChatSessionRequestHistoryItemDto = Extract<IChatSessionHistoryItemD
 
 export interface ChatSessionOptionUpdateDto {
 	readonly optionId: string;
-	readonly value: IChatSessionProviderOptionItem | undefined;
+	readonly value: string | IChatSessionProviderOptionItem | undefined;
 }
 
 export interface ChatSessionOptionUpdateDto2 {
 	readonly optionId: string;
-	readonly value: IChatSessionProviderOptionItem;
+	readonly value: string | IChatSessionProviderOptionItem;
 }
 
 export interface ChatSessionContentContextDto {
-	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem }>;
+	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string }>;
 }
 
 export interface ChatSessionDto {
@@ -3615,12 +3615,12 @@ export interface ChatSessionDto {
 	hasRequestHandler: boolean;
 	hasForkHandler: boolean;
 	supportsInterruption: boolean;
-	options?: Record<string, IChatSessionProviderOptionItem>;
+	options?: Record<string, string | IChatSessionProviderOptionItem>;
 }
 
 export interface IChatSessionProviderOptions {
 	optionGroups?: readonly IChatSessionProviderOptionGroup[];
-	newSessionOptions?: Record<string, IChatSessionProviderOptionItem>;
+	newSessionOptions?: Record<string, string | IChatSessionProviderOptionItem>;
 }
 
 export interface IChatSessionItemsChange {
