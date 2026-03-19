@@ -309,6 +309,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		// --sessions does in cli.ts. This ensures the sessions window uses
 		// the same user-data directory and product configuration as the
 		// dedicated sessions app (e.g., the embedded macOS .app bundle).
+
+		const env: Record<string, string | undefined> = {
+			...process.env,
+			'ELECTRON_NO_ATTACH_CONSOLE': '1'
+		};
+		delete env['ELECTRON_RUN_AS_NODE'];
+
 		if (isMacintosh) {
 			// On macOS, try to launch the embedded .app bundle from
 			// Contents/Applications/ (same logic as cli.ts --sessions).
@@ -320,9 +327,20 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				if (embeddedApp) {
 					const appToLaunch = join(applicationsPath, embeddedApp);
 					this.logService.trace('openSessionsWindow: launching embedded app', appToLaunch);
-					const child = spawn('open', ['-n', '-g', '-a', appToLaunch], {
+
+					// Pass env vars via --env flags, matching cli.ts behaviour,
+					// because macOS `open` does not forward the parent env.
+					const spawnArgs = ['-n', '-g', '-a', appToLaunch];
+					for (const e in env) {
+						if (e !== '_') {
+							spawnArgs.push('--env', `${e}=${env[e]}`);
+						}
+					}
+
+					const child = spawn('open', spawnArgs, {
 						detached: true,
-						stdio: 'ignore'
+						stdio: 'ignore',
+						env: {}
 					});
 					child.on('error', err => this.logService.error('openSessionsWindow: failed to launch embedded app', err));
 					child.unref();
@@ -341,7 +359,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const child = spawn(process.execPath, args, {
 			detached: true,
 			stdio: 'ignore',
-			env: { ...process.env }
+			env
 		});
 		child.on('error', err => this.logService.error('openSessionsWindow: failed to spawn sessions process', err));
 		child.unref();
