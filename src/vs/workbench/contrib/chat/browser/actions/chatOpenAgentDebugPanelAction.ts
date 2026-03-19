@@ -138,8 +138,10 @@ export function registerChatOpenAgentDebugPanelAction() {
 				return;
 			}
 
-			const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
-			const exportFileName = sessionId ? `agent-debug-log-${sessionId}.json` : defaultDebugLogFileName;
+			const localSessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
+			const rawIdentifier = localSessionId ?? (sessionResource.path.replace(/^\//, '') || sessionResource.authority);
+			const sessionIdentifier = rawIdentifier?.replace(/[/\\:*?"<>|.]+/g, '_').replace(/^_+|_+$/g, '');
+			const exportFileName = sessionIdentifier ? `agent-debug-log-${sessionIdentifier}.json` : defaultDebugLogFileName;
 			const defaultUri = joinPath(await fileDialogService.defaultFilePath(), exportFileName);
 			const outputPath = await fileDialogService.showSaveDialog({ defaultUri, filters: debugLogFilters });
 			if (!outputPath) {
