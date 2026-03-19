@@ -8,25 +8,6 @@ import { IChatSessionsService } from './chatSessionsService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
-export type AgentControlMode = 'hidden' | 'badge' | 'compact';
-
-/**
- * Resolves the agent control mode from the configuration, handling backward
- * compatibility with the old boolean value.
- */
-export function getAgentControlMode(value: unknown): AgentControlMode {
-	if (value === false || value === 'hidden') {
-		return 'hidden';
-	}
-	if (value === true || value === 'badge') {
-		return 'badge';
-	}
-	if (value === 'compact') {
-		return 'compact';
-	}
-	return 'compact';
-}
-
 export enum ChatConfiguration {
 	AIDisabled = 'chat.disableAIFeatures',
 	PluginsEnabled = 'chat.plugins.enabled',
@@ -36,7 +17,6 @@ export enum ChatConfiguration {
 	PlanAgentDefaultModel = 'chat.planAgent.defaultModel',
 	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
 	RequestQueueingDefaultAction = 'chat.requestQueuing.defaultAction',
-	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	EditorAssociations = 'chat.editorAssociations',
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',

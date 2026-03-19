@@ -40,7 +40,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { LayoutSettings } from '../../../../../services/layout/browser/layoutService.js';
 import { WindowTitle } from '../../../../../browser/parts/titlebar/windowTitle.js';
-import { ChatConfiguration, getAgentControlMode } from '../../../common/constants.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -196,7 +196,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Re-render when settings change
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar) || e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled) || e.affectsConfiguration(ChatConfiguration.ChatViewSessionsEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar) || e.affectsConfiguration(ChatConfiguration.ChatViewSessionsEnabled)) {
 				this._lastRenderState = undefined; // Force re-render
 				this._render();
 			}
@@ -293,9 +293,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			const { isFilteredToUnread, isFilteredToInProgress, isFilteredToNeedsInput } = this._getCurrentFilterState();
 
 			// Check which settings are enabled
-			const agentControlMode = getAgentControlMode(this.configurationService.getValue(ChatConfiguration.AgentStatusEnabled));
-			const unifiedAgentsBarEnabled = agentControlMode === 'compact';
-			const agentStatusEnabled = agentControlMode !== 'hidden';
+			const unifiedAgentsBarEnabled = true;
 			const viewSessionsEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled) !== false;
 
 			// Build state key for comparison
@@ -311,7 +309,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				isFilteredToInProgress,
 				isFilteredToNeedsInput,
 				unifiedAgentsBarEnabled,
-				agentStatusEnabled,
 				viewSessionsEnabled,
 			});
 
@@ -337,11 +334,8 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			} else if (unifiedAgentsBarEnabled) {
 				// Unified Agents Bar - show full pill with label + status badge
 				this._renderChatInputMode(this._dynamicDisposables);
-			} else if (agentStatusEnabled) {
-				// Agent Status - show only the status badge (sparkle + unread/active counts)
-				this._renderBadgeOnlyMode(this._dynamicDisposables);
 			}
-			// If neither setting is enabled, nothing is rendered (container is already cleared)
+			// If the setting is not enabled, nothing is rendered (container is already cleared)
 
 			// Setup roving tabindex for keyboard navigation
 			this._setupRovingTabIndex(this._dynamicDisposables);
@@ -621,10 +615,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		disposables.add(addDisposableListener(pill, EventType.MOUSE_DOWN, exitHandler));
 
 		// Status badge (separate rectangle on right)
-		const agentControlMode = getAgentControlMode(this.configurationService.getValue(ChatConfiguration.AgentStatusEnabled));
-		if (agentControlMode !== 'hidden') {
-			this._renderStatusBadge(disposables, activeSessions, unreadSessions, attentionNeededSessions);
-		}
+		this._renderStatusBadge(disposables, activeSessions, unreadSessions, attentionNeededSessions);
 	}
 
 	/**
@@ -673,24 +664,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		disposables.add(addDisposableListener(pill, EventType.MOUSE_DOWN, enterHandler));
 
 		// Status badge (separate rectangle on right)
-		const agentControlModeForReady = getAgentControlMode(this.configurationService.getValue(ChatConfiguration.AgentStatusEnabled));
-		if (agentControlModeForReady !== 'hidden') {
-			this._renderStatusBadge(disposables, activeSessions, unreadSessions, attentionNeededSessions);
-		}
-	}
-
-	/**
-	 * Render badge-only mode - just the status badge without the full pill.
-	 * Used when Agent Status is enabled but Enhanced Agent Status is not.
-	 */
-	private _renderBadgeOnlyMode(disposables: DisposableStore): void {
-		if (!this._container) {
-			return;
-		}
-
-		const { activeSessions, unreadSessions, attentionNeededSessions } = this._getSessionStats();
-
-		// Status badge only - no pill, no command center toolbar
 		this._renderStatusBadge(disposables, activeSessions, unreadSessions, attentionNeededSessions);
 	}
 
@@ -926,8 +899,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// When compact mode is active, show status indicators before the sparkle button:
 		// [needs-input, active, unread, sparkle] (populating inward)
 		// Otherwise, keep original order: [sparkle, unread, active, needs-input]
-		const agentControlModeForBadge = getAgentControlMode(this.configurationService.getValue(ChatConfiguration.AgentStatusEnabled));
-		const reverseOrder = agentControlModeForBadge === 'compact';
+		const reverseOrder = true;
 
 		if (!reverseOrder) {
 			// Original order: sparkle first
@@ -1441,19 +1413,18 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 		}, undefined));
 
 		// Add/remove CSS classes on workbench based on settings
-		// Force enable command center and disable chat controls when agent status is enabled
+		// Force enable command center when unified agents bar is enabled
 		const updateClass = () => {
 			const commandCenterEnabled = configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) === true;
-			const mode = getAgentControlMode(configurationService.getValue(ChatConfiguration.AgentStatusEnabled));
-			const enabled = mode !== 'hidden' && commandCenterEnabled;
-			const enhanced = mode === 'compact' && commandCenterEnabled;
+			const enabled = commandCenterEnabled;
+			const enhanced = commandCenterEnabled;
 
 			mainWindow.document.body.classList.toggle('agent-status-enabled', enabled);
 			mainWindow.document.body.classList.toggle('unified-agents-bar', enhanced);
 		};
 		updateClass();
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled) || e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar) || e.affectsConfiguration(LayoutSettings.COMMAND_CENTER)) {
+			if (e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar) || e.affectsConfiguration(LayoutSettings.COMMAND_CENTER)) {
 				updateClass();
 			}
 		}));
