@@ -232,44 +232,13 @@ const BARE_ENV_VAR_RE = /\$\{(?![A-Za-z]+:)([A-Z_][A-Z0-9_]*)\}/g;
 export function convertBareEnvVarsToVsCodeSyntax(
 	def: IAgentPluginMcpServerDefinition,
 ): IAgentPluginMcpServerDefinition {
-	const convert = (s: string) => s.replace(BARE_ENV_VAR_RE, '${env:$1}');
-
-	const config = def.configuration;
-	let converted: IMcpServerConfiguration;
-
-	if (config.type === McpServerType.LOCAL) {
-		const local: Mutable<IMcpStdioServerConfiguration> = { ...config };
-		local.command = convert(local.command);
-		if (local.args) {
-			local.args = local.args.map(convert);
+	return cloneAndChange(def, (value) => {
+		if (typeof value === 'string') {
+			const replaced = value.replace(BARE_ENV_VAR_RE, '${env:$1}');
+			return replaced !== value ? replaced : undefined;
 		}
-		if (local.cwd) {
-			local.cwd = convert(local.cwd);
-		}
-		if (local.env) {
-			local.env = { ...local.env };
-			for (const [k, v] of Object.entries(local.env)) {
-				if (typeof v === 'string') {
-					local.env[k] = convert(v);
-				}
-			}
-		}
-		if (local.envFile) {
-			local.envFile = convert(local.envFile);
-		}
-		converted = local;
-	} else {
-		const remote: Mutable<IMcpRemoteServerConfiguration> = { ...config };
-		remote.url = convert(remote.url);
-		if (remote.headers) {
-			remote.headers = Object.fromEntries(
-				Object.entries(remote.headers).map(([k, v]) => [k, convert(v)])
-			);
-		}
-		converted = remote;
-	}
-
-	return { name: def.name, configuration: converted };
+		return undefined;
+	});
 }
 
 /**
