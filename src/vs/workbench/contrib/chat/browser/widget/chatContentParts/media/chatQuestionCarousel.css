@@ -249,29 +249,28 @@
 
 		/* Single-select: highlight entire row when selected */
 		.chat-question-list-item.selected {
-			background-color: var(--vscode-list-hoverBackground);
-			color: var(--vscode-list-activeSelectionForeground);
+			background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
+			color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 
 			.chat-question-label {
-				color: var(--vscode-list-activeSelectionForeground);
+				color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 			}
 
 			.chat-question-list-label-desc {
-				color: var(--vscode-list-activeSelectionForeground);
-				opacity: 0.8;
+				color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 			}
 
 			.chat-question-list-indicator.codicon-check {
-				color: var(--vscode-list-activeSelectionForeground);
+				color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 			}
 
 			.chat-question-list-number {
-				color: var(--vscode-list-activeSelectionForeground);
+				color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 			}
 		}
 
 		.chat-question-list-item.selected:hover {
-			background-color: var(--vscode-list-hoverBackground);
+			background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
 		}
 
 		/* Checkbox for multi-select */
