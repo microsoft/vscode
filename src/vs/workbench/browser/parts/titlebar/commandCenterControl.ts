@@ -148,8 +148,13 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 
 							// When agent control mode is 'compact', hide search icon and left-align the label
 							// Backward compat: the old boolean setting (true) and the new default (undefined) both map to compact
+							const aiFeaturesDisabled = that._configurationService.getValue<boolean>('chat.disableAIFeatures') === true;
+							const aiCustomizationsDisabled = that._configurationService.getValue<boolean>('disableAICustomizations') === true
+								|| that._configurationService.getValue<boolean>('workbench.disableAICustomizations') === true
+								|| that._configurationService.getValue<boolean>('chat.customizationsMenu.enabled') === false;
+							const forcedHidden = aiFeaturesDisabled && aiCustomizationsDisabled;
 							const agentControlValue = that._configurationService.getValue('chat.agentsControl.enabled');
-							const isCompactMode = agentControlValue !== false && agentControlValue !== 'hidden';
+							const isCompactMode = !forcedHidden && (agentControlValue === true || agentControlValue === undefined || agentControlValue === 'compact');
 							container.classList.toggle('compact-mode', isCompactMode);
 
 							const action = this.action;

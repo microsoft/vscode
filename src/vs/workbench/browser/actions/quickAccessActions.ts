@@ -9,7 +9,8 @@ import { KeyMod, KeyCode } from '../../../base/common/keyCodes.js';
 import { KeybindingsRegistry, KeybindingWeight, IKeybindingRule } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, ItemActivation, QuickInputHideReason } from '../../../platform/quickinput/common/quickInput.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
-import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler } from '../quickaccess.js';
 import { ILocalizedString } from '../../../platform/action/common/action.js';
@@ -162,15 +163,27 @@ registerAction2(class QuickAccessAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		const quickInputService = accessor.get(IQuickInputService);
-		const providerOptions: AnythingQuickAccessProviderRunOptions = {
-			includeHelp: true,
-			from: 'commandCenter',
+		const openClassicQuickAccess = (): void => {
+			const quickInputService = accessor.get(IQuickInputService);
+			const providerOptions: AnythingQuickAccessProviderRunOptions = {
+				includeHelp: true,
+				from: 'commandCenter',
+			};
+			quickInputService.quickAccess.show(undefined, {
+				preserveValue: true,
+				providerOptions
+			});
 		};
-		quickInputService.quickAccess.show(undefined, {
-			preserveValue: true,
-			providerOptions
-		});
+
+		const configurationService = accessor.get(IConfigurationService);
+		const commandService = accessor.get(ICommandService);
+		const useUnifiedQuickAccess = configurationService.getValue<boolean>('chat.unifiedAgentsBar.enabled') === true;
+		if (useUnifiedQuickAccess) {
+			void commandService.executeCommand('workbench.action.unifiedQuickAccess').then(undefined, () => openClassicQuickAccess());
+			return;
+		}
+
+		openClassicQuickAccess();
 	}
 });
 
