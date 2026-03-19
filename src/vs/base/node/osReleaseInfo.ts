@@ -47,12 +47,13 @@ export async function getOSReleaseInfo(errorLogger: (error: string | Error) => v
 		};
 
 		for await (const line of readLines({ input: handle.createReadStream(), crlfDelay: Infinity })) {
-			if (!line.includes('=')) {
+			const equalsIndex = line.indexOf('=');
+			if (equalsIndex === -1) {
 				continue;
 			}
-			const key = line.split('=')[0].toUpperCase().trim();
+			const key = line.substring(0, equalsIndex).toUpperCase().trim();
 			if (osReleaseKeys.has(key)) {
-				const value = line.split('=')[1].replace(/"/g, '').toLowerCase().trim();
+				const value = line.substring(equalsIndex + 1).replace(/"/g, '').toLowerCase().trim();
 				if (key === 'ID' || key === 'DISTRIB_ID') {
 					releaseInfo.id = value;
 				} else if (key === 'ID_LIKE') {
