@@ -38,14 +38,8 @@ import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } fro
 import { KeybindingResolver } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { IExtensionKeybindingRule, IKeybindingItem, KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ResolvedKeybindingItem } from '../../../../platform/keybinding/common/resolvedKeybindingItem.js';
-import { IKeyboardLayoutService, IMacLinuxKeyboardMapping, IWindowsKeyboardMapping } from '../../../../platform/keyboardLayout/common/keyboardLayout.js';
+import { IKeyboardLayoutService } from '../../../../platform/keyboardLayout/common/keyboardLayout.js';
 import { IKeyboardMapper } from '../../../../platform/keyboardLayout/common/keyboardMapper.js';
-import { MacLinuxKeyboardMapper } from '../common/macLinuxKeyboardMapper.js';
-import { WindowsKeyboardMapper } from '../common/windowsKeyboardMapper.js';
-import { KeymapInfo } from '../common/keymapInfo.js';
-import { EN_US_LINUX_LAYOUT } from './keyboardLayouts/en.linux.js';
-import { EN_US_WIN_LAYOUT } from './keyboardLayouts/en.win.js';
-import { EN_US_DARWIN_LAYOUT } from './keyboardLayouts/en.darwin.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -59,9 +53,9 @@ import { IExtensionService } from '../../extensions/common/extensions.js';
 import { ExtensionMessageCollector, ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
 import { IHostService } from '../../host/browser/host.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
-import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from '../common/keybindingIO.js';
+import { IUserKeybindingItem, formatDefaultKeybindings, KeybindingIO } from '../common/keybindingIO.js';
 import { IKeyboard, INavigatorWithKeyboard } from './navigatorKeyboard.js';
-import { getAllUnboundCommands } from './unboundCommands.js';
+import { formatAllCommandsAsComment } from './unboundCommands.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 
 function isValidContributedKeyBinding(keyBinding: ContributedKeyBinding, rejects: string[]): boolean {
@@ -669,81 +663,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		const defaultKeybindings = resolver.getDefaultKeybindings();
 		const boundCommands = resolver.getDefaultBoundCommands();
 		return (
-			WorkbenchKeybindingService._getDefaultKeybindings(defaultKeybindings)
+			formatDefaultKeybindings(defaultKeybindings)
 			+ '\n\n'
-			+ WorkbenchKeybindingService._getAllCommandsAsComment(boundCommands)
+			+ formatAllCommandsAsComment(boundCommands)
 		);
-	}
-
-	public override getDefaultKeybindingsContentForOS(os: OperatingSystem): string {
-		const items = KeybindingsRegistry.getDefaultKeybindingsForOS(os);
-		const mapper = WorkbenchKeybindingService._createKeyboardMapperForOS(os);
-		const resolved = WorkbenchKeybindingService._resolveKeybindingItemsWithMapper(items, mapper);
-		const resolver = new KeybindingResolver(resolved, [], () => { });
-		const defaultKeybindings = resolver.getDefaultKeybindings();
-		const boundCommands = resolver.getDefaultBoundCommands();
-		return (
-			WorkbenchKeybindingService._getDefaultKeybindings(defaultKeybindings)
-			+ '\n\n'
-			+ WorkbenchKeybindingService._getAllCommandsAsComment(boundCommands)
-		);
-	}
-
-	private static _createKeyboardMapperForOS(os: OperatingSystem): IKeyboardMapper {
-		switch (os) {
-			case OperatingSystem.Windows: {
-				const keymapInfo = new KeymapInfo(EN_US_WIN_LAYOUT.layout, EN_US_WIN_LAYOUT.secondaryLayouts, EN_US_WIN_LAYOUT.mapping);
-				return new WindowsKeyboardMapper(true, <IWindowsKeyboardMapping>keymapInfo.mapping, false);
-			}
-			case OperatingSystem.Macintosh: {
-				const keymapInfo = new KeymapInfo(EN_US_DARWIN_LAYOUT.layout, EN_US_DARWIN_LAYOUT.secondaryLayouts, EN_US_DARWIN_LAYOUT.mapping);
-				return new MacLinuxKeyboardMapper(true, <IMacLinuxKeyboardMapping>keymapInfo.mapping, false, OperatingSystem.Macintosh);
-			}
-			case OperatingSystem.Linux: {
-				const keymapInfo = new KeymapInfo(EN_US_LINUX_LAYOUT.layout, EN_US_LINUX_LAYOUT.secondaryLayouts, EN_US_LINUX_LAYOUT.mapping);
-				return new MacLinuxKeyboardMapper(true, <IMacLinuxKeyboardMapping>keymapInfo.mapping, false, OperatingSystem.Linux);
-			}
-		}
-	}
-
-	private static _resolveKeybindingItemsWithMapper(items: IKeybindingItem[], mapper: IKeyboardMapper): ResolvedKeybindingItem[] {
-		const result: ResolvedKeybindingItem[] = [];
-		for (const item of items) {
-			const when = item.when || undefined;
-			const keybinding = item.keybinding;
-			if (!keybinding) {
-				result.push(new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, true, item.extensionId, item.isBuiltinExtension));
-			} else {
-				const resolvedKeybindings = mapper.resolveKeybinding(keybinding);
-				for (let i = resolvedKeybindings.length - 1; i >= 0; i--) {
-					result.push(new ResolvedKeybindingItem(resolvedKeybindings[i], item.command, item.commandArgs, when, true, item.extensionId, item.isBuiltinExtension));
-				}
-			}
-		}
-		return result;
-	}
-
-	private static _getDefaultKeybindings(defaultKeybindings: readonly ResolvedKeybindingItem[]): string {
-		const out = new OutputBuilder();
-		out.writeLine('[');
-
-		const lastIndex = defaultKeybindings.length - 1;
-		defaultKeybindings.forEach((k, index) => {
-			KeybindingIO.writeKeybindingItem(out, k);
-			if (index !== lastIndex) {
-				out.writeLine(',');
-			} else {
-				out.writeLine();
-			}
-		});
-		out.writeLine(']');
-		return out.toString();
-	}
-
-	private static _getAllCommandsAsComment(boundCommands: Map<string, boolean>): string {
-		const unboundCommands = getAllUnboundCommands(boundCommands);
-		const pretty = unboundCommands.sort().join('\n// - ');
-		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
 	}
 
 	override mightProducePrintableCharacter(event: IKeyboardEvent): boolean {

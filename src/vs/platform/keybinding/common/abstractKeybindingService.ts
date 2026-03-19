@@ -12,7 +12,6 @@ import { IME } from '../../../base/common/ime.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { Keybinding, ResolvedChord, ResolvedKeybinding, SingleModifierChord } from '../../../base/common/keybindings.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
-import { OperatingSystem } from '../../../base/common/platform.js';
 import * as nls from '../../../nls.js';
 
 import { ICommandService } from '../../commands/common/commands.js';
@@ -95,10 +94,6 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	public abstract _dumpDebugInfoJSON(): string;
 
 	public getDefaultKeybindingsContent(): string {
-		return '';
-	}
-
-	public getDefaultKeybindingsContentForOS(_os: OperatingSystem): string {
 		return '';
 	}
 
