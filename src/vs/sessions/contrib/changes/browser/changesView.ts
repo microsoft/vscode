@@ -645,6 +645,10 @@ export class ChangesViewPane extends ViewPane {
 				return metadata?.pullRequestUrl !== undefined;
 			}));
 
+			const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
+			const scopedInstantiationService = this.instantiationService.createChild(scopedServiceCollection);
+			this.renderDisposables.add(scopedInstantiationService);
+
 			this.renderDisposables.add(autorun(reader => {
 				const { added, removed } = topLevelStats.read(reader);
 				const sessionResource = this.viewModel.activeSessionResourceObs.read(reader);
@@ -673,10 +677,6 @@ export class ChangesViewPane extends ViewPane {
 						reviewCommentCount = prReviewCommentCount;
 					}
 				}
-
-				const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
-				const scopedInstantiationService = this.instantiationService.createChild(scopedServiceCollection);
-				this.renderDisposables.add(scopedInstantiationService);
 
 				reader.store.add(scopedInstantiationService.createInstance(
 					MenuWorkbenchButtonBar,
