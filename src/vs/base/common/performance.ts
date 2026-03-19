@@ -168,26 +168,23 @@ export const getMarks: () => PerformanceMark[] = perf.getMarks;
 const _tracers = new Map<string, PerfTracer>();
 
 /**
- * Creates a new {@link PerfTracer} with the given prefix but does **not** register it in the global registry.
- * Use this for multi-instance components (e.g. widgets) where multiple tracers share the same prefix.
- * A trailing `/` is appended to the prefix automatically.
- */
-export function createLocalPerfTracer(prefix: string): PerfTracer {
-	const normalizedPrefix = prefix.endsWith('/') ? prefix : prefix + '/';
-	return new PerfTracer(normalizedPrefix);
-}
-
-/**
- * Creates a new {@link PerfTracer} with the given prefix and registers it in the global registry.
- * If a tracer with the same prefix already exists, it is disposed and replaced.
+ * Creates a new {@link PerfTracer} with the given prefix.
  * A trailing `/` is appended to the prefix automatically (e.g. `'code/chat'` → `'code/chat/'`).
- * Use {@link getPerfTracer} to look up a registered tracer from downstream code.
+ *
+ * By default, the tracer is registered in the global registry so that downstream code can
+ * look it up via {@link getPerfTracer}. If a tracer with the same prefix already exists,
+ * it is disposed and replaced.
+ *
+ * When `local` is `true`, the tracer is not registered globally. Use this for multi-instance
+ * components (e.g. widgets) where multiple tracers may share the same prefix.
  */
-export function createPerfTracer(prefix: string): PerfTracer {
+export function createPerfTracer(prefix: string, options?: { local?: boolean }): PerfTracer {
 	const normalizedPrefix = prefix.endsWith('/') ? prefix : prefix + '/';
-	_tracers.get(normalizedPrefix)?.dispose();
 	const tracer = new PerfTracer(normalizedPrefix);
-	_tracers.set(normalizedPrefix, tracer);
+	if (!options?.local) {
+		_tracers.get(normalizedPrefix)?.dispose();
+		_tracers.set(normalizedPrefix, tracer);
+	}
 	return tracer;
 }
 
@@ -202,8 +199,7 @@ export function getPerfTracer(prefix: string): PerfTracer | undefined {
 
 /**
  * A reusable performance tracing helper that manages mark lifecycle within a given prefix namespace.
- * Use {@link createPerfTracer} to create a globally registered instance,
- * or `new PerfTracer(prefix)` for a local instance that is not in the global registry.
+ * Use {@link createPerfTracer} to create an instance (globally registered or local).
  *
  * Lifecycle:
  * - The **owner** calls `tracer.start(detail?)` to create a new trace (and clean up completed ones).
