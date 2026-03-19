@@ -1102,6 +1102,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._send();
 		}
 	}
+
+	setDefaultProject(repoUri: URI): void {
+		const project = new SessionWorkspace(repoUri);
+		this._workspacePicker.setSelectedProject(project, false);
+		this._onProjectSelected(project);
+	}
 }
 
 // #endregion
@@ -1160,6 +1166,10 @@ export class NewChatViewPane extends ViewPane {
 
 	sendQuery(text: string): void {
 		this._widget?.sendQuery(text);
+	}
+
+	setDefaultProject(repoUri: URI): void {
+		this._widget?.setDefaultProject(repoUri);
 	}
 
 	override setVisible(visible: boolean): void {

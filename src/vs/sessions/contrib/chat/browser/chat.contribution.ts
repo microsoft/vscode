@@ -7,7 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -17,6 +17,8 @@ import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensi
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { AgentSessionSection, IAgentSessionSection, isAgentSessionSection } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IsActiveSessionBackgroundProviderContext, ISessionsManagementService, IsNewChatSessionContext } from '../../sessions/browser/sessionsManagementService.js';
 import { Menus } from '../../../browser/menus.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
@@ -40,6 +42,7 @@ import { ChatViewPane } from '../../../../workbench/contrib/chat/browser/widgetH
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 
 export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 	static readonly ID = 'chat.openSessionWorktreeInVSCode';
@@ -121,6 +124,42 @@ class NewChatInSessionsWindowAction extends Action2 {
 }
 
 registerAction2(NewChatInSessionsWindowAction);
+
+class NewChatInRepositorySectionAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSessionSection.newChat',
+			title: localize2('newChatInRepository', "New Chat"),
+			icon: Codicon.newSession,
+			menu: [{
+				id: MenuId.AgentSessionSectionToolbar,
+				group: 'navigation',
+				order: 0,
+				when: ChatContextKeys.agentSessionSection.isEqualTo(AgentSessionSection.Repository),
+			}]
+		});
+	}
+
+	override run(accessor: ServicesAccessor, context?: IAgentSessionSection): void {
+		if (!context || !isAgentSessionSection(context)) {
+			return;
+		}
+
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		sessionsManagementService.openNewSessionView();
+
+		const metadata = context.sessions[0]?.metadata;
+		const repoPath = metadata?.repositoryPath ?? metadata?.workingDirectoryPath ?? metadata?.worktreePath;
+		if (typeof repoPath === 'string') {
+			const viewsService = accessor.get(IViewsService);
+			const viewPane = viewsService.getViewWithId<NewChatViewPane>(SessionsViewId);
+			viewPane?.setDefaultProject(URI.file(repoPath));
+		}
+	}
+}
+
+registerAction2(NewChatInRepositorySectionAction);
 
 
 
