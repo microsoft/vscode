@@ -221,7 +221,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 		}
 	});
 
-	test('Notebooks with outputs beyond the size threshold will throw for backup snapshots', async function () {
+	test('Notebooks with outputs beyond the size threshold will strip outputs for backup snapshots', async function () {
 		const outputLimit = 100;
 		await configurationService.setUserConfiguration(NotebookSetting.outputBackupSizeLimit, outputLimit * 1.0 / 1024);
 		const largeOutput: IOutputDto = { outputId: '123', outputs: [{ mime: Mimes.text, data: VSBuffer.fromString('a'.repeat(outputLimit + 1)) }] };
@@ -234,16 +234,23 @@ suite('NotebookFileWorkingCopyModel', function () {
 		);
 		disposables.add(notebook);
 
-		let callCount = 0;
+		let backupCallCount = 0;
+		let saveCallCount = 0;
 		const model = disposables.add(new NotebookFileWorkingCopyModel(
 			notebook,
 			mockNotebookService(notebook,
 				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: true, transientDocumentMetadata: {}, transientCellMetadata: { bar: true }, cellContentMetadata: {} };
+					override options: TransientOptions = { transientOutputs: false, transientDocumentMetadata: {}, transientCellMetadata: { bar: true }, cellContentMetadata: {} };
 					override async notebookToData(notebook: NotebookData) {
-						callCount += 1;
-						assert.strictEqual(notebook.cells[0].metadata!.foo, 123);
-						assert.strictEqual(notebook.cells[0].metadata!.bar, undefined);
+						if (backupCallCount === 0) {
+							backupCallCount += 1;
+							// Backup should strip outputs when they exceed the limit
+							assert.deepStrictEqual(notebook.cells[0].outputs, []);
+						} else {
+							saveCallCount += 1;
+							// Save should still include outputs
+							assert.strictEqual(notebook.cells[0].outputs.length, 1);
+						}
 						return VSBuffer.fromString('');
 					}
 				},
@@ -254,15 +261,11 @@ suite('NotebookFileWorkingCopyModel', function () {
 			logservice
 		));
 
-		try {
-			await model.snapshot(SnapshotContext.Backup, CancellationToken.None);
-			assert.fail('Expected snapshot to throw an error for large output');
-		} catch (e) {
-			assert.notEqual(e.code, 'ERR_ASSERTION', e.message);
-		}
+		await model.snapshot(SnapshotContext.Backup, CancellationToken.None);
+		assert.strictEqual(backupCallCount, 1);
 
 		await model.snapshot(SnapshotContext.Save, CancellationToken.None);
-		assert.strictEqual(callCount, 1);
+		assert.strictEqual(saveCallCount, 1);
 
 	});
 
