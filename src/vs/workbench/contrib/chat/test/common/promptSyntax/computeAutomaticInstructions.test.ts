@@ -1099,6 +1099,186 @@ suite('ComputeAutomaticInstructions', () => {
 		});
 	});
 
+	suite('skill telemetry', () => {
+		test('should emit skillLoadedIntoContext for each loaded skill', async () => {
+			const rootFolderName = 'skill-telemetry-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.claude/skills/my-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: \'my-skill\'',
+						'description: \'A test skill\'',
+						'---',
+						'Skill content here',
+					]
+				},
+				{
+					path: `${rootFolder}/.claude/skills/other-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: \'other-skill\'',
+						'description: \'Another test skill\'',
+						'---',
+						'Other skill content',
+					]
+				},
+			]);
+
+			const telemetryEvents: { eventName: string; data: Record<string, unknown> }[] = [];
+			const mockTelemetryService = {
+				publicLog2: (eventName: string, data: Record<string, unknown>) => {
+					telemetryEvents.push({ eventName, data });
+				}
+			} as unknown as ITelemetryService;
+			instaService.stub(ITelemetryService, mockTelemetryService);
+
+			const contextComputer = instaService.createInstance(
+				ComputeAutomaticInstructions,
+				ChatModeKind.Agent,
+				{ 'vscode_readFile': true },
+				undefined,
+				undefined
+			);
+			const variables = new ChatRequestVariableSet();
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			// Wait briefly for fire-and-forget telemetry promises to settle
+			await new Promise(resolve => setTimeout(resolve, 50));
+
+			const skillEvents = telemetryEvents.filter(e => e.eventName === 'skillLoadedIntoContext');
+			assert.strictEqual(skillEvents.length, 2, 'Should emit one event per skill');
+
+			// Both events should have hashed skill names (non-empty strings)
+			for (const event of skillEvents) {
+				assert.ok(typeof event.data.skillNameHash === 'string' && event.data.skillNameHash.length > 0, 'skillNameHash should be a non-empty string');
+				assert.ok(typeof event.data.skillContentHash === 'string' && event.data.skillContentHash.length > 0, 'skillContentHash should be a non-empty string');
+				assert.strictEqual(event.data.skillStorage, 'local', 'skillStorage should be local for workspace skills');
+				// Local skills have no extension or plugin provenance
+				assert.strictEqual(event.data.extensionIdHash, '', 'extensionIdHash should be empty for local skills');
+				assert.strictEqual(event.data.extensionVersionHash, '', 'extensionVersionHash should be empty for local skills');
+				assert.strictEqual(event.data.pluginNameHash, '', 'pluginNameHash should be empty for local skills');
+				assert.strictEqual(event.data.pluginVersionHash, '', 'pluginVersionHash should be empty for local skills');
+			}
+
+			// The two events should have different name hashes (different skill names)
+			assert.notStrictEqual(skillEvents[0].data.skillNameHash, skillEvents[1].data.skillNameHash, 'Different skills should have different name hashes');
+			// The two events should have different content hashes (different content)
+			assert.notStrictEqual(skillEvents[0].data.skillContentHash, skillEvents[1].data.skillContentHash, 'Different skills should have different content hashes');
+		});
+
+		test('should not emit skillLoadedIntoContext for skills with disableModelInvocation', async () => {
+			const rootFolderName = 'skill-telemetry-disabled-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.claude/skills/manual-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: \'manual-skill\'',
+						'description: \'A manual-only skill\'',
+						'disable-model-invocation: true',
+						'---',
+						'Manual skill content',
+					]
+				},
+				{
+					path: `${rootFolder}/.claude/skills/auto-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: \'auto-skill\'',
+						'description: \'An auto-invocable skill\'',
+						'---',
+						'Auto skill content',
+					]
+				},
+			]);
+
+			const telemetryEvents: { eventName: string; data: Record<string, unknown> }[] = [];
+			const mockTelemetryService = {
+				publicLog2: (eventName: string, data: Record<string, unknown>) => {
+					telemetryEvents.push({ eventName, data });
+				}
+			} as unknown as ITelemetryService;
+			instaService.stub(ITelemetryService, mockTelemetryService);
+
+			const contextComputer = instaService.createInstance(
+				ComputeAutomaticInstructions,
+				ChatModeKind.Agent,
+				{ 'vscode_readFile': true },
+				undefined,
+				undefined
+			);
+			const variables = new ChatRequestVariableSet();
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			await new Promise(resolve => setTimeout(resolve, 50));
+
+			const skillEvents = telemetryEvents.filter(e => e.eventName === 'skillLoadedIntoContext');
+			assert.strictEqual(skillEvents.length, 1, 'Should emit only one event (manual skill excluded)');
+			assert.strictEqual(skillEvents[0].data.skillStorage, 'local');
+		});
+
+		test('should not emit skillLoadedIntoContext when skills feature is disabled', async () => {
+			const rootFolderName = 'skill-telemetry-feature-off-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.claude/skills/some-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: \'some-skill\'',
+						'description: \'A skill\'',
+						'---',
+						'Skill content',
+					]
+				},
+			]);
+
+			const telemetryEvents: { eventName: string; data: Record<string, unknown> }[] = [];
+			const mockTelemetryService = {
+				publicLog2: (eventName: string, data: Record<string, unknown>) => {
+					telemetryEvents.push({ eventName, data });
+				}
+			} as unknown as ITelemetryService;
+			instaService.stub(ITelemetryService, mockTelemetryService);
+
+			const contextComputer = instaService.createInstance(
+				ComputeAutomaticInstructions,
+				ChatModeKind.Agent,
+				{ 'vscode_readFile': true },
+				undefined,
+				undefined
+			);
+			const variables = new ChatRequestVariableSet();
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			await new Promise(resolve => setTimeout(resolve, 50));
+
+			const skillEvents = telemetryEvents.filter(e => e.eventName === 'skillLoadedIntoContext');
+			assert.strictEqual(skillEvents.length, 0, 'Should not emit skill telemetry when feature is disabled');
+		});
+	});
+
 	suite('instructions list variable', () => {
 		function xmlContents(text: string, tag: string): string[] {
 			const regex = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'g');
