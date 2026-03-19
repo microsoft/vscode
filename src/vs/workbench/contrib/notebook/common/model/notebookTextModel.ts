@@ -479,24 +479,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			cells: [],
 		};
 
-		// When backing up, if total output size exceeds the limit, strip outputs
-		// instead of throwing so that callers still get a valid (degraded) snapshot.
-		let includeOutputs = !transientOptions.transientOutputs;
-		if (includeOutputs && options.context === SnapshotContext.Backup && options.outputSizeLimit > 0) {
-			let totalOutputSize = 0;
-			for (const cell of this.cells) {
-				for (const output of cell.outputs) {
-					for (const item of output.outputs) {
-						totalOutputSize += item.data.byteLength;
-					}
-				}
-				if (totalOutputSize > options.outputSizeLimit) {
-					includeOutputs = false;
-					break;
-				}
-			}
-		}
-
+		let outputSize = 0;
 		for (const cell of this.cells) {
 			const cellData: ICellDto2 = {
 				cellKind: cell.cellKind,
@@ -507,7 +490,18 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				internalMetadata: cell.internalMetadata
 			};
 
-			cellData.outputs = includeOutputs ? cell.outputs : [];
+			if (options.context === SnapshotContext.Backup && options.outputSizeLimit > 0) {
+				cell.outputs.forEach(output => {
+					output.outputs.forEach(item => {
+						outputSize += item.data.byteLength;
+					});
+				});
+				if (outputSize > options.outputSizeLimit) {
+					throw new Error('Notebook too large to backup');
+				}
+			}
+
+			cellData.outputs = !transientOptions.transientOutputs ? cell.outputs : [];
 			cellData.metadata = filter(cell.metadata, key => !transientOptions.transientCellMetadata[key]);
 
 			data.cells.push(cellData);

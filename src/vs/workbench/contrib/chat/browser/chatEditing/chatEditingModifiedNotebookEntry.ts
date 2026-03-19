@@ -915,26 +915,20 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		try {
 			return createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
 		} catch (e) {
-			this.loggingService.error('Notebook Chat', `Error creating snapshot for ${this.modifiedModel.uri}: ${e}`);
+			this.loggingService.error('Notebook Chat', `Error creating current snapshot: ${e instanceof Error ? e.message : e}`);
 			return this.initialContent;
 		}
 	}
 
 	override createSnapshot(chatSessionResource: URI, requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
 		let original: string;
-		let current: string;
 		try {
 			original = createSnapshot(this.originalModel, this.transientOptions, this.configurationService);
 		} catch (e) {
-			this.loggingService.error('Notebook Chat', `Error creating snapshot for original ${this.originalModel.uri}: ${e}`);
+			this.loggingService.error('Notebook Chat', `Error creating original snapshot: ${e instanceof Error ? e.message : e}`);
 			original = this.initialContent;
 		}
-		try {
-			current = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
-		} catch (e) {
-			this.loggingService.error('Notebook Chat', `Error creating snapshot for modified ${this.modifiedModel.uri}: ${e}`);
-			current = this.initialContent;
-		}
+		const current = this.getCurrentSnapshot();
 		return {
 			resource: this.modifiedURI,
 			languageId: SnapshotLanguageId,
