@@ -59,6 +59,7 @@ suite('SessionsConfigurationService', () => {
 	let storageService: InMemoryStorageService;
 	let readFileCalls: URI[];
 	let activeSessionObs: ReturnType<typeof observableValue<IActiveSessionItem | undefined>>;
+	let existingUris: Set<string>;
 
 	const userSettingsUri = URI.parse('file:///user/settings.json');
 	const repoUri = URI.parse('file:///repo');
@@ -71,6 +72,7 @@ suite('SessionsConfigurationService', () => {
 		sentCommands = [];
 		committedFiles = [];
 		readFileCalls = [];
+		existingUris = new Set([repoUri.toString(), worktreeUri.toString()]);
 
 		const instantiationService = store.add(new TestInstantiationService());
 		activeSessionObs = observableValue('activeSession', undefined);
@@ -83,6 +85,9 @@ suite('SessionsConfigurationService', () => {
 					throw new Error('file not found');
 				}
 				return { value: VSBuffer.fromString(content) } as IFileContent;
+			}
+			override async exists(resource: URI): Promise<boolean> {
+				return existingUris.has(resource.toString());
 			}
 			override watch() { return { dispose() { } }; }
 			override onDidFilesChange: any = () => ({ dispose() { } });
@@ -704,13 +709,41 @@ suite('SessionsConfigurationService', () => {
 		fileContents.set(userTasksUri.toString(), tasksJsonContent([]));
 
 		activeSessionObs.set({ ...makeSession({ repository: repoUri }), resource: sessionResource }, undefined);
-		await new Promise(r => setTimeout(r, 10));
+		await new Promise(r => setTimeout(r, 20));
 
 		activeSessionObs.set({ ...makeSession({ repository: repoUri, worktree: worktreeUri }), resource: sessionResource }, undefined);
-		await new Promise(r => setTimeout(r, 10));
+		await new Promise(r => setTimeout(r, 350));
 
 		assert.strictEqual(sentCommands.length, 1);
 		assert.strictEqual(sentCommands[0].command, 'npm run build');
+	});
+
+	test('runs worktreeCreated task only for latest worktree when worktree changes quickly', async () => {
+		const sessionResource = URI.parse('file:///session-worktree-switch');
+		const wt1 = URI.parse('file:///worktree1');
+		const wt2 = URI.parse('file:///worktree2');
+		existingUris.add(wt1.toString());
+		existingUris.add(wt2.toString());
+
+		fileContents.set(URI.parse('file:///worktree1/.vscode/tasks.json').toString(), tasksJsonContent([
+			{ label: 'init1', type: 'shell', command: 'echo wt1', inSessions: true, runOptions: { runOn: 'worktreeCreated' } },
+		]));
+		fileContents.set(URI.parse('file:///worktree2/.vscode/tasks.json').toString(), tasksJsonContent([
+			{ label: 'init2', type: 'shell', command: 'echo wt2', inSessions: true, runOptions: { runOn: 'worktreeCreated' } },
+		]));
+		const userTasksUri = URI.from({ scheme: userSettingsUri.scheme, path: '/user/tasks.json' });
+		fileContents.set(userTasksUri.toString(), tasksJsonContent([]));
+
+		activeSessionObs.set({ ...makeSession({ repository: repoUri }), resource: sessionResource }, undefined);
+		await new Promise(r => setTimeout(r, 20));
+
+		activeSessionObs.set({ ...makeSession({ repository: repoUri, worktree: wt1 }), resource: sessionResource }, undefined);
+		activeSessionObs.set({ ...makeSession({ repository: repoUri, worktree: wt2 }), resource: sessionResource }, undefined);
+
+		await new Promise(r => setTimeout(r, 350));
+
+		assert.strictEqual(sentCommands.length, 1);
+		assert.strictEqual(sentCommands[0].command, 'echo wt2');
 	});
 
 });

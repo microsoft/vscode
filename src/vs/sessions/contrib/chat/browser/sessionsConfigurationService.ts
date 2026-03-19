@@ -8,6 +8,7 @@ import { autorun, IObservable, observableValue, transaction } from '../../../../
 import { joinPath, dirname, isEqual } from '../../../../base/common/resources.js';
 import { parse } from '../../../../base/common/jsonc.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { timeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -126,12 +127,16 @@ export class SessionsConfigurationService extends Disposable implements ISession
 
 	private static readonly _PINNED_TASK_LABELS_KEY = 'agentSessions.pinnedTaskLabels';
 	private static readonly _SUPPORTED_TASK_TYPES = new Set(['shell', 'npm']);
+	private static readonly _RUN_ON_WORKTREE_CREATED_DELAY_MS = 250;
+	private static readonly _WORKTREE_AVAILABILITY_TIMEOUT_MS = 5000;
+	private static readonly _WORKTREE_AVAILABILITY_POLL_MS = 100;
 
 	private readonly _sessionTasks = observableValue<readonly ISessionTaskWithTarget[]>(this, []);
 	private readonly _fileWatcher = this._register(new MutableDisposable());
 	/** Maps `cwd.toString() + command` to the terminal `instanceId`. */
 	private readonly _taskTerminals = new Map<string, number>();
 	private readonly _knownSessionWorktrees = new Map<string, string | undefined>();
+	private readonly _worktreeTaskRunIds = new Map<string, number>();
 	private readonly _pinnedTaskLabels: Map<string, string>;
 	private readonly _pinnedTaskObservables = new Map<string, ReturnType<typeof observableValue<string | undefined>>>();
 
@@ -496,7 +501,54 @@ export class SessionsConfigurationService extends Disposable implements ISession
 			return;
 		}
 
-		void this._runWorktreeCreatedTasks(session);
+		const runId = (this._worktreeTaskRunIds.get(sessionKey) ?? 0) + 1;
+		this._worktreeTaskRunIds.set(sessionKey, runId);
+		void this._runWorktreeCreatedTasksWhenReady(session.resource.toString(), currentWorktree, runId);
+	}
+
+	private async _runWorktreeCreatedTasksWhenReady(sessionKey: string, worktree: string, runId: number): Promise<void> {
+		await timeout(SessionsConfigurationService._RUN_ON_WORKTREE_CREATED_DELAY_MS);
+		if (!this._isCurrentWorktreeRun(sessionKey, worktree, runId)) {
+			return;
+		}
+
+		const activeSession = this._sessionsManagementService.getActiveSession();
+		if (!activeSession || activeSession.resource.toString() !== sessionKey || activeSession.worktree?.toString() !== worktree) {
+			return;
+		}
+
+		const worktreeUri = activeSession.worktree;
+		if (!worktreeUri) {
+			return;
+		}
+
+		const available = await this._waitForWorktreeAvailability(worktreeUri, sessionKey, worktree, runId);
+		if (!available) {
+			return;
+		}
+
+		await this._runWorktreeCreatedTasks(activeSession);
+	}
+
+	private async _waitForWorktreeAvailability(worktree: URI, sessionKey: string, worktreeKey: string, runId: number): Promise<boolean> {
+		const deadline = Date.now() + SessionsConfigurationService._WORKTREE_AVAILABILITY_TIMEOUT_MS;
+		while (Date.now() < deadline) {
+			if (!this._isCurrentWorktreeRun(sessionKey, worktreeKey, runId)) {
+				return false;
+			}
+
+			if (await this._fileService.exists(worktree)) {
+				return true;
+			}
+
+			await timeout(SessionsConfigurationService._WORKTREE_AVAILABILITY_POLL_MS);
+		}
+
+		return false;
+	}
+
+	private _isCurrentWorktreeRun(sessionKey: string, worktree: string, runId: number): boolean {
+		return this._worktreeTaskRunIds.get(sessionKey) === runId && this._knownSessionWorktrees.get(sessionKey) === worktree;
 	}
 
 	private async _runWorktreeCreatedTasks(session: IActiveSessionItem): Promise<void> {
