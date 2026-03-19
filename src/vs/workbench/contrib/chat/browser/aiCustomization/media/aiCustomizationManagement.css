@@ -314,9 +314,9 @@
 }
 
 /* Spacing above non-first group headers */
-.ai-customization-group-header.has-previous-group {
-	padding-top: 8px;
-}
+/* .ai-customization-group-header.has-previous-group {
+	margin-top: 8px;
+} */
 
 .ai-customization-group-header:hover {
 	background-color: var(--vscode-list-hoverBackground);
@@ -334,13 +334,7 @@
 }
 
 .ai-customization-group-header .group-icon {
-	flex-shrink: 0;
-	width: 16px;
-	height: 16px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	opacity: 0.8;
+	display: none;
 }
 
 .ai-customization-group-header .group-label-group {
@@ -353,9 +347,8 @@
 }
 
 .ai-customization-group-header .group-label {
-	font-size: 11px;
-	font-weight: 600;
-	text-transform: uppercase;
+	font-weight: 500;
+	text-transform: capitalize;
 	letter-spacing: 0.04em;
 	color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
 	overflow: hidden;
