@@ -205,6 +205,74 @@ function interpolateMcpPluginRoot(
 }
 
 /**
+ * Regular expression matching bare `${VAR_NAME}` references that are NOT
+ * already using VS Code's `${env:VAR}` colon-delimited syntax. Only matches
+ * uppercase letters, digits, and underscores — the characters valid in POSIX
+ * environment variable names.
+ *
+ * Negative lookbehind ensures we skip tokens that already carry a namespace
+ * prefix (e.g. `${env:HOME}`, `${config:editor.fontSize}`).
+ */
+const BARE_ENV_VAR_RE = /\$\{(?![A-Za-z]+:)([A-Z_][A-Z0-9_]*)\}/g;
+
+/**
+ * Converts bare `${VAR}` environment-variable references found in MCP server
+ * definition strings to the VS Code `${env:VAR}` syntax so that the
+ * `configurationResolverService` can resolve them later in the pipeline.
+ *
+ * The MCP ecosystem (Claude Desktop, Copilot CLI) uses bare `${VAR}` to
+ * reference environment variables, while VS Code's resolver expects the
+ * `${env:VAR}` form. This function bridges that gap for all plugin-provided
+ * MCP server definitions.
+ *
+ * Only references whose name consists of uppercase letters, digits, and
+ * underscores are converted — this avoids transforming VS Code's own variable
+ * tokens (e.g. `${workspaceFolder}`) which use lowercase/camelCase names.
+ */
+export function convertBareEnvVarsToVsCodeSyntax(
+	def: IAgentPluginMcpServerDefinition,
+): IAgentPluginMcpServerDefinition {
+	const convert = (s: string) => s.replace(BARE_ENV_VAR_RE, '${env:$1}');
+
+	const config = def.configuration;
+	let converted: IMcpServerConfiguration;
+
+	if (config.type === McpServerType.LOCAL) {
+		const local: Mutable<IMcpStdioServerConfiguration> = { ...config };
+		local.command = convert(local.command);
+		if (local.args) {
+			local.args = local.args.map(convert);
+		}
+		if (local.cwd) {
+			local.cwd = convert(local.cwd);
+		}
+		if (local.env) {
+			local.env = { ...local.env };
+			for (const [k, v] of Object.entries(local.env)) {
+				if (typeof v === 'string') {
+					local.env[k] = convert(v);
+				}
+			}
+		}
+		if (local.envFile) {
+			local.envFile = convert(local.envFile);
+		}
+		converted = local;
+	} else {
+		const remote: Mutable<IMcpRemoteServerConfiguration> = { ...config };
+		remote.url = convert(remote.url);
+		if (remote.headers) {
+			remote.headers = Object.fromEntries(
+				Object.entries(remote.headers).map(([k, v]) => [k, convert(v)])
+			);
+		}
+		converted = remote;
+	}
+
+	return { name: def.name, configuration: converted };
+}
+
+/**
  * Shared hook-parsing logic for plugin formats that use the Claude/open-plugin
  * hook schema. Replaces `${token}` references in hook commands with the plugin
  * root path (shell-quoted when necessary), injects an environment variable, and
@@ -703,6 +771,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			if (adapter.pluginRootToken && adapter.pluginRootEnvVar) {
 				def = interpolateMcpPluginRoot(def, pluginFsPath, adapter.pluginRootToken, adapter.pluginRootEnvVar);
 			}
+			def = convertBareEnvVarsToVsCodeSyntax(def);
 			definitions.push(def);
 		}
 
