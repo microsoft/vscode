@@ -248,7 +248,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			};
 
 			// Determine whether the subagent should be allowed to spawn its own subagents.
-			const maxDepth = this.configurationService.getValue<number>(ChatConfiguration.NestedSubagentsMaxDepth) ?? 0;
+			const maxDepth = this.configurationService.getValue<number>(ChatConfiguration.SubagentsMaxDepth) ?? 0;
 			const sessionKey = invocation.context.sessionResource.toString();
 			const currentDepth = this._sessionDepth.get(sessionKey) ?? 0;
 			const depthAllowed = currentDepth + 1 <= maxDepth;
