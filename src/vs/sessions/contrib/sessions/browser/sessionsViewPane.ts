@@ -41,7 +41,7 @@ import { IHostService } from '../../../../workbench/services/host/browser/host.j
 const $ = DOM.$;
 export const SessionsViewId = 'agentic.workbench.view.sessionsView';
 const SessionsViewFilterSubMenu = new MenuId('AgentSessionsViewFilterSubMenu');
-const IsGroupedByRepositoryContext = new RawContextKey<boolean>('sessionsView.isGroupedByRepository', false);
+const IsGroupedByRepositoryContext = new RawContextKey<boolean>('sessionsView.isGroupedByRepository', true);
 const GROUPING_STORAGE_KEY = 'agentSessions.grouping';
 
 export class AgenticSessionsViewPane extends ViewPane {
@@ -49,7 +49,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 	private viewPaneContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	sessionsControl: AgentSessionsControl | undefined;
-	private currentGrouping: AgentSessionsGrouping = AgentSessionsGrouping.Date;
+	private currentGrouping: AgentSessionsGrouping = AgentSessionsGrouping.Repository;
 	private isGroupedByRepoKey: ReturnType<typeof IsGroupedByRepositoryContext.bindTo> | undefined;
 
 	constructor(
@@ -75,6 +75,10 @@ export class AgenticSessionsViewPane extends ViewPane {
 		if (stored && Object.values(AgentSessionsGrouping).includes(stored as AgentSessionsGrouping)) {
 			this.currentGrouping = stored as AgentSessionsGrouping;
 		}
+
+		// Ensure the view-title context reflects the restored grouping immediately
+		this.isGroupedByRepoKey = IsGroupedByRepositoryContext.bindTo(contextKeyService);
+		this.isGroupedByRepoKey.set(this.currentGrouping === AgentSessionsGrouping.Repository);
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
