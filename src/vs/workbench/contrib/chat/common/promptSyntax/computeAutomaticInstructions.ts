@@ -150,21 +150,25 @@ export class ComputeAutomaticInstructions {
 			comment: 'Tracks individual skill loading into agent context with provenance metadata.';
 		};
 
-		for (const skill of skills) {
+		try {
+			for (const skill of skills) {
 
-			const provenance = skill.provenance;
-			const nameHash = await hashAsync(skill.name);
-			const extensionIdHash = provenance?.extensionId ? await hashAsync(provenance.extensionId) : '';
-			const pluginNameHash = provenance?.pluginName ? await hashAsync(provenance.pluginName) : '';
+				const provenance = skill.provenance;
+				const nameHash = await hashAsync(skill.name);
+				const extensionIdHash = provenance?.extensionId ? await hashAsync(provenance.extensionId) : '';
+				const pluginNameHash = provenance?.pluginName ? await hashAsync(provenance.pluginName) : '';
 
-			this._telemetryService.publicLog2<SkillLoadedIntoContextEvent, SkillLoadedIntoContextClassification>('skillLoadedIntoContext', {
-				skillNameHash: nameHash,
-				skillStorage: skill.storage,
-				extensionIdHash,
-				extensionVersion: provenance?.extensionVersion ?? '',
-				pluginNameHash,
-				pluginVersion: provenance?.pluginVersion ?? '',
-			});
+				this._telemetryService.publicLog2<SkillLoadedIntoContextEvent, SkillLoadedIntoContextClassification>('skillLoadedIntoContext', {
+					skillNameHash: nameHash,
+					skillStorage: skill.storage,
+					extensionIdHash,
+					extensionVersion: provenance?.extensionVersion ?? '',
+					pluginNameHash,
+					pluginVersion: provenance?.pluginVersion ?? '',
+				});
+			}
+		} catch (err) {
+			this._logService.error('[InstructionsContextComputer] Failed to log skill telemetry', err);
 		}
 	}
 

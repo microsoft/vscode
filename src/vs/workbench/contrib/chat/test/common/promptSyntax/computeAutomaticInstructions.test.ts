@@ -33,7 +33,7 @@ import { ComputeAutomaticInstructions, getFilePath, InstructionsCollectionEvent 
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_RULES_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/promptTypes.js';
-import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { IAgentSkill, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles, TestInMemoryFileSystemProviderWithRealPath } from './testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -1269,6 +1269,82 @@ suite('ComputeAutomaticInstructions', () => {
 
 			const skillEvents = telemetryEvents.filter(e => e.eventName === 'skillLoadedIntoContext');
 			assert.strictEqual(skillEvents.length, 0, 'Should not emit skill telemetry when feature is disabled');
+		});
+
+		test('should emit provenance metadata for extension and plugin skills', async () => {
+			const rootFolderName = 'skill-telemetry-provenance-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const stubSkills: IAgentSkill[] = [
+				{
+					uri: URI.file(`${rootFolder}/ext-skills/ext-skill/SKILL.md`),
+					storage: PromptsStorage.extension,
+					name: 'ext-skill',
+					description: 'An extension skill',
+					disableModelInvocation: false,
+					userInvocable: true,
+					provenance: {
+						extensionId: 'publisher.my-extension',
+						extensionVersion: '1.2.3',
+					},
+				},
+				{
+					uri: URI.file(`${rootFolder}/plugin-skills/plugin-skill/SKILL.md`),
+					storage: PromptsStorage.plugin,
+					name: 'plugin-skill',
+					description: 'A plugin skill',
+					disableModelInvocation: false,
+					userInvocable: true,
+					provenance: {
+						pluginName: 'My Plugin',
+						pluginVersion: '4.5.6',
+					},
+				},
+			];
+			sinon.stub(service, 'findAgentSkills').resolves(stubSkills);
+
+			const telemetryEvents: { eventName: string; data: Record<string, unknown> }[] = [];
+			const mockTelemetryService = {
+				publicLog2: (eventName: string, data: Record<string, unknown>) => {
+					telemetryEvents.push({ eventName, data });
+				}
+			} as unknown as ITelemetryService;
+			instaService.stub(ITelemetryService, mockTelemetryService);
+
+			const contextComputer = instaService.createInstance(
+				ComputeAutomaticInstructions,
+				ChatModeKind.Agent,
+				{ 'vscode_readFile': true },
+				undefined,
+				undefined
+			);
+			const variables = new ChatRequestVariableSet();
+
+			await contextComputer.collect(variables, CancellationToken.None);
+			await new Promise(resolve => setTimeout(resolve, 50));
+
+			const skillEvents = telemetryEvents.filter(e => e.eventName === 'skillLoadedIntoContext');
+			assert.strictEqual(skillEvents.length, 2, 'Should emit one event per skill');
+
+			// Extension skill should have extensionId hash and version
+			const extEvent = skillEvents.find(e => e.data.skillStorage === 'extension');
+			assert.ok(extEvent, 'Should have an extension skill event');
+			assert.ok(typeof extEvent.data.extensionIdHash === 'string' && extEvent.data.extensionIdHash.length > 0, 'extensionIdHash should be non-empty');
+			assert.strictEqual(extEvent.data.extensionVersion, '1.2.3');
+			assert.strictEqual(extEvent.data.pluginNameHash, '');
+			assert.strictEqual(extEvent.data.pluginVersion, '');
+
+			// Plugin skill should have plugin name hash and version
+			const pluginEvent = skillEvents.find(e => e.data.skillStorage === 'plugin');
+			assert.ok(pluginEvent, 'Should have a plugin skill event');
+			assert.ok(typeof pluginEvent.data.pluginNameHash === 'string' && pluginEvent.data.pluginNameHash.length > 0, 'pluginNameHash should be non-empty');
+			assert.strictEqual(pluginEvent.data.pluginVersion, '4.5.6');
+			assert.strictEqual(pluginEvent.data.extensionIdHash, '');
+			assert.strictEqual(pluginEvent.data.extensionVersion, '');
 		});
 	});
 
