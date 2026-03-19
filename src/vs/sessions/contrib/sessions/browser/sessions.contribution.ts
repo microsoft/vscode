@@ -82,7 +82,7 @@ registerAction2(class NewSessionForRepositoryAction extends Action2 {
 		const repositoryUri = sessionsManagementService.getSessionRepositoryUri(context.sessions[0]);
 		sessionsManagementService.openNewSessionView();
 
-		const view = await viewsService.openView(NewChatViewId);
+		const view = await viewsService.openView(NewChatViewId, true);
 		if (view instanceof NewChatViewPane && repositoryUri) {
 			view.setProject(repositoryUri);
 		}
