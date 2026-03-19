@@ -55,7 +55,11 @@ export class StartSessionAction extends Action2 {
 			f1: true,
 			precondition: ContextKeyExpr.and(inlineChatContextKey, ContextKeyExpr.or(CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.negate(), CTX_ASK_IN_CHAT_ENABLED.negate())),
 			keybinding: {
-				when: EditorContextKeys.focus,
+				when: ContextKeyExpr.and(
+					EditorContextKeys.focus,
+					inlineChatContextKey,
+					ContextKeyExpr.or(CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.negate(), CTX_ASK_IN_CHAT_ENABLED.negate())
+				),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
