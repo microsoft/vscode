@@ -22,7 +22,6 @@ import { EventType, EventHelper, append, $, addDisposableListener, prepend, getW
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
-import { IProductService } from '../../../platform/product/common/productService.js';
 import { Parts, IWorkbenchLayoutService } from '../../../workbench/services/layout/browser/layoutService.js';
 
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -96,7 +95,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
-		@IProductService private readonly productService: IProductService,
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -230,19 +228,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 		this.updateStyles();
 
-		// Workaround for macOS/Electron bug where the window does not
-		// appear in the "Windows" menu if the first `document.title`
-		// matches the BrowserWindow's initial title.
-		// See: https://github.com/microsoft/vscode/issues/191288
-		if (isMacintosh) {
-			const window = getWindow(this.element);
-			const nativeTitle = this.productService.nameLong;
-			if (!window.document.title || window.document.title === nativeTitle) {
-				window.document.title = `${nativeTitle} \u200b`;
-			}
-			window.document.title = nativeTitle;
-		}
-
 		return this.element;
 	}
 
@@ -333,9 +318,8 @@ export class MainTitlebarPart extends TitlebarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
-		@IProductService productService: IProductService,
 	) {
-		super(Parts.TITLEBAR_PART, mainWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, productService);
+		super(Parts.TITLEBAR_PART, mainWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService);
 	}
 }
 
@@ -359,10 +343,9 @@ export class AuxiliaryTitlebarPart extends TitlebarPart implements IAuxiliaryTit
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
-		@IProductService productService: IProductService,
 	) {
 		const id = AuxiliaryTitlebarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, productService);
+		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService);
 	}
 
 	override get preventZoom(): boolean {

@@ -21,6 +21,7 @@ import { IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titleba
 import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { TitlebarPart, TitleService } from '../../browser/parts/titlebarPart.js';
+import { isMacintosh } from '../../../base/common/platform.js';
 
 export class NativeTitlebarPart extends TitlebarPart {
 
@@ -38,12 +39,30 @@ export class NativeTitlebarPart extends TitlebarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
-		@IProductService productService: IProductService,
+		@IProductService private readonly productService: IProductService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 	) {
-		super(id, targetWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, productService);
+		super(id, targetWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService);
 
 		this.handleWindowsAlwaysOnTop(targetWindow.vscodeWindowId, contextKeyService);
+	}
+
+	protected override createContentArea(parent: HTMLElement): HTMLElement {
+
+		// Workaround for macOS/Electron bug where the window does not
+		// appear in the "Windows" menu if the first `document.title`
+		// matches the BrowserWindow's initial title.
+		// See: https://github.com/microsoft/vscode/issues/191288
+		if (isMacintosh) {
+			const window = getWindow(this.element);
+			const nativeTitle = this.productService.nameLong;
+			if (!window.document.title || window.document.title === nativeTitle) {
+				window.document.title = `${nativeTitle} \u200b`;
+			}
+			window.document.title = nativeTitle;
+		}
+
+		return super.createContentArea(parent);
 	}
 
 	private async handleWindowsAlwaysOnTop(targetWindowId: number, contextKeyService: IContextKeyService): Promise<void> {
