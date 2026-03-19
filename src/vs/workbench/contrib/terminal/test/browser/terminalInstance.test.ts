@@ -148,7 +148,7 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
 			instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
 			const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
-			await new Promise(resolve => setTimeout(resolve, 100));
+			await instance.xtermReadyPromise;
 			return instance;
 		}
 
