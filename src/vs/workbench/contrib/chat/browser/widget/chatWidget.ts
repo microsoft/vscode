@@ -180,7 +180,7 @@ type ChatThinkingStyleUsageEvent = {
 };
 
 type ChatThinkingStyleUsageClassification = {
-	owner: 'roblourens';
+	owner: 'justschen';
 	comment: 'Event fired when a chat request uses the configured thinking style rendering mode.';
 	thinkingStyle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The configured rendering mode for thinking content.' };
 	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location where the request was made.' };
