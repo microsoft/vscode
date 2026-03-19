@@ -49,8 +49,6 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
 
@@ -760,7 +758,6 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	constructor(
 		private readonly filter: IAgentSessionsFilter | undefined,
 		private readonly sorter: ITreeSorter<IAgentSession>,
-		private readonly logService?: ILogService,
 	) {
 		super();
 	}
@@ -898,8 +895,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		const repoMap = new Map<string, { label: string; sessions: IAgentSession[] }>();
 		const pinnedSessions: IAgentSession[] = [];
 		const archivedSessions: IAgentSession[] = [];
-		const unknownKey = '\x00unknown';
-		const unknownLabel = AgentSessionSectionLabels[AgentSessionSection.Repository];
+		const otherSessions: IAgentSession[] = [];
 
 		for (const session of sortedSessions) {
 			if (session.isArchived()) {
@@ -912,19 +908,17 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 				continue;
 			}
 
-			const repoName = this.getRepositoryName(session);
-			if (!repoName) {
-				this.logService?.warn('[AgentSessions] Could not determine repository name for session, categorizing as "Other"', JSON.stringify(session));
+			const repoName = getRepositoryName(session);
+			if (repoName) {
+				let group = repoMap.get(repoName);
+				if (!group) {
+					group = { label: repoName, sessions: [] };
+					repoMap.set(repoName, group);
+				}
+				group.sessions.push(session);
+			} else {
+				otherSessions.push(session);
 			}
-			const repoId = repoName || unknownKey;
-			const repoLabel = repoName || unknownLabel;
-
-			let group = repoMap.get(repoId);
-			if (!group) {
-				group = { label: repoLabel, sessions: [] };
-				repoMap.set(repoId, group);
-			}
-			group.sessions.push(session);
 		}
 
 		const result: AgentSessionListItem[] = [];
@@ -937,10 +931,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			});
 		}
 
-		for (const [repoId, { label, sessions }] of repoMap) {
-			if (repoId === unknownKey) {
-				continue; // "Other" group is added after all named repos
-			}
+		for (const [, { label, sessions }] of repoMap) {
 			result.push({
 				section: AgentSessionSection.Repository,
 				label,
@@ -948,12 +939,11 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			});
 		}
 
-		const unknownGroup = repoMap.get(unknownKey);
-		if (unknownGroup) {
+		if (otherSessions.length > 0) {
 			result.push({
 				section: AgentSessionSection.Repository,
-				label: unknownGroup.label,
-				sessions: unknownGroup.sessions,
+				label: AgentSessionSectionLabels[AgentSessionSection.Repository],
+				sessions: otherSessions,
 			});
 		}
 
@@ -966,10 +956,6 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		}
 
 		return result;
-	}
-
-	private getRepositoryName(session: IAgentSession): string | undefined {
-		return getRepositoryName(session);
 	}
 }
 
