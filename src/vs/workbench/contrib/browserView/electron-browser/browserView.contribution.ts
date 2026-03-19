@@ -36,6 +36,7 @@ import { logBrowserOpen } from '../../../../platform/browserView/common/browserV
 // Register actions and browser features
 import './browserViewActions.js';
 import './features/browserEditorChatFeatures.js';
+import './features/browserQuickOpenFeature.js';
 import './features/browserEditorZoomFeature.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(

@@ -507,6 +507,14 @@ export class BrowserEditor extends EditorPane {
 		})));
 	}
 
+	override focus(): void {
+		if (this._model?.url && !this._model.error) {
+			void this._model.focus();
+		} else {
+			this.focusUrlInput();
+		}
+	}
+
 	override async setInput(input: BrowserEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		if (token.isCancellationRequested) {
@@ -540,18 +548,6 @@ export class BrowserEditor extends EditorPane {
 			certificateError: this._model.certificateError
 		});
 		this.setBackgroundImage(this._model.screenshot);
-
-		if (!options?.preserveFocus) {
-			setTimeout(() => {
-				if (this._model === model) {
-					if (this._model.url) {
-						this._browserContainer.focus();
-					} else {
-						this.focusUrlInput();
-					}
-				}
-			}, 0);
-		}
 
 		// Start / stop screenshots when the model visibility changes
 		this._inputDisposables.add(this._model.onDidChangeVisibility(() => this.doScreenshot()));
