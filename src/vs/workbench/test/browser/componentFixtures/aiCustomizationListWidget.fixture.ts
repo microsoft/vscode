@@ -55,10 +55,11 @@ function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], a
 			if (type === PromptsType.instructions) {
 				return instructionFiles.map(f => ({
 					uri: f.uri,
-					storage: f.storage as PromptsStorage.local,
+					storage: f.storage,
 					type: f.type,
 					name: f.name,
 					description: f.description,
+					applyTo: f.applyTo,
 				}));
 			}
 			return [];
