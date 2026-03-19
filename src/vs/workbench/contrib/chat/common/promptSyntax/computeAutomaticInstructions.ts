@@ -24,11 +24,12 @@ import { ILanguageModelToolsService, IToolData, VSCodeToolReference } from '../t
 import { PromptsConfig } from './config/config.js';
 import { isInClaudeAgentsFolder, isInClaudeRulesFolder, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { ParsedPromptFile } from './promptFileParser.js';
-import { AgentFileType, ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
+import { AgentFileType, IAgentSkill, ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
 import { AGENT_DEBUG_LOG_ENABLED_SETTING, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_SKILL_PATH } from './promptTypes.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ChatConfiguration, ChatModeKind } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
+import { hashAsync } from '../../../../../base/common/hash.js';
 
 export type InstructionsCollectionEvent = {
 	applyingInstructionsCount: number;
@@ -125,6 +126,49 @@ export class ComputeAutomaticInstructions {
 		// Emit telemetry
 		telemetryEvent.totalInstructionsCount = telemetryEvent.agentInstructionsCount + telemetryEvent.referencedInstructionsCount + telemetryEvent.applyingInstructionsCount + telemetryEvent.listedInstructionsCount;
 		this._telemetryService.publicLog2<InstructionsCollectionEvent, InstructionsCollectionClassification>('instructionsCollected', telemetryEvent);
+	}
+
+	private async _logSkillLoadedTelemetry(skills: readonly IAgentSkill[]): Promise<void> {
+		type SkillLoadedIntoContextEvent = {
+			skillNameHash: string;
+			skillStorage: string;
+			extensionIdHash: string;
+			extensionVersion: string;
+			pluginNameHash: string;
+			pluginVersion: string;
+		};
+
+		type SkillLoadedIntoContextClassification = {
+			skillNameHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the skill name loaded into the agent context.' };
+			skillStorage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The storage source of the skill (local, user, extension, plugin, internal).' };
+			extensionIdHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the contributing extension identifier, empty if none.' };
+			extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Semver version of the contributing extension, empty if none.' };
+			pluginNameHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the plugin display name, empty if not from a plugin.' };
+			pluginVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Semver version of the plugin, empty if unavailable.' };
+			owner: 'manishj, dbreshears';
+			comment: 'Tracks individual skill loading into agent context with provenance metadata.';
+		};
+
+		try {
+			for (const skill of skills) {
+
+				const provenance = skill.provenance;
+				const nameHash = await hashAsync(skill.name);
+				const extensionIdHash = provenance?.extensionId ? await hashAsync(provenance.extensionId) : '';
+				const pluginNameHash = provenance?.pluginName ? await hashAsync(provenance.pluginName) : '';
+
+				this._telemetryService.publicLog2<SkillLoadedIntoContextEvent, SkillLoadedIntoContextClassification>('skillLoadedIntoContext', {
+					skillNameHash: nameHash,
+					skillStorage: skill.storage,
+					extensionIdHash,
+					extensionVersion: provenance?.extensionVersion ?? '',
+					pluginNameHash,
+					pluginVersion: provenance?.pluginVersion ?? '',
+				});
+			}
+		} catch (err) {
+			this._logService.error('[InstructionsContextComputer] Failed to log skill telemetry', err);
+		}
 	}
 
 	/** public for testing */
@@ -376,6 +420,9 @@ export class ComputeAutomaticInstructions {
 				return true;
 			});
 			if (modelInvocableSkills && modelInvocableSkills.length > 0) {
+				// Log per-skill telemetry for each skill loaded into context
+				this._logSkillLoadedTelemetry(modelInvocableSkills);
+
 				const useSkillAdherencePrompt = this._configurationService.getValue(PromptsConfig.USE_SKILL_ADHERENCE_PROMPT);
 				entries.push('<skills>');
 				if (useSkillAdherencePrompt) {

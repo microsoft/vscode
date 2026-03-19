@@ -36,7 +36,7 @@ import {
 	PromptFilesLocator
 } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, IPromptDiscoveryLogEntry } from './promptsService.js';
+import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IAgentSkillProvenance, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, IPromptDiscoveryLogEntry } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ChatRequestHooks, IHookCommand, parseSubagentHooksFromYaml } from '../hookSchema.js';
@@ -1146,6 +1146,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					disableModelInvocation: file.disableModelInvocation ?? false,
 					userInvocable: file.userInvocable ?? true,
 					when: internalSkill?.when,
+					provenance: file.provenance,
 				});
 			}
 		}
@@ -1401,10 +1402,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Returns the discovery results and a map of skill counts by source type for telemetry.
 	 */
 	private async computeSkillDiscoveryInfo(token: CancellationToken): Promise<{
-		files: (IPromptFileDiscoveryResult & { description?: string; source?: PromptFileSource; disableModelInvocation?: boolean; userInvocable?: boolean })[];
+		files: (IPromptFileDiscoveryResult & { description?: string; source?: PromptFileSource; disableModelInvocation?: boolean; userInvocable?: boolean; provenance?: IAgentSkillProvenance })[];
 		skillsBySource: Map<PromptFileSource, number>;
 	}> {
-		const files: (IPromptFileDiscoveryResult & { description?: string; source?: PromptFileSource; disableModelInvocation?: boolean; userInvocable?: boolean })[] = [];
+		const files: (IPromptFileDiscoveryResult & { description?: string; source?: PromptFileSource; disableModelInvocation?: boolean; userInvocable?: boolean; provenance?: IAgentSkillProvenance })[] = [];
 		const skillsBySource = new Map<PromptFileSource, number>();
 		const seenNames = new Set<string>();
 		const nameToUri = new Map<string, URI>();
@@ -1450,17 +1451,29 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// Stable sort; we should keep order consistent to the order in the user's configuration object
 		allSkills.sort((a, b) => getPriority(a) - getPriority(b));
 
-		// Build map of URI to extension ID
-		const extensionIdByUri = new Map<string, string>();
+		// Build maps of URI to extension ID and version
+		const extensionIdByUri = new ResourceMap<string>();
+		const extensionVersionByUri = new ResourceMap<string>();
 		for (const extSkill of extensionSkills) {
-			extensionIdByUri.set(extSkill.uri.toString(), extSkill.extension.identifier.value);
+			extensionIdByUri.set(extSkill.uri, extSkill.extension.identifier.value);
+			extensionVersionByUri.set(extSkill.uri, extSkill.extension.version);
+		}
+
+		// Build map of plugin skill URI to plugin metadata for provenance
+		const pluginBySkillUri = new ResourceMap<IAgentPlugin>();
+		const allPlugins = this.agentPluginService.plugins.get();
+		for (const pluginPath of pluginSkills) {
+			const plugin = allPlugins.find(p => isEqual(p.uri, pluginPath.pluginUri));
+			if (plugin) {
+				pluginBySkillUri.set(pluginPath.uri, plugin);
+			}
 		}
 
 		for (const skill of allSkills) {
 			const uri = skill.fileUri;
 			const storage = skill.storage;
 			const source = skill.source;
-			const extensionId = extensionIdByUri.get(uri.toString());
+			const extensionId = extensionIdByUri.get(uri);
 
 			try {
 				const parsedFile = await this.parseNew(uri, token);
@@ -1497,7 +1510,17 @@ export class PromptsService extends Disposable implements IPromptsService {
 				nameToUri.set(sanitizedName, uri);
 				const disableModelInvocation = parsedFile.header?.disableModelInvocation === true;
 				const userInvocable = parsedFile.header?.userInvocable !== false;
-				files.push({ uri, storage, status: 'loaded', name: sanitizedName, description, extensionId, source, disableModelInvocation, userInvocable });
+
+				// Build provenance metadata
+				const plugin = pluginBySkillUri.get(uri);
+				const provenance: IAgentSkillProvenance = {
+					extensionId,
+					extensionVersion: extensionVersionByUri.get(uri),
+					pluginName: plugin?.label,
+					pluginVersion: plugin?.fromMarketplace?.version,
+				};
+
+				files.push({ uri, storage, status: 'loaded', name: sanitizedName, description, extensionId, source, disableModelInvocation, userInvocable, provenance });
 
 				// Track skill type
 				skillsBySource.set(source, (skillsBySource.get(source) || 0) + 1);

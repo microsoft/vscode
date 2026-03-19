@@ -259,6 +259,20 @@ export interface IChatPromptSlashCommand {
 	readonly when: ContextKeyExpression | undefined;
 }
 
+/**
+ * Supply-chain metadata describing where a skill originated.
+ */
+export interface IAgentSkillProvenance {
+	/** Extension identifier that contributed this skill (if any). */
+	readonly extensionId?: string;
+	/** Version of the contributing extension (if any). */
+	readonly extensionVersion?: string;
+	/** Display name of the plugin that contributed this skill (if any). */
+	readonly pluginName?: string;
+	/** Marketplace version of the plugin (if from a marketplace install). */
+	readonly pluginVersion?: string;
+}
+
 export interface IAgentSkill {
 	readonly uri: URI;
 	readonly storage: PromptsStorage;
@@ -279,6 +293,10 @@ export interface IAgentSkill {
 	 * when this expression evaluates to true against a scoped context.
 	 */
 	readonly when?: ContextKeyExpression;
+	/**
+	 * Optional provenance metadata describing where this skill originated.
+	 */
+	readonly provenance?: IAgentSkillProvenance;
 }
 
 /**
