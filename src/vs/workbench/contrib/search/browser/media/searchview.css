@@ -27,6 +27,7 @@
 	left: 0;
 	width: 16px;
 	height: 100%;
+	border-radius: var(--vscode-cornerRadius-small);
 	color: inherit;
 	box-sizing: border-box;
 	background-position: center center;
@@ -350,7 +351,7 @@
 
 /* High Contrast Theming */
 .monaco-workbench.hc-light .search-view .replace.findInFileMatch,
-.monaco-workbench.hc-dark .search-view .replace.findInFileMatch {
+.monaco-workbench.hc-black .search-view .replace.findInFileMatch {
 	border: 1px dashed var(--vscode-diffEditor-removedTextBackground);
 }
 
@@ -366,7 +367,7 @@
 
 /* High Contrast Theming */
 .monaco-workbench.hc-light .search-view .findInFileMatch,
-.monaco-workbench.hc-dark .search-view .findInFileMatch {
+.monaco-workbench.hc-black .search-view .findInFileMatch {
 	border: 1px dashed var(--vscode-editor-findMatchHighlightBorder);
 }
 
@@ -389,7 +390,7 @@
 
 /* High Contrast Theming */
 .monaco-workbench.hc-light .search-view .replaceMatch:not(:empty),
-.monaco-workbench.hc-dark .search-view .replaceMatch:not(:empty) {
+.monaco-workbench.hc-black .search-view .replaceMatch:not(:empty) {
 	border: 1px dashed var(--vscode-diffEditor-insertedLineBackground);
 }
 

@@ -228,7 +228,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		const flows = getMsalFlows({
 			extensionHost: this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote,
 			supportedClient: isSupportedClient(callbackUri),
-			isBrokerSupported: cachedPca.isBrokerAvailable
+			isBrokerSupported: cachedPca.isBrokerAvailable,
+			isPortableMode: env.isAppPortable
 		});
 
 		const authority = new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString();
@@ -364,7 +365,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		const flows = getMsalFlows({
 			extensionHost: this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote,
 			isBrokerSupported: cachedPca.isBrokerAvailable,
-			supportedClient: isSupportedClient(callbackUri)
+			supportedClient: isSupportedClient(callbackUri),
+			isPortableMode: env.isAppPortable
 		});
 
 		const authority = new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString();

@@ -91,6 +91,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 	constructor(
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService) {
@@ -139,6 +140,37 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				checkbox: {
 					label: localize('openLooseFileWorkspaceCheckbox', "Remember my decision for all workspaces"),
 					checked: false
+				},
+				custom: {
+					icon: Codicon.shield,
+					markdownDetails: markdownDetails.map(md => { return { markdown: new MarkdownString(md) }; })
+				}
+			});
+		}));
+
+		// Resources trust request
+		this._register(this.workspaceTrustRequestService.onDidInitiateResourcesTrustRequest(async (options) => {
+			await this.workspaceTrustManagementService.workspaceResolved;
+
+			// Details
+			const markdownDetails = [
+				options?.message ?? localize('resourcesTrustDetails', "You are trying to open an untrusted folder. Do you trust the authors of this content?"),
+				localize('resourcesTrustLearnMore', "If you don't trust the authors of these files, we recommend not continuing as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more."),
+				`\`${this.labelService.getUriLabel(options.uri)}\``
+			];
+
+			// Dialog
+			await this.dialogService.prompt<void>({
+				type: Severity.Info,
+				message: localize('resourcesTrustMessage', "Do you trust the authors of the files in this folder?"),
+				buttons: [
+					{
+						label: localize({ key: 'trustResources', comment: ['&& denotes a mnemonic'] }, "&&Trust Folder & Continue"),
+						run: () => this.workspaceTrustRequestService.completeResourcesTrustRequest(options.uri, WorkspaceTrustUriResponse.Open)
+					}
+				],
+				cancelButton: {
+					run: () => this.workspaceTrustRequestService.completeResourcesTrustRequest(options.uri, WorkspaceTrustUriResponse.Cancel)
 				},
 				custom: {
 					icon: Codicon.shield,
@@ -347,7 +379,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			this.doShowModal(
 				title,
 				{ label: trustOption ?? localize({ key: 'trustOption', comment: ['&& denotes a mnemonic'] }, "&&Yes, I trust the authors"), sublabel: isSingleFolderWorkspace ? localize('trustFolderOptionDescription', "Trust folder and enable all features") : localize('trustWorkspaceOptionDescription', "Trust workspace and enable all features") },
-				{ label: dontTrustOption ?? localize({ key: 'dontTrustOption', comment: ['&& denotes a mnemonic'] }, "&&No, I don't trust the authors"), sublabel: isSingleFolderWorkspace ? localize('dontTrustFolderOptionDescription', "Browse folder in restricted mode") : localize('dontTrustWorkspaceOptionDescription', "Browse workspace in restricted mode") },
+				{ label: dontTrustOption ?? localize({ key: 'dontTrustOption', comment: ['&& denotes a mnemonic'] }, "&&No, I don't trust the authors"), sublabel: isSingleFolderWorkspace ? localize('dontTrustFolderOptionDescription', "Open folder in restricted mode") : localize('dontTrustWorkspaceOptionDescription', "Open workspace in restricted mode") },
 				[
 					!isSingleFolderWorkspace ?
 						localize('workspaceStartupTrustDetails', "{0} provides features that may automatically execute files in this workspace.", this.productService.nameShort) :

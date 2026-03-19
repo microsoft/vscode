@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './inlineChatDefaultModel.js';
+
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { IMenuItem, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { InlineChatController } from './inlineChatController.js';
@@ -25,7 +27,11 @@ import { InlineChatAccessibilityHelp } from './inlineChatAccessibilityHelp.js';
 registerEditorContribution(InlineChatController.ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 
 registerAction2(InlineChatActions.KeepSessionAction2);
+registerAction2(InlineChatActions.UndoSessionAction2);
 registerAction2(InlineChatActions.UndoAndCloseSessionAction2);
+registerAction2(InlineChatActions.CancelSessionAction);
+registerAction2(InlineChatActions.ContinueInlineChatInChatViewAction);
+registerAction2(InlineChatActions.RephraseInlineChatSessionAction);
 
 // --- browser
 
@@ -81,10 +87,18 @@ const cancelActionMenuItem: IMenuItem = {
 
 MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, cancelActionMenuItem);
 
+
+
 // --- actions ---
 
 registerAction2(InlineChatActions.StartSessionAction);
+registerAction2(InlineChatActions.AskInChatAction);
 registerAction2(InlineChatActions.FocusInlineChat);
+registerAction2(InlineChatActions.SubmitInlineChatInputAction);
+registerAction2(InlineChatActions.QueueInChatAction);
+registerAction2(InlineChatActions.HideInlineChatInputAction);
+registerAction2(InlineChatActions.FixDiagnosticsAction);
+registerAction2(InlineChatActions.DismissEditorAffordanceAction);
 
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);

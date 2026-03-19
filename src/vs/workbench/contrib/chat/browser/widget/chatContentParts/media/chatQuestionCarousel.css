@@ -1,0 +1,513 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* question carousel - this is above edits and todos */
+.interactive-session .interactive-input-part > .chat-question-carousel-widget-container:empty,
+.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-question-carousel-widget-container:empty {
+	display: none;
+}
+
+/* input specific styling */
+.interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-carousel-container,
+.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-question-carousel-widget-container .chat-question-carousel-container {
+	margin: 0;
+	border: 1px solid var(--vscode-input-border, transparent);
+	background-color: var(--vscode-panel-background);
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+/* general questions styling */
+.interactive-session .chat-question-carousel-container {
+	margin: 8px 0;
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: var(--vscode-cornerRadius-large);
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	container-type: inline-size;
+	max-height: min(420px, 45vh);
+	position: relative;
+}
+
+/* input part wrapper */
+.interactive-session .interactive-input-part > .chat-question-carousel-widget-container,
+.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-question-carousel-widget-container {
+	width: 100%;
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.interactive-session .interactive-input-part > .chat-question-carousel-widget-container:not(:empty),
+.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-question-carousel-widget-container:not(:empty) {
+	margin-top: 8px;
+}
+
+.interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-carousel-content,
+.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-question-carousel-widget-container .chat-question-carousel-content {
+	min-height: 0;
+}
+
+/* container and header */
+.interactive-session .chat-question-carousel-container .chat-question-carousel-content {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
+
+	.chat-question-header-row {
+		display: flex;
+		flex-direction: column;
+		flex-shrink: 0;
+		overflow: hidden;
+
+		.chat-question-title-row {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			gap: 8px;
+			min-width: 0;
+			padding: 8px 8px 8px 16px;
+			border-bottom: 1px solid var(--vscode-chat-requestBorder);
+		}
+
+		.chat-question-title {
+			flex: 1;
+			min-width: 0;
+			word-wrap: break-word;
+			overflow-wrap: break-word;
+			font-weight: 500;
+			font-size: var(--vscode-chat-font-size-body-s);
+			margin: 0;
+
+			.rendered-markdown {
+				a {
+					color: var(--vscode-textLink-foreground);
+				}
+
+				a:hover,
+				a:active {
+					color: var(--vscode-textLink-activeForeground);
+				}
+
+				p {
+					margin: 0;
+				}
+			}
+		}
+
+		.chat-question-header-actions {
+			display: flex;
+			align-items: center;
+			gap: 4px;
+			flex-shrink: 0;
+		}
+
+		.chat-question-close-container {
+			flex-shrink: 0;
+
+			.monaco-button.chat-question-close {
+				min-width: 22px;
+				width: 22px;
+				height: 22px;
+				padding: 0;
+				border: none !important;
+				box-shadow: none !important;
+				background: transparent !important;
+				color: var(--vscode-icon-foreground) !important;
+			}
+
+			.monaco-button.chat-question-close:hover:not(.disabled) {
+				background: var(--vscode-toolbar-hoverBackground) !important;
+			}
+		}
+
+		.monaco-button.chat-question-collapse-toggle {
+			min-width: 22px;
+			width: 22px;
+			height: 22px;
+			padding: 0;
+			border: none !important;
+			box-shadow: none !important;
+			background: transparent !important;
+			color: var(--vscode-icon-foreground) !important;
+		}
+
+		.monaco-button.chat-question-collapse-toggle:hover:not(.disabled) {
+			background: var(--vscode-toolbar-hoverBackground) !important;
+		}
+	}
+}
+
+.interactive-session .chat-question-carousel-container.chat-question-carousel-collapsed {
+	.chat-question-carousel-content {
+		.chat-question-description,
+		.chat-question-input-scrollable,
+		.chat-question-validation-message {
+			display: none;
+		}
+	}
+
+	.chat-question-footer-row {
+		display: none;
+	}
+}
+
+/* questions list and freeform area */
+.interactive-session .chat-question-carousel-container .chat-question-input-container {
+	display: flex;
+	flex-direction: column;
+	padding: 8px;
+	min-width: 0;
+
+	&::after {
+		content: '';
+		display: block;
+		height: 8px;
+		flex-shrink: 0;
+	}
+
+	/* some hackiness to get the focus looking right */
+	.chat-question-list-item:focus,
+	.chat-question-list:focus {
+		outline: none;
+	}
+
+	.chat-question-list {
+		display: flex;
+		flex-direction: column;
+		outline: none;
+		padding: 0;
+
+		.chat-question-list-item {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+			padding: 6px 8px;
+			cursor: pointer;
+			border-radius: var(--vscode-cornerRadius-medium);
+			user-select: none;
+
+			.chat-question-list-indicator {
+				width: 16px;
+				height: 16px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				flex-shrink: 0;
+				margin-left: auto;
+				align-self: flex-start;
+				margin-top: 2px;
+			}
+
+			.chat-question-list-indicator.codicon-check {
+				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+			}
+
+			/* Label in list item */
+			.chat-question-list-label {
+				font-size: var(--vscode-chat-font-size-body-s);
+				flex: 1;
+				word-wrap: break-word;
+				overflow-wrap: break-word;
+				display: flex;
+				flex-direction: column;
+			}
+
+			.chat-question-list-label-title {
+				font-weight: 500;
+				line-height: 1.4;
+			}
+
+			.chat-question-list-label-desc {
+				font-weight: normal;
+				color: var(--vscode-descriptionForeground);
+			}
+		}
+
+		.chat-question-list-item.has-description {
+			align-items: flex-start;
+
+			.chat-question-list-number {
+				line-height: 1.4;
+				font-size: var(--vscode-chat-font-size-body-s);
+				font-weight: 500;
+			}
+
+			.chat-question-list-checkbox {
+				/* Title line-height is ~17px (1.4 * body-s), checkbox is 16px: 1px offset */
+				margin-top: 1px;
+			}
+		}
+
+		.chat-question-list-item:hover {
+			background-color: var(--vscode-list-hoverBackground);
+		}
+
+		/* Single-select: highlight entire row when selected (list not focused) */
+		.chat-question-list-item.selected {
+			background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
+			color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
+
+			.chat-question-list-label,
+			.chat-question-list-label-title {
+				color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
+			}
+
+			.chat-question-list-label-desc {
+				color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
+			}
+
+			.chat-question-list-indicator.codicon-check {
+				color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
+			}
+
+			.chat-question-list-number {
+				color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
+			}
+		}
+
+		/* When the question list has focus, use active selection styling */
+		.chat-question-list:focus .chat-question-list-item.selected {
+			background-color: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
+			color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+
+			.chat-question-label {
+				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+			}
+
+			.chat-question-list-label-desc {
+				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+			}
+
+			.chat-question-list-indicator.codicon-check {
+				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+			}
+
+			.chat-question-list-number {
+				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+			}
+		}
+		.chat-question-list-item.selected:hover {
+			background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
+		}
+
+		/* Checkbox for multi-select */
+		.chat-question-list-checkbox {
+			flex-shrink: 0;
+		}
+
+		.chat-question-list-checkbox.monaco-custom-toggle {
+			margin-right: 0;
+		}
+	}
+
+	.chat-question-freeform {
+		margin: 0;
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		padding: 4px 8px;
+		gap: 12px;
+
+		.chat-question-freeform-number {
+			height: fit-content;
+		}
+
+		/* this is probably legacy too */
+		.chat-question-freeform-label {
+			font-size: var(--vscode-chat-font-size-body-s);
+			color: var(--vscode-descriptionForeground);
+		}
+
+		.chat-question-freeform-textarea {
+			width: 100%;
+			min-height: 24px;
+			max-height: 200px;
+			padding: 3px 8px;
+			border: 1px solid var(--vscode-input-border, var(--vscode-chat-requestBorder));
+			background-color: var(--vscode-input-background);
+			color: var(--vscode-input-foreground);
+			border-radius: 4px;
+			resize: none;
+			font-family: var(--vscode-chat-font-family, inherit);
+			font-size: var(--vscode-chat-font-size-body-s);
+			box-sizing: border-box;
+			overflow-y: hidden;
+			align-content: center;
+		}
+
+		.chat-question-freeform-textarea:focus {
+			outline: 1px solid var(--vscode-focusBorder);
+			border-color: var(--vscode-focusBorder);
+		}
+
+		.chat-question-freeform-textarea::placeholder {
+			color: var(--vscode-input-placeholderForeground);
+		}
+
+	}
+
+	/* todo: change to use keybinding service so we don't have to recreate this */
+	.chat-question-list-number,
+	.chat-question-freeform-number {
+		font-size: var(--vscode-chat-font-size-body-s);
+		color: var(--vscode-descriptionForeground);
+		flex-shrink: 0;
+		min-width: 1ch;
+		text-align: right;
+	}
+}
+
+.interactive-session .chat-question-carousel-container .chat-question-input-container > * {
+	flex-shrink: 0;
+}
+
+.interactive-session .chat-question-carousel-container .chat-question-input-scrollable {
+	flex: 0 1 auto;
+	min-height: 0;
+	overscroll-behavior: contain;
+}
+
+/* footer with nav arrows, step indicator, and submit */
+.interactive-session .chat-question-carousel-container .chat-question-footer-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 4px 8px;
+	border-top: 1px solid var(--vscode-chat-requestBorder);
+	flex-shrink: 0;
+
+	.chat-question-footer-left {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.chat-question-footer-right {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.chat-question-nav-arrows {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+	}
+
+	.monaco-button.chat-question-nav-arrow {
+		min-width: 22px;
+		width: 22px;
+		height: 22px;
+		padding: 0;
+		border: none !important;
+		box-shadow: none !important;
+		background: transparent !important;
+		color: var(--vscode-foreground) !important;
+	}
+
+	.monaco-button.chat-question-nav-arrow:hover:not(.disabled) {
+		background: var(--vscode-toolbar-hoverBackground) !important;
+	}
+
+	.monaco-button.chat-question-nav-arrow.disabled {
+		opacity: 0.4;
+	}
+
+	.chat-question-step-indicator {
+		font-size: var(--vscode-chat-font-size-body-s);
+		color: var(--vscode-descriptionForeground);
+	}
+
+	.chat-question-submit-hint {
+		font-size: 11px;
+		color: var(--vscode-descriptionForeground);
+	}
+
+	.monaco-button.chat-question-submit-button {
+		background: var(--vscode-button-background) !important;
+		color: var(--vscode-button-foreground) !important;
+		height: 22px;
+		width: auto;
+		flex: 0 0 auto;
+		min-width: auto;
+		padding: 0 8px;
+	}
+
+	.monaco-button.chat-question-submit-button:hover:not(.disabled) {
+		background: var(--vscode-button-hoverBackground) !important;
+	}
+}
+
+/* carousel-level message (e.g. from MCP elicitation) */
+.interactive-session .chat-question-carousel-container .chat-question-carousel-message {
+	padding: 8px 16px 0;
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-descriptionForeground);
+	max-height: min(220px, 25vh);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+
+	.rendered-markdown p {
+		margin: 0;
+	}
+}
+
+/* field description below question title */
+.interactive-session .chat-question-carousel-container .chat-question-description {
+	padding: 4px 16px;
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-descriptionForeground);
+}
+
+/* validation error message below input area */
+.interactive-session .chat-question-carousel-container .chat-question-validation-message {
+	padding: 0 16px 4px;
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-editorWarning-foreground);
+	flex-shrink: 0;
+}
+
+/* summary (after finished) */
+.interactive-session .chat-question-carousel-summary {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 8px;
+
+	.chat-question-summary-item {
+		display: flex;
+		flex-direction: column;
+		gap: 0;
+		font-size: var(--vscode-chat-font-size-body-s);
+	}
+
+	.chat-question-summary-label {
+		color: var(--vscode-descriptionForeground);
+		word-wrap: break-word;
+		overflow-wrap: break-word;
+	}
+
+	.chat-question-summary-answer-title {
+		color: var(--vscode-foreground);
+		font-weight: 600;
+		word-wrap: break-word;
+		overflow-wrap: break-word;
+	}
+
+	.chat-question-summary-answer-desc {
+		color: var(--vscode-foreground);
+		word-wrap: break-word;
+		overflow-wrap: break-word;
+	}
+
+	.chat-question-summary-skipped {
+		color: var(--vscode-descriptionForeground);
+		font-style: italic;
+		font-size: var(--vscode-chat-font-size-body-s);
+	}
+}

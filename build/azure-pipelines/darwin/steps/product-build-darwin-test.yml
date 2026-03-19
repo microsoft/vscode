@@ -15,6 +15,8 @@ steps:
 
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
     - script: ./scripts/test.sh --build --tfs "Unit Tests"
+      env:
+        VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run unit tests (Electron)
       timeoutInMinutes: 15
     - script: npm run test-node -- --build
@@ -58,10 +60,13 @@ steps:
         set -e
         APP_ROOT="$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)"
         APP_NAME="`ls $APP_ROOT | head -n 1`"
-        INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
+        ProductJsonPath=$(find "$APP_ROOT" -name "product.json" -type f | head -n 1)
+        BINARY_NAME=$(jq -r '.nameShort' "$ProductJsonPath")
+        INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/$BINARY_NAME" \
         ./scripts/test-integration.sh --build --tfs "Integration Tests"
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
+        VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run integration tests (Electron)
       timeoutInMinutes: 20
 
@@ -77,10 +82,13 @@ steps:
         set -e
         APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
         APP_NAME="`ls $APP_ROOT | head -n 1`"
-        INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
+        ProductJsonPath=$(find "$APP_ROOT" -name "product.json" -type f | head -n 1)
+        BINARY_NAME=$(jq -r '.nameShort' "$ProductJsonPath")
+        INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/$BINARY_NAME" \
         ./scripts/test-remote-integration.sh
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
+        VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run integration tests (Remote)
       timeoutInMinutes: 20
 

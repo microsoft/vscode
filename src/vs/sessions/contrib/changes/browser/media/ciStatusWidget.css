@@ -1,0 +1,191 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* CI Status Widget - beneath the changes tree */
+.ci-status-widget {
+	margin-top: 8px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 4px;
+	background-color: var(--vscode-editor-background);
+	overflow: hidden;
+	font-size: 12px;
+}
+
+/* Header - always visible, clickable */
+.ci-status-widget-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px 4px 4px;
+	cursor: pointer;
+	-webkit-user-select: none;
+	user-select: none;
+	min-height: 22px;
+}
+
+.ci-status-widget-header:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/* Title - single line, overflow ellipsis */
+.ci-status-widget-title {
+	flex: 1;
+	overflow: hidden;
+	color: var(--vscode-foreground);
+}
+
+.ci-status-widget-title .monaco-icon-label {
+	width: 100%;
+}
+
+.ci-status-widget-title .monaco-icon-label-container,
+.ci-status-widget-title .monaco-icon-name-container {
+	display: block;
+	overflow: hidden;
+}
+
+.ci-status-widget-title .label-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ci-status-widget-header-actions {
+	flex: 0 0 auto;
+	display: none;
+	align-items: center;
+	margin-left: auto;
+}
+
+.ci-status-widget-header-actions .monaco-action-bar {
+	display: flex;
+	align-items: center;
+}
+
+.ci-status-widget-header-actions .action-item .action-label {
+	width: 16px;
+	height: 16px;
+}
+
+/* Twistie icon on the right */
+.ci-status-widget-twistie {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	color: var(--vscode-foreground);
+	opacity: 0.7;
+}
+
+/* Body - collapsible list */
+.ci-status-widget-body {
+	border-top: 1px solid var(--vscode-input-border, transparent);
+}
+
+.ci-status-widget-list {
+	background-color: transparent;
+}
+
+.ci-status-widget-list > .monaco-list,
+.ci-status-widget-list > .monaco-list > .monaco-scrollable-element {
+	background-color: transparent;
+}
+
+/* Individual check row */
+.ci-status-widget-check {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px 4px 4px;
+	height: 100%;
+	width: 100%;
+	box-sizing: border-box;
+	min-width: 0;
+}
+
+.ci-status-widget-list .monaco-list-row:hover .ci-status-widget-check,
+.ci-status-widget-list .monaco-list-row.focused .ci-status-widget-check,
+.ci-status-widget-list .monaco-list-row.selected .ci-status-widget-check {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.ci-status-widget-check-label {
+	display: flex;
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+}
+
+
+.ci-status-widget-check-label .monaco-icon-label {
+	display: flex;
+	flex: 1;
+	min-width: 0;
+	width: 100%;
+}
+
+.ci-status-widget-check-label .monaco-icon-label-container,
+.ci-status-widget-check-label .monaco-icon-name-container {
+	display: block;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.ci-status-widget-check-label .label-name {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--vscode-foreground);
+}
+
+.ci-status-widget-title.ci-status-success .monaco-icon-label::before,
+.ci-status-widget-check.ci-status-success .monaco-icon-label::before {
+	color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.ci-status-widget-title.ci-status-failure .monaco-icon-label::before,
+.ci-status-widget-check.ci-status-failure .monaco-icon-label::before {
+	color: var(--vscode-testing-iconFailed, #f14c4c);
+}
+
+.ci-status-widget-title.ci-status-running .monaco-icon-label::before,
+.ci-status-widget-check.ci-status-running .monaco-icon-label::before,
+.ci-status-widget-title.ci-status-pending .monaco-icon-label::before {
+	color: var(--vscode-testing-iconQueued, var(--vscode-editorWarning-foreground));
+}
+
+.ci-status-widget-check.ci-status-pending .monaco-icon-label::before {
+	color: var(--vscode-descriptionForeground);
+}
+
+.ci-status-widget-title.ci-status-neutral .monaco-icon-label::before,
+.ci-status-widget-check.ci-status-neutral .monaco-icon-label::before {
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Actions - float to the right, visible on hover */
+.ci-status-widget-check-actions {
+	display: none;
+	flex: 0 0 auto;
+	flex-shrink: 0;
+	margin-left: auto;
+}
+
+.ci-status-widget-list .monaco-list-row:hover .ci-status-widget-check-actions,
+.ci-status-widget-list .monaco-list-row.focused .ci-status-widget-check-actions,
+.ci-status-widget-list .monaco-list-row.selected .ci-status-widget-check-actions,
+.ci-status-widget-check:hover .ci-status-widget-check-actions {
+	display: flex;
+}
+
+.ci-status-widget-check-actions .monaco-action-bar {
+	display: flex;
+	align-items: center;
+}
+
+.ci-status-widget-check-actions .action-bar .action-item .action-label {
+	width: 16px;
+	height: 16px;
+}

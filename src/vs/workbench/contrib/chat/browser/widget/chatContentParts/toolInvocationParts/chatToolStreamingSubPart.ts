@@ -86,13 +86,11 @@ export class ChatToolStreamingSubPart extends BaseChatToolInvocationSubPart {
 				undefined,
 				true,
 				this.getIcon(),
-				toolInvocation
+				toolInvocation,
+				false
 			));
 
 			dom.reset(container, part.domNode);
-
-			// Notify parent that content has changed
-			this._onDidChangeHeight.fire();
 		}));
 
 		return container;

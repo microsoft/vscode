@@ -43,6 +43,7 @@ import './services/url/electron-browser/urlService.js';
 import './services/lifecycle/electron-browser/lifecycleService.js';
 import './services/title/electron-browser/titleService.js';
 import './services/host/electron-browser/nativeHostService.js';
+import '../platform/meteredConnection/electron-browser/meteredConnectionService.js';
 import './services/request/electron-browser/requestService.js';
 import './services/clipboard/electron-browser/clipboardService.js';
 import './services/contextmenu/electron-browser/contextmenuService.js';
@@ -90,7 +91,10 @@ import '../platform/userDataProfile/electron-browser/userDataProfileStorageServi
 import './services/auxiliaryWindow/electron-browser/auxiliaryWindowService.js';
 import '../platform/extensionManagement/electron-browser/extensionsProfileScannerService.js';
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
+import '../platform/agentHost/electron-browser/agentHostService.js';
+import './services/browserView/electron-browser/playwrightWorkbenchService.js';
 import './services/process/electron-browser/processService.js';
+import './services/power/electron-browser/powerService.js';
 
 import { registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IUserDataInitializationService, UserDataInitializationService } from './services/userData/browser/userDataInit.js';
@@ -175,7 +179,7 @@ import './contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
 // Chat
 import './contrib/chat/electron-browser/chat.contribution.js';
-import './contrib/inlineChat/electron-browser/inlineChat.contribution.js';
+
 // Encryption
 import './contrib/encryption/electron-browser/encryption.contribution.js';
 

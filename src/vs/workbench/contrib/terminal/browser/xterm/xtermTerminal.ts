@@ -47,9 +47,14 @@ import type { IProgressState } from '@xterm/addon-progress';
 import type { CommandDetectionCapability } from '../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isNumber } from '../../../../../base/common/types.js';
+import { clamp } from '../../../../../base/common/numbers.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
+}
+
+const enum TextBlinkConstants {
+	IntervalDuration = 600
 }
 
 
@@ -137,6 +142,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
 	get isGpuAccelerated(): boolean { return !!this._webglAddon; }
+	get isImageAddonLoaded(): boolean { return !!this._imageAddon; }
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; noNewLine?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -229,6 +235,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			minimumContrastRatio: config.minimumContrastRatio,
 			tabStopWidth: config.tabStopWidth,
 			cursorBlink: config.cursorBlinking,
+			blinkIntervalDuration: config.textBlinking ? TextBlinkConstants.IntervalDuration : 0,
 			cursorStyle: vscodeToXtermCursorStyle<'cursorStyle'>(config.cursorStyle),
 			cursorInactiveStyle: vscodeToXtermCursorStyle(config.cursorStyleInactive),
 			cursorWidth: config.cursorWidth,
@@ -239,9 +246,11 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			scrollOnEraseInDisplay: true,
 			wordSeparator: config.wordSeparators,
-			overviewRuler: options.disableOverviewRuler ? { width: 0 } : {
+			scrollbar: options.disableOverviewRuler ? undefined : {
 				width: 14,
-				showTopBorder: true,
+				overviewRuler: {
+					showTopBorder: true,
+				},
 			},
 			ignoreBracketedPasteMode: config.ignoreBracketedPasteMode,
 			rescaleOverlappingGlyphs: config.rescaleOverlappingGlyphs,
@@ -249,6 +258,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				kittyKeyboard: config.enableKittyKeyboardProtocol,
 				win32InputMode: config.enableWin32InputMode,
 			},
+			allowTransparency: config.enableImages,
 			windowOptions: {
 				getWinSizePixels: true,
 				getCellSizePixels: true,
@@ -526,6 +536,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		const config = this._terminalConfigurationService.config;
 		this.raw.options.altClickMovesCursor = config.altClickMovesCursor;
 		this._setCursorBlink(config.cursorBlinking);
+		this._setTextBlinking(config.textBlinking);
 		this._setCursorStyle(config.cursorStyle);
 		this._setCursorStyleInactive(config.cursorStyleInactive);
 		this._setCursorWidth(config.cursorWidth);
@@ -543,6 +554,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.wordSeparator = config.wordSeparators;
 		this.raw.options.ignoreBracketedPasteMode = config.ignoreBracketedPasteMode;
 		this.raw.options.rescaleOverlappingGlyphs = config.rescaleOverlappingGlyphs;
+		this.raw.options.allowTransparency = config.enableImages;
 		this.raw.options.vtExtensions = {
 			kittyKeyboard: config.enableKittyKeyboardProtocol,
 			win32InputMode: config.enableWin32InputMode,
@@ -624,16 +636,16 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				}
 				this._searchAddon = new AddonCtor({ highlightLimit: XtermTerminalConstants.SearchHighlightLimit });
 				this.raw.loadAddon(this._searchAddon);
-				this._searchAddon.onDidChangeResults((results: { resultIndex: number; resultCount: number }) => {
+				this._store.add(this._searchAddon.onDidChangeResults((results: { resultIndex: number; resultCount: number }) => {
 					this._lastFindResult = results;
 					this._onDidChangeFindResults.fire(results);
-				});
-				this._searchAddon.onBeforeSearch(() => {
+				}));
+				this._store.add(this._searchAddon.onBeforeSearch(() => {
 					this._onBeforeSearch.fire();
-				});
-				this._searchAddon.onAfterSearch(() => {
+				}));
+				this._store.add(this._searchAddon.onAfterSearch(() => {
 					this._onAfterSearch.fire();
-				});
+				}));
 				return this._searchAddon;
 			});
 		}
@@ -721,6 +733,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 	}
 
+	reset(): void {
+		this.raw.reset();
+	}
+
 	hasSelection(): boolean {
 		return this.raw.hasSelection();
 	}
@@ -788,6 +804,14 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		}
 	}
 
+	private _setTextBlinking(enabled: boolean): void {
+		const blinkIntervalDuration = enabled ? TextBlinkConstants.IntervalDuration : 0;
+		const options = this.raw.options;
+		if (options.blinkIntervalDuration !== blinkIntervalDuration) {
+			options.blinkIntervalDuration = blinkIntervalDuration;
+		}
+	}
+
 	private _setCursorStyle(style: ITerminalConfiguration['cursorStyle']): void {
 		const mapped = vscodeToXtermCursorStyle<'cursorStyle'>(style);
 		if (this.raw.options.cursorStyle !== mapped) {
@@ -826,10 +850,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		try {
 			this.raw.loadAddon(this._webglAddon);
 			this._logService.trace('Webgl was loaded');
-			this._webglAddon.onContextLoss(() => {
+			this._store.add(this._webglAddon.onContextLoss(() => {
 				this._logService.info(`Webgl lost context, disposing of webgl renderer`);
 				this._disposeOfWebglRenderer();
-			});
+			}));
 			this._refreshImageAddon();
 			// WebGL renderer cell dimensions differ from the DOM renderer, make sure the terminal
 			// gets resized after the webgl addon is loaded
@@ -894,6 +918,18 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				const AddonCtor = await this._xtermAddonLoader.importAddon('image');
 				this._imageAddon = new AddonCtor();
 				this.raw.loadAddon(this._imageAddon);
+				type TerminalImageAddonActivatedClassification = {
+					owner: 'anthonykim1';
+					comment: 'Tracks when the xterm.js image addon is loaded, including dynamic enablement';
+				};
+				this._telemetryService.publicLog2<{}, TerminalImageAddonActivatedClassification>('terminal/imageAddonActivated');
+				this._register(this._imageAddon.onImageAdded(() => {
+					type TerminalImageAddedClassification = {
+						owner: 'anthonykim1';
+						comment: 'Tracks when an image is added to the terminal via the image addon';
+					};
+					this._telemetryService.publicLog2<{}, TerminalImageAddedClassification>('terminal/imageAdded');
+				}));
 			}
 		} else {
 			try {
@@ -929,16 +965,21 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			this.raw.loadAddon(this._serializeAddon);
 		}
 
+		const lastLine = this.raw.buffer.active.length - 1;
+		if (lastLine < 0) {
+			return '';
+		}
+
 		const hasValidEndMarker = isNumber(endMarker?.line);
-		const start = isNumber(startMarker?.line) && startMarker?.line > -1 ? startMarker.line : 0;
+		const start = clamp(isNumber(startMarker?.line) && startMarker.line > -1 ? startMarker.line : 0, 0, lastLine);
 		let end = hasValidEndMarker ? endMarker.line : this.raw.buffer.active.length - 1;
 		if (skipLastLine && hasValidEndMarker) {
 			end = end - 1;
 		}
-		end = Math.max(end, start);
+		end = clamp(Math.max(end, start), start, lastLine);
 		return this._serializeAddon.serialize({
 			range: {
-				start: startMarker?.line ?? 0,
+				start,
 				end
 			}
 		});

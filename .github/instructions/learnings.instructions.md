@@ -1,5 +1,4 @@
 ---
-applyTo: **
 description: This document describes how to deal with learnings that you make. (meta instruction)
 ---
 
