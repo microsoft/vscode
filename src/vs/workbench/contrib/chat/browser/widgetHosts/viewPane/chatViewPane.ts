@@ -8,7 +8,7 @@ import { $, addDisposableListener, append, EventHelper, EventType, getWindow, se
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { Orientation, Sash } from '../../../../../../base/browser/ui/sash/sash.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
@@ -97,6 +97,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private welcomeController: ChatViewWelcomeController | undefined;
 
 	private restoringSession: Promise<void> | undefined;
+	private readonly loadSessionCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
 
 	private readonly activityBadge = this._register(new MutableDisposable());
@@ -770,10 +771,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	async loadSession(sessionResource: URI): Promise<IChatModel | undefined> {
+		// Cancel any in-flight loadSession call so the last one always wins
+		this.loadSessionCts.value?.cancel();
+		const cts = this.loadSessionCts.value = new CancellationTokenSource();
+		const token = cts.token;
+
 		// Wait for any in-progress session restore (e.g. from onDidChangeAgents)
 		// to finish first, so our showModel call is guaranteed to be the last one.
 		if (this.restoringSession) {
 			await this.restoringSession;
+		}
+
+		if (token.isCancellationRequested) {
+			return undefined;
 		}
 
 		return this.progressService.withProgress({ location: ChatViewId, delay: 200 }, async () => {
@@ -786,14 +796,23 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}, 100);
 
 			try {
-				const newModelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+				const newModelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token);
 				clearWidget.dispose();
 				await queue;
+
+				if (token.isCancellationRequested) {
+					newModelRef?.dispose();
+					return undefined;
+				}
 
 				return this.showModel(newModelRef);
 			} catch (err) {
 				clearWidget.dispose();
 				await queue;
+
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
 
 				// Recover by starting a fresh empty session so the widget
 				// is not left in a broken state without title or back button.
