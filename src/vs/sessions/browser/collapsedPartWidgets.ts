@@ -64,7 +64,7 @@ export class CollapsedSidebarWidget extends Disposable {
 		store.add(this.hoverService.setupManagedHover(this.hoverDelegate, btn, localize('newSession', "New Session")));
 
 		store.add(dom.addDisposableListener(btn, dom.EventType.CLICK, () => {
-			this.commandService.executeCommand('sessionsView.newSession');
+			this.commandService.executeCommand('workbench.action.sessions.newChat');
 		}));
 
 		return store;
