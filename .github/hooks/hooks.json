@@ -4,7 +4,7 @@
 		"sessionStart": [
 			{
 				"type": "command",
-				"bash": ""
+				"bash": "nvm use && npm i"
 			}
 		],
 		"sessionEnd": [
