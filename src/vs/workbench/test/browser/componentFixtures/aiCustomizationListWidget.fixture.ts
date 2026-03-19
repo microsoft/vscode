@@ -16,7 +16,7 @@ import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../..
 import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../contrib/chat/common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../contrib/chat/common/plugins/agentPluginService.js';
 import { PromptsType } from '../../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IPromptPath, IExtensionPromptPath } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IPromptPath } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { AICustomizationManagementSection } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationListWidget } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationListWidget.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
