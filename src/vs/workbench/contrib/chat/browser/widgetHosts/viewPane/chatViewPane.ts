@@ -717,6 +717,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			await this.updateWidgetLockState(getChatSessionType(model.sessionResource)); // Update widget lock state based on session type
 
 			if (token.isCancellationRequested) {
+				this.modelRef.value = undefined;
 				return undefined;
 			}
 
@@ -770,6 +771,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private async clear(): Promise<void> {
+		// Cancel any in-flight loadSession call to prevent it from
+		// overwriting the fresh session we are about to create.
+		this.loadSessionCts.value?.cancel();
 
 		// Grab the widget's latest view state because it will be loaded back into the widget
 		this.updateViewState();
@@ -813,7 +817,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			try {
 				const newModelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token);
 				clearWidget.dispose();
-				clearWidgetCancellationListener.dispose();
 				await queue;
 
 				if (token.isCancellationRequested) {
@@ -824,7 +827,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				return this.showModel(token, newModelRef);
 			} catch (err) {
 				clearWidget.dispose();
-				clearWidgetCancellationListener.dispose();
 				await queue;
 
 				if (token.isCancellationRequested) {
@@ -836,6 +838,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				this.logService.error(`Failed to load chat session '${sessionResource.toString()}'`, err);
 				this.notificationService.error(localize('chat.loadSessionFailed', "Failed to open chat session: {0}", toErrorMessage(err)));
 				return this.showModel(token, undefined);
+			} finally {
+				clearWidgetCancellationListener.dispose();
 			}
 		});
 	}
