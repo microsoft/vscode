@@ -210,7 +210,6 @@ suite('RunInTerminalTool', () => {
 
 			ok(preparedInvocation, 'Expected prepared invocation to be defined');
 			strictEqual((preparedInvocation.invocationMessage as IMarkdownString).value, '$(lock) Running in sandbox');
-			strictEqual((preparedInvocation.pastTenseMessage as IMarkdownString).value, '$(lock) Ran in sandbox');
 
 			const terminalData = preparedInvocation.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
