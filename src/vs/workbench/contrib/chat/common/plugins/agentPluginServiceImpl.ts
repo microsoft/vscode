@@ -233,6 +233,9 @@ export function convertBareEnvVarsToVsCodeSyntax(
 	def: IAgentPluginMcpServerDefinition,
 ): IAgentPluginMcpServerDefinition {
 	return cloneAndChange(def, (value) => {
+		if (URI.isUri(value)) {
+			return value;
+		}
 		if (typeof value === 'string') {
 			const replaced = value.replace(BARE_ENV_VAR_RE, '${env:$1}');
 			return replaced !== value ? replaced : undefined;
