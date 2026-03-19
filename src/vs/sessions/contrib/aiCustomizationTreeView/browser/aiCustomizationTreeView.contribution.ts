@@ -139,6 +139,20 @@ registerAction2(class extends Action2 {
 
 // Inline hover actions (shown as icon buttons on hover)
 MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
+	command: { id: DISABLE_AI_CUSTOMIZATION_ITEM_ID, title: localize('disable', "Disable"), icon: Codicon.eyeClosed },
+	group: 'inline',
+	order: 5,
+	when: ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, false),
+});
+
+MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
+	command: { id: ENABLE_AI_CUSTOMIZATION_ITEM_ID, title: localize('enable', "Enable"), icon: Codicon.eye },
+	group: 'inline',
+	order: 5,
+	when: ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, true),
+});
+
+MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 	command: { id: DELETE_AI_CUSTOMIZATION_FILE_ID, title: localize('delete', "Delete"), icon: Codicon.trash },
 	group: 'inline',
 	order: 10,
