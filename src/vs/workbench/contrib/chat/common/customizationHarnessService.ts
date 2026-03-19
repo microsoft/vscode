@@ -13,8 +13,43 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { AICustomizationManagementSection, IStorageSourceFilter } from './aiCustomizationWorkspaceService.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
 import { PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { AGENT_MD_FILENAME } from './promptSyntax/config/promptFileLocations.js';
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
+
+/**
+ * Override for a management section's create-button behavior.
+ */
+export interface ISectionOverride {
+	/**
+	 * Label for the primary button. Required when `commandId` or `rootFile`
+	 * is set. Ignored otherwise (the widget uses its default label).
+	 */
+	readonly label?: string;
+	/** When set, the primary button invokes this command (e.g. hooks quick pick). */
+	readonly commandId?: string;
+	/** When set, the primary button creates this file at the workspace root. */
+	readonly rootFile?: string;
+	/**
+	 * Custom type label for the dropdown workspace/user create actions
+	 * (e.g. "Rule" instead of "Instruction"). When undefined, the
+	 * section's default type label is used.
+	 */
+	readonly typeLabel?: string;
+	/**
+	 * Root-level file shortcuts added to the dropdown (e.g. `['AGENTS.md']`).
+	 * Each entry creates a "New {filename}" action that creates the file at
+	 * the workspace root. Harnesses that don't support a file simply omit it.
+	 */
+	readonly rootFileShortcuts?: readonly string[];
+	/**
+	 * File extension override for new files created under this section.
+	 * When set, files are created with this extension (e.g. `.md` for
+	 * Claude rules) instead of the default for the prompt type
+	 * (e.g. `.instructions.md`).
+	 */
+	readonly fileExtension?: string;
+}
 
 /**
  * Identifies the AI harness (execution environment) that customizations
@@ -36,7 +71,7 @@ export interface IHarnessDescriptor {
 	readonly icon: ThemeIcon;
 	/**
 	 * Management sections that should be hidden when this harness is active.
-	 * For example, Claude does not support custom agents so the Agents
+	 * For example, Claude does not support prompt files so the Prompts
 	 * section is hidden.
 	 */
 	readonly hiddenSections?: readonly string[];
@@ -47,6 +82,37 @@ export interface IHarnessDescriptor {
 	 * When `undefined`, all workspace directories are shown (Local harness).
 	 */
 	readonly workspaceSubpaths?: readonly string[];
+	/**
+	 * When `true`, the "Generate with AI" sparkle button is hidden and replaced
+	 * with a plain "New X" manual-creation button (like sessions).
+	 */
+	readonly hideGenerateButton?: boolean;
+	/**
+	 * Per-section overrides for the create button behavior.
+	 *
+	 * A `commandId` entry replaces the button entirely with a command
+	 * invocation (e.g. Claude hooks → `copilot.claude.hooks`).
+	 *
+	 * A `rootFile` entry makes the primary button create a specific file
+	 * at the workspace root (e.g. Claude instructions → `CLAUDE.md`).
+	 * When combined with `typeLabel`, the dropdown create actions use
+	 * that label instead of the section's default (e.g. "Rule" instead
+	 * of "Instruction").
+	 */
+	readonly sectionOverrides?: ReadonlyMap<string, ISectionOverride>;
+	/**
+	 * The chat agent ID that must be registered for this harness to appear.
+	 * When `undefined`, the harness is always available (e.g. Local).
+	 */
+	readonly requiredAgentId?: string;
+	/**
+	 * Instruction file patterns that this harness recognizes.
+	 * Each entry is either an exact filename (e.g. `'CLAUDE.md'`) or a
+	 * path prefix ending with `/` (e.g. `'.claude/rules/'`).
+	 * When set, instruction items that don't match any pattern are filtered out.
+	 * When `undefined`, all instruction files are shown.
+	 */
+	readonly instructionFileFilter?: readonly string[];
 	/**
 	 * Returns the storage source filter that should be applied to customization
 	 * items of the given type when this harness is active.
@@ -150,6 +216,11 @@ export function createVSCodeHarnessDescriptor(extras: readonly string[]): IHarne
 		id: CustomizationHarness.VSCode,
 		label: localize('harness.local', "Local"),
 		icon: ThemeIcon.fromId(Codicon.vm.id),
+		sectionOverrides: new Map([
+			[AICustomizationManagementSection.Instructions, {
+				rootFileShortcuts: [AGENT_MD_FILENAME],
+			}],
+		]),
 		getStorageSourceFilter: () => filter,
 	};
 }
@@ -159,14 +230,22 @@ export function createVSCodeHarnessDescriptor(extras: readonly string[]): IHarne
  * types (agents, skills, instructions) while leaving hooks and prompts
  * unrestricted. Used for CLI and Claude harnesses.
  */
+interface IRestrictedHarnessOptions {
+	readonly hiddenSections?: readonly string[];
+	readonly workspaceSubpaths?: readonly string[];
+	readonly hideGenerateButton?: boolean;
+	readonly sectionOverrides?: ReadonlyMap<string, ISectionOverride>;
+	readonly requiredAgentId?: string;
+	readonly instructionFileFilter?: readonly string[];
+}
+
 function createRestrictedHarnessDescriptor(
 	id: CustomizationHarness,
 	label: string,
 	icon: ThemeIcon,
 	restrictedUserRoots: readonly URI[],
 	extras: readonly string[],
-	hiddenSections?: readonly string[],
-	workspaceSubpaths?: readonly string[],
+	options?: IRestrictedHarnessOptions,
 ): IHarnessDescriptor {
 	const allSources = buildAllSources(extras);
 	const allRootsFilter: IStorageSourceFilter = { sources: allSources };
@@ -175,8 +254,12 @@ function createRestrictedHarnessDescriptor(
 		id,
 		label,
 		icon,
-		hiddenSections,
-		workspaceSubpaths,
+		hiddenSections: options?.hiddenSections,
+		workspaceSubpaths: options?.workspaceSubpaths,
+		hideGenerateButton: options?.hideGenerateButton,
+		sectionOverrides: options?.sectionOverrides,
+		requiredAgentId: options?.requiredAgentId,
+		instructionFileFilter: options?.instructionFileFilter,
 		getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
 			if (type === PromptsType.hook) {
 				return HOOKS_FILTER;
@@ -199,16 +282,24 @@ export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras:
 		ThemeIcon.fromId(Codicon.worktree.id),
 		cliUserRoots,
 		extras,
-		undefined, // no hidden sections
-		['.github', '.copilot', '.agents', '.claude'],
+		{
+			hideGenerateButton: true,
+			requiredAgentId: 'copilotcli',
+			workspaceSubpaths: ['.github', '.copilot', '.agents', '.claude'],
+			sectionOverrides: new Map([
+				[AICustomizationManagementSection.Instructions, {
+					rootFileShortcuts: [AGENT_MD_FILENAME],
+				}],
+			]),
+		},
 	);
 }
 
 /**
  * Creates a "Claude" harness descriptor.
- * Claude does not support custom agents or prompt files.
- * It supports instructions (CLAUDE.md/AGENTS.md), skills (.claude/skills/),
- * and hooks (configured in .claude/settings.json / .claude/settings.local.json).
+ * Claude does not support prompt files (.prompt.md), AGENTS.md, or extension-contributed plugins.
+ * It supports agents (.claude/agents/), instructions (CLAUDE.md, .claude/rules/),
+ * skills (.claude/skills/), and hooks (.claude/settings.json).
  */
 export function createClaudeHarnessDescriptor(claudeRoots: readonly URI[], extras: readonly string[]): IHarnessDescriptor {
 	return createRestrictedHarnessDescriptor(
@@ -217,8 +308,25 @@ export function createClaudeHarnessDescriptor(claudeRoots: readonly URI[], extra
 		ThemeIcon.fromId(Codicon.claude.id),
 		claudeRoots,
 		extras,
-		[AICustomizationManagementSection.Agents, AICustomizationManagementSection.Prompts],
-		['.claude'],
+		{
+			hiddenSections: [AICustomizationManagementSection.Prompts, AICustomizationManagementSection.Plugins],
+			workspaceSubpaths: ['.claude'],
+			hideGenerateButton: true,
+			requiredAgentId: 'claude-code',
+			sectionOverrides: new Map([
+				[AICustomizationManagementSection.Hooks, {
+					label: localize('claudeHooks', "Configure Claude Hooks"),
+					commandId: 'copilot.claude.hooks',
+				}],
+				[AICustomizationManagementSection.Instructions, {
+					label: localize('addClaudeMd', "Add CLAUDE.md"),
+					rootFile: 'CLAUDE.md',
+					typeLabel: localize('rule', "Rule"),
+					fileExtension: '.md',
+				}],
+			]),
+			instructionFileFilter: ['CLAUDE.md', 'CLAUDE.local.md', '.claude/rules/', 'copilot-instructions.md'],
+		},
 	);
 }
 
@@ -234,6 +342,22 @@ export function createClaudeHarnessDescriptor(claudeRoots: readonly URI[], extra
  */
 export function matchesWorkspaceSubpath(filePath: string, subpaths: readonly string[]): boolean {
 	return subpaths.some(sp => filePath.includes(`/${sp}/`) || filePath.endsWith(`/${sp}`));
+}
+
+/**
+ * Tests whether an instruction file matches one of the harness's recognized
+ * instruction file patterns. Patterns can be exact filenames (e.g. `CLAUDE.md`)
+ * or path prefixes ending with `/` (e.g. `.claude/rules/`).
+ */
+export function matchesInstructionFileFilter(filePath: string, filters: readonly string[]): boolean {
+	const name = filePath.substring(filePath.lastIndexOf('/') + 1);
+	return filters.some(f => {
+		if (f.endsWith('/')) {
+			// Path prefix: check if the file is under this directory
+			return filePath.includes(`/${f}`) || filePath.startsWith(f);
+		}
+		return name === f;
+	});
 }
 
 // #endregion
@@ -252,30 +376,35 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 	readonly activeHarness: IObservable<CustomizationHarness>;
 	readonly availableHarnesses: IObservable<readonly IHarnessDescriptor[]>;
 
+	private readonly _allHarnesses: readonly IHarnessDescriptor[];
+
 	constructor(
-		private readonly _harnesses: readonly IHarnessDescriptor[],
+		harnesses: readonly IHarnessDescriptor[],
 		defaultHarness: CustomizationHarness,
+		availableHarnesses?: IObservable<readonly IHarnessDescriptor[]>,
 	) {
+		this._allHarnesses = harnesses;
 		this._activeHarness = observableValue<CustomizationHarness>(this, defaultHarness);
 		this.activeHarness = this._activeHarness;
-		this.availableHarnesses = constObservable(this._harnesses);
+		this.availableHarnesses = availableHarnesses ?? constObservable(harnesses);
 	}
 
 	setActiveHarness(id: CustomizationHarness): void {
-		if (this._harnesses.some(h => h.id === id)) {
+		const available = this.availableHarnesses.get();
+		if (available.some(h => h.id === id)) {
 			this._activeHarness.set(id, undefined);
 		}
 	}
 
 	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
-		const activeId = this._activeHarness.get();
-		const descriptor = this._harnesses.find(h => h.id === activeId);
-		return descriptor?.getStorageSourceFilter(type) ?? this._harnesses[0].getStorageSourceFilter(type);
+		const descriptor = this.getActiveDescriptor();
+		return descriptor.getStorageSourceFilter(type);
 	}
 
 	getActiveDescriptor(): IHarnessDescriptor {
 		const activeId = this._activeHarness.get();
-		return this._harnesses.find(h => h.id === activeId) ?? this._harnesses[0];
+		const available = this.availableHarnesses.get();
+		return available.find(h => h.id === activeId) ?? available[0] ?? this._allHarnesses[0];
 	}
 }
 
