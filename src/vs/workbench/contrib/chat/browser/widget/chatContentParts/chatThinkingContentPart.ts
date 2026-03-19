@@ -279,11 +279,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (configuredMode === ThinkingDisplayMode.Collapsed) {
 			this.setExpanded(false);
 		} else if (configuredMode === ThinkingDisplayMode.CollapsedPreview) {
-			// Start expanded if the overall response is still in progress.
-			// Don't use streamingCompleted here — it reflects look-ahead state
-			// (subsequent non-pinnable parts exist) which is true for re-rendered
-			// parts even while the response is actively streaming.
-			this.setExpanded(!this.element.isComplete);
+			// Start expanded if still in progress.
+			// streamingCompleted is true when look-ahead finds subsequent non-pinnable
+			// parts, meaning this thinking part won't receive more content.
+			this.setExpanded(!this.streamingCompleted && !this.element.isComplete);
 		} else {
 			this.setExpanded(false);
 		}
