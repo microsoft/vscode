@@ -132,40 +132,59 @@ export class ComputeAutomaticInstructions {
 	}
 
 	private _logSkillLoadedTelemetry(skills: readonly IAgentSkill[]): void {
+		for (const skill of skills) {
+			// Fire-and-forget; errors are silently swallowed
+			this._logSkillTelemetryAsync(skill).catch(() => { });
+		}
+	}
+
+	private async _logSkillTelemetryAsync(skill: IAgentSkill): Promise<void> {
 		type SkillLoadedIntoContextEvent = {
-			skillName: string;
+			skillNameHash: string;
 			skillStorage: string;
-			skillMdHash: string;
+			skillContentHash: string;
+			extensionIdHash: string;
+			extensionVersionHash: string;
+			pluginNameHash: string;
+			pluginVersionHash: string;
 		};
 
 		type SkillLoadedIntoContextClassification = {
-			skillName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the skill loaded into the agent context.' };
+			skillNameHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the skill name loaded into the agent context.' };
 			skillStorage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The storage source of the skill (local, user, extension, plugin, internal).' };
-			skillMdHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the SKILL.md file content to detect modifications.' };
-			owner: 'anthropic-skills-telemetry';
-			comment: 'Tracks individual skill loading into agent context. Unrestricted telemetry fired when a skill is loaded into context by any agent.';
+			skillContentHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the SKILL.md file content to detect modifications.' };
+			extensionIdHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the contributing extension identifier, empty if none.' };
+			extensionVersionHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the contributing extension version, empty if none.' };
+			pluginNameHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the plugin display name, empty if not from a plugin.' };
+			pluginVersionHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the plugin marketplace version, empty if unavailable.' };
+			owner: 'manishj, dbreshears';
+			comment: 'Tracks individual skill loading into agent context with provenance metadata.';
 		};
 
-		for (const skill of skills) {
-			// Compute hash of the SKILL.md content asynchronously; fire-and-forget
-			this._fileService.readFile(skill.uri).then(
-				content => hashAsync(content.value.toString()).then(hash => {
-					this._telemetryService.publicLog2<SkillLoadedIntoContextEvent, SkillLoadedIntoContextClassification>('skillLoadedIntoContext', {
-						skillName: skill.name,
-						skillStorage: skill.storage,
-						skillMdHash: hash,
-					});
-				}),
-				() => {
-					// If file read fails, still log the event without the hash
-					this._telemetryService.publicLog2<SkillLoadedIntoContextEvent, SkillLoadedIntoContextClassification>('skillLoadedIntoContext', {
-						skillName: skill.name,
-						skillStorage: skill.storage,
-						skillMdHash: '',
-					});
-				}
-			);
+		const nameHash = await hashAsync(skill.name);
+		let contentHash = '';
+		try {
+			const content = await this._fileService.readFile(skill.uri);
+			contentHash = await hashAsync(content.value.toString());
+		} catch {
+			// If file read fails, leave contentHash empty
 		}
+
+		const provenance = skill.provenance;
+		const extensionIdHash = provenance?.extensionId ? await hashAsync(provenance.extensionId) : '';
+		const extensionVersionHash = provenance?.extensionVersion ? await hashAsync(provenance.extensionVersion) : '';
+		const pluginNameHash = provenance?.pluginName ? await hashAsync(provenance.pluginName) : '';
+		const pluginVersionHash = provenance?.pluginVersion ? await hashAsync(provenance.pluginVersion) : '';
+
+		this._telemetryService.publicLog2<SkillLoadedIntoContextEvent, SkillLoadedIntoContextClassification>('skillLoadedIntoContext', {
+			skillNameHash: nameHash,
+			skillStorage: skill.storage,
+			skillContentHash: contentHash,
+			extensionIdHash,
+			extensionVersionHash,
+			pluginNameHash,
+			pluginVersionHash,
+		});
 	}
 
 	/** public for testing */
