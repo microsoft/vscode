@@ -942,7 +942,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		if (otherSessions.length > 0) {
 			result.push({
 				section: AgentSessionSection.Repository,
-				label: localize('agentSessions.noRepository', "Other"),
+				label: AgentSessionSectionLabels[AgentSessionSection.Repository],
 				sessions: otherSessions,
 			});
 		}
@@ -1110,6 +1110,7 @@ export const AgentSessionSectionLabels = {
 	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
 	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
 	[AgentSessionSection.More]: localize('agentSessions.moreSection', "More"),
+	[AgentSessionSection.Repository]: localize('agentSessions.noRepository', "Other"),
 };
 
 const DAY_THRESHOLD = 24 * 60 * 60 * 1000;

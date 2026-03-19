@@ -242,6 +242,8 @@ export class AgenticSessionsViewPane extends ViewPane {
 
 		this.storageService.store(GROUPING_STORAGE_KEY, this.currentGrouping, StorageScope.PROFILE, StorageTarget.USER);
 		this.isGroupedByRepoKey?.set(this.currentGrouping === AgentSessionsGrouping.Repository);
+		// TODO @osortega: Unsure if this is going to be annoying or helpful so that you can quickly see the active sessions
+		this.sessionsControl?.resetSectionCollapseState();
 		this.sessionsControl?.update();
 	}
 }
