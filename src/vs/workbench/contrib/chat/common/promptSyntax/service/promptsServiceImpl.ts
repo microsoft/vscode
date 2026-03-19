@@ -29,7 +29,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
-import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, getCleanPromptName, GITHUB_CONFIG_FOLDER, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
+import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, getCleanPromptName, getSkillFolderName, GITHUB_CONFIG_FOLDER, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, Target, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import {
 	IWorkspaceInstructionFile,
@@ -1047,8 +1047,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const sanitizedName = this.truncateAgentSkillName(name, uri);
 
 		// Validate that the sanitized name matches the parent folder name (per agentskills.io specification)
-		const skillFolderUri = dirname(uri);
-		const folderName = basename(skillFolderUri);
+		const folderName = getSkillFolderName(uri);
 		if (sanitizedName !== folderName) {
 			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill name "${sanitizedName}" does not match folder name "${folderName}": ${uri}`);
 			throw new SkillNameMismatchError(uri, sanitizedName, folderName);
@@ -1452,40 +1451,38 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 			try {
 				const parsedFile = await this.parseNew(uri, token);
+				const folderName = getSkillFolderName(uri);
+
 				const name = parsedFile.header?.name;
+				// Use folder name as fallback when name is missing or doesn't match
+				let resolvedName: string;
 				if (!name) {
-					this.logger.error(`[computeSkillDiscoveryInfo] Agent skill file missing name attribute: ${uri}`);
-					files.push({ uri, storage, status: 'skipped', skipReason: 'missing-name', extensionId, source });
-					continue;
+					this.logger.warn(`[computeSkillDiscoveryInfo] Agent skill file missing name attribute, using folder name "${folderName}": ${uri}`);
+					resolvedName = folderName;
+				} else {
+					const sanitizedName = this.truncateAgentSkillName(name, uri);
+					if (sanitizedName !== folderName) {
+						this.logger.warn(`[computeSkillDiscoveryInfo] Agent skill name "${sanitizedName}" does not match folder name "${folderName}", using folder name: ${uri}`);
+						resolvedName = folderName;
+					} else {
+						resolvedName = sanitizedName;
+					}
 				}
 
-				const sanitizedName = this.truncateAgentSkillName(name, uri);
-				const skillFolderUri = dirname(uri);
-				const folderName = basename(skillFolderUri);
-				if (sanitizedName !== folderName) {
-					this.logger.error(`[computeSkillDiscoveryInfo] Agent skill name "${sanitizedName}" does not match folder name "${folderName}": ${uri}`);
-					files.push({ uri, storage, status: 'skipped', skipReason: 'name-mismatch', name: sanitizedName, extensionId, source });
-					continue;
-				}
-
-				if (seenNames.has(sanitizedName)) {
-					this.logger.warn(`[computeSkillDiscoveryInfo] Skipping duplicate agent skill name: ${sanitizedName} at ${uri}`);
-					files.push({ uri, storage, status: 'skipped', skipReason: 'duplicate-name', name: sanitizedName, duplicateOf: nameToUri.get(sanitizedName), extensionId, source });
+				if (seenNames.has(resolvedName)) {
+					this.logger.warn(`[computeSkillDiscoveryInfo] Skipping duplicate agent skill name: ${resolvedName} at ${uri}`);
+					files.push({ uri, storage, status: 'skipped', skipReason: 'duplicate-name', name: resolvedName, duplicateOf: nameToUri.get(resolvedName), extensionId, source });
 					continue;
 				}
 
 				const description = parsedFile.header?.description;
-				if (!description) {
-					this.logger.error(`[computeSkillDiscoveryInfo] Agent skill file missing description attribute: ${uri}`);
-					files.push({ uri, storage, status: 'skipped', skipReason: 'missing-description', name: sanitizedName, extensionId, source });
-					continue;
-				}
 
-				seenNames.add(sanitizedName);
-				nameToUri.set(sanitizedName, uri);
+				seenNames.add(resolvedName);
+				nameToUri.set(resolvedName, uri);
 				const disableModelInvocation = parsedFile.header?.disableModelInvocation === true;
 				const userInvocable = parsedFile.header?.userInvocable !== false;
-				files.push({ uri, storage, status: 'loaded', name: sanitizedName, description, extensionId, source, disableModelInvocation, userInvocable });
+				const sanitizedDescription = description ? this.truncateAgentSkillDescription(description, uri) : undefined;
+				files.push({ uri, storage, status: 'loaded', name: resolvedName, description: sanitizedDescription, extensionId, source, disableModelInvocation, userInvocable });
 
 				// Track skill type
 				skillsBySource.set(source, (skillsBySource.get(source) || 0) + 1);
