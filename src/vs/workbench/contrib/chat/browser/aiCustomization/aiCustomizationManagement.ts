@@ -93,6 +93,11 @@ export const AI_CUSTOMIZATION_ITEM_URI_KEY = 'aiCustomizationManagementItemUri';
 export const AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY = 'aiCustomizationManagementItemPluginUri';
 
 /**
+ * Context key indicating whether the item is disabled.
+ */
+export const AI_CUSTOMIZATION_ITEM_DISABLED_KEY = 'aiCustomizationManagementItemDisabled';
+
+/**
  * Storage key for persisting the selected section.
  */
 export const AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY = 'aiCustomizationManagement.selectedSection';

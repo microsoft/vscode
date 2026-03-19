@@ -365,6 +365,25 @@ export class MarkAgentSessionSectionReadAction extends Action2 {
 	}
 }
 
+export class CollapseAllAgentSessionSectionsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSessionSection.collapseAll',
+			title: localize2('collapseAll', "Collapse All"),
+			menu: [{
+				id: MenuId.AgentSessionSectionContext,
+				group: '2_collapse',
+				order: 1,
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, _section: unknown, control?: IAgentSessionsControl): Promise<void> {
+		control?.collapseAllSections();
+	}
+}
+
 //#endregion
 
 //#region Session Actions
@@ -552,7 +571,6 @@ export class PinAgentSessionAction extends BaseAgentSessionAction {
 				group: 'navigation',
 				order: 0,
 				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
 					ChatContextKeys.isPinnedAgentSession.negate(),
 					ChatContextKeys.isArchivedAgentSession.negate()
 				),
@@ -561,7 +579,6 @@ export class PinAgentSessionAction extends BaseAgentSessionAction {
 				group: '0_pin',
 				order: 1,
 				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
 					ChatContextKeys.isPinnedAgentSession.negate(),
 					ChatContextKeys.isArchivedAgentSession.negate()
 				),
@@ -588,7 +605,6 @@ export class UnpinAgentSessionAction extends BaseAgentSessionAction {
 				group: 'navigation',
 				order: 0,
 				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
 					ChatContextKeys.isPinnedAgentSession,
 					ChatContextKeys.isArchivedAgentSession.negate()
 				),
@@ -597,7 +613,6 @@ export class UnpinAgentSessionAction extends BaseAgentSessionAction {
 				group: '0_pin',
 				order: 1,
 				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
 					ChatContextKeys.isPinnedAgentSession,
 					ChatContextKeys.isArchivedAgentSession.negate()
 				),

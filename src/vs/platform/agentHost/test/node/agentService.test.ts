@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { AgentSession } from '../../common/agentService.js';
-import { IActionEnvelope } from '../../common/state/sessionActions.js';
+import { ActionType, IActionEnvelope } from '../../common/state/sessionActions.js';
 import { AgentService } from '../../node/agentService.js';
 import { MockAgent } from './mockAgent.js';
 
@@ -51,7 +51,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Start a turn so there's an active turn to map events to
 			service.dispatchAction(
-				{ type: 'session/turnStarted', session: session.toString(), turnId: 'turn-1', userMessage: { text: 'hello' } },
+				{ type: ActionType.SessionTurnStarted, session: session.toString(), turnId: 'turn-1', userMessage: { text: 'hello' } },
 				'test-client', 1,
 			);
 
@@ -59,7 +59,7 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(service.onDidAction(e => envelopes.push(e)));
 
 			copilotAgent.fireProgress({ session, type: 'delta', messageId: 'msg-1', content: 'hello' });
-			assert.ok(envelopes.some(e => e.action.type === 'session/delta'));
+			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionDelta));
 		});
 	});
 
@@ -164,7 +164,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Model fetch is async inside AgentSideEffects — wait for it
 			await new Promise(r => setTimeout(r, 50));
 
-			const agentsChanged = envelopes.find(e => e.action.type === 'root/agentsChanged');
+			const agentsChanged = envelopes.find(e => e.action.type === ActionType.RootAgentsChanged);
 			assert.ok(agentsChanged);
 		});
 	});

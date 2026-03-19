@@ -11,12 +11,11 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_CAN_ZOOM_IN, CONTEXT_BROWSER_CAN_ZOOM_OUT, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
+import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewCommandId, BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
-import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -25,13 +24,15 @@ import { BrowserEditorInput } from '../common/browserEditorInput.js';
 import { ToggleTitleBarConfigAction } from '../../../browser/parts/titlebar/titlebarActions.js';
 
 // Context key expression to check if browser editor is active
-const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditorInput.EDITOR_ID);
+export const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditorInput.EDITOR_ID);
 
-const BrowserCategory = localize2('browserCategory', "Browser");
-const ActionGroupTabs = '1_tabs';
-const ActionGroupZoom = '2_zoom';
-const ActionGroupPage = '3_page';
-const ActionGroupSettings = '4_settings';
+export const BrowserActionCategory = localize2('browserCategory', "Browser");
+export enum BrowserActionGroup {
+	Tabs = '1_tabs',
+	Zoom = '2_zoom',
+	Page = '3_page',
+	Settings = '4_settings'
+}
 
 interface IOpenBrowserOptions {
 	url?: string;
@@ -43,7 +44,7 @@ class OpenIntegratedBrowserAction extends Action2 {
 		super({
 			id: BrowserViewCommandId.Open,
 			title: localize2('browser.openAction', "Open Integrated Browser"),
-			category: BrowserCategory,
+			category: BrowserActionCategory,
 			icon: Codicon.globe,
 			f1: true,
 			menu: {
@@ -80,12 +81,12 @@ class NewTabAction extends Action2 {
 		super({
 			id: BrowserViewCommandId.NewTab,
 			title: localize2('browser.newTabAction', "New Tab"),
-			category: BrowserCategory,
+			category: BrowserActionCategory,
 			f1: true,
 			precondition: BROWSER_EDITOR_ACTIVE,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: ActionGroupTabs,
+				group: BrowserActionGroup.Tabs,
 				order: 1,
 			},
 			// When already in a browser, Ctrl/Cmd + T opens a new tab
@@ -114,7 +115,7 @@ class GoBackAction extends Action2 {
 		super({
 			id: GoBackAction.ID,
 			title: localize2('browser.goBackAction', 'Go Back'),
-			category: BrowserCategory,
+			category: BrowserActionCategory,
 			icon: Codicon.arrowLeft,
 			f1: true,
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_BACK),
@@ -146,7 +147,7 @@ class GoForwardAction extends Action2 {
 		super({
 			id: GoForwardAction.ID,
 			title: localize2('browser.goForwardAction', 'Go Forward'),
-			category: BrowserCategory,
+			category: BrowserActionCategory,
 			icon: Codicon.arrowRight,
 			f1: true,
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_FORWARD),
@@ -178,7 +179,7 @@ class ReloadAction extends Action2 {
 		super({
 			id: ReloadAction.ID,
 			title: localize2('browser.reloadAction', 'Reload'),
-			category: BrowserCategory,
+			category: BrowserActionCategory,
 			icon: Codicon.refresh,
 			f1: true,
 			precondition: BROWSER_EDITOR_ACTIVE,
@@ -216,7 +217,7 @@ class HardReloadAction extends Action2 {
 		super({
 			id: HardReloadAction.ID,
 			title: localize2('browser.hardReloadAction', 'Hard Reload'),
-			category: BrowserCategory,
+			category: BrowserActionCategory,
 			icon: Codicon.refresh,
 			f1: true,
 			precondition: BROWSER_EDITOR_ACTIVE,
@@ -244,7 +245,7 @@ class FocusUrlInputAction extends Action2 {
 		super({
 			id: FocusUrlInputAction.ID,
 			title: localize2('browser.focusUrlInputAction', 'Focus URL Input'),
-			category: BrowserCategory,
+			category: BrowserActionCategory,
 			f1: true,
 			precondition: BROWSER_EDITOR_ACTIVE,
 			keybinding: {
@@ -261,71 +262,6 @@ class FocusUrlInputAction extends Action2 {
 	}
 }
 
-class AddElementToChatAction extends Action2 {
-	static readonly ID = BrowserViewCommandId.AddElementToChat;
-
-	constructor() {
-		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.chat.sendElementsToChat.enabled', true));
-		super({
-			id: AddElementToChatAction.ID,
-			title: localize2('browser.addElementToChatAction', 'Add Element to Chat'),
-			category: BrowserCategory,
-			icon: Codicon.inspect,
-			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), enabled),
-			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
-			menu: {
-				id: MenuId.BrowserActionsToolbar,
-				group: 'actions',
-				order: 1,
-				when: enabled
-			},
-			keybinding: [{
-				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over terminal
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
-			}, {
-				when: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyCode.Escape
-			}]
-		});
-	}
-
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
-		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.addElementToChat();
-		}
-	}
-}
-
-class AddConsoleLogsToChatAction extends Action2 {
-	static readonly ID = BrowserViewCommandId.AddConsoleLogsToChat;
-
-	constructor() {
-		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.chat.sendElementsToChat.enabled', true));
-		super({
-			id: AddConsoleLogsToChatAction.ID,
-			title: localize2('browser.addConsoleLogsToChatAction', 'Add Console Logs to Chat'),
-			category: BrowserCategory,
-			icon: Codicon.output,
-			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), enabled),
-			menu: {
-				id: MenuId.BrowserActionsToolbar,
-				group: 'actions',
-				order: 2,
-				when: enabled
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
-		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.addConsoleLogsToChat();
-		}
-	}
-}
-
 class ToggleDevToolsAction extends Action2 {
 	static readonly ID = BrowserViewCommandId.ToggleDevTools;
 
@@ -333,7 +269,7 @@ class ToggleDevToolsAction extends Action2 {
 		super({
 			id: ToggleDevToolsAction.ID,
 			title: localize2('browser.toggleDevToolsAction', 'Toggle Developer Tools'),
-			category: BrowserCategory,
+			category: BrowserActionCategory,
 			icon: Codicon.terminal,
 			f1: true,
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
@@ -364,14 +300,14 @@ class OpenInExternalBrowserAction extends Action2 {
 		super({
 			id: OpenInExternalBrowserAction.ID,
 			title: localize2('browser.openExternalAction', 'Open in External Browser'),
-			category: BrowserCategory,
+			category: BrowserActionCategory,
 			icon: Codicon.linkExternal,
 			f1: true,
 			// Note: We do allow opening in an external browser even if there is an error page shown
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: ActionGroupPage,
+				group: BrowserActionGroup.Page,
 				order: 10
 			}
 		});
@@ -400,12 +336,12 @@ class ClearGlobalBrowserStorageAction extends Action2 {
 		super({
 			id: ClearGlobalBrowserStorageAction.ID,
 			title: localize2('browser.clearGlobalStorageAction', 'Clear Storage (Global)'),
-			category: BrowserCategory,
+			category: BrowserActionCategory,
 			icon: Codicon.clearAll,
 			f1: true,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: ActionGroupSettings,
+				group: BrowserActionGroup.Settings,
 				order: 1,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Global)
 			}
@@ -425,12 +361,12 @@ class ClearWorkspaceBrowserStorageAction extends Action2 {
 		super({
 			id: ClearWorkspaceBrowserStorageAction.ID,
 			title: localize2('browser.clearWorkspaceStorageAction', 'Clear Storage (Workspace)'),
-			category: BrowserCategory,
+			category: BrowserActionCategory,
 			icon: Codicon.clearAll,
 			f1: true,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: ActionGroupSettings,
+				group: BrowserActionGroup.Settings,
 				order: 1,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Workspace)
 			}
@@ -450,13 +386,13 @@ class ClearEphemeralBrowserStorageAction extends Action2 {
 		super({
 			id: ClearEphemeralBrowserStorageAction.ID,
 			title: localize2('browser.clearEphemeralStorageAction', 'Clear Storage (Ephemeral)'),
-			category: BrowserCategory,
+			category: BrowserActionCategory,
 			icon: Codicon.clearAll,
 			f1: true,
 			precondition: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: ActionGroupSettings,
+				group: BrowserActionGroup.Settings,
 				order: 1,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral)
 			}
@@ -477,12 +413,12 @@ class OpenBrowserSettingsAction extends Action2 {
 		super({
 			id: OpenBrowserSettingsAction.ID,
 			title: localize2('browser.openSettingsAction', 'Open Browser Settings'),
-			category: BrowserCategory,
+			category: BrowserActionCategory,
 			icon: Codicon.settingsGear,
 			f1: false,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: ActionGroupSettings,
+				group: BrowserActionGroup.Settings,
 				order: 2
 			}
 		});
@@ -491,113 +427,6 @@ class OpenBrowserSettingsAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const preferencesService = accessor.get(IPreferencesService);
 		await preferencesService.openSettings({ query: '@id:workbench.browser.*,chat.sendElementsToChat.*' });
-	}
-}
-
-// Zoom actions
-
-class ZoomInAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.zoomIn';
-
-	constructor() {
-		super({
-			id: ZoomInAction.ID,
-			title: localize2('browser.zoomInAction', 'Zoom In'),
-			category: BrowserCategory,
-			icon: Codicon.zoomIn,
-			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
-			menu: {
-				id: MenuId.BrowserActionsToolbar,
-				group: ActionGroupZoom,
-				order: 1,
-				when: CONTEXT_BROWSER_CAN_ZOOM_IN,
-			},
-			keybinding: {
-				when: CONTEXT_BROWSER_FOCUSED,
-				weight: KeybindingWeight.WorkbenchContrib + 75,
-				// Same shortcuts as 'workbench.action.zoomIn'
-				primary: KeyMod.CtrlCmd | KeyCode.Equal,
-				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Equal, KeyMod.CtrlCmd | KeyCode.NumpadAdd],
-			},
-		});
-	}
-
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
-		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.zoomIn();
-		}
-	}
-}
-
-class ZoomOutAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.zoomOut';
-
-	constructor() {
-		super({
-			id: ZoomOutAction.ID,
-			title: localize2('browser.zoomOutAction', 'Zoom Out'),
-			category: BrowserCategory,
-			icon: Codicon.zoomOut,
-			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
-			menu: {
-				id: MenuId.BrowserActionsToolbar,
-				group: ActionGroupZoom,
-				order: 2,
-				when: CONTEXT_BROWSER_CAN_ZOOM_OUT,
-			},
-			keybinding: {
-				when: CONTEXT_BROWSER_FOCUSED,
-				weight: KeybindingWeight.WorkbenchContrib + 75,
-				// Same shortcuts as 'workbench.action.zoomOut'
-				primary: KeyMod.CtrlCmd | KeyCode.Minus,
-				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, KeyMod.CtrlCmd | KeyCode.NumpadSubtract],
-				linux: {
-					primary: KeyMod.CtrlCmd | KeyCode.Minus,
-					secondary: [KeyMod.CtrlCmd | KeyCode.NumpadSubtract]
-				}
-			},
-		});
-	}
-
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
-		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.zoomOut();
-		}
-	}
-}
-
-class ResetZoomAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.resetZoom';
-
-	constructor() {
-		super({
-			id: ResetZoomAction.ID,
-			title: localize2('browser.resetZoomAction', 'Reset Zoom'),
-			category: BrowserCategory,
-			icon: Codicon.screenNormal,
-			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
-			menu: {
-				id: MenuId.BrowserActionsToolbar,
-				group: ActionGroupZoom,
-				order: 3,
-			},
-			keybinding: {
-				when: CONTEXT_BROWSER_FOCUSED,
-				weight: KeybindingWeight.WorkbenchContrib + 75,
-				// Same shortcuts as 'workbench.action.zoomReset'
-				// (note: both workbench and here use Numpad0 instead of Digit0 to avoid conflicts with keybinding to focus sidebar.)
-				primary: KeyMod.CtrlCmd | KeyCode.Numpad0,
-			},
-		});
-	}
-
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
-		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.resetZoom();
-		}
 	}
 }
 
@@ -610,12 +439,12 @@ class ShowBrowserFindAction extends Action2 {
 		super({
 			id: ShowBrowserFindAction.ID,
 			title: localize2('browser.showFindAction', 'Find in Page'),
-			category: BrowserCategory,
+			category: BrowserActionCategory,
 			f1: true,
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: ActionGroupPage,
+				group: BrowserActionGroup.Page,
 				order: 1,
 			},
 			keybinding: {
@@ -639,7 +468,7 @@ class HideBrowserFindAction extends Action2 {
 		super({
 			id: HideBrowserFindAction.ID,
 			title: localize2('browser.hideFindAction', 'Close Find Widget'),
-			category: BrowserCategory,
+			category: BrowserActionCategory,
 			f1: false,
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE),
 			keybinding: {
@@ -664,7 +493,7 @@ class BrowserFindNextAction extends Action2 {
 		super({
 			id: BrowserFindNextAction.ID,
 			title: localize2('browser.findNextAction', 'Find Next'),
-			category: BrowserCategory,
+			category: BrowserActionCategory,
 			f1: false,
 			precondition: BROWSER_EDITOR_ACTIVE,
 			keybinding: [{
@@ -695,7 +524,7 @@ class BrowserFindPreviousAction extends Action2 {
 		super({
 			id: BrowserFindPreviousAction.ID,
 			title: localize2('browser.findPreviousAction', 'Find Previous'),
-			category: BrowserCategory,
+			category: BrowserActionCategory,
 			f1: false,
 			precondition: BROWSER_EDITOR_ACTIVE,
 			keybinding: [{
@@ -727,17 +556,12 @@ registerAction2(GoForwardAction);
 registerAction2(ReloadAction);
 registerAction2(HardReloadAction);
 registerAction2(FocusUrlInputAction);
-registerAction2(AddElementToChatAction);
-registerAction2(AddConsoleLogsToChatAction);
 registerAction2(ToggleDevToolsAction);
 registerAction2(OpenInExternalBrowserAction);
 registerAction2(ClearGlobalBrowserStorageAction);
 registerAction2(ClearWorkspaceBrowserStorageAction);
 registerAction2(ClearEphemeralBrowserStorageAction);
 registerAction2(OpenBrowserSettingsAction);
-registerAction2(ZoomInAction);
-registerAction2(ZoomOutAction);
-registerAction2(ResetZoomAction);
 registerAction2(ShowBrowserFindAction);
 registerAction2(HideBrowserFindAction);
 registerAction2(BrowserFindNextAction);

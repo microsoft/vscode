@@ -24,7 +24,6 @@
 	display: flex;
 	flex-direction: column;
 	height: 100%;
-	padding: 12px;
 	gap: 8px;
 	overflow: hidden;
 }
@@ -43,8 +42,6 @@
 	align-items: center;
 	justify-content: center;
 	overflow: hidden;
-	background-color: var(--vscode-editorWidget-background);
-	border-radius: 6px;
 }
 
 .image-carousel-editor .main-image-container {
@@ -52,7 +49,6 @@
 	height: 100%;
 	display: flex;
 	overflow: hidden;
-	padding: 24px 48px;
 	cursor: zoom-in;
 }
 
@@ -108,8 +104,8 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: var(--vscode-button-secondaryBackground);
-	color: var(--vscode-button-secondaryForeground);
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
 	border: none;
 	border-radius: 50%;
 	cursor: pointer;
@@ -127,8 +123,14 @@
 
 .image-carousel-editor .nav-arrow:hover:not(:disabled) {
 	opacity: 1 !important;
-	background: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
+	background: var(--vscode-toolbar-activeBackground);
+	color: var(--vscode-foreground);
+}
+
+.image-carousel-editor .nav-arrow:focus-visible:not(:disabled) {
+	opacity: 1 !important;
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .image-carousel-editor .nav-arrow:disabled {
@@ -162,12 +164,23 @@
 	margin-top: 4px;
 }
 
-/* Caption */
-.image-carousel-editor .image-caption {
+/* Info bar: caption · counter */
+.image-carousel-editor .image-info-bar {
 	text-align: center;
 	color: var(--vscode-descriptionForeground);
 	font-size: 12px;
 	padding: 0 24px;
+	min-height: 16px;
+}
+
+.image-carousel-editor .caption-separator::before {
+	content: '\00b7';
+	margin: 0 6px;
+	opacity: 0.6;
+}
+
+.image-carousel-editor .image-counter {
+	opacity: 0.7;
 }
 
 /* Sections container — flat horizontal thumbnail strip */

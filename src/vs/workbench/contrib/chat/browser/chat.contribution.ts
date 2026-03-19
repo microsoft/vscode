@@ -489,7 +489,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental']
 		},
 		[ChatConfiguration.ImageCarouselEnabled]: {
-			default: false,
+			default: true,
 			description: nls.localize('chat.imageCarousel.enabled', "Controls whether clicking an image attachment in chat opens the image carousel viewer."),
 			type: 'boolean',
 			tags: ['preview']
@@ -1323,6 +1323,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['preview'],
 			description: nls.localize('chat.aiCustomizationMenu.enabled', "Controls whether the Chat Customizations editor is available in the Command Palette. When disabled, the Chat Customizations editor and related commands are hidden."),
+			default: true,
+		},
+		[ChatConfiguration.ChatCustomizationHarnessSelectorEnabled]: {
+			type: 'boolean',
+			tags: ['preview'],
+			description: nls.localize('chat.customizations.harnessSelector.enabled', "Controls whether the harness selector (Local, Copilot CLI, Claude) is shown in the Chat Customizations editor sidebar. When disabled, the editor always shows all customizations without filtering."),
 			default: true,
 		},
 	}
