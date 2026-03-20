@@ -57,7 +57,7 @@ export async function findPreferredPM(pkgPath: string): Promise<{ name: string; 
 	const lockFiles: string[] = [];
 
 	for (const [pmName, lockfile] of LOCKFILE_CANDIDATES) {
-		if (await lockfileExists(lockfile, pkgPath)) {
+		if (!lockFiles.includes(pmName) && await lockfileExists(lockfile, pkgPath)) {
 			lockFiles.push(pmName);
 			if (lockFiles.length > 1) {
 				return {
