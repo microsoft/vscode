@@ -25,7 +25,7 @@ import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { askForPromptFileName } from './pickers/askForPromptName.js';
 import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { getCleanPromptName, SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { getCleanPromptName, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { getTarget } from '../../common/promptSyntax/languageProviders/promptFileAttributes.js';
 
@@ -327,7 +327,7 @@ class NewSkillFileAction extends Action2 {
 					return localize('commands.new.skill.name.tooLong', "Skill name must be 64 characters or less");
 				}
 				// Per spec: lowercase alphanumeric and hyphens only
-				if (!/^[a-z0-9-]+$/.test(name)) {
+				if (!VALID_SKILL_NAME_REGEX.test(name)) {
 					return localize('commands.new.skill.name.invalidChars', "Skill name may only contain lowercase letters, numbers, and hyphens");
 				}
 				if (name.startsWith('-') || name.endsWith('-')) {
