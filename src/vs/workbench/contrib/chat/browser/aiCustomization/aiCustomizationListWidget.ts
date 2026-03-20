@@ -41,6 +41,7 @@ import { IAICustomizationWorkspaceService, applyStorageSourceFilter } from '../.
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
@@ -101,6 +102,8 @@ export interface IAICustomizationListItem {
 	readonly displayName?: string;
 	/** When set, shows a small inline badge next to the item name. */
 	readonly badge?: string;
+	/** Tooltip shown when hovering the badge. */
+	readonly badgeTooltip?: string;
 	/** When set, overrides the default prompt-type icon. */
 	readonly typeIcon?: ThemeIcon;
 	nameMatches?: IMatch[];
@@ -353,10 +356,17 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		const displayName = element.displayName ?? formatDisplayName(element.name);
 		templateData.nameLabel.set(displayName, element.nameMatches);
 
-		// Optional inline badge (e.g. "always added", "context matching '*.ts'")
+		// Optional inline badge (e.g. "always added", "*.ts")
 		if (element.badge) {
 			templateData.badge.textContent = element.badge;
 			templateData.badge.style.display = '';
+			if (element.badgeTooltip) {
+				templateData.elementDisposables.add(this.hoverService.setupManagedHover(
+					getDefaultHoverDelegate('mouse'),
+					templateData.badge,
+					element.badgeTooltip,
+				));
+			}
 		} else {
 			templateData.badge.textContent = '';
 			templateData.badge.style.display = 'none';
@@ -1275,8 +1285,11 @@ export class AICustomizationListWidget extends Disposable {
 				if (applyTo !== undefined) {
 					// Context instruction
 					const badge = applyTo === '**'
-						? localize('alwaysAdded', "always added", applyTo)
-						: localize('onContext', "context matching '{0}'", applyTo);
+						? localize('alwaysAdded', "always added")
+						: applyTo;
+					const badgeTooltip = applyTo === '**'
+						? localize('alwaysAddedTooltip', "This instruction is automatically included in every interaction.")
+						: localize('onContextTooltip', "This instruction is automatically included when files matching '{0}' are in context.", applyTo);
 					items.push({
 						id: item.uri.toString(),
 						uri: item.uri,
@@ -1284,6 +1297,7 @@ export class AICustomizationListWidget extends Disposable {
 						filename: this.labelService.getUriLabel(item.uri, { relative: true }),
 						displayName: friendlyName,
 						badge,
+						badgeTooltip,
 						description: description,
 						storage: item.storage,
 						promptType,
