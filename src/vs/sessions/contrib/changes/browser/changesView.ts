@@ -654,10 +654,15 @@ export class ChangesViewPane extends ViewPane {
 				return (repositoryState?.HEAD?.behind ?? 0) > 0;
 			}));
 
-			this.renderDisposables.add(bindContextKey(hasOutgoingChangesContextKey, this.scopedContextKeyService, reader => {
+			const outgoingChangesObs = derived(reader => {
 				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
 				const repositoryState = repository?.state.read(reader);
-				return (repositoryState?.HEAD?.ahead ?? 0) > 0;
+				return repositoryState?.HEAD?.ahead ?? 0;
+			});
+
+			this.renderDisposables.add(bindContextKey(hasOutgoingChangesContextKey, this.scopedContextKeyService, reader => {
+				const outgoingChanges = outgoingChangesObs.read(reader);
+				return outgoingChanges > 0;
 			}));
 
 			const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
@@ -666,6 +671,7 @@ export class ChangesViewPane extends ViewPane {
 
 			this.renderDisposables.add(autorun(reader => {
 				const { added, removed } = topLevelStats.read(reader);
+				const outgoingChanges = outgoingChangesObs.read(reader);
 				const sessionResource = this.viewModel.activeSessionResourceObs.read(reader);
 
 				// Read code review state to update the button label dynamically
@@ -725,6 +731,13 @@ export class ChangesViewPane extends ViewPane {
 							}
 							if (action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR') {
 								return { showIcon: true, showLabel: true, isSecondary: false };
+							}
+							if (action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR') {
+								const customLabel = outgoingChanges > 0
+									? localize('updatePRWithOutgoingChanges', 'Update Pull Request {0}↑', outgoingChanges)
+									: localize('updatePR', 'Update Pull Request');
+
+								return { customLabel, showIcon: true, showLabel: true, isSecondary: false };
 							}
 							if (action.id === 'github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR') {
 								return { showIcon: true, showLabel: false, isSecondary: true };
