@@ -45,7 +45,7 @@ class BrowserFindWidget extends SimpleFindWidget {
 	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
 	constructor(
-		private readonly container: HTMLElement,
+		container: HTMLElement,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHoverService hoverService: IHoverService,
@@ -113,7 +113,6 @@ class BrowserFindWidget extends SimpleFindWidget {
 		const wasVisible = this.isVisible();
 		super.reveal(initialInput);
 		this._findWidgetVisible.set(true);
-		this.container.classList.toggle('find-visible', true);
 
 		// Focus the find input
 		this.focusFindBox();
@@ -127,7 +126,6 @@ class BrowserFindWidget extends SimpleFindWidget {
 	override hide(): void {
 		super.hide(false);
 		this._findWidgetVisible.reset();
-		this.container.classList.toggle('find-visible', false);
 
 		// Stop find and clear highlights in the browser view
 		this._model?.stopFindInPage(true);
@@ -312,7 +310,7 @@ class ShowBrowserFindAction extends Action2 {
 
 	run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): void {
 		if (browserEditor instanceof BrowserEditor) {
-			browserEditor.getContribution(BrowserEditorFindContribution)?.showFind();
+			void browserEditor.getContribution(BrowserEditorFindContribution)?.showFind();
 		}
 	}
 }

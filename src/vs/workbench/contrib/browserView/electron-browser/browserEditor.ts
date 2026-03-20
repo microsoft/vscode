@@ -87,7 +87,7 @@ export abstract class BrowserEditorContribution extends Disposable {
 	/**
 	 * Called when the model is cleared to reset state.
 	 */
-	protected clear(): void { }
+	clear(): void { }
 
 	/**
 	 * Optional widgets to display inside the URL bar (on the right side of the URL input,
