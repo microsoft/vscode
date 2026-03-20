@@ -35,7 +35,7 @@ import { Limiter } from '../../../../base/common/async.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'imageCarousel',
-	title: localize('imageCarouselConfigurationTitle', "Image Carousel"),
+	title: localize('imageCarouselConfigurationTitle', "Images Preview"),
 	type: 'object',
 	properties: {
 		'imageCarousel.explorerContextMenu.enabled': {
@@ -47,7 +47,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'imageCarousel.chat.enabled': {
 			type: 'boolean',
 			default: true,
-			description: localize('imageCarousel.chat.enabled', "Controls whether clicking an image attachment in chat opens the image carousel viewer."),
+			description: localize('imageCarousel.chat.enabled', "Controls whether clicking an image attachment in chat opens the Images Preview viewer."),
 			tags: ['experimental'],
 		},
 	}
