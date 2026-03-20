@@ -80,6 +80,7 @@ export const AHP_SESSION_ALREADY_EXISTS = -32003 as const;
 export const AHP_TURN_IN_PROGRESS = -32004 as const;
 export const AHP_UNSUPPORTED_PROTOCOL_VERSION = -32005 as const;
 export const AHP_CONTENT_NOT_FOUND = -32006 as const;
+export const AHP_AUTH_REQUIRED = -32007 as const;
 
 // ---- Type guards -----------------------------------------------------------
 
@@ -101,9 +102,10 @@ export function isJsonRpcResponse(msg: IProtocolMessage): msg is IAhpSuccessResp
 
 /**
  * Error with a JSON-RPC error code for protocol-level failures.
+ * Optionally carries a `data` payload for structured error details.
  */
 export class ProtocolError extends Error {
-	constructor(readonly code: number, message: string) {
+	constructor(readonly code: number, message: string, readonly data?: unknown) {
 		super(message);
 	}
 }

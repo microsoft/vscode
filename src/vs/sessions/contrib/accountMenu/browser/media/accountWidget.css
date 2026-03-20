@@ -106,6 +106,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	min-width: 0;
+	font-weight: 500;
 }
 
 .account-widget-account .account-widget-account-button {

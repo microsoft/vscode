@@ -907,7 +907,7 @@ export class CodeApplication extends Disposable {
 		// Support 'workspace' URLs (https://github.com/microsoft/vscode/issues/124263)
 		if (uri.scheme === this.productService.urlProtocol && uri.path === 'workspace') {
 			uri = uri.with({
-				authority: 'file',
+				authority: Schemas.file,
 				path: URI.parse(uri.query).path,
 				query: ''
 			});
