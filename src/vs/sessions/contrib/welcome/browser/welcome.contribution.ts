@@ -125,7 +125,7 @@ class SessionsWelcomeOverlay extends Disposable {
 	}
 }
 
-class SessionsWelcomeContribution extends Disposable implements IWorkbenchContribution {
+export class SessionsWelcomeContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsWelcome';
 
