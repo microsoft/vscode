@@ -94,7 +94,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._setHeight(0);
 
 		const updateScrollLeftPosition = () => {
-			this._linesDomNode.style.left = this._editor.getOption(EditorOption.stickyScroll).scrollWithEditor ? `-${this._editor.getScrollLeft()}px` : '0px';
+			const left = this._editor.getOption(EditorOption.stickyScroll).scrollWithEditor ? `-${this._editor.getScrollLeft()}px` : '0px';
+			this._linesDomNode.style.transform = `translate3d(${left}px, 0, 0)`;
+			this._linesDomNode.style.willChange = 'transform';
 		};
 		this._register(this._editor.onDidChangeConfiguration((e) => {
 			if (e.hasChanged(EditorOption.stickyScroll)) {
