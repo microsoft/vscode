@@ -254,6 +254,12 @@ export class FixDiagnosticsAction extends AbstractInlineChatAction {
 				group: '2_chat',
 				order: 1,
 				when: ContextKeyExpr.and(CTX_FIX_DIAGNOSTICS_ENABLED, EditorContextKeys.selectionHasDiagnostics, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.negate()),
+			}, {
+				id: MenuId.MarkerHoverStatusBar,
+				group: '1_fix',
+				order: 1,
+				when: ContextKeyExpr.and(CTX_FIX_DIAGNOSTICS_ENABLED, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.negate()),
+				precondition: null,
 			}]
 		});
 	}
