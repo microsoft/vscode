@@ -34,7 +34,7 @@ import { ExtHostChatSessions } from '../../common/extHostChatSessions.js';
 import { ExtHostCommands } from '../../common/extHostCommands.js';
 import { ExtHostLanguageModels } from '../../common/extHostLanguageModels.js';
 import * as extHostTypes from '../../common/extHostTypes.js';
-import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions } from '../../common/extHost.protocol.js';
+import { ChatSessionDto, ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions } from '../../common/extHost.protocol.js';
 import { IExtHostAuthentication } from '../../common/extHostAuthentication.js';
 import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -744,11 +744,14 @@ suite('MainThreadChatSessions', function () {
 
 		mainThread.$registerChatSessionContentProvider(handle, sessionScheme);
 
-		const sessionContent = {
+		const sessionContent: ChatSessionDto = {
 			id: 'test-session',
+			resource: URI.parse(`${sessionScheme}:/test-session`),
 			history: [],
 			hasActiveResponseCallback: false,
 			hasRequestHandler: false,
+			hasForkHandler: false,
+			supportsInterruption: false,
 			options: {
 				'models': 'gpt-4'
 			}
@@ -770,7 +773,7 @@ suite('MainThreadChatSessions', function () {
 		const call = (proxy.$provideHandleOptionsChange as sinon.SinonStub).firstCall;
 		assert.strictEqual(call.args[0], handle);
 		assert.deepStrictEqual(call.args[1], resource);
-		assert.deepStrictEqual(call.args[2], [{ optionId: 'models', value: 'gpt-4-turbo' }]);
+		assert.deepStrictEqual(call.args[2], { models: 'gpt-4-turbo' });
 
 		mainThread.$unregisterChatSessionContentProvider(handle);
 	});
@@ -787,9 +790,9 @@ suite('MainThreadChatSessions', function () {
 
 		// Attempt to notify option change for an unregistered scheme
 		// This should not throw, but also should not call the proxy
-		chatSessionsService.updateSessionOptions(resource, [
-			{ optionId: 'models', value: 'gpt-4-turbo' }
-		]);
+		chatSessionsService.updateSessionOptions(resource, new Map([
+			['models', 'gpt-4-turbo']
+		]));
 
 		// Verify the extension was NOT notified (no provider registered)
 		assert.strictEqual((proxy.$provideHandleOptionsChange as sinon.SinonStub).callCount, 0);
