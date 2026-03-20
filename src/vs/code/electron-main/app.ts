@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, Details, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, Details, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -226,14 +226,35 @@ export class CodeApplication extends Disposable {
 
 		// Allow getDisplayMedia() calls from the core window (e.g. issue reporter recording).
 		// Auto-select the screen containing the requesting VS Code window.
-		// We construct a source object directly from electron.screen to avoid the slow
-		// desktopCapturer.getSources() call which enumerates DXGI adapters on Windows.
-		session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+		//
+		// Why we construct source IDs manually instead of using desktopCapturer.getSources():
+		// desktopCapturer.getSources() triggers DXGI adapter enumeration on Windows which
+		// blocks the main process for 1-3 seconds, causing visible UI lag. Instead we
+		// construct the source ID directly from electronScreen.getAllDisplays() data, which
+		// shares the same underlying Chromium display::Screen as the capturer. The format is:
+		//   macOS:         screen:<CGDirectDisplayID>:0  (display.id IS the CGDirectDisplayID)
+		//   Windows/Linux: screen:<0-based-index>:0      (sequential enumeration order)
+		//
+		// Fallback: if the fast path fails (e.g. source ID format changes in a future
+		// Electron version), the recording service retries once. The handler sees that
+		// the fast path was already tried and falls back to desktopCapturer.getSources().
+		// The fallback result is cached so subsequent recordings are instant again.
+		// Cache is invalidated on display add/remove/metrics-change.
+		let usedFastPath = false;
+		let fallbackSourceCache: Electron.DesktopCapturerSource[] | undefined;
+		const invalidateFallbackCache = () => { fallbackSourceCache = undefined; };
+		electronScreen.on('display-added', invalidateFallbackCache);
+		electronScreen.on('display-removed', invalidateFallbackCache);
+		electronScreen.on('display-metrics-changed', invalidateFallbackCache);
+		session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
 			try {
+				const shouldFallback = usedFastPath;
+				usedFastPath = false;
+
 				const frame = request.frame;
 				const win = frame ? BrowserWindow.getAllWindows().find(w => w.webContents.mainFrame === frame) : undefined;
-				const displays = electronScreen.getAllDisplays();
 
+				const displays = electronScreen.getAllDisplays();
 				let targetDisplay = displays[0];
 				if (win) {
 					const winBounds = win.getBounds();
@@ -243,19 +264,30 @@ export class CodeApplication extends Disposable {
 					});
 				}
 
-				// Find the 0-based index of this display for constructing the source ID
-				const displayIndex = displays.findIndex(d => d.id === targetDisplay.id);
-				const sourceId = `screen:${displayIndex >= 0 ? displayIndex : 0}:0`;
+				if (shouldFallback) {
+					// Fast path failed -- use desktopCapturer.getSources()
+					// (slow on first call due to DXGI enumeration, cached for subsequent calls)
+					if (!fallbackSourceCache) {
+						fallbackSourceCache = await desktopCapturer.getSources({ types: ['screen'] });
+					}
+					const match = fallbackSourceCache.find(s => s.display_id === String(targetDisplay.id));
+					callback({ video: match ?? fallbackSourceCache[0] });
+					return;
+				}
 
-				// Construct a minimal DesktopCapturerSource-compatible object
+				// Fast path: construct source ID from electron.screen (instant, no DXGI)
+				usedFastPath = true;
+				const displayIndex = displays.findIndex(d => d.id === targetDisplay.id);
+				const screenId = isMacintosh
+					? targetDisplay.id
+					: (displayIndex >= 0 ? displayIndex : 0);
 				const source: Electron.DesktopCapturerSource = {
-					id: sourceId,
-					name: `Screen ${displayIndex + 1}`,
+					id: `screen:${screenId}:0`,
+					name: targetDisplay.label || `Screen ${displayIndex + 1}`,
 					display_id: String(targetDisplay.id),
 					thumbnail: undefined!,
 					appIcon: undefined!,
 				};
-
 				callback({ video: source });
 			} catch {
 				callback({});
