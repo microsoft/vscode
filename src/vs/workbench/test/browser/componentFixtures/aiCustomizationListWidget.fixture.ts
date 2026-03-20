@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { ResourceSet } from '../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -34,7 +34,7 @@ import '../../../../platform/theme/common/colors/listColors.js';
 // ============================================================================
 
 const defaultFilter: IStorageSourceFilter = {
-	sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, PromptsStorage.extension],
+	sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin],
 };
 
 interface IFixtureInstructionFile {
@@ -45,6 +45,14 @@ interface IFixtureInstructionFile {
 }
 
 function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], agentInstructionFiles: IResolvedAgentFile[] = []): IPromptsService {
+	// Build a map from URI to applyTo for parseNew
+	const applyToMap = new ResourceMap<string | undefined>();
+	const descriptionMap = new ResourceMap<string | undefined>();
+	for (const file of instructionFiles) {
+		applyToMap.set(file.uri, file.applyTo);
+		descriptionMap.set(file.uri, file.description);
+	}
+
 	return new class extends mock<IPromptsService>() {
 		override readonly onDidChangeCustomAgents = Event.None;
 		override readonly onDidChangeSlashCommands = Event.None;
@@ -52,7 +60,13 @@ function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], a
 		override getDisabledPromptFiles(): ResourceSet { return new ResourceSet(); }
 		override async listPromptFiles(type: PromptsType) {
 			if (type === PromptsType.instructions) {
-				return instructionFiles.map(f => f.promptPath);
+				return instructionFiles.map(f => ({
+					uri: f.uri,
+					storage: f.storage as PromptsStorage.local,
+					type: f.type,
+					name: f.name,
+					description: f.description,
+				}));
 			}
 			return [];
 		}
@@ -176,7 +190,7 @@ async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFi
 // Fixtures
 // ============================================================================
 
-export default defineThemedFixtureGroup({ path: 'chat/' }, {
+export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	InstructionsTabWithItems: defineComponentFixture({
 		labels: { kind: 'screenshot' },
