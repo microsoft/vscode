@@ -32,6 +32,8 @@
 /* Title - single line, overflow ellipsis */
 .ci-status-widget-title {
 	flex: 1;
+	display: flex;
+	align-items: center;
 	overflow: hidden;
 	color: var(--vscode-foreground);
 }
