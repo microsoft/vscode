@@ -19,13 +19,15 @@ export enum AgentSessionProviders {
 	Codex = 'openai-codex',
 	Growth = 'copilot-growth',
 	AgentHostCopilot = 'agent-host-copilot',
+	OpenCode = 'opencode',
 }
 
 export function isBuiltInAgentSessionProvider(provider: string): boolean {
 	return provider === AgentSessionProviders.Local ||
 		provider === AgentSessionProviders.Background ||
 		provider === AgentSessionProviders.Cloud ||
-		provider === AgentSessionProviders.Claude;
+		provider === AgentSessionProviders.Claude ||
+		provider === AgentSessionProviders.OpenCode;
 }
 
 export function getAgentSessionProvider(sessionResource: URI | string): AgentSessionProviders | undefined {
@@ -36,6 +38,7 @@ export function getAgentSessionProvider(sessionResource: URI | string): AgentSes
 		case AgentSessionProviders.Cloud:
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
+		case AgentSessionProviders.OpenCode:
 		case AgentSessionProviders.AgentHostCopilot:
 			return type;
 		default:
@@ -57,6 +60,8 @@ export function getAgentSessionProviderName(provider: AgentSessionProviders): st
 			return 'Codex';
 		case AgentSessionProviders.Growth:
 			return 'Growth';
+		case AgentSessionProviders.OpenCode:
+				return 'OpenCode';
 		case AgentSessionProviders.AgentHostCopilot:
 			return 'Agent Host - Copilot';
 	}
@@ -76,6 +81,8 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 			return Codicon.claude;
 		case AgentSessionProviders.Growth:
 			return Codicon.lightbulb;
+		case AgentSessionProviders.OpenCode:
+				return Codicon.rocket;
 		case AgentSessionProviders.AgentHostCopilot:
 			return Codicon.vscodeInsiders; // default; use getAgentHostIcon() for quality-aware icon
 	}
@@ -93,6 +100,7 @@ export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders
 		case AgentSessionProviders.Local:
 		case AgentSessionProviders.Background:
 		case AgentSessionProviders.Cloud:
+		case AgentSessionProviders.OpenCode:
 		case AgentSessionProviders.AgentHostCopilot:
 			return true;
 		case AgentSessionProviders.Claude:
@@ -126,6 +134,7 @@ export function getAgentCanContinueIn(provider: AgentSessionProviders): boolean 
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
 		case AgentSessionProviders.Growth:
+		case AgentSessionProviders.OpenCode:
 		case AgentSessionProviders.AgentHostCopilot:
 			return false;
 	}
@@ -145,6 +154,8 @@ export function getAgentSessionProviderDescription(provider: AgentSessionProvide
 			return localize('chat.session.providerDescription.codex', "Opens a new Codex session in the editor. Codex sessions can be managed from the chat sessions view.");
 		case AgentSessionProviders.Growth:
 			return localize('chat.session.providerDescription.growth', "Learn about Copilot features.");
+		case AgentSessionProviders.OpenCode:
+				return 'OpenCode AI coding assistant';
 		case AgentSessionProviders.AgentHostCopilot:
 			return 'Run a Copilot SDK agent in a dedicated process.';
 	}
