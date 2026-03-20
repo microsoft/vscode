@@ -90,6 +90,11 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 			return false;
 		}
 
+		// Third-party providers (like OpenCode) always open a new session, so canDelegate doesn't apply.
+		if (!isFirstPartyAgentSessionProvider(type)) {
+			return this._getSelectedSessionType() !== type;
+		}
+
 		if (contribution && !contribution.canDelegate && activeProvider !== type /* Allow switching back to active type */) {
 			return false;
 		}
