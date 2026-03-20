@@ -172,6 +172,7 @@ export interface IAgentSessionsControl {
 	clearFocus(): void;
 	hasFocusOrSelection(): boolean;
 
+	resetSectionCollapseState(): void;
 	collapseAllSections(): void;
 }
 

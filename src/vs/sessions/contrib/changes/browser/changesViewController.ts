@@ -20,9 +20,9 @@ interface IPendingTurnState {
 	readonly submittedAt: number;
 }
 
-export class ToggleChangesViewContribution extends Disposable {
+export class ChangesViewController extends Disposable {
 
-	static readonly ID = 'workbench.contrib.toggleChangesView';
+	static readonly ID = 'workbench.contrib.changesViewController';
 
 	private readonly pendingTurnStateByResource = new ResourceMap<IPendingTurnState>();
 
