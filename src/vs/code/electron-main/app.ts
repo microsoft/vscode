@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, desktopCapturer, Details, GPUFeatureStatus, powerMonitor, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, Details, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -225,15 +225,37 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Allow getDisplayMedia() calls from the core window (e.g. issue reporter recording).
-		// Auto-select the entire primary screen so no picker is needed.
-		session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
+		// Auto-select the screen containing the requesting VS Code window.
+		session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
 			try {
-				const sources = await desktopCapturer.getSources({ types: ['screen'] });
-				if (sources.length > 0) {
-					callback({ video: sources[0] });
-				} else {
+				const sources = await desktopCapturer.getSources({
+					types: ['screen'],
+					thumbnailSize: { width: 0, height: 0 }, // skip thumbnails for speed
+				});
+				if (sources.length === 0) {
 					callback({});
+					return;
 				}
+
+				// Find the screen that contains the requesting window
+				let selectedSource = sources[0];
+				const frame = request.frame;
+				if (frame && sources.length > 1) {
+					const win = BrowserWindow.getAllWindows().find(w => w.webContents.mainFrame === frame);
+					if (win) {
+						const winBounds = win.getBounds();
+						const winCenterX = winBounds.x + winBounds.width / 2;
+						const winCenterY = winBounds.y + winBounds.height / 2;
+						const display = electronScreen.getDisplayNearestPoint({ x: winCenterX, y: winCenterY });
+						// Screen source IDs are formatted as "screen:<displayId>"
+						const matchingSource = sources.find(s => s.display_id === String(display.id));
+						if (matchingSource) {
+							selectedSource = matchingSource;
+						}
+					}
+				}
+
+				callback({ video: selectedSource });
 			} catch {
 				callback({});
 			}
