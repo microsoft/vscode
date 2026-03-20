@@ -1244,7 +1244,7 @@ suite('CommandLineAutoApprover', () => {
 		});
 
 		test('should attribute workspace-folder-scoped rules to WORKSPACE_FOLDER target', async () => {
-			const workspaceFolderConfig = { 'git*': true };
+			const workspaceFolderConfig = { 'git': true };
 			configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AutoApprove, workspaceFolderConfig);
 
 			const originalInspect = configurationService.inspect;
