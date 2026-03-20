@@ -10,7 +10,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { inQuickInputContextKeyValue } from '../../../../../platform/quickinput/browser/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
@@ -54,13 +54,8 @@ class AddQuickPickItemToContextAction extends Action2 {
 		}
 
 		const quickInputService = accessor.get(IQuickInputService);
-		const current = quickInputService.currentQuickInput;
-		if (!current || !('activeItems' in current)) {
-			return;
-		}
-
-		const picker = current as { activeItems: ReadonlyArray<IQuickPickItem> };
-		const [activeItem] = picker.activeItems;
+		const picker = quickInputService.currentQuickInput as IQuickPick<IQuickPickItem> | undefined;
+		const activeItem = picker?.activeItems[0];
 		if (!activeItem) {
 			return;
 		}
