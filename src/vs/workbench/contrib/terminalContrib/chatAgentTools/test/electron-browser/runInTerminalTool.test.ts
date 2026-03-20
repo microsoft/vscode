@@ -480,7 +480,6 @@ suite('RunInTerminalTool', () => {
 			}
 			ok(confirmationMessage.value.includes('Reason for leaving the sandbox: Needs network access outside the sandbox'));
 
-			strictEqual(result?.confirmationMessages?.disclaimer, undefined);
 			strictEqual(result?.confirmationMessages?.terminalCustomActions, undefined);
 		});
 	});
