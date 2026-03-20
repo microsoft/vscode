@@ -315,6 +315,11 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		[ChatConfiguration.AutoNavigation]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.editing.autoNavigation', "Controls whether the editor automatically navigates to the next change after keeping or undoing a chat edit."),
+			default: true,
+		},
 		'chat.tips.enabled': {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
