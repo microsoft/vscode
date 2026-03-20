@@ -321,7 +321,7 @@ function collectNodeSystemCertErrors(useNodeSystemCerts: boolean, logService: IL
 			if (Array.isArray(entries)) {
 				for (const entry of entries as { errorMessage?: string; errorCode?: number }[]) {
 					const code = entry.errorCode ?? 'missing code';
-					const error = `${category}: ${entry.errorMessage ?? 'missing message'}`;
+					const error = `${category}: ${sanitizeCertErrorMessage(entry.errorMessage ?? 'missing message')}`;
 					const key = `${error} (${code})`;
 					const existing = counts.get(key);
 					if (existing) {
@@ -339,6 +339,36 @@ function collectNodeSystemCertErrors(useNodeSystemCerts: boolean, logService: IL
 		logService.debug('ProxyResolver#collectNodeSystemCertErrors: Failed to get certificate errors', err);
 		return `Error: ${err instanceof Error ? err.message : String(err)}`;
 	}
+}
+
+// Sanitize known error messages to avoid false-positive redaction by the
+// telemetry scrubbing regex in telemetryUtils.ts (the Generic Secret pattern
+// matches "key", "sig", "signature" followed by a non-alphanumeric character).
+// Source strings from Node.js RecordCertError() and OpenSSL's x509_err.c / asn1_err.c.
+const certErrorReplacements: [string, string][] = [
+	// Node.js RecordCertError:
+	['key usage flags', 'k usage flags'],
+	// x509_err.c:
+	['check dh key', 'check dh k'],
+	['key type mismatch', 'k type mismatch'],
+	['key values mismatch', 'k values mismatch'],
+	['public key decode error', 'public k decode error'],
+	['public key encode error', 'public k encode error'],
+	['unable to get certs public key', 'unable to get certs public k'],
+	['unknown key type', 'unknown k type'],
+	// asn1_err.c:
+	['key type not supported', 'k type not supported'],
+	['public key type', 'public k type'],
+	['sig parse error', 's parse error'],
+	['sig invalid mime type', 's invalid mime type'],
+	['sig content type', 's content type'],
+	['signature algorithm', 's algorithm'],
+];
+function sanitizeCertErrorMessage(message: string): string {
+	for (const [search, replacement] of certErrorReplacements) {
+		message = message.replaceAll(search, replacement);
+	}
+	return message;
 }
 
 type ProxyResolveStatsClassification = {
