@@ -427,7 +427,6 @@ export class ChangesViewPane extends ViewPane {
 				this.onVisible();
 			} else {
 				this.renderDisposables.clear();
-				this.updateContainerTitle(0);
 			}
 		}));
 
