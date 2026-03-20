@@ -14,7 +14,7 @@ import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { isMacintosh, isWindows } from '../../../../../base/common/platform.js';
+import { isMacintosh } from '../../../../../base/common/platform.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../base/common/network.js';
 
@@ -34,7 +34,7 @@ export class OpenSessionsWindowAction extends Action2 {
 		const productService = accessor.get(IProductService);
 		const environmentService = accessor.get(IWorkbenchEnvironmentService);
 
-		if (environmentService.isBuilt && (isMacintosh || isWindows)) {
+		if (environmentService.isBuilt && isMacintosh) {
 			const scheme = productService.quality === 'stable'
 				? 'vscode-sessions'
 				: productService.quality === 'exploration'
