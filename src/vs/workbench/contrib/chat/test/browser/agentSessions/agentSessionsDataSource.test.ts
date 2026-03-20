@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName, AgentSessionsSorter } from '../../../browser/agentSessions/agentSessionsViewer.js';
+import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName, AgentSessionsSorter, groupAgentSessionsByDate } from '../../../browser/agentSessions/agentSessionsViewer.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSessionSection } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { ChatSessionStatus } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
@@ -1196,5 +1196,100 @@ suite('AgentSessionsSorter', () => {
 
 		const sorted = [withRequest, withoutRequest].sort((a, b) => sorter.compare(a, b));
 		assert.deepStrictEqual(sorted.map(s => s.label), ['Session no-request', 'Session with-request']);
+	});
+});
+
+suite('groupAgentSessionsByDate with sortBy', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createSession(overrides: Partial<{
+		id: string;
+		isArchived: boolean;
+		isPinned: boolean;
+		created: number;
+		lastRequestStarted: number;
+	}>): IAgentSession {
+		return {
+			providerType: 'test',
+			providerLabel: 'Test',
+			resource: URI.parse(`test://session/${overrides.id ?? 'default'}`),
+			status: ChatSessionStatus.Completed,
+			label: `Session ${overrides.id ?? 'default'}`,
+			icon: Codicon.terminal,
+			timing: {
+				created: overrides.created ?? Date.now(),
+				lastRequestEnded: undefined,
+				lastRequestStarted: overrides.lastRequestStarted,
+			},
+			changes: undefined,
+			metadata: undefined,
+			isArchived: () => overrides.isArchived ?? false,
+			setArchived: () => { },
+			isPinned: () => overrides.isPinned ?? false,
+			setPinned: () => { },
+			isRead: () => true,
+			isMarkedUnread: () => false,
+			setRead: () => { },
+		};
+	}
+
+	test('default (Created): buckets by created time', () => {
+		const now = Date.now();
+		const tenDaysAgo = now - 10 * 24 * 60 * 60 * 1000;
+
+		const oldSession = createSession({ id: 'old', created: tenDaysAgo, lastRequestStarted: now });
+
+		const grouped = groupAgentSessionsByDate([oldSession]);
+		const todaySessions = grouped.get(AgentSessionSection.Today)!.sessions;
+		const olderSessions = grouped.get(AgentSessionSection.Older)!.sessions;
+
+		assert.deepStrictEqual(todaySessions.length, 0);
+		assert.deepStrictEqual(olderSessions.length, 1);
+	});
+
+	test('Updated: session created long ago but recently updated goes into Today', () => {
+		const now = Date.now();
+		const tenDaysAgo = now - 10 * 24 * 60 * 60 * 1000;
+
+		const oldButUpdated = createSession({ id: 'old-updated', created: tenDaysAgo, lastRequestStarted: now });
+
+		const grouped = groupAgentSessionsByDate([oldButUpdated], AgentSessionsSorting.Updated);
+		const todaySessions = grouped.get(AgentSessionSection.Today)!.sessions;
+		const olderSessions = grouped.get(AgentSessionSection.Older)!.sessions;
+
+		assert.deepStrictEqual(todaySessions.length, 1);
+		assert.deepStrictEqual(olderSessions.length, 0);
+	});
+
+	test('Updated: falls back to created when lastRequestStarted is undefined', () => {
+		const now = Date.now();
+		const tenDaysAgo = now - 10 * 24 * 60 * 60 * 1000;
+
+		const oldNoUpdate = createSession({ id: 'old-no-update', created: tenDaysAgo });
+
+		const grouped = groupAgentSessionsByDate([oldNoUpdate], AgentSessionsSorting.Updated);
+		const todaySessions = grouped.get(AgentSessionSection.Today)!.sessions;
+		const olderSessions = grouped.get(AgentSessionSection.Older)!.sessions;
+
+		assert.deepStrictEqual(todaySessions.length, 0);
+		assert.deepStrictEqual(olderSessions.length, 1);
+	});
+
+	test('Updated: pinned and archived sessions are not affected by sortBy', () => {
+		const now = Date.now();
+		const tenDaysAgo = now - 10 * 24 * 60 * 60 * 1000;
+
+		const pinnedOld = createSession({ id: 'pinned', created: tenDaysAgo, lastRequestStarted: now, isPinned: true });
+		const archivedOld = createSession({ id: 'archived', created: tenDaysAgo, lastRequestStarted: now, isArchived: true });
+
+		const grouped = groupAgentSessionsByDate([pinnedOld, archivedOld], AgentSessionsSorting.Updated);
+		const pinnedSessions = grouped.get(AgentSessionSection.Pinned)!.sessions;
+		const archivedSessions = grouped.get(AgentSessionSection.Archived)!.sessions;
+		const todaySessions = grouped.get(AgentSessionSection.Today)!.sessions;
+
+		assert.deepStrictEqual(pinnedSessions.length, 1);
+		assert.deepStrictEqual(archivedSessions.length, 1);
+		assert.deepStrictEqual(todaySessions.length, 0);
 	});
 });
