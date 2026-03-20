@@ -23,7 +23,7 @@ import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariable
 import { ILanguageModelToolsService, IToolData, VSCodeToolReference } from '../tools/languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { isInClaudeAgentsFolder, isInClaudeRulesFolder, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
-import { ParsedPromptFile } from './promptFileParser.js';
+import { ParsedPromptFile, PromptHeader } from './promptFileParser.js';
 import { AgentFileType, ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
 import { AGENT_DEBUG_LOG_ENABLED_SETTING, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_SKILL_PATH } from './promptTypes.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
@@ -233,21 +233,6 @@ export class ComputeAutomaticInstructions {
 		}
 	}
 
-	/**
-	 * Combines the `applyTo` and `paths` attributes into a single comma-separated
-	 * pattern string that can be matched by {@link _matches}.
-	 * Used for the instructions list XML output where both should be shown.
-	 */
-	private _getApplyToPattern(applyTo: string | undefined, paths: readonly string[] | undefined): string | undefined {
-		if (applyTo) {
-			return applyTo;
-		}
-		if (paths && paths.length > 0) {
-			return paths.join(', ');
-		}
-		return undefined;
-	}
-
 	private _matches(files: ResourceSet, applyToPattern: string): { pattern: string; file?: URI } | undefined {
 		const patterns = splitGlobAware(applyToPattern, ',');
 		const patterMatches = (pattern: string): { pattern: string; file?: URI } | undefined => {
@@ -322,12 +307,12 @@ export class ComputeAutomaticInstructions {
 				if (parsedFile) {
 					entries.push('<instruction>');
 					if (parsedFile.header) {
-						const { description, applyTo, paths } = parsedFile.header;
+						const { description } = parsedFile.header;
 						if (description) {
 							entries.push(`<description>${description}</description>`);
 						}
 						entries.push(`<file>${filePath(uri)}</file>`);
-						const applyToPattern = this._getApplyToPattern(applyTo, paths);
+						const applyToPattern = evaluateApplyToPattern(parsedFile.header, isInClaudeRulesFolder(uri));
 						if (applyToPattern) {
 							entries.push(`<applyTo>${applyToPattern}</applyTo>`);
 						}
@@ -532,4 +517,15 @@ export function getFilePath(uri: URI, remoteOS: OperatingSystem | undefined): st
 		return fsPath;
 	}
 	return uri.toString();
+}
+
+/**
+ * Returns `applyTo` or `paths` attributes based on whether the instruction file is a Claude rules file or a regular instruction file
+ */
+export function evaluateApplyToPattern(header: PromptHeader | undefined, isClaudeRules: boolean): string | undefined {
+	if (isClaudeRules) {
+		// For Claude rules files, `paths` is the primary attribute (defaulting to '**' when omitted)
+		return header?.paths?.join(', ') ?? '**';
+	}
+	return header?.applyTo ?? undefined; // For regular instruction files, only show `applyTo` patterns, and skip if it's omitted
 }

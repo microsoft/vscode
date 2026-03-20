@@ -41,11 +41,6 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 				this._track(e.editor);
 			}
 		}));
-		this._register(this.editorService.onDidCloseEditor(e => {
-			if (e.editor instanceof BrowserEditorInput) {
-				this._knownBrowsers.deleteAndDispose(e.editor.id);
-			}
-		}));
 		this._register(this.editorService.onDidActiveEditorChange(() => this._syncActiveBrowserTab()));
 
 		// Initial sync
@@ -82,12 +77,17 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 
 	// #region Browser tab tracking
 
+	private _lastActiveBrowserId: string | undefined = undefined;
 	private async _syncActiveBrowserTab(): Promise<void> {
 		const active = this.editorService.activeEditorPane?.input;
+		let activeId: string | undefined;
 		if (active instanceof BrowserEditorInput) {
-			this._proxy.$onDidChangeActiveBrowserTab(this._toDto(active));
-		} else {
-			this._proxy.$onDidChangeActiveBrowserTab(undefined);
+			this._track(active);
+			activeId = active.id;
+		}
+		if (this._lastActiveBrowserId !== activeId) {
+			this._lastActiveBrowserId = activeId;
+			this._proxy.$onDidChangeActiveBrowserTab(activeId);
 		}
 	}
 
@@ -99,11 +99,13 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 
 		// Track property changes. Currently all the tracked properties are covered under the `onDidChangeLabel` event.
 		disposables.add(input.onDidChangeLabel(() => {
-			this._proxy.$onDidChangeBrowserTabState(input.id, this._toDto(input));
+			this._proxy.$onDidChangeBrowserTabState(this._toDto(input));
 		}));
 		disposables.add(input.onWillDispose(() => {
-			this._proxy.$onDidCloseBrowserTab(input.id);
 			this._knownBrowsers.deleteAndDispose(input.id);
+		}));
+		disposables.add(toDisposable(() => {
+			this._proxy.$onDidCloseBrowserTab(input.id);
 		}));
 
 		this._knownBrowsers.set(input.id, { input, dispose: () => disposables.dispose() });

@@ -193,6 +193,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _onRemoveItem: ((item: IActionListItem<T>) => void) | undefined,
 		private readonly _onSubmenuIndicatorHover: ((element: IActionListItem<T>, indicator: HTMLElement, disposables: DisposableStore) => void) | undefined,
 		private _hasAnySubmenuActions: boolean,
+		private readonly _linkHandler: ((uri: URI, item: IActionListItem<T>) => void) | undefined,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
@@ -284,7 +285,12 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			} else {
 				const rendered = renderMarkdown(element.description, {
 					actionHandler: (content: string) => {
-						this._openerService.open(URI.parse(content), { allowCommands: true });
+						const uri = URI.parse(content);
+						if (this._linkHandler) {
+							this._linkHandler(uri, element);
+						} else {
+							void this._openerService.open(uri, { allowCommands: true });
+						}
 					}
 				});
 				data.elementDisposables.add(rendered);
@@ -405,6 +411,17 @@ export interface IActionListOptions {
 	readonly minWidth?: number;
 
 	/**
+	 * Optional handler for markdown links activated in item descriptions or hovers.
+	 * When unset, links open via the opener service with command links allowed.
+	 */
+	readonly linkHandler?: (uri: URI, item: IActionListItem<unknown>) => void;
+
+	/**
+	 * Optional callback fired when a section's collapsed state changes.
+	 */
+	readonly onDidToggleSection?: (section: string, collapsed: boolean) => void;
+
+	/**
 	 * When true, descriptions are rendered as subtext below the title
 	 * instead of inline to the right.
 	 */
@@ -443,6 +460,7 @@ export class ActionListWidget<T> extends Disposable {
 	private readonly _submenuContainer: HTMLElement;
 	private _submenuHideTimeout: ReturnType<typeof setTimeout> | undefined;
 	private _currentSubmenuWidget: ActionListWidget<IAction> | undefined;
+	private _currentSubmenuElement: IActionListItem<T> | undefined;
 
 	private readonly _collapsedSections = new Set<string>();
 	private _filterText = '';
@@ -517,7 +535,7 @@ export class ActionListWidget<T> extends Disposable {
 		const hasAnySubmenuActions = items.some(item => !!item.submenuActions?.length);
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<T>(preview, (item) => this._removeItem(item), (element, indicator, disposables) => this._wireSubmenuIndicator(element, indicator, disposables), hasAnySubmenuActions, this._keybindingService, this._openerService),
+			new ActionItemRenderer<T>(preview, (item) => this._removeItem(item), (element, indicator, disposables) => this._wireSubmenuIndicator(element, indicator, disposables), hasAnySubmenuActions, this._options?.linkHandler, this._keybindingService, this._openerService),
 			new HeaderRenderer(),
 			new SeparatorRenderer(),
 		], {
@@ -637,6 +655,7 @@ export class ActionListWidget<T> extends Disposable {
 		} else {
 			this._collapsedSections.add(section);
 		}
+		this._options?.onDidToggleSection?.(section, this._collapsedSections.has(section));
 		this._applyFilter();
 	}
 
@@ -1142,6 +1161,9 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
+		if (this._currentSubmenuElement === element) {
+			return;
+		}
 		this._submenuDisposables.clear();
 
 		const rowElement = this._getRowElement(index);
@@ -1158,10 +1180,14 @@ export class ActionListWidget<T> extends Disposable {
 		}
 
 		const markdown = typeof element.hover!.content === 'string' ? new MarkdownString(element.hover!.content) : element.hover!.content;
+		const linkHandler = this._options?.linkHandler;
 		this._hover.value = this._hoverService.showDelayedHover({
 			content: markdown ?? '',
 			target: rowElement,
 			additionalClasses: ['action-widget-hover'],
+			linkHandler: linkHandler ? (url: string) => {
+				linkHandler(URI.parse(url), element);
+			} : undefined,
 			position: {
 				hoverPosition: HoverPosition.LEFT,
 				forcePosition: false,
@@ -1186,6 +1212,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _showSubmenuForElement(element: IActionListItem<T>, indicator: HTMLElement): void {
 		this._submenuDisposables.clear();
 		this._hover.clear();
+		this._currentSubmenuElement = element;
 		dom.clearNode(this._submenuContainer);
 
 		// Convert submenu actions into ActionListWidget items
@@ -1292,6 +1319,7 @@ export class ActionListWidget<T> extends Disposable {
 		this._cancelSubmenuHide();
 		this._submenuDisposables.clear();
 		this._currentSubmenuWidget = undefined;
+		this._currentSubmenuElement = undefined;
 		dom.clearNode(this._submenuContainer);
 		this._submenuContainer.style.display = 'none';
 	}
@@ -1331,9 +1359,13 @@ export class ActionListWidget<T> extends Disposable {
 
 			// Set focus immediately for responsive hover feedback
 			this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
-			this._hideSubmenu();
+			if (this._currentSubmenuElement === element) {
+				this._cancelSubmenuHide();
+			} else {
+				this._hideSubmenu();
+			}
 
-			if (this._delegate.onHover && !element.disabled && element.kind === ActionListItemKind.Action) {
+			if (this._delegate.onHover && !element.disabled && element.kind === ActionListItemKind.Action && this._currentSubmenuElement !== element) {
 				const result = await this._delegate.onHover(element.item, this.cts.token);
 				const canPreview = result ? result.canPreview : undefined;
 				if (canPreview !== element.canPreview) {
@@ -1535,6 +1567,3 @@ export class ActionList<T> extends Disposable {
 function stripNewlines(str: string): string {
 	return str.replace(/\r\n|\r|\n/g, ' ');
 }
-
-
-

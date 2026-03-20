@@ -410,6 +410,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			return;
 		}
 
+		const sourcePRReviewCommentId = comment.source === SessionEditorCommentSource.PRReview
+			? comment.sourceId
+			: undefined;
+
 		const feedback = this._agentFeedbackService.addFeedback(
 			this._sessionResource,
 			comment.resourceUri,
@@ -417,10 +421,13 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			comment.text,
 			comment.suggestion,
 			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
+			sourcePRReviewCommentId,
 		);
 		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedback.id));
 		if (comment.source === SessionEditorCommentSource.CodeReview) {
 			this._codeReviewService.removeComment(this._sessionResource, comment.sourceId);
+		} else if (comment.source === SessionEditorCommentSource.PRReview) {
+			this._codeReviewService.markPRReviewCommentConverted(this._sessionResource, comment.sourceId);
 		}
 	}
 

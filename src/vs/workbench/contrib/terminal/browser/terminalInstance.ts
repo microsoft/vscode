@@ -1343,9 +1343,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async sendText(text: string, shouldExecute: boolean, bracketedPasteMode?: boolean): Promise<void> {
+		const useBracketedPasteMode = (bracketedPasteMode || /[\r\n]/.test(text)) && this.xterm?.raw.modes.bracketedPasteMode;
+
 		// Apply bracketed paste sequences if the terminal has the mode enabled, this will prevent
 		// the text from triggering keybindings and ensure new lines are handled properly
-		if (bracketedPasteMode && this.xterm?.raw.modes.bracketedPasteMode) {
+		if (useBracketedPasteMode) {
 			text = `\x1b[200~${text}\x1b[201~`;
 		}
 
