@@ -605,6 +605,35 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},
+		'explorer.exclude': {
+			'type': 'object',
+			'markdownDescription': nls.localize('explorerExclude', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) for excluding files and folders from the Explorer view only. Files excluded here will remain accessible through search and Go To File. This is separate from {0}, which affects multiple features.", '`#files.exclude#`'),
+			'default': {},
+			'scope': ConfigurationScope.RESOURCE,
+			'additionalProperties': {
+				'anyOf': [
+					{
+						'type': 'boolean',
+						'enum': [true, false],
+						'enumDescriptions': [
+							nls.localize('explorer.exclude.true', "Enable the pattern."),
+							nls.localize('explorer.exclude.false', "Disable the pattern.")
+						]
+					},
+					{
+						'type': 'object',
+						'properties': {
+							'when': {
+								'type': 'string',
+								'pattern': '\\w*\\$\\(basename\\)\\w*',
+								'default': '$(basename).ext',
+								'markdownDescription': nls.localize('explorer.exclude.when', "Additional check on the siblings of a matching file. Use `$(basename)` as variable for the matching file name.")
+							}
+						}
+					}
+				]
+			}
+		},
 		'explorer.fileNesting.enabled': {
 			'type': 'boolean',
 			scope: ConfigurationScope.RESOURCE,
