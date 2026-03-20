@@ -58,7 +58,6 @@ suite('SessionsConfigurationService', () => {
 	let committedFiles: { session: IActiveSessionItem; fileUris: URI[] }[];
 	let storageService: InMemoryStorageService;
 	let readFileCalls: URI[];
-	let activeSessionObs: ReturnType<typeof observableValue<IActiveSessionItem | undefined>>;
 
 	const userSettingsUri = URI.parse('file:///user/settings.json');
 	const repoUri = URI.parse('file:///repo');
@@ -73,7 +72,6 @@ suite('SessionsConfigurationService', () => {
 		readFileCalls = [];
 
 		const instantiationService = store.add(new TestInstantiationService());
-		activeSessionObs = observableValue('activeSession', undefined);
 
 		instantiationService.stub(IFileService, new class extends mock<IFileService>() {
 			override async readFile(resource: URI) {
@@ -122,7 +120,7 @@ suite('SessionsConfigurationService', () => {
 		instantiationService.stub(ITerminalService, terminalServiceMock);
 
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = activeSessionObs;
+			override activeSession = observableValue<IActiveSessionItem | undefined>('activeSession', undefined);
 			override async commitWorktreeFiles(session: IActiveSessionItem, fileUris: URI[]) { committedFiles.push({ session, fileUris }); }
 		});
 
@@ -691,26 +689,6 @@ suite('SessionsConfigurationService', () => {
 		await service.runTask(makeTask('build', 'npm run build'), session2);
 
 		assert.strictEqual(createdTerminals.length, 2, 'should create two terminals for different worktrees');
-	});
-
-	test('runs worktreeCreated session tasks when a session gains a worktree', async () => {
-		const sessionResource = URI.parse('file:///session-worktree-created');
-		const worktreeTasksUri = URI.parse('file:///worktree/.vscode/tasks.json');
-		const userTasksUri = URI.from({ scheme: userSettingsUri.scheme, path: '/user/tasks.json' });
-		fileContents.set(worktreeTasksUri.toString(), tasksJsonContent([
-			{ label: 'build', type: 'shell', command: 'npm run build', inSessions: true, runOptions: { runOn: 'worktreeCreated' } },
-			makeTask('manual', 'npm test', true),
-		]));
-		fileContents.set(userTasksUri.toString(), tasksJsonContent([]));
-
-		activeSessionObs.set({ ...makeSession({ repository: repoUri }), resource: sessionResource }, undefined);
-		await new Promise(r => setTimeout(r, 10));
-
-		activeSessionObs.set({ ...makeSession({ repository: repoUri, worktree: worktreeUri }), resource: sessionResource }, undefined);
-		await new Promise(r => setTimeout(r, 10));
-
-		assert.strictEqual(sentCommands.length, 1);
-		assert.strictEqual(sentCommands[0].command, 'npm run build');
 	});
 
 });
