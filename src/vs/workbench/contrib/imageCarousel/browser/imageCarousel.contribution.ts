@@ -41,7 +41,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'imageCarousel.explorerContextMenu.enabled': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('imageCarousel.explorerContextMenu.enabled', "Controls whether the **Show Images** option appears in the Explorer context menu."),
+			markdownDescription: localize('imageCarousel.explorerContextMenu.enabled', "Controls whether the **Open in Images Preview** option appears in the Explorer context menu."),
 			tags: ['experimental'],
 		},
 		'imageCarousel.chat.enabled': {
@@ -118,7 +118,7 @@ class OpenImageInCarouselAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.openImageInCarousel',
-			title: localize2('openImageInCarousel', "Show Images"),
+			title: localize2('openImageInCarousel', "Open in Images Preview"),
 			f1: false
 		});
 	}
@@ -207,7 +207,7 @@ class OpenImagesInCarouselFromExplorerAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openImagesInCarousel',
-			title: localize2('openImagesInCarousel', "Show Images"),
+			title: localize2('openImagesInCarousel', "Open in Images Preview"),
 			f1: false,
 			menu: [{
 				id: MenuId.ExplorerContext,
