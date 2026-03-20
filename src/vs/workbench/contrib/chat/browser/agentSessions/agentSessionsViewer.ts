@@ -1078,8 +1078,11 @@ export function getRepositoryNwo(session: IAgentSession): string | undefined {
 
 	// repositoryNwo: already "owner/repo"
 	const nwo = metadata.repositoryNwo as string | undefined;
-	if (nwo && nwo.includes('/')) {
-		return nwo;
+	if (nwo) {
+		const parts = nwo.split('/').filter(Boolean);
+		if (parts.length >= 2) {
+			return `${parts[parts.length - 2]}/${parts[parts.length - 1]}`;
+		}
 	}
 
 	// repository: could be "owner/repo", a URL, or git@host:owner/repo.git
@@ -1157,9 +1160,9 @@ function parseRepositoryNwo(value: string): string | undefined {
 	// Direct "owner/repo" style (no scheme, no git@ prefix)
 	if (value.includes('/') && !value.includes('://') && !value.startsWith('git@')) {
 		const parts = value.split('/').filter(Boolean);
-		if (parts.length >= 2) {
-			let repo = parts[parts.length - 1];
-			const owner = parts[parts.length - 2];
+		if (parts.length === 2) {
+			let repo = parts[1];
+			const owner = parts[0];
 			if (repo.endsWith('.git')) {
 				repo = repo.slice(0, -4);
 			}
