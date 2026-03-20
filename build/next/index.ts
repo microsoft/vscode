@@ -711,7 +711,7 @@ async function transpileFile(srcPath: string, destPath: string): Promise<void> {
 	});
 
 	await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
-	await fs.promises.writeFile(destPath, result.code);
+	await fs.promises.writeFile(destPath, result.code.replaceAll('.ts?esm', '.js?esm'));
 }
 
 async function transpile(outDir: string, excludeTests: boolean): Promise<void> {

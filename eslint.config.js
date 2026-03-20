@@ -2218,6 +2218,14 @@ export default tseslint.config(
 						'@modelcontextprotocol/sdk/**/*',
 						'*' // node modules
 					]
+				},
+				{
+					'target': 'test/componentFixtures/playwright/**',
+					'restrictions': [
+						'test/componentFixtures/playwright/**',
+						'@playwright/*',
+						'*' // node modules
+					]
 				}
 			]
 		}

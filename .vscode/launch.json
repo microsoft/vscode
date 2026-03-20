@@ -661,7 +661,7 @@
 			"type": "msedge",
 			"request": "launch",
 			"url": "http://localhost:5337/___explorer",
-			"preLaunchTask": "Launch Component Explorer",
+			"preLaunchTask": "Component Explorer Daemon",
 			"presentation": {
 				"group": "1_component_explorer",
 				"order": 4
@@ -672,7 +672,7 @@
 			"type": "chrome",
 			"request": "launch",
 			"url": "http://localhost:5337/___explorer",
-			"preLaunchTask": "Launch Component Explorer",
+			"preLaunchTask": "Component Explorer Daemon",
 			"presentation": {
 				"group": "1_component_explorer",
 				"order": 4
