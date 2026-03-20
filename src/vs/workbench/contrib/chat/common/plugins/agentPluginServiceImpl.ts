@@ -26,7 +26,7 @@ import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } fr
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -37,10 +37,13 @@ import { parseClaudeHooks } from '../promptSyntax/hookClaudeCompat.js';
 import { parseCopilotHooks } from '../promptSyntax/hookCompatibility.js';
 import { IHookCommand } from '../promptSyntax/hookSchema.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
-import { agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from './agentPluginService.js';
+import { agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from './agentPluginService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
 
 const COMMAND_FILE_SUFFIX = '.md';
+
+/** File suffixes accepted for rule/instruction files (longest first for correct name stripping). */
+const RULE_FILE_SUFFIXES = ['.instructions.md', '.mdc', '.md'];
 
 const enum AgentPluginFormat {
 	Copilot,
@@ -52,11 +55,13 @@ interface IAgentPluginFormatAdapter {
 	readonly format: AgentPluginFormat;
 	readonly manifestPath: string;
 	readonly hookConfigPath: string;
-	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[];
+	readonly pluginRootToken: string | undefined;
+	readonly pluginRootEnvVar: string | undefined;
+	parseHooks(hookURI: URI, json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[];
 }
 
-function mapParsedHooks(parsed: Map<IAgentPluginHook['type'], { hooks: IAgentPluginHook['hooks']; originalId: string }>): IAgentPluginHook[] {
-	return [...parsed.entries()].map(([type, { hooks, originalId }]) => ({ type, hooks, originalId }));
+function mapParsedHooks(uri: URI, parsed: Map<IAgentPluginHook['type'], { hooks: IAgentPluginHook['hooks']; originalId: string }>): IAgentPluginHook[] {
+	return [...parsed.entries()].map(([type, { hooks, originalId }]) => ({ type, uri, hooks, originalId }));
 }
 
 /**
@@ -73,14 +78,16 @@ class CopilotPluginFormatAdapter implements IAgentPluginFormatAdapter {
 	readonly format = AgentPluginFormat.Copilot;
 	readonly manifestPath = 'plugin.json';
 	readonly hookConfigPath = 'hooks.json';
+	readonly pluginRootToken = undefined;
+	readonly pluginRootEnvVar = undefined;
 
 	constructor(
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) { }
 
-	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
+	parseHooks(hookURI: URI, json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
 		const workspaceRoot = resolveWorkspaceRoot(pluginUri, this._workspaceContextService);
-		return mapParsedHooks(parseCopilotHooks(json, workspaceRoot, userHome));
+		return mapParsedHooks(hookURI, parseCopilotHooks(json, workspaceRoot, userHome));
 	}
 }
 
@@ -131,12 +138,80 @@ export function shellQuotePluginRootInCommand(command: string, fsPath: string, t
 }
 
 /**
+ * Extracts the MCP server map from a raw JSON value. Accepts both the
+ * wrapped format `{ mcpServers: { … } }` (Claude `.mcp.json`) and the
+ * flat format where server entries are at the top level.
+ * Returns `undefined` when the input is not a usable object.
+ */
+export function resolveMcpServersMap(raw: unknown): Record<string, unknown> | undefined {
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+		return undefined;
+	}
+	const obj = raw as Record<string, unknown>;
+	return Object.hasOwn(obj, 'mcpServers')
+		? (obj.mcpServers as Record<string, unknown>)
+		: obj;
+}
+
+/**
+ * Replaces `${token}` references in MCP server definition string fields
+ * (command, args, cwd, env values, url, envFile, headers) with the plugin
+ * root filesystem path. No shell quoting is needed because args are already
+ * a string array.
+ */
+function interpolateMcpPluginRoot(
+	def: IAgentPluginMcpServerDefinition,
+	fsPath: string,
+	token: string,
+	envVar: string,
+): IAgentPluginMcpServerDefinition {
+	const replace = (s: string) => s.replaceAll(token, fsPath);
+
+	const config = def.configuration;
+	let interpolated: IMcpServerConfiguration;
+
+	if (config.type === McpServerType.LOCAL) {
+		const local: Mutable<IMcpStdioServerConfiguration> = { ...config };
+		local.command = replace(local.command);
+		if (local.args) {
+			local.args = local.args.map(replace);
+		}
+		if (local.cwd) {
+			local.cwd = replace(local.cwd);
+		}
+		local.env = { ...local.env };
+		for (const [k, v] of Object.entries(local.env)) {
+			if (typeof v === 'string') {
+				local.env[k] = replace(v);
+			}
+		}
+		local.env[envVar] = fsPath;
+		if (local.envFile) {
+			local.envFile = replace(local.envFile);
+		}
+		interpolated = local;
+	} else {
+		const remote: Mutable<IMcpRemoteServerConfiguration> = { ...config };
+		remote.url = replace(remote.url);
+		if (remote.headers) {
+			remote.headers = Object.fromEntries(
+				Object.entries(remote.headers).map(([k, v]) => [k, replace(v)])
+			);
+		}
+		interpolated = remote;
+	}
+
+	return { name: def.name, configuration: interpolated, uri: def.uri };
+}
+
+/**
  * Shared hook-parsing logic for plugin formats that use the Claude/open-plugin
  * hook schema. Replaces `${token}` references in hook commands with the plugin
  * root path (shell-quoted when necessary), injects an environment variable, and
  * delegates to {@link parseClaudeHooks} for the actual hook resolution.
  */
 function parsePluginRootHooks(
+	hookURI: URI,
 	json: unknown,
 	pluginUri: URI,
 	userHome: string,
@@ -191,20 +266,22 @@ function parsePluginRootHooks(
 		return [];
 	}
 
-	return mapParsedHooks(hooks);
+	return mapParsedHooks(hookURI, hooks);
 }
 
 class ClaudePluginFormatAdapter implements IAgentPluginFormatAdapter {
 	readonly format = AgentPluginFormat.Claude;
 	readonly manifestPath = '.claude-plugin/plugin.json';
 	readonly hookConfigPath = 'hooks/hooks.json';
+	readonly pluginRootToken = '${CLAUDE_PLUGIN_ROOT}';
+	readonly pluginRootEnvVar = 'CLAUDE_PLUGIN_ROOT';
 
 	constructor(
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) { }
 
-	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
-		return parsePluginRootHooks(json, pluginUri, userHome, this._workspaceContextService, '${CLAUDE_PLUGIN_ROOT}', 'CLAUDE_PLUGIN_ROOT');
+	parseHooks(hookURI: URI, json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
+		return parsePluginRootHooks(hookURI, json, pluginUri, userHome, this._workspaceContextService, '${CLAUDE_PLUGIN_ROOT}', 'CLAUDE_PLUGIN_ROOT');
 	}
 }
 
@@ -212,13 +289,15 @@ class OpenPluginFormatAdapter implements IAgentPluginFormatAdapter {
 	readonly format = AgentPluginFormat.OpenPlugin;
 	readonly manifestPath = '.plugin/plugin.json';
 	readonly hookConfigPath = 'hooks/hooks.json';
+	readonly pluginRootToken = '${PLUGIN_ROOT}';
+	readonly pluginRootEnvVar = 'PLUGIN_ROOT';
 
 	constructor(
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) { }
 
-	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
-		return parsePluginRootHooks(json, pluginUri, userHome, this._workspaceContextService, '${PLUGIN_ROOT}', 'PLUGIN_ROOT');
+	parseHooks(hookURI: URI, json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
+		return parsePluginRootHooks(hookURI, json, pluginUri, userHome, this._workspaceContextService, '${PLUGIN_ROOT}', 'PLUGIN_ROOT');
 	}
 }
 
@@ -506,23 +585,25 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			return result.recomputeInitiallyAndOnChange(store);
 		};
 
+		const manifestUri = joinPath(uri, adapter.manifestPath);
 		const commands = observeComponent('commands', d => this._readMarkdownComponents(d));
-		const skills = observeComponent('skills', d => this._readSkills(d));
+		const skills = observeComponent('skills', d => this._readSkills(uri, d));
 		const agents = observeComponent('agents', d => this._readMarkdownComponents(d));
+		const instructions = observeComponent('rules', d => this._readRules(d));
 		const hooks = observeComponent(
 			'hooks',
 			paths => this._readHooksFromPaths(uri, paths, adapter),
 			async section => {
 				const userHome = (await this._pathService.userHome()).fsPath;
-				return adapter.parseHooks(section, uri, userHome);
+				return adapter.parseHooks(manifestUri, section, uri, userHome);
 			},
 			adapter.hookConfigPath,
 		);
 
 		const mcpServerDefinitions = observeComponent(
 			'mcpServers',
-			paths => this._readMcpDefinitionsFromPaths(paths),
-			async section => this._parseMcpServerDefinitionMap({ mcpServers: section }),
+			paths => this._readMcpDefinitionsFromPaths(paths, uri.fsPath, adapter),
+			async section => this._parseMcpServerDefinitionMap(manifestUri, { mcpServers: section }, uri.fsPath, adapter),
 			'.mcp.json',
 		);
 
@@ -532,7 +613,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		};
 
 		const manifestWatcher = this._fileService.createWatcher(
-			joinPath(uri, adapter.manifestPath),
+			manifestUri,
 			{ recursive: false, excludes: [] },
 		);
 		store.add(manifestWatcher);
@@ -549,6 +630,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			commands,
 			skills,
 			agents,
+			instructions,
 			mcpServerDefinitions,
 			fromMarketplace,
 		};
@@ -577,7 +659,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			const json = await this._readJsonFile(hookPath);
 			if (json) {
 				try {
-					return adapter.parseHooks(json, pluginUri, userHome);
+					return adapter.parseHooks(hookPath, json, pluginUri, userHome);
 				} catch (e) {
 					this._logService.info(`[AgentPluginDiscovery] Failed to parse hooks from ${hookPath.toString()}:`, e);
 				}
@@ -591,34 +673,37 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 	 * Definitions from all files are merged; the first definition for a given
 	 * server name wins.
 	 */
-	private async _readMcpDefinitionsFromPaths(paths: readonly URI[]): Promise<readonly IAgentPluginMcpServerDefinition[]> {
-		const merged = new Map<string, IMcpServerConfiguration>();
+	private async _readMcpDefinitionsFromPaths(paths: readonly URI[], pluginFsPath: string, adapter: IAgentPluginFormatAdapter): Promise<readonly IAgentPluginMcpServerDefinition[]> {
+		const merged = new Map<string, IAgentPluginMcpServerDefinition>();
 		for (const mcpPath of paths) {
 			const json = await this._readJsonFile(mcpPath);
-			for (const def of this._parseMcpServerDefinitionMap(json)) {
+			for (const def of this._parseMcpServerDefinitionMap(mcpPath, json, pluginFsPath, adapter)) {
 				if (!merged.has(def.name)) {
-					merged.set(def.name, def.configuration);
+					merged.set(def.name, def);
 				}
 			}
 		}
-		return [...merged.entries()]
-			.map(([name, configuration]) => ({ name, configuration } satisfies IAgentPluginMcpServerDefinition))
-			.sort((a, b) => a.name.localeCompare(b.name));
+		return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name));
 	}
 
-	private _parseMcpServerDefinitionMap(raw: unknown): IAgentPluginMcpServerDefinition[] {
-		if (!raw || typeof raw !== 'object' || !raw.hasOwnProperty('mcpServers')) {
+	private _parseMcpServerDefinitionMap(definitionURI: URI, raw: unknown, pluginFsPath: string, adapter: IAgentPluginFormatAdapter): IAgentPluginMcpServerDefinition[] {
+		const mcpServers = resolveMcpServersMap(raw);
+		if (!mcpServers) {
 			return [];
 		}
 
 		const definitions: IAgentPluginMcpServerDefinition[] = [];
-		for (const [name, configValue] of Object.entries((raw as { mcpServers: Record<string, unknown> }).mcpServers)) {
+		for (const [name, configValue] of Object.entries(mcpServers)) {
 			const configuration = this._normalizeMcpServerConfiguration(configValue);
 			if (!configuration) {
 				continue;
 			}
 
-			definitions.push({ name, configuration });
+			let def: IAgentPluginMcpServerDefinition = { name, configuration, uri: definitionURI };
+			if (adapter.pluginRootToken && adapter.pluginRootEnvVar) {
+				def = interpolateMcpPluginRoot(def, pluginFsPath, adapter.pluginRootToken, adapter.pluginRootEnvVar);
+			}
+			definitions.push(def);
 		}
 
 		return definitions;
@@ -694,7 +779,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 	}
 
-	private async _readSkills(dirs: readonly URI[]): Promise<readonly IAgentPluginSkill[]> {
+	private async _readSkills(pluginRoot: URI, dirs: readonly URI[]): Promise<readonly IAgentPluginSkill[]> {
 		const seen = new Set<string>();
 		const skills: IAgentPluginSkill[] = [];
 
@@ -733,8 +818,72 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			}
 		}
 
+		// Fallback: support single-skill plugins with SKILL.md at the plugin root
+		if (skills.length === 0) {
+			const rootSkillMd = URI.joinPath(pluginRoot, 'SKILL.md');
+			if (await this._pathExists(rootSkillMd)) {
+				addSkill(basename(pluginRoot), rootSkillMd);
+			}
+		}
+
 		skills.sort((a, b) => a.name.localeCompare(b.name));
 		return skills;
+	}
+
+	/**
+	 * Scans directories for rule/instruction files (`.mdc`, `.md`,
+	 * `.instructions.md`), returning `{ uri, name }` entries where name is
+	 * derived from the filename minus the matched suffix.
+	 */
+	private async _readRules(dirs: readonly URI[]): Promise<readonly IAgentPluginInstruction[]> {
+		const seen = new Set<string>();
+		const items: IAgentPluginInstruction[] = [];
+
+		const matchSuffix = (filename: string): string | undefined => {
+			const lower = filename.toLowerCase();
+			return RULE_FILE_SUFFIXES.find(s => lower.endsWith(s));
+		};
+
+		const addItem = (name: string, uri: URI) => {
+			if (!seen.has(name)) {
+				seen.add(name);
+				items.push({ uri, name });
+			}
+		};
+
+		for (const dir of dirs) {
+			let stat;
+			try {
+				stat = await this._fileService.resolve(dir);
+			} catch {
+				continue;
+			}
+
+			if (stat.isFile) {
+				const suffix = matchSuffix(basename(dir));
+				if (suffix) {
+					addItem(basename(dir).slice(0, -suffix.length), dir);
+				}
+				continue;
+			}
+
+			if (!stat.isDirectory || !stat.children) {
+				continue;
+			}
+
+			for (const child of stat.children) {
+				if (!child.isFile) {
+					continue;
+				}
+				const suffix = matchSuffix(child.name);
+				if (suffix) {
+					addItem(child.name.slice(0, -suffix.length), child.resource);
+				}
+			}
+		}
+
+		items.sort((a, b) => a.name.localeCompare(b.name));
+		return items;
 	}
 
 	/**
@@ -969,8 +1118,16 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 				uri: stat.resource,
 				fromMarketplace: entry.plugin,
 				remove: () => {
+					this._enablementModel.remove(stat.resource.toString());
 					this._pluginMarketplaceService.removeInstalledPlugin(entry.pluginUri);
-					this._pluginRepositoryService.cleanupPluginSource(entry.plugin).catch(error => {
+
+					// Pass remaining installed descriptors so the repository service
+					// can skip deletion when other plugins share the same cache dir.
+					const remaining = this._pluginMarketplaceService.installedPlugins.get();
+					this._pluginRepositoryService.cleanupPluginSource(
+						entry.plugin,
+						remaining.map(e => e.plugin.sourceDescriptor),
+					).catch(error => {
 						this._logService.error('[MarketplaceAgentPluginDiscovery] Failed to clean up plugin source', error);
 					});
 				},

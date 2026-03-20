@@ -7,6 +7,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
 import { IPlaywrightService } from '../../../../platform/browserView/common/playwrightService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -28,6 +29,7 @@ import {
 	IBrowserViewFindInPageOptions,
 	IBrowserViewFindInPageResult,
 	IBrowserViewVisibilityEvent,
+	IBrowserViewCertificateError,
 	browserZoomDefaultIndex,
 	browserZoomFactors
 } from '../../../../platform/browserView/common/browserView.js';
@@ -72,6 +74,15 @@ type IntegratedBrowserShareWithAgentClassification = {
 	comment: 'Tracks user choices around sharing browser content with agents';
 };
 
+/**
+ * View state stored in editor options when opening a browser view.
+ */
+export interface IBrowserEditorViewState {
+	readonly url?: string;
+	readonly title?: string;
+	readonly favicon?: string;
+}
+
 export const IBrowserViewWorkbenchService = createDecorator<IBrowserViewWorkbenchService>('browserViewWorkbenchService');
 
 /**
@@ -107,6 +118,36 @@ export interface IBrowserViewWorkbenchService {
 	clearWorkspaceStorage(): Promise<void>;
 }
 
+export const IBrowserViewCDPService = createDecorator<IBrowserViewCDPService>('browserViewCDPService');
+
+/**
+ * Workbench-level service for managing CDP (Chrome DevTools Protocol) sessions
+ * against browser views. Handles group lifecycle and window ID resolution.
+ */
+export interface IBrowserViewCDPService {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Create a new CDP group for a browser view.
+	 * The window ID is resolved from the editor group containing the browser.
+	 * @param browserId The browser view identifier.
+	 * @returns The ID of the newly created group.
+	 */
+	createSessionGroup(browserId: string): Promise<string>;
+
+	/** Destroy a CDP group. */
+	destroySessionGroup(groupId: string): Promise<void>;
+
+	/** Send a CDP message to a group. */
+	sendCDPMessage(groupId: string, message: CDPRequest): Promise<void>;
+
+	/** Fires when a CDP message is received. */
+	onCDPMessage(groupId: string): Event<CDPResponse | CDPEvent>;
+
+	/** Fires when a CDP group is destroyed. */
+	onDidDestroy(groupId: string): Event<void>;
+}
+
 
 /**
  * A browser view model that represents a single browser view instance in the workbench.
@@ -125,6 +166,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly isDevToolsOpen: boolean;
 	readonly canGoForward: boolean;
 	readonly error: IBrowserViewLoadError | undefined;
+	readonly certificateError: IBrowserViewCertificateError | undefined;
 	readonly storageScope: BrowserViewStorageScope;
 	readonly sharedWithAgent: boolean;
 	readonly zoomFactor: number;
@@ -163,6 +205,8 @@ export interface IBrowserViewModel extends IDisposable {
 	getSelectedText(): Promise<string>;
 	clearStorage(): Promise<void>;
 	setSharedWithAgent(shared: boolean): Promise<void>;
+	trustCertificate(host: string, fingerprint: string): Promise<void>;
+	untrustCertificate(host: string, fingerprint: string): Promise<void>;
 	zoomIn(): Promise<void>;
 	zoomOut(): Promise<void>;
 	resetZoom(): Promise<void>;
@@ -180,6 +224,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _canGoBack: boolean = false;
 	private _canGoForward: boolean = false;
 	private _error: IBrowserViewLoadError | undefined = undefined;
+	private _certificateError: IBrowserViewCertificateError | undefined = undefined;
 	private _storageScope: BrowserViewStorageScope = BrowserViewStorageScope.Ephemeral;
 	private _isEphemeral: boolean = false;
 	private _zoomHost: string | undefined = undefined;
@@ -221,6 +266,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get canGoForward(): boolean { return this._canGoForward; }
 	get screenshot(): VSBuffer | undefined { return this._screenshot; }
 	get error(): IBrowserViewLoadError | undefined { return this._error; }
+	get certificateError(): IBrowserViewCertificateError | undefined { return this._certificateError; }
 	get storageScope(): BrowserViewStorageScope { return this._storageScope; }
 	get sharedWithAgent(): boolean { return this._sharedWithAgent; }
 	get zoomFactor(): number { return browserZoomFactors[this._browserZoomIndex]; }
@@ -306,6 +352,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._screenshot = state.lastScreenshot;
 		this._favicon = state.lastFavicon;
 		this._error = state.lastError;
+		this._certificateError = state.certificateError;
 		this._storageScope = state.storageScope;
 		this._sharedWithAgent = await this.playwrightService.isPageTracked(this.id);
 		this._browserZoomIndex = state.browserZoomIndex;
@@ -342,6 +389,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._title = e.title;
 			this._canGoBack = e.canGoBack;
 			this._canGoForward = e.canGoForward;
+			this._certificateError = e.certificateError;
 
 			// Always forceApply because Chromium resets zoom on cross-origin navigation,
 			// and an origin change may not correspond to a host change (e.g. http→https).
@@ -445,6 +493,14 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async clearStorage(): Promise<void> {
 		return this.browserViewService.clearStorage(this.id);
+	}
+
+	async trustCertificate(host: string, fingerprint: string): Promise<void> {
+		return this.browserViewService.trustCertificate(this.id, host, fingerprint);
+	}
+
+	async untrustCertificate(host: string, fingerprint: string): Promise<void> {
+		return this.browserViewService.untrustCertificate(this.id, host, fingerprint);
 	}
 
 	/**

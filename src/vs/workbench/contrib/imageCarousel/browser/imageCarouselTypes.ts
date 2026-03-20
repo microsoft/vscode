@@ -13,10 +13,16 @@ export interface ICarouselImage {
 	readonly data: VSBuffer;
 	readonly uri?: URI;
 	readonly source?: string;
+	readonly caption?: string;
+}
+
+export interface ICarouselSection {
+	readonly title: string;
+	readonly images: ReadonlyArray<ICarouselImage>;
 }
 
 export interface IImageCarouselCollection {
 	readonly id: string;
 	readonly title: string;
-	readonly images: ReadonlyArray<ICarouselImage>;
+	readonly sections: ReadonlyArray<ICarouselSection>;
 }

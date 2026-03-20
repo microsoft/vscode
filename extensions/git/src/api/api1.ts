@@ -212,6 +212,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.diffBetweenWithStats(ref1, ref2, path);
 	}
 
+	diffBetweenWithStats2(ref: string, path?: string): Promise<DiffChange[]> {
+		return this.#repository.diffBetweenWithStats2(ref, path);
+	}
+
 	hashObject(data: string): Promise<string> {
 		return this.#repository.hashObject(data);
 	}

@@ -7,6 +7,7 @@ import type { CancellationToken } from '../../../../../base/common/cancellation.
 import { localize } from '../../../../../nls.js';
 import { logBrowserOpen } from '../../../../../platform/browserView/common/browserViewTelemetry.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
@@ -50,8 +51,8 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 
 		logBrowserOpen(this.telemetryService, 'chatTool');
 
-		const browserUri = BrowserViewUri.forUrl(params.url);
-		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true } });
+		const browserUri = BrowserViewUri.forId(generateUuid());
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: params.url } } });
 
 		return {
 			content: [{

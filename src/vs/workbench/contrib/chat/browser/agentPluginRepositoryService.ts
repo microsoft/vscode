@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from '../../../../base/common/actions.js';
+import { SequencerByKey } from '../../../../base/common/async.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { dirname, isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
@@ -38,6 +39,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 	private readonly _cacheRoot: URI;
 	private readonly _marketplaceIndex = new Lazy<Map<string, IMarketplaceIndexEntry>>(() => this._loadMarketplaceIndex());
 	private readonly _pluginSources: ReadonlyMap<PluginSourceKind, IPluginSource>;
+	private readonly _cloneSequencer = new SequencerByKey<string>();
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
@@ -90,21 +92,23 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 
 	async ensureRepository(marketplace: IMarketplaceReference, options?: IEnsureRepositoryOptions): Promise<URI> {
 		const repoDir = this.getRepositoryUri(marketplace, options?.marketplaceType);
-		const repoExists = await this._fileService.exists(repoDir);
-		if (repoExists) {
+		return this._cloneSequencer.queue(repoDir.fsPath, async () => {
+			const repoExists = await this._fileService.exists(repoDir);
+			if (repoExists) {
+				this._updateMarketplaceIndex(marketplace, repoDir, options?.marketplaceType);
+				return repoDir;
+			}
+
+			if (marketplace.kind === MarketplaceReferenceKind.LocalFileUri) {
+				throw new Error(`Local marketplace repository does not exist: ${repoDir.fsPath}`);
+			}
+
+			const progressTitle = options?.progressTitle ?? localize('preparingMarketplace', "Preparing plugin marketplace '{0}'...", marketplace.displayLabel);
+			const failureLabel = options?.failureLabel ?? marketplace.displayLabel;
+			await this._cloneRepository(repoDir, marketplace.cloneUrl, progressTitle, failureLabel);
 			this._updateMarketplaceIndex(marketplace, repoDir, options?.marketplaceType);
 			return repoDir;
-		}
-
-		if (marketplace.kind === MarketplaceReferenceKind.LocalFileUri) {
-			throw new Error(`Local marketplace repository does not exist: ${repoDir.fsPath}`);
-		}
-
-		const progressTitle = options?.progressTitle ?? localize('preparingMarketplace', "Preparing plugin marketplace '{0}'...", marketplace.displayLabel);
-		const failureLabel = options?.failureLabel ?? marketplace.displayLabel;
-		await this._cloneRepository(repoDir, marketplace.cloneUrl, progressTitle, failureLabel);
-		this._updateMarketplaceIndex(marketplace, repoDir, options?.marketplaceType);
-		return repoDir;
+		});
 	}
 
 	async pullRepository(marketplace: IMarketplaceReference, options?: IPullRepositoryOptions): Promise<boolean> {
@@ -282,11 +286,25 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		}
 	}
 
-	async cleanupPluginSource(plugin: IMarketplacePlugin): Promise<void> {
+	async cleanupPluginSource(plugin: IMarketplacePlugin, otherInstalledDescriptors?: readonly IPluginSourceDescriptor[]): Promise<void> {
 		const repo = this.getPluginSource(plugin.sourceDescriptor.kind);
 		const cleanupDir = repo.getCleanupTarget(this._cacheRoot, plugin.sourceDescriptor);
 		if (!cleanupDir) {
 			return;
+		}
+
+		// Skip deletion when another installed plugin shares the same
+		// cleanup target (e.g. same cloned repository with different sub-paths).
+		if (otherInstalledDescriptors) {
+			const shared = otherInstalledDescriptors.some(other => {
+				const otherRepo = this.getPluginSource(other.kind);
+				const otherTarget = otherRepo.getCleanupTarget(this._cacheRoot, other);
+				return otherTarget && isEqual(otherTarget, cleanupDir);
+			});
+			if (shared) {
+				this._logService.info(`[${plugin.sourceDescriptor.kind}] Skipping cleanup of shared cache: ${cleanupDir.toString()}`);
+				return;
+			}
 		}
 
 		try {
