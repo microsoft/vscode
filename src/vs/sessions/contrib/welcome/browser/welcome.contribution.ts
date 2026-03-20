@@ -175,56 +175,37 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 	}
 
 	/**
-	 * Watches entitlement and sentiment observables after setup is complete.
-	 * If the user's state changes such that setup is needed again (e.g. sign-out),
-	 * shows the welcome overlay after a debounce period to avoid flashing during
-	 * transient state changes at startup (e.g. stale OAuth token → 401 → refresh).
+	 * Watches entitlement and sentiment observables after setup has already
+	 * completed. If the user's state changes such that setup is needed again
+	 * (e.g. extension uninstalled/disabled), shows the welcome overlay.
+	 *
+	 * {@link ChatEntitlement.Unknown} is intentionally ignored here: it is
+	 * almost always a transient state caused by a stale OAuth token being
+	 * refreshed after an update. A genuine sign-out will be caught on the
+	 * next app launch via the initial {@link showOverlayIfNeeded} check.
 	 */
 	private watchEntitlementState(): void {
-		let setupComplete = !this._needsChatSetup();
-		let pendingOverlayTimer: ReturnType<typeof setTimeout> | undefined;
-		const cancelPendingOverlay = () => {
-			if (pendingOverlayTimer !== undefined) {
-				clearTimeout(pendingOverlayTimer);
-				pendingOverlayTimer = undefined;
-			}
-		};
-
-		const store = new DisposableStore();
-		store.add(toDisposable(cancelPendingOverlay));
-		store.add(autorun(reader => {
+		let setupComplete = !this._needsChatSetup(false);
+		this.watcherRef.value = autorun(reader => {
 			this.chatEntitlementService.sentimentObs.read(reader);
 			this.chatEntitlementService.entitlementObs.read(reader);
 
-			const needsSetup = this._needsChatSetup();
+			const needsSetup = this._needsChatSetup(false);
 			if (setupComplete && needsSetup) {
-				// Delay showing the overlay to avoid flashing during transient
-				// state changes at startup (e.g. stale token → 401 → refresh).
-				if (pendingOverlayTimer === undefined) {
-					pendingOverlayTimer = setTimeout(() => {
-						pendingOverlayTimer = undefined;
-						if (this._needsChatSetup()) {
-							this.showOverlay();
-						}
-					}, 5000);
-				}
-			} else if (!needsSetup) {
-				// State recovered — cancel any pending overlay.
-				cancelPendingOverlay();
+				this.showOverlay();
 			}
 			setupComplete = !needsSetup;
-		}));
-
-		this.watcherRef.value = store;
+		});
 	}
 
-	private _needsChatSetup(): boolean {
+	private _needsChatSetup(includeUnknown: boolean = true): boolean {
 		const { sentiment, entitlement } = this.chatEntitlementService;
 		if (
 			!sentiment?.installed ||						// Extension not installed: run setup to install
 			sentiment?.disabled ||							// Extension disabled: run setup to enable
 			entitlement === ChatEntitlement.Available ||	// Entitlement available: run setup to sign up
 			(
+				includeUnknown &&
 				entitlement === ChatEntitlement.Unknown &&	// Entitlement unknown: run setup to sign in / sign up
 				!this.chatEntitlementService.anonymous		// unless anonymous access is enabled
 			)
