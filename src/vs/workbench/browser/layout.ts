@@ -256,6 +256,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			quickPickTop = 6;
 		}
 
+		// If a modal editor is open, anchor quick pick to its top position
+		const activeModalPart = this.editorGroupService?.activeModalEditorPart;
+		if (activeModalPart) {
+			const modalElement = activeModalPart.modalElement as HTMLElement;
+			const dialogElement = modalElement?.querySelector('.modal-editor-resizable') as HTMLElement | null;
+			if (dialogElement) {
+				const dialogTop = parseFloat(dialogElement.style.top);
+				if (!isNaN(dialogTop)) {
+					quickPickTop = dialogTop;
+				}
+			}
+		}
+
 		return { top, quickPickTop };
 	}
 

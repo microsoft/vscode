@@ -712,6 +712,7 @@ export class QuickInputController extends Disposable {
 		backButton.tooltip = backKeybindingLabel ? localize('quickInput.backWithKeybinding', "Back ({0})", backKeybindingLabel) : localize('quickInput.back', "Back");
 
 		ui.container.style.display = '';
+		this.titleBarOffset = this.layoutService.activeContainerOffset?.quickPickTop ?? this.titleBarOffset;
 		this.updateLayout();
 		this.dndController?.setEnabled(!controller.anchor);
 		this.dndController?.layoutContainer();
