@@ -814,6 +814,15 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		['chat.noAuthWidget.enabled']: {
+			type: 'boolean',
+			description: nls.localize('chat.noAuthWidget.enabled.description', "Controls whether a welcome banner is shown for anonymous users prompting them to try Copilot."),
+			default: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
 		[mcpDiscoverySection]: {
 			type: 'object',
 			properties: Object.fromEntries(allDiscoverySources.map(k => [k, { type: 'boolean', description: discoverySourceSettingsLabel[k] }])),
