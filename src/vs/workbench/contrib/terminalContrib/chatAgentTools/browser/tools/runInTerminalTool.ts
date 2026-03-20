@@ -399,7 +399,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		RunInTerminalTool._activeExecutions.delete(id);
 		return true;
 	}
-
+	/**
+	 * Controls whether this tool wires up sandbox-specific command rewriting.
+	 * This is separate from ITerminalSandboxService.isEnabled(), which reports
+	 * whether terminal sandboxing is currently enabled for the running window.
+	 */
+	protected get _enableCommandLineSandboxRewriting() {
+		return true;
+	}
 	constructor(
 		@IChatService protected readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -432,8 +439,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._register(this._instantiationService.createInstance(CommandLineCdPrefixRewriter)),
 			this._register(this._instantiationService.createInstance(CommandLinePwshChainOperatorRewriter, this._treeSitterCommandParser)),
 			this._register(this._instantiationService.createInstance(CommandLinePreventHistoryRewriter)),
-			this._register(this._instantiationService.createInstance(CommandLineSandboxRewriter)),
 		];
+		if (this._enableCommandLineSandboxRewriting) {
+			this._commandLineRewriters.push(this._register(this._instantiationService.createInstance(CommandLineSandboxRewriter)));
+		}
 		this._commandLineAnalyzers = [
 			this._register(this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineFileWriteAnalyzer: ${message}`, args))),
 			this._register(this._instantiationService.createInstance(CommandLineAutoApproveAnalyzer, this._treeSitterCommandParser, this._telemetry, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args))),
