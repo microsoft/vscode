@@ -21,7 +21,7 @@ use crate::constants::VSCODE_CLI_QUALITY;
 use crate::download_cache::DownloadCache;
 use crate::log;
 use crate::options::Quality;
-use crate::tunnels::paths::SERVER_FOLDER_NAME;
+use crate::tunnels::paths::{get_server_folder_name, SERVER_FOLDER_NAME};
 use crate::tunnels::shutdown_signal::ShutdownRequest;
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
@@ -248,6 +248,8 @@ impl AgentHostManager {
 				.join(release.quality.server_entrypoint())
 		};
 
+		println!("Starting server from {}", executable.display());
+
 		let agent_host_socket = get_socket_name();
 		let mut cmd = new_script_command(&executable);
 		cmd.stdin(std::process::Stdio::null());
@@ -394,7 +396,8 @@ impl AgentHostManager {
 
 		// Best case: the latest known release is already downloaded
 		if let Some((_, release)) = &*self.latest_release.lock().await {
-			if let Some(dir) = self.cache.exists(&release.commit) {
+			let name = get_server_folder_name(release.quality, &release.commit);
+			if let Some(dir) = self.cache.exists(&name) {
 				return Ok((release.clone(), dir));
 			}
 		}
@@ -428,7 +431,8 @@ impl AgentHostManager {
 
 	/// Ensures the release is downloaded, returning the server directory.
 	async fn ensure_downloaded(&self, release: &Release) -> Result<PathBuf, CodeError> {
-		if let Some(dir) = self.cache.exists(&release.commit) {
+		let cache_name = get_server_folder_name(release.quality, &release.commit);
+		if let Some(dir) = self.cache.exists(&cache_name) {
 			return Ok(dir);
 		}
 
@@ -436,9 +440,8 @@ impl AgentHostManager {
 		let release = release.clone();
 		let log = self.log.clone();
 		let update_service = self.update_service.clone();
-		let commit = release.commit.clone();
 		self.cache
-			.create(&commit, |target_dir| async move {
+			.create(&cache_name, |target_dir| async move {
 				let tmpdir = tempfile::tempdir().unwrap();
 				let response = update_service.get_download_stream(&release).await?;
 				let name = response.url_path_basename().unwrap();
@@ -449,7 +452,8 @@ impl AgentHostManager {
 					response,
 				)
 				.await?;
-				unzip_downloaded_release(&archive_path, &target_dir, SilentCopyProgress())?;
+				let server_dir = target_dir.join(SERVER_FOLDER_NAME);
+				unzip_downloaded_release(&archive_path, &server_dir, SilentCopyProgress())?;
 				Ok(())
 			})
 			.await
@@ -504,7 +508,8 @@ impl AgentHostManager {
 			};
 
 			// Check if we already have this version
-			if self.cache.exists(&new_release.commit).is_some() {
+			let name = get_server_folder_name(new_release.quality, &new_release.commit);
+			if self.cache.exists(&name).is_some() {
 				continue;
 			}
 
