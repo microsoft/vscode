@@ -16,7 +16,7 @@ import { ChatRequestToolReferenceEntry } from '../../../common/attachments/chatV
 import { IVariableReference } from '../../../common/chatModes.js';
 import { IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
-import { CountTokensCallback, IBeginToolCallOptions, ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolInvokedEvent, IToolResult, IToolSet, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
+import { CountTokensCallback, IBeginToolCallOptions, ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolCompletedEvent, IToolData, IToolImpl, IToolInvocation, IToolInvokedEvent, IToolResult, IToolSet, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
 
 export class MockLanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
@@ -26,6 +26,7 @@ export class MockLanguageModelToolsService extends Disposable implements ILangua
 	agentToolSet: ToolSet = new ToolSet('agent', 'agent', ThemeIcon.fromId(Codicon.agent.id), ToolDataSource.Internal, undefined, undefined, new MockContextKeyService());
 
 	private readonly _onDidInvokeTool = this._register(new Emitter<IToolInvokedEvent>());
+	private readonly _onDidCompleteToolInvocation = this._register(new Emitter<IToolCompletedEvent>());
 
 	private readonly _registeredToolIds = new Set<string>();
 	private readonly _registeredToolSetNames = new Set<string>();
@@ -38,9 +39,14 @@ export class MockLanguageModelToolsService extends Disposable implements ILangua
 	readonly onDidChangeTools: Event<void> = Event.None;
 	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ sessionResource: URI; toolData: IToolData }> = Event.None;
 	readonly onDidInvokeTool = this._onDidInvokeTool.event;
+	readonly onDidCompleteToolInvocation = this._onDidCompleteToolInvocation.event;
 
 	fireOnDidInvokeTool(event: IToolInvokedEvent): void {
 		this._onDidInvokeTool.fire(event);
+	}
+
+	fireOnDidCompleteToolInvocation(event: IToolCompletedEvent): void {
+		this._onDidCompleteToolInvocation.fire(event);
 	}
 
 	registerToolData(toolData: IToolData): IDisposable {

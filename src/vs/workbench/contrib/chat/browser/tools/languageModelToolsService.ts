@@ -49,7 +49,7 @@ import { ChatToolInvocation } from '../../common/model/chatProgressTypes/chatToo
 import { chatSessionResourceToId, getChatSessionType } from '../../common/model/chatUri.js';
 import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
-import { CountTokensCallback, createToolSchemaUri, IBeginToolCallOptions, IExternalPreToolUseHookResult, ILanguageModelToolsService, IPreparedToolInvocation, isToolSet, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolInvokedEvent, IToolResult, IToolResultInputOutputDetails, IToolSet, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolInvocationPresentation, toolMatchesModel, ToolSet, ToolSetForModel, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, IBeginToolCallOptions, IExternalPreToolUseHookResult, ILanguageModelToolsService, IPreparedToolInvocation, isToolSet, IToolAndToolSetEnablementMap, IToolCompletedEvent, IToolData, IToolImpl, IToolInvocation, IToolInvokedEvent, IToolResult, IToolResultInputOutputDetails, IToolSet, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolInvocationPresentation, toolMatchesModel, ToolSet, ToolSetForModel, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
 import { getToolConfirmationAlert } from '../accessibility/chatAccessibilityProvider.js';
 import { IChatWidgetService } from '../chat.js';
 
@@ -104,6 +104,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	readonly onDidPrepareToolCallBecomeUnresponsive = this._onDidPrepareToolCallBecomeUnresponsive.event;
 	private readonly _onDidInvokeTool = this._register(new Emitter<IToolInvokedEvent>());
 	readonly onDidInvokeTool = this._onDidInvokeTool.event;
+	private readonly _onDidCompleteToolInvocation = this._register(new Emitter<IToolCompletedEvent>());
+	readonly onDidCompleteToolInvocation = this._onDidCompleteToolInvocation.event;
 
 	/** Throttle tools updates because it sends all tools and runs on context key updates */
 	private readonly _onDidChangeToolsScheduler = this._register(new RunOnceScheduler(() => this._onDidChangeTools.fire(), 750));
@@ -676,6 +678,16 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					prepareTimeMs: prepareTimeWatch?.elapsed(),
 					invocationTimeMs: invocationTimeWatch?.elapsed(),
 				});
+
+			this._onDidCompleteToolInvocation.fire({
+				toolId: tool.data.id,
+				toolReferenceName: tool.data.toolReferenceName ?? '',
+				parameters: dto.parameters,
+				result: toolResult,
+				sessionResource: dto.context?.sessionResource,
+				requestId: dto.chatRequestId,
+			});
+
 			return toolResult;
 		} catch (err) {
 			const result = isCancellationError(err) ? 'userCancelled' : 'error';
