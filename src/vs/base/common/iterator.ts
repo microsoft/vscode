@@ -12,8 +12,8 @@ export namespace Iterable {
 	}
 
 	const _empty: Iterable<never> = Object.freeze([]);
-	export function empty<T = never>(): Iterable<T> {
-		return _empty as Iterable<T>;
+	export function empty<T = never>(): readonly never[] {
+		return _empty as readonly never[];
 	}
 
 	export function* single<T>(element: T): Iterable<T> {

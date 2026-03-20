@@ -25,6 +25,7 @@ import type { ILink, Terminal } from '@xterm/xterm';
 import { TerminalLinkResolver } from '../../browser/terminalLinkResolver.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -87,7 +88,7 @@ suite('TerminalLinkManager', () => {
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
-		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 }));
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30, logger: TestXtermLogger }));
 		linkManager = store.add(instantiationService.createInstance(TestLinkManager, xterm, upcastPartial<ITerminalProcessManager>({
 			get initialCwd() {
 				return '';

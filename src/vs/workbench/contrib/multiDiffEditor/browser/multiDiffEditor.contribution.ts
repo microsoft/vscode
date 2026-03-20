@@ -5,7 +5,6 @@
 
 import { localize } from '../../../../nls.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
@@ -24,16 +23,6 @@ registerAction2(GoToPreviousChangeAction);
 registerAction2(CollapseAllAction);
 registerAction2(ExpandAllAction);
 
-Registry.as<IConfigurationRegistry>(Extensions.Configuration)
-	.registerConfiguration({
-		properties: {
-			'multiDiffEditor.experimental.enabled': {
-				type: 'boolean',
-				default: true,
-				description: 'Enable experimental multi diff editor.',
-			},
-		}
-	});
 
 registerSingleton(IMultiDiffSourceResolverService, MultiDiffSourceResolverService, InstantiationType.Delayed);
 

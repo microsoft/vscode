@@ -11,6 +11,9 @@ import { LanguageSelector } from '../../../../../editor/common/languageSelector.
 export const PROMPT_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
 export const INSTRUCTIONS_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-custom-instructions';
 export const AGENT_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-custom-chat-modes'; // todo
+export const SKILL_DOCUMENTATION_URL = 'https://aka.ms/vscode-agent-skills';
+// TODO: update link when available
+export const HOOK_DOCUMENTATION_URL = 'https://aka.ms/vscode-chat-hooks';
 
 /**
  * Language ID for the reusable prompt syntax.
@@ -28,12 +31,42 @@ export const INSTRUCTIONS_LANGUAGE_ID = 'instructions';
 export const AGENT_LANGUAGE_ID = 'chatagent';
 
 /**
- * Prompt and instructions files language selector.
+ * Language ID for skill syntax.
  */
-export const ALL_PROMPTS_LANGUAGE_SELECTOR: LanguageSelector = [PROMPT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID, AGENT_LANGUAGE_ID];
+export const SKILL_LANGUAGE_ID = 'skill';
 
 /**
- * The language id for for a prompts type.
+ * Prompt and instructions files language selector.
+ */
+export const ALL_PROMPTS_LANGUAGE_SELECTOR: LanguageSelector = [PROMPT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID, AGENT_LANGUAGE_ID, SKILL_LANGUAGE_ID];
+
+/**
+ * Configuration key for enabling the agent debug log feature.
+ */
+export const AGENT_DEBUG_LOG_ENABLED_SETTING = 'github.copilot.chat.agentDebugLog.enabled';
+
+/**
+ * Configuration key for enabling file logging for the agent debug log.
+ */
+export const AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING = 'github.copilot.chat.agentDebugLog.fileLogging.enabled';
+
+/**
+ * The name of the troubleshoot slash command / skill.
+ */
+export const TROUBLESHOOT_COMMAND_NAME = 'troubleshoot';
+
+/**
+ * URI scheme used by the Copilot extension for built-in skills.
+ */
+export const COPILOT_SKILL_URI_SCHEME = 'copilot-skill';
+
+/**
+ * Path fragment that identifies the troubleshoot skill in a URI.
+ */
+export const TROUBLESHOOT_SKILL_PATH = 'troubleshoot/SKILL.md';
+
+/**
+ * The language id for a prompts type.
  */
 export function getLanguageIdForPromptsType(type: PromptsType): string {
 	switch (type) {
@@ -43,6 +76,11 @@ export function getLanguageIdForPromptsType(type: PromptsType): string {
 			return INSTRUCTIONS_LANGUAGE_ID;
 		case PromptsType.agent:
 			return AGENT_LANGUAGE_ID;
+		case PromptsType.skill:
+			return SKILL_LANGUAGE_ID;
+		case PromptsType.hook:
+			// Hooks use JSONC syntax with schema validation
+			return 'jsonc';
 		default:
 			throw new Error(`Unknown prompt type: ${type}`);
 	}
@@ -56,6 +94,9 @@ export function getPromptsTypeForLanguageId(languageId: string): PromptsType | u
 			return PromptsType.instructions;
 		case AGENT_LANGUAGE_ID:
 			return PromptsType.agent;
+		case SKILL_LANGUAGE_ID:
+			return PromptsType.skill;
+		// Note: hook uses 'jsonc' language ID which is shared, so we don't map it here
 		default:
 			return undefined;
 	}
@@ -68,9 +109,17 @@ export function getPromptsTypeForLanguageId(languageId: string): PromptsType | u
 export enum PromptsType {
 	instructions = 'instructions',
 	prompt = 'prompt',
-	agent = 'agent'
+	agent = 'agent',
+	skill = 'skill',
+	hook = 'hook'
 }
 export function isValidPromptType(type: string): type is PromptsType {
 	return Object.values(PromptsType).includes(type as PromptsType);
 }
 
+export enum Target {
+	VSCode = 'vscode',
+	GitHubCopilot = 'github-copilot',
+	Claude = 'claude',
+	Undefined = 'undefined',
+}

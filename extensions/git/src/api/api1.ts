@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions, SourceControlHistoryItemDetailsProvider, GitErrorCodes, CloneOptions, CommitShortStat } from './git';
+import type { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, LogOptions, APIState, CommitOptions, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions, SourceControlHistoryItemDetailsProvider, CloneOptions, CommitShortStat, DiffChange, Worktree, RepositoryKind, RepositoryAccessDetails } from './git';
+import { ForcePushMode, GitErrorCodes, RefType, Status } from './git.constants';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken } from 'vscode';
 import { combinedDisposable, filterEvent, mapEvent } from '../util';
 import { toGitUri } from '../uri';
@@ -52,6 +51,7 @@ export class ApiRepositoryState implements RepositoryState {
 	get refs(): Ref[] { console.warn('Deprecated. Use ApiRepository.getRefs() instead.'); return []; }
 	get remotes(): Remote[] { return [...this.#repository.remotes]; }
 	get submodules(): Submodule[] { return [...this.#repository.submodules]; }
+	get worktrees(): Worktree[] { return this.#repository.worktrees; }
 	get rebaseCommit(): Commit | undefined { return this.#repository.rebaseCommit; }
 
 	get mergeChanges(): Change[] { return this.#repository.mergeGroup.resourceStates.map(r => new ApiChange(r)); }
@@ -77,6 +77,7 @@ export class ApiRepository implements Repository {
 
 	readonly rootUri: Uri;
 	readonly inputBox: InputBox;
+	readonly kind: RepositoryKind;
 	readonly state: RepositoryState;
 	readonly ui: RepositoryUIState;
 
@@ -86,6 +87,7 @@ export class ApiRepository implements Repository {
 	constructor(repository: BaseRepository) {
 		this.#repository = repository;
 
+		this.kind = this.#repository.kind;
 		this.rootUri = Uri.file(this.#repository.root);
 		this.inputBox = new ApiInputBox(this.#repository.inputBox);
 		this.state = new ApiRepositoryState(this.#repository);
@@ -97,8 +99,11 @@ export class ApiRepository implements Repository {
 			filterEvent(this.#repository.onDidRunOperation, e => e.operation.kind === OperationKind.Checkout || e.operation.kind === OperationKind.CheckoutTracking), () => null);
 	}
 
-	apply(patch: string, reverse?: boolean): Promise<void> {
-		return this.#repository.apply(patch, reverse);
+	apply(patch: string, reverse?: boolean): Promise<void>;
+	apply(patch: string, options?: { allowEmpty?: boolean; reverse?: boolean; threeWay?: boolean }): Promise<void>;
+	apply(patch: string, reverseOrOptions?: boolean | { allowEmpty?: boolean; reverse?: boolean; threeWay?: boolean }): Promise<void> {
+		const options = typeof reverseOrOptions === 'boolean' ? { reverse: reverseOrOptions } : reverseOrOptions;
+		return this.#repository.apply(patch, options);
 	}
 
 	getConfigs(): Promise<{ key: string; value: string }[]> {
@@ -197,6 +202,18 @@ export class ApiRepository implements Repository {
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
 	diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
 		return this.#repository.diffBetween(ref1, ref2, path);
+	}
+
+	diffBetweenPatch(ref1: string, ref2: string, path?: string): Promise<string> {
+		return this.#repository.diffBetweenPatch(ref1, ref2, path);
+	}
+
+	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]> {
+		return this.#repository.diffBetweenWithStats(ref1, ref2, path);
+	}
+
+	diffBetweenWithStats2(ref: string, path?: string): Promise<DiffChange[]> {
+		return this.#repository.diffBetweenWithStats2(ref, path);
 	}
 
 	hashObject(data: string): Promise<string> {
@@ -307,6 +324,14 @@ export class ApiRepository implements Repository {
 		return this.#repository.mergeAbort();
 	}
 
+	rebase(branch: string): Promise<void> {
+		return this.#repository.rebase(branch);
+	}
+
+	createStash(options?: { message?: string; includeUntracked?: boolean; staged?: boolean }): Promise<void> {
+		return this.#repository.createStash(options?.message, options?.includeUntracked, options?.staged);
+	}
+
 	applyStash(index?: number): Promise<void> {
 		return this.#repository.applyStash(index);
 	}
@@ -329,6 +354,14 @@ export class ApiRepository implements Repository {
 
 	migrateChanges(sourceRepositoryPath: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void> {
 		return this.#repository.migrateChanges(sourceRepositoryPath, options);
+	}
+
+	generateRandomBranchName(): Promise<string | undefined> {
+		return this.#repository.generateRandomBranchName();
+	}
+
+	isBranchProtected(branch?: Branch): boolean {
+		return this.#repository.isBranchProtected(branch);
 	}
 }
 
@@ -385,6 +418,10 @@ export class ApiImpl implements API {
 		return this.#model.repositories.map(r => new ApiRepository(r));
 	}
 
+	get recentRepositories(): Iterable<RepositoryAccessDetails> {
+		return this.#model.repositoryCache.recentRepositories;
+	}
+
 	toGitUri(uri: Uri, ref: string): Uri {
 		return toGitUri(uri, ref);
 	}
@@ -438,7 +475,7 @@ export class ApiImpl implements API {
 			return null;
 		}
 
-		await this.#model.openRepository(root.fsPath);
+		await this.#model.openRepository(root.fsPath, true, true);
 		return this.getRepository(root) || null;
 	}
 
@@ -545,6 +582,7 @@ export function registerAPICommands(extension: GitExtensionImpl): Disposable {
 			refs: state.refs.map(ref),
 			remotes: state.remotes,
 			submodules: state.submodules,
+			worktrees: state.worktrees,
 			rebaseCommit: state.rebaseCommit,
 			mergeChanges: state.mergeChanges.map(change),
 			indexChanges: state.indexChanges.map(change),

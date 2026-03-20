@@ -5,11 +5,14 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { IResourceLabel, IWorkbenchUIElementFactory } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../../platform/instantiation/common/instantiationService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -29,12 +32,15 @@ import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
+import { autorun, derived, observableValue } from '../../../../base/common/observable.js';
+import { FloatingEditorToolbarWidget } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 	static readonly ID = 'multiDiffEditor';
 
 	private _multiDiffEditorWidget: MultiDiffEditorWidget | undefined = undefined;
 	private _viewModel: MultiDiffEditorViewModel | undefined;
+	private _contentOverlay: MultiDiffEditorContentMenuOverlay | undefined;
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
 		return this._viewModel;
@@ -49,7 +55,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IEditorProgressService private editorProgressService: IEditorProgressService,
+		@IEditorProgressService private editorProgressService: IEditorProgressService
 	) {
 		super(
 			MultiDiffEditor.ID,
@@ -75,11 +81,18 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {
 			this._onDidChangeControl.fire();
 		}));
+
+		this._contentOverlay = this._register(new MultiDiffEditorContentMenuOverlay(
+			this._multiDiffEditorWidget.getRootElement(),
+			this._multiDiffEditorWidget.getContextKeyService(),
+			this._multiDiffEditorWidget.getScopedInstantiationService()
+		));
 	}
 
 	override async setInput(input: MultiDiffEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		this._viewModel = await input.getViewModel();
+		this._contentOverlay?.updateResource(input.resource);
 		this._multiDiffEditorWidget!.setViewModel(this._viewModel);
 
 		const viewState = this.loadEditorViewState(input, context);
@@ -106,6 +119,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 	override async clearInput(): Promise<void> {
 		await super.clearInput();
+		this._contentOverlay?.updateResource(undefined);
 		this._multiDiffEditorWidget!.setViewModel(undefined);
 	}
 
@@ -163,6 +177,50 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	}
 }
 
+class MultiDiffEditorContentMenuOverlay extends Disposable {
+	private readonly resourceObs = observableValue<URI | undefined>(this, undefined);
+
+	constructor(
+		root: HTMLElement,
+		contextKeyService: IContextKeyService,
+		instantiationService: IInstantiationService
+	) {
+		super();
+
+		// Widget
+		const widget = instantiationService.createInstance(
+			FloatingEditorToolbarWidget,
+			MenuId.MultiDiffEditorContent,
+			contextKeyService,
+			this.resourceObs);
+		widget.element.classList.add('multi-diff-root-floating-menu');
+		this._register(widget);
+
+		// Derived to show/hide
+		const showToolbarObs = derived(reader => {
+			const resource = this.resourceObs.read(reader);
+			const hasActions = widget.hasActions.read(reader);
+
+			return resource !== undefined && hasActions;
+		});
+
+		this._register(autorun(reader => {
+			const showToolbar = showToolbarObs.read(reader);
+			if (!showToolbar) {
+				return;
+			}
+
+			root.appendChild(widget.element);
+			reader.store.add(toDisposable(() => {
+				widget.element.remove();
+			}));
+		}));
+	}
+
+	public updateResource(resource: URI | undefined): void {
+		this.resourceObs.set(resource, undefined);
+	}
+}
 
 class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
 	constructor(

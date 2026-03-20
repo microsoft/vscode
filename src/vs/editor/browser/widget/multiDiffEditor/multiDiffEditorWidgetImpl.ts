@@ -259,6 +259,17 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._scrollableElement.setScrollPosition({ scrollLeft: scrollState.left, scrollTop: scrollState.top });
 	}
 
+	public getRootElement(): HTMLElement {
+		return this._elements.root;
+	}
+
+	public getContextKeyService(): IContextKeyService {
+		return this._contextKeyService;
+	}
+
+	public getScopedInstantiationService(): IInstantiationService {
+		return this._instantiationService;
+	}
 	public reveal(resource: IMultiDiffResourceId, options?: RevealOptions): void {
 		const viewItems = this._viewItems.get();
 		const index = viewItems.findIndex(

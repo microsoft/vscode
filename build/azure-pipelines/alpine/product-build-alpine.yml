@@ -64,15 +64,6 @@ jobs:
           KeyVaultName: vscode-build-secrets
           SecretsFilter: "github-distro-mixin-password"
 
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          artifact: Compilation
-          path: $(Build.ArtifactStagingDirectory)
-        displayName: Download compilation output
-
-      - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-        displayName: Extract compilation output
-
       - script: node build/setup-npm-registry.ts $NPM_REGISTRY
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
@@ -172,6 +163,11 @@ jobs:
         displayName: Mixin distro quality
 
       - template: ../common/install-builtin-extensions.yml@self
+
+      - script: npm run gulp core-ci
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        displayName: Compile
 
       - script: |
           set -e

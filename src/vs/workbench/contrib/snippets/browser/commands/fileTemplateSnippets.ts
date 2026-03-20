@@ -39,7 +39,8 @@ export class ApplyFileSnippetAction extends SnippetsAction {
 			return;
 		}
 
-		const snippets = await snippetService.getSnippets(undefined, { fileTemplateSnippets: true, noRecencySort: true, includeNoPrefixSnippets: true });
+		const resourceUri = editor.getModel().uri;
+		const snippets = await snippetService.getSnippets(undefined, resourceUri, { fileTemplateSnippets: true, noRecencySort: true, includeNoPrefixSnippets: true });
 		if (snippets.length === 0) {
 			return;
 		}

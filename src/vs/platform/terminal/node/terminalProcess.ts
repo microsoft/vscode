@@ -15,13 +15,13 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty, GeneralShellType, ITerminalLaunchResult } from '../common/terminal.js';
+import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty, GeneralShellType, ITerminalLaunchResult } from '../common/terminal.js';
 import { ChildProcessMonitor } from './childProcessMonitor.js';
-import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from './terminalEnvironment.js';
+import { getShellIntegrationInjection, IShellIntegrationConfigInjection, sanitizeEnvForLogging } from './terminalEnvironment.js';
 import { WindowsShellHelper } from './windowsShellHelper.js';
 import { IPty, IPtyForkOptions, IWindowsPtyForkOptions, spawn } from 'node-pty';
-import { chunkInput } from '../common/terminalProcess.js';
 import { isNumber } from '../../../base/common/types.js';
+import { getWindowsBuildNumberSync } from '../../../base/node/windowsVersion.js';
 
 const enum ShutdownConstants {
 	/**
@@ -57,15 +57,6 @@ const enum Constants {
 	 * interval.
 	 */
 	KillSpawnSpacingDuration = 50,
-	/**
-	 * How long to wait between chunk writes.
-	 */
-	WriteInterval = 5,
-}
-
-interface IWriteObject {
-	data: string;
-	isBinary: boolean;
 }
 
 const posixShellTypeMap = new Map<string, PosixShellType>([
@@ -84,7 +75,7 @@ const generalShellTypeMap = new Map<string, GeneralShellType>([
 	['julia', GeneralShellType.Julia],
 	['nu', GeneralShellType.NuShell],
 	['node', GeneralShellType.Node],
-
+	['xonsh', GeneralShellType.Xonsh],
 ]);
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	readonly id = 0;
@@ -113,8 +104,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _childProcessMonitor: ChildProcessMonitor | undefined;
 	private _titleInterval: Timeout | undefined;
-	private _writeQueue: IWriteObject[] = [];
-	private _writeTimeout: Timeout | undefined;
 	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: IPtyForkOptions | IWindowsPtyForkOptions;
@@ -162,7 +151,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._initialCwd = cwd;
 		this._properties[ProcessPropertyType.InitialCwd] = this._initialCwd;
 		this._properties[ProcessPropertyType.Cwd] = this._initialCwd;
-		const useConpty = this._options.windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
+		const useConpty = process.platform === 'win32' && getWindowsBuildNumberSync() >= 18309;
 		const useConptyDll = useConpty && this._options.windowsUseConptyDll;
 		this._ptyOptions = {
 			name,
@@ -179,7 +168,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		// Delay resizes to avoid conpty not respecting very early resize calls
 		if (isWindows) {
 			if (useConpty && cols === 0 && rows === 0 && this.shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
-				this._delayedResizer = new DelayedResizer();
+				this._delayedResizer = this._register(new DelayedResizer());
 				this._register(this._delayedResizer.onTrigger(dimensions => {
 					this._delayedResizer?.dispose();
 					this._delayedResizer = undefined;
@@ -189,17 +178,21 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				}));
 			}
 			// WindowsShellHelper is used to fetch the process title and shell type
-			this.onProcessReady(e => {
+			this._register(this.onProcessReady(e => {
 				this._windowsShellHelper = this._register(new WindowsShellHelper(e.pid));
 				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: e })));
 				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: e })));
-			});
+			}));
 		}
 		this._register(toDisposable(() => {
 			if (this._titleInterval) {
 				clearInterval(this._titleInterval);
 				this._titleInterval = undefined;
 			}
+		}));
+		this._register(toDisposable(() => {
+			this._ptyProcess = undefined;
+			this._processStartupComplete = undefined;
 		}));
 	}
 
@@ -252,7 +245,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			return undefined;
 		} catch (err) {
 			this._logService.trace('node-pty.node-pty.IPty#spawn native exception', err);
-			return { message: `A native exception occurred during launch (${err.message})` };
+			const errorMessage = err.message;
+			if (errorMessage?.includes('Cannot launch conpty')) {
+				return { message: localize('conptyLaunchFailed', "A native exception occurred during launch (Cannot launch conpty). Winpty has been removed, see {0} for more details. You can also try enabling the `{1}` setting.", 'https://code.visualstudio.com/updates/v1_109#_removal-of-winpty-support', 'terminal.integrated.windowsUseConptyDll') };
+			}
+			return { message: `A native exception occurred during launch (${errorMessage})` };
 		}
 	}
 
@@ -309,7 +306,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	): Promise<void> {
 		const args = shellIntegrationInjection?.newArgs || shellLaunchConfig.args || [];
 		await this._throttleKillSpawn();
-		this._logService.trace('node-pty.IPty#spawn', shellLaunchConfig.executable, args, options);
+		const sanitizedOptions = { ...options, env: sanitizeEnvForLogging(options.env as IProcessEnvironment | undefined) };
+		this._logService.trace('node-pty.IPty#spawn', shellLaunchConfig.executable, args, sanitizedOptions);
 		const ptyProcess = spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
 		this._childProcessMonitor = this._register(new ChildProcessMonitor(ptyProcess.pid, this._logService));
@@ -339,7 +337,20 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this._exitCode = e.exitCode;
 			this._queueProcessExit();
 		}));
-		this._sendProcessId(ptyProcess.pid);
+		// node-pty >= 1.2.0-beta.11 defers conptyNative.connect() on Windows, so
+		// ptyProcess.pid may be 0 immediately after spawn. In that case we wait
+		// for the first data event which only fires after the connection completes
+		// and the real pid is available. See microsoft/node-pty#885.
+		if (ptyProcess.pid > 0) {
+			this._sendProcessId(ptyProcess.pid);
+		} else {
+			const dataListener = ptyProcess.onData(() => {
+				dataListener.dispose();
+				this._childProcessMonitor?.setPid(ptyProcess.pid);
+				this._sendProcessId(ptyProcess.pid);
+			});
+			this._register(dataListener);
+		}
 		this._setupTitlePolling(ptyProcess);
 	}
 
@@ -467,13 +478,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	input(data: string, isBinary: boolean = false): void {
-		if (this._store.isDisposed || !this._ptyProcess) {
-			return;
+		this._logService.trace('node-pty.IPty#write', data, isBinary);
+		if (isBinary) {
+			this._ptyProcess!.write(Buffer.from(data, 'binary'));
+		} else {
+			this._ptyProcess!.write(data);
 		}
-		this._writeQueue.push(...chunkInput(data).map(e => {
-			return { isBinary, data: e };
-		}));
-		this._startWrite();
+		this._childProcessMonitor?.handleInput();
 	}
 
 	sendSignal(signal: string): void {
@@ -518,49 +529,15 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-	private _startWrite(): void {
-		// Don't write if it's already queued of is there is nothing to write
-		if (this._writeTimeout !== undefined || this._writeQueue.length === 0) {
-			return;
-		}
-
-		this._doWrite();
-
-		// Don't queue more writes if the queue is empty
-		if (this._writeQueue.length === 0) {
-			this._writeTimeout = undefined;
-			return;
-		}
-
-		// Queue the next write
-		this._writeTimeout = setTimeout(() => {
-			this._writeTimeout = undefined;
-			this._startWrite();
-		}, Constants.WriteInterval);
-	}
-
-	private _doWrite(): void {
-		const object = this._writeQueue.shift()!;
-		this._logService.trace('node-pty.IPty#write', object.data);
-		if (object.isBinary) {
-			// TODO: node-pty's write should accept a Buffer, needs https://github.com/microsoft/node-pty/pull/812
-			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-			this._ptyProcess!.write(Buffer.from(object.data, 'binary') as any);
-		} else {
-			this._ptyProcess!.write(object.data);
-		}
-		this._childProcessMonitor?.handleInput();
-	}
-
-	resize(cols: number, rows: number): void {
+	resize(cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): void {
 		if (this._store.isDisposed) {
 			return;
 		}
 		if (!isNumber(cols) || !isNumber(rows)) {
 			return;
 		}
-		// Ensure that cols and rows are always >= 1, this prevents a native
-		// exception in winpty.
+		// Ensure that cols and rows are always >= 1, this prevents a native exception in winpty.
+		// TODO: Handle this directly on node-pty instead: https://github.com/microsoft/node-pty/issues/877
 		if (this._ptyProcess) {
 			cols = Math.max(cols, 1);
 			rows = Math.max(rows, 1);
@@ -574,7 +551,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 			this._logService.trace('node-pty.IPty#resize', cols, rows);
 			try {
-				this._ptyProcess.resize(cols, rows);
+				const pixelSize = pixelWidth !== undefined && pixelHeight !== undefined
+					? { width: pixelWidth, height: pixelHeight }
+					: undefined;
+				this._ptyProcess.resize(cols, rows, pixelSize);
 			} catch (e) {
 				// Swallow error if the pty has already exited
 				this._logService.trace('node-pty.IPty#resize exception ' + e.message);
@@ -658,8 +638,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	getWindowsPty(): IProcessReadyWindowsPty | undefined {
 		return isWindows ? {
-			backend: hasConptyOption(this._ptyOptions) && this._ptyOptions.useConpty ? 'conpty' : 'winpty',
-			buildNumber: getWindowsBuildNumber()
+			backend: 'conpty',
+			buildNumber: getWindowsBuildNumberSync()
 		} : undefined;
 	}
 }

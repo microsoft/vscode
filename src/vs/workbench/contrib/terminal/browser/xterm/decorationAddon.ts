@@ -27,7 +27,7 @@ import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IChatContextPickService } from '../../../chat/browser/chatContextPickService.js';
+import { IChatContextPickService } from '../../../chat/browser/attachments/chatContextPickService.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalContext } from '../../../chat/browser/actions/chatContext.js';

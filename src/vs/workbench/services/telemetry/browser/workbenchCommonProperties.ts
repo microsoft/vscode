@@ -10,6 +10,7 @@ import { cleanRemoteAuthority } from '../../../../platform/telemetry/common/tele
 import { mixin } from '../../../../base/common/objects.js';
 import { ICommonProperties, firstSessionDateStorageKey, lastSessionDateStorageKey, machineIdKey } from '../../../../platform/telemetry/common/telemetry.js';
 import { Gesture } from '../../../../base/browser/touch.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 /**
  * General function to help reduce the individuality of user agents
@@ -22,14 +23,12 @@ function cleanUserAgent(userAgent: string): string {
 
 export function resolveWorkbenchCommonProperties(
 	storageService: IStorageService,
-	commit: string | undefined,
-	version: string | undefined,
+	productService: IProductService,
 	isInternalTelemetry: boolean,
 	remoteAuthority?: string,
-	productIdentifier?: string,
-	removeMachineId?: boolean,
 	resolveAdditionalProperties?: () => { [key: string]: unknown }
 ): ICommonProperties {
+	const { commit, version, embedderIdentifier: productIdentifier, removeTelemetryMachineId: removeMachineId } = productService ?? {};
 	const result: ICommonProperties = Object.create(null);
 	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION)!;
 	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.APPLICATION)!;
@@ -57,7 +56,7 @@ export function resolveWorkbenchCommonProperties(
 	// __GDPR__COMMON__ "common.isNewSession" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.isNewSession'] = !lastSessionDate ? '1' : '0';
 	// __GDPR__COMMON__ "common.remoteAuthority" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-	result['common.remoteAuthority'] = cleanRemoteAuthority(remoteAuthority);
+	result['common.remoteAuthority'] = cleanRemoteAuthority(remoteAuthority, productService);
 
 	// __GDPR__COMMON__ "common.machineId" : { "endPoint": "MacAddressHash", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
 	result['common.machineId'] = machineId;

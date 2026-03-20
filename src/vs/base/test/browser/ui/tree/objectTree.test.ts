@@ -3,19 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable no-restricted-syntax */
-
 import assert from 'assert';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
 import { ICompressedTreeNode } from '../../../../browser/ui/tree/compressedObjectTreeModel.js';
 import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from '../../../../browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeRenderer } from '../../../../browser/ui/tree/tree.js';
+import { runWithFakedTimers } from '../../../common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 function getRowsTextContent(container: HTMLElement): string[] {
 	const rows = [...container.querySelectorAll('.monaco-list-row')];
 	rows.sort((a, b) => parseInt(a.getAttribute('data-index')!) - parseInt(b.getAttribute('data-index')!));
 	return rows.map(row => row.querySelector('.monaco-tl-contents')!.textContent!);
+}
+
+function clickElement(element: HTMLElement, ctrlKey = false): void {
+	element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, ctrlKey, button: 0 }));
+	element.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey, button: 0 }));
+}
+
+function dispatchKeydown(element: HTMLElement, key: string, code: string, keyCode: number): void {
+	const keyboardEvent = new KeyboardEvent('keydown', { bubbles: true, key, code });
+	Object.defineProperty(keyboardEvent, 'keyCode', { get: () => keyCode });
+	element.dispatchEvent(keyboardEvent);
 }
 
 suite('ObjectTree', function () {
@@ -232,6 +242,84 @@ suite('ObjectTree', function () {
 
 		tree.setChildren(null, [{ element: 100 }, { element: 101 }, { element: 102 }, { element: 103 }]);
 		assert.deepStrictEqual(tree.getFocus(), [101]);
+	});
+
+	test('updateOptions preserves wrapped identity provider in view options', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const delegate = new Delegate();
+		const renderer = new Renderer();
+		const identityProvider = {
+			getId(element: number): { toString(): string } {
+				return `${element}`;
+			},
+			getGroupId(element: number): number {
+				return element % 2;
+			}
+		};
+
+		const tree = new ObjectTree<number>('test', container, delegate, [renderer], { identityProvider });
+
+		try {
+			tree.layout(200);
+			tree.setChildren(null, [{ element: 0 }, { element: 1 }, { element: 2 }, { element: 3 }]);
+
+			const firstRow = container.querySelector('.monaco-list-row[data-index="0"]') as HTMLElement;
+			const secondRow = container.querySelector('.monaco-list-row[data-index="1"]') as HTMLElement;
+			clickElement(firstRow);
+			assert.deepStrictEqual(tree.getSelection(), [0]);
+
+			tree.updateOptions({ indent: 12 });
+
+			clickElement(secondRow, true);
+
+			assert.deepStrictEqual(tree.getSelection(), [1]);
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('updateOptions preserves wrapped accessibility provider for type navigation re-announce', async function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const delegate = new Delegate();
+		const renderer = new Renderer();
+		const accessibilityProvider = {
+			getAriaLabel(element: number): string {
+				assert.strictEqual(typeof element, 'number');
+				return `aria ${element}`;
+			},
+			getWidgetAriaLabel(): string {
+				return 'tree';
+			}
+		};
+
+		const tree = new ObjectTree<number>('test', container, delegate, [renderer], {
+			accessibilityProvider,
+			keyboardNavigationLabelProvider: {
+				getKeyboardNavigationLabel: () => 'a'
+			}
+		});
+
+		try {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				tree.layout(200);
+				tree.setChildren(null, [{ element: 0 }]);
+				tree.setFocus([0]);
+				tree.domFocus();
+
+				tree.updateOptions({ indent: 12 });
+
+				dispatchKeydown(tree.getHTMLElement(), 'a', 'KeyA', 65);
+				await Promise.resolve();
+			});
+		} finally {
+			tree.dispose();
+		}
 	});
 });
 

@@ -233,7 +233,8 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 				icon: args.options.icon,
 				id: args.id,
 				title: args.title,
-				color: args.options.color
+				color: args.options.color,
+				titleTemplate: args.titleTemplate
 			};
 
 			(profilesConfig as { [key: string]: ITerminalProfileObject })[args.title] = newProfile;
@@ -271,5 +272,6 @@ function contributedProfilesEqual(one: IExtensionTerminalProfile, other: IExtens
 		one.color === other.color &&
 		one.icon === other.icon &&
 		one.id === other.id &&
-		one.title === other.title;
+		one.title === other.title &&
+		one.titleTemplate === other.titleTemplate;
 }

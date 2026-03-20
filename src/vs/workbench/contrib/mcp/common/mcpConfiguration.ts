@@ -136,6 +136,11 @@ export const mcpStdioServerSchema: IJSONSchema = {
 			enum: ['stdio'],
 			description: localize('app.mcp.json.type', "The type of the server.")
 		},
+		sandboxEnabled: {
+			type: 'boolean',
+			default: false,
+			description: localize('app.mcp.json.sandboxEnabled', "Whether to run the server in a sandboxed environment.")
+		},
 		command: {
 			type: 'string',
 			description: localize('app.mcp.json.command', "The command to run the server.")
@@ -179,6 +184,57 @@ export const mcpServerSchema: IJSONSchema = {
 	allowComments: true,
 	additionalProperties: false,
 	properties: {
+		sandbox: {
+			description: localize('app.mcp.json.sandbox', "Sandbox config that determines file system and network access. Sandboxing is enabled when sandboxEnabled property is set at the server level on Mac OS and Linux only."),
+			type: 'object',
+			additionalProperties: false,
+			properties: {
+				network: {
+					description: localize('app.mcp.json.sandbox.network', "Network access settings for the sandboxed server."),
+					type: 'object',
+					additionalProperties: false,
+					properties: {
+						allowedDomains: {
+							description: localize('app.mcp.json.sandbox.network.allowedDomains', "List of domains that the server is allowed to access. Wildcards are supported, e.g. `*.example.com`."),
+							type: 'array',
+							items: { type: 'string' },
+							default: []
+						},
+						deniedDomains: {
+							description: localize('app.mcp.json.sandbox.network.deniedDomains', "List of domains that the server is not allowed to access. e.g. `invalid.example.com`."),
+							type: 'array',
+							items: { type: 'string' },
+							default: []
+						}
+					}
+				},
+				filesystem: {
+					description: localize('app.mcp.json.sandbox.filesystem', "Filesystem access settings for the sandboxed server. Glob patterns are supported for Mac OS only."),
+					type: 'object',
+					additionalProperties: false,
+					properties: {
+						denyRead: {
+							description: localize('app.mcp.json.sandbox.filesystem.denyRead', "List of file paths that the server is not allowed to read. By default, all files are allowed to be read. e.g. `~/src/secrets`."),
+							type: 'array',
+							items: { type: 'string' },
+							default: []
+						},
+						allowWrite: {
+							description: localize('app.mcp.json.sandbox.filesystem.allowWrite', "List of file paths that the server is allowed to write to. e.g. `~/src/`."),
+							type: 'array',
+							items: { type: 'string' },
+							default: []
+						},
+						denyWrite: {
+							description: localize('app.mcp.json.sandbox.filesystem.denyWrite', "List of file paths that the server is not allowed to write to. e.g. `~/src/auth/`."),
+							type: 'array',
+							items: { type: 'string' },
+							default: []
+						}
+					}
+				}
+			}
+		},
 		servers: {
 			examples: [
 				mcpSchemaExampleServers,

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { BrowserWindow, BrowserWindowConstructorOptions, Event } from 'electron';
+import type { BeforeSendResponse, BrowserWindow, BrowserWindowConstructorOptions, Event, HeadersReceivedResponse, OnBeforeSendHeadersListenerDetails, OnHeadersReceivedListenerDetails } from 'electron';
 import { Queue, raceTimeout, TimeoutTimer } from '../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { equalsIgnoreCase } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
@@ -21,6 +21,17 @@ type NetworkRequestEventParams = Readonly<{
 	type?: string;
 }>;
 
+type FrameInfo = Readonly<{
+	id: string;
+	url?: string;
+	name?: string;
+}>;
+
+type FrameTreeNode = Readonly<{
+	frame: FrameInfo;
+	childFrames?: FrameTreeNode[];
+}>;
+
 /**
  * A web page loader that uses Electron to load web pages and extract their content.
  */
@@ -28,7 +39,9 @@ export class WebPageLoader extends Disposable {
 	private static readonly TIMEOUT = 30000; // 30 seconds
 	private static readonly POST_LOAD_TIMEOUT = 5000; // 5 seconds - increased for dynamic content
 	private static readonly FRAME_TIMEOUT = 500; // 0.5 seconds
+	private static readonly EXTRACT_CONTENT_TIMEOUT = 2000; // 2 seconds
 	private static readonly IDLE_DEBOUNCE_TIME = 500; // 0.5 seconds - wait after last network request
+	private static readonly MIN_CONTENT_LENGTH = 100; // Minimum content length to consider extraction successful
 
 	private readonly _window: BrowserWindow;
 	private readonly _debugger: Electron.Debugger;
@@ -43,7 +56,8 @@ export class WebPageLoader extends Disposable {
 		browserWindowFactory: (options: BrowserWindowConstructorOptions) => BrowserWindow,
 		private readonly _logger: ILogService,
 		private readonly _uri: URI,
-		private readonly _options?: IWebContentExtractorOptions,
+		private readonly _options: IWebContentExtractorOptions | undefined,
+		private readonly _isTrustedDomain: (uri: URI) => boolean,
 	) {
 		super();
 
@@ -70,8 +84,17 @@ export class WebPageLoader extends Disposable {
 			.once('did-start-loading', this.onStartLoading.bind(this))
 			.once('did-finish-load', this.onFinishLoad.bind(this))
 			.once('did-fail-load', this.onFailLoad.bind(this))
-			.once('will-navigate', this.onRedirect.bind(this))
-			.once('will-redirect', this.onRedirect.bind(this));
+			.on('will-navigate', this.onRedirect.bind(this))
+			.on('will-redirect', this.onRedirect.bind(this))
+			.on('select-client-certificate', (event) => event.preventDefault());
+
+		this._window.webContents.session.webRequest.onBeforeSendHeaders(
+			this.onBeforeSendHeaders.bind(this));
+
+		this._window.webContents.session.webRequest.onHeadersReceived(
+			this.onHeadersReceived.bind(this));
+
+		this._window.webContents.session.on('will-download', this.onDownload.bind(this));
 	}
 
 	private trace(message: string) {
@@ -127,6 +150,78 @@ export class WebPageLoader extends Disposable {
 	}
 
 	/**
+	 * Updates HTTP headers for each web request.
+	 */
+	private onBeforeSendHeaders(details: OnBeforeSendHeadersListenerDetails, callback: (beforeSendResponse: BeforeSendResponse) => void) {
+		const headers = { ...details.requestHeaders };
+
+		// Request privacy for web-sites that respect these.
+		headers['DNT'] = '1';
+		headers['Sec-GPC'] = '1';
+
+		callback({ requestHeaders: headers });
+	}
+
+	/**
+	 * Checks response headers for download-triggering Content-Disposition.
+	 * For text-based content types, replaces it with 'inline' so the content
+	 * is rendered and can be extracted. For binary content, cancels the response.
+	 */
+	private onHeadersReceived(details: OnHeadersReceivedListenerDetails, callback: (headersReceivedResponse: HeadersReceivedResponse) => void) {
+		const headers = details.responseHeaders;
+		if (headers) {
+			let hasAttachment = false;
+			let attachmentHeaderName: string | undefined;
+			let contentType: string | undefined;
+
+			for (const name of Object.keys(headers)) {
+				const lowerName = name.toLowerCase();
+				if (lowerName === 'content-disposition' && headers[name]?.some(v => v.toLowerCase().includes('attachment'))) {
+					hasAttachment = true;
+					attachmentHeaderName = name;
+				}
+				if (lowerName === 'content-type') {
+					contentType = headers[name]?.[0]?.toLowerCase();
+				}
+			}
+
+			if (hasAttachment && attachmentHeaderName) {
+				if (this.isTextMimeType(contentType)) {
+					this.trace(`Replacing Content-Disposition: attachment with inline for ${details.url} (content-type: ${contentType})`);
+					headers[attachmentHeaderName] = ['inline'];
+					callback({ responseHeaders: headers, cancel: false });
+				} else {
+					this.trace(`Blocked binary download (Content-Disposition: attachment, content-type: ${contentType}) for ${details.url}`);
+					callback({ cancel: true });
+				}
+				return;
+			}
+		}
+		callback({ cancel: false });
+	}
+
+	/**
+	 * Returns whether the given MIME type represents text-based content
+	 * that can be meaningfully rendered and extracted.
+	 */
+	private static readonly TEXT_MIME_TYPE_RE = /^(?:text\/|application\/(?:json|xml|xhtml\+xml|rss\+xml|atom\+xml|svg\+xml|javascript|ecmascript|x-yaml|yaml|toml|.*\+(?:xml|json))$)/;
+
+	private isTextMimeType(contentType: string | undefined): boolean {
+		const mimeType = contentType?.split(';')[0].trim();
+		return !!mimeType && WebPageLoader.TEXT_MIME_TYPE_RE.test(mimeType);
+	}
+
+	/**
+	 * Handles the 'will-download' event, blocking any downloads.
+	 */
+	private onDownload(_event: Event, item: Electron.DownloadItem) {
+		const filename = item.getFilename();
+		this.trace(`Blocked download: ${filename}`);
+		item.cancel();
+		void this._queue.queue(() => this.extractContent({ status: 'error', error: `Download not allowed: ${filename}` }));
+	}
+
+	/**
 	 * Handles the 'did-start-loading' event, enabling network tracking.
 	 */
 	private onStartLoading() {
@@ -164,7 +259,15 @@ export class WebPageLoader extends Disposable {
 		}
 
 		this.trace(`Received 'did-fail-load' event, code: ${statusCode}, error: '${error}'`);
-		void this._queue.queue(() => this.extractContent({ status: 'error', statusCode, error }));
+		if (statusCode === -3) {
+			this.trace(`Ignoring ERR_ABORTED (-3) as it may be caused by CSP or other measures`);
+			void this._queue.queue(() => this.extractContent());
+		} else if (statusCode === -27) {
+			this.trace(`Ignoring ERR_BLOCKED_BY_CLIENT (-27) as it may be caused by ad-blockers or similar extensions`);
+			void this._queue.queue(() => this.extractContent());
+		} else {
+			void this._queue.queue(() => this.extractContent({ status: 'error', statusCode, error }));
+		}
 	}
 
 	/**
@@ -178,11 +281,35 @@ export class WebPageLoader extends Disposable {
 		this.trace(`Received 'will-navigate' or 'will-redirect' event, url: ${url}`);
 		if (!this._options?.followRedirects) {
 			const toURI = URI.parse(url);
-			if (!equalsIgnoreCase(toURI.authority, this._uri.authority)) {
-				event.preventDefault();
-				this._onResult({ status: 'redirect', toURI });
+
+			// Allow redirect if authority is the same when ignoring www prefix
+			if (this.normalizeAuthority(toURI.authority) === this.normalizeAuthority(this._uri.authority)) {
+				return;
 			}
+
+			// Allow redirect if target is a trusted domain
+			if (this._isTrustedDomain(toURI)) {
+				return;
+			}
+
+			// Ignore script-initiated navigation (ads/trackers etc)
+			if (this._didFinishLoad) {
+				this.trace(`Blocking post-load navigation to ${url} (likely ad/tracker script)`);
+				event.preventDefault();
+				return;
+			}
+
+			// Otherwise, prevent redirect and report it
+			event.preventDefault();
+			this._onResult({ status: 'redirect', toURI });
 		}
+	}
+
+	/**
+	 * Normalizes an authority by removing the 'www.' prefix if present.
+	 */
+	private normalizeAuthority(authority: string): string {
+		return authority.toLowerCase().replace(/^www\./, '');
 	}
 
 	/**
@@ -287,12 +414,30 @@ export class WebPageLoader extends Disposable {
 		}
 
 		try {
-			this.trace(`Extracting content using Accessibility domain`);
 			const title = this._window.webContents.getTitle();
-			const { nodes } = await this._debugger.sendCommand('Accessibility.getFullAXTree') as { nodes: AXNode[] };
-			const result = convertAXTreeToMarkdown(this._uri, nodes);
 
-			if (errorResult !== undefined) {
+			let result = '';
+			const cts = new CancellationTokenSource();
+			try {
+				await raceTimeout((async () => {
+					if (!cts.token.isCancellationRequested) {
+						result = await this.extractAccessibilityTreeContent(cts.token) ?? '';
+					}
+
+					if (!cts.token.isCancellationRequested && result.length < WebPageLoader.MIN_CONTENT_LENGTH) {
+						this.trace(`Accessibility tree extraction yielded insufficient content, trying main DOM element extraction`);
+						const domContent = await this.extractMainDomElementContent() ?? '';
+						result = domContent.length > result.length ? domContent : result;
+					}
+				})(), WebPageLoader.EXTRACT_CONTENT_TIMEOUT);
+			} finally {
+				cts.cancel();
+				cts.dispose();
+			}
+
+			if (result.length === 0) {
+				this._onResult({ status: 'error', error: 'Failed to extract meaningful content from the web page' });
+			} else if (errorResult !== undefined) {
 				this._onResult({ ...errorResult, result, title });
 			} else {
 				this._onResult({ status: 'ok', result, title });
@@ -306,6 +451,78 @@ export class WebPageLoader extends Disposable {
 					error: e instanceof Error ? e.message : String(e)
 				});
 			}
+		}
+	}
+
+	/**
+	 * Extracts content from the Accessibility tree of the loaded web page.
+	 * @param token Cancellation token to abort the operation.
+	 * @return The extracted content, or undefined if extraction fails or is cancelled.
+	 */
+	private async extractAccessibilityTreeContent(token: CancellationToken): Promise<string | undefined> {
+		this.trace(`Extracting content using Accessibility domain`);
+		try {
+			// Enable the Page domain to get frame information
+			await this._debugger.sendCommand('Page.enable');
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+
+			// Get all frames including iframes
+			const { frameTree } = await this._debugger.sendCommand('Page.getFrameTree') as { frameTree: FrameTreeNode };
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+
+			const frameNodes = [frameTree];
+			for (let i = 0; i < frameNodes.length; i++) {
+				frameNodes.push(...frameNodes[i].childFrames ?? []);
+			}
+
+			// Collect accessibility nodes from all frames
+			const allNodes: AXNode[] = [];
+			for (const { frame } of frameNodes) {
+				try {
+					const { nodes } = await this._debugger.sendCommand('Accessibility.getFullAXTree', { frameId: frame.id }) as { nodes: AXNode[] };
+					allNodes.push(...nodes);
+					if (token.isCancellationRequested) {
+						return undefined;
+					}
+				} catch {
+					// ignore
+				}
+			}
+
+			return convertAXTreeToMarkdown(this._uri, allNodes);
+		} catch (error) {
+			this.trace(`Accessibility tree extraction failed: ${error instanceof Error ? error.message : String(error)}`);
+			return undefined;
+		}
+	}
+
+	/**
+	 * Fallback method for extracting web page content when Accessibility tree extraction yields insufficient content.
+	 * Attempts to extract meaningful text content from the main DOM elements of the loaded web page.
+	 * @returns The extracted text content, or undefined if extraction fails.
+	 */
+	private async extractMainDomElementContent(): Promise<string | undefined> {
+		try {
+			this.trace(`Extracting content from main DOM element`);
+			return await this._window.webContents.executeJavaScript(`
+				(() => {
+					const selectors = ['main','article','[role="main"]','.main-content','#main-content','.article-body','.post-content','.entry-content','.content','body'];
+					for (const selector of selectors) {
+						const content = document.querySelector(selector)?.textContent?.replace(/[ \\t]+/g, ' ').replace(/\\s{2,}/gm, '\\n').trim();
+						if (content && content.length > ${WebPageLoader.MIN_CONTENT_LENGTH}) {
+							return content;
+						}
+					}
+					return undefined;
+				})();
+			`);
+		} catch (error) {
+			this.trace(`DOM extraction failed: ${error instanceof Error ? error.message : String(error)}`);
+			return undefined;
 		}
 	}
 }
