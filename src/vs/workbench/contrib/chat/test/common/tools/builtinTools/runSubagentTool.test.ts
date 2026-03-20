@@ -22,6 +22,7 @@ import { MockPromptsService } from '../../promptSyntax/service/mockPromptsServic
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IToolInvocation, ToolProgress } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
+import { ChatConfiguration } from '../../../../common/constants.js';
 
 suite('RunSubagentTool', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -506,7 +507,7 @@ suite('RunSubagentTool', () => {
 		}) {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
 			const configService = new TestConfigurationService({
-				'chat.nestedSubagents.maxDepth': opts.maxDepth,
+				[ChatConfiguration.SubagentsMaxDepth]: opts.maxDepth,
 			});
 			const promptsService = new MockPromptsService();
 
