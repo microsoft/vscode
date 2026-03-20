@@ -1,0 +1,42 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ===== Modern action label styling for sessions auxiliary bar ===== */
+
+/* Base label: lowercase text + heavier weight + pill padding */
+.agent-sessions-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) .action-label {
+	text-transform: capitalize;
+	font-weight: 500;
+	border-radius: 4px;
+	padding: 0px 8px;
+	font-size: 12px;
+	line-height: 22px;
+}
+
+.agent-sessions-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
+	padding-left: 0;
+	padding-right: 0;
+}
+
+.agent-sessions-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .badge {
+	margin-left: -4px;
+	padding-right: 6px;
+}
+
+.agent-sessions-workbench .part.auxiliarybar > .title {
+	padding-left: 4px;
+	padding-right: 2px;
+}
+
+/* Hide the underline indicator entirely */
+.agent-sessions-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator:before {
+	display: none !important;
+}
+
+/* Active/checked state: background container instead of underline */
+.agent-sessions-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
+	background-color: var(--vscode-activityBarTop-activeBackground, color-mix(in srgb, var(--vscode-sideBarTitle-foreground) 5%, transparent)) !important;
+	border-radius: 4px;
+}

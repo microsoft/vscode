@@ -86,6 +86,8 @@ export interface NativeParsedArgs {
 	'inspect-brk-search'?: string;
 	'inspect-ptyhost'?: string;
 	'inspect-brk-ptyhost'?: string;
+	'inspect-agenthost'?: string;
+	'inspect-brk-agenthost'?: string;
 	'inspect-sharedprocess'?: string;
 	'inspect-brk-sharedprocess'?: string;
 	'disable-extensions'?: boolean;
@@ -107,6 +109,7 @@ export interface NativeParsedArgs {
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'export-policy-data'?: string;
+	'export-default-keybindings'?: string;
 	'install-source'?: string;
 	'add-mcp'?: string[];
 	'disable-updates'?: boolean;

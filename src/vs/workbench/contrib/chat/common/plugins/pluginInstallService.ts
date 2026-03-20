@@ -42,6 +42,26 @@ export interface IPluginInstallService {
 	 */
 	installPlugin(plugin: IMarketplacePlugin): Promise<void>;
 
+	/**
+	 * Installs a plugin directly from a source location string. Accepts
+	 * GitHub shorthand (`owner/repo`) or a full git clone URL. Clones the
+	 * repository, reads marketplace metadata to discover plugins, and
+	 * registers the selected plugin.
+	 */
+	installPluginFromSource(source: string): Promise<void>;
+
+	/**
+	 * Synchronously validates the format of a plugin source string.
+	 * Returns an error message if the format is invalid, or undefined if valid.
+	 */
+	validatePluginSource(source: string): string | undefined;
+
+	/**
+	 * Installs a plugin from an already-validated source string.
+	 * Handles trust, cloning, scanning, and registration. Returns a result
+	 * with an optional error message (e.g. no plugins found).
+	 */
+	installPluginFromValidatedSource(source: string): Promise<{ success: boolean; message?: string }>;
 
 	/**
 	 * Pulls the latest changes for an already-cloned marketplace repository.

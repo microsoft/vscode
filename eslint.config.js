@@ -1042,6 +1042,33 @@ export default tseslint.config(
 			]
 		}
 	},
+	// electron-main layer: prevent static imports of heavy node_modules
+	// that would be synchronously loaded on startup
+	{
+		files: [
+			'src/vs/code/electron-main/**/*.ts',
+			'src/vs/code/node/**/*.ts',
+			'src/vs/platform/*/electron-main/**/*.ts',
+			'src/vs/platform/*/node/**/*.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-static-node-module-import': [
+				'error',
+				// Files that run in separate processes, not on the electron-main startup path
+				'src/vs/platform/agentHost/node/copilot/**/*.ts',
+				'src/vs/platform/files/node/watcher/**/*.ts',
+				'src/vs/platform/terminal/node/**/*.ts',
+				// Files that use small, safe modules
+				'src/vs/platform/environment/node/argv.ts',
+			]
+		}
+	},
 	// browser/electron-browser layer
 	{
 		files: [
@@ -1456,6 +1483,7 @@ export default tseslint.config(
 					// - electron-main
 					'when': 'hasNode',
 					'allow': [
+						'@github/copilot-sdk',
 						'@parcel/watcher',
 						'@vscode/sqlite3',
 						'@vscode/vscode-languagedetection',
@@ -1498,6 +1526,7 @@ export default tseslint.config(
 						'vscode-regexpp',
 						'vscode-textmate',
 						'worker_threads',
+						'ws',
 						'@xterm/addon-clipboard',
 						'@xterm/addon-image',
 						'@xterm/addon-ligatures',
@@ -1965,6 +1994,7 @@ export default tseslint.config(
 						'vs/editor/contrib/*/~',
 						'vs/editor/editor.all.js',
 						'vs/sessions/~',
+						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',
 						'vs/workbench/~',
 						'vs/workbench/api/~',
@@ -1977,13 +2007,14 @@ export default tseslint.config(
 					'target': 'src/vs/sessions/sessions.web.main.ts',
 					'layer': 'browser',
 					'restrictions': [
-						'vs/base/*/~',
+						'vs/base/~',
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
 						'vs/editor/~',
 						'vs/editor/contrib/*/~',
 						'vs/editor/editor.all.js',
 						'vs/sessions/~',
+						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',
 						'vs/workbench/~',
 						'vs/workbench/api/~',
@@ -2083,6 +2114,7 @@ export default tseslint.config(
 						'vs/editor/contrib/*/~',
 						'vs/workbench/~',
 						'vs/workbench/services/*/~',
+						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						{
 							'when': 'test',

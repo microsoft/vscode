@@ -53,7 +53,7 @@ import { ChatModeKind } from '../../../../common/constants.js';
 import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyService, IContextKeyChangeEvent } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 
 suite('PromptsService', () => {
@@ -176,7 +176,7 @@ suite('PromptsService', () => {
 
 		instaService.stub(IAgentPluginService, {
 			plugins: testPluginsObservable,
-			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, setEnabled: () => { } },
+			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, setEnabled: () => { }, remove: () => { } },
 		});
 
 		service = disposables.add(instaService.createInstance(PromptsService));
@@ -2427,11 +2427,11 @@ suite('PromptsService', () => {
 
 			assert.ok(allResult, 'Should return results when agent skills are enabled');
 			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
-			assert.strictEqual(result.length, 4, 'Should find 4 skills total');
+			assert.strictEqual(result.length, 5, 'Should find 5 skills total');
 
 			// Check project skills (both from .github/skills and .claude/skills)
 			const projectSkills = result.filter(skill => skill.storage === PromptsStorage.local);
-			assert.strictEqual(projectSkills.length, 2, 'Should find 2 project skills');
+			assert.strictEqual(projectSkills.length, 3, 'Should find 3 project skills');
 
 			const githubSkill1 = projectSkills.find(skill => skill.name === 'GitHub Skill 1');
 			assert.ok(githubSkill1, 'Should find GitHub skill 1');
@@ -2442,6 +2442,12 @@ suite('PromptsService', () => {
 			assert.ok(claudeSkill1, 'Should find Claude skill 1');
 			assert.strictEqual(claudeSkill1.description, 'A Claude skill for testing');
 			assert.strictEqual(claudeSkill1.uri.path, `${rootFolder}/.claude/skills/Claude Skill 1/SKILL.md`);
+
+			// The invalid-skill (no name attribute) should now use folder name as fallback
+			const invalidSkill = projectSkills.find(skill => skill.name === 'invalid-skill');
+			assert.ok(invalidSkill, 'Should find invalid-skill using folder name as fallback');
+			assert.strictEqual(invalidSkill.description, 'Invalid skill, no name');
+			assert.strictEqual(invalidSkill.uri.path, `${rootFolder}/.claude/skills/invalid-skill/SKILL.md`);
 
 			// Check personal skills
 			const personalSkills = result.filter(skill => skill.storage === PromptsStorage.user);
@@ -2494,12 +2500,18 @@ suite('PromptsService', () => {
 
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
-			// Should still return the valid skill, even if one has parsing errors
+			// Should return both skills - the malformed one uses folder name as fallback
 			assert.ok(allResult, 'Should return results even with parsing errors');
 			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
-			assert.strictEqual(result.length, 1, 'Should find 1 valid skill');
-			assert.strictEqual(result[0].name, 'Valid Skill');
-			assert.strictEqual(result[0].storage, PromptsStorage.local);
+			assert.strictEqual(result.length, 2, 'Should find 2 skills');
+
+			const validSkill = result.find(s => s.name === 'Valid Skill');
+			assert.ok(validSkill, 'Should find the valid skill');
+			assert.strictEqual(validSkill.storage, PromptsStorage.local);
+
+			const invalidSkill = result.find(s => s.name === 'invalid-skill');
+			assert.ok(invalidSkill, 'Should find skill with folder name as fallback despite malformed YAML');
+			assert.strictEqual(invalidSkill.storage, PromptsStorage.local);
 		});
 
 		test('should return empty array when no skills found', async () => {
@@ -2736,7 +2748,7 @@ suite('PromptsService', () => {
 			assert.strictEqual(result[0].storage, PromptsStorage.local);
 		});
 
-		test('should skip skills where name does not match folder name', async () => {
+		test('should include skills where name does not match folder name using folder name as fallback', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
 
@@ -2753,7 +2765,7 @@ suite('PromptsService', () => {
 					contents: [
 						'---',
 						'name: "Correct Skill Name"',
-						'description: "This skill should be skipped due to name mismatch"',
+						'description: "This skill should use folder name as fallback"',
 						'---',
 						'Skill content',
 					],
@@ -2775,11 +2787,17 @@ suite('PromptsService', () => {
 
 			assert.ok(allResult, 'Should return results');
 			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
-			assert.strictEqual(result.length, 1, 'Should find only 1 skill (mismatched one skipped)');
-			assert.strictEqual(result[0].name, 'Valid Skill', 'Should only find the valid skill');
+			assert.strictEqual(result.length, 2, 'Should find both skills');
+
+			const mismatchedSkill = result.find(s => s.name === 'Correct Skill Name');
+			assert.ok(mismatchedSkill, 'Should find skill with folder name as fallback');
+			assert.strictEqual(mismatchedSkill.description, 'This skill should use folder name as fallback');
+
+			const validSkill = result.find(s => s.name === 'Valid Skill');
+			assert.ok(validSkill, 'Should find the valid skill');
 		});
 
-		test('should skip skills with missing name attribute', async () => {
+		test('should include skills with missing name attribute using folder name as fallback', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
 
@@ -2815,8 +2833,14 @@ suite('PromptsService', () => {
 
 			assert.ok(allResult, 'Should return results');
 			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
-			assert.strictEqual(result.length, 1, 'Should find only 1 skill (one without name skipped)');
-			assert.strictEqual(result[0].name, 'Valid Named Skill', 'Should only find skill with name attribute');
+			assert.strictEqual(result.length, 2, 'Should find both skills');
+
+			const noNameSkill = result.find(s => s.name === 'no-name-skill');
+			assert.ok(noNameSkill, 'Should find skill with folder name as fallback');
+			assert.strictEqual(noNameSkill.description, 'This skill has no name attribute');
+
+			const validSkill = result.find(s => s.name === 'Valid Named Skill');
+			assert.ok(validSkill, 'Should find skill with name attribute');
 		});
 
 		test('should include extension-provided skills in findAgentSkills', async () => {
@@ -3684,6 +3708,7 @@ suite('PromptsService', () => {
 			const commands = observableValue<readonly IAgentPluginCommand[]>('testPluginCommands', []);
 			const skills = observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', []);
 			const agents = observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', []);
+			const instructions = observableValue<readonly IAgentPluginInstruction[]>('testPluginInstructions', []);
 			const mcpServerDefinitions = observableValue<readonly IAgentPluginMcpServerDefinition[]>('testPluginMcpServerDefinitions', []);
 
 			return {
@@ -3696,6 +3721,7 @@ suite('PromptsService', () => {
 					commands,
 					skills,
 					agents,
+					instructions,
 					mcpServerDefinitions,
 				},
 				hooks,
@@ -3761,6 +3787,7 @@ suite('PromptsService', () => {
 				type: HookType.PreToolUse,
 				originalId: 'plugin-pre-tool-use',
 				hooks: [{ type: 'command', command: 'echo from-plugin' }],
+				uri: URI.file('/plugins/test-plugin/hooks.json'),
 			}]);
 
 			testPluginsObservable.set([plugin], undefined);
@@ -3782,6 +3809,7 @@ suite('PromptsService', () => {
 				type: HookType.PreToolUse,
 				originalId: 'plugin-pre-tool-use',
 				hooks: [{ type: 'command', command: 'echo before' }],
+				uri: URI.file('/plugins/test-plugin/hooks.json'),
 			}]);
 
 			testPluginsObservable.set([plugin], undefined);
@@ -3794,6 +3822,7 @@ suite('PromptsService', () => {
 				type: HookType.PreToolUse,
 				originalId: 'plugin-pre-tool-use',
 				hooks: [{ type: 'command', command: 'echo after' }],
+				uri: URI.file('/plugins/test-plugin/hooks.json'),
 			}], undefined);
 
 			const after = await service.getHooks(CancellationToken.None);
@@ -3846,6 +3875,7 @@ suite('PromptsService', () => {
 				type: HookType.PreToolUse,
 				originalId: 'plugin-pre-tool-use',
 				hooks: [{ type: 'command', command: 'echo from-plugin' }],
+				uri: URI.file('/plugins/test-plugin/hooks.json'),
 			}]);
 
 			testPluginsObservable.set([plugin], undefined);
@@ -3853,6 +3883,112 @@ suite('PromptsService', () => {
 			await workspaceTrustService.setWorkspaceTrust(false);
 			const result = await service.getHooks(CancellationToken.None);
 			assert.strictEqual(result, undefined, 'Expected undefined hooks when workspace is untrusted, even with plugin hooks');
+		});
+	});
+
+	suite('plugin instructions', () => {
+		function createPluginWithInstructions(
+			path: string,
+			initialInstructions: readonly IAgentPluginInstruction[],
+		): { plugin: IAgentPlugin; instructions: ISettableObservable<readonly IAgentPluginInstruction[]> } {
+			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
+			const hooks = observableValue<readonly IAgentPluginHook[]>('testPluginHooks', []);
+			const commands = observableValue<readonly IAgentPluginCommand[]>('testPluginCommands', []);
+			const skills = observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', []);
+			const agents = observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', []);
+			const instructions = observableValue<readonly IAgentPluginInstruction[]>('testPluginInstructions', initialInstructions);
+			const mcpServerDefinitions = observableValue<readonly IAgentPluginMcpServerDefinition[]>('testPluginMcpServerDefinitions', []);
+
+			return {
+				plugin: {
+					uri: URI.file(path),
+					label: basename(URI.file(path)),
+					enablement,
+					remove: () => { },
+					hooks,
+					commands,
+					skills,
+					agents,
+					instructions,
+					mcpServerDefinitions,
+				},
+				instructions,
+			};
+		}
+
+		test('lists plugin instructions via listPromptFiles', async function () {
+			const ruleUri = URI.file('/plugins/test-plugin/rules/prefer-const.mdc');
+			const { plugin } = createPluginWithInstructions('/plugins/test-plugin', [
+				{ uri: ruleUri, name: 'prefer-const' },
+			]);
+
+			testPluginsObservable.set([plugin], undefined);
+
+			const result = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const pluginInstruction = result.find(p => p.uri.toString() === ruleUri.toString());
+			assert.ok(pluginInstruction, 'Plugin instruction should appear in listPromptFiles');
+			assert.strictEqual(pluginInstruction!.storage, PromptsStorage.plugin);
+		});
+
+		test('updates listed instructions when plugin instructions change', async function () {
+			const ruleUri1 = URI.file('/plugins/test-plugin/rules/rule-a.mdc');
+			const ruleUri2 = URI.file('/plugins/test-plugin/rules/rule-b.mdc');
+			const { plugin, instructions } = createPluginWithInstructions('/plugins/test-plugin', [
+				{ uri: ruleUri1, name: 'rule-a' },
+			]);
+
+			testPluginsObservable.set([plugin], undefined);
+
+			const before = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const beforePlugin = before.filter(p => p.storage === PromptsStorage.plugin);
+			assert.strictEqual(beforePlugin.length, 1);
+
+			const eventFired = new Promise<void>(resolve => {
+				const disposable = service.onDidChangeInstructions(() => {
+					disposable.dispose();
+					resolve();
+				});
+			});
+
+			instructions.set([
+				{ uri: ruleUri1, name: 'rule-a' },
+				{ uri: ruleUri2, name: 'rule-b' },
+			], undefined);
+
+			await eventFired;
+
+			const after = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const afterPlugin = after.filter(p => p.storage === PromptsStorage.plugin);
+			assert.strictEqual(afterPlugin.length, 2);
+		});
+
+		test('removes instructions when plugin is removed', async function () {
+			const ruleUri = URI.file('/plugins/test-plugin/rules/rule-a.mdc');
+			const { plugin } = createPluginWithInstructions('/plugins/test-plugin', [
+				{ uri: ruleUri, name: 'rule-a' },
+			]);
+
+			testPluginsObservable.set([plugin], undefined);
+			const withPlugin = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			assert.ok(withPlugin.some(p => p.storage === PromptsStorage.plugin));
+
+			testPluginsObservable.set([], undefined);
+			const withoutPlugin = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			assert.ok(!withoutPlugin.some(p => p.storage === PromptsStorage.plugin));
+		});
+
+		test('namespaces plugin instruction names with plugin folder', async function () {
+			const ruleUri = URI.file('/plugins/deploy-tools/rules/lint-check.mdc');
+			const { plugin } = createPluginWithInstructions('/plugins/deploy-tools', [
+				{ uri: ruleUri, name: 'lint-check' },
+			]);
+
+			testPluginsObservable.set([plugin], undefined);
+
+			const result = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const pluginInstruction = result.find(p => p.uri.toString() === ruleUri.toString());
+			assert.ok(pluginInstruction, 'Plugin instruction should be listed');
+			assert.strictEqual(pluginInstruction!.name, 'deploy-tools:lint-check');
 		});
 	});
 });

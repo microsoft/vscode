@@ -6,15 +6,18 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { PluginInstallService } from '../../../browser/pluginInstallService.js';
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions, IPullRepositoryOptions } from '../../../common/plugins/agentPluginRepositoryService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, IPluginSourceDescriptor, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IPluginSource } from '../../../common/plugins/pluginSource.js';
 
@@ -66,6 +69,16 @@ suite('PluginInstallService', () => {
 		marketplaceTrusted: boolean;
 		/** Canonical IDs that were trusted via trustMarketplace() */
 		trustedMarketplaces: string[];
+		/** Plugins returned by readPluginsFromDirectory */
+		readPluginsResult: IMarketplacePlugin[];
+		/** Result of the quick pick dialog */
+		quickPickResult: { label: string } | undefined;
+		/** Result of the quick input dialog */
+		quickInputResult: string | undefined;
+		/** Current configured marketplace values */
+		configuredMarketplaces: string[];
+		/** Updated marketplace config values */
+		updatedMarketplaces: string[] | undefined;
 	}
 
 	function createDefaults(): MockState {
@@ -84,6 +97,11 @@ suite('PluginInstallService', () => {
 			updatePluginSourceCalls: [],
 			marketplaceTrusted: true,
 			trustedMarketplaces: [],
+			readPluginsResult: [],
+			quickPickResult: undefined,
+			quickInputResult: undefined,
+			configuredMarketplaces: [],
+			updatedMarketplaces: undefined,
 		};
 	}
 
@@ -247,7 +265,34 @@ suite('PluginInstallService', () => {
 			trustMarketplace: (ref: IMarketplaceReference) => {
 				state.trustedMarketplaces.push(ref.canonicalId);
 			},
+			readPluginsFromDirectory: async () => state.readPluginsResult,
 		} as unknown as IPluginMarketplaceService);
+
+		// IConfigurationService
+		instantiationService.stub(IConfigurationService, {
+			getValue: (key: string) => {
+				if (key === ChatConfiguration.PluginMarketplaces) {
+					return state.configuredMarketplaces;
+				}
+				return undefined;
+			},
+			updateValue: async (key: string, value: unknown) => {
+				if (key === ChatConfiguration.PluginMarketplaces) {
+					state.updatedMarketplaces = value as string[];
+				}
+			},
+		} as unknown as IConfigurationService);
+
+		// IQuickInputService
+		instantiationService.stub(IQuickInputService, {
+			input: async () => state.quickInputResult,
+			pick: async (picks: { label: string }[]) => {
+				if (!state.quickPickResult) {
+					return undefined;
+				}
+				return picks.find(p => p.label === state.quickPickResult!.label);
+			},
+		} as unknown as IQuickInputService);
 
 		const service = instantiationService.createInstance(PluginInstallService);
 		return { service, state };
@@ -779,6 +824,218 @@ suite('PluginInstallService', () => {
 			}
 
 			assert.strictEqual(state.addedPlugins.length, 0, 'no plugins should be installed when trust is declined');
+		});
+	});
+
+	// =========================================================================
+	// installPluginFromSource
+	// =========================================================================
+
+	suite('installPluginFromSource', () => {
+
+		test('rejects invalid source strings', async () => {
+			const { service, state } = createService();
+			await service.installPluginFromSource('not a valid source');
+			assert.strictEqual(state.addedPlugins.length, 0);
+			assert.strictEqual(state.notifications.length, 1);
+		});
+
+		test('rejects local file URIs', async () => {
+			const { service, state } = createService();
+			await service.installPluginFromSource('file:///some/local/path');
+			assert.strictEqual(state.addedPlugins.length, 0);
+			assert.strictEqual(state.notifications.length, 1);
+		});
+
+		test('installs single plugin from GitHub shorthand with marketplace.json', async () => {
+			const ref = makeMarketplaceRef('owner/my-plugin');
+			const discoveredPlugin = createPlugin({
+				name: 'my-discovered-plugin',
+				description: 'A discovered plugin',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: '' },
+				marketplace: ref.displayLabel,
+				marketplaceReference: ref,
+				marketplaceType: MarketplaceType.OpenPlugin,
+			});
+			const { service, state } = createService({
+				ensurePluginSourceResult: URI.file('/cache/agentPlugins/github.com/owner/my-plugin'),
+				readPluginsResult: [discoveredPlugin],
+			});
+
+			await service.installPluginFromSource('owner/my-plugin');
+
+			assert.strictEqual(state.addedPlugins.length, 1);
+			assert.strictEqual(state.addedPlugins[0].plugin.name, 'my-discovered-plugin');
+		});
+
+		test('shows error when no marketplace.json found', async () => {
+			const { service, state } = createService({
+				ensurePluginSourceResult: URI.file('/cache/agentPlugins/github.com/owner/cool-tool'),
+				readPluginsResult: [],
+			});
+
+			await service.installPluginFromSource('owner/cool-tool');
+
+			assert.strictEqual(state.addedPlugins.length, 0);
+			assert.strictEqual(state.notifications.length, 1);
+			assert.ok(state.notifications[0].message.includes('No plugins found'));
+		});
+
+		test('shows quick pick for multi-plugin repos', async () => {
+			const ref = makeMarketplaceRef('owner/multi-repo');
+			const pluginA = createPlugin({
+				name: 'plugin-a',
+				source: 'plugins/a',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/a' },
+				marketplace: ref.displayLabel,
+				marketplaceReference: ref,
+			});
+			const pluginB = createPlugin({
+				name: 'plugin-b',
+				source: 'plugins/b',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/b' },
+				marketplace: ref.displayLabel,
+				marketplaceReference: ref,
+			});
+			const { service, state } = createService({
+				ensurePluginSourceResult: URI.file('/cache/agentPlugins/github.com/owner/multi-repo'),
+				readPluginsResult: [pluginA, pluginB],
+				quickPickResult: { label: 'plugin-b' },
+			});
+
+			await service.installPluginFromSource('owner/multi-repo');
+
+			assert.strictEqual(state.addedPlugins.length, 1);
+			assert.strictEqual(state.addedPlugins[0].plugin.name, 'plugin-b');
+			assert.ok(state.addedPlugins[0].uri.includes('plugins/b'));
+		});
+
+		test('does not install when quick pick is cancelled', async () => {
+			const ref = makeMarketplaceRef('owner/multi-repo');
+			const pluginA = createPlugin({
+				name: 'plugin-a',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/a' },
+				marketplace: ref.displayLabel,
+				marketplaceReference: ref,
+			});
+			const pluginB = createPlugin({
+				name: 'plugin-b',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/b' },
+				marketplace: ref.displayLabel,
+				marketplaceReference: ref,
+			});
+			const { service, state } = createService({
+				ensurePluginSourceResult: URI.file('/cache/agentPlugins/github.com/owner/multi-repo'),
+				readPluginsResult: [pluginA, pluginB],
+				quickPickResult: undefined,
+			});
+
+			await service.installPluginFromSource('owner/multi-repo');
+
+			assert.strictEqual(state.addedPlugins.length, 0);
+		});
+
+		test('does not install when trust is declined', async () => {
+			const { service, state } = createService({
+				marketplaceTrusted: false,
+				dialogConfirmResult: false,
+				readPluginsResult: [],
+			});
+
+			await service.installPluginFromSource('owner/repo');
+
+			assert.strictEqual(state.addedPlugins.length, 0);
+		});
+
+		test('shows error when no plugins found in git URL', async () => {
+			const { service, state } = createService({
+				ensurePluginSourceResult: URI.file('/cache/agentPlugins/github.com/owner/my-tool'),
+				readPluginsResult: [],
+			});
+
+			await service.installPluginFromSource('https://github.com/owner/my-tool.git');
+
+			assert.strictEqual(state.addedPlugins.length, 0);
+			assert.strictEqual(state.notifications.length, 1);
+			assert.ok(state.notifications[0].message.includes('No plugins found'));
+		});
+
+		test('shows error when clone directory does not exist', async () => {
+			const { service, state } = createService({
+				ensurePluginSourceResult: URI.file('/cache/agentPlugins/github.com/owner/missing'),
+				fileExistsResult: false,
+			});
+
+			await service.installPluginFromSource('owner/missing');
+
+			assert.strictEqual(state.addedPlugins.length, 0);
+			assert.strictEqual(state.notifications.length, 1);
+		});
+
+		test('adds marketplace to config after installing single plugin', async () => {
+			const ref = makeMarketplaceRef('owner/my-plugin');
+			const discoveredPlugin = createPlugin({
+				name: 'my-discovered-plugin',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: '' },
+				marketplace: ref.displayLabel,
+				marketplaceReference: ref,
+				marketplaceType: MarketplaceType.OpenPlugin,
+			});
+			const { service, state } = createService({
+				ensurePluginSourceResult: URI.file('/cache/agentPlugins/github.com/owner/my-plugin'),
+				readPluginsResult: [discoveredPlugin],
+			});
+
+			await service.installPluginFromSource('owner/my-plugin');
+
+			assert.deepStrictEqual(state.updatedMarketplaces, ['owner/my-plugin']);
+		});
+
+		test('adds marketplace to config after picking from multi-plugin repo', async () => {
+			const ref = makeMarketplaceRef('owner/multi-repo');
+			const pluginA = createPlugin({
+				name: 'plugin-a',
+				source: 'plugins/a',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/a' },
+				marketplace: ref.displayLabel,
+				marketplaceReference: ref,
+			});
+			const pluginB = createPlugin({
+				name: 'plugin-b',
+				source: 'plugins/b',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/b' },
+				marketplace: ref.displayLabel,
+				marketplaceReference: ref,
+			});
+			const { service, state } = createService({
+				ensurePluginSourceResult: URI.file('/cache/agentPlugins/github.com/owner/multi-repo'),
+				readPluginsResult: [pluginA, pluginB],
+				quickPickResult: { label: 'plugin-a' },
+			});
+
+			await service.installPluginFromSource('owner/multi-repo');
+
+			assert.deepStrictEqual(state.updatedMarketplaces, ['owner/multi-repo']);
+		});
+
+		test('does not duplicate marketplace in config', async () => {
+			const ref = makeMarketplaceRef('owner/my-plugin');
+			const discoveredPlugin = createPlugin({
+				name: 'my-discovered-plugin',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: '' },
+				marketplace: ref.displayLabel,
+				marketplaceReference: ref,
+				marketplaceType: MarketplaceType.OpenPlugin,
+			});
+			const { service, state } = createService({
+				ensurePluginSourceResult: URI.file('/cache/agentPlugins/github.com/owner/my-plugin'),
+				readPluginsResult: [discoveredPlugin],
+				configuredMarketplaces: ['owner/my-plugin'],
+			});
+
+			await service.installPluginFromSource('owner/my-plugin');
+
+			assert.strictEqual(state.updatedMarketplaces, undefined);
 		});
 	});
 });

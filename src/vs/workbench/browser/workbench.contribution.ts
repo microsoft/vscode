@@ -365,6 +365,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					mode: 'auto'
 				}
 			},
+			'workbench.editor.modalMinWidth': {
+				'type': 'number',
+				'description': localize('modalMinWidth', "Controls the minimum width of modal editor overlays in pixels."),
+				'default': 400,
+				'minimum': 0,
+				'multipleOf': 1
+			},
 			'workbench.editor.swipeToNavigate': {
 				'type': 'boolean',
 				'description': localize('swipeToNavigate', "Navigate between open files using three-finger swipe horizontally. Note that System Preferences > Trackpad > More Gestures > 'Swipe between pages' must be set to 'Swipe with two or three fingers'."),
@@ -784,6 +791,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('tips.enabled', "When enabled, will show the watermark tips when no editor is open.")
 			},
+			[LayoutSettings.SHADOWS]: {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('shadows', "Controls whether shadow effects are shown around the side panels and other workbench elements.")
+			},
 		}
 	});
 
@@ -1052,19 +1064,6 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			const result: ConfigurationKeyValuePairs = [['zenMode.hideTabs', { value: undefined }]];
 			if (value === true) {
 				result.push(['zenMode.showTabs', { value: 'single' }]);
-			}
-			return result;
-		}
-	}]);
-
-Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
-	.registerConfigurationMigrations([{
-		key: 'workbench.editor.useModal', migrateFn: (value: unknown) => {
-			const result: ConfigurationKeyValuePairs = [];
-			if (value === 'default') {
-				result.push(['workbench.editor.useModal', { value: 'some' }]);
-			} else if (value === 'on') {
-				result.push(['workbench.editor.useModal', { value: 'all' }]);
 			}
 			return result;
 		}

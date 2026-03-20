@@ -41,15 +41,14 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
-import { AgentSessionProviders, getAgentSessionTime } from './agentSessions.js';
-import { AgentSessionsGrouping } from './agentSessionsFilter.js';
+import { AgentSessionProviders } from './agentSessions.js';
+import { AgentSessionsGrouping, AgentSessionsSorting } from './agentSessionsFilter.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
-
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
 
@@ -64,7 +63,6 @@ interface IAgentSessionItemTemplate {
 	// Column 2 Row 1
 	readonly title: IconLabel;
 	readonly statusContainer: HTMLElement;
-	readonly statusProviderIcon: HTMLElement;
 	readonly statusTime: HTMLElement;
 	readonly titleToolbar: MenuWorkbenchToolBar;
 
@@ -89,9 +87,10 @@ interface IAgentSessionItemTemplate {
 
 export interface IAgentSessionRendererOptions {
 	readonly disableHover?: boolean;
-	readonly showIsolationIcon?: boolean;
 	getHoverPosition(): HoverPosition;
+
 	isGroupedByRepository?(): boolean;
+	isSortedByUpdated?(): boolean;
 }
 
 export class AgentSessionRenderer extends Disposable implements ICompressibleTreeRenderer<IAgentSession, FuzzyScore, IAgentSessionItemTemplate> {
@@ -143,19 +142,16 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 						h('div.agent-session-title-toolbar@titleToolbar'),
 					]),
 					h('div.agent-session-details-row', [
+						h('div.agent-session-badge@badge'),
+						h('span.agent-session-separator@separator'),
 						h('div.agent-session-diff-container@diffContainer',
 							[
 								h('span.agent-session-diff-added@addedSpan'),
 								h('span.agent-session-diff-removed@removedSpan')
 							]),
 						h('div.agent-session-description@description'),
-						h('div.agent-session-details-right', [
-							h('div.agent-session-badge@badge'),
-							h('span.agent-session-separator@separator'),
-							h('div.agent-session-status@statusContainer', [
-								h('span.agent-session-status-provider-icon@statusProviderIcon'),
-								h('span.agent-session-status-time@statusTime')
-							]),
+						h('div.agent-session-status@statusContainer', [
+							h('span.agent-session-status-time@statusTime'),
 						]),
 					]),
 					h('div.agent-session-approval-row@approvalRow', [
@@ -179,14 +175,13 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			icon: elements.icon,
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
 			titleToolbar,
+			badge: elements.badge,
+			separator: elements.separator,
 			diffContainer: elements.diffContainer,
 			diffAddedSpan: elements.addedSpan,
 			diffRemovedSpan: elements.removedSpan,
-			badge: elements.badge,
-			separator: elements.separator,
 			description: elements.description,
 			statusContainer: elements.statusContainer,
-			statusProviderIcon: elements.statusProviderIcon,
 			statusTime: elements.statusTime,
 			approvalRow: elements.approvalRow,
 			approvalLabel: elements.approvalLabel,
@@ -210,7 +205,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		template.element.classList.toggle('archived', session.element.isArchived());
 
 		// Icon
-		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}`;
+		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}${session.element.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
 
 		// Title
 		const markdownTitle = new MarkdownString(session.element.label);
@@ -218,9 +213,13 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		// Title Actions - Update context keys
 		ChatContextKeys.isArchivedAgentSession.bindTo(template.contextKeyService).set(session.element.isArchived());
+		ChatContextKeys.isPinnedAgentSession.bindTo(template.contextKeyService).set(session.element.isPinned());
 		ChatContextKeys.isReadAgentSession.bindTo(template.contextKeyService).set(session.element.isRead());
 		ChatContextKeys.agentSessionType.bindTo(template.contextKeyService).set(session.element.providerType);
 		template.titleToolbar.context = session.element;
+
+		// Badge
+		const hasBadge = this.renderBadge(session, template);
 
 		// Diff information
 		let hasDiff = false;
@@ -230,7 +229,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 				hasDiff = true;
 			}
 		}
-		template.diffContainer.classList.toggle('has-diff', hasDiff);
 
 		let hasAgentSessionChanges = false;
 		if (
@@ -247,20 +245,21 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(hasAgentSessionChanges);
 
-		// Badge
-		const hasBadge = this.renderBadge(session, template);
-		template.badge.classList.toggle('has-badge', hasBadge);
 
-		// Description (unless diff is shown)
-		if (!hasDiff) {
-			this.renderDescription(session, template);
-		}
-
-		// Separator (dot between badge and timestamp)
-		template.separator.classList.toggle('has-separator', hasBadge);
+		// Description
+		const hasDescription = this.renderDescription(session, template);
 
 		// Status
-		this.renderStatus(session, template);
+		const hasStatus = this.renderStatus(session, template);
+
+		// When in progress with a description, only show description in the details row
+		const hideDetails = hasDescription && isSessionInProgressStatus(session.element.status);
+		template.badge.classList.toggle('has-badge', hasBadge && !hideDetails);
+		template.diffContainer.classList.toggle('has-diff', hasDiff && !hideDetails);
+		template.statusContainer.classList.toggle('hidden', hideDetails);
+		template.separator.classList.toggle('has-separator', !hideDetails && hasBadge && hasDiff);
+		template.description.classList.toggle('has-separator', hasDescription && !hideDetails && (hasBadge || hasDiff));
+		template.statusContainer.classList.toggle('has-separator', !hideDetails && hasStatus && (hasBadge || hasDiff || hasDescription));
 
 		// Hover
 		this.renderHover(session, template);
@@ -277,17 +276,42 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return false;
 		}
 
-		// When grouped by repository, hide the badge if it only shows the repo name
-		// (since the section header already displays it)
-		if (this.options.isGroupedByRepository?.()) {
+		// When grouped by repository, hide the badge only if the name it shows
+		// matches the section header (i.e. the repository name for this session).
+		// Badges with a different name (e.g. worktree name) are still shown.
+		// Archived sessions always keep their badge since they are grouped under
+		// the "Archived" section, not a repository section.
+		if (this.options.isGroupedByRepository?.() && !session.element.isArchived()) {
 			const raw = typeof badge === 'string' ? badge : badge.value;
-			if (/^\$\((?:repo|folder|worktree)\)\s*.+/.test(raw)) {
-				return false;
+			const match = raw.match(/^\$\((?:repo|folder|worktree)\)\s*(.+)/);
+			if (match) {
+				const badgeName = match[1].trim();
+				const repoName = getRepositoryName(session.element);
+				if (badgeName === repoName) {
+					return false;
+				}
 			}
 		}
 
-		this.renderMarkdownOrText(badge, template.badge, template.elementDisposable);
+		const normalisedBadge = this.stripCodicons(badge);
+		const badgeValue = typeof normalisedBadge === 'string' ? normalisedBadge : normalisedBadge.value;
+		if (!badgeValue) {
+			return false;
+		}
+
+		this.renderMarkdownOrText(normalisedBadge, template.badge, template.elementDisposable);
+
 		return true;
+	}
+
+	private stripCodicons(content: string | IMarkdownString): string | IMarkdownString {
+		const raw = typeof content === 'string' ? content : content.value;
+		const stripped = raw.replace(/\$\([a-z0-9\-]+\)\s*/gi, '').trim();
+		if (typeof content === 'string') {
+			return stripped;
+		}
+
+		return MarkdownString.lift({ ...content, value: stripped });
 	}
 
 	private renderMarkdownOrText(content: string | IMarkdownString, container: HTMLElement, disposables: DisposableStore): void {
@@ -312,6 +336,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return false;
 		}
 
+		if (diff.insertions === 0 && diff.deletions === 0) {
+			return false;
+		}
+
 		if (diff.insertions >= 0 /* render even `0` for more homogeneity */) {
 			template.diffAddedSpan.textContent = `+${diff.insertions}`;
 		}
@@ -329,7 +357,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		}
 
 		if (session.status === AgentSessionStatus.NeedsInput) {
-			return Codicon.report;
+			return Codicon.circleFilled;
 		}
 
 		if (session.status === AgentSessionStatus.Failed) {
@@ -340,36 +368,34 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return Codicon.circleFilled;
 		}
 
-		return Codicon.circleSmallFilled;
+		if (session.providerType === AgentSessionProviders.Local) {
+			return Codicon.circleSmallFilled;
+		}
+
+		return session.icon;
 	}
 
-	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
 		const description = session.element.description;
 		if (description) {
 			this.renderMarkdownOrText(description, template.description, template.elementDisposable);
-			return;
+			return true;
 		}
 
 		// Fallback to state label
 		if (session.element.status === AgentSessionStatus.InProgress) {
 			template.description.textContent = localize('chat.session.status.inProgress', "Working...");
+			return true;
 		} else if (session.element.status === AgentSessionStatus.NeedsInput) {
 			template.description.textContent = localize('chat.session.status.needsInput', "Input needed.");
-		} else if (
-			session.element.timing.lastRequestEnded &&
-			session.element.timing.lastRequestStarted &&
-			session.element.timing.lastRequestEnded > session.element.timing.lastRequestStarted
-		) {
-			const duration = this.toDuration(session.element.timing.lastRequestStarted, session.element.timing.lastRequestEnded, false, true);
-
-			template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
-				localize('chat.session.status.failedAfter', "Failed after {0}", duration) :
-				localize('chat.session.status.completedAfter', "Completed in {0}", duration);
-		} else {
-			template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
-				localize('chat.session.status.failed', "Failed") :
-				localize('chat.session.status.completed', "Completed");
+			return true;
+		} else if (session.element.status === AgentSessionStatus.Failed) {
+			template.description.textContent = localize('chat.session.status.failed', "Failed");
+			return true;
 		}
+
+		template.description.textContent = '';
+		return false;
 	}
 
 	private toDuration(startTime: number, endTime: number, useFullTimeWords: boolean, disallowNow: boolean): string {
@@ -381,7 +407,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		return getDurationString(elapsed, useFullTimeWords);
 	}
 
-	private renderStatus(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+	private renderStatus(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
 
 		const getTimeLabel = (session: IAgentSession) => {
 			let timeLabel: string | undefined;
@@ -390,35 +416,26 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			}
 
 			if (!timeLabel) {
-				const date = getAgentSessionTime(session.timing);
+				const date = this.options.isSortedByUpdated?.()
+					? session.timing.lastRequestEnded ?? session.timing.created
+					: session.timing.created;
 				const seconds = Math.round((new Date().getTime() - date) / 1000);
 				if (seconds < 60) {
 					timeLabel = localize('secondsDuration', "now");
 				} else {
-					timeLabel = sessionDateFromNow(date);
+					timeLabel = sessionDateFromNow(date, true);
 				}
 			}
 
 			return timeLabel;
 		};
 
-		// Provider icon (only shown for non-local sessions)
-		// When showIsolationIcon is enabled for background sessions, show worktree/folder icon instead
-		const isLocal = session.element.providerType === AgentSessionProviders.Local;
-		if (isLocal) {
-			template.statusProviderIcon.className = '';
-		} else if (this.options.showIsolationIcon && session.element.providerType === AgentSessionProviders.Background) {
-			const hasWorktree = typeof session.element.metadata?.worktreePath === 'string';
-			const isolationIcon = hasWorktree ? Codicon.worktree : Codicon.folder;
-			template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(isolationIcon)}`;
-		} else {
-			template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
-		}
-
 		// Time label
 		template.statusTime.textContent = getTimeLabel(session.element);
 		const timer = template.elementDisposable.add(new IntervalTimer());
 		timer.cancelAndSet(() => template.statusTime.textContent = getTimeLabel(session.element), session.element.status === AgentSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
+
+		return true;
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
@@ -709,6 +726,12 @@ export interface IAgentSessionsFilter {
 	readonly groupResults?: () => AgentSessionsGrouping | undefined;
 
 	/**
+	 * The field to sort sessions by.
+	 * Defaults to created date when undefined.
+	 */
+	readonly sortResults?: () => AgentSessionsSorting | undefined;
+
+	/**
 	 * A callback to notify the filter about the number of
 	 * results after filtering.
 	 */
@@ -811,9 +834,14 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	}
 
 	private groupSessionsIntoSections(sessions: IAgentSession[]): AgentSessionListItem[] {
-		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
+		const isCapped = this.filter?.groupResults?.() === AgentSessionsGrouping.Capped;
 
-		if (this.filter?.groupResults?.() === AgentSessionsGrouping.Capped) {
+		const sorter = this.sorter;
+		const sortedSessions = sorter instanceof AgentSessionsSorter
+			? sessions.sort((a, b) => sorter.compare(a, b, isCapped /* special sorting for when results are capped to keep active ones top */))
+			: sessions.sort(sorter.compare.bind(sorter));
+
+		if (isCapped) {
 			if (this.filter?.getExcludes().read) {
 				return sortedSessions; // When filtering to show only unread sessions, show a flat list
 			}
@@ -831,14 +859,22 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		const firstArchivedIndex = sortedSessions.findIndex(session => session.isArchived());
 		const nonArchivedCount = firstArchivedIndex === -1 ? sortedSessions.length : firstArchivedIndex;
+		const nonArchivedSessions = sortedSessions.slice(0, nonArchivedCount);
+		const archivedSessions = sortedSessions.slice(nonArchivedCount);
 
-		const topSessions = sortedSessions.slice(0, Math.min(AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT, nonArchivedCount));
-		const othersSessions = sortedSessions.slice(topSessions.length);
+		// All pinned sessions are always visible
+		const pinnedSessions = nonArchivedSessions.filter(session => session.isPinned());
+		const unpinnedSessions = nonArchivedSessions.filter(session => !session.isPinned());
 
-		// Add top sessions directly (no section header)
-		result.push(...topSessions);
+		// Take up to N non-pinned sessions from the sorted order (preserves NeedsInput prioritization)
+		const topUnpinned = unpinnedSessions.slice(0, AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT);
+		const remainingUnpinned = unpinnedSessions.slice(AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT);
 
-		// Add "More" section for the rest
+		// Add pinned first, then top N non-pinned
+		result.push(...pinnedSessions, ...topUnpinned);
+
+		// Add "More" section for the rest (remaining unpinned + archived)
+		const othersSessions = [...remainingUnpinned, ...archivedSessions];
 		if (othersSessions.length > 0) {
 			result.push({
 				section: AgentSessionSection.More,
@@ -852,7 +888,8 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 	private groupSessionsByDate(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
 		const result: AgentSessionListItem[] = [];
-		const groupedSessions = groupAgentSessionsByDate(sortedSessions);
+		const sortBy = this.filter?.sortResults?.();
+		const groupedSessions = groupAgentSessionsByDate(sortedSessions, sortBy);
 
 		for (const { sessions, section, label } of groupedSessions.values()) {
 			if (sessions.length === 0) {
@@ -867,9 +904,9 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 	private groupSessionsByRepository(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
 		const repoMap = new Map<string, { label: string; sessions: IAgentSession[] }>();
+		const pinnedSessions: IAgentSession[] = [];
 		const archivedSessions: IAgentSession[] = [];
-		const unknownKey = '\x00unknown';
-		const unknownLabel = localize('agentSessions.noRepository', "Other");
+		const otherSessions: IAgentSession[] = [];
 
 		for (const session of sortedSessions) {
 			if (session.isArchived()) {
@@ -877,24 +914,47 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 				continue;
 			}
 
-			const repoName = this.getRepositoryName(session);
-			const repoId = repoName || unknownKey;
-			const repoLabel = repoName || unknownLabel;
-
-			let group = repoMap.get(repoId);
-			if (!group) {
-				group = { label: repoLabel, sessions: [] };
-				repoMap.set(repoId, group);
+			if (session.isPinned()) {
+				pinnedSessions.push(session);
+				continue;
 			}
-			group.sessions.push(session);
+
+			const repoName = getRepositoryName(session);
+			if (repoName) {
+				let group = repoMap.get(repoName);
+				if (!group) {
+					group = { label: repoName, sessions: [] };
+					repoMap.set(repoName, group);
+				}
+				group.sessions.push(session);
+			} else {
+				otherSessions.push(session);
+			}
 		}
 
 		const result: AgentSessionListItem[] = [];
+
+		if (pinnedSessions.length > 0) {
+			result.push({
+				section: AgentSessionSection.Pinned,
+				label: AgentSessionSectionLabels[AgentSessionSection.Pinned],
+				sessions: pinnedSessions,
+			});
+		}
+
 		for (const [, { label, sessions }] of repoMap) {
 			result.push({
 				section: AgentSessionSection.Repository,
 				label,
 				sessions,
+			});
+		}
+
+		if (otherSessions.length > 0) {
+			result.push({
+				section: AgentSessionSection.Repository,
+				label: AgentSessionSectionLabels[AgentSessionSection.Repository],
+				sessions: otherSessions,
 			});
 		}
 
@@ -908,164 +968,172 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		return result;
 	}
+}
 
-	private getRepositoryName(session: IAgentSession): string | undefined {
-		const metadata = session.metadata;
-		if (metadata) {
-			// Cloud sessions: metadata.owner + metadata.name
-			const owner = metadata.owner as string | undefined;
-			const name = metadata.name as string | undefined;
-			if (owner && name) {
-				return name;
-			}
+/**
+ * Extracts the repository name for an agent session from its metadata or badge.
+ * Used for grouping sessions by repository and for determining whether a badge
+ * is redundant with the section header.
+ */
+export function getRepositoryName(session: IAgentSession): string | undefined {
+	const metadata = session.metadata;
+	if (metadata) {
+		// Cloud sessions: metadata.owner + metadata.name
+		const owner = metadata.owner as string | undefined;
+		const name = metadata.name as string | undefined;
+		if (owner && name) {
+			return name;
+		}
 
-			// repositoryNwo: "owner/repo"
-			const nwo = metadata.repositoryNwo as string | undefined;
-			if (nwo && nwo.includes('/')) {
-				return nwo.split('/').pop()!;
-			}
+		// repositoryNwo: "owner/repo"
+		const nwo = metadata.repositoryNwo as string | undefined;
+		if (nwo && nwo.includes('/')) {
+			return nwo.split('/').pop()!;
+		}
 
-			// repository: could be "owner/repo", a URL, or git@host:owner/repo.git
-			const repository = metadata.repository as string | undefined;
-			if (repository) {
-				const repoName = this.parseRepositoryName(repository);
-				if (repoName) {
-					return repoName;
-				}
-			}
-
-			// repositoryUrl: "https://github.com/owner/repo"
-			const repositoryUrl = metadata.repositoryUrl as string | undefined;
-			if (repositoryUrl) {
-				const repoName = this.parseRepositoryName(repositoryUrl);
-				if (repoName) {
-					return repoName;
-				}
-			}
-
-			// repositoryPath: extract repo name from the directory path basename
-			const repositoryPath = metadata.repositoryPath as string | undefined;
-			if (repositoryPath) {
-				const repoName = this.extractRepoNameFromPath(repositoryPath);
-				if (repoName) {
-					return repoName;
-				}
-			}
-
-			// worktreePath: extract repo name from the worktree path
-			const worktreePath = metadata.worktreePath as string | undefined;
-			if (worktreePath) {
-				const repoName = this.extractRepoNameFromPath(worktreePath);
-				if (repoName) {
-					return repoName;
-				}
-			}
-
-			// workingDirectoryPath: fallback to extract name from the working directory
-			const workingDirectoryPath = metadata.workingDirectoryPath as string | undefined;
-			if (workingDirectoryPath) {
-				const repoName = this.extractRepoNameFromPath(workingDirectoryPath);
-				if (repoName) {
-					return repoName;
-				}
+		// repository: could be "owner/repo", a URL, or git@host:owner/repo.git
+		const repository = metadata.repository as string | undefined;
+		if (repository) {
+			const repoName = parseRepositoryName(repository);
+			if (repoName) {
+				return repoName;
 			}
 		}
 
-		// Fallback: extract repo/folder name from badge
-		const badge = session.badge;
-		if (badge) {
-			const raw = typeof badge === 'string' ? badge : badge.value;
-			const badgeMatch = raw.match(/\$\((?:repo|folder|worktree)\)\s*(.+)/);
-			if (badgeMatch) {
-				return badgeMatch[1].trim();
+		// repositoryUrl: "https://github.com/owner/repo"
+		const repositoryUrl = metadata.repositoryUrl as string | undefined;
+		if (repositoryUrl) {
+			const repoName = parseRepositoryName(repositoryUrl);
+			if (repoName) {
+				return repoName;
 			}
 		}
 
-		return undefined;
+		// repositoryPath: extract repo name from the directory path basename
+		const repositoryPath = metadata.repositoryPath as string | undefined;
+		if (repositoryPath) {
+			const repoName = extractRepoNameFromPath(repositoryPath);
+			if (repoName) {
+				return repoName;
+			}
+		}
+
+		// worktreePath: extract repo name from the worktree path
+		const worktreePath = metadata.worktreePath as string | undefined;
+		if (worktreePath) {
+			const repoName = extractRepoNameFromPath(worktreePath);
+			if (repoName) {
+				return repoName;
+			}
+		}
+
+		// workingDirectoryPath: fallback to extract name from the working directory
+		const workingDirectoryPath = metadata.workingDirectoryPath as string | undefined;
+		if (workingDirectoryPath) {
+			const repoName = extractRepoNameFromPath(workingDirectoryPath);
+			if (repoName) {
+				return repoName;
+			}
+		}
 	}
 
-	/**
-	 * Parses a repository name from various formats: "owner/repo", URLs,
-	 * and git@host:owner/repo.git style references.
-	 */
-	private parseRepositoryName(value: string): string | undefined {
-		// Direct "owner/repo" style (no scheme, no git@ prefix)
-		if (value.includes('/') && !value.includes('://') && !value.startsWith('git@')) {
-			let repoSegment = value.split('/').filter(Boolean).pop();
+	// Fallback: extract repo/folder name from badge
+	const badge = session.badge;
+	if (badge) {
+		const raw = typeof badge === 'string' ? badge : badge.value;
+		const badgeMatch = raw.match(/\$\((?:repo|folder|worktree)\)\s*(.+)/);
+		if (badgeMatch) {
+			return badgeMatch[1].trim();
+		}
+	}
+
+	return undefined;
+}
+
+/**
+ * Parses a repository name from various formats: "owner/repo", URLs,
+ * and git@host:owner/repo.git style references.
+ */
+function parseRepositoryName(value: string): string | undefined {
+	// Direct "owner/repo" style (no scheme, no git@ prefix)
+	if (value.includes('/') && !value.includes('://') && !value.startsWith('git@')) {
+		let repoSegment = value.split('/').filter(Boolean).pop();
+		if (repoSegment?.endsWith('.git')) {
+			repoSegment = repoSegment.slice(0, -4);
+		}
+		return repoSegment || undefined;
+	}
+
+	// Standard URL formats (https://..., ssh://..., etc.)
+	try {
+		const url = new URL(value);
+		const parts = url.pathname.split('/').filter(Boolean);
+		if (parts.length >= 2) {
+			let repoSegment = parts[1];
+			if (repoSegment.endsWith('.git')) {
+				repoSegment = repoSegment.slice(0, -4);
+			}
+			return repoSegment || undefined;
+		}
+	} catch {
+		// not a standard URL
+	}
+
+	// git@host:owner/repo(.git) style URLs
+	if (value.startsWith('git@')) {
+		const colonIndex = value.indexOf(':');
+		if (colonIndex !== -1 && colonIndex < value.length - 1) {
+			const pathPart = value.substring(colonIndex + 1);
+			let repoSegment = pathPart.split('/').filter(Boolean).pop();
 			if (repoSegment?.endsWith('.git')) {
 				repoSegment = repoSegment.slice(0, -4);
 			}
 			return repoSegment || undefined;
 		}
-
-		// Standard URL formats (https://..., ssh://..., etc.)
-		try {
-			const url = new URL(value);
-			const parts = url.pathname.split('/').filter(Boolean);
-			if (parts.length >= 2) {
-				let repoSegment = parts[1];
-				if (repoSegment.endsWith('.git')) {
-					repoSegment = repoSegment.slice(0, -4);
-				}
-				return repoSegment || undefined;
-			}
-		} catch {
-			// not a standard URL
-		}
-
-		// git@host:owner/repo(.git) style URLs
-		if (value.startsWith('git@')) {
-			const colonIndex = value.indexOf(':');
-			if (colonIndex !== -1 && colonIndex < value.length - 1) {
-				const pathPart = value.substring(colonIndex + 1);
-				let repoSegment = pathPart.split('/').filter(Boolean).pop();
-				if (repoSegment?.endsWith('.git')) {
-					repoSegment = repoSegment.slice(0, -4);
-				}
-				return repoSegment || undefined;
-			}
-		}
-
-		return undefined;
 	}
 
-	/**
-	 * Extracts the repository name from a filesystem path, handling git worktree
-	 * conventions where paths follow `<repo>.worktrees/<worktree-name>`.
-	 */
-	private extractRepoNameFromPath(dirPath: string): string | undefined {
-		const segments = dirPath.split(/[/\\]/).filter(Boolean);
-		if (segments.length < 2) {
-			return segments[0];
-		}
+	return undefined;
+}
 
-		const parent = segments[segments.length - 2];
-		if (parent.endsWith('.worktrees')) {
-			return parent.slice(0, -'.worktrees'.length) || undefined;
-		}
-
-		return segments[segments.length - 1];
+/**
+ * Extracts the repository name from a filesystem path, handling git worktree
+ * conventions where paths follow `<repo>.worktrees/<worktree-name>`.
+ */
+function extractRepoNameFromPath(dirPath: string): string | undefined {
+	const segments = dirPath.split(/[/\\]/).filter(Boolean);
+	if (segments.length < 2) {
+		return segments[0];
 	}
+
+	const parent = segments[segments.length - 2];
+	if (parent.endsWith('.worktrees')) {
+		return parent.slice(0, -'.worktrees'.length) || undefined;
+	}
+
+	return segments[segments.length - 1];
 }
 
 export const AgentSessionSectionLabels = {
+	[AgentSessionSection.Pinned]: localize('agentSessions.pinnedSection', "Pinned"),
 	[AgentSessionSection.Today]: localize('agentSessions.todaySection', "Today"),
 	[AgentSessionSection.Yesterday]: localize('agentSessions.yesterdaySection', "Yesterday"),
 	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last 7 days"),
 	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
 	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
 	[AgentSessionSection.More]: localize('agentSessions.moreSection', "More"),
+	[AgentSessionSection.Repository]: localize('agentSessions.noRepository', "Other"),
 };
 
 const DAY_THRESHOLD = 24 * 60 * 60 * 1000;
 const WEEK_THRESHOLD = 7 * DAY_THRESHOLD;
 
-export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
+export function groupAgentSessionsByDate(sessions: IAgentSession[], sortBy?: AgentSessionsSorting): Map<AgentSessionSection, IAgentSessionSection> {
 	const now = Date.now();
 	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;
 	const weekThreshold = now - WEEK_THRESHOLD;
 
+	const pinnedSessions: IAgentSession[] = [];
 	const todaySessions: IAgentSession[] = [];
 	const yesterdaySessions: IAgentSession[] = [];
 	const weekSessions: IAgentSession[] = [];
@@ -1075,8 +1143,12 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 	for (const session of sessions) {
 		if (session.isArchived()) {
 			archivedSessions.push(session);
+		} else if (session.isPinned()) {
+			pinnedSessions.push(session);
 		} else {
-			const sessionTime = getAgentSessionTime(session.timing);
+			const sessionTime = sortBy === AgentSessionsSorting.Updated
+				? session.timing.lastRequestEnded ?? session.timing.created
+				: session.timing.created;
 			if (sessionTime >= startOfToday) {
 				todaySessions.push(session);
 			} else if (sessionTime >= startOfYesterday) {
@@ -1090,6 +1162,7 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 	}
 
 	return new Map<AgentSessionSection, IAgentSessionSection>([
+		[AgentSessionSection.Pinned, { section: AgentSessionSection.Pinned, label: AgentSessionSectionLabels[AgentSessionSection.Pinned], sessions: pinnedSessions }],
 		[AgentSessionSection.Today, { section: AgentSessionSection.Today, label: AgentSessionSectionLabels[AgentSessionSection.Today], sessions: todaySessions }],
 		[AgentSessionSection.Yesterday, { section: AgentSessionSection.Yesterday, label: AgentSessionSectionLabels[AgentSessionSection.Yesterday], sessions: yesterdaySessions }],
 		[AgentSessionSection.Week, { section: AgentSessionSection.Week, label: AgentSessionSectionLabels[AgentSessionSection.Week], sessions: weekSessions }],
@@ -1098,7 +1171,7 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 	]);
 }
 
-export function sessionDateFromNow(sessionTime: number): string {
+export function sessionDateFromNow(sessionTime: number, appendAgoLabel?: boolean): string {
 	const now = Date.now();
 	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;
@@ -1111,14 +1184,18 @@ export function sessionDateFromNow(sessionTime: number): string {
 	// normalization logic.
 
 	if (sessionTime < startOfToday && sessionTime >= startOfYesterday) {
-		return localize('date.fromNow.days.singular', '1 day');
+		return appendAgoLabel
+			? localize('date.fromNow.days.singular.ago', '1 day ago')
+			: localize('date.fromNow.days.singular', '1 day');
 	}
 
 	if (sessionTime < startOfYesterday && sessionTime >= startOfTwoDaysAgo) {
-		return localize('date.fromNow.days.multiple', '2 days');
+		return appendAgoLabel
+			? localize('date.fromNow.days.multiple.ago', '2 days ago')
+			: localize('date.fromNow.days.multiple', '2 days');
 	}
 
-	return fromNow(sessionTime, false);
+	return fromNow(sessionTime, appendAgoLabel);
 }
 
 export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSessionsModel | AgentSessionListItem> {
@@ -1150,25 +1227,27 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 	}
 }
 
-export interface IAgentSessionsSorterOptions {
-	overrideCompare?(sessionA: IAgentSession, sessionB: IAgentSession): number | undefined;
-}
-
 export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
-	constructor(private readonly options?: IAgentSessionsSorterOptions) { }
+	private readonly getSortBy: () => AgentSessionsSorting;
 
-	compare(sessionA: IAgentSession, sessionB: IAgentSession): number {
+	constructor(getSortBy?: () => AgentSessionsSorting) {
+		this.getSortBy = getSortBy ?? (() => AgentSessionsSorting.Created);
+	}
 
-		// Input Needed
-		const aNeedsInput = sessionA.status === AgentSessionStatus.NeedsInput;
-		const bNeedsInput = sessionB.status === AgentSessionStatus.NeedsInput;
+	compare(sessionA: IAgentSession, sessionB: IAgentSession, prioritizeActiveSessions = false): number {
 
-		if (aNeedsInput && !bNeedsInput) {
-			return -1; // a (needs input) comes before b (other)
-		}
-		if (!aNeedsInput && bNeedsInput) {
-			return 1; // a (other) comes after b (needs input)
+		// Special sorting if enabled
+		if (prioritizeActiveSessions) {
+			const aNeedsInput = sessionA.status === AgentSessionStatus.NeedsInput;
+			const bNeedsInput = sessionB.status === AgentSessionStatus.NeedsInput;
+
+			if (aNeedsInput && !bNeedsInput) {
+				return -1; // a (needs input) comes before b (other)
+			}
+			if (!aNeedsInput && bNeedsInput) {
+				return 1; // a (other) comes after b (needs input)
+			}
 		}
 
 		// Archived
@@ -1182,15 +1261,29 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 			return 1; // a (archived) comes after b (non-archived)
 		}
 
-		// Before we compare by time, allow override
-		const override = this.options?.overrideCompare?.(sessionA, sessionB);
-		if (typeof override === 'number') {
-			return override;
+		// Pinned (non-archived pinned sessions come before non-pinned)
+		const aPinned = !aArchived && sessionA.isPinned();
+		const bPinned = !bArchived && sessionB.isPinned();
+
+		if (aPinned && !bPinned) {
+			return -1;
+		}
+		if (!aPinned && bPinned) {
+			return 1;
 		}
 
-		// Sort by end or start time (most recent first)
-		const timeA = getAgentSessionTime(sessionA.timing);
-		const timeB = getAgentSessionTime(sessionB.timing);
+		// Sort by time
+		const sortBy = this.getSortBy();
+		const timeA = prioritizeActiveSessions
+			? sessionA.timing.lastRequestStarted ?? sessionA.timing.created
+			: sortBy === AgentSessionsSorting.Updated
+				? sessionA.timing.lastRequestEnded ?? sessionA.timing.created
+				: sessionA.timing.created;
+		const timeB = prioritizeActiveSessions
+			? sessionB.timing.lastRequestStarted ?? sessionB.timing.created
+			: sortBy === AgentSessionsSorting.Updated
+				? sessionB.timing.lastRequestEnded ?? sessionB.timing.created
+				: sessionB.timing.created;
 		return timeB - timeA;
 	}
 }
