@@ -1260,8 +1260,8 @@ export class AICustomizationListWidget extends Disposable {
 				if (applyTo !== undefined) {
 					// Context instruction
 					const suffix = applyTo === '**'
-						? localize('alwaysAdded', "pattern '{0}' (always added)", applyTo)
-						: localize('onContext', "pattern '{0}'", applyTo);
+						? localize('alwaysAdded', "always added", applyTo)
+						: localize('onContext', "context matching '{0}'", applyTo);
 					items.push({
 						id: item.uri.toString(),
 						uri: item.uri,
