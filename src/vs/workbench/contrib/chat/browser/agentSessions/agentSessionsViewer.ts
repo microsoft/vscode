@@ -88,6 +88,7 @@ interface IAgentSessionItemTemplate {
 export interface IAgentSessionRendererOptions {
 	readonly disableHover?: boolean;
 	getHoverPosition(): HoverPosition;
+
 	isGroupedByRepository?(): boolean;
 	isSortedByUpdated?(): boolean;
 }

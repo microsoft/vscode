@@ -8,7 +8,7 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorsVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -54,8 +54,8 @@ export class AgenticSessionsViewPane extends ViewPane {
 	sessionsControl: AgentSessionsControl | undefined;
 	private currentGrouping: AgentSessionsGrouping = AgentSessionsGrouping.Repository;
 	private currentSorting: AgentSessionsSorting = AgentSessionsSorting.Created;
-	private groupingContextKey: ReturnType<typeof SessionsViewGroupingContext.bindTo> | undefined;
-	private sortingContextKey: ReturnType<typeof SessionsViewSortingContext.bindTo> | undefined;
+	private groupingContextKey: IContextKey | undefined;
+	private sortingContextKey: IContextKey | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
