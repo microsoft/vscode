@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -17,12 +16,14 @@ import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../..
 import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../contrib/chat/common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../contrib/chat/common/plugins/agentPluginService.js';
 import { PromptsType } from '../../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IPromptPath, IExtensionPromptPath } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IPromptPath } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { AICustomizationManagementSection } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationListWidget } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationListWidget.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
-import { ParsedPromptFile } from '../../../contrib/chat/common/promptSyntax/promptFileParser.js';
+import { ParsedPromptFile, PromptHeader } from '../../../contrib/chat/common/promptSyntax/promptFileParser.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { isEqual } from '../../../../base/common/resources.js';
 
 // Ensure color registrations are loaded
 import '../../../../platform/theme/common/colors/inputColors.js';
@@ -33,13 +34,14 @@ import '../../../../platform/theme/common/colors/listColors.js';
 // ============================================================================
 
 const defaultFilter: IStorageSourceFilter = {
-	sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, PromptsStorage.extension],
+	sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin],
 };
 
 interface IFixtureInstructionFile {
 	readonly promptPath: IPromptPath;
-	/** If set, this instruction file has an applyTo pattern (on-demand). */
-	readonly applyTo?: string;
+	readonly name?: string;
+	readonly description?: string;
+	readonly applyTo?: string; /** If set, this instruction file has an applyTo pattern that controls automatic inclusion when the context matches (or `**` for always). */
 }
 
 function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], agentInstructionFiles: IResolvedAgentFile[] = []): IPromptsService {
@@ -56,8 +58,28 @@ function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], a
 		}
 		override async listAgentInstructions() { return agentInstructionFiles; }
 		override async getCustomAgents() { return []; }
-		override async parseNew(uri: URI, _token: CancellationToken): Promise<ParsedPromptFile> {
-			return new ParsedPromptFile(uri);
+		override async parseNew(uri: URI): Promise<ParsedPromptFile> {
+			const file = instructionFiles.find(f => isEqual(f.promptPath.uri, uri));
+			const headerLines = [];
+			headerLines.push('---\n');
+			if (file) {
+				if (file.name) {
+					headerLines.push(`name: ${file.name}\n`);
+				}
+				if (file.description) {
+					headerLines.push(`description: ${file.description}\n`);
+				}
+				if (file.applyTo) {
+					headerLines.push(`applyTo: "${file.applyTo}"\n`);
+				}
+			}
+			headerLines.push('---\n');
+			const header = new PromptHeader(
+				new Range(2, 1, headerLines.length, 1),
+				uri,
+				headerLines
+			);
+			return new ParsedPromptFile(uri, header);
 		}
 	}();
 }
@@ -154,20 +176,20 @@ async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFi
 // Fixtures
 // ============================================================================
 
-export default defineThemedFixtureGroup({ path: 'chat/' }, {
+export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	InstructionsTabWithItems: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderInstructionsTab(ctx, [
 			// Always-active instructions (no applyTo)
-			{ promptPath: { uri: URI.file('/workspace/.github/instructions/coding-standards.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Coding Standards', description: 'Repository-wide coding standards' } },
-			{ promptPath: { uri: URI.file('/home/dev/.copilot/instructions/my-style.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, name: 'My Style', description: 'Personal coding style preferences' } },
+			{ promptPath: { uri: URI.file('/workspace/.github/instructions/coding-standards.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions }, name: 'Coding Standards', description: 'Repository-wide coding standards' },
+			{ promptPath: { uri: URI.file('/home/dev/.copilot/instructions/my-style.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions }, name: 'My Style', description: 'Personal coding style preferences' },
 			// Always-included instruction (applyTo: **)
-			{ promptPath: { uri: URI.file('/workspace/.github/instructions/general-guidelines.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'General Guidelines', description: 'General development guidelines' }, applyTo: '**' },
+			{ promptPath: { uri: URI.file('/workspace/.github/instructions/general-guidelines.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions }, name: 'General Guidelines', description: 'General development guidelines', applyTo: '**' },
 			// On-demand instructions (with applyTo pattern)
-			{ promptPath: { uri: URI.file('/workspace/.github/instructions/testing-guidelines.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Testing Guidelines', description: 'Testing best practices' }, applyTo: '**/*.test.ts' },
-			{ promptPath: { uri: URI.file('/workspace/.github/instructions/security-review.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Security Review', description: 'Security review checklist' }, applyTo: 'src/auth/**' },
-			{ promptPath: { uri: URI.file('/home/dev/.copilot/instructions/typescript-rules.instructions.md'), storage: PromptsStorage.extension, type: PromptsType.instructions, name: 'TypeScript Rules', description: 'TypeScript conventions', extension: undefined!, source: undefined! } satisfies IExtensionPromptPath, applyTo: '**/*.ts' },
+			{ promptPath: { uri: URI.file('/workspace/.github/instructions/testing-guidelines.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions }, name: 'Testing Guidelines', description: 'Testing best practices', applyTo: '**/*.test.ts' },
+			{ promptPath: { uri: URI.file('/workspace/.github/instructions/security-review.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions }, name: 'Security Review', description: 'Security review checklist', applyTo: 'src/auth/**' },
+			{ promptPath: { uri: URI.file('/home/dev/.copilot/instructions/typescript-rules.instructions.md'), storage: PromptsStorage.extension, type: PromptsType.instructions, extension: undefined!, source: undefined! }, name: 'TypeScript Rules', description: 'TypeScript conventions', applyTo: '**/*.ts' },
 		], [
 			// Agent instruction files (AGENTS.md, copilot-instructions.md)
 			{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentFileType.agentsMd },

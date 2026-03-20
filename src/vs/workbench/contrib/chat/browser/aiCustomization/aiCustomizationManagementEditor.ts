@@ -74,6 +74,8 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { Action } from '../../../../../base/common/actions.js';
 import { McpServerEditorInput } from '../../../mcp/browser/mcpServerEditorInput.js';
 import { McpServerEditor } from '../../../mcp/browser/mcpServerEditor.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -331,6 +333,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IModelService private readonly modelService: IModelService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
@@ -606,7 +609,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateHarnessDropdown();
 
 		this.editorDisposables.add(DOM.addDisposableListener(this.harnessDropdownButton, 'click', () => {
-			this.showHarnessPicker();
+			this.showHarnessMenu();
 		}));
 	}
 
@@ -627,31 +630,26 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private showHarnessPicker(): void {
+	private showHarnessMenu(): void {
+		if (!this.harnessDropdownButton) {
+			return;
+		}
 		const harnesses = this.harnessService.availableHarnesses.get();
 		const activeId = this.harnessService.activeHarness.get();
 
-		const items = harnesses.map(h => ({
-			label: h.label,
-			iconClass: ThemeIcon.asClassName(h.icon),
-			id: h.id,
-			picked: h.id === activeId,
-		}));
-
-		const picker = this.quickInputService.createQuickPick();
-		picker.items = items;
-		picker.placeholder = localize('selectTarget', "Select customization target");
-		picker.canSelectMany = false;
-		picker.activeItems = items.filter(i => i.picked);
-		picker.onDidAccept(() => {
-			const selected = picker.activeItems[0] as typeof items[0] | undefined;
-			if (selected) {
-				this.harnessService.setActiveHarness(selected.id);
-			}
-			picker.dispose();
+		const actions = harnesses.map(h => {
+			const action = new Action(h.id, h.label, ThemeIcon.asClassName(h.icon), true, () => {
+				this.harnessService.setActiveHarness(h.id);
+			});
+			action.checked = h.id === activeId;
+			return action;
 		});
-		picker.onDidHide(() => picker.dispose());
-		picker.show();
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => this.harnessDropdownButton!,
+			getActions: () => actions,
+			getCheckedActionsRepresentation: () => 'radio',
+		});
 	}
 
 	private createFolderPicker(sidebarContent: HTMLElement): void {

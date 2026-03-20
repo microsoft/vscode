@@ -1029,7 +1029,8 @@ class LeakageMonitor {
 			console.warn(message);
 			console.warn(topStack);
 
-			const error = new ListenerLeakError(message, topStack);
+			const kind = topCount / listenerCount > 0.3 ? 'dominated' : 'popular';
+			const error = new ListenerLeakError(kind, message, topStack);
 			this._errorHandler(error);
 		}
 
@@ -1077,8 +1078,8 @@ export class ListenerLeakError extends Error {
 	 * `message` so that all leak errors group under the same title in telemetry.
 	 */
 	readonly details: string;
-	constructor(details: string, stack: string) {
-		super('potential listener LEAK detected');
+	constructor(kind: 'dominated' | 'popular', details: string, stack: string) {
+		super(`potential listener LEAK detected, ${kind}`);
 		this.name = 'ListenerLeakError';
 		this.details = details;
 		this.stack = stack;
@@ -1091,11 +1092,11 @@ export class ListenerRefusalError extends Error {
 	/**
 	 * The detailed message including listener count and most frequent stack.
 	 * Available locally for debugging but intentionally not used as the error
-	 * `message` so that all refusal errors group under the same title in telemetry.
+	 * `message` so that all leak errors group under the same title in telemetry.
 	 */
 	readonly details: string;
-	constructor(details: string, stack: string) {
-		super('potential listener LEAK detected (REFUSED to add)');
+	constructor(kind: 'dominated' | 'popular', details: string, stack: string) {
+		super(`potential listener LEAK detected, ${kind} (REFUSED to add)`);
 		this.name = 'ListenerRefusalError';
 		this.details = details;
 		this.stack = stack;
@@ -1235,7 +1236,8 @@ export class Emitter<T> {
 				console.warn(message);
 
 				const tuple = this._leakageMon.getMostFrequentStack() ?? ['UNKNOWN stack', -1];
-				const error = new ListenerRefusalError(`${message}. HINT: Stack shows most frequent listener (${tuple[1]}-times)`, tuple[0]);
+				const kind = tuple[1] / this._size > 0.3 ? 'dominated' : 'popular';
+				const error = new ListenerRefusalError(kind, `${message}. HINT: Stack shows most frequent listener (${tuple[1]}-times)`, tuple[0]);
 				const errorHandler = this._options?.onListenerError || onUnexpectedError;
 				errorHandler(error);
 

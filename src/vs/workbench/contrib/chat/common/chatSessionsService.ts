@@ -174,11 +174,8 @@ export interface IChatSession extends IDisposable {
 
 	readonly history: readonly IChatSessionHistoryItem[];
 
-	/**
-	 * Session options as key-value pairs. Keys correspond to option group IDs (e.g., 'models', 'subagents')
-	 * and values are either the selected option item IDs (string) or full option items (for locked state).
-	 */
-	readonly options?: Record<string, string | IChatSessionProviderOptionItem>;
+
+	readonly options?: ReadonlyChatSessionOptionsMap;
 
 	readonly progressObs?: IObservable<IChatProgress[]>;
 	readonly isCompleteObs?: IObservable<boolean>;
@@ -217,7 +214,7 @@ export interface IChatNewSessionRequest {
 	readonly prompt: string;
 	readonly command?: string;
 
-	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>;
+	readonly initialSessionOptions?: ReadonlyChatSessionOptionsMap;
 }
 
 export interface IChatSessionItemsDelta {
@@ -238,12 +235,46 @@ export interface IChatSessionItemController {
 
 export interface IChatSessionOptionsChangeEvent {
 	readonly sessionResource: URI;
-	readonly updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>;
+	readonly updates: ReadonlyMap<string, string | IChatSessionProviderOptionItem | undefined>;
 }
 
 export type ResolvedChatSessionsExtensionPoint = Omit<IChatSessionsExtensionPoint, 'icon'> & {
 	readonly icon: ThemeIcon | URI | undefined;
 };
+
+/**
+ * Session options as key-value pairs.
+ *
+ * Keys correspond to option group IDs (e.g., 'models', 'subagents') and values are either the selected option item IDs (string) or full option items (for locked state).
+ */
+export type ChatSessionOptionsMap = Map<string, string | IChatSessionProviderOptionItem>;
+
+export namespace ChatSessionOptionsMap {
+	export function fromRecord(obj: { [key: string]: string | IChatSessionProviderOptionItem }): ChatSessionOptionsMap {
+		return new Map(Object.entries(obj));
+	}
+
+	export function toRecord(map: ReadonlyChatSessionOptionsMap): Record<string, string | IChatSessionProviderOptionItem> {
+		const record: Record<string, string | IChatSessionProviderOptionItem> = Object.create(null);
+		for (const [key, value] of map) {
+			record[key] = value;
+		}
+		return record;
+	}
+
+	export function toStrValueArray(map: ReadonlyChatSessionOptionsMap | undefined): Array<{ optionId: string; value: string }> | undefined {
+		if (!map) {
+			return undefined;
+		}
+		return Array.from(map, ([optionId, value]) => ({ optionId, value: typeof value === 'string' ? value : value.id }));
+	}
+}
+
+/**
+ * Readonly version of {@link ChatSessionOptionsMap}
+ */
+export type ReadonlyChatSessionOptionsMap = ReadonlyMap<string, string | IChatSessionProviderOptionItem>;
+
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
 
@@ -299,10 +330,10 @@ export interface IChatSessionsService {
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 
 	hasAnySessionOptions(sessionResource: URI): boolean;
-	getSessionOptions(sessionResource: URI): Map<string, string> | undefined;
+	getSessionOptions(sessionResource: URI): ReadonlyChatSessionOptionsMap | undefined;
 	getSessionOption(sessionResource: URI, optionId: string): string | IChatSessionProviderOptionItem | undefined;
 	setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean;
-	updateSessionOptions(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): boolean;
+	updateSessionOptions(sessionResource: URI, updates: ReadonlyChatSessionOptionsMap): boolean;
 
 	/**
 	 * Fired when options for a chat session change.
@@ -350,8 +381,8 @@ export interface IChatSessionsService {
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
 	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void;
 
-	getNewSessionOptionsForSessionType(chatSessionType: string): Record<string, string | IChatSessionProviderOptionItem> | undefined;
-	setNewSessionOptionsForSessionType(chatSessionType: string, options: Record<string, string | IChatSessionProviderOptionItem>): void;
+	getNewSessionOptionsForSessionType(chatSessionType: string): ReadonlyChatSessionOptionsMap | undefined;
+	setNewSessionOptionsForSessionType(chatSessionType: string, options: ReadonlyChatSessionOptionsMap): void;
 
 	getInProgressSessionDescription(chatModel: IChatModel): string | undefined;
 

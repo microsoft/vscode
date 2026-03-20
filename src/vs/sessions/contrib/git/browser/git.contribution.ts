@@ -10,7 +10,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
@@ -113,7 +113,9 @@ function registerSyncAction(branch: GitBranch, isSyncing: boolean, setSyncing: (
 						id: MenuId.ChatEditingSessionApplySubmenu,
 						group: 'navigation',
 						order: 0,
-						when: hasUpstreamBranchContextKey,
+						when: ContextKeyExpr.and(
+							hasUpstreamBranchContextKey,
+							ContextKeyExpr.false())
 					},
 				],
 			});

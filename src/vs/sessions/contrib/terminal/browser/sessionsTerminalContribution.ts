@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { localize2 } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -20,10 +20,13 @@ import { IPathService } from '../../../../workbench/services/path/common/pathSer
 import { Menus } from '../../../browser/menus.js';
 import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+
+const SessionsTerminalViewVisibleContext = new RawContextKey<boolean>('sessionsTerminalViewVisible', false);
 
 /**
  * Returns the cwd URI for the given session: worktree or repository path for
@@ -55,8 +58,20 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 		@ILogService private readonly _logService: ILogService,
 		@IPathService private readonly _pathService: IPathService,
+		@IViewsService viewsService: IViewsService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		// Track whether the terminal view is visible so the titlebar toggle
+		// button shows the correct checked state.
+		const terminalViewVisible = SessionsTerminalViewVisibleContext.bindTo(contextKeyService);
+		terminalViewVisible.set(viewsService.isViewVisible(TERMINAL_VIEW_ID));
+		this._register(viewsService.onDidChangeViewVisibility(e => {
+			if (e.id === TERMINAL_VIEW_ID) {
+				terminalViewVisible.set(e.visible);
+			}
+		}));
 
 		// React to active session changes — use worktree/repo for background sessions, home dir otherwise
 		this._register(autorun(reader => {
@@ -285,6 +300,10 @@ class OpenSessionInTerminalAction extends Action2 {
 			id: 'agentSession.openInTerminal',
 			title: localize2('openInTerminal', "Open Terminal"),
 			icon: Codicon.terminal,
+			toggled: {
+				condition: SessionsTerminalViewVisibleContext,
+				title: localize('hideTerminal', "Hide Terminal"),
+			},
 			menu: [{
 				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
@@ -295,10 +314,21 @@ class OpenSessionInTerminalAction extends Action2 {
 	}
 
 	override async run(_accessor: ServicesAccessor): Promise<void> {
+		const layoutService = _accessor.get(IWorkbenchLayoutService);
+		const viewsService = _accessor.get(IViewsService);
+
+		// Toggle: if panel is visible and the terminal view is active, hide it.
+		// If the panel is visible but showing another view, open the terminal instead.
+		if (layoutService.isVisible(Parts.PANEL_PART)) {
+			if (viewsService.isViewVisible(TERMINAL_VIEW_ID)) {
+				layoutService.setPartHidden(true, Parts.PANEL_PART);
+				return;
+			}
+		}
+
 		const contribution = getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID);
 		const sessionsManagementService = _accessor.get(ISessionsManagementService);
 		const pathService = _accessor.get(IPathService);
-		const viewsService = _accessor.get(IViewsService);
 
 		const activeSession = sessionsManagementService.activeSession.get();
 		const cwd = getSessionCwd(activeSession) ?? await pathService.userHome();
