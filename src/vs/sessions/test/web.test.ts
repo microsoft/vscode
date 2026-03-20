@@ -280,12 +280,11 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 
 		// Add or update session in list
 		const existing = this._sessionItems.find(s => s.resource.toString() === key);
-		let addedOrUpdated: IChatSessionItem | undefined = existing;
-		if (existing) {
-			existing.timing.lastRequestStarted = now;
-			existing.timing.lastRequestEnded = now;
+		let addedOrUpdated = existing ? { ...existing } : undefined;
+		if (addedOrUpdated) {
+			addedOrUpdated.timing = { ...addedOrUpdated.timing, lastRequestStarted: now, lastRequestEnded: now };
 			if (changes) {
-				existing.changes = changes;
+				addedOrUpdated.changes = changes;
 			}
 		} else {
 			addedOrUpdated = {
