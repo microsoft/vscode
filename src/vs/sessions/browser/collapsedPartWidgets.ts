@@ -44,10 +44,15 @@ export class CollapsedSidebarWidget extends Disposable {
 		super();
 
 		this.element = append(parent, $('.collapsed-panel-widget.collapsed-sidebar-widget'));
-		this.indicatorContainer = append(this.element, $('.collapsed-panel-buttons'));
 
-		// New session button
+		// Sidebar toggle button (leftmost)
+		this._register(this.createPanelToggleButton());
+
+		// New session button (next to panel toggle)
 		this._register(this.createNewSessionButton());
+
+		// Session status indicators (rightmost)
+		this.indicatorContainer = append(this.element, $('.collapsed-panel-button.collapsed-sidebar-status'));
 
 		// Listen for session changes
 		this._register(this.agentSessionsService.model.onDidChangeSessions(() => this.rebuildIndicators()));
@@ -72,6 +77,35 @@ export class CollapsedSidebarWidget extends Disposable {
 		return store;
 	}
 
+	private createPanelToggleButton(): DisposableStore {
+		const store = new DisposableStore();
+		const btn = append(this.element, $('.collapsed-panel-button.collapsed-sidebar-panel-toggle'));
+		let iconElement: HTMLElement | undefined;
+
+		const updateIcon = () => {
+			const sidebarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
+			const icon = sidebarVisible ? Codicon.layoutSidebarLeft : Codicon.layoutSidebarLeftOff;
+			iconElement?.remove();
+			iconElement = append(btn, $(ThemeIcon.asCSSSelector(icon)));
+		};
+
+		updateIcon();
+
+		store.add(this.hoverService.setupManagedHover(this.hoverDelegate, btn, localize('toggleSidebar', "Toggle Side Bar")));
+
+		store.add(addDisposableListener(btn, EventType.CLICK, () => {
+			this.layoutService.setPartHidden(this.layoutService.isVisible(Parts.SIDEBAR_PART), Parts.SIDEBAR_PART);
+		}));
+
+		store.add(this.layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.SIDEBAR_PART) {
+				updateIcon();
+			}
+		}));
+
+		return store;
+	}
+
 	private rebuildIndicators(): void {
 		this.indicatorDisposables.clear();
 		this.indicatorContainer.textContent = '';
@@ -79,75 +113,59 @@ export class CollapsedSidebarWidget extends Disposable {
 		const sessions = this.agentSessionsService.model.sessions;
 		const counts = this.countSessionsByStatus(sessions);
 
-		// In-progress indicator
+		const tooltipParts: string[] = [];
+
+		// In-progress (matches agentSessionsViewer: sessionInProgress)
 		if (counts.inProgress > 0) {
-			this.createIndicator(
-				Codicon.loading,
-				`${counts.inProgress}`,
-				localize('sessionsInProgress', "{0} session(s) in progress", counts.inProgress),
-				'collapsed-sidebar-indicator-active'
-			);
+			this.appendStatusSegment(Codicon.sessionInProgress, `${counts.inProgress}`, 'collapsed-sidebar-indicator-active');
+			tooltipParts.push(localize('sessionsInProgress', "{0} session(s) in progress", counts.inProgress));
 		}
 
-		// Needs input indicator
+		// Needs input (matches agentSessionsViewer: circleFilled)
 		if (counts.needsInput > 0) {
-			this.createIndicator(
-				Codicon.bell,
-				`${counts.needsInput}`,
-				localize('sessionsNeedInput', "{0} session(s) need input", counts.needsInput),
-				'collapsed-sidebar-indicator-input'
-			);
+			this.appendStatusSegment(Codicon.circleFilled, `${counts.needsInput}`, 'collapsed-sidebar-indicator-input');
+			tooltipParts.push(localize('sessionsNeedInput', "{0} session(s) need input", counts.needsInput));
 		}
 
-		// Error indicator
+		// Failed (matches agentSessionsViewer: error)
 		if (counts.failed > 0) {
-			this.createIndicator(
-				Codicon.error,
-				`${counts.failed}`,
-				localize('sessionsFailed', "{0} session(s) with errors", counts.failed),
-				'collapsed-sidebar-indicator-error'
-			);
+			this.appendStatusSegment(Codicon.error, `${counts.failed}`, 'collapsed-sidebar-indicator-error');
+			tooltipParts.push(localize('sessionsFailed', "{0} session(s) with errors", counts.failed));
 		}
 
-		// Completed indicator
-		if (counts.completed > 0) {
-			this.createIndicator(
-				Codicon.check,
-				`${counts.completed}`,
-				localize('sessionsCompleted', "{0} session(s) completed", counts.completed),
-				'collapsed-sidebar-indicator-done'
-			);
+		// Unread (matches agentSessionsViewer: circleFilled with textLink-foreground)
+		if (counts.unread > 0) {
+			this.appendStatusSegment(Codicon.circleFilled, `${counts.unread}`, 'collapsed-sidebar-indicator-unread');
+			tooltipParts.push(localize('sessionsUnread', "{0} unread session(s)", counts.unread));
 		}
 
-		// If no sessions at all, show a total count
+		// If no sessions at all
 		if (sessions.length === 0) {
-			this.createIndicator(
-				Codicon.commentDiscussion,
-				'0',
-				localize('noSessions', "No sessions"),
-				'collapsed-sidebar-indicator-empty'
-			);
+			this.appendStatusSegment(Codicon.commentDiscussion, '0', 'collapsed-sidebar-indicator-empty');
+			tooltipParts.push(localize('noSessions', "No sessions"));
 		}
-	}
 
-	private createIndicator(icon: ThemeIcon, count: string, tooltip: string, className: string): void {
-		const indicator = append(this.indicatorContainer, $(`.collapsed-panel-button.${className}`));
-		append(indicator, $(ThemeIcon.asCSSSelector(icon)));
-		const label = append(indicator, $('span.collapsed-sidebar-count'));
-		label.textContent = count;
+		this.indicatorDisposables.add(this.hoverService.setupManagedHover(
+			this.hoverDelegate, this.indicatorContainer, tooltipParts.join('\n')
+		));
 
-		this.indicatorDisposables.add(this.hoverService.setupManagedHover(this.hoverDelegate, indicator, tooltip));
-
-		this.indicatorDisposables.add(addDisposableListener(indicator, EventType.CLICK, () => {
+		this.indicatorDisposables.add(addDisposableListener(this.indicatorContainer, EventType.CLICK, () => {
 			this.layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
 		}));
 	}
 
-	private countSessionsByStatus(sessions: IAgentSession[]): { inProgress: number; needsInput: number; failed: number; completed: number } {
+	private appendStatusSegment(icon: ThemeIcon, count: string, className: string): void {
+		const segment = append(this.indicatorContainer, $(`span.collapsed-sidebar-segment.${className}`));
+		append(segment, $(ThemeIcon.asCSSSelector(icon)));
+		const label = append(segment, $('span.collapsed-sidebar-count'));
+		label.textContent = count;
+	}
+
+	private countSessionsByStatus(sessions: IAgentSession[]): { inProgress: number; needsInput: number; failed: number; unread: number } {
 		let inProgress = 0;
 		let needsInput = 0;
 		let failed = 0;
-		let completed = 0;
+		let unread = 0;
 
 		for (const session of sessions) {
 			if (session.isArchived()) {
@@ -164,12 +182,14 @@ export class CollapsedSidebarWidget extends Disposable {
 					failed++;
 					break;
 				case AgentSessionStatus.Completed:
-					completed++;
+					if (!session.isRead()) {
+						unread++;
+					}
 					break;
 			}
 		}
 
-		return { inProgress, needsInput, failed, completed };
+		return { inProgress, needsInput, failed, unread };
 	}
 
 	show(): void {
