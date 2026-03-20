@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { AsyncEmitter, Emitter } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
+import { IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
@@ -17,8 +17,9 @@ import { Target } from '../../common/promptSyntax/promptTypes.js';
 export class MockChatSessionsService implements IChatSessionsService {
 	_serviceBrand: undefined;
 
-	private readonly _onDidChangeSessionOptions = new Emitter<URI>();
+	private readonly _onDidChangeSessionOptions = new Emitter<IChatSessionOptionsChangeEvent>();
 	readonly onDidChangeSessionOptions = this._onDidChangeSessionOptions.event;
+
 	private readonly _onDidChangeItemsProviders = new Emitter<{ readonly chatSessionType: string }>();
 	readonly onDidChangeItemsProviders = this._onDidChangeItemsProviders.event;
 
@@ -37,14 +38,12 @@ export class MockChatSessionsService implements IChatSessionsService {
 	private readonly _onDidChangeOptionGroups = new Emitter<string>();
 	readonly onDidChangeOptionGroups = this._onDidChangeOptionGroups.event;
 
-	private readonly _onRequestNotifyExtension = new AsyncEmitter<IChatSessionOptionsWillNotifyExtensionEvent>();
-	readonly onRequestNotifyExtension = this._onRequestNotifyExtension.event;
 
 	private sessionItemControllers = new Map<string, { readonly controller: IChatSessionItemController; readonly initialRefresh: Promise<void> }>();
 	private contentProviders = new Map<string, IChatSessionContentProvider>();
 	private contributions: IChatSessionsExtensionPoint[] = [];
 	private optionGroups = new Map<string, IChatSessionProviderOptionGroup[]>();
-	private sessionOptions = new ResourceMap<Map<string, IChatSessionProviderOptionItem>>();
+	private sessionOptions = new ResourceMap<Map<string, string>>();
 	private inProgress = new Map<string, number>();
 
 	// For testing: allow triggering events
@@ -173,32 +172,37 @@ export class MockChatSessionsService implements IChatSessionsService {
 		}
 	}
 
-	getNewSessionOptionsForSessionType(_chatSessionType: string): Record<string, IChatSessionProviderOptionItem> | undefined {
+	getNewSessionOptionsForSessionType(_chatSessionType: string): Record<string, string | IChatSessionProviderOptionItem> | undefined {
 		return undefined;
 	}
 
-	setNewSessionOptionsForSessionType(_chatSessionType: string, _options: Record<string, IChatSessionProviderOptionItem>): void {
+	setNewSessionOptionsForSessionType(_chatSessionType: string, _options: Record<string, string | IChatSessionProviderOptionItem>): void {
 		// noop
 	}
 
-	async notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: IChatSessionProviderOptionItem }>): Promise<void> {
-		await this._onRequestNotifyExtension.fireAsync({ sessionResource, updates }, CancellationToken.None);
-	}
-
-	getSessionOptions(sessionResource: URI): Map<string, IChatSessionProviderOptionItem> | undefined {
+	getSessionOptions(sessionResource: URI): Map<string, string> | undefined {
 		const options = this.sessionOptions.get(sessionResource);
 		return options && options.size > 0 ? options : undefined;
 	}
 
-	getSessionOption(sessionResource: URI, optionId: string): IChatSessionProviderOptionItem | undefined {
+	getSessionOption(sessionResource: URI, optionId: string): string | undefined {
 		return this.sessionOptions.get(sessionResource)?.get(optionId);
 	}
 
-	setSessionOption(sessionResource: URI, optionId: string, value: IChatSessionProviderOptionItem): boolean {
+	setSessionOption(sessionResource: URI, optionId: string, value: string): boolean {
+		return this.updateSessionOptions(sessionResource, [{ optionId, value }]);
+	}
+
+	updateSessionOptions(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>): boolean {
 		if (!this.sessionOptions.has(sessionResource)) {
 			this.sessionOptions.set(sessionResource, new Map());
 		}
-		this.sessionOptions.get(sessionResource)!.set(optionId, value);
+		for (const update of updates) {
+			this.sessionOptions.get(sessionResource)!.set(update.optionId, update.value);
+		}
+
+		this._onDidChangeSessionOptions.fire({ sessionResource, updates });
+
 		return true;
 	}
 

@@ -1627,34 +1627,15 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		// Detect an in-flight request that was dequeued and started on the old session
-		const lastRequest = model.lastRequest;
-		const inFlightRequest = lastRequest?.response && !lastRequest.response.isComplete ? lastRequest : undefined;
-		// Capture send options before cancelling, since cancellation disposes the tracking
-		const inFlightSendOptions = inFlightRequest ? this._pendingRequests.get(originalResource)?.sendOptions : undefined;
-
 		const pendingRequests = [...model.getPendingRequests()];
 
-		if (!inFlightRequest && pendingRequests.length === 0) {
+		if (pendingRequests.length === 0) {
 			return;
-		}
-
-		// Cancel the in-flight request on the old session
-		if (inFlightRequest) {
-			void this.cancelCurrentRequestForSession(originalResource);
 		}
 
 		// Remove each remaining pending request from the original session
 		for (const pending of pendingRequests) {
 			this.removePendingRequest(originalResource, pending.request.id);
-		}
-
-		// Re-send the cancelled in-flight request first (it was ahead of the queued ones)
-		if (inFlightRequest) {
-			void this.sendRequest(targetResource, inFlightRequest.message.text, {
-				...inFlightSendOptions,
-				queue: ChatRequestQueueKind.Queued,
-			});
 		}
 
 		// Re-send remaining queued requests

@@ -109,6 +109,11 @@
 	display: none !important;
 }
 
+/* Remove the titlebar shadow in agent sessions */
+.agent-sessions-workbench.monaco-workbench .part.titlebar {
+	box-shadow: none;
+}
+
 /* macOS native: the spacer uses window-controls-container but should not block dragging */
 .agent-sessions-workbench.mac .part.titlebar .window-controls-container {
 	-webkit-app-region: drag;

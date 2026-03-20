@@ -6,7 +6,6 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IsolationMode } from './sessionTargetPicker.js';
 import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
@@ -51,7 +50,7 @@ export interface INewSession extends IDisposable {
 	setMode(mode: IChatMode | undefined): void;
 	setQuery(query: string): void;
 	setAttachedContext(context: IChatRequestVariableEntry[] | undefined): void;
-	setOption(optionId: string, value: IChatSessionProviderOptionItem): void;
+	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void;
 }
 
 const REPOSITORY_OPTION_ID = 'repository';
@@ -102,15 +101,14 @@ export class CopilotCLISession extends Disposable implements INewSession {
 		readonly resource: URI,
 		defaultRepoUri: URI | undefined,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		if (defaultRepoUri) {
 			this._repoUri = defaultRepoUri;
-			this.setOption(REPOSITORY_OPTION_ID, { id: defaultRepoUri.fsPath, name: defaultRepoUri.fsPath });
+			this.setOption(REPOSITORY_OPTION_ID, defaultRepoUri.fsPath);
 		}
 		this._isolationMode = 'worktree';
-		this.setOption(ISOLATION_OPTION_ID, { id: 'worktree', name: 'worktree' });
+		this.setOption(ISOLATION_OPTION_ID, 'worktree');
 	}
 
 	setProject(project: SessionWorkspace): void {
@@ -120,7 +118,7 @@ export class CopilotCLISession extends Disposable implements INewSession {
 		this._branch = undefined;
 		this._onDidChange.fire('repoUri');
 		this._onDidChange.fire('disabled');
-		this.setOption(REPOSITORY_OPTION_ID, { id: project.uri.fsPath, name: project.uri.fsPath });
+		this.setOption(REPOSITORY_OPTION_ID, project.uri.fsPath);
 	}
 
 	setIsolationMode(mode: IsolationMode): void {
@@ -128,7 +126,7 @@ export class CopilotCLISession extends Disposable implements INewSession {
 			this._isolationMode = mode;
 			this._onDidChange.fire('isolationMode');
 			this._onDidChange.fire('disabled');
-			this.setOption(ISOLATION_OPTION_ID, { id: mode, name: mode });
+			this.setOption(ISOLATION_OPTION_ID, mode);
 		}
 	}
 
@@ -137,7 +135,7 @@ export class CopilotCLISession extends Disposable implements INewSession {
 			this._branch = branch;
 			this._onDidChange.fire('branch');
 			this._onDidChange.fire('disabled');
-			this.setOption(BRANCH_OPTION_ID, { id: branch ?? '', name: branch ?? '' });
+			this.setOption(BRANCH_OPTION_ID, branch ?? '');
 		}
 	}
 
@@ -150,7 +148,7 @@ export class CopilotCLISession extends Disposable implements INewSession {
 			this._mode = mode;
 			this._onDidChange.fire('agent');
 			const modeName = mode?.isBuiltin ? undefined : mode?.name.get();
-			this.setOption(AGENT_OPTION_ID, { id: mode?.id ?? '', name: modeName ?? '' });
+			this.setOption(AGENT_OPTION_ID, modeName ?? '');
 		}
 	}
 
@@ -162,12 +160,13 @@ export class CopilotCLISession extends Disposable implements INewSession {
 		this._attachedContext = context;
 	}
 
-	setOption(optionId: string, value: IChatSessionProviderOptionItem): void {
-		this.selectedOptions.set(optionId, value);
-		this.chatSessionsService.notifySessionOptionsChange(
-			this.resource,
-			[{ optionId, value }]
-		).catch((err) => this.logService.error(`Failed to notify session option ${optionId} change:`, err));
+	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void {
+		if (typeof value === 'string') {
+			this.selectedOptions.set(optionId, { id: value, name: value });
+		} else {
+			this.selectedOptions.set(optionId, value);
+		}
+		this.chatSessionsService.setSessionOption(this.resource, optionId, value);
 	}
 }
 
@@ -210,7 +209,6 @@ export class RemoteNewSession extends Disposable implements INewSession {
 		readonly target: AgentSessionProviders,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -262,16 +260,13 @@ export class RemoteNewSession extends Disposable implements INewSession {
 		this._attachedContext = context;
 	}
 
-	setOption(optionId: string, value: IChatSessionProviderOptionItem): void {
+	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void {
 		if (typeof value !== 'string') {
 			this.selectedOptions.set(optionId, value);
 		}
 		this._onDidChange.fire('options');
 		this._onDidChange.fire('disabled');
-		this.chatSessionsService.notifySessionOptionsChange(
-			this.resource,
-			[{ optionId, value }]
-		).catch((err) => this.logService.error(`Failed to notify extension of ${optionId} change:`, err));
+		this.chatSessionsService.setSessionOption(this.resource, optionId, value);
 	}
 
 	// --- Option group accessors ---
@@ -345,10 +340,15 @@ export class RemoteNewSession extends Disposable implements INewSession {
 		}
 		// Check for extension-set session option
 		const sessionOption = this.chatSessionsService.getSessionOption(this.resource, group.id);
-		if (sessionOption) {
+		if (sessionOption && typeof sessionOption !== 'string') {
 			return sessionOption;
 		}
-
+		if (typeof sessionOption === 'string') {
+			const item = group.items.find(i => i.id === sessionOption.trim());
+			if (item) {
+				return item;
+			}
+		}
 		// Default to first item marked as default, or first item
 		return group.items.find(i => i.default === true) ?? group.items[0];
 	}
