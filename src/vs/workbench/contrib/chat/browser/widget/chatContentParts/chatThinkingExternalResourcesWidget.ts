@@ -5,7 +5,7 @@
 
 import { $, clearNode, hide, show } from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ChatResourceGroupWidget } from './chatResourceGroupWidget.js';
 import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js';
@@ -18,6 +18,7 @@ export class ChatThinkingExternalResourceWidget extends Disposable {
 
 	private readonly resourcePartsByToolCallId = new Map<string, IChatCollapsibleIODataPart[]>();
 	private readonly resourceGroupWidget = this._register(new MutableDisposable<ChatResourceGroupWidget>());
+	private readonly resourceGroupWidgetHeightListener = this._register(new MutableDisposable<IDisposable>());
 	private isCollapsed = true;
 
 	constructor(
@@ -67,6 +68,7 @@ export class ChatThinkingExternalResourceWidget extends Disposable {
 			allParts.push(...parts);
 		}
 
+		this.resourceGroupWidgetHeightListener.clear();
 		this.resourceGroupWidget.clear();
 		clearNode(this.domNode);
 
@@ -77,7 +79,7 @@ export class ChatThinkingExternalResourceWidget extends Disposable {
 		}
 
 		const widget = this.instantiationService.createInstance(ChatResourceGroupWidget, allParts);
-		this._register(widget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		this.resourceGroupWidgetHeightListener.value = widget.onDidChangeHeight(() => this._onDidChangeHeight.fire());
 		this.resourceGroupWidget.value = widget;
 		this.domNode.appendChild(widget.domNode);
 		this.setCollapsed(this.isCollapsed);

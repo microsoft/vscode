@@ -1419,7 +1419,6 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			// Render external image pills for serialized (already-completed) tool invocations
 			if (toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') {
 				this.updateExternalResourceParts(toolInvocationOrMarkdown);
-				this._onDidChangeHeight.fire();
 			}
 
 			// track state for live/still streaming tools, excluding serialized tools
@@ -1486,7 +1485,6 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 						// Render image pills outside the collapsible area for completed tools
 						if (currentState.type === IChatToolInvocation.StateKind.Completed) {
 							this.updateExternalResourceParts(toolInvocationOrMarkdown);
-							this._onDidChangeHeight.fire();
 						}
 
 						isComplete = true;
