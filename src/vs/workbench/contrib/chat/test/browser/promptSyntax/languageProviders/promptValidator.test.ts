@@ -2220,6 +2220,18 @@ suite('PromptValidator', () => {
 		});
 
 
+		test('skill name with invalid characters should error', async () => {
+			const content = [
+				'---',
+				'name: My Skill',
+				'description: Test Skill',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.ok(markers.some(m => m.severity === MarkerSeverity.Error && m.message === 'Skill name may only contain lowercase letters, numbers, and hyphens.'));
+		});
+
 		test('skill name with whitespace trimmed matches folder name', async () => {
 			const content = [
 				'---',
@@ -2270,7 +2282,7 @@ suite('PromptValidator', () => {
 				'This is a skill.'
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my_special-skill.v2/SKILL.md'));
-			assert.deepStrictEqual(markers, [], 'Expected no issues when name with special chars matches folder');
+			assert.ok(markers.some(m => m.severity === MarkerSeverity.Error && m.message === 'Skill name may only contain lowercase letters, numbers, and hyphens.'), 'Expected error for invalid characters in skill name');
 		});
 
 		test('skill with non-string name type does not validate folder match', async () => {

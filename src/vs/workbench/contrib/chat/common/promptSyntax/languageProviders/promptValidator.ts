@@ -24,7 +24,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { AGENTS_SOURCE_FOLDER, CLAUDE_AGENTS_SOURCE_FOLDER, isInClaudeRulesFolder, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { AGENTS_SOURCE_FOLDER, CLAUDE_AGENTS_SOURCE_FOLDER, isInClaudeRulesFolder, LEGACY_MODE_FILE_EXTENSION, VALID_SKILL_NAME_REGEX } from '../config/promptFileLocations.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { dirname } from '../../../../../../base/common/resources.js';
@@ -94,6 +94,13 @@ export class PromptValidator {
 		if (nameAttribute.value.type === 'scalar') {
 			const skillName = nameAttribute.value.value.trim();
 			if (skillName.length > 0) {
+				if (!VALID_SKILL_NAME_REGEX.test(skillName)) {
+					report(toMarker(
+						localize('promptValidator.skillNameInvalidChars', "Skill name may only contain lowercase letters, numbers, and hyphens."),
+						nameAttribute.value.range,
+						MarkerSeverity.Error
+					));
+				}
 
 				// Extract folder name from path (e.g., .github/skills/my-skill/SKILL.md -> my-skill)
 				const pathParts = promptAST.uri.path.split('/');

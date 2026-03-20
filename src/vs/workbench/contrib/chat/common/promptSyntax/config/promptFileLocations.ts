@@ -34,6 +34,11 @@ export const AGENT_FILE_EXTENSION = '.agent.md';
 export const SKILL_FILENAME = 'SKILL.md';
 
 /**
+ * Regex for valid skill names: lowercase alphanumeric and hyphens only.
+ */
+export const VALID_SKILL_NAME_REGEX = /^[a-z0-9-]+$/;
+
+/**
  * AGENT file name
  */
 export const AGENT_MD_FILENAME = 'AGENTS.md';
