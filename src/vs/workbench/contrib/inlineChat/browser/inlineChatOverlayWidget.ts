@@ -163,9 +163,17 @@ export class InlineChatInputWidget extends Disposable {
 			const totalWidth = contentWidth.read(r) + editorPad + toolbarWidth.read(r);
 			const minWidth = 220;
 			const maxWidth = 600;
-			const clampedWidth = this._input.getOption(EditorOption.wordWrap) === 'on'
-				? maxWidth
-				: Math.max(minWidth, Math.min(totalWidth, maxWidth));
+			const midWidth = Math.round(maxWidth / 1.618);
+			let clampedWidth: number;
+			if (this._input.getOption(EditorOption.wordWrap) === 'on') {
+				clampedWidth = maxWidth;
+			} else if (totalWidth <= minWidth) {
+				clampedWidth = minWidth;
+			} else if (totalWidth <= midWidth) {
+				clampedWidth = midWidth;
+			} else {
+				clampedWidth = maxWidth;
+			}
 
 			const lineHeight = this._input.getOption(EditorOption.lineHeight);
 			const clampedHeight = Math.min(contentHeight.read(r), (3 * lineHeight));
