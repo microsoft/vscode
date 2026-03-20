@@ -864,22 +864,6 @@ export class ChangesViewPane extends ViewPane {
 		if (this.ciStatusWidget) {
 			const activeSessionResourceObs = derived(this, reader => this.sessionManagementService.activeSession.read(reader)?.resource);
 
-			// Immediately refresh PR data when the active session changes so
-			// that CI checks and PR state are up-to-date without waiting for
-			// the next polling cycle.
-			this.renderDisposables.add(autorun(reader => {
-				const session = this.sessionManagementService.activeSession.read(reader);
-				if (!session) {
-					return;
-				}
-				const context = this.sessionManagementService.getGitHubContextForSession(session.resource);
-				if (!context || context.prNumber === undefined) {
-					return;
-				}
-				const prModel = this.gitHubService.getPullRequest(context.owner, context.repo, context.prNumber);
-				prModel.refresh();
-			}));
-
 			const ciModelObs = derived(this, reader => {
 				const session = this.sessionManagementService.activeSession.read(reader);
 				if (!session) {
