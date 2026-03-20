@@ -46,7 +46,7 @@ export class CollapsedSidebarWidget extends Disposable {
 		this.element = append(parent, $('.collapsed-panel-widget.collapsed-sidebar-widget'));
 
 		// Sidebar toggle button (leftmost)
-		this._register(this.createPanelToggleButton());
+		this._register(this.createSidebarToggleButton());
 
 		// New session button (next to panel toggle)
 		this._register(this.createNewSessionButton());
@@ -77,7 +77,7 @@ export class CollapsedSidebarWidget extends Disposable {
 		return store;
 	}
 
-	private createPanelToggleButton(): DisposableStore {
+	private createSidebarToggleButton(): DisposableStore {
 		const store = new DisposableStore();
 		const btn = append(this.element, $('.collapsed-panel-button.collapsed-sidebar-panel-toggle'));
 		let iconElement: HTMLElement | undefined;
@@ -94,7 +94,7 @@ export class CollapsedSidebarWidget extends Disposable {
 		store.add(this.hoverService.setupManagedHover(this.hoverDelegate, btn, localize('toggleSidebar', "Toggle Side Bar")));
 
 		store.add(addDisposableListener(btn, EventType.CLICK, () => {
-			this.layoutService.setPartHidden(this.layoutService.isVisible(Parts.SIDEBAR_PART), Parts.SIDEBAR_PART);
+			this.commandService.executeCommand('workbench.action.agentToggleSidebarVisibility');
 		}));
 
 		store.add(this.layoutService.onDidChangePartVisibility(e => {
@@ -145,13 +145,15 @@ export class CollapsedSidebarWidget extends Disposable {
 			tooltipParts.push(localize('noSessions', "No sessions"));
 		}
 
-		this.indicatorDisposables.add(this.hoverService.setupManagedHover(
-			this.hoverDelegate, this.indicatorContainer, tooltipParts.join('\n')
-		));
+		if (tooltipParts.length > 0) {
+			this.indicatorDisposables.add(this.hoverService.setupManagedHover(
+				this.hoverDelegate, this.indicatorContainer, tooltipParts.join('\n')
+			));
 
-		this.indicatorDisposables.add(addDisposableListener(this.indicatorContainer, EventType.CLICK, () => {
-			this.layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
-		}));
+			this.indicatorDisposables.add(addDisposableListener(this.indicatorContainer, EventType.CLICK, () => {
+				this.layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
+			}));
+		}
 	}
 
 	private appendStatusSegment(icon: ThemeIcon, count: string, className: string): void {

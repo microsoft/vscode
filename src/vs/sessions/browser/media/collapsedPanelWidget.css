@@ -71,7 +71,7 @@
 
 /* ---- Consolidated session status button ---- */
 
-.agent-sessions-workbench .collapsed-sidebar-status {
+.agent-sessions-workbench .collapsed-panel-button.collapsed-sidebar-status {
 	gap: 6px;
 }
 
@@ -81,7 +81,7 @@
 	gap: 2px;
 }
 
-.agent-sessions-workbench .collapsed-sidebar-segment .codicon {
+.agent-sessions-workbench .collapsed-panel-button .collapsed-sidebar-segment .codicon {
 	font-size: 14px;
 }
 
