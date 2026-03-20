@@ -401,12 +401,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (selectedOptions && selectedOptions.size > 0) {
 				const contributedSession = model.contributedChatSession;
 				if (contributedSession) {
-					const initialSessionOptions = [...selectedOptions.entries()].map(
-						([optionId, value]) => ({ optionId, value })
-					);
 					model.setContributedChatSession({
 						...contributedSession,
-						initialSessionOptions,
+						initialSessionOptions: selectedOptions,
 					});
 				}
 			}
