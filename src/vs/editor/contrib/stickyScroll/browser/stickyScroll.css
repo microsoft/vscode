@@ -54,6 +54,9 @@
 	transition: var(--vscode-editorStickyScroll-foldingOpacityTransition);
 	position: absolute;
 	margin-left: 2px;
+	z-index: 10;
+	cursor: pointer;
+	pointer-events: auto;
 }
 
 .monaco-editor .sticky-widget .sticky-line-content {
