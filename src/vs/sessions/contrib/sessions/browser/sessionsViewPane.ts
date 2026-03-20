@@ -323,7 +323,7 @@ registerAction2(class SortByCreatedAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.sortByCreated',
-			title: localize2('sortByCreated', "Sort by Created Date"),
+			title: localize2('sortByCreated', "Sort by Created"),
 			category: SessionsCategories.Sessions,
 			toggled: ContextKeyExpr.equals(SessionsViewSortingContext.key, AgentSessionsSorting.Created),
 			menu: [{
@@ -346,7 +346,7 @@ registerAction2(class SortByUpdatedAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.sortByUpdated',
-			title: localize2('sortByUpdated', "Sort by Updated Date"),
+			title: localize2('sortByUpdated', "Sort by Updated"),
 			category: SessionsCategories.Sessions,
 			toggled: ContextKeyExpr.equals(SessionsViewSortingContext.key, AgentSessionsSorting.Updated),
 			menu: [{
