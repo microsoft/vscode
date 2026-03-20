@@ -166,6 +166,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'inspect-brk-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'export-default-configuration': { type: 'string' },
 	'export-policy-data': { type: 'string', allowEmptyValue: true },
+	'export-default-keybindings': { type: 'string', allowEmptyValue: true },
 	'install-source': { type: 'string' },
 	'enable-smoke-test-driver': { type: 'boolean' },
 	'skip-sessions-welcome': { type: 'boolean' },
