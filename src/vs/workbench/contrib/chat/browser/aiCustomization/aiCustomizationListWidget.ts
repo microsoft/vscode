@@ -54,7 +54,8 @@ import { OS } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ICustomizationHarnessService, matchesWorkspaceSubpath, matchesInstructionFileFilter } from '../../common/customizationHarnessService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { getCleanPromptName, isInClaudeRulesFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { evaluateApplyToPattern } from '../../common/promptSyntax/computeAutomaticInstructions.js';
 
 export { truncateToFirstSentence } from './aiCustomizationListWidgetUtils.js';
 
@@ -1250,7 +1251,7 @@ export class AICustomizationListWidget extends Disposable {
 			}));
 
 			for (const { item, parsed } of parseResults) {
-				const applyTo = parsed?.header?.applyTo;
+				const applyTo = evaluateApplyToPattern(parsed?.header, isInClaudeRulesFolder(item.uri));
 				const name = parsed?.header?.name;
 				let description = parsed?.header?.description;
 				const friendlyName = this.getFriendlyName(name || item.name || getCleanPromptName(item.uri));
@@ -1259,8 +1260,8 @@ export class AICustomizationListWidget extends Disposable {
 				if (applyTo !== undefined) {
 					// Context instruction
 					const suffix = applyTo === '**'
-						? localize('alwaysAdded', "all contexts")
-						: localize('onContext', "context matching '{0}'", applyTo);
+						? localize('alwaysAdded', "pattern '{0}' (always added)", applyTo)
+						: localize('onContext', "pattern '{0}'", applyTo);
 					items.push({
 						id: item.uri.toString(),
 						uri: item.uri,
@@ -1282,7 +1283,7 @@ export class AICustomizationListWidget extends Disposable {
 						uri: item.uri,
 						name: friendlyName,
 						filename: basename(item.uri),
-						displayName: `${friendlyName} - ${localize('loadedOnDemand', "loaded on demand")}`,
+						displayName: friendlyName,
 						description: description,
 						storage: item.storage,
 						promptType,
@@ -1399,8 +1400,8 @@ export class AICustomizationListWidget extends Disposable {
 			this.currentSection === AICustomizationManagementSection.Instructions
 				? [
 					{ groupKey: 'agent-instructions', label: localize('agentInstructionsGroup', "Agent Instructions"), icon: instructionsIcon, description: localize('agentInstructionsGroupDescription', "Instruction files automatically loaded for all agent interactions (e.g. AGENTS.md, CLAUDE.md, copilot-instructions.md)."), items: [] },
-					{ groupKey: 'context-instructions', label: localize('contextInstructionsGroup', "Context Instructions"), icon: instructionsIcon, description: localize('contextInstructionsGroupDescription', "Instructions automatically loaded when matching files are part of the context."), items: [] },
-					{ groupKey: 'on-demand-instructions', label: localize('onDemandInstructionsGroup', "On-Demand Instructions"), icon: instructionsIcon, description: localize('onDemandInstructionsGroupDescription', "Instructions loaded only when explicitly referenced."), items: [] },
+					{ groupKey: 'context-instructions', label: localize('contextInstructionsGroup', "Included Based on Context"), icon: instructionsIcon, description: localize('contextInstructionsGroupDescription', "Instructions automatically loaded when matching files are part of the context."), items: [] },
+					{ groupKey: 'on-demand-instructions', label: localize('onDemandInstructionsGroup', "Loaded on Demand"), icon: instructionsIcon, description: localize('onDemandInstructionsGroupDescription', "Instructions loaded only when explicitly referenced."), items: [] },
 				]
 				: [
 					{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
