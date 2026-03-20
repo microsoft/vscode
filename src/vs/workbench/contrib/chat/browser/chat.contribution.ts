@@ -499,12 +499,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['experimental']
 		},
-		[ChatConfiguration.ImageCarouselEnabled]: {
-			default: true,
-			description: nls.localize('chat.imageCarousel.enabled', "Controls whether clicking an image attachment in chat opens the image carousel viewer."),
-			type: 'boolean',
-			tags: ['preview']
-		},
 		[ChatConfiguration.ArtifactsEnabled]: {
 			default: false,
 			description: nls.localize('chat.artifacts.enabled', "Controls whether the artifacts view is available in chat."),
