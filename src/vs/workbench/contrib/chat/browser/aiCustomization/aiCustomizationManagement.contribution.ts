@@ -3,51 +3,52 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { isMacintosh, isWindows } from '../../../../../base/common/platform.js';
+import { basename, dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { FileSystemProviderCapabilities, IFileService } from '../../../../../platform/files/common/files.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IEditorPaneRegistry, EditorPaneDescriptor } from '../../../../browser/editor.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { ChatConfiguration } from '../../common/constants.js';
+import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
-import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
+import { AgentPluginItemKind } from '../agentPluginEditor/agentPluginItems.js';
 import {
-	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
-	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID,
 	AI_CUSTOMIZATION_ITEM_DISABLED_KEY,
 	AI_CUSTOMIZATION_ITEM_STORAGE_KEY,
 	AI_CUSTOMIZATION_ITEM_TYPE_KEY,
 	AI_CUSTOMIZATION_ITEM_URI_KEY,
+	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
+	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID,
 	AICustomizationManagementCommands,
 	AICustomizationManagementItemMenuId,
 	AICustomizationManagementSection,
 	BUILTIN_STORAGE,
 } from './aiCustomizationManagement.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { PromptsStorage, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
-import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatConfiguration } from '../../common/constants.js';
-import { IFileService, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { basename, dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
-import { Schemas } from '../../../../../base/common/network.js';
-import { isWindows, isMacintosh } from '../../../../../base/common/platform.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
-import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
+import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 
 //#region Telemetry
 
@@ -153,6 +154,20 @@ function extractPromptType(context: AICustomizationContext): PromptsType | undef
 		return undefined;
 	}
 	return context.promptType;
+}
+
+/**
+ * Extracts the parent plugin URI from context, if present.
+ */
+function extractPluginUri(context: AICustomizationContext): URI | undefined {
+	if (URI.isUri(context) || typeof context === 'string') {
+		return undefined;
+	}
+	const raw = context.pluginUri;
+	if (!raw) {
+		return undefined;
+	}
+	return URI.isUri(raw) ? raw : typeof raw === 'string' ? URI.parse(raw) : undefined;
 }
 
 // Open file action
@@ -434,6 +449,52 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('uninstallPlugin', "Uninstall Plugin") },
 	group: '4_modify',
 	order: 1,
+	when: WHEN_ITEM_IS_PLUGIN,
+});
+
+// Show Plugin action - navigates to the parent plugin detail page
+const SHOW_PLUGIN_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.showPlugin';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: SHOW_PLUGIN_AI_CUSTOMIZATION_ID,
+			title: localize2('showPlugin', "Show Plugin"),
+		});
+	}
+	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		const agentPluginService = accessor.get(IAgentPluginService);
+		const editorService = accessor.get(IEditorService);
+
+		const pluginUri = extractPluginUri(context);
+		if (!pluginUri) {
+			return;
+		}
+		const plugin = agentPluginService.plugins.get().find(p => p.uri.toString() === pluginUri.toString());
+		if (!plugin) {
+			return;
+		}
+
+		const item = {
+			kind: AgentPluginItemKind.Installed as const,
+			name: plugin.label,
+			description: plugin.fromMarketplace?.description ?? '',
+			marketplace: plugin.fromMarketplace?.marketplace,
+			plugin,
+		};
+
+		// Try to show within the active AI Customization editor (with back navigation)
+		const input = AICustomizationManagementEditorInput.getOrCreate();
+		const pane = await editorService.openEditor(input, { pinned: true });
+		if (pane instanceof AICustomizationManagementEditor) {
+			await pane.showPluginDetail(item);
+		}
+	}
+});
+
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: SHOW_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('showPlugin', "Show Plugin") },
+	group: '1_open',
+	order: 2,
 	when: WHEN_ITEM_IS_PLUGIN,
 });
 

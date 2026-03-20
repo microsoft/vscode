@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as os from 'os';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import * as os from 'os';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgent, IAgentAttachment } from '../common/agentService.js';
-import { ActionType, type ISessionAction } from '../common/state/sessionActions.js';
-import { IBrowseDirectoryResult, ICreateSessionParams, AHP_PROVIDER_NOT_FOUND, JSON_RPC_INTERNAL_ERROR, ProtocolError, IDirectoryEntry } from '../common/state/sessionProtocol.js';
+import { IAgent, IAgentAttachment, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
+import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
+import { AHP_PROVIDER_NOT_FOUND, IBrowseDirectoryResult, ICreateSessionParams, IDirectoryEntry, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../common/state/sessionProtocol.js';
 import {
+	SessionStatus,
 	type ISessionModelInfo,
-	SessionStatus, type ISessionSummary, type URI as ProtocolURI,
+	type ISessionSummary, type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
 import { mapProgressEventToActions } from './agentEventMapper.js';
 import type { IProtocolSideEffectHandler } from './protocolServerHandler.js';
@@ -228,12 +229,22 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		return allSessions;
 	}
 
-	handleSetAuthToken(token: string): void {
+	handleGetResourceMetadata(): IResourceMetadata {
+		const resources = this._options.agents.get().flatMap(a => a.getProtectedResources());
+		return { resources };
+	}
+
+	async handleAuthenticate(params: IAuthenticateParams): Promise<IAuthenticateResult> {
 		for (const agent of this._options.agents.get()) {
-			agent.setAuthToken(token).catch(err => {
-				this._logService.error('[AgentSideEffects] setAuthToken failed', err);
-			});
+			const resources = agent.getProtectedResources();
+			if (resources.some(r => r.resource === params.resource)) {
+				const accepted = await agent.authenticate(params.resource, params.token);
+				if (accepted) {
+					return { authenticated: true };
+				}
+			}
 		}
+		return { authenticated: false };
 	}
 
 	async handleBrowseDirectory(uri: ProtocolURI): Promise<IBrowseDirectoryResult> {

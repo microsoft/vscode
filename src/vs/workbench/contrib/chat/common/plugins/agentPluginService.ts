@@ -20,6 +20,8 @@ export const IAgentPluginService = createDecorator<IAgentPluginService>('agentPl
 export interface IAgentPluginHook {
 	readonly type: HookType;
 	readonly hooks: readonly IHookCommand[];
+	/** URI where this hook is defined -- not unique, multiple hooks may be in a manifest */
+	readonly uri: URI;
 	readonly originalId: string;
 }
 
@@ -46,6 +48,7 @@ export interface IAgentPluginInstruction {
 export interface IAgentPluginMcpServerDefinition {
 	readonly name: string;
 	readonly configuration: IMcpServerConfiguration;
+	readonly uri: URI;
 }
 
 export interface IAgentPlugin {

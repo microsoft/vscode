@@ -93,10 +93,5 @@
 	.agent-sessions-control-container {
 		flex: 1;
 		overflow: hidden;
-
-		/* Override section header padding to align with dot indicators */
-		.agent-session-section {
-			padding-left: 12px;
-		}
 	}
 }

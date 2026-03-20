@@ -10,6 +10,19 @@ import { IQuickInputButton, IQuickTreeItem } from '../../../../../platform/quick
 import { ConfirmedReason } from '../chatService/chatService.js';
 import { IToolData, ToolDataSource } from './languageModelToolsService.js';
 
+/**
+ * Computes a stable, bounded key for a tool+parameters combination
+ * using SHA-256 via SubtleCrypto. The resulting hex digest ensures
+ * raw parameter values are never leaked into storage.
+ */
+export async function computeCombinationKey(toolId: string, parameters: unknown): Promise<string> {
+	const input = toolId + ':' + JSON.stringify(parameters);
+	const encoded = new TextEncoder().encode(input);
+	const buffer = await crypto.subtle.digest('SHA-256', encoded);
+	const hashHex = Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+	return toolId + ':combination:' + hashHex;
+}
+
 export interface ILanguageModelToolConfirmationActions {
 	/** Label for the action */
 	label: string;
@@ -28,6 +41,13 @@ export interface ILanguageModelToolConfirmationRef {
 	source: ToolDataSource;
 	parameters: unknown;
 	chatSessionResource?: URI;
+	/** When set, the confirmation service will offer combination-level approval actions */
+	combination?: {
+		/** Human-readable label for the approval option */
+		label: string;
+		/** Precomputed SHA-256 key for the combination */
+		key: string;
+	};
 }
 
 export interface ILanguageModelToolConfirmationActionProducer {

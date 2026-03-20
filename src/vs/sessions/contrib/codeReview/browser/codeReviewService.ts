@@ -201,6 +201,13 @@ export interface ICodeReviewService {
 	 * Resolve a PR review thread on GitHub and remove it from local state.
 	 */
 	resolvePRReviewThread(sessionResource: URI, threadId: string): Promise<void>;
+
+	/**
+	 * Mark a PR review comment as locally converted to agent feedback.
+	 * The comment is hidden from the PR review state until the session is
+	 * cleaned up.
+	 */
+	markPRReviewCommentConverted(sessionResource: URI, commentId: string): void;
 }
 
 // --- Storage Types -----------------------------------------------------------
@@ -301,6 +308,8 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 
 	private readonly _reviewsBySession = new Map<string, ISessionReviewData>();
 	private readonly _prReviewBySession = new Map<string, IPRSessionReviewData>();
+	/** PR review comment IDs that have been converted to agent feedback (per session). */
+	private readonly _convertedPRCommentsBySession = new Map<string, Set<string>>();
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
@@ -610,6 +619,26 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		}
 	}
 
+	markPRReviewCommentConverted(sessionResource: URI, commentId: string): void {
+		const key = sessionResource.toString();
+		let converted = this._convertedPRCommentsBySession.get(key);
+		if (!converted) {
+			converted = new Set();
+			this._convertedPRCommentsBySession.set(key, converted);
+		}
+		converted.add(commentId);
+
+		// Immediately filter the comment from the observable PR review state
+		const data = this._prReviewBySession.get(key);
+		if (data) {
+			const currentState = data.state.get();
+			if (currentState.kind === PRReviewStateKind.Loaded) {
+				const filtered = currentState.comments.filter(c => c.id !== commentId);
+				data.state.set({ kind: PRReviewStateKind.Loaded, comments: filtered }, undefined);
+			}
+		}
+	}
+
 	private _getOrCreatePRReviewData(sessionResource: URI): IPRSessionReviewData {
 		const key = sessionResource.toString();
 		let data = this._prReviewBySession.get(key);
@@ -643,10 +672,15 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		// Watch the PR model's review threads and map to local state
 		data.disposables.add(autorun(reader => {
 			const threads = prModel.reviewThreads.read(reader);
+			const converted = this._convertedPRCommentsBySession.get(sessionResource.toString());
 			const comments: IPRReviewComment[] = [];
 
 			for (const thread of threads) {
 				if (thread.isResolved) {
+					continue;
+				}
+				const threadId = String(thread.id);
+				if (converted?.has(threadId)) {
 					continue;
 				}
 				const fileUri = this._sessionsManagementService.resolveSessionFileUri(sessionResource, thread.path);
@@ -677,6 +711,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 
 	private _disposePRReview(sessionResource: URI): void {
 		const key = sessionResource.toString();
+		this._convertedPRCommentsBySession.delete(key);
 		const data = this._prReviewBySession.get(key);
 		if (data) {
 			data.disposables.dispose();

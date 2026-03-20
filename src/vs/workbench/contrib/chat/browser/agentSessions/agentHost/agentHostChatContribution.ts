@@ -219,6 +219,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			fullName: agent.displayName,
 			description: agent.description,
 			connection: this._agentHostService,
+			resolveAuthentication: () => this._resolveAuthenticationInteractively(),
 		}));
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
@@ -233,27 +234,97 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		store.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));
 
 		// Push auth token and refresh models from server
-		this._pushAuthToken().then(() => this._agentHostService.refreshModels()).catch(() => { /* best-effort */ });
+		this._authenticateWithServer().then(() => this._agentHostService.refreshModels()).catch(() => { /* best-effort */ });
 		store.add(this._defaultAccountService.onDidChangeDefaultAccount(() =>
-			this._pushAuthToken().then(() => this._agentHostService.refreshModels()).catch(() => { /* best-effort */ })));
+			this._authenticateWithServer().then(() => this._agentHostService.refreshModels()).catch(() => { /* best-effort */ })));
 		store.add(this._authenticationService.onDidChangeSessions(() =>
-			this._pushAuthToken().then(() => this._agentHostService.refreshModels()).catch(() => { /* best-effort */ })));
+			this._authenticateWithServer().then(() => this._agentHostService.refreshModels()).catch(() => { /* best-effort */ })));
 	}
 
-	private async _pushAuthToken(): Promise<void> {
+	/**
+	 * Discover auth requirements from the server's resource metadata
+	 * and authenticate using matching tokens resolved via the standard
+	 * VS Code authentication service (same flow as MCP auth).
+	 */
+	private async _authenticateWithServer(): Promise<void> {
 		try {
-			const account = await this._defaultAccountService.getDefaultAccount();
-			if (!account) {
-				return;
+			const metadata = await this._agentHostService.getResourceMetadata();
+			this._logService.trace(`[AgentHost] Resource metadata: ${metadata.resources.length} resource(s)`);
+			for (const resource of metadata.resources) {
+				const resourceUri = URI.parse(resource.resource);
+				const token = await this._resolveTokenForResource(resourceUri, resource.authorization_servers ?? [], resource.scopes_supported ?? []);
+				if (token) {
+					this._logService.info(`[AgentHost] Authenticating for resource: ${resource.resource}`);
+					await this._agentHostService.authenticate({ resource: resource.resource, token });
+				} else {
+					this._logService.info(`[AgentHost] No token resolved for resource: ${resource.resource}`);
+				}
+			}
+		} catch (err) {
+			this._logService.error('[AgentHost] Failed to authenticate with server', err);
+		}
+	}
+
+	/**
+	 * Resolve a bearer token for a set of authorization servers using the
+	 * standard VS Code authentication service provider resolution.
+	 */
+	private async _resolveTokenForResource(resourceServer: URI, authorizationServers: readonly string[], scopes: readonly string[]): Promise<string | undefined> {
+		for (const server of authorizationServers) {
+			const serverUri = URI.parse(server);
+			const providerId = await this._authenticationService.getOrActivateProviderIdForServer(serverUri, resourceServer);
+			if (!providerId) {
+				this._logService.trace(`[AgentHost] No auth provider found for server: ${server}`);
+				continue;
+			}
+			this._logService.trace(`[AgentHost] Resolved auth provider '${providerId}' for server: ${server}`);
+
+			const sessions = await this._authenticationService.getSessions(providerId, [...scopes], { authorizationServer: serverUri }, true);
+			if (sessions.length > 0) {
+				return sessions[0].accessToken;
 			}
 
-			const sessions = await this._authenticationService.getSessions(account.authenticationProvider.id);
-			const session = sessions.find(s => s.id === account.sessionId);
-			if (session) {
-				await this._agentHostService.setAuthToken(session.accessToken);
-			}
-		} catch {
-			// best-effort
+			this._logService.trace(`[AgentHost] No sessions found for provider '${providerId}'`);
 		}
+		return undefined;
+	}
+
+	/**
+	 * Interactively prompt the user to authenticate when the server requires it.
+	 * Fetches resource metadata, resolves the auth provider, creates a session
+	 * (which triggers the login UI), and pushes the token to the server.
+	 * Returns true if authentication succeeded.
+	 */
+	private async _resolveAuthenticationInteractively(): Promise<boolean> {
+		try {
+			const metadata = await this._agentHostService.getResourceMetadata();
+			for (const resource of metadata.resources) {
+				for (const server of resource.authorization_servers ?? []) {
+					const serverUri = URI.parse(server);
+					const resourceUri = URI.parse(resource.resource);
+					const providerId = await this._authenticationService.getOrActivateProviderIdForServer(serverUri, resourceUri);
+					if (!providerId) {
+						continue;
+					}
+
+					// createSession will show the login UI if no session exists
+					const scopes = [...(resource.scopes_supported ?? [])];
+					const session = await this._authenticationService.createSession(providerId, scopes, {
+						activateImmediate: true,
+						authorizationServer: serverUri,
+					});
+
+					await this._agentHostService.authenticate({
+						resource: resource.resource,
+						token: session.accessToken,
+					});
+					this._logService.info(`[AgentHost] Interactive authentication succeeded for ${resource.resource}`);
+					return true;
+				}
+			}
+		} catch (err) {
+			this._logService.error('[AgentHost] Interactive authentication failed', err);
+		}
+		return false;
 	}
 }

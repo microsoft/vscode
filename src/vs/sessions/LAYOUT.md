@@ -374,7 +374,7 @@ The Agent Sessions workbench uses specialized part implementations that extend t
 | Configuration listening | Many settings | Minimal |
 | Context menu actions | Full set | Simplified |
 | Title bar | Full support | Sidebar: `hasTitle: true` (with footer); ChatBar: `hasTitle: false`; Auxiliary Bar & Panel: `hasTitle: true` |
-| Visual margins | None | Auxiliary Bar: 8px top/bottom/right (card appearance); Panel: 8px bottom/left/right (card appearance); Sidebar: 0 (flush) |
+| Visual margins | None | Auxiliary Bar: 16px top/right, 18px bottom (card appearance); Panel: 18px bottom, 16px left/right (card appearance); Sidebar: 0 (flush) |
 
 ### 9.3 Part Creation
 

@@ -951,6 +951,37 @@ suite('AgentSessionsDataSource', () => {
 
 			assert.deepStrictEqual(result.map(s => s.label), ['vscode']);
 		});
+
+		test('Other group appears after named repos and before Archived', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: 'no-repo', startTime: now }),
+				createMockSession({ id: 'repo-a', startTime: now - 1, metadata: { repositoryPath: '/path/alpha' } }),
+				createMockSession({ id: 'archived', startTime: now - 2, isArchived: true }),
+				createMockSession({ id: 'repo-b', startTime: now - 3, metadata: { repositoryPath: '/path/beta' } }),
+				createMockSession({ id: 'no-repo-2', startTime: now - 4 }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			const labels = result.map(s => s.label);
+			const otherIndex = labels.indexOf('Other');
+			const archivedIndex = labels.indexOf('Archived');
+
+			// Other must exist and contain the 2 sessions without repo info
+			assert.ok(otherIndex !== -1, 'Other section should be present');
+			assert.strictEqual(result[otherIndex].sessions.length, 2);
+
+			// Other must come after all named repo groups
+			for (let i = 0; i < otherIndex; i++) {
+				assert.strictEqual(result[i].section, AgentSessionSection.Repository, `section at index ${i} should be a named repository group`);
+			}
+
+			// Archived must come after Other
+			assert.ok(archivedIndex > otherIndex, 'Archived section should come after Other');
+		});
 	});
 
 	suite('getRepositoryName', () => {

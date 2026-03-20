@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Event, IWaitUntil } from '../../../../base/common/event.js';
+import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
@@ -236,11 +236,7 @@ export interface IChatSessionItemController {
 	newChatSessionItem?(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 }
 
-/**
- * Event fired when session options need to be sent to the extension.
- * Extends IWaitUntil to allow listeners to register async work that will be awaited.
- */
-export interface IChatSessionOptionsWillNotifyExtensionEvent extends IWaitUntil {
+export interface IChatSessionOptionsChangeEvent {
 	readonly sessionResource: URI;
 	readonly updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>;
 }
@@ -306,11 +302,12 @@ export interface IChatSessionsService {
 	getSessionOptions(sessionResource: URI): Map<string, string> | undefined;
 	getSessionOption(sessionResource: URI, optionId: string): string | IChatSessionProviderOptionItem | undefined;
 	setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean;
+	updateSessionOptions(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): boolean;
 
 	/**
 	 * Fired when options for a chat session change.
 	 */
-	readonly onDidChangeSessionOptions: Event<URI>;
+	readonly onDidChangeSessionOptions: Event<IChatSessionOptionsChangeEvent>;
 
 	/**
 	 * Get the capabilities for a specific session type
@@ -355,13 +352,6 @@ export interface IChatSessionsService {
 
 	getNewSessionOptionsForSessionType(chatSessionType: string): Record<string, string | IChatSessionProviderOptionItem> | undefined;
 	setNewSessionOptionsForSessionType(chatSessionType: string, options: Record<string, string | IChatSessionProviderOptionItem>): void;
-	/**
-	 * Event fired when session options change and need to be sent to the extension.
-	 * MainThreadChatSessions subscribes to this to forward changes to the extension host.
-	 * Uses IWaitUntil pattern to allow listeners to register async work.
-	 */
-	readonly onRequestNotifyExtension: Event<IChatSessionOptionsWillNotifyExtensionEvent>;
-	notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): Promise<void>;
 
 	getInProgressSessionDescription(chatModel: IChatModel): string | undefined;
 

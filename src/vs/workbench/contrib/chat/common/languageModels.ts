@@ -1740,7 +1740,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				if (!entry || !isObject(entry)) {
 					continue;
 				}
-				free[entry.id] = { label: entry.label, featured: entry.featured, exists: this._modelExistsInCache(entry.id) };
+				free[entry.id] = { label: entry.label, featured: entry.featured, exists: this._modelCache.has(`copilot/${entry.id}`) };
 			}
 		}
 
@@ -1750,7 +1750,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				if (!entry || !isObject(entry)) {
 					continue;
 				}
-				paid[entry.id] = { label: entry.label, featured: entry.featured, minVSCodeVersion: entry.minVSCodeVersion, exists: this._modelExistsInCache(entry.id) };
+				paid[entry.id] = { label: entry.label, featured: entry.featured, minVSCodeVersion: entry.minVSCodeVersion, exists: this._modelCache.has(`copilot/${entry.id}`) };
 			}
 		}
 
@@ -1758,17 +1758,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		this._onDidChangeModelsControlManifest.fire(this._modelsControlManifest);
 	}
 
-	private _modelExistsInCache(metadataId: string): boolean {
-		for (const model of this._modelCache.values()) {
-			if (model.id === metadataId) {
-				return true;
-			}
-		}
-		return false;
-	}
-
 	//#region Chat control data
-
 	private _initChatControlData(): void {
 		this._chatControlUrl = this._productService.chatParticipantRegistry;
 		if (!this._chatControlUrl) {

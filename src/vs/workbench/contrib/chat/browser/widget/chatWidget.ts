@@ -2776,11 +2776,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 */
 	private async _autoAttachInstructions({ attachedContext }: IChatRequestInputOptions): Promise<void> {
 		const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
-		if (!contribution?.autoAttachReferences) {
+
+		// For contributed session types, default to false for autoAttachReferences.
+		const isContributedSession = !!contribution;
+		const autoAttachEnabled = isContributedSession ?
+			contribution.autoAttachReferences === true : true;
+
+		if (!autoAttachEnabled) {
 			this.logService.debug(`ChatWidget#_autoAttachInstructions: skipped, autoAttachReferences is disabled`);
 			return;
 		}
-		this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are always enabled`);
+
+		this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are enabled`);
 		const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined;
 		const enabledSubAgents = this.input.currentModeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined;
 		const sessionResource = this._viewModel?.model.sessionResource;

@@ -6,7 +6,6 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IsolationMode } from './sessionTargetPicker.js';
 import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
@@ -102,7 +101,6 @@ export class CopilotCLISession extends Disposable implements INewSession {
 		readonly resource: URI,
 		defaultRepoUri: URI | undefined,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		if (defaultRepoUri) {
@@ -168,10 +166,7 @@ export class CopilotCLISession extends Disposable implements INewSession {
 		} else {
 			this.selectedOptions.set(optionId, value);
 		}
-		this.chatSessionsService.notifySessionOptionsChange(
-			this.resource,
-			[{ optionId, value }]
-		).catch((err) => this.logService.error(`Failed to notify session option ${optionId} change:`, err));
+		this.chatSessionsService.setSessionOption(this.resource, optionId, value);
 	}
 }
 
@@ -214,7 +209,6 @@ export class RemoteNewSession extends Disposable implements INewSession {
 		readonly target: AgentSessionProviders,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -272,10 +266,7 @@ export class RemoteNewSession extends Disposable implements INewSession {
 		}
 		this._onDidChange.fire('options');
 		this._onDidChange.fire('disabled');
-		this.chatSessionsService.notifySessionOptionsChange(
-			this.resource,
-			[{ optionId, value }]
-		).catch((err) => this.logService.error(`Failed to notify extension of ${optionId} change:`, err));
+		this.chatSessionsService.setSessionOption(this.resource, optionId, value);
 	}
 
 	// --- Option group accessors ---

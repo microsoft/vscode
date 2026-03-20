@@ -1371,8 +1371,8 @@ export interface MainThreadBrowsersShape extends IDisposable {
 export interface ExtHostBrowsersShape {
 	$onDidOpenBrowserTab(browser: BrowserTabDto): void;
 	$onDidCloseBrowserTab(browserId: string): void;
-	$onDidChangeActiveBrowserTab(browser: BrowserTabDto | undefined): void;
-	$onDidChangeBrowserTabState(browserId: string, data: BrowserTabDto): void;
+	$onDidChangeActiveBrowserTab(browserId: string | undefined): void;
+	$onDidChangeBrowserTabState(browser: BrowserTabDto): void;
 	$onCDPSessionMessage(sessionId: string, message: CDPResponse | CDPEvent): void;
 	$onCDPSessionClosed(sessionId: string): void;
 }

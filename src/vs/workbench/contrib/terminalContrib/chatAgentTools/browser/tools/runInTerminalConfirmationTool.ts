@@ -58,6 +58,10 @@ export const ConfirmTerminalCommandToolData: IToolData = {
 };
 
 export class ConfirmTerminalCommandTool extends RunInTerminalTool {
+	override get _enableCommandLineSandboxRewriting() {
+		return false;
+	}
+
 	override async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const preparedInvocation = await super.prepareToolInvocation(context, token);
 		if (preparedInvocation) {

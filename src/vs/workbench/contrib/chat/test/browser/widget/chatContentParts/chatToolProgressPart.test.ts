@@ -182,7 +182,7 @@ suite('ChatToolProgressSubPart', () => {
 	});
 
 	test('adds shimmer styling for active MCP tool progress', () => {
-		const mcpTool = createSerializedToolInvocation({
+		const mcpTool = createToolInvocation({
 			source: {
 				type: 'mcp',
 				label: 'Weather MCP',
@@ -214,6 +214,30 @@ suite('ChatToolProgressSubPart', () => {
 		const part = disposables.add(instantiationService.createInstance(
 			ChatToolProgressSubPart,
 			tool,
+			createRenderContext(false),
+			mockMarkdownRenderer,
+			new Set<string>()
+		));
+
+		assert.strictEqual(part.domNode.querySelector('.shimmer-progress'), null);
+	});
+
+	test('does not add shimmer styling for completed MCP tool progress', () => {
+		const mcpTool = createSerializedToolInvocation({
+			source: {
+				type: 'mcp',
+				label: 'Weather MCP',
+				serverLabel: 'Weather',
+				instructions: undefined,
+				collectionId: 'collection',
+				definitionId: 'definition'
+			},
+			toolId: 'weather_lookup'
+		});
+
+		const part = disposables.add(instantiationService.createInstance(
+			ChatToolProgressSubPart,
+			mcpTool,
 			createRenderContext(false),
 			mockMarkdownRenderer,
 			new Set<string>()

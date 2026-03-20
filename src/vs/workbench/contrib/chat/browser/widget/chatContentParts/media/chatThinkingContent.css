@@ -13,6 +13,11 @@
 	position: relative;
 	color: var(--vscode-descriptionForeground);
 
+	.chat-thinking-external-resources {
+		margin-top: 4px;
+		margin-left: 5px;
+	}
+
 	.chat-used-context {
 		margin: 0px;
 	}

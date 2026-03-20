@@ -57,11 +57,11 @@ interface IAgentPluginFormatAdapter {
 	readonly hookConfigPath: string;
 	readonly pluginRootToken: string | undefined;
 	readonly pluginRootEnvVar: string | undefined;
-	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[];
+	parseHooks(hookURI: URI, json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[];
 }
 
-function mapParsedHooks(parsed: Map<IAgentPluginHook['type'], { hooks: IAgentPluginHook['hooks']; originalId: string }>): IAgentPluginHook[] {
-	return [...parsed.entries()].map(([type, { hooks, originalId }]) => ({ type, hooks, originalId }));
+function mapParsedHooks(uri: URI, parsed: Map<IAgentPluginHook['type'], { hooks: IAgentPluginHook['hooks']; originalId: string }>): IAgentPluginHook[] {
+	return [...parsed.entries()].map(([type, { hooks, originalId }]) => ({ type, uri, hooks, originalId }));
 }
 
 /**
@@ -85,9 +85,9 @@ class CopilotPluginFormatAdapter implements IAgentPluginFormatAdapter {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) { }
 
-	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
+	parseHooks(hookURI: URI, json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
 		const workspaceRoot = resolveWorkspaceRoot(pluginUri, this._workspaceContextService);
-		return mapParsedHooks(parseCopilotHooks(json, workspaceRoot, userHome));
+		return mapParsedHooks(hookURI, parseCopilotHooks(json, workspaceRoot, userHome));
 	}
 }
 
@@ -201,7 +201,7 @@ function interpolateMcpPluginRoot(
 		interpolated = remote;
 	}
 
-	return { name: def.name, configuration: interpolated };
+	return { name: def.name, configuration: interpolated, uri: def.uri };
 }
 
 /**
@@ -211,6 +211,7 @@ function interpolateMcpPluginRoot(
  * delegates to {@link parseClaudeHooks} for the actual hook resolution.
  */
 function parsePluginRootHooks(
+	hookURI: URI,
 	json: unknown,
 	pluginUri: URI,
 	userHome: string,
@@ -265,7 +266,7 @@ function parsePluginRootHooks(
 		return [];
 	}
 
-	return mapParsedHooks(hooks);
+	return mapParsedHooks(hookURI, hooks);
 }
 
 class ClaudePluginFormatAdapter implements IAgentPluginFormatAdapter {
@@ -279,8 +280,8 @@ class ClaudePluginFormatAdapter implements IAgentPluginFormatAdapter {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) { }
 
-	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
-		return parsePluginRootHooks(json, pluginUri, userHome, this._workspaceContextService, '${CLAUDE_PLUGIN_ROOT}', 'CLAUDE_PLUGIN_ROOT');
+	parseHooks(hookURI: URI, json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
+		return parsePluginRootHooks(hookURI, json, pluginUri, userHome, this._workspaceContextService, '${CLAUDE_PLUGIN_ROOT}', 'CLAUDE_PLUGIN_ROOT');
 	}
 }
 
@@ -295,8 +296,8 @@ class OpenPluginFormatAdapter implements IAgentPluginFormatAdapter {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) { }
 
-	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
-		return parsePluginRootHooks(json, pluginUri, userHome, this._workspaceContextService, '${PLUGIN_ROOT}', 'PLUGIN_ROOT');
+	parseHooks(hookURI: URI, json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
+		return parsePluginRootHooks(hookURI, json, pluginUri, userHome, this._workspaceContextService, '${PLUGIN_ROOT}', 'PLUGIN_ROOT');
 	}
 }
 
@@ -584,6 +585,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			return result.recomputeInitiallyAndOnChange(store);
 		};
 
+		const manifestUri = joinPath(uri, adapter.manifestPath);
 		const commands = observeComponent('commands', d => this._readMarkdownComponents(d));
 		const skills = observeComponent('skills', d => this._readSkills(uri, d));
 		const agents = observeComponent('agents', d => this._readMarkdownComponents(d));
@@ -593,7 +595,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			paths => this._readHooksFromPaths(uri, paths, adapter),
 			async section => {
 				const userHome = (await this._pathService.userHome()).fsPath;
-				return adapter.parseHooks(section, uri, userHome);
+				return adapter.parseHooks(manifestUri, section, uri, userHome);
 			},
 			adapter.hookConfigPath,
 		);
@@ -601,7 +603,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		const mcpServerDefinitions = observeComponent(
 			'mcpServers',
 			paths => this._readMcpDefinitionsFromPaths(paths, uri.fsPath, adapter),
-			async section => this._parseMcpServerDefinitionMap({ mcpServers: section }, uri.fsPath, adapter),
+			async section => this._parseMcpServerDefinitionMap(manifestUri, { mcpServers: section }, uri.fsPath, adapter),
 			'.mcp.json',
 		);
 
@@ -611,7 +613,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		};
 
 		const manifestWatcher = this._fileService.createWatcher(
-			joinPath(uri, adapter.manifestPath),
+			manifestUri,
 			{ recursive: false, excludes: [] },
 		);
 		store.add(manifestWatcher);
@@ -657,7 +659,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			const json = await this._readJsonFile(hookPath);
 			if (json) {
 				try {
-					return adapter.parseHooks(json, pluginUri, userHome);
+					return adapter.parseHooks(hookPath, json, pluginUri, userHome);
 				} catch (e) {
 					this._logService.info(`[AgentPluginDiscovery] Failed to parse hooks from ${hookPath.toString()}:`, e);
 				}
@@ -672,21 +674,19 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 	 * server name wins.
 	 */
 	private async _readMcpDefinitionsFromPaths(paths: readonly URI[], pluginFsPath: string, adapter: IAgentPluginFormatAdapter): Promise<readonly IAgentPluginMcpServerDefinition[]> {
-		const merged = new Map<string, IMcpServerConfiguration>();
+		const merged = new Map<string, IAgentPluginMcpServerDefinition>();
 		for (const mcpPath of paths) {
 			const json = await this._readJsonFile(mcpPath);
-			for (const def of this._parseMcpServerDefinitionMap(json, pluginFsPath, adapter)) {
+			for (const def of this._parseMcpServerDefinitionMap(mcpPath, json, pluginFsPath, adapter)) {
 				if (!merged.has(def.name)) {
-					merged.set(def.name, def.configuration);
+					merged.set(def.name, def);
 				}
 			}
 		}
-		return [...merged.entries()]
-			.map(([name, configuration]) => ({ name, configuration } satisfies IAgentPluginMcpServerDefinition))
-			.sort((a, b) => a.name.localeCompare(b.name));
+		return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name));
 	}
 
-	private _parseMcpServerDefinitionMap(raw: unknown, pluginFsPath: string, adapter: IAgentPluginFormatAdapter): IAgentPluginMcpServerDefinition[] {
+	private _parseMcpServerDefinitionMap(definitionURI: URI, raw: unknown, pluginFsPath: string, adapter: IAgentPluginFormatAdapter): IAgentPluginMcpServerDefinition[] {
 		const mcpServers = resolveMcpServersMap(raw);
 		if (!mcpServers) {
 			return [];
@@ -699,7 +699,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 				continue;
 			}
 
-			let def: IAgentPluginMcpServerDefinition = { name, configuration };
+			let def: IAgentPluginMcpServerDefinition = { name, configuration, uri: definitionURI };
 			if (adapter.pluginRootToken && adapter.pluginRootEnvVar) {
 				def = interpolateMcpPluginRoot(def, pluginFsPath, adapter.pluginRootToken, adapter.pluginRootEnvVar);
 			}

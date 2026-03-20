@@ -126,20 +126,6 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	// ---- setAuthToken ---------------------------------------------------
-
-	suite('setAuthToken', () => {
-
-		test('broadcasts token to all registered providers', async () => {
-			service.registerProvider(copilotAgent);
-
-			await service.setAuthToken('my-token');
-
-			assert.strictEqual(copilotAgent.setAuthTokenCalls.length, 1);
-			assert.strictEqual(copilotAgent.setAuthTokenCalls[0], 'my-token');
-		});
-	});
-
 	// ---- listSessions / listModels --------------------------------------
 
 	suite('aggregation', () => {
@@ -166,6 +152,54 @@ suite('AgentService (node dispatcher)', () => {
 
 			const agentsChanged = envelopes.find(e => e.action.type === ActionType.RootAgentsChanged);
 			assert.ok(agentsChanged);
+		});
+	});
+
+	// ---- getResourceMetadata --------------------------------------------
+
+	suite('getResourceMetadata', () => {
+
+		test('aggregates protected resources from all providers', async () => {
+			service.registerProvider(copilotAgent);
+
+			const mockAgent = new MockAgent('other');
+			disposables.add(toDisposable(() => mockAgent.dispose()));
+			service.registerProvider(mockAgent);
+
+			const metadata = await service.getResourceMetadata();
+			// copilot agent returns one resource (https://api.github.com),
+			// generic MockAgent('other') returns empty
+			assert.deepStrictEqual(metadata, {
+				resources: [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'] }],
+			});
+		});
+
+		test('returns empty resources when no providers registered', async () => {
+			const metadata = await service.getResourceMetadata();
+			assert.deepStrictEqual(metadata, { resources: [] });
+		});
+	});
+
+	// ---- authenticate ---------------------------------------------------
+
+	suite('authenticate', () => {
+
+		test('routes token to provider matching the resource', async () => {
+			service.registerProvider(copilotAgent);
+
+			const result = await service.authenticate({ resource: 'https://api.github.com', token: 'ghp_test123' });
+
+			assert.deepStrictEqual(result, { authenticated: true });
+			assert.deepStrictEqual(copilotAgent.authenticateCalls, [{ resource: 'https://api.github.com', token: 'ghp_test123' }]);
+		});
+
+		test('returns not authenticated for unknown resource', async () => {
+			service.registerProvider(copilotAgent);
+
+			const result = await service.authenticate({ resource: 'https://unknown.example.com', token: 'tok' });
+
+			assert.deepStrictEqual(result, { authenticated: false });
+			assert.strictEqual(copilotAgent.authenticateCalls.length, 0);
 		});
 	});
 

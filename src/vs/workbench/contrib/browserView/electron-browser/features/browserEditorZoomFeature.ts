@@ -30,8 +30,8 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 
-export const CONTEXT_BROWSER_CAN_ZOOM_IN = new RawContextKey<boolean>('browserCanZoomIn', true, localize('browser.canZoomIn', "Whether the browser can zoom in further"));
-export const CONTEXT_BROWSER_CAN_ZOOM_OUT = new RawContextKey<boolean>('browserCanZoomOut', true, localize('browser.canZoomOut', "Whether the browser can zoom out further"));
+const CONTEXT_BROWSER_CAN_ZOOM_IN = new RawContextKey<boolean>('browserCanZoomIn', true, localize('browser.canZoomIn', "Whether the browser can zoom in further"));
+const CONTEXT_BROWSER_CAN_ZOOM_OUT = new RawContextKey<boolean>('browserCanZoomOut', true, localize('browser.canZoomOut', "Whether the browser can zoom out further"));
 
 /**
  * Transient zoom-level indicator that briefly appears inside the URL bar on zoom changes.

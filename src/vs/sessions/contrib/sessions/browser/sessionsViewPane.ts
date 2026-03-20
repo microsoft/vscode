@@ -41,7 +41,7 @@ import { IHostService } from '../../../../workbench/services/host/browser/host.j
 const $ = DOM.$;
 export const SessionsViewId = 'agentic.workbench.view.sessionsView';
 const SessionsViewFilterSubMenu = new MenuId('AgentSessionsViewFilterSubMenu');
-const IsGroupedByRepositoryContext = new RawContextKey<boolean>('sessionsView.isGroupedByRepository', false);
+const IsGroupedByRepositoryContext = new RawContextKey<boolean>('sessionsView.isGroupedByRepository', true);
 const GROUPING_STORAGE_KEY = 'agentSessions.grouping';
 
 export class AgenticSessionsViewPane extends ViewPane {
@@ -49,7 +49,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 	private viewPaneContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	sessionsControl: AgentSessionsControl | undefined;
-	private currentGrouping: AgentSessionsGrouping = AgentSessionsGrouping.Date;
+	private currentGrouping: AgentSessionsGrouping = AgentSessionsGrouping.Repository;
 	private isGroupedByRepoKey: ReturnType<typeof IsGroupedByRepositoryContext.bindTo> | undefined;
 
 	constructor(
@@ -75,6 +75,10 @@ export class AgenticSessionsViewPane extends ViewPane {
 		if (stored && Object.values(AgentSessionsGrouping).includes(stored as AgentSessionsGrouping)) {
 			this.currentGrouping = stored as AgentSessionsGrouping;
 		}
+
+		// Ensure the view-title context reflects the restored grouping immediately
+		this.isGroupedByRepoKey = IsGroupedByRepositoryContext.bindTo(contextKeyService);
+		this.isGroupedByRepoKey.set(this.currentGrouping === AgentSessionsGrouping.Repository);
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -238,6 +242,8 @@ export class AgenticSessionsViewPane extends ViewPane {
 
 		this.storageService.store(GROUPING_STORAGE_KEY, this.currentGrouping, StorageScope.PROFILE, StorageTarget.USER);
 		this.isGroupedByRepoKey?.set(this.currentGrouping === AgentSessionsGrouping.Repository);
+		// TODO @osortega: Unsure if this is going to be annoying or helpful so that you can quickly see the active sessions
+		this.sessionsControl?.resetSectionCollapseState();
 		this.sessionsControl?.update();
 	}
 }
@@ -281,7 +287,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	title: localize2('filterAgentSessions', "Filter Sessions"),
 	group: 'navigation',
 	order: 3,
-	icon: Codicon.filter,
+	icon: Codicon.settings,
 	when: ContextKeyExpr.equals('view', SessionsViewId)
 } satisfies ISubmenuItem);
 
@@ -289,37 +295,13 @@ registerAction2(class GroupByRepositoryAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.groupByRepository',
-			title: localize2('groupByRepository', "Group by Repository"),
-			icon: Codicon.repo,
+			title: localize2('groupByRepository', "Group by Project"),
 			category: SessionsCategories.Sessions,
+			toggled: IsGroupedByRepositoryContext,
 			menu: [{
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				order: 1,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SessionsViewId), IsGroupedByRepositoryContext.negate()),
-			}]
-		});
-	}
-
-	override run(accessor: ServicesAccessor) {
-		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<AgenticSessionsViewPane>(SessionsViewId);
-		view?.toggleGroupByRepository();
-	}
-});
-
-registerAction2(class GroupByDateAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessionsView.groupByDate',
-			title: localize2('groupByDate', "Group by Date"),
-			icon: Codicon.history,
-			category: SessionsCategories.Sessions,
-			menu: [{
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				order: 1,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SessionsViewId), IsGroupedByRepositoryContext),
+				id: SessionsViewFilterSubMenu,
+				group: 'grouping',
+				order: 0,
 			}]
 		});
 	}

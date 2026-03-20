@@ -81,6 +81,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private centerContent!: HTMLElement;
 	private rightContent!: HTMLElement;
 
+	get leftContainer(): HTMLElement { return this.leftContent; }
+	get rightContainer(): HTMLElement { return this.rightContent; }
+
 	private readonly titleBarStyle: TitlebarStyle;
 	private isInactive: boolean = false;
 

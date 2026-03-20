@@ -4,19 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CopilotClient, CopilotSession, type SessionEvent, type SessionEventPayload } from '@github/copilot-sdk';
+import { rgPath } from '@vscode/ripgrep';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../base/common/network.js';
+import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { delimiter, dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
-import { rgPath } from '@vscode/ripgrep';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../log/common/log.js';
-import { IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession, IAgentDescriptor, IAgentAttachment } from '../../common/agentService.js';
+import { AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentDescriptor, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
 import { PermissionKind, type PolicyState } from '../../common/state/sessionState.js';
-import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isHiddenTool } from './copilotToolDisplay.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
+import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isHiddenTool } from './copilotToolDisplay.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -63,7 +64,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	async setAuthToken(token: string): Promise<void> {
+	getProtectedResources(): IAuthorizationProtectedResourceMetadata[] {
+		return [{
+			resource: 'https://api.github.com',
+			resource_name: 'GitHub Copilot',
+			authorization_servers: ['https://github.com/login/oauth'],
+			scopes_supported: ['read:user', 'user:email'],
+		}];
+	}
+
+	async authenticate(resource: string, token: string): Promise<boolean> {
+		if (resource !== 'https://api.github.com') {
+			return false;
+		}
 		const tokenChanged = this._githubToken !== token;
 		this._githubToken = token;
 		this._logService.info(`[Copilot] Auth token ${tokenChanged ? 'updated' : 'unchanged'}`);
@@ -74,6 +87,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._clientStarting = undefined;
 			await client.stop();
 		}
+		return true;
 	}
 
 	// ---- client lifecycle ---------------------------------------------------

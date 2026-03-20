@@ -14,7 +14,7 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentDescriptor, IAgentSessionMetadata } from '../common/agentService.js';
+import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentDescriptor, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import type { IClientNotificationMap, ICommandMap } from '../common/state/protocol/messages.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
@@ -128,10 +128,17 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	/**
-	 * Push a GitHub auth token to the remote agent host.
+	 * Retrieve the server's resource metadata describing auth requirements.
 	 */
-	async setAuthToken(token: string): Promise<void> {
-		this._sendExtensionNotification('setAuthToken', { token });
+	async getResourceMetadata(): Promise<IResourceMetadata> {
+		return await this._sendExtensionRequest('getResourceMetadata') as IResourceMetadata;
+	}
+
+	/**
+	 * Authenticate with the remote agent host using a specific scheme.
+	 */
+	async authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult> {
+		return await this._sendExtensionRequest('authenticate', params) as IAuthenticateResult;
 	}
 
 	/**
@@ -225,13 +232,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		// Generic M can't satisfy the distributive IAhpNotification union directly
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		this._transport.send({ jsonrpc: '2.0' as const, method, params } as IProtocolMessage);
-	}
-
-	/** Send a JSON-RPC notification for a VS Code extension method (not in the protocol spec). */
-	private _sendExtensionNotification(method: string, params?: unknown): void {
-		// Cast: extension methods aren't in the typed protocol maps yet
-		// eslint-disable-next-line local/code-no-dangerous-type-assertions
-		this._transport.send({ jsonrpc: '2.0', method, params } as unknown as IJsonRpcResponse);
 	}
 
 	/** Send a typed JSON-RPC request for a protocol-defined method. */

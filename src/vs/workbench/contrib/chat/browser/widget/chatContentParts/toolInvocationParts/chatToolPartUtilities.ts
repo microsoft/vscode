@@ -17,7 +17,7 @@ export function isMcpToolInvocation(toolInvocation: IChatToolInvocation | IChatT
  */
 export function shouldShimmerForTool(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
 	if (isMcpToolInvocation(toolInvocation)) {
-		return true;
+		return !IChatToolInvocation.isComplete(toolInvocation);
 	}
 	if (toolInvocation.toolId === 'copilot_askQuestions' || toolInvocation.toolId === 'vscode_askQuestions') {
 		return false;

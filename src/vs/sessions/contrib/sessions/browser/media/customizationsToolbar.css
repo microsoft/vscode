@@ -85,6 +85,11 @@
 	position: relative;
 }
 
+/* Customizations header label uses heavier weight */
+.ai-customization-toolbar .ai-customization-header .customization-link-button {
+	font-weight: 500;
+}
+
 /* Counts - floating right inside the button */
 .ai-customization-toolbar .customization-link-counts {
 	position: absolute;

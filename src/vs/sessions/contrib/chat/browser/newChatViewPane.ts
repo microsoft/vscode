@@ -1095,6 +1095,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}
 	}
 
+	setProject(projectUri: URI): void {
+		const project = new SessionWorkspace(projectUri);
+		this._workspacePicker.setSelectedProject(project, true);
+	}
+
 	sendQuery(text: string): void {
 		const model = this._editor?.getModel();
 		if (model) {
@@ -1160,6 +1165,10 @@ export class NewChatViewPane extends ViewPane {
 
 	sendQuery(text: string): void {
 		this._widget?.sendQuery(text);
+	}
+
+	setProject(projectUri: URI): void {
+		this._widget?.setProject(projectUri);
 	}
 
 	override setVisible(visible: boolean): void {

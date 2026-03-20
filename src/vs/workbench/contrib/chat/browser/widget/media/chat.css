@@ -850,6 +850,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
 .interactive-input-part:has(.chat-todo-list-widget-container > .chat-todo-list-widget.has-todos) .chat-input-container,
+.interactive-input-part:has(.chat-artifacts-widget-container > .chat-artifacts-widget) .chat-input-container,
 .interactive-input-part:has(.chat-input-widgets-container > .chat-status-widget:not([style*="display: none"])) .chat-input-container,
 .interactive-input-part:has(.chat-getting-started-tip-container > .chat-tip-widget) .chat-input-container {
 	/* Remove top border radius when editing session, todo list, or status widget is present */
@@ -882,6 +883,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-top-left-radius: 0;
 	border-top-right-radius: 0;
 }
+
+.interactive-session .interactive-input-part > .chat-artifacts-widget-container + .chat-editing-session .chat-editing-session-container {
+	border-top-left-radius: 0;
+	border-top-right-radius: 0;
+}
+
 
 .interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar {
 	padding-left: 5px;
@@ -1105,6 +1112,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: 100%;
 	position: relative;
 }
+
+
+.interactive-session .interactive-input-part > .chat-artifacts-widget-container:empty {
+	display: none;
+}
+
 
 /* Chat Todo List Widget Container - mirrors chat-editing-session styling */
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container {
