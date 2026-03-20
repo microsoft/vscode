@@ -751,7 +751,7 @@ export function inspectSetting(key: string, target: SettingsTarget, languageFilt
 	return { isConfigured, inspected, targetSelector, inspectedLanguageOverrides, languageSelector: languageFilter };
 }
 
-function sanitizeId(id: string): string {
+export function sanitizeId(id: string): string {
 	return id.replace(/[\.\/]/g, '_');
 }
 
