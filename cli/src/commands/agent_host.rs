@@ -74,8 +74,13 @@ pub async fn agent_host(ctx: CommandContext, mut args: AgentHostArgs) -> Result<
 	// Eagerly resolve the latest version so the first connection is fast.
 	// Skip when using a dev override since updates don't apply.
 	if option_env!("VSCODE_CLI_OVERRIDE_SERVER_PATH").is_none() {
-		if let Err(e) = manager.get_latest_release().await {
-			warning!(ctx.log, "Error resolving initial server version: {}", e);
+		match manager.get_latest_release().await {
+			Ok(release) => {
+				if let Err(e) = manager.ensure_downloaded(&release).await {
+					warning!(ctx.log, "Error downloading latest server version: {}", e);
+				}
+			}
+			Err(e) => warning!(ctx.log, "Error resolving initial server version: {}", e),
 		}
 
 		// Start background update checker
@@ -248,16 +253,17 @@ impl AgentHostManager {
 				.join(release.quality.server_entrypoint())
 		};
 
-		println!("Starting server from {}", executable.display());
-
 		let agent_host_socket = get_socket_name();
 		let mut cmd = new_script_command(&executable);
 		cmd.stdin(std::process::Stdio::null());
 		cmd.stderr(std::process::Stdio::piped());
 		cmd.stdout(std::process::Stdio::piped());
+		cmd.arg("--socket-path");
+		cmd.arg(get_socket_name());
 		cmd.arg("--agent-host-path");
 		cmd.arg(&agent_host_socket);
 		cmd.args([
+			"--start-server",
 			"--accept-server-license-terms",
 			"--enable-remote-auto-shutdown",
 		]);
@@ -408,15 +414,23 @@ impl AgentHostManager {
 				Quality::try_from(q).map_err(|_| CodeError::UpdatesNotConfigured("unknown quality"))
 			})?;
 
-		// Fall back to any cached version (still instant, just not the newest)
-		for commit in self.cache.get() {
-			if let Some(dir) = self.cache.exists(&commit) {
+		// Fall back to any cached version (still instant, just not the newest).
+		// Cache entries are named "<quality>-<commit>" via get_server_folder_name.
+		for entry in self.cache.get() {
+			if let Some(dir) = self.cache.exists(&entry) {
+				let (entry_quality, commit) = match entry.split_once('-') {
+					Some((q, c)) => match Quality::try_from(q.to_lowercase().as_str()) {
+						Ok(parsed) => (parsed, c.to_string()),
+						Err(_) => (quality, entry.clone()),
+					},
+					None => (quality, entry.clone()),
+				};
 				let release = Release {
 					name: String::new(),
 					commit,
 					platform: self.platform,
 					target: TargetKind::Server,
-					quality,
+					quality: entry_quality,
 				};
 				return Ok((release, dir));
 			}
@@ -567,7 +581,10 @@ async fn handle_request(
 	let rw = match get_socket_rw_stream(&socket_path).await {
 		Ok(rw) => rw,
 		Err(e) => {
-			error!(manager.log, "Error connecting to agent host socket: {:?}", e);
+			error!(
+				manager.log,
+				"Error connecting to agent host socket: {:?}", e
+			);
 			return Ok(Response::builder()
 				.status(503)
 				.body(Body::from(format!("Error connecting to agent host: {e:?}")))
