@@ -477,6 +477,7 @@ export class SubmitInlineChatInputAction extends AbstractInlineChatAction {
 	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: unknown[]): void {
 		const value = ctrl.inputWidget.value;
 		if (value) {
+			ctrl.inputWidget.addToHistory(value);
 			ctrl.inputWidget.hide();
 			ctrl.run({ message: value, autoSend: true });
 		}
@@ -597,6 +598,9 @@ export class QueueInChatAction extends AbstractInlineChatAction {
 		}
 
 		const value = ctrl.inputWidget.value;
+		if (value) {
+			ctrl.inputWidget.addToHistory(value);
+		}
 		ctrl.inputWidget.hide();
 		if (!value) {
 			return;
