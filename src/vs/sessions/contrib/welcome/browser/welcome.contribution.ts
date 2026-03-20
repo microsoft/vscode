@@ -176,16 +176,40 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 
 	private watchForRegressions(): void {
 		let wasComplete = !this._needsChatSetup();
-		this.watcherRef.value = autorun(reader => {
+		let regressionTimeout: ReturnType<typeof setTimeout> | undefined;
+		const clearRegressionTimeout = () => {
+			if (regressionTimeout !== undefined) {
+				clearTimeout(regressionTimeout);
+				regressionTimeout = undefined;
+			}
+		};
+
+		const store = new DisposableStore();
+		store.add(toDisposable(clearRegressionTimeout));
+		store.add(autorun(reader => {
 			this.chatEntitlementService.sentimentObs.read(reader);
 			this.chatEntitlementService.entitlementObs.read(reader);
 
 			const needsSetup = this._needsChatSetup();
 			if (wasComplete && needsSetup) {
-				this.showOverlay();
+				// Delay showing the overlay to avoid flashing during transient
+				// state changes at startup (e.g. stale token → 401 → refresh).
+				if (regressionTimeout === undefined) {
+					regressionTimeout = setTimeout(() => {
+						regressionTimeout = undefined;
+						if (this._needsChatSetup()) {
+							this.showOverlay();
+						}
+					}, 5000);
+				}
+			} else if (!needsSetup) {
+				// State recovered — cancel any pending overlay.
+				clearRegressionTimeout();
 			}
 			wasComplete = !needsSetup;
-		});
+		}));
+
+		this.watcherRef.value = store;
 	}
 
 	private _needsChatSetup(): boolean {
