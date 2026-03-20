@@ -215,8 +215,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			// Track whether we should collect markdown (after the last tool invocation)
 			const markdownParts: string[] = [];
 
-			// Generate a stable subAgentInvocationId for routing edits to this subagent's content part
-			const subAgentInvocationId = invocation.callId ?? `subagent-${generateUuid()}`;
+			// Generate a stable subAgentInvocationId for routing edits to this subagent's content part.
+			// Use chatStreamToolCallId when available because that is what ChatToolInvocation.toolCallId
+			// uses in the renderer (see PR #302863), and the subagent grouping matches on toolCallId.
+			const subAgentInvocationId = invocation.chatStreamToolCallId ?? invocation.callId ?? `subagent-${generateUuid()}`;
 
 			let inEdit = false;
 			const progressCallback = (parts: IChatProgress[]) => {
@@ -306,7 +308,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				message: args.prompt,
 				variables: { variables: variableSet.asArray() },
 				location: ChatAgentLocation.Chat,
-				subAgentInvocationId: invocation.callId,
+				subAgentInvocationId: subAgentInvocationId,
 				subAgentName: subAgentName,
 				userSelectedModelId: modeModelId,
 				modelConfiguration: modeModelId ? this.languageModelsService.getModelConfiguration(modeModelId) : undefined,
