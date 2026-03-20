@@ -584,7 +584,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			// until someone navigates to it — which can't happen because it's
 			// not listed.
 			if (chatSessionType === 'copilotcli') {
-				this._chatDebugService.invokeProviders(modifiedResource);
+				// Fire-and-forget: don't block the editor swap. Errors are
+				// handled internally by invokeProviders via onUnexpectedError.
+				this._chatDebugService.invokeProviders(modifiedResource).catch(() => { /* handled internally */ });
 			}
 
 			// Find the group containing the original editor
