@@ -18,7 +18,7 @@ import { Parts, Position, PanelAlignment, IWorkbenchLayoutService, SINGLE_WINDOW
 import { ILayoutOffsetInfo } from '../../platform/layout/browser/layoutService.js';
 import { Part } from '../../workbench/browser/part.js';
 import { Direction, ISerializableView, ISerializedGrid, ISerializedLeafNode, ISerializedNode, IViewSize, Orientation, SerializableGrid } from '../../base/browser/ui/grid/grid.js';
-import { IEditorGroupsService } from '../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorGroupsService, MODAL_EDITOR_HEADER_HEIGHT } from '../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../workbench/services/editor/common/editorService.js';
 import { IPaneCompositePartService } from '../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../workbench/common/views.js';
@@ -225,6 +225,19 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		if (this.isVisible(Parts.TITLEBAR_PART, mainWindow)) {
 			top = this.getPart(Parts.TITLEBAR_PART).maximumHeight;
 			quickPickTop = top;
+		}
+
+		// If a modal editor is open, anchor quick pick below its title bar
+		const activeModalPart = this.editorGroupService?.activeModalEditorPart;
+		if (activeModalPart) {
+			const modalElement = activeModalPart.modalElement as HTMLElement;
+			const dialogElement = modalElement?.firstElementChild as HTMLElement | null;
+			if (dialogElement) {
+				const dialogTop = parseFloat(dialogElement.style.top);
+				if (!isNaN(dialogTop)) {
+					quickPickTop = dialogTop + MODAL_EDITOR_HEADER_HEIGHT;
+				}
+			}
 		}
 
 		return { top, quickPickTop };

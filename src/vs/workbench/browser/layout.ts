@@ -22,7 +22,7 @@ import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, Titl
 import { IHostService } from '../services/host/browser/host.js';
 import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService.js';
 import { IEditorService } from '../services/editor/common/editorService.js';
-import { EditorGroupLayout, GroupActivationReason, GroupOrientation, GroupsOrder, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupActivationReason, GroupOrientation, GroupsOrder, IEditorGroupsService, MODAL_EDITOR_HEADER_HEIGHT } from '../services/editor/common/editorGroupsService.js';
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing } from '../../base/browser/ui/grid/grid.js';
 import { Part } from './part.js';
 import { IStatusbarService } from '../services/statusbar/browser/statusbar.js';
@@ -256,7 +256,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			quickPickTop = 6;
 		}
 
-		// If a modal editor is open, anchor quick pick to its top position
+		// If a modal editor is open, anchor quick pick below its title bar
 		const activeModalPart = this.editorGroupService?.activeModalEditorPart;
 		if (activeModalPart) {
 			const modalElement = activeModalPart.modalElement as HTMLElement;
@@ -264,7 +264,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (dialogElement) {
 				const dialogTop = parseFloat(dialogElement.style.top);
 				if (!isNaN(dialogTop)) {
-					quickPickTop = dialogTop;
+					quickPickTop = dialogTop + MODAL_EDITOR_HEADER_HEIGHT;
 				}
 			}
 		}

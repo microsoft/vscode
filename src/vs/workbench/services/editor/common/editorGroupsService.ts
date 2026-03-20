@@ -521,6 +521,11 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 	close(): boolean;
 }
 
+/**
+ * Height of the modal editor header (32px header + 1px border bottom).
+ */
+export const MODAL_EDITOR_HEADER_HEIGHT = 33;
+
 export interface IModalEditorPart extends IEditorPart {
 
 	/**
