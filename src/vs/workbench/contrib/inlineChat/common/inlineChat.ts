@@ -15,7 +15,6 @@ import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../notebook/common/notebookContext
 
 export const enum InlineChatConfigKeys {
 	FinishOnType = 'inlineChat.finishOnType',
-	HoldToSpeech = 'inlineChat.holdToSpeech',
 	/** @deprecated do not read on client */
 	EnableV2 = 'inlineChat.enableV2',
 	notebookAgent = 'inlineChat.notebookAgent',
@@ -23,6 +22,7 @@ export const enum InlineChatConfigKeys {
 	Affordance = 'inlineChat.affordance',
 	RenderMode = 'inlineChat.renderMode',
 	FixDiagnostics = 'inlineChat.fixDiagnostics',
+	AskInChat = 'inlineChat.askInChat',
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -31,11 +31,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		[InlineChatConfigKeys.FinishOnType]: {
 			description: localize('finishOnType', "Whether to finish an inline chat session when typing outside of changed regions."),
 			default: false,
-			type: 'boolean'
-		},
-		[InlineChatConfigKeys.HoldToSpeech]: {
-			description: localize('holdToSpeech', "Whether holding the inline chat keybinding will automatically enable speech recognition."),
-			default: true,
 			type: 'boolean'
 		},
 		[InlineChatConfigKeys.EnableV2]: {
@@ -73,7 +68,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 		[InlineChatConfigKeys.RenderMode]: {
 			description: localize('renderMode', "Controls how inline chat is rendered."),
-			default: 'zone',
+			default: 'hover',
 			type: 'string',
 			enum: ['zone', 'hover'],
 			enumDescriptions: [
@@ -93,7 +88,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				mode: 'auto'
 			},
 			tags: ['experimental']
-		}
+		},
+		[InlineChatConfigKeys.AskInChat]: {
+			description: localize('askInChat', "Controls whether files in a chat editing session use Ask in Chat instead of Inline Chat."),
+			default: true,
+			type: 'boolean',
+		},
 	}
 });
 
@@ -130,6 +130,8 @@ export const CTX_INLINE_CHAT_REQUEST_IN_PROGRESS = new RawContextKey<boolean>('i
 export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType>('inlineChatResponseType', InlineChatResponseType.None, localize('inlineChatResponseTypes', "What type was the responses have been receieved, nothing yet, just messages, or messaged and local edits"));
 export const CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT = new RawContextKey<boolean>('inlineChatFileBelongsToChat', false, localize('inlineChatFileBelongsToChat', "Whether the current file belongs to a chat editing session"));
 export const CTX_INLINE_CHAT_PENDING_CONFIRMATION = new RawContextKey<boolean>('inlineChatPendingConfirmation', false, localize('inlineChatPendingConfirmation', "Whether an inline chat request is pending user confirmation"));
+export const CTX_INLINE_CHAT_TERMINATED = new RawContextKey<boolean>('inlineChatTerminated', false, localize('inlineChatTerminated', "Whether the current inline chat session is terminated"));
+export const CTX_INLINE_CHAT_AFFORDANCE_VISIBLE = new RawContextKey<boolean>('inlineChatAffordanceVisible', false, localize('inlineChatAffordanceVisible', "Whether an inline chat affordance widget is visible"));
 
 export const CTX_INLINE_CHAT_V1_ENABLED = ContextKeyExpr.or(
 	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE)
@@ -142,6 +144,7 @@ export const CTX_INLINE_CHAT_V2_ENABLED = ContextKeyExpr.or(
 
 export const CTX_HOVER_MODE = ContextKeyExpr.equals('config.inlineChat.renderMode', 'hover');
 export const CTX_FIX_DIAGNOSTICS_ENABLED = ContextKeyExpr.equals('config.inlineChat.fixDiagnostics', true);
+export const CTX_ASK_IN_CHAT_ENABLED = ContextKeyExpr.equals('config.inlineChat.askInChat', true);
 
 // --- (selected) action identifier
 

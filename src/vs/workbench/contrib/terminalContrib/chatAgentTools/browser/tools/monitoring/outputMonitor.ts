@@ -13,13 +13,12 @@ import { Disposable, MutableDisposable, type IDisposable } from '../../../../../
 import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
-import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatElicitationRequestPart } from '../../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatModel } from '../../../../../chat/common/model/chatModel.js';
 import { ElicitationState, IChatService } from '../../../../../chat/common/chatService/chatService.js';
-import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
-import { ChatMessageRole, getTextResponseFromStream, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
+import { ChatAgentLocation, ChatPermissionLevel } from '../../../../../chat/common/constants.js';
+import { ChatMessageRole, getTextResponseFromStream, type ILanguageModelChatSelector, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import { ITaskService } from '../../../../../tasks/common/taskService.js';
 import { ILinkLocation } from '../../taskHelpers.js';
@@ -109,6 +108,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private readonly _onDidFinishCommand = this._register(new Emitter<void>());
 	readonly onDidFinishCommand: Event<void> = this._onDidFinishCommand.event;
 
+	/** The chat session resource for this tool invocation, used to check permission level. */
+	private readonly _sessionResource: URI | undefined;
+
 	constructor(
 		private readonly _execution: IExecution,
 		private readonly _pollFn: ((execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined>) | undefined,
@@ -124,6 +126,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
+
+		this._sessionResource = invocationContext?.sessionResource;
 
 		// Start async to ensure listeners are set up
 		timeout(0).then(() => {
@@ -226,19 +230,26 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 
 		// Check for VS Code's task finish messages (like "press any key to close the terminal").
-		// These should only be ignored if it's a task AND the task is finished.
-		// Otherwise, "press any key to continue" from scripts should prompt the user.
+		// If the execution is a task and the output contains a VS Code task finish message,
+		// always treat it as a stop signal regardless of task active state (which can be stale).
 		const isTask = this._execution.task !== undefined;
-		const isTaskInactive = this._execution.isActive ? !(await this._execution.isActive()) : true;
-		if (isTask && isTaskInactive && detectsVSCodeTaskFinishMessage(output)) {
-			this._logService.trace('OutputMonitor: Idle -> VS Code task finish message detected for inactive task, stopping');
+		if (isTask && detectsVSCodeTaskFinishMessage(output)) {
+			this._logService.trace('OutputMonitor: Idle -> VS Code task finish message detected, stopping');
 			// Task is finished, ignore the "press any key to close" message
 			return { shouldContinuePollling: false, output };
 		}
 
 		// Check for generic "press any key" prompts from scripts.
-		if ((!isTask || !isTaskInactive) && detectsGenericPressAnyKeyPattern(output)) {
-			this._logService.trace('OutputMonitor: Idle -> generic "press any key" detected, requesting free-form input');
+		// Only shown for non-task executions since task finish messages are handled above.
+		if (!isTask && detectsGenericPressAnyKeyPattern(output)) {
+			this._logService.trace('OutputMonitor: Idle -> generic "press any key" detected');
+			const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts) || this._isAutopilotMode();
+			if (autoReply) {
+				this._logService.trace('OutputMonitor: Auto-reply enabled -> not showing free-form prompt for "press any key", stopping');
+				this._cleanupIdleInputListener();
+				return { shouldContinuePollling: false, output };
+			}
+			this._logService.trace('OutputMonitor: Requesting free-form input for "press any key"');
 			// Register a marker to track this prompt position so we don't re-detect it
 			const currentMarker = this._execution.instance.registerMarker();
 			if (currentMarker) {
@@ -287,17 +298,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				this._cleanupIdleInputListener();
 				return { shouldContinuePollling: true };
 			}
-			const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts);
-			if (autoReply && !this._isSensitivePrompt(confirmationPrompt.prompt)) {
-				const explicitInput = confirmationPrompt.suggestedInput ?? this._extractExplicitInputFromPrompt(confirmationPrompt.prompt);
-				const normalizedInput = this._normalizeAutoReplyInput(explicitInput);
-				if (normalizedInput !== undefined) {
-					this._logService.trace('OutputMonitor: Auto-replying to free-form prompt');
-					await this._execution.instance.sendText(normalizedInput, true);
-					this._outputMonitorTelemetryCounters.inputToolAutoAcceptCount++;
-					this._outputMonitorTelemetryCounters.inputToolAutoChars += normalizedInput.length;
-					return { shouldContinuePollling: true };
-				}
+			const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts) || this._isAutopilotMode();
+			if (autoReply) {
+				this._logService.trace('OutputMonitor: Auto-reply enabled -> not propagating free-form prompt, stopping');
+				this._cleanupIdleInputListener();
+				return { shouldContinuePollling: false, output };
 			}
 			// Clean up the input listener now - the prompt will set up its own
 			this._cleanupIdleInputListener();
@@ -469,11 +474,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const model = await this._getLanguageModel();
 		if (!model) {
 			return 'No models available';
+
 		}
 
 		const response = await this._languageModelsService.sendChatRequest(
 			model,
-			new ExtensionIdentifier('core'),
+			undefined,
 			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors. If there are errors, return them. Otherwise, return undefined: ${buffer}.` }] }],
 			{},
 			token
@@ -546,7 +552,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			${lastLines}
 			`;
 
-		const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('core'), [{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }], {}, token);
+		const response = await this._languageModelsService.sendChatRequest(model, undefined, [{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }], {}, token);
 		const responseText = await getTextResponseFromStream(response);
 		try {
 			const match = responseText.match(/\{[\s\S]*\}/);
@@ -589,35 +595,25 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return /(password|passphrase|token|api\s*key|secret)/i.test(prompt);
 	}
 
-	private _normalizeAutoReplyInput(input: string | undefined): string | undefined {
-		if (!input) {
-			return undefined;
+	/**
+	 * Returns true if the current session is in Autopilot mode (not Bypass Approvals).
+	 * In Autopilot, terminal prompts should be auto-replied to so the agent can
+	 * work autonomously from start to finish.
+	 */
+	private _isAutopilotMode(): boolean {
+		if (!this._sessionResource) {
+			return false;
 		}
-		const trimmed = input.trim();
-		if (!trimmed) {
-			return undefined;
+		// Check the live widget picker level
+		const widget = this._chatWidgetService.getWidgetBySessionResource(this._sessionResource)
+			?? this._chatWidgetService.lastFocusedWidget;
+		if (widget?.input.currentModeInfo.permissionLevel === ChatPermissionLevel.Autopilot) {
+			return true;
 		}
-		const lowered = trimmed.toLowerCase();
-		if (lowered === '\\r' || lowered === '\\n' || lowered === 'enter' || lowered === 'return') {
-			return '';
-		}
-		return trimmed;
-	}
-
-	private _extractExplicitInputFromPrompt(prompt: string): string | undefined {
-		const normalizedPrompt = prompt.trim();
-		if (!normalizedPrompt) {
-			return undefined;
-		}
-		const directCommandMatch = normalizedPrompt.match(/\b(?:type|enter|input)\s+["'`]([^"'`]+)["'`]/i);
-		if (directCommandMatch?.[1]) {
-			return directCommandMatch[1];
-		}
-		const bareCommandMatch = normalizedPrompt.match(/\b(?:type|enter|input)\s+([\w.-]+)\b/i);
-		if (bareCommandMatch?.[1]) {
-			return bareCommandMatch[1];
-		}
-		return undefined;
+		// Fall back to the request-stamped level
+		const model = this._chatService.getSession(this._sessionResource);
+		const request = model?.getRequests().at(-1);
+		return request?.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot;
 	}
 
 	private async _selectAndHandleOption(
@@ -627,10 +623,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!confirmationPrompt?.options.length) {
 			return undefined;
 		}
-		const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts);
+		const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts) || this._isAutopilotMode();
 		let model = this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)[0]?.input.currentLanguageModel;
 		if (model) {
-			const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: model.replaceAll('copilot/', '') });
+			const models = await this._safeSelectLanguageModels({ vendor: 'copilot', family: model.replaceAll('copilot/', '') });
 			model = models[0];
 		}
 		if (!model) {
@@ -652,7 +648,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (model) {
 			try {
 				const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
-				const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('core'), [
+				const response = await this._languageModelsService.sendChatRequest(model, undefined, [
 					{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
 				], {}, token);
 
@@ -932,8 +928,35 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _getLanguageModel(): Promise<string | undefined> {
-		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
-		return models.length ? models[0] : undefined;
+		const fastModels = await this._safeSelectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
+		if (fastModels.length) {
+			return fastModels[0];
+		}
+
+		const widget = this._chatWidgetService.lastFocusedWidget ?? this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)[0];
+		const currentModel = widget?.input.currentLanguageModel;
+		if (currentModel) {
+			const currentFamilyModels = await this._safeSelectLanguageModels({ vendor: 'copilot', family: currentModel.replaceAll('copilot/', '') });
+			if (currentFamilyModels.length) {
+				return currentFamilyModels[0];
+			}
+		}
+
+		const copilotModels = await this._safeSelectLanguageModels({ vendor: 'copilot' });
+		if (copilotModels.length) {
+			return copilotModels[0];
+		}
+
+		return undefined;
+	}
+
+	private async _safeSelectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]> {
+		try {
+			return await this._languageModelsService.selectLanguageModels(selector);
+		} catch (error) {
+			this._logService.trace('OutputMonitor: selectLanguageModels failed', { selector, error });
+			return [];
+		}
 	}
 }
 
@@ -1046,7 +1069,13 @@ const taskFinishMessages = [
 	// "Press any key to close the terminal." (with exit code placeholder removed for matching)
 	localize('exitCode.closeTerminal', "Press any key to close the terminal."),
 	localize('exitCode.reuseTerminal', "Press any key to close the terminal."),
+	// Punctuation variant: "The terminal will be reused by tasks. Press any key to close."
+	localize('reuseTerminal.pressClose', "The terminal will be reused by tasks. Press any key to close."),
 ];
+
+const normalizedTaskFinishMessages = taskFinishMessages.map(msg =>
+	msg.replace(/[\s.,:;!?"'`()[\]{}<>\-_/\\]+/g, '').toLowerCase()
+);
 
 /**
  * Detects VS Code's specific task completion messages like:
@@ -1057,9 +1086,9 @@ const taskFinishMessages = [
  * that can split words across lines (e.g., "t\no" instead of "to").
  */
 export function detectsVSCodeTaskFinishMessage(cursorLine: string): boolean {
-	// Remove all whitespace to handle line wrapping that splits words mid-word
-	const normalized = cursorLine.replace(/\s/g, '').toLowerCase();
-	return taskFinishMessages.some(msg => normalized.includes(msg.replace(/\s/g, '').toLowerCase()));
+	// Be tolerant to whitespace, punctuation, and line wrapping that can split words mid-word.
+	const compact = cursorLine.replace(/[\s.,:;!?"'`()[\]{}<>\-_/\\]+/g, '').toLowerCase();
+	return normalizedTaskFinishMessages.some(msg => compact.includes(msg));
 }
 
 /**

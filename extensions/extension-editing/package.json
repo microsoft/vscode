@@ -66,7 +66,7 @@
     ]
   },
   "devDependencies": {
-    "@types/markdown-it": "0.0.2",
+    "@types/markdown-it": "^14",
     "@types/node": "22.x"
   },
   "repository": {

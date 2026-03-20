@@ -69,7 +69,8 @@ class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 				options: any,
 				shouldPersist: boolean
 			) => new TestTerminalChildProcess(shouldPersist),
-			getLatency: () => Promise.resolve([])
+			getLatency: () => Promise.resolve([]),
+			getShellEnvironment: () => Promise.resolve({})
 		} as unknown as ITerminalBackend;
 	}
 }

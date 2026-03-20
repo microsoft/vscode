@@ -877,6 +877,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				lineDataEventAddon.setOperatingSystem(this._processManager.os);
 			}
 			xterm.raw.options.windowsPty = processTraits.windowsPty;
+			// Enable reflow cursor to avoid prompt loss: https://github.com/microsoft/vscode/issues/274372
+			xterm.raw.options.reflowCursorLine = processTraits?.windowsPty?.backend === 'conpty' && !!this._terminalConfigurationService.config.windowsUseConptyDll;
 		}));
 		this._register(this._processManager.onRestoreCommands(e => this.xterm?.shellIntegration.deserialize(e)));
 
@@ -1341,9 +1343,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async sendText(text: string, shouldExecute: boolean, bracketedPasteMode?: boolean): Promise<void> {
+		const useBracketedPasteMode = (bracketedPasteMode || /[\r\n]/.test(text)) && this.xterm?.raw.modes.bracketedPasteMode;
+
 		// Apply bracketed paste sequences if the terminal has the mode enabled, this will prevent
 		// the text from triggering keybindings and ensure new lines are handled properly
-		if (bracketedPasteMode && this.xterm?.raw.modes.bracketedPasteMode) {
+		if (useBracketedPasteMode) {
 			text = `\x1b[200~${text}\x1b[201~`;
 		}
 
@@ -2812,12 +2816,12 @@ export class TerminalInstanceColorProvider implements IXtermColorProvider {
 	}
 
 	getBackgroundColor(theme: IColorTheme) {
+		if (this._target.object === TerminalLocation.Editor) {
+			return theme.getColor(editorBackground);
+		}
 		const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);
 		if (terminalBackground) {
 			return terminalBackground;
-		}
-		if (this._target.object === TerminalLocation.Editor) {
-			return theme.getColor(editorBackground);
 		}
 		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 		if (location === ViewContainerLocation.Panel) {

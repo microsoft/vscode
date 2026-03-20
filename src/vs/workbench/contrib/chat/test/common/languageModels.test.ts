@@ -160,7 +160,7 @@ suite('LanguageModels', function () {
 				}));
 				return modelMetadataAndIdentifier;
 			},
-			sendChatRequest: async (modelId: string, messages: IChatMessage[], _from: ExtensionIdentifier, _options: { [name: string]: any }, token: CancellationToken) => {
+			sendChatRequest: async (modelId: string, messages: IChatMessage[], _from: ExtensionIdentifier | undefined, _options: { [name: string]: any }, token: CancellationToken) => {
 				// const message = messages.at(-1);
 
 				const defer = new DeferredPromise();
@@ -991,5 +991,155 @@ suite('LanguageModels - Vendor Change Events', function () {
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([], []);
 
 		assert.strictEqual(eventFired, false, 'Should not fire event when vendor list is unchanged');
+	});
+});
+
+suite('LanguageModels - Per-Model Configuration', function () {
+
+	let languageModelsService: LanguageModelsService;
+	const disposables = new DisposableStore();
+	let receivedOptions: { [name: string]: unknown } | undefined;
+
+	setup(async function () {
+		receivedOptions = undefined;
+
+		languageModelsService = new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent() {
+					return Promise.resolve();
+				}
+			},
+			new NullLogService(),
+			new TestStorageService(),
+			new MockContextKeyService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = Event.None;
+				override getLanguageModelsProviderGroups() {
+					return [{
+						vendor: 'config-vendor',
+						name: 'default',
+						settings: {
+							'model-a': { temperature: 0.7, reasoningEffort: 'high' },
+							'model-b': { temperature: 0.2 }
+						}
+					}];
+				}
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+		);
+
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'config-vendor', displayName: 'Config Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+
+		disposables.add(languageModelsService.registerLanguageModelProvider('config-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async (options) => {
+				if (options.group) {
+					return [{
+						metadata: {
+							extension: nullExtensionDescription.identifier,
+							name: 'Model A',
+							vendor: 'config-vendor',
+							family: 'family-a',
+							version: '1.0',
+							id: 'model-a',
+							maxInputTokens: 100,
+							maxOutputTokens: 100,
+							modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
+							isDefaultForLocation: {},
+							configurationSchema: {
+								type: 'object',
+								properties: {
+									temperature: { type: 'number', default: 0.5 },
+									reasoningEffort: { type: 'string', default: 'medium' },
+									maxTokens: { type: 'number', default: 4096 }
+								}
+							}
+						} satisfies ILanguageModelChatMetadata,
+						identifier: 'config-vendor/default/model-a'
+					}, {
+						metadata: {
+							extension: nullExtensionDescription.identifier,
+							name: 'Model B',
+							vendor: 'config-vendor',
+							family: 'family-b',
+							version: '1.0',
+							id: 'model-b',
+							maxInputTokens: 100,
+							maxOutputTokens: 100,
+							modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
+							isDefaultForLocation: {}
+						} satisfies ILanguageModelChatMetadata,
+						identifier: 'config-vendor/default/model-b'
+					}];
+				}
+				return [];
+			},
+			sendChatRequest: async (_modelId, _messages, _from, options) => {
+				receivedOptions = options;
+				const defer = new DeferredPromise();
+				const stream = new AsyncIterableSource<IChatResponsePart>();
+				stream.resolve();
+				defer.complete(undefined);
+				return { stream: stream.asyncIterable, result: defer.p };
+			},
+			provideTokenCount: async () => { throw new Error(); }
+		}));
+
+		await languageModelsService.selectLanguageModels({});
+	});
+
+	teardown(function () {
+		languageModelsService.dispose();
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('getModelConfiguration returns per-model config from group', function () {
+		const configA = languageModelsService.getModelConfiguration('config-vendor/default/model-a');
+		assert.deepStrictEqual(configA, { temperature: 0.7, reasoningEffort: 'high', maxTokens: 4096 });
+
+		const configB = languageModelsService.getModelConfiguration('config-vendor/default/model-b');
+		assert.deepStrictEqual(configB, { temperature: 0.2 });
+	});
+
+	test('getModelConfiguration returns undefined for unknown model', function () {
+		const config = languageModelsService.getModelConfiguration('config-vendor/default/model-c');
+		assert.strictEqual(config, undefined);
+	});
+
+	test('sendChatRequest merges schema defaults with user config', async function () {
+		const cts = disposables.add(new CancellationTokenSource());
+		const request = await languageModelsService.sendChatRequest(
+			'config-vendor/default/model-a',
+			nullExtensionDescription.identifier,
+			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hello' }] }],
+			{},
+			cts.token
+		);
+		await request.result;
+
+		// User config overrides defaults: temperature=0.7 (not 0.5), reasoningEffort='high' (not 'medium')
+		// Schema default maxTokens=4096 is included since user didn't override it
+		assert.deepStrictEqual(receivedOptions, { configuration: { temperature: 0.7, reasoningEffort: 'high', maxTokens: 4096 } });
+	});
+
+	test('sendChatRequest passes user config when model has no schema', async function () {
+		const cts = disposables.add(new CancellationTokenSource());
+		const request = await languageModelsService.sendChatRequest(
+			'config-vendor/default/model-b',
+			nullExtensionDescription.identifier,
+			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hello' }] }],
+			{},
+			cts.token
+		);
+		await request.result;
+
+		assert.deepStrictEqual(receivedOptions, { configuration: { temperature: 0.2 } });
 	});
 });

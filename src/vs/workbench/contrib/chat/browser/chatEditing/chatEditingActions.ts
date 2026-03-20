@@ -38,7 +38,6 @@ import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IAgentSession, isAgentSession } from '../agentSessions/agentSessionsModel.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
-import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 
 export abstract class EditingSessionAction extends Action2 {
 
@@ -358,12 +357,6 @@ export class ViewAllSessionChangesAction extends Action2 {
 					group: 'navigation',
 					order: 10,
 					when: ChatContextKeys.hasAgentSessionChanges
-				},
-				{
-					id: MenuId.AgentSessionItemToolbar,
-					group: 'navigation',
-					order: 0,
-					when: ContextKeyExpr.and(ChatContextKeys.hasAgentSessionChanges, IsSessionsWindowContext.negate())
 				}
 			],
 		});
@@ -515,7 +508,7 @@ registerAction2(class RemoveAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				},
-				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), ChatContextKeys.inChatQuestionCarousel.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -564,7 +557,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				},
-				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), ChatContextKeys.inChatQuestionCarousel.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [

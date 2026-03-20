@@ -1,0 +1,159 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.update-tooltip {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 6px 6px;
+	min-width: 300px;
+	max-width: 350px;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-bodyFontSize-small);
+}
+
+/* Header */
+.update-tooltip .header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.update-tooltip .header .title {
+	font-weight: 600;
+	font-size: var(--vscode-bodyFontSize);
+	color: var(--vscode-foreground);
+}
+
+/* Product info */
+.update-tooltip .product-info {
+	display: flex;
+	gap: 12px;
+}
+
+.update-tooltip .product-logo {
+	width: 48px;
+	height: 48px;
+	border-radius: var(--vscode-cornerRadius-large);
+	padding: 5px;
+	flex-shrink: 0;
+	background: url('../../../../browser/media/code-icon.svg') center / contain no-repeat;
+}
+
+.update-tooltip .product-details {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+}
+
+.update-tooltip .product-name {
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	margin-bottom: 4px;
+}
+
+.update-tooltip .product-version {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.update-tooltip .copy-version-button {
+	cursor: pointer;
+	opacity: 0;
+	color: var(--vscode-descriptionForeground);
+	transition: opacity 0.1s;
+	margin-top: -2px;
+}
+
+.update-tooltip .product-version:hover .copy-version-button,
+.update-tooltip .product-version:focus-within .copy-version-button {
+	opacity: 1;
+}
+
+.update-tooltip .copy-version-button:hover,
+.update-tooltip .copy-version-button:focus-visible {
+	color: var(--vscode-foreground);
+}
+
+.update-tooltip .release-notes-link {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.update-tooltip .release-notes-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+/* Progress bar */
+.update-tooltip .progress-bar {
+	height: 4px;
+	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 30%, transparent);
+	border-radius: var(--vscode-cornerRadius-small);
+	overflow: hidden;
+}
+
+.update-tooltip .progress-fill {
+	height: 100%;
+	background-color: var(--vscode-progressBar-background);
+	border-radius: var(--vscode-cornerRadius-small);
+	transition: width 0.3s ease;
+}
+
+.monaco-workbench.monaco-reduce-motion .update-tooltip .progress-fill {
+	transition: none;
+}
+
+.update-tooltip .progress-text,
+.update-tooltip .download-stats {
+	display: flex;
+	justify-content: space-between;
+}
+
+.update-tooltip .progress-text {
+	margin-top: 4px;
+}
+
+.update-tooltip .state-message {
+	display: flex;
+	align-items: flex-start;
+	font-size: var(--vscode-bodyFontSize);
+	gap: 4px;
+}
+
+.update-tooltip .state-message-icon.codicon[class*='codicon-'] {
+	font-size: 16px;
+	flex-shrink: 0;
+	margin-top: 2px;
+}
+
+.update-tooltip .state-message-icon.codicon.codicon-warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.update-tooltip .state-message-icon.codicon.codicon-error {
+	color: var(--vscode-editorError-foreground);
+}
+
+/* Markdown */
+.update-tooltip .update-markdown {
+	background: var(--vscode-editor-background);
+	border-radius: var(--vscode-cornerRadius-large);
+	padding: 12px;
+}
+
+.update-tooltip .update-markdown p {
+	margin-bottom: 16px;
+}
+
+.update-tooltip .update-markdown p:last-child {
+	margin-bottom: 0;
+}
+
+.update-tooltip .update-markdown .codicon[class*='codicon-'] {
+	font-size: 16px;
+	vertical-align: text-top;
+}

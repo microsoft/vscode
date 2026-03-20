@@ -25,10 +25,10 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ChatRequestQueueKind, IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
-import { ChatAgentLocation } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
 
 suite('ChatModel', () => {
@@ -273,6 +273,52 @@ suite('ChatModel', () => {
 		// Should filter out string attachments and implicit attachments with StringChatContextValue
 		// Should keep file attachments and implicit attachments with URI values
 		assert.deepStrictEqual(serialized.attachments, [fileAttachment, implicitWithUri]);
+	});
+
+	test('modeInfo roundtrips through serialization', async () => {
+		const modeInfo: IChatRequestModeInfo = {
+			kind: ChatModeKind.Agent,
+			isBuiltin: false,
+			modeId: 'custom',
+			modeInstructions: {
+				name: 'plan',
+				content: 'You are a planning agent',
+				toolReferences: [],
+			},
+			applyCodeBlockSuggestionId: undefined,
+		};
+
+		const serializableData: ISerializableChatData3 = {
+			version: 3,
+			sessionId: 'test-modeinfo-session',
+			creationDate: Date.now(),
+			customTitle: undefined,
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'bot',
+			requests: [{
+				requestId: 'req1',
+				message: { text: 'plan something', parts: [] },
+				variableData: { variables: [] },
+				response: [{ value: 'Here is my plan', isTrusted: false }],
+				modelState: { value: 1 /* ResponseModelState.Complete */, completedAt: Date.now() },
+				modeInfo,
+			}],
+		};
+
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serializableData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+
+		const requests = model.getRequests();
+		assert.strictEqual(requests.length, 1);
+		assert.deepStrictEqual(requests[0].modeInfo, modeInfo);
+
+		// Verify roundtrip through toExport
+		const exported = model.toExport();
+		assert.strictEqual(exported.requests.length, 1);
+		assert.deepStrictEqual(exported.requests[0].modeInfo, modeInfo);
 	});
 });
 
@@ -1000,5 +1046,54 @@ suite('ChatModel - Pending Requests', () => {
 
 		assert.strictEqual(pending.sendOptions.agentId, 'test-agent');
 		assert.strictEqual(pending.sendOptions.attempt, 3);
+	});
+});
+
+suite('ChatResponseResource', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('createUri roundtrips through parseUri without basename', () => {
+		const sessionResource = URI.parse('vscode-chat-session://local/session1');
+		const uri = ChatResponseResource.createUri(sessionResource, 'call-123', 2);
+		const parsed = ChatResponseResource.parseUri(uri);
+
+		assert.ok(parsed);
+		assert.strictEqual(parsed.sessionResource.toString(), sessionResource.toString());
+		assert.strictEqual(parsed.toolCallId, 'call-123');
+		assert.strictEqual(parsed.index, 2);
+	});
+
+	test('createUri roundtrips through parseUri with basename', () => {
+		const sessionResource = URI.parse('vscode-chat-session://local/session1');
+		const uri = ChatResponseResource.createUri(sessionResource, 'call-456', 0, 'file.txt');
+		const parsed = ChatResponseResource.parseUri(uri);
+
+		assert.ok(parsed);
+		assert.strictEqual(parsed.sessionResource.toString(), sessionResource.toString());
+		assert.strictEqual(parsed.toolCallId, 'call-456');
+		assert.strictEqual(parsed.index, 0);
+	});
+
+	test('parseUri rejects paths with fewer than 4 segments', () => {
+		// path "/tool/callId/0" splits into ['', 'tool', 'callId', '0'] = 4 parts => valid
+		// path "/tool/callId" splits into ['', 'tool', 'callId'] = 3 parts => invalid
+		const base = URI.from({ scheme: ChatResponseResource.scheme, authority: 'abc', path: '/tool/callId' });
+		assert.strictEqual(ChatResponseResource.parseUri(base), undefined);
+
+		const tooShort = URI.from({ scheme: ChatResponseResource.scheme, authority: 'abc', path: '/tool' });
+		assert.strictEqual(ChatResponseResource.parseUri(tooShort), undefined);
+
+		const empty = URI.from({ scheme: ChatResponseResource.scheme, authority: 'abc', path: '/' });
+		assert.strictEqual(ChatResponseResource.parseUri(empty), undefined);
+	});
+
+	test('parseUri rejects wrong scheme', () => {
+		const uri = URI.from({ scheme: 'file', path: '/tool/callId/0' });
+		assert.strictEqual(ChatResponseResource.parseUri(uri), undefined);
+	});
+
+	test('parseUri rejects wrong kind', () => {
+		const uri = URI.from({ scheme: ChatResponseResource.scheme, authority: 'abc', path: '/notTool/callId/0' });
+		assert.strictEqual(ChatResponseResource.parseUri(uri), undefined);
 	});
 });

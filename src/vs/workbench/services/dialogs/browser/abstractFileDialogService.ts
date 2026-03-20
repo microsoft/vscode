@@ -229,7 +229,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		const title = nls.localize('openFileOrFolder.title', 'Open File or Folder');
 		const availableFileSystems = this.addFileSchemaIfNeeded(schema);
 
-		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
+		const uris = await this.pickResource({ canSelectFiles: true, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
+		const uri = uris?.[0];
 
 		if (uri) {
 			const stat = await this.fileService.stat(uri);
@@ -251,7 +252,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		const title = nls.localize('openFile.title', 'Open File');
 		const availableFileSystems = this.addFileSchemaIfNeeded(schema);
 
-		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
+		const uris = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
+		const uri = uris?.[0];
 		if (uri) {
 			this.addFileToRecentlyOpened(uri);
 
@@ -271,7 +273,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		const title = nls.localize('openFolder.title', 'Open Folder');
 		const availableFileSystems = this.addFileSchemaIfNeeded(schema, true);
 
-		const uri = await this.pickResource({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
+		const uris = await this.pickResource({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
+		const uri = uris?.[0];
 		if (uri) {
 			return this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
 		}
@@ -282,7 +285,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		const filters: FileFilter[] = [{ name: nls.localize('filterName.workspace', 'Workspace'), extensions: [WORKSPACE_EXTENSION] }];
 		const availableFileSystems = this.addFileSchemaIfNeeded(schema, true);
 
-		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, filters, availableFileSystems });
+		const uris = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, filters, availableFileSystems });
+		const uri = uris?.[0];
 		if (uri) {
 			return this.hostService.openWindow([{ workspaceUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
 		}
@@ -316,16 +320,14 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			options.availableFileSystems = this.addFileSchemaIfNeeded(schema, options.canSelectFolders);
 		}
 
-		const uri = await this.pickResource(options);
-
-		return uri ? [uri] : undefined;
+		return this.pickResource(options);
 	}
 
 	protected getSimpleFileDialog(): ISimpleFileDialog {
 		return this.instantiationService.createInstance(SimpleFileDialog);
 	}
 
-	private pickResource(options: IOpenDialogOptions): Promise<URI | undefined> {
+	private pickResource(options: IOpenDialogOptions): Promise<URI[] | undefined> {
 		return this.getSimpleFileDialog().showOpenDialog(options);
 	}
 

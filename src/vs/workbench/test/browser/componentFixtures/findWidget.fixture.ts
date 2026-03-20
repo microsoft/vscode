@@ -119,11 +119,13 @@ async function renderFindWidget(options: FindFixtureOptions): Promise<void> {
 	await new Promise(resolve => setTimeout(resolve, 300));
 }
 
-export default defineThemedFixtureGroup({
+export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	Find: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (context) => renderFindWidget({ ...context, searchString: 'count' }),
 	}),
 	FindAndReplace: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (context) => renderFindWidget({ ...context, searchString: 'count', replaceString: 'value', showReplace: true }),
 	}),
 });

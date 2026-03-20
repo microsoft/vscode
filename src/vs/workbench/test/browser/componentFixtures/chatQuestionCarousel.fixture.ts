@@ -7,9 +7,9 @@ import * as dom from '../../../../base/browser/dom.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatQuestion, IChatQuestionCarousel } from '../../../contrib/chat/common/chatService/chatService.js';
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
-import { IChatContentPartRenderContext } from '../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
+import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
-import { mock } from '../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { Event } from '../../../../base/common/event.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { IChatRequestViewModel } from '../../../contrib/chat/common/model/chatViewModel.js';
@@ -26,6 +26,7 @@ function createCarousel(questions: IChatQuestion[], allowSkip: boolean = true): 
 function createMockContext(): IChatContentPartRenderContext {
 	return {
 		element: new class extends mock<IChatRequestViewModel>() { }(),
+		inlineTextModels: upcastPartial<InlineTextModelCollection>({}),
 		elementIndex: 0,
 		container: document.createElement('div'),
 		content: [],
@@ -123,20 +124,24 @@ const multiSelectQuestion: IChatQuestion = {
 // Fixtures
 // ============================================================================
 
-export default defineThemedFixtureGroup({
+export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	SingleTextQuestion: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => renderCarousel(context, createCarousel([textQuestion])),
 	}),
 
 	SingleSelectQuestion: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => renderCarousel(context, createCarousel([singleSelectQuestion])),
 	}),
 
 	MultiSelectQuestion: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => renderCarousel(context, createCarousel([multiSelectQuestion])),
 	}),
 
 	MultipleQuestions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => renderCarousel(context, createCarousel([
 			textQuestion,
 			singleSelectQuestion,
@@ -145,10 +150,12 @@ export default defineThemedFixtureGroup({
 	}),
 
 	NoSkip: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => renderCarousel(context, createCarousel([singleSelectQuestion], false)),
 	}),
 
 	SubmittedSummary: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => {
 			const carousel = createCarousel([textQuestion, singleSelectQuestion, multiSelectQuestion]);
 			carousel.isUsed = true;
@@ -162,6 +169,7 @@ export default defineThemedFixtureGroup({
 	}),
 
 	SkippedSummary: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => {
 			const carousel = createCarousel([textQuestion, singleSelectQuestion]);
 			carousel.isUsed = true;

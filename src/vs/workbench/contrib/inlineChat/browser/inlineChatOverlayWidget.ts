@@ -7,13 +7,17 @@ import './media/inlineChatOverlayWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext, renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { HistoryNavigator2 } from '../../../../base/common/history.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableFromEventOpts, observableValue } from '../../../../base/common/observable.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IActiveCodeEditor, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
@@ -59,6 +63,7 @@ export class InlineChatInputWidget extends Disposable {
 	private _anchorLeft: number = 0;
 	private _anchorAbove: boolean = false;
 
+	private readonly _historyNavigator = new HistoryNavigator2<string>([''], 50);
 
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
@@ -211,15 +216,28 @@ export class InlineChatInputWidget extends Disposable {
 		this._store.add(this._input.onDidBlurEditorText(() => inputWidgetFocused.set(false)));
 		this._store.add(toDisposable(() => inputWidgetFocused.reset()));
 
-		// Handle key events: ArrowDown to move to actions
+		// Handle key events: ArrowUp/ArrowDown for history navigation and action bar focus
 		this._store.add(this._input.onKeyDown(e => {
-			if (e.keyCode === KeyCode.DownArrow && !actionBar.isEmpty()) {
+			if (e.keyCode === KeyCode.UpArrow) {
+				const position = this._input.getPosition();
+				if (position && position.lineNumber === 1) {
+					this._showPreviousHistoryValue();
+					e.preventDefault();
+					e.stopPropagation();
+				}
+			} else if (e.keyCode === KeyCode.DownArrow) {
 				const model = this._input.getModel();
 				const position = this._input.getPosition();
 				if (position && position.lineNumber === model.getLineCount()) {
-					e.preventDefault();
-					e.stopPropagation();
-					actionBar.focus(0);
+					if (!this._historyNavigator.isAtEnd()) {
+						this._showNextHistoryValue();
+						e.preventDefault();
+						e.stopPropagation();
+					} else if (!actionBar.isEmpty()) {
+						e.preventDefault();
+						e.stopPropagation();
+						actionBar.focus(0);
+					}
 				}
 			}
 		}));
@@ -251,18 +269,42 @@ export class InlineChatInputWidget extends Disposable {
 		return this._input.getModel().getValue().trim();
 	}
 
+	addToHistory(value: string): void {
+		this._historyNavigator.replaceLast(value);
+		this._historyNavigator.add('');
+	}
+
+	private _showPreviousHistoryValue(): void {
+		if (this._historyNavigator.isAtEnd()) {
+			this._historyNavigator.replaceLast(this._input.getModel().getValue());
+		}
+		const value = this._historyNavigator.previous();
+		this._input.getModel().setValue(value);
+	}
+
+	private _showNextHistoryValue(): void {
+		if (this._historyNavigator.isAtEnd()) {
+			return;
+		}
+		const value = this._historyNavigator.next();
+		this._input.getModel().setValue(value);
+	}
+
 	/**
 	 * Show the widget at the specified line.
 	 * @param lineNumber The line number to anchor the widget to
 	 * @param left Left offset relative to editor
 	 * @param anchorAbove Whether to anchor above the position (widget grows upward)
 	 */
-	show(lineNumber: number, left: number, anchorAbove: boolean, placeholder: string): void {
+	show(lineNumber: number, left: number, anchorAbove: boolean, placeholder: string, value?: string): void {
 		this._showStore.clear();
+
+		// Reset history cursor to the end (current uncommitted text)
+		this._historyNavigator.resetCursor();
 
 		// Clear input state
 		this._input.updateOptions({ wordWrap: 'off', placeholder });
-		this._input.getModel().setValue('');
+		this._input.getModel().setValue(value ?? '');
 
 		// Store anchor info for scroll updates
 		this._anchorLineNumber = lineNumber;
@@ -300,7 +342,12 @@ export class InlineChatInputWidget extends Disposable {
 		}));
 
 		// Focus the input editor
-		setTimeout(() => this._input.focus(), 0);
+		setTimeout(() => {
+			this._input.focus();
+			if (value) {
+				this._input.setSelection(this._input.getModel().getFullModelRange());
+			}
+		}, 0);
 	}
 
 	private _updatePosition(): void {
@@ -355,6 +402,10 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 
 	private readonly _domNode: HTMLElement = document.createElement('div');
 	private readonly _container: HTMLElement;
+	private readonly _markdownContainer: HTMLElement;
+	private readonly _markdownMessage: HTMLElement;
+	private readonly _markdownScrollable: DomScrollableElement;
+	private readonly _contentRow: HTMLElement;
 	private readonly _statusNode: HTMLElement;
 	private readonly _icon: HTMLElement;
 	private readonly _message: HTMLElement;
@@ -380,12 +431,29 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 		this._domNode.appendChild(this._container);
 		this._container.classList.add('inline-chat-session-overlay-container');
 
+		this._markdownContainer = document.createElement('div');
+		this._markdownContainer.classList.add('markdown-scroll-container');
+
+		this._markdownMessage = document.createElement('div');
+		this._markdownMessage.classList.add('markdown-message');
+		this._markdownContainer.appendChild(this._markdownMessage);
+		this._markdownScrollable = this._store.add(new DomScrollableElement(this._markdownContainer, {
+			consumeMouseWheelIfScrollbarIsNeeded: true,
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+		}));
+		this._container.appendChild(this._markdownScrollable.getDomNode());
+
+		this._contentRow = document.createElement('div');
+		this._contentRow.classList.add('content-row');
+		this._container.appendChild(this._contentRow);
+
 		// Create status node with icon and message
 		this._statusNode = document.createElement('div');
 		this._statusNode.classList.add('status');
 		this._icon = dom.append(this._statusNode, dom.$('span'));
 		this._message = dom.append(this._statusNode, dom.$('span.message'));
-		this._container.appendChild(this._statusNode);
+		this._contentRow.appendChild(this._statusNode);
 
 		// Create toolbar node
 		this._toolbarNode = document.createElement('div');
@@ -408,6 +476,14 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 			const chatModel = session?.chatModel;
 			if (!session || !chatModel) {
 				return undefined;
+			}
+
+			const terminationState = session.terminationState.read(r);
+			if (terminationState) {
+				return {
+					markdown: terminationState,
+					icon: Codicon.info
+				};
 			}
 
 			const response = chatModel.lastRequestObs.read(r)?.response;
@@ -458,15 +534,42 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 			}
 		});
 
+		const markdownStore = this._showStore.add(new DisposableStore());
+
 		this._showStore.add(autorun(r => {
 			const value = requestMessage.read(r);
 			if (value) {
-				this._message.innerText = renderAsPlaintext(value.message);
-				this._icon.className = '';
-				this._icon.classList.add(...ThemeIcon.asClassNameArray(value.icon));
+				if (value.message && value.icon) {
+					this._message.innerText = renderAsPlaintext(value.message);
+					this._icon.className = '';
+					this._icon.classList.add(...ThemeIcon.asClassNameArray(value.icon));
+					this._statusNode.classList.remove('hidden');
+					this._contentRow.classList.remove('status-hidden');
+				} else {
+					this._message.innerText = '';
+					this._icon.className = '';
+					this._statusNode.classList.add('hidden');
+					this._contentRow.classList.add('status-hidden');
+				}
+				markdownStore.clear();
+				this._markdownMessage.replaceChildren();
+				if (value.markdown) {
+					this._markdownScrollable.getDomNode().classList.remove('hidden');
+					const markdown = typeof value.markdown === 'string' ? new MarkdownString(value.markdown) : value.markdown;
+					const rendered = markdownStore.add(renderMarkdown(markdown));
+					this._markdownMessage.appendChild(rendered.element);
+					this._markdownScrollable.scanDomNode();
+				} else {
+					this._markdownScrollable.getDomNode().classList.add('hidden');
+				}
 			} else {
 				this._message.innerText = '';
 				this._icon.className = '';
+				this._statusNode.classList.add('hidden');
+				this._contentRow.classList.add('status-hidden');
+				markdownStore.clear();
+				this._markdownMessage.replaceChildren();
+				this._markdownScrollable.getDomNode().classList.add('hidden');
 			}
 		}));
 
@@ -480,7 +583,7 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 		}));
 
 		// Add toolbar
-		this._container.appendChild(this._toolbarNode);
+		this._contentRow.appendChild(this._toolbarNode);
 		this._showStore.add(toDisposable(() => this._toolbarNode.remove()));
 
 		const that = this;
@@ -494,7 +597,7 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 			},
 			menuOptions: { renderShortTitle: true },
 			actionViewItemProvider: (action, options) => {
-				const primaryActions = ['inlineChat2.cancel', 'inlineChat2.keep', 'inlineChat2.close'];
+				const primaryActions = ['inlineChat2.cancel', 'inlineChat2.keep', 'inlineChat2.rephrase'];
 				const labeledActions = primaryActions.concat(['inlineChat2.undo']);
 
 				if (!labeledActions.includes(action.id)) {
@@ -523,8 +626,12 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 			const padding = Math.round(lineHeight.read(r) * 2 / 3);
 
 			// Cap max-width to the editor viewport (content area)
-			const maxWidth = layoutInfo.contentWidth - 2 * padding;
+			const maxWidth = Math.min(400, layoutInfo.contentWidth - 2 * padding);
+			const maxHeight = Math.min(150, Math.floor(layoutInfo.height / 3));
 			this._domNode.style.maxWidth = `${maxWidth}px`;
+			this._markdownScrollable.getDomNode().style.maxHeight = `${maxHeight}px`;
+			this._markdownContainer.style.maxHeight = `${maxHeight}px`;
+			this._markdownScrollable.scanDomNode();
 
 			// Position: top right, below sticky scroll with padding, left of minimap and scrollbar
 			const top = stickyScrollHeight + padding;

@@ -31,9 +31,22 @@
 }
 
 .ai-customization-view .ai-customization-tree-item .name {
+	flex: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.ai-customization-view .ai-customization-tree-item .actions {
+	display: none;
+	flex-shrink: 0;
+	max-width: fit-content;
+}
+
+.ai-customization-view .monaco-list .monaco-list-row:hover .ai-customization-tree-item > .actions,
+.ai-customization-view .monaco-list .monaco-list-row.focused .ai-customization-tree-item > .actions,
+.ai-customization-view .monaco-list .monaco-list-row.selected .ai-customization-tree-item > .actions {
+	display: flex;
 }
 
 .ai-customization-view .ai-customization-tree-item .description {
@@ -88,6 +101,11 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+/* Disabled items */
+.ai-customization-view .ai-customization-tree-item.disabled {
+	opacity: 0.5;
 }
 
 /* Empty state */

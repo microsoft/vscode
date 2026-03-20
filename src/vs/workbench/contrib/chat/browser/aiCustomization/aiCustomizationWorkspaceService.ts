@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { derived, IObservable, observableFromEventOpts } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableFromEventOpts } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { IChatPromptSlashCommand, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import {
 	GENERATE_AGENT_COMMAND_ID,
 	GENERATE_HOOK_COMMAND_ID,
@@ -27,6 +29,8 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IPromptsService private readonly promptsService: IPromptsService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 	) {
 		const workspaceFolders = observableFromEventOpts(
 			{ owner: this },
@@ -51,19 +55,24 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		AICustomizationManagementSection.Prompts,
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.McpServers,
+		AICustomizationManagementSection.Plugins,
 	];
 
-	private static readonly _defaultFilter: IStorageSourceFilter = {
-		sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin],
-	};
-
-	getStorageSourceFilter(_type: PromptsType): IStorageSourceFilter {
-		return AICustomizationWorkspaceService._defaultFilter;
+	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
+		return this.harnessService.getStorageSourceFilter(type);
 	}
 
 	readonly isSessionsWindow = false;
 
+	readonly hasOverrideProjectRoot = constObservable(false);
+	setOverrideProjectRoot(_root: URI): void { }
+	clearOverrideProjectRoot(): void { }
+
 	async commitFiles(_projectRoot: URI, _fileUris: URI[]): Promise<void> {
+		// No-op in core VS Code.
+	}
+
+	async deleteFiles(_projectRoot: URI, _fileUris: URI[]): Promise<void> {
 		// No-op in core VS Code.
 	}
 
@@ -79,6 +88,10 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		if (commandId) {
 			await this.commandService.executeCommand(commandId);
 		}
+	}
+
+	async getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
+		return this.promptsService.getPromptSlashCommands(token);
 	}
 }
 

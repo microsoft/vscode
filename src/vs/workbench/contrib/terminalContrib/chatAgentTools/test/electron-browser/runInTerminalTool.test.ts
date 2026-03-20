@@ -41,11 +41,14 @@ import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { TerminalChatService } from '../../../chat/browser/terminalChatService.js';
 import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
+import { IAgentSession } from '../../../../chat/browser/agentSessions/agentSessionsModel.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
 
 	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
+	get sessionTerminalInstances() { return this._sessionTerminalInstances; }
 	get profileFetcher() { return this._profileFetcher; }
 
 	setBackendOs(os: OperatingSystem) {
@@ -63,6 +66,9 @@ suite('RunInTerminalTool', () => {
 	let workspaceContextService: TestContextService;
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
 	let chatServiceDisposeEmitter: Emitter<{ sessionResource: URI[]; reason: 'cleared' }>;
+	let chatSessionArchivedEmitter: Emitter<IAgentSession>;
+	let sandboxEnabled: boolean;
+	let terminalSandboxService: ITerminalSandboxService;
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
@@ -77,8 +83,10 @@ suite('RunInTerminalTool', () => {
 
 		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 		setConfig(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
+		sandboxEnabled = false;
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
 		chatServiceDisposeEmitter = new Emitter<{ sessionResource: URI[]; reason: 'cleared' }>();
+		chatSessionArchivedEmitter = new Emitter<IAgentSession>();
 
 		instantiationService = workbenchInstantiationService({
 			configurationService: () => configurationService,
@@ -86,21 +94,30 @@ suite('RunInTerminalTool', () => {
 		}, store);
 
 		instantiationService.stub(IChatService, {
-			onDidDisposeSession: chatServiceDisposeEmitter.event
+			onDidDisposeSession: chatServiceDisposeEmitter.event,
+			getSession: () => undefined,
+		});
+		instantiationService.stub(IAgentSessionsService, {
+			onDidChangeSessionArchivedState: chatSessionArchivedEmitter.event,
+			model: {
+				onDidChangeSessionArchivedState: chatSessionArchivedEmitter.event,
+			} as IAgentSessionsService['model']
 		});
 		instantiationService.stub(ITerminalChatService, store.add(instantiationService.createInstance(TerminalChatService)));
 		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 		instantiationService.stub(IHistoryService, {
 			getLastActiveWorkspaceRoot: () => undefined
 		});
-		instantiationService.stub(ITerminalSandboxService, {
+		terminalSandboxService = {
 			_serviceBrand: undefined,
-			isEnabled: async () => false,
-			wrapCommand: command => command,
-			getSandboxConfigPath: async () => undefined,
+			isEnabled: async () => sandboxEnabled,
+			wrapCommand: (command: string) => `sandbox:${command}`,
+			getSandboxConfigPath: async () => sandboxEnabled ? '/tmp/sandbox.json' : undefined,
 			getTempDir: () => undefined,
-			setNeedsForceUpdateConfigFile: () => { }
-		});
+			setNeedsForceUpdateConfigFile: () => { },
+			getOS: async () => OperatingSystem.Linux,
+		};
+		instantiationService.stub(ITerminalSandboxService, terminalSandboxService);
 
 		const treeSitterLibraryService = store.add(instantiationService.createInstance(TreeSitterLibraryService));
 		treeSitterLibraryService.isTest = true;
@@ -185,6 +202,22 @@ suite('RunInTerminalTool', () => {
 			strictEqual(preparedInvocation.confirmationMessages!.title, expectedTitle);
 		}
 	}
+
+	suite('sandbox invocation messaging', () => {
+		test('should use sandbox labels when command is sandbox wrapped', async () => {
+			terminalSandboxService.isEnabled = async () => true;
+			terminalSandboxService.getSandboxConfigPath = async () => '/tmp/vscode-sandbox-settings.json';
+			terminalSandboxService.wrapCommand = (command: string) => `sandbox-runtime ${command}`;
+
+			const preparedInvocation = await executeToolTest({ command: 'echo hello' });
+
+			ok(preparedInvocation, 'Expected prepared invocation to be defined');
+			strictEqual((preparedInvocation.invocationMessage as IMarkdownString).value, '$(lock) Running `echo hello` in sandbox');
+
+			const terminalData = preparedInvocation.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
+		});
+	});
 
 	suite('default auto-approve rules', () => {
 		const defaults = terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>;
@@ -423,6 +456,40 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
+	suite('sandbox bypass requests', () => {
+		test('should force confirmation for explicit unsandboxed execution requests', async () => {
+			sandboxEnabled = true;
+			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+
+			const result = await executeToolTest({
+				requestUnsandboxedExecution: true,
+				requestUnsandboxedExecutionReason: 'Needs network access outside the sandbox',
+			});
+
+			assertConfirmationRequired(result, 'Run `bash` command outside the sandbox?');
+			strictEqual(result?.confirmationMessages?.allowAutoConfirm, false);
+			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.requestUnsandboxedExecution, true);
+			strictEqual(terminalData.requestUnsandboxedExecutionReason, 'Needs network access outside the sandbox');
+			strictEqual(terminalData.commandLine.toolEdited, undefined);
+
+			const confirmationMessage = result?.confirmationMessages?.message;
+			ok(confirmationMessage && typeof confirmationMessage !== 'string');
+			if (!confirmationMessage || typeof confirmationMessage === 'string') {
+				throw new Error('Expected markdown confirmation message');
+			}
+			ok(confirmationMessage.value.includes('Reason for leaving the sandbox: Needs network access outside the sandbox'));
+
+			const disclaimer = result?.confirmationMessages?.disclaimer;
+			ok(disclaimer && typeof disclaimer !== 'string');
+			if (!disclaimer || typeof disclaimer === 'string') {
+				throw new Error('Expected markdown disclaimer');
+			}
+			ok(disclaimer.value.includes('outside the terminal sandbox'));
+			strictEqual(result?.confirmationMessages?.terminalCustomActions, undefined);
+		});
+	});
+
 	suite('prepareToolInvocation - auto approval behavior', () => {
 
 		test('should auto-approve commands in allow list', async () => {
@@ -504,8 +571,7 @@ suite('RunInTerminalTool', () => {
 
 			// Verify that auto-approve information is included
 			ok(result?.toolSpecificData, 'Expected toolSpecificData to be defined');
-			// eslint-disable-next-line local/code-no-any-casts
-			const terminalData = result!.toolSpecificData as any;
+			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
 			ok(terminalData.autoApproveInfo, 'Expected autoApproveInfo to be defined for auto-approved background command');
 			ok(terminalData.autoApproveInfo.value, 'Expected autoApproveInfo to have a value');
 			ok(terminalData.autoApproveInfo.value.includes('npm'), 'Expected autoApproveInfo to mention the approved rule');
@@ -1139,13 +1205,149 @@ suite('RunInTerminalTool', () => {
 	});
 
 	suite('chat session disposal cleanup', () => {
+		const createMockTerminal = (processId: number): ITerminalInstance => ({
+			dispose: () => { /* Mock dispose */ },
+			processId
+		} as unknown as ITerminalInstance);
+
+		test('should restore all terminals into the session terminal map and dispose them when archived', () => {
+			const sessionId = 'test-session-restored-archive';
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+
+			let terminal1Disposed = false;
+			let terminal2Disposed = false;
+			const terminal1DisposedEmitter = new Emitter<void>();
+			const terminal2DisposedEmitter = new Emitter<void>();
+			const mockTerminal1 = {
+				dispose: () => {
+					terminal1Disposed = true;
+					terminal1DisposedEmitter.fire();
+				},
+				onDisposed: terminal1DisposedEmitter.event,
+				processId: 55555,
+			} as unknown as ITerminalInstance;
+			const mockTerminal2 = {
+				dispose: () => {
+					terminal2Disposed = true;
+					terminal2DisposedEmitter.fire();
+				},
+				onDisposed: terminal2DisposedEmitter.event,
+				processId: 66666,
+			} as unknown as ITerminalInstance;
+
+			storageService.store('chat.terminalSessions', JSON.stringify({
+				[mockTerminal1.processId!]: {
+					sessionId,
+					id: 'restored-1',
+					shellIntegrationQuality: ShellIntegrationQuality.None,
+					isBackground: true,
+				},
+				[mockTerminal2.processId!]: {
+					sessionId,
+					id: 'restored-2',
+					shellIntegrationQuality: ShellIntegrationQuality.None,
+					isBackground: false,
+				}
+			}), StorageScope.WORKSPACE, StorageTarget.USER);
+
+			instantiationService.stub(ITerminalService, {
+				onDidDisposeInstance: terminalServiceDisposeEmitter.event,
+				instances: [mockTerminal1, mockTerminal2],
+				setNextCommandId: async () => { }
+			});
+
+			const restoredRunInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+			const restoredSessionTerminals = restoredRunInTerminalTool.sessionTerminalInstances.get(sessionResource);
+			strictEqual(restoredSessionTerminals?.size, 2, 'Both restored terminals should be tracked for the session');
+
+			chatSessionArchivedEmitter.fire({
+				resource: sessionResource,
+				isArchived: () => true,
+			} as unknown as IAgentSession);
+
+			strictEqual(terminal1Disposed, true, 'Restored background terminal should have been disposed');
+			strictEqual(terminal2Disposed, true, 'Restored foreground terminal should have been disposed');
+			ok(!restoredRunInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Foreground terminal association should be removed after archive');
+			ok(!restoredRunInTerminalTool.sessionTerminalInstances.has(sessionResource), 'All restored terminals for the session should be removed after archive');
+		});
+
+		test('should dispose all terminals associated with a single chat session when archived', () => {
+			const sessionId = 'test-session-archive';
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+			const mockTerminal1 = { dispose: () => { /* Mock dispose */ }, processId: 33333 } as unknown as ITerminalInstance;
+			const mockTerminal2 = { dispose: () => { /* Mock dispose */ }, processId: 44444 } as unknown as ITerminalInstance;
+
+			let terminal1Disposed = false;
+			let terminal2Disposed = false;
+			mockTerminal1.dispose = () => { terminal1Disposed = true; };
+			mockTerminal2.dispose = () => { terminal2Disposed = true; };
+
+			runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
+				instance: mockTerminal2,
+				shellIntegrationQuality: ShellIntegrationQuality.None
+			});
+			runInTerminalTool.sessionTerminalInstances.set(sessionResource, new Set([mockTerminal1, mockTerminal2]));
+
+			// Initialize lazy archive listener before firing the archive event.
+			const ensureArchivedSessionListener = (runInTerminalTool as unknown as Record<string, () => void>)['_ensureArchivedSessionListener'];
+			ensureArchivedSessionListener.call(runInTerminalTool);
+
+			chatSessionArchivedEmitter.fire({
+				resource: sessionResource,
+				isArchived: () => true,
+			} as unknown as IAgentSession);
+
+			strictEqual(terminal1Disposed, true, 'Terminal 1 should have been disposed');
+			strictEqual(terminal2Disposed, true, 'Terminal 2 should have been disposed');
+			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Terminal association should be removed after archive');
+			ok(!runInTerminalTool.sessionTerminalInstances.has(sessionResource), 'All tracked terminals for the session should be removed after archive');
+		});
+
+		test('should not access agent sessions model when initializing archive listener', () => {
+			let modelAccessed = false;
+			instantiationService.stub(IAgentSessionsService, {
+				onDidChangeSessionArchivedState: chatSessionArchivedEmitter.event,
+				get model() {
+					modelAccessed = true;
+					throw new Error('model should not be accessed when wiring archive listener');
+				},
+			} as unknown as IAgentSessionsService);
+
+			const noModelAccessRunInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+			const ensureArchivedSessionListener = (noModelAccessRunInTerminalTool as unknown as Record<string, () => void>)['_ensureArchivedSessionListener'];
+			ensureArchivedSessionListener.call(noModelAccessRunInTerminalTool);
+
+			strictEqual(modelAccessed, false, 'Agent sessions model should not be accessed when initializing archive listener');
+		});
+
+		test('should dispose all terminals associated with a single chat session', () => {
+			const sessionId = 'test-session-multiple-terminals';
+			const mockTerminal1 = createMockTerminal(11111);
+			const mockTerminal2 = createMockTerminal(22222);
+
+			let terminal1Disposed = false;
+			let terminal2Disposed = false;
+			mockTerminal1.dispose = () => { terminal1Disposed = true; };
+			mockTerminal2.dispose = () => { terminal2Disposed = true; };
+
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+			runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
+				instance: mockTerminal2,
+				shellIntegrationQuality: ShellIntegrationQuality.None
+			});
+			runInTerminalTool.sessionTerminalInstances.set(sessionResource, new Set([mockTerminal1, mockTerminal2]));
+
+			chatServiceDisposeEmitter.fire({ sessionResource: [sessionResource], reason: 'cleared' });
+
+			strictEqual(terminal1Disposed, true, 'Terminal 1 should have been disposed');
+			strictEqual(terminal2Disposed, true, 'Terminal 2 should have been disposed');
+			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Terminal association should be removed after disposal');
+			ok(!runInTerminalTool.sessionTerminalInstances.has(sessionResource), 'All tracked terminals for the session should be removed after disposal');
+		});
+
 		test('should dispose associated terminals when chat session is disposed', () => {
 			const sessionId = 'test-session-123';
-			// eslint-disable-next-line local/code-no-any-casts
-			const mockTerminal: ITerminalInstance = {
-				dispose: () => { /* Mock dispose */ },
-				processId: 12345
-			} as any;
+			const mockTerminal = createMockTerminal(12345);
 			let terminalDisposed = false;
 			mockTerminal.dispose = () => { terminalDisposed = true; };
 
@@ -1166,16 +1368,8 @@ suite('RunInTerminalTool', () => {
 		test('should not affect other sessions when one session is disposed', () => {
 			const sessionId1 = 'test-session-1';
 			const sessionId2 = 'test-session-2';
-			// eslint-disable-next-line local/code-no-any-casts
-			const mockTerminal1: ITerminalInstance = {
-				dispose: () => { /* Mock dispose */ },
-				processId: 12345
-			} as any;
-			// eslint-disable-next-line local/code-no-any-casts
-			const mockTerminal2: ITerminalInstance = {
-				dispose: () => { /* Mock dispose */ },
-				processId: 67890
-			} as any;
+			const mockTerminal1 = createMockTerminal(12345);
+			const mockTerminal2 = createMockTerminal(67890);
 
 			let terminal1Disposed = false;
 			let terminal2Disposed = false;
@@ -1277,7 +1471,11 @@ suite('RunInTerminalTool', () => {
 	});
 
 	suite('session auto approval', () => {
-		test('should auto approve all commands when session has auto approval enabled', async () => {
+		setup(() => {
+			setAutoApprove({ rm: false });
+		});
+
+		test('should return policy denial details for denied commands when session has auto approval enabled', async () => {
 			const sessionId = 'test-session-123';
 			const sessionResource = LocalChatSessionUri.forSession(sessionId);
 			const terminalChatService = instantiationService.get(ITerminalChatService);
@@ -1301,8 +1499,61 @@ suite('RunInTerminalTool', () => {
 			assertAutoApproved(result);
 
 			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
-			ok(terminalData.autoApproveInfo, 'Expected autoApproveInfo to be defined');
-			ok(terminalData.autoApproveInfo.value.includes('Auto approved for this session'), 'Expected session approval message');
+			ok(terminalData.alternativeRecommendation, 'Expected policy denial alternative recommendation');
+			ok(terminalData.alternativeRecommendation.includes('POLICY_DENIED'), 'Expected policy denial marker');
+			ok(terminalData.alternativeRecommendation.includes('rm dangerous-file.txt'), 'Expected denied command details');
+		});
+
+		test('should still show confirmation when forceConfirmationReason is provided', async () => {
+			const sessionId = 'test-session-123-force';
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+			const terminalChatService = instantiationService.get(ITerminalChatService);
+
+			terminalChatService.setChatSessionAutoApproval(sessionResource, true);
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'rm dangerous-file.txt',
+					explanation: 'Remove a file',
+					goal: 'Remove a file',
+					isBackground: false
+				} as IRunInTerminalInputParams,
+				chatSessionResource: sessionResource,
+				forceConfirmationReason: 'test'
+			} as IToolInvocationPreparationContext;
+
+			const result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+			assertConfirmationRequired(result);
+		});
+
+		test('should circuit break repeated denied command attempts in auto approval sessions', async () => {
+			const sessionId = 'test-session-123-circuit-break';
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+			const terminalChatService = instantiationService.get(ITerminalChatService);
+
+			terminalChatService.setChatSessionAutoApproval(sessionResource, true);
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'rm dangerous-file.txt',
+					explanation: 'Remove a file',
+					goal: 'Remove a file',
+					isBackground: false
+				} as IRunInTerminalInputParams,
+				chatSessionResource: sessionResource
+			} as IToolInvocationPreparationContext;
+
+			const first = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+			const second = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+			const third = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+
+			const firstData = first!.toolSpecificData as IChatTerminalToolInvocationData;
+			const secondData = second!.toolSpecificData as IChatTerminalToolInvocationData;
+			const thirdData = third!.toolSpecificData as IChatTerminalToolInvocationData;
+
+			ok(firstData.alternativeRecommendation?.includes('POLICY_DENIED'), 'Expected initial policy denial message');
+			ok(secondData.alternativeRecommendation?.includes('POLICY_DENIED'), 'Expected second policy denial message');
+			ok(thirdData.alternativeRecommendation?.includes('POLICY_DENIED_CIRCUIT_BREAKER'), 'Expected circuit breaker policy denial message');
 		});
 	});
 

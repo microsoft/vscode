@@ -335,6 +335,21 @@ export interface IModalEditorPartOptions {
 	readonly maximized?: boolean;
 
 	/**
+	 * Minimum width of the modal editor part in pixels.
+	 */
+	readonly minWidth?: number;
+
+	/**
+	 * Size of the modal editor part unless it is maximized.
+	 */
+	readonly size?: { readonly width: number; readonly height: number };
+
+	/**
+	 * Position of the modal editor part unless it is maximized.
+	 */
+	readonly position?: { readonly left: number; readonly top: number };
+
+	/**
 	 * The navigation context for navigating between items
 	 * within this modal editor. Pass `undefined` to clear.
 	 */

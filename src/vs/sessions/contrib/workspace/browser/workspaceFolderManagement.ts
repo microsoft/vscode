@@ -14,10 +14,14 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
+import { getGitHubRemoteFileDisplayName } from '../../fileTreeView/browser/githubFileSystemProvider.js';
+import { Queue } from '../../../../base/common/async.js';
+import { AGENT_HOST_FS_SCHEME } from '../../remoteAgentHost/browser/agentHostFileSystemProvider.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.workspaceFolderManagement';
+	private queue = this._register(new Queue<void>());
 
 	constructor(
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
@@ -29,7 +33,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		super();
 		this._register(autorun(reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
-			this.updateWorkspaceFoldersForSession(activeSession);
+			this.queue.queue(() => this.updateWorkspaceFoldersForSession(activeSession));
 		}));
 	}
 
@@ -58,19 +62,33 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 	}
 
 	private getActiveSessionFolderData(session: IActiveSessionItem | undefined): IWorkspaceFolderCreationData | undefined {
-		if (session?.providerType !== AgentSessionProviders.Background) {
+		if (!session) {
 			return undefined;
 		}
 
 		if (session.worktree) {
 			return {
 				uri: session.worktree,
-				name: session.repository ? `${this.uriIdentityService.extUri.basename(session.repository)} (worktree)` : undefined
+				name: session.repository ? `${this.uriIdentityService.extUri.basename(session.repository)} (${session.worktreeBranchName ?? this.uriIdentityService.extUri.basename(session.worktree)})` : this.uriIdentityService.extUri.basename(session.worktree)
 			};
 		}
 
 		if (session.repository) {
-			return { uri: session.repository };
+			// Remote agent host sessions use a read-only FS provider that
+			// should not be added as a workspace folder.
+			if (session.repository.scheme === AGENT_HOST_FS_SCHEME) {
+				return undefined;
+			}
+
+			if (session.providerType === AgentSessionProviders.Background) {
+				return { uri: session.repository };
+			}
+			if (session.providerType === AgentSessionProviders.Cloud) {
+				return {
+					uri: session.repository,
+					name: getGitHubRemoteFileDisplayName(session.repository),
+				};
+			}
 		}
 
 		return undefined;
@@ -82,10 +100,6 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		}
 
 		if (!session.repository || !session.worktree) {
-			return;
-		}
-
-		if (!this.isUriTrusted(session.repository)) {
 			return;
 		}
 

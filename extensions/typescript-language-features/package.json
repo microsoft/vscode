@@ -30,7 +30,9 @@
         "typescript.npm",
         "js/ts.tsserver.npm.path",
         "typescript.tsserver.nodePath",
-        "js/ts.tsserver.node.path"
+        "js/ts.tsserver.node.path",
+        "js/ts.tsserver.diagnosticDir",
+        "js/ts.tsserver.heapProfile"
       ]
     }
   },
@@ -1919,10 +1921,10 @@
             "markdownDeprecationMessage": "%configuration.suggest.paths.unifiedDeprecationMessage%",
             "scope": "resource"
           },
-          "js/ts.suggest.completeJSDocs": {
+          "js/ts.suggest.jsdoc.enabled": {
             "type": "boolean",
             "default": true,
-            "description": "%configuration.suggest.completeJSDocs%",
+            "description": "%configuration.suggest.jsdoc.enabled%",
             "scope": "language-overridable",
             "keywords": [
               "JavaScript",
@@ -1932,14 +1934,14 @@
           "javascript.suggest.completeJSDocs": {
             "type": "boolean",
             "default": true,
-            "description": "%configuration.suggest.completeJSDocs%",
+            "description": "%configuration.suggest.jsdoc.enabled%",
             "markdownDeprecationMessage": "%configuration.suggest.completeJSDocs.unifiedDeprecationMessage%",
             "scope": "language-overridable"
           },
           "typescript.suggest.completeJSDocs": {
             "type": "boolean",
             "default": true,
-            "description": "%configuration.suggest.completeJSDocs%",
+            "description": "%configuration.suggest.jsdoc.enabled%",
             "markdownDeprecationMessage": "%configuration.suggest.completeJSDocs.unifiedDeprecationMessage%",
             "scope": "language-overridable"
           },
@@ -2421,7 +2423,7 @@
           },
           "js/ts.tsserver.node.path": {
             "type": "string",
-            "description": "%configuration.tsserver.nodePath%",
+            "markdownDescription": "%configuration.tsserver.nodePath%",
             "scope": "window",
             "keywords": [
               "TypeScript"
@@ -2429,7 +2431,7 @@
           },
           "typescript.tsserver.nodePath": {
             "type": "string",
-            "description": "%configuration.tsserver.nodePath%",
+            "markdownDescription": "%configuration.tsserver.nodePath%",
             "markdownDeprecationMessage": "%configuration.tsserver.nodePath.unifiedDeprecationMessage%",
             "scope": "window"
           },
@@ -2556,12 +2558,64 @@
               "TypeScript"
             ]
           },
+          "js/ts.tsserver.diagnosticDir": {
+            "type": "string",
+            "markdownDescription": "%configuration.tsserver.diagnosticDir%",
+            "scope": "machine",
+            "keywords": [
+              "TypeScript",
+              "diagnostic",
+              "memory"
+            ]
+          },
           "typescript.tsserver.maxTsServerMemory": {
             "type": "number",
             "default": 3072,
             "markdownDescription": "%configuration.tsserver.maxTsServerMemory%",
             "markdownDeprecationMessage": "%configuration.tsserver.maxTsServerMemory.unifiedDeprecationMessage%",
             "scope": "window"
+          },
+          "js/ts.tsserver.heapSnapshot": {
+            "type": "number",
+            "default": 0,
+            "minimum": 0,
+            "markdownDescription": "%configuration.tsserver.heapSnapshot%",
+            "scope": "window",
+            "keywords": [
+              "TypeScript",
+              "memory",
+              "diagnostics"
+            ]
+          },
+          "js/ts.tsserver.heapProfile": {
+            "type": "object",
+            "default": {
+              "enabled": false
+            },
+            "markdownDescription": "%configuration.tsserver.heapProfile%",
+            "scope": "machine",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "default": false,
+                "description": "%configuration.tsserver.heapProfile.enabled%"
+              },
+              "dir": {
+                "type": "string",
+                "description": "%configuration.tsserver.heapProfile.dir%"
+              },
+              "interval": {
+                "type": "number",
+                "minimum": 1,
+                "description": "%configuration.tsserver.heapProfile.interval%"
+              }
+            },
+            "keywords": [
+              "TypeScript",
+              "memory",
+              "heap",
+              "profile"
+            ]
           },
           "js/ts.tsserver.watchOptions": {
             "description": "%configuration.tsserver.watchOptions%",

@@ -13,7 +13,6 @@ import { isEmptyObject } from '../../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { ElementSizeObserver } from '../../../../../../../editor/browser/config/elementSizeObserver.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
-import { IModelService } from '../../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../../nls.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
@@ -53,7 +52,6 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
@@ -89,12 +87,22 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		}
 
 		if (state.confirmationMessages?.allowAutoConfirm !== false) {
+			// Get combination label and precomputed key if present
+			const approveCombination = state.confirmationMessages?.approveCombination;
+			const combination = approveCombination
+				? {
+					label: typeof approveCombination.label === 'string' ? approveCombination.label : approveCombination.label.value,
+					key: approveCombination.key,
+				}
+				: undefined;
+
 			// Get actions from confirmation service
 			const confirmActions = this.confirmationService.getPreConfirmActions({
 				toolId: this.toolInvocation.toolId,
 				source: this.toolInvocation.source,
 				parameters: state.parameters,
-				chatSessionResource: this.context.element.sessionResource
+				chatSessionResource: this.context.element.sessionResource,
+				combination,
 			});
 
 			for (const action of confirmActions) {
@@ -128,6 +136,14 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		}
 
 		return actions;
+	}
+
+	protected override useAllowOnceAsPrimary(): boolean {
+		const state = this.toolInvocation.state.get();
+		if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			return !!state.confirmationMessages?.approveCombination;
+		}
+		return false;
 	}
 
 	protected createContentElement(): HTMLElement | string {
@@ -185,13 +201,14 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 				const langId = this.languageService.getLanguageIdByLanguageName('json');
 				const rawJsonInput = JSON.stringify(inputData.rawInput ?? {}, null, 1);
 				const canSeeMore = count(rawJsonInput, '\n') > 2; // if more than one key:value
-				const model = this._register(this.modelService.createModel(
+				const modelRef = this._register(this.context.inlineTextModels.acquire(
+					createToolInputUri(toolInvocation.toolCallId),
 					// View a single JSON line by default until they 'see more'
 					rawJsonInput.replace(/\n */g, ' '),
 					this.languageService.createById(langId),
-					createToolInputUri(toolInvocation.toolCallId),
 					true
 				));
+				const model = modelRef.object;
 
 				const markerOwner = generateUuid();
 				const schemaUri = createToolSchemaUri(toolInvocation.toolId);
