@@ -721,7 +721,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		if (requiresUnsandboxConfirmation) {
 			confirmationTitle = args.isBackground
-				? localize('runInTerminal.unsandboxed.background', "Run `{0}` background command outside the sandbox?", shellType)
+				? localize('runInTerminal.unsandboxed.background', "Run `{0}` command outside the sandbox in background?", shellType)
 				: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the sandbox?", shellType);
 		}
 
