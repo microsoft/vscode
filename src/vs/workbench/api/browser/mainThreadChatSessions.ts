@@ -30,6 +30,7 @@ import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/participants/chatAgents.js';
+import { IChatDebugService } from '../../contrib/chat/common/chatDebugService.js';
 import { IChatArtifactsService } from '../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatTodoListService } from '../../contrib/chat/common/tools/chatTodoListService.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
@@ -445,6 +446,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatTodoListService private readonly _chatTodoListService: IChatTodoListService,
 		@IChatArtifactsService private readonly _chatArtifactsService: IChatArtifactsService,
+		@IChatDebugService private readonly _chatDebugService: IChatDebugService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -574,6 +576,18 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 			// Migrate artifacts from old session to new session
 			this._chatArtifactsService.migrateArtifacts(originalResource, modifiedResource);
+
+			// Eagerly invoke debug providers for Copilot CLI sessions so the real
+			// session appears in the debug panel immediately after the untitled →
+			// real swap. Without this, the untitled session is filtered out (it
+			// only has a "Load Hooks" event) and the real session has no events
+			// until someone navigates to it — which can't happen because it's
+			// not listed.
+			if (chatSessionType === 'copilotcli') {
+				// Fire-and-forget: don't block the editor swap. Errors are
+				// handled internally by invokeProviders via onUnexpectedError.
+				this._chatDebugService.invokeProviders(modifiedResource).catch(() => { /* handled internally */ });
+			}
 
 			// Find the group containing the original editor
 			const originalGroup =
