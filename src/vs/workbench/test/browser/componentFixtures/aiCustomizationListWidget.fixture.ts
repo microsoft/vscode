@@ -89,7 +89,7 @@ function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], a
 			}
 			headerLines.push('---\n');
 			const header = new PromptHeader(
-				new Range(2, 1, headerLines.length + 1, 1),
+				new Range(2, 1, headerLines.length, 1),
 				uri,
 				headerLines
 			);
