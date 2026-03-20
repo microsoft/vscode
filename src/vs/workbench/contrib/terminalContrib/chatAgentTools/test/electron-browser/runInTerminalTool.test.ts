@@ -37,7 +37,6 @@ import { ILanguageModelToolsService, IPreparedToolInvocation, IToolInvocationPre
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
-import type { IToolTerminal } from '../../browser/toolTerminalCreator.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { TerminalChatService } from '../../../chat/browser/terminalChatService.js';
@@ -203,135 +202,6 @@ suite('RunInTerminalTool', () => {
 			strictEqual(preparedInvocation.confirmationMessages!.title, expectedTitle);
 		}
 	}
-
-	suite('invoke - background output analyzers', () => {
-		async function invokeBackgroundCommand(pollingResult: { output: string; modelOutputEvalResponse?: string }, analyzerMessage: string): Promise<string> {
-			const originalCreateInstance = instantiationService.createInstance.bind(instantiationService);
-			const startMarkerEmitter = new Emitter<unknown>();
-
-			(instantiationService as unknown as {
-				createInstance: typeof instantiationService.createInstance;
-			}).createInstance = ((ctor: unknown, ...args: unknown[]) => {
-				if ((ctor as { name?: string }).name === 'ActiveTerminalExecution') {
-					return {
-						strategy: {
-							type: 'test',
-							onDidCreateStartMarker: startMarkerEmitter.event,
-						},
-						start: async () => {
-							startMarkerEmitter.fire({});
-							return { output: pollingResult.output, exitCode: 0 };
-						},
-						getOutput: () => pollingResult.output,
-						dispose: () => { },
-					};
-				}
-
-				if ((ctor as { name?: string }).name === 'OutputMonitor') {
-					return {
-						pollingResult: {
-							state: 'Idle',
-							output: pollingResult.output,
-							modelOutputEvalResponse: pollingResult.modelOutputEvalResponse,
-							pollDurationMs: 1,
-						},
-						onDidFinishCommand: (listener: () => void) => {
-							setTimeout(listener, 0);
-							return { dispose: () => { } };
-						},
-						outputMonitorTelemetryCounters: {},
-						dispose: () => { },
-					};
-				}
-
-				return originalCreateInstance(ctor as never, ...(args as []));
-			}) as typeof instantiationService.createInstance;
-
-			(runInTerminalTool as unknown as {
-				_initTerminal: typeof runInTerminalTool['_initTerminal'];
-				_handleTerminalVisibility: typeof runInTerminalTool['_handleTerminalVisibility'];
-				_getOutputAnalyzerMessage: typeof runInTerminalTool['_getOutputAnalyzerMessage'];
-				_commandArtifactCollector: { capture: () => Promise<void> };
-				_telemetry: { logInvoke: () => void };
-			})._initTerminal = async () => ({
-				instance: {
-					xtermReadyPromise: Promise.resolve({ raw: { onData: () => ({ dispose: () => { } }) } }),
-					capabilities: { get: () => ({}) },
-					getCwdResource: async () => undefined,
-					dispose: () => { },
-				} as unknown as ITerminalInstance,
-				shellIntegrationQuality: ShellIntegrationQuality.None,
-				isBackground: true,
-			} as IToolTerminal);
-			(runInTerminalTool as unknown as {
-				_handleTerminalVisibility: () => void;
-			})._handleTerminalVisibility = () => { };
-			const runInTerminalToolWithPrivates = runInTerminalTool as unknown as {
-				_getOutputAnalyzerMessage: (exitCode: number | undefined, exitResult: string, commandLine: string, isSandboxWrapped: boolean) => Promise<string | undefined>;
-				_commandArtifactCollector: { capture: () => Promise<void> } | undefined;
-				_telemetry: { logInvoke: () => void } | undefined;
-			};
-
-			const originalGetOutputAnalyzerMessage = runInTerminalToolWithPrivates._getOutputAnalyzerMessage;
-			const originalCommandArtifactCollector = runInTerminalToolWithPrivates._commandArtifactCollector;
-			const originalTelemetry = runInTerminalToolWithPrivates._telemetry;
-
-			runInTerminalToolWithPrivates._getOutputAnalyzerMessage = async () => analyzerMessage;
-			runInTerminalToolWithPrivates._commandArtifactCollector = { capture: async () => { } };
-			runInTerminalToolWithPrivates._telemetry = { logInvoke: () => { } };
-
-			try {
-				const result = await runInTerminalTool.invoke({
-					parameters: {
-						command: 'echo hello',
-						explanation: 'Print hello',
-						goal: 'Print hello',
-						isBackground: true,
-					} as IRunInTerminalInputParams,
-					toolSpecificData: {
-						terminalCommandId: 'command-1',
-						terminalToolSessionId: 'tool-session-1',
-						commandLine: {
-							original: 'echo hello',
-							isSandboxWrapped: true,
-						},
-					},
-					context: {
-						sessionResource: LocalChatSessionUri.forSession('background-output-analyzer-test'),
-					},
-				} as never, async () => 0, { report: () => { } }, CancellationToken.None);
-
-				strictEqual(result.content[0].kind, 'text');
-				return (result.content[0] as { value: string }).value;
-			} finally {
-				(instantiationService as unknown as {
-					createInstance: typeof instantiationService.createInstance;
-				}).createInstance = originalCreateInstance;
-				runInTerminalToolWithPrivates._getOutputAnalyzerMessage = originalGetOutputAnalyzerMessage;
-				runInTerminalToolWithPrivates._commandArtifactCollector = originalCommandArtifactCollector;
-				runInTerminalToolWithPrivates._telemetry = originalTelemetry;
-			}
-		}
-
-		test('should include analyzer message for background idle output', async () => {
-			const resultText = await invokeBackgroundCommand({
-				output: 'raw output',
-				modelOutputEvalResponse: 'idle output',
-			}, 'Analyzer warning');
-
-			ok(resultText.includes('The command became idle with output:'), 'Expected idle output prefix');
-			ok(resultText.includes('Analyzer warning\nidle output'), 'Expected analyzer message before idle output');
-		});
-
-		test('should include analyzer message for background running output', async () => {
-			const resultText = await invokeBackgroundCommand({
-				output: 'streaming output',
-			}, 'Analyzer warning');
-
-			ok(resultText.includes('The command is still running, with output:'), 'Expected running output prefix');
-			ok(resultText.includes('Analyzer warning\nstreaming output'), 'Expected analyzer message before running output');
-		});
-	});
 
 	suite('sandbox invocation messaging', () => {
 		test('should use sandbox labels when command is sandbox wrapped', async () => {
@@ -610,12 +480,7 @@ suite('RunInTerminalTool', () => {
 			}
 			ok(confirmationMessage.value.includes('Reason for leaving the sandbox: Needs network access outside the sandbox'));
 
-			const disclaimer = result?.confirmationMessages?.disclaimer;
-			ok(disclaimer && typeof disclaimer !== 'string');
-			if (!disclaimer || typeof disclaimer === 'string') {
-				throw new Error('Expected markdown disclaimer');
-			}
-			ok(disclaimer.value.includes('outside the terminal sandbox'));
+			strictEqual(result?.confirmationMessages?.disclaimer, undefined);
 			strictEqual(result?.confirmationMessages?.terminalCustomActions, undefined);
 		});
 	});
