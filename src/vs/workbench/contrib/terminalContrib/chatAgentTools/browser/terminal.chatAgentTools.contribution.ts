@@ -34,6 +34,8 @@ import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ITerminalSandboxService, TerminalSandboxService } from '../common/terminalSandboxService.js';
 
+const RUN_IN_TERMINAL_TOOL_SANDBOX_ENABLED = true;
+
 // #region Services
 
 registerSingleton(ITerminalSandboxService, TerminalSandboxService, InstantiationType.Delayed);
@@ -102,7 +104,7 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		this._register(toolsService.executeToolSet.addTool(KillTerminalToolData));
 
 		instantiationService.invokeFunction(createRunInTerminalToolData).then(runInTerminalToolData => {
-			const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool, true);
+			const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool, RUN_IN_TERMINAL_TOOL_SANDBOX_ENABLED);
 			this._register(toolsService.registerTool(runInTerminalToolData, runInTerminalTool));
 			this._register(toolsService.executeToolSet.addTool(runInTerminalToolData));
 		});
