@@ -850,7 +850,7 @@ interface IVariableCompletionsDetails {
 	range: IChatCompletionRangeResult;
 }
 
-function escapeForCharClass(text: string): string {
+export function escapeForCharClass(text: string): string {
 	return text.replace(/[-\\^\]]/g, '\\$&');
 }
 
