@@ -49,7 +49,7 @@ suite('GetTerminalOutputTool', () => {
 	test('tool description documents opaque terminal ids', () => {
 		const idProperty = GetTerminalOutputToolData.inputSchema?.properties?.id as { description?: string; pattern?: string } | undefined;
 		assert.ok(GetTerminalOutputToolData.modelDescription.includes('exact opaque value'));
-		assert.ok(idProperty?.description?.includes('exact opaque id returned by that tool'));
+		assert.ok(/exact opaque id returned by that tool/i.test(idProperty?.description ?? ''));
 		assert.ok(idProperty?.pattern?.includes('[0-9a-fA-F]{8}'));
 	});
 
