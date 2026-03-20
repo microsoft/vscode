@@ -893,6 +893,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 	private groupSessionsByRepository(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
 		const repoMap = new Map<string, { label: string; sessions: IAgentSession[] }>();
+		const nameToKey = new Map<string, string>();
 		const pinnedSessions: IAgentSession[] = [];
 		const archivedSessions: IAgentSession[] = [];
 		const otherSessions: IAgentSession[] = [];
@@ -910,10 +911,27 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 			const repoName = getRepositoryName(session);
 			if (repoName) {
-				let group = repoMap.get(repoName);
+				const nwo = getRepositoryNwo(session);
+				let key: string;
+				if (nwo) {
+					// Use the NWO as the canonical key. Also register
+					// the display name so that name-only sessions can
+					// merge into this group later.
+					key = nwo;
+					nameToKey.set(repoName, nwo);
+				} else {
+					// No NWO available — check whether a previous
+					// NWO-identified group already claimed this name.
+					key = nameToKey.get(repoName) ?? repoName;
+					if (!nameToKey.has(repoName)) {
+						nameToKey.set(repoName, key);
+					}
+				}
+
+				let group = repoMap.get(key);
 				if (!group) {
 					group = { label: repoName, sessions: [] };
-					repoMap.set(repoName, group);
+					repoMap.set(key, group);
 				}
 				group.sessions.push(session);
 			} else {
@@ -1040,6 +1058,52 @@ export function getRepositoryName(session: IAgentSession): string | undefined {
 }
 
 /**
+ * Extracts the full "owner/repo" identifier (NWO) for an agent session
+ * from its metadata. Used as a canonical grouping key so that sessions
+ * referring to the same repository are grouped together even when their
+ * display names differ (e.g. folder name ≠ repo name).
+ */
+export function getRepositoryNwo(session: IAgentSession): string | undefined {
+	const metadata = session.metadata;
+	if (!metadata) {
+		return undefined;
+	}
+
+	// Cloud sessions: metadata.owner + metadata.name
+	const owner = metadata.owner as string | undefined;
+	const name = metadata.name as string | undefined;
+	if (owner && name) {
+		return `${owner}/${name}`;
+	}
+
+	// repositoryNwo: already "owner/repo"
+	const nwo = metadata.repositoryNwo as string | undefined;
+	if (nwo && nwo.includes('/')) {
+		return nwo;
+	}
+
+	// repository: could be "owner/repo", a URL, or git@host:owner/repo.git
+	const repository = metadata.repository as string | undefined;
+	if (repository) {
+		const parsed = parseRepositoryNwo(repository);
+		if (parsed) {
+			return parsed;
+		}
+	}
+
+	// repositoryUrl: "https://github.com/owner/repo"
+	const repositoryUrl = metadata.repositoryUrl as string | undefined;
+	if (repositoryUrl) {
+		const parsed = parseRepositoryNwo(repositoryUrl);
+		if (parsed) {
+			return parsed;
+		}
+	}
+
+	return undefined;
+}
+
+/**
  * Parses a repository name from various formats: "owner/repo", URLs,
  * and git@host:owner/repo.git style references.
  */
@@ -1078,6 +1142,62 @@ function parseRepositoryName(value: string): string | undefined {
 				repoSegment = repoSegment.slice(0, -4);
 			}
 			return repoSegment || undefined;
+		}
+	}
+
+	return undefined;
+}
+
+/**
+ * Parses the "owner/repo" (NWO) from various repository reference formats.
+ * Returns undefined for values that don't contain owner information
+ * (e.g. plain names or paths).
+ */
+function parseRepositoryNwo(value: string): string | undefined {
+	// Direct "owner/repo" style (no scheme, no git@ prefix)
+	if (value.includes('/') && !value.includes('://') && !value.startsWith('git@')) {
+		const parts = value.split('/').filter(Boolean);
+		if (parts.length >= 2) {
+			let repo = parts[parts.length - 1];
+			const owner = parts[parts.length - 2];
+			if (repo.endsWith('.git')) {
+				repo = repo.slice(0, -4);
+			}
+			return owner && repo ? `${owner}/${repo}` : undefined;
+		}
+		return undefined;
+	}
+
+	// Standard URL formats (https://..., ssh://..., etc.)
+	try {
+		const url = new URL(value);
+		const parts = url.pathname.split('/').filter(Boolean);
+		if (parts.length >= 2) {
+			const owner = parts[0];
+			let repo = parts[1];
+			if (repo.endsWith('.git')) {
+				repo = repo.slice(0, -4);
+			}
+			return owner && repo ? `${owner}/${repo}` : undefined;
+		}
+	} catch {
+		// not a standard URL
+	}
+
+	// git@host:owner/repo(.git) style URLs
+	if (value.startsWith('git@')) {
+		const colonIndex = value.indexOf(':');
+		if (colonIndex !== -1 && colonIndex < value.length - 1) {
+			const pathPart = value.substring(colonIndex + 1);
+			const parts = pathPart.split('/').filter(Boolean);
+			if (parts.length >= 2) {
+				const owner = parts[0];
+				let repo = parts[1];
+				if (repo.endsWith('.git')) {
+					repo = repo.slice(0, -4);
+				}
+				return owner && repo ? `${owner}/${repo}` : undefined;
+			}
 		}
 	}
 

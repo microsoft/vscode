@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName, AgentSessionsSorter } from '../../../browser/agentSessions/agentSessionsViewer.js';
+import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName, getRepositoryNwo, AgentSessionsSorter } from '../../../browser/agentSessions/agentSessionsViewer.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSessionSection } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { ChatSessionStatus } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
@@ -1055,6 +1055,151 @@ suite('AgentSessionsDataSource', () => {
 				badge: '$(repo) vscode',
 			});
 			assert.strictEqual(getRepositoryName(session), 'vscode');
+		});
+	});
+
+	suite('getRepositoryNwo', () => {
+
+		test('returns owner/name from cloud session metadata', () => {
+			const session = createMockSession({ id: '1', metadata: { owner: 'microsoft', name: 'vscode' } });
+			assert.strictEqual(getRepositoryNwo(session), 'microsoft/vscode');
+		});
+
+		test('returns repositoryNwo directly', () => {
+			const session = createMockSession({ id: '1', metadata: { repositoryNwo: 'microsoft/vscode' } });
+			assert.strictEqual(getRepositoryNwo(session), 'microsoft/vscode');
+		});
+
+		test('parses NWO from repository URL', () => {
+			const session = createMockSession({ id: '1', metadata: { repository: 'https://github.com/microsoft/vscode' } });
+			assert.strictEqual(getRepositoryNwo(session), 'microsoft/vscode');
+		});
+
+		test('parses NWO from repository nwo format', () => {
+			const session = createMockSession({ id: '1', metadata: { repository: 'microsoft/vscode' } });
+			assert.strictEqual(getRepositoryNwo(session), 'microsoft/vscode');
+		});
+
+		test('parses NWO from git@ SSH URL', () => {
+			const session = createMockSession({ id: '1', metadata: { repository: 'git@github.com:microsoft/vscode.git' } });
+			assert.strictEqual(getRepositoryNwo(session), 'microsoft/vscode');
+		});
+
+		test('parses NWO from repositoryUrl', () => {
+			const session = createMockSession({ id: '1', metadata: { repositoryUrl: 'https://github.com/microsoft/vscode.git' } });
+			assert.strictEqual(getRepositoryNwo(session), 'microsoft/vscode');
+		});
+
+		test('returns undefined for path-only metadata', () => {
+			const session = createMockSession({ id: '1', metadata: { repositoryPath: '/Users/user/Projects/vscode' } });
+			assert.strictEqual(getRepositoryNwo(session), undefined);
+		});
+
+		test('returns undefined for workingDirectoryPath-only metadata', () => {
+			const session = createMockSession({ id: '1', metadata: { workingDirectoryPath: '/Users/user/Projects/main' } });
+			assert.strictEqual(getRepositoryNwo(session), undefined);
+		});
+
+		test('returns undefined for badge-only sessions', () => {
+			const session = createMockSession({ id: '1', badge: '$(repo) vscode' });
+			assert.strictEqual(getRepositoryNwo(session), undefined);
+		});
+
+		test('returns undefined when no metadata', () => {
+			const session = createMockSession({ id: '1' });
+			assert.strictEqual(getRepositoryNwo(session), undefined);
+		});
+
+		test('owner+name takes priority over repositoryNwo', () => {
+			const session = createMockSession({ id: '1', metadata: { owner: 'org1', name: 'repo1', repositoryNwo: 'org2/repo2' } });
+			assert.strictEqual(getRepositoryNwo(session), 'org1/repo1');
+		});
+	});
+
+	suite('NWO-based grouping', () => {
+
+		function sortedGroups(result: IAgentSessionSection[]) {
+			return result
+				.map(s => ({ label: s.label, count: s.sessions.length }))
+				.sort((a, b) => a.label.localeCompare(b.label));
+		}
+
+		test('sessions with same NWO from different metadata formats merge into one group', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { owner: 'xpnaco', name: 'xpna' } }),
+				createMockSession({ id: '2', metadata: { repositoryNwo: 'xpnaco/xpna' } }),
+				createMockSession({ id: '3', metadata: { repository: 'https://github.com/xpnaco/xpna' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'xpna', count: 3 },
+			]);
+		});
+
+		test('name-only session merges with NWO group when name matches', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { owner: 'microsoft', name: 'vscode' } }),
+				createMockSession({ id: '2', metadata: { repositoryPath: '/Users/user/Projects/vscode' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'vscode', count: 2 },
+			]);
+		});
+
+		test('name-only session stays separate when name does not match NWO group', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { owner: 'xpnaco', name: 'xpna' } }),
+				createMockSession({ id: '2', metadata: { workingDirectoryPath: '/Users/user/Projects/main' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'main', count: 1 },
+				{ label: 'xpna', count: 1 },
+			]);
+		});
+
+		test('different repos with same short name stay separate when NWOs differ', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { owner: 'microsoft', name: 'vscode' } }),
+				createMockSession({ id: '2', metadata: { owner: 'other-org', name: 'vscode' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			// Both have the same display name but different NWOs, so they get separate groups
+			assert.strictEqual(result.length, 2);
+			assert.strictEqual(result[0].sessions.length, 1);
+			assert.strictEqual(result[1].sessions.length, 1);
+		});
+
+		test('badge-only session merges with NWO group when name matches', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { owner: 'microsoft', name: 'vscode' } }),
+				createMockSession({ id: '2', badge: '$(repo) vscode' }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'vscode', count: 2 },
+			]);
 		});
 	});
 });
