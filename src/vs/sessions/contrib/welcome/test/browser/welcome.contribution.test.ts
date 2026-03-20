@@ -55,7 +55,7 @@ suite('SessionsWelcomeContribution', () => {
 	let mockEntitlementService: MockChatEntitlementService;
 
 	setup(() => {
-		instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		mockEntitlementService = new MockChatEntitlementService();
 		instantiationService.stub(IChatEntitlementService, mockEntitlementService as unknown as IChatEntitlementService);
 
