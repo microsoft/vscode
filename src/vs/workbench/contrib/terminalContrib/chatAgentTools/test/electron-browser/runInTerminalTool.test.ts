@@ -266,42 +266,51 @@ suite('RunInTerminalTool', () => {
 			(runInTerminalTool as unknown as {
 				_handleTerminalVisibility: () => void;
 			})._handleTerminalVisibility = () => { };
-			(runInTerminalTool as unknown as {
+			const runInTerminalToolWithPrivates = runInTerminalTool as unknown as {
 				_getOutputAnalyzerMessage: (exitCode: number | undefined, exitResult: string, commandLine: string, isSandboxWrapped: boolean) => Promise<string | undefined>;
-			})._getOutputAnalyzerMessage = async () => analyzerMessage;
-			(runInTerminalTool as unknown as {
-				_commandArtifactCollector: { capture: () => Promise<void> };
-			})._commandArtifactCollector = { capture: async () => { } };
-			(runInTerminalTool as unknown as {
-				_telemetry: { logInvoke: () => void };
-			})._telemetry = { logInvoke: () => { } };
+				_commandArtifactCollector: { capture: () => Promise<void> } | undefined;
+				_telemetry: { logInvoke: () => void } | undefined;
+			};
 
-			const result = await runInTerminalTool.invoke({
-				parameters: {
-					command: 'echo hello',
-					explanation: 'Print hello',
-					goal: 'Print hello',
-					isBackground: true,
-				} as IRunInTerminalInputParams,
-				toolSpecificData: {
-					terminalCommandId: 'command-1',
-					terminalToolSessionId: 'tool-session-1',
-					commandLine: {
-						original: 'echo hello',
-						isSandboxWrapped: true,
+			const originalGetOutputAnalyzerMessage = runInTerminalToolWithPrivates._getOutputAnalyzerMessage;
+			const originalCommandArtifactCollector = runInTerminalToolWithPrivates._commandArtifactCollector;
+			const originalTelemetry = runInTerminalToolWithPrivates._telemetry;
+
+			runInTerminalToolWithPrivates._getOutputAnalyzerMessage = async () => analyzerMessage;
+			runInTerminalToolWithPrivates._commandArtifactCollector = { capture: async () => { } };
+			runInTerminalToolWithPrivates._telemetry = { logInvoke: () => { } };
+
+			try {
+				const result = await runInTerminalTool.invoke({
+					parameters: {
+						command: 'echo hello',
+						explanation: 'Print hello',
+						goal: 'Print hello',
+						isBackground: true,
+					} as IRunInTerminalInputParams,
+					toolSpecificData: {
+						terminalCommandId: 'command-1',
+						terminalToolSessionId: 'tool-session-1',
+						commandLine: {
+							original: 'echo hello',
+							isSandboxWrapped: true,
+						},
 					},
-				},
-				context: {
-					sessionResource: LocalChatSessionUri.forSession('background-output-analyzer-test'),
-				},
-			} as never, async () => 0, { report: () => { } }, CancellationToken.None);
+					context: {
+						sessionResource: LocalChatSessionUri.forSession('background-output-analyzer-test'),
+					},
+				} as never, async () => 0, { report: () => { } }, CancellationToken.None);
 
-			(instantiationService as unknown as {
-				createInstance: typeof instantiationService.createInstance;
-			}).createInstance = originalCreateInstance;
-
-			strictEqual(result.content[0].kind, 'text');
-			return (result.content[0] as { value: string }).value;
+				strictEqual(result.content[0].kind, 'text');
+				return (result.content[0] as { value: string }).value;
+			} finally {
+				(instantiationService as unknown as {
+					createInstance: typeof instantiationService.createInstance;
+				}).createInstance = originalCreateInstance;
+				runInTerminalToolWithPrivates._getOutputAnalyzerMessage = originalGetOutputAnalyzerMessage;
+				runInTerminalToolWithPrivates._commandArtifactCollector = originalCommandArtifactCollector;
+				runInTerminalToolWithPrivates._telemetry = originalTelemetry;
+			}
 		}
 
 		test('should include analyzer message for background idle output', async () => {
