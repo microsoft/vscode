@@ -1009,12 +1009,23 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 								? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 								: `Command is running in terminal with ID=${termId}`
 				);
+				const backgroundOutput = pollingResult?.modelOutputEvalResponse ?? pollingResult?.output;
+				const outputAnalyzerMessage = backgroundOutput
+					? await this._getOutputAnalyzerMessage(undefined, backgroundOutput, command, didSandboxWrapCommand)
+					: undefined;
 				if (pollingResult && pollingResult.modelOutputEvalResponse) {
-					resultText += `\n\ The command became idle with output:\n${pollingResult.modelOutputEvalResponse}`;
+					resultText += `\n\ The command became idle with output:\n`;
+					if (outputAnalyzerMessage) {
+						resultText += `${outputAnalyzerMessage}\n`;
+					}
+					resultText += pollingResult.modelOutputEvalResponse;
 				} else if (pollingResult) {
-					resultText += `\n\ The command is still running, with output:\n${pollingResult.output}`;
+					resultText += `\n\ The command is still running, with output:\n`;
+					if (outputAnalyzerMessage) {
+						resultText += `${outputAnalyzerMessage}\n`;
+					}
+					resultText += pollingResult.output;
 				}
-
 				const endCwd = await toolTerminal.instance.getCwdResource();
 				return {
 					toolMetadata: {
@@ -1209,14 +1220,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (didTimeout && timeoutValue !== undefined && timeoutValue > 0) {
 			resultText.push(`Note: Command timed out after ${timeoutValue}ms. Output collected so far is shown below and the command may still be running in terminal ID ${termId}.\n\n`);
 		}
-		let outputAnalyzerMessage: string | undefined;
-		for (const analyzer of this._outputAnalyzers) {
-			const message = await analyzer.analyze({ exitCode, exitResult: terminalResult, commandLine: command, isSandboxWrapped: didSandboxWrapCommand });
-			if (message) {
-				outputAnalyzerMessage = message;
-				break;
-			}
-		}
+		const outputAnalyzerMessage = await this._getOutputAnalyzerMessage(exitCode, terminalResult, command, didSandboxWrapCommand);
 		if (outputAnalyzerMessage) {
 			resultText.push(`${outputAnalyzerMessage}\n`);
 		}
@@ -1249,6 +1253,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				...imageContent,
 			]
 		};
+	}
+
+	private async _getOutputAnalyzerMessage(exitCode: number | undefined, exitResult: string, commandLine: string, isSandboxWrapped: boolean): Promise<string | undefined> {
+		for (const analyzer of this._outputAnalyzers) {
+			const message = await analyzer.analyze({ exitCode, exitResult, commandLine, isSandboxWrapped });
+			if (message) {
+				return message;
+			}
+		}
+
+		return undefined;
 	}
 
 	private static readonly _maxImageFileSize = 5 * 1024 * 1024;
