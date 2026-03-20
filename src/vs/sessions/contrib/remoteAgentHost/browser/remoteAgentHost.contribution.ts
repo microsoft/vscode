@@ -15,9 +15,10 @@ import { type AgentProvider, type IAgentConnection } from '../../../../platform/
 import { isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../platform/agentHost/common/state/sessionClientState.js';
 import { ROOT_STATE_URI, type IAgentInfo, type IRootState } from '../../../../platform/agentHost/common/state/sessionState.js';
-import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.js';
@@ -39,6 +40,24 @@ export function agentHostAuthority(address: string): string {
 		return address;
 	}
 	return 'b64-' + encodeBase64(VSBuffer.fromString(address), false, true);
+}
+
+/**
+ * Given a sanitized URI authority, resolves the corresponding agent host
+ * session target string by looking up the matching connection.
+ *
+ * Returns `undefined` if no connection matches the authority.
+ */
+export function getRemoteAgentHostSessionTarget(
+	connections: readonly IRemoteAgentHostConnectionInfo[],
+	authority: string,
+): AgentSessionTarget | undefined {
+	for (const conn of connections) {
+		if (agentHostAuthority(conn.address) === authority) {
+			return `remote-${agentHostAuthority(conn.address)}-copilot`;
+		}
+	}
+	return undefined;
 }
 
 /** Per-connection state bundle, disposed when a connection is removed. */

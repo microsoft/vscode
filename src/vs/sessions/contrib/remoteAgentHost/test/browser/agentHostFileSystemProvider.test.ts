@@ -25,6 +25,13 @@ suite('AgentHostFileSystemProvider - URI helpers', () => {
 		assert.strictEqual(uri.path, '/');
 	});
 
+	test('agentHostUri normalizes path without leading slash', () => {
+		const uri = agentHostUri('localhost:8081', 'home/user/project');
+		assert.strictEqual(uri.scheme, AGENT_HOST_FS_SCHEME);
+		assert.strictEqual(uri.authority, 'localhost:8081');
+		assert.strictEqual(uri.path, '/home/user/project');
+	});
+
 	test('agentHostRemotePath extracts the path component', () => {
 		const uri = URI.from({ scheme: AGENT_HOST_FS_SCHEME, authority: 'host', path: '/some/path' });
 		assert.strictEqual(agentHostRemotePath(uri), '/some/path');

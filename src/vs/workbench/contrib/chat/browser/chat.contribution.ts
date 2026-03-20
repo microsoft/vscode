@@ -734,7 +734,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process."),
 			default: false,
-			tags: ['experimental'],
+			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
 		[RemoteAgentHostsSettingId]: {
@@ -750,7 +750,7 @@ configurationRegistry.registerConfiguration({
 			},
 			description: nls.localize('chat.remoteAgentHosts', "A list of remote agent host addresses to connect to (e.g. \"localhost:3000\")."),
 			default: [],
-			tags: ['experimental'],
+			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
 		[ChatConfiguration.PlanAgentDefaultModel]: {

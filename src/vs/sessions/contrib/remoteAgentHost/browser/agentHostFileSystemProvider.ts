@@ -33,7 +33,8 @@ export const AGENT_HOST_FS_SCHEME = 'agenthost';
  * Build an agenthost URI for a given address and path.
  */
 export function agentHostUri(authority: string, path: string): URI {
-	return URI.from({ scheme: AGENT_HOST_FS_SCHEME, authority, path: path || '/' });
+	const normalizedPath = !path ? '/' : path.startsWith('/') ? path : `/${path}`;
+	return URI.from({ scheme: AGENT_HOST_FS_SCHEME, authority, path: normalizedPath });
 }
 
 /**
