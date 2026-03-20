@@ -5,6 +5,7 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
@@ -19,6 +20,8 @@ class GitHubActiveSessionRefreshContribution extends Disposable implements IWork
 
 	static readonly ID = 'sessions.contrib.githubActiveSessionRefresh';
 
+	private _lastSessionResource: URI | undefined;
+
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
@@ -28,8 +31,13 @@ class GitHubActiveSessionRefreshContribution extends Disposable implements IWork
 		this._register(autorun(reader => {
 			const session = this._sessionsManagementService.activeSession.read(reader);
 			if (!session) {
+				this._lastSessionResource = undefined;
 				return;
 			}
+			if (this._lastSessionResource?.toString() === session.resource.toString()) {
+				return;
+			}
+			this._lastSessionResource = session.resource;
 			const context = this._sessionsManagementService.getGitHubContextForSession(session.resource);
 			if (!context || context.prNumber === undefined) {
 				return;
