@@ -30,6 +30,7 @@ import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/participants/chatAgents.js';
+import { IChatDebugService } from '../../contrib/chat/common/chatDebugService.js';
 import { IChatArtifactsService } from '../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatTodoListService } from '../../contrib/chat/common/tools/chatTodoListService.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
@@ -445,6 +446,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatTodoListService private readonly _chatTodoListService: IChatTodoListService,
 		@IChatArtifactsService private readonly _chatArtifactsService: IChatArtifactsService,
+		@IChatDebugService private readonly _chatDebugService: IChatDebugService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -455,12 +457,12 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		this._proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
 
-		this._register(this._chatSessionsService.onRequestNotifyExtension(({ sessionResource, updates, waitUntil }) => {
+		this._register(this._chatSessionsService.onDidChangeSessionOptions(({ sessionResource, updates }) => {
 			warnOnUntitledSessionResource(sessionResource, this._logService);
 			const handle = this._getHandleForSessionType(sessionResource.scheme);
 			this._logService.trace(`[MainThreadChatSessions] onRequestNotifyExtension received: scheme '${sessionResource.scheme}', handle ${handle}, ${updates.length} update(s)`);
 			if (handle !== undefined) {
-				waitUntil(this.notifyOptionsChange(handle, sessionResource, updates));
+				this.notifyOptionsChange(handle, sessionResource, updates);
 			} else {
 				this._logService.warn(`[MainThreadChatSessions] Cannot notify option change for scheme '${sessionResource.scheme}': no provider registered. Registered schemes: [${Array.from(this._sessionTypeToHandle.keys()).join(', ')}]`);
 			}
@@ -549,7 +551,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	$onDidChangeChatSessionOptions(handle: number, sessionResourceComponents: UriComponents, updates: ReadonlyArray<{ optionId: string; value: string }>): void {
 		const sessionResource = URI.revive(sessionResourceComponents);
 		warnOnUntitledSessionResource(sessionResource, this._logService);
-		this._chatSessionsService.notifySessionOptionsChange(sessionResource, updates);
+		this._chatSessionsService.updateSessionOptions(sessionResource, updates);
 	}
 
 	async $onDidCommitChatSessionItem(handle: number, originalComponents: UriComponents, modifiedCompoennts: UriComponents): Promise<void> {
@@ -574,6 +576,18 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 			// Migrate artifacts from old session to new session
 			this._chatArtifactsService.migrateArtifacts(originalResource, modifiedResource);
+
+			// Eagerly invoke debug providers for Copilot CLI sessions so the real
+			// session appears in the debug panel immediately after the untitled →
+			// real swap. Without this, the untitled session is filtered out (it
+			// only has a "Load Hooks" event) and the real session has no events
+			// until someone navigates to it — which can't happen because it's
+			// not listed.
+			if (chatSessionType === 'copilotcli') {
+				// Fire-and-forget: don't block the editor swap. Errors are
+				// handled internally by invokeProviders via onUnexpectedError.
+				this._chatDebugService.invokeProviders(modifiedResource).catch(() => { /* handled internally */ });
+			}
 
 			// Find the group containing the original editor
 			const originalGroup =
