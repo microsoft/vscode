@@ -1238,23 +1238,21 @@ export class AICustomizationListWidget extends Disposable {
 			}
 
 			// Parse prompt files to separate into context vs on-demand
-			for (const item of promptFiles) {
-				// Skip agent instruction files since they're already included
-				if (agentInstructionUris.has(item.uri)) {
-					continue;
-				}
-
-				let applyTo: string | undefined;
-				let name: string | undefined;
-				let description: string | undefined;
+			const promptFilesToParse = promptFiles.filter(item => !agentInstructionUris.has(item.uri));
+			const parseResults = await Promise.all(promptFilesToParse.map(async item => {
 				try {
 					const parsed = await this.promptsService.parseNew(item.uri, CancellationToken.None);
-					applyTo = parsed.header?.applyTo;
-					name = parsed.header?.name;
-					description = parsed.header?.description;
+					return { item, parsed };
 				} catch {
 					// Parse failed — treat as on-demand
+					return { item, parsed: undefined };
 				}
+			}));
+
+			for (const { item, parsed } of parseResults) {
+				const applyTo = parsed?.header?.applyTo;
+				const name = parsed?.header?.name;
+				let description = parsed?.header?.description;
 				const friendlyName = this.getFriendlyName(name || item.name || getCleanPromptName(item.uri));
 				description = description || item.description;
 
