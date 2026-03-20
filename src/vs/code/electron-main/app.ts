@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, desktopCapturer, Details, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, Details, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -226,36 +226,37 @@ export class CodeApplication extends Disposable {
 
 		// Allow getDisplayMedia() calls from the core window (e.g. issue reporter recording).
 		// Auto-select the screen containing the requesting VS Code window.
-		session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+		// We construct a source object directly from electron.screen to avoid the slow
+		// desktopCapturer.getSources() call which enumerates DXGI adapters on Windows.
+		session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
 			try {
-				const sources = await desktopCapturer.getSources({
-					types: ['screen'],
-					thumbnailSize: { width: 0, height: 0 }, // skip thumbnails for speed
-				});
-				if (sources.length === 0) {
-					callback({});
-					return;
-				}
-
-				// Find the screen that contains the requesting window
-				let selectedSource = sources[0];
 				const frame = request.frame;
-				if (frame && sources.length > 1) {
-					const win = BrowserWindow.getAllWindows().find(w => w.webContents.mainFrame === frame);
-					if (win) {
-						const winBounds = win.getBounds();
-						const winCenterX = winBounds.x + winBounds.width / 2;
-						const winCenterY = winBounds.y + winBounds.height / 2;
-						const display = electronScreen.getDisplayNearestPoint({ x: winCenterX, y: winCenterY });
-						// Screen source IDs are formatted as "screen:<displayId>"
-						const matchingSource = sources.find(s => s.display_id === String(display.id));
-						if (matchingSource) {
-							selectedSource = matchingSource;
-						}
-					}
+				const win = frame ? BrowserWindow.getAllWindows().find(w => w.webContents.mainFrame === frame) : undefined;
+				const displays = electronScreen.getAllDisplays();
+
+				let targetDisplay = displays[0];
+				if (win) {
+					const winBounds = win.getBounds();
+					targetDisplay = electronScreen.getDisplayNearestPoint({
+						x: winBounds.x + winBounds.width / 2,
+						y: winBounds.y + winBounds.height / 2,
+					});
 				}
 
-				callback({ video: selectedSource });
+				// Find the 0-based index of this display for constructing the source ID
+				const displayIndex = displays.findIndex(d => d.id === targetDisplay.id);
+				const sourceId = `screen:${displayIndex >= 0 ? displayIndex : 0}:0`;
+
+				// Construct a minimal DesktopCapturerSource-compatible object
+				const source: Electron.DesktopCapturerSource = {
+					id: sourceId,
+					name: `Screen ${displayIndex + 1}`,
+					display_id: String(targetDisplay.id),
+					thumbnail: undefined!,
+					appIcon: undefined!,
+				};
+
+				callback({ video: source });
 			} catch {
 				callback({});
 			}
