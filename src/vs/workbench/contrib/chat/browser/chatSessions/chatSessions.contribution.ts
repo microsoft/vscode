@@ -1213,8 +1213,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public sessionSupportsFork(sessionResource: URI): boolean {
-		const resolved = this._resolveResource(sessionResource);
-		const session = this._sessions.get(resolved);
+		const session = this._sessions.get(sessionResource)
+			// Try to resolve in case an alias was used
+			?? this._sessions.get(this._resolveResource(sessionResource));
 		return !!session?.session.forkSession;
 	}
 
