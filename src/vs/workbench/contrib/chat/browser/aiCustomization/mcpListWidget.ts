@@ -17,6 +17,8 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServerInstallState, IMcpService, IMcpServer } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { isContributionDisabled } from '../../common/enablement.js';
 import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -39,14 +41,18 @@ import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWo
 import { ICustomizationHarnessService, CustomizationHarness } from '../../common/customizationHarnessService.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
-import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 
 const $ = DOM.$;
 
 const MCP_ITEM_HEIGHT = 36;
 
 const PLUGIN_COLLECTION_PREFIX = 'plugin.';
+
+const COPILOT_EXTENSION_IDS = ['github.copilot', 'github.copilot-chat'];
+
+function isCopilotExtension(id: ExtensionIdentifier): boolean {
+	return COPILOT_EXTENSION_IDS.some(copilotId => ExtensionIdentifier.equals(id, copilotId));
+}
 
 function getPluginUriFromCollectionId(collectionId: string | undefined): string | undefined {
 	return collectionId?.startsWith(PLUGIN_COLLECTION_PREFIX) ? collectionId.slice(PLUGIN_COLLECTION_PREFIX.length) : undefined;
@@ -737,15 +743,18 @@ export class McpListWidget extends Disposable {
 			isFirst = false;
 		}
 
-		// Add plugin-provided, extension-provided, and built-in servers
+		// Add plugin-provided, extension-provided, and built-in servers.
+		// Servers from the Copilot extension (github.copilot / github.copilot-chat)
+		// are treated as built-in; servers from other extensions go under "Extensions".
 		const collectionSources = new Map(this.mcpRegistry.collections.get().map(c => [c.id, c.source]));
 		const pluginServers: IMcpServer[] = [];
 		const extensionServers: IMcpServer[] = [];
 		const otherBuiltinServers: IMcpServer[] = [];
 		for (const server of builtinServers) {
+			const source = collectionSources.get(server.collection.id);
 			if (server.collection.id.startsWith(PLUGIN_COLLECTION_PREFIX)) {
 				pluginServers.push(server);
-			} else if (collectionSources.get(server.collection.id) instanceof ExtensionIdentifier) {
+			} else if (source instanceof ExtensionIdentifier && !isCopilotExtension(source)) {
 				extensionServers.push(server);
 			} else {
 				otherBuiltinServers.push(server);
