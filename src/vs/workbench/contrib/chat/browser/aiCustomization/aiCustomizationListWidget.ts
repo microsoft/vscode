@@ -332,10 +332,13 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		templateData.typeIcon.className = 'item-type-icon';
 		templateData.typeIcon.classList.add(...ThemeIcon.asClassNameArray(element.typeIcon ?? promptTypeToIcon(element.promptType)));
 
-		// Hover tooltip: name + full path + plugin source
+		// Hover tooltip: name + full path + badge context + plugin source
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => {
 			const uriLabel = this.labelService.getUriLabel(element.uri, { relative: false });
 			let content = `${element.name}\n${uriLabel}`;
+			if (element.badgeTooltip) {
+				content += `\n${element.badgeTooltip}`;
+			}
 			const plugin = element.pluginUri && this.agentPluginService.plugins.get().find(p => isEqual(p.uri, element.pluginUri));
 			if (plugin) {
 				content += `\n${localize('fromPlugin', "Plugin: {0}", plugin.label)}`;
