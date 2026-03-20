@@ -509,7 +509,7 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			description: nls.localize('chat.artifacts.enabled', "Controls whether the artifacts view is available in chat."),
 			type: 'boolean',
-			tags: ['preview']
+			tags: ['experimental']
 		},
 		'chat.undoRequests.restoreInput': {
 			default: true,
