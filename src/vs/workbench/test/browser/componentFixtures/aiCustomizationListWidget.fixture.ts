@@ -41,7 +41,7 @@ interface IFixtureInstructionFile {
 	readonly promptPath: IPromptPath;
 	readonly name?: string;
 	readonly description?: string;
-	readonly applyTo?: string; /** If set, this instruction file has an applyTo pattern (on-demand). */
+	readonly applyTo?: string; /** If set, this instruction file has an applyTo pattern that controls automatic inclusion when the context matches (or `**` for always). */
 }
 
 function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], agentInstructionFiles: IResolvedAgentFile[] = []): IPromptsService {
