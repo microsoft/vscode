@@ -11,9 +11,11 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
@@ -24,16 +26,17 @@ import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
 import { ChatDebugEditorInput } from '../chatDebug/chatDebugEditorInput.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IChatDebugEditorOptions } from '../chatDebug/chatDebugTypes.js';
+import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 
 /**
- * Registers the Open Agent Debug Panel and Show Agent Logs actions.
+ * Registers the Open Agent Debug Logs and Show Agent Debug Logs actions.
  */
 export function registerChatOpenAgentDebugPanelAction() {
 	registerAction2(class OpenAgentDebugPanelAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.openAgentDebugPanel',
-				title: localize2('chat.openAgentDebugPanel.label', "Open Agent Debug Panel"),
+				title: localize2('chat.openAgentDebugPanel.label', "Open Agent Debug Logs"),
 				f1: true,
 				category: Categories.Developer,
 				precondition: ChatContextKeys.enabled,
@@ -56,10 +59,10 @@ export function registerChatOpenAgentDebugPanelAction() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.openAgentDebugPanelForSession',
-				title: localize2('chat.openAgentDebugPanelForSession.label', "Show Agent Logs"),
+				title: localize2('chat.openAgentDebugPanelForSession.label', "Show Agent Debug Logs"),
 				f1: false,
 				category: CHAT_CATEGORY,
-				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatSessionHasDebugData),
+				precondition: ChatContextKeys.enabled,
 				menu: [{
 					id: CHAT_CONFIG_MENU_ID,
 					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
@@ -126,6 +129,8 @@ export function registerChatOpenAgentDebugPanelAction() {
 			const fileDialogService = accessor.get(IFileDialogService);
 			const fileService = accessor.get(IFileService);
 			const notificationService = accessor.get(INotificationService);
+			const openerService = accessor.get(IOpenerService);
+			const telemetryService = accessor.get(ITelemetryService);
 
 			const sessionResource = chatDebugService.activeSessionResource;
 			if (!sessionResource) {
@@ -133,7 +138,11 @@ export function registerChatOpenAgentDebugPanelAction() {
 				return;
 			}
 
-			const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultDebugLogFileName);
+			const localSessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
+			const rawIdentifier = localSessionId ?? (sessionResource.path.replace(/^\//, '') || sessionResource.authority);
+			const sessionIdentifier = rawIdentifier?.replace(/[/\\:*?"<>|.]+/g, '_').replace(/^_+|_+$/g, '');
+			const exportFileName = sessionIdentifier ? `agent-debug-log-${sessionIdentifier}.json` : defaultDebugLogFileName;
+			const defaultUri = joinPath(await fileDialogService.defaultFilePath(), exportFileName);
 			const outputPath = await fileDialogService.showSaveDialog({ defaultUri, filters: debugLogFilters });
 			if (!outputPath) {
 				return;
@@ -146,6 +155,19 @@ export function registerChatOpenAgentDebugPanelAction() {
 			}
 
 			await fileService.writeFile(outputPath, VSBuffer.wrap(data));
+
+			telemetryService.publicLog2<ChatDebugExportEvent, ChatDebugExportClassification>('chatDebugLogExported', {
+				fileSizeBytes: data.byteLength,
+			});
+
+			notificationService.prompt(
+				Severity.Info,
+				localize('chatDebugLog.exportSuccess', "Agent debug log exported successfully."),
+				[{
+					label: localize('chatDebugLog.openExportedFile', "Open File"),
+					run: () => openerService.open(outputPath)
+				}]
+			);
 		}
 	});
 
@@ -169,10 +191,12 @@ export function registerChatOpenAgentDebugPanelAction() {
 
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const chatDebugService = accessor.get(IChatDebugService);
+			const dialogService = accessor.get(IDialogService);
 			const editorService = accessor.get(IEditorService);
 			const fileDialogService = accessor.get(IFileDialogService);
 			const fileService = accessor.get(IFileService);
 			const notificationService = accessor.get(INotificationService);
+			const telemetryService = accessor.get(ITelemetryService);
 
 			const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultDebugLogFileName);
 			const result = await fileDialogService.showOpenDialog({
@@ -187,19 +211,59 @@ export function registerChatOpenAgentDebugPanelAction() {
 			const maxImportSize = 50 * 1024 * 1024; // 50 MB
 			const stat = await fileService.stat(result[0]);
 			if (stat.size !== undefined && stat.size > maxImportSize) {
-				notificationService.notify({ severity: Severity.Warning, message: localize('chatDebugLog.fileTooLarge', "The selected file exceeds the 50 MB size limit for log imports.") });
+				telemetryService.publicLog2<ChatDebugImportEvent, ChatDebugImportClassification>('chatDebugLogImported', {
+					fileSizeBytes: stat.size,
+					result: 'fileTooLarge',
+				});
+				await dialogService.warn(
+					localize('chatDebugLog.fileTooLargeTitle', "File Too Large"),
+					localize('chatDebugLog.fileTooLargeDetail', "The selected file ({0} MB) exceeds the 50 MB size limit for debug log imports.", (stat.size / (1024 * 1024)).toFixed(1))
+				);
 				return;
 			}
 
 			const content = await fileService.readFile(result[0]);
 			const sessionUri = await chatDebugService.importLog(content.value.buffer);
 			if (!sessionUri) {
+				telemetryService.publicLog2<ChatDebugImportEvent, ChatDebugImportClassification>('chatDebugLogImported', {
+					fileSizeBytes: content.value.byteLength,
+					result: 'providerFailed',
+				});
 				notificationService.notify({ severity: Severity.Warning, message: localize('chatDebugLog.importFailed', "Import is not supported by the current provider.") });
 				return;
 			}
+
+			telemetryService.publicLog2<ChatDebugImportEvent, ChatDebugImportClassification>('chatDebugLogImported', {
+				fileSizeBytes: content.value.byteLength,
+				result: 'success',
+			});
 
 			const options: IChatDebugEditorOptions = { pinned: true, sessionResource: sessionUri, viewHint: 'overview' };
 			await editorService.openEditor(ChatDebugEditorInput.instance, options);
 		}
 	});
 }
+
+// Telemetry types
+
+type ChatDebugExportEvent = {
+	fileSizeBytes: number;
+};
+
+type ChatDebugExportClassification = {
+	fileSizeBytes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Size of the exported chat debug log file in bytes.' };
+	owner: 'vijayu';
+	comment: 'Tracks usage of the Agent Debug Logs export feature.';
+};
+
+type ChatDebugImportEvent = {
+	fileSizeBytes: number;
+	result: 'success' | 'fileTooLarge' | 'providerFailed';
+};
+
+type ChatDebugImportClassification = {
+	fileSizeBytes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Size of the imported chat debug log file in bytes.' };
+	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Outcome of the chat debug file import: success, fileTooLarge, or providerFailed.' };
+	owner: 'vijayu';
+	comment: 'Tracks usage of the Agent Debug Logs import feature and failure modes.';
+};

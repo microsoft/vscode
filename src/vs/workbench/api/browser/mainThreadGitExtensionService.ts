@@ -165,6 +165,16 @@ export class MainThreadGitExtensionService extends Disposable implements MainThr
 		return result.map(toGitDiffChange);
 	}
 
+	async diffBetweenWithStats2(root: URI, ref: string, path?: string): Promise<GitDiffChange[]> {
+		const handle = this._repositoryHandles.get(root);
+		if (handle === undefined) {
+			return [];
+		}
+
+		const result = await this._proxy.$diffBetweenWithStats2(handle, ref, path);
+		return result.map(toGitDiffChange);
+	}
+
 	async $onDidChangeRepository(handle: number): Promise<void> {
 		const repository = this._repositories.get(handle);
 		if (!repository) {

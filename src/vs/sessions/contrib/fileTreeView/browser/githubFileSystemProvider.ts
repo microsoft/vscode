@@ -12,7 +12,7 @@ import { IAuthenticationService } from '../../../../workbench/services/authentic
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 
-export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionWorkspace.js';
 
 /**
  * Derives a display name from a github-remote-file URI.
@@ -189,6 +189,7 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 				'Accept': 'application/vnd.github.v3+json',
 				'User-Agent': 'VSCode-SessionRepoFS',
 			},
+			callSite: 'githubFileSystemProvider.fetchTree'
 		}, CancellationToken.None);
 
 		// Cache 404s so we don't keep re-fetching missing trees
@@ -299,6 +300,7 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 				'Accept': 'application/vnd.github.v3+json',
 				'User-Agent': 'VSCode-SessionRepoFS',
 			},
+			callSite: 'githubFileSystemProvider.readFile'
 		}, CancellationToken.None);
 
 		const data = await asJson<{ content: string; encoding: string }>(response);

@@ -21,7 +21,9 @@ suite('ChatDebugServiceImpl', () => {
 	const sessionA = LocalChatSessionUri.forSession('a');
 	const sessionB = LocalChatSessionUri.forSession('b');
 	const sessionGeneric = URI.parse('vscode-chat-session://local/session');
-	const nonLocalSession = URI.parse('vscode-chat-session://remote-provider/session-1');
+	const nonLocalSession = URI.parse('some-other-scheme://authority/session-1');
+	const copilotCliSession = URI.parse('copilotcli:/test-session-id');
+	const claudeCodeSession = URI.parse('claude-code:/test-session-id');
 
 	setup(() => {
 		service = disposables.add(new ChatDebugServiceImpl());
@@ -148,7 +150,7 @@ suite('ChatDebugServiceImpl', () => {
 			assert.strictEqual(event.parentEventId, 'parent-1');
 		});
 
-		test('should not log events for non-local sessions', () => {
+		test('should not log events for ineligible session schemes', () => {
 			const firedEvents: IChatDebugEvent[] = [];
 			disposables.add(service.onDidAddEvent(e => firedEvents.push(e)));
 
@@ -156,6 +158,26 @@ suite('ChatDebugServiceImpl', () => {
 
 			assert.strictEqual(firedEvents.length, 0);
 			assert.strictEqual(service.getEvents(nonLocalSession).length, 0);
+		});
+
+		test('should log events for copilotcli sessions', () => {
+			const firedEvents: IChatDebugEvent[] = [];
+			disposables.add(service.onDidAddEvent(e => firedEvents.push(e)));
+
+			service.log(copilotCliSession, 'cli-event', 'details');
+
+			assert.strictEqual(firedEvents.length, 1);
+			assert.strictEqual(service.getEvents(copilotCliSession).length, 1);
+		});
+
+		test('should log events for claude-code sessions', () => {
+			const firedEvents: IChatDebugEvent[] = [];
+			disposables.add(service.onDidAddEvent(e => firedEvents.push(e)));
+
+			service.log(claudeCodeSession, 'claude-event', 'details');
+
+			assert.strictEqual(firedEvents.length, 1);
+			assert.strictEqual(service.getEvents(claudeCodeSession).length, 1);
 		});
 	});
 
@@ -435,7 +457,7 @@ suite('ChatDebugServiceImpl', () => {
 			assert.strictEqual(tokenA.isCancellationRequested, false, 'session-a token should not be cancelled');
 		});
 
-		test('should not invoke providers for non-local sessions', async () => {
+		test('should not invoke providers for ineligible session schemes', async () => {
 			let providerCalled = false;
 
 			const provider: IChatDebugLogProvider = {
@@ -456,6 +478,52 @@ suite('ChatDebugServiceImpl', () => {
 
 			assert.strictEqual(providerCalled, false);
 			assert.strictEqual(service.getEvents(nonLocalSession).length, 0);
+		});
+
+		test('should invoke providers for copilotcli sessions', async () => {
+			let providerCalled = false;
+
+			const provider: IChatDebugLogProvider = {
+				provideChatDebugLog: async () => {
+					providerCalled = true;
+					return [{
+						kind: 'generic',
+						sessionResource: copilotCliSession,
+						created: new Date(),
+						name: 'cli-provider-event',
+						level: ChatDebugLogLevel.Info,
+					}];
+				},
+			};
+
+			disposables.add(service.registerProvider(provider));
+			await service.invokeProviders(copilotCliSession);
+
+			assert.strictEqual(providerCalled, true);
+			assert.ok(service.getEvents(copilotCliSession).length > 0);
+		});
+
+		test('should invoke providers for claude-code sessions', async () => {
+			let providerCalled = false;
+
+			const provider: IChatDebugLogProvider = {
+				provideChatDebugLog: async () => {
+					providerCalled = true;
+					return [{
+						kind: 'generic',
+						sessionResource: claudeCodeSession,
+						created: new Date(),
+						name: 'claude-provider-event',
+						level: ChatDebugLogLevel.Info,
+					}];
+				},
+			};
+
+			disposables.add(service.registerProvider(provider));
+			await service.invokeProviders(claudeCodeSession);
+
+			assert.strictEqual(providerCalled, true);
+			assert.ok(service.getEvents(claudeCodeSession).length > 0);
 		});
 
 		test('newly registered provider should be invoked for active sessions', async () => {

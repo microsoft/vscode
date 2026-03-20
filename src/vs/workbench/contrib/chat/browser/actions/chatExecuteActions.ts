@@ -24,7 +24,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { getModeNameForTelemetry, IChatMode, IChatModeService } from '../../common/chatModes.js';
+import { getModeNameForTelemetry, buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/requestParser/chatParserTypes.js';
 import { ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
@@ -608,6 +608,7 @@ export class OpenDelegationPickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
+						ChatContextKeys.chatSessionSupportsDelegation,
 						ChatContextKeys.chatSessionIsEmpty.negate()
 					),
 					group: 'navigation',
@@ -1021,6 +1022,163 @@ export class CancelEdit extends Action2 {
 	}
 }
 
+// --- Handoff Discovery & Execution Commands ---
+
+export const GetHandoffsActionId = 'workbench.action.chat.getHandoffs';
+
+interface IGetHandoffsArgs {
+	/**
+	 * Name of the custom agent (defined in an `.agent.md` file) whose handoffs
+	 * you want to retrieve. If omitted, all
+	 * handoffs from all agents and built-in modes are returned.
+	 */
+	sourceCustomAgent?: string;
+}
+
+/**
+ * Discovers the handoffs available across custom agents (and built-in modes).
+ *
+ * **Return value**: `ICustomAgentInfo[]` — an array where each element
+ * represents an agent/mode with its `id`, `name`, `isBuiltin`,
+ * `visibility`, and `handoffs` list.
+ *
+ * @see ICustomAgentInfo
+ * @see IHandoffInfo
+ */
+class GetHandoffsAction extends Action2 {
+
+	static readonly ID = GetHandoffsActionId;
+
+	constructor() {
+		super({
+			id: GetHandoffsAction.ID,
+			title: localize2('chat.getHandoffs.label', "Get Handoffs"),
+			f1: false,
+			category: CHAT_CATEGORY,
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const modeService = accessor.get(IChatModeService);
+		const arg = args.at(0) as IGetHandoffsArgs | undefined;
+
+		const { builtin, custom } = modeService.getModes();
+		let allModes: readonly IChatMode[] = [...builtin, ...custom];
+
+		if (arg?.sourceCustomAgent) {
+			const filterName = arg.sourceCustomAgent;
+			allModes = allModes.filter(m => m.name.get().toLowerCase() === filterName.toLowerCase());
+		}
+
+		return buildCustomAgentHandoffsInfo(allModes);
+	}
+}
+
+export const ExecuteHandoffActionId = 'workbench.action.chat.executeHandoff';
+
+interface IExecuteHandoffArgs {
+	/**
+	 * The stable handoff ID (from getHandoffs). Primary match key.
+	 * IDs are unique within a given source agent; when handoffs from
+	 * multiple source agents share the same target+label, also provide
+	 * `sourceCustomAgent` to disambiguate.
+	 */
+	id?: string;
+	/** Fallback: handoff label to match. Case-insensitive. */
+	label?: string;
+	/**
+	 * The chat session URI identifying which chat widget to execute in.
+	 * If omitted, falls back to the last-focused chat widget.
+	 */
+	sessionResource?: string;
+	/**
+	 * Name of the *source* custom agent (from `.agent.md`) that declares the handoff to
+	 * execute. If omitted, falls back to the session's currently active mode/agent.
+	 */
+	sourceCustomAgent?: string;
+}
+
+interface IExecuteHandoffResult {
+	success: boolean;
+	targetMode?: string;
+	error?: string;
+}
+
+class ExecuteHandoffAction extends Action2 {
+
+	static readonly ID = ExecuteHandoffActionId;
+
+	constructor() {
+		super({
+			id: ExecuteHandoffAction.ID,
+			title: localize2('chat.executeHandoff.label', "Execute Handoff"),
+			f1: false,
+			category: CHAT_CATEGORY,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<IExecuteHandoffResult> {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const modeService = accessor.get(IChatModeService);
+
+		const arg = args.at(0) as IExecuteHandoffArgs | undefined;
+		if (!arg?.id && !arg?.label) {
+			return { success: false, error: 'Either id or label is required' };
+		}
+
+		// Resolve the target widget: explicit sessionResource, or fall back to last-focused
+		let widget: IChatWidget | undefined;
+		if (arg.sessionResource) {
+			let sessionResource;
+			try {
+				sessionResource = URI.parse(arg.sessionResource);
+			} catch {
+				return { success: false, error: `Invalid sessionResource URI: '${arg.sessionResource}'` };
+			}
+			widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
+		} else {
+			widget = chatWidgetService.lastFocusedWidget;
+		}
+		if (!widget) {
+			return { success: false, error: 'No chat widget found. Provide sessionResource or focus a chat widget.' };
+		}
+
+		// Resolve the source custom agent whose handoffs we search (case-insensitive)
+		let sourceMode: IChatMode | undefined;
+		if (arg.sourceCustomAgent) {
+			const filterName = arg.sourceCustomAgent.toLowerCase();
+			const { builtin, custom } = modeService.getModes();
+			sourceMode = [...builtin, ...custom].find(m => m.name.get().toLowerCase() === filterName || m.id.toLowerCase() === filterName);
+		}
+		if (!sourceMode) {
+			sourceMode = widget.input.currentModeObs.get();
+		}
+
+		const handoffs = sourceMode?.handOffs?.get();
+		if (!handoffs || handoffs.length === 0) {
+			return { success: false, error: `No handoffs available for mode '${sourceMode?.name.get()}'` };
+		}
+
+		// Match by id first, then by label
+		let matchedHandoff = arg.id
+			? handoffs.find(h => getHandoffId(h) === arg.id)
+			: undefined;
+
+		if (!matchedHandoff && arg.label) {
+			const labelLower = arg.label.trim().toLowerCase();
+			matchedHandoff = handoffs.find(h => h.label.trim().toLowerCase() === labelLower);
+		}
+
+		if (!matchedHandoff) {
+			const identifier = arg.id ?? arg.label;
+			return { success: false, error: `No handoff with identifier '${identifier}' found for mode '${sourceMode?.name.get()}'` };
+		}
+
+		await widget.executeHandoff(matchedHandoff);
+		return { success: true, targetMode: matchedHandoff.agent };
+	}
+}
+
 
 export function registerChatExecuteActions() {
 	registerAction2(ChatSubmitAction);
@@ -1040,4 +1198,6 @@ export function registerChatExecuteActions() {
 	registerAction2(ChatSessionPrimaryPickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);
+	registerAction2(GetHandoffsAction);
+	registerAction2(ExecuteHandoffAction);
 }

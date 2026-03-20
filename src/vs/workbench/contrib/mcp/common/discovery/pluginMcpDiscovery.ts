@@ -43,11 +43,17 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 				if (!isContributionEnabled(plugin.enablement.read(reader))) {
 					continue;
 				}
+				const servers = plugin.mcpServerDefinitions.read(reader);
+				if (servers.length === 0) {
+					continue;
+				}
+
 				seen.add(plugin.uri);
 
 				let collectionState = this._collections.get(plugin.uri);
 				if (!collectionState) {
-					collectionState = this.createCollectionState(plugin);
+					// note: all plugin servers are currently defined in the same file
+					collectionState = this.createCollectionState(plugin, servers[0].uri);
 					this._collections.set(plugin.uri, collectionState);
 				}
 			}
@@ -60,7 +66,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 		}));
 	}
 
-	private createCollectionState(plugin: IAgentPlugin) {
+	private createCollectionState(plugin: IAgentPlugin, manifestURI: URI) {
 		const collectionId = `plugin.${plugin.uri}`;
 		return this._mcpRegistry.registerCollection({
 			id: collectionId,
@@ -72,7 +78,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 			serverDefinitions: plugin.mcpServerDefinitions.map(defs =>
 				defs.map(d => this._toServerDefinition(collectionId, d)).filter(isDefined)),
 			presentation: {
-				origin: plugin.uri,
+				origin: manifestURI,
 				order: McpCollectionSortOrder.Plugin,
 			},
 		});

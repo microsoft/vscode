@@ -12,10 +12,11 @@ import { RenameProvider, WorkspaceEdit, Rejection } from '../../../../../../edit
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { LanguageFeaturesService } from '../../../../../../editor/common/services/languageFeaturesService.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IBulkEditService, IBulkEditResult } from '../../../../../../editor/browser/services/bulkEditService.js';
-import { RenameTool, RenameToolId } from '../../../browser/tools/renameTool.js';
+import { RenameTool } from '../../../browser/tools/renameTool.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IToolInvocation, IToolResult, IToolResultTextPart, ToolProgress } from '../../../common/tools/languageModelToolsService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -100,9 +101,14 @@ suite('RenameTool', () => {
 	const noopCountTokens = async () => 0;
 	const noopProgress: ToolProgress = { report() { } };
 
+	function createMockLanguageService(): ILanguageService {
+		return { getLanguageName: (id: string) => id } as unknown as ILanguageService;
+	}
+
 	function createTool(textModelService: ITextModelService, options?: { bulkEditService?: IBulkEditService }): RenameTool {
 		return new RenameTool(
 			langFeatures,
+			createMockLanguageService(),
 			textModelService,
 			createMockWorkspaceService(),
 			createMockChatService(),
@@ -124,9 +130,7 @@ suite('RenameTool', () => {
 
 		test('reports no providers when none registered', () => {
 			const tool = disposables.add(createTool(createMockTextModelService(null!)));
-			const data = tool.getToolData();
-			assert.strictEqual(data.id, RenameToolId);
-			assert.ok(data.modelDescription.includes('No languages currently have rename providers'));
+			assert.strictEqual(tool.getToolData(), undefined);
 		});
 
 		test('lists registered language ids', () => {
@@ -136,7 +140,7 @@ suite('RenameTool', () => {
 				provideRenameEdits: () => ({ edits: [] }),
 			}));
 			const data = tool.getToolData();
-			assert.ok(data.modelDescription.includes('typescript'));
+			assert.ok(data?.modelDescription.includes('typescript'));
 		});
 
 		test('reports all languages for wildcard', () => {
@@ -145,7 +149,7 @@ suite('RenameTool', () => {
 				provideRenameEdits: () => ({ edits: [] }),
 			}));
 			const data = tool.getToolData();
-			assert.ok(data.modelDescription.includes('all languages'));
+			assert.ok(data?.modelDescription.includes('all languages'));
 		});
 	});
 

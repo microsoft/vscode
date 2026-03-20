@@ -111,6 +111,30 @@ agent-browser snapshot -i
 - Code OSS uses the default user data directory. Unlike VS Code Insiders, you don't typically need `--user-data-dir` since there's usually only one Code OSS instance running.
 - If you see "Sent env to running instance. Terminating..." it means Code OSS is already running and forwarded your args to the existing instance. Quit Code OSS and relaunch with the flag, or use `--user-data-dir=/tmp/code-oss-debug` to force a new instance.
 
+## Launching the Sessions App (Agent Sessions Window)
+
+The Sessions app is a separate workbench mode launched with the `--sessions` flag. It uses a dedicated user data directory to avoid conflicts with the main Code OSS instance.
+
+```bash
+cd <repo-root>  # the root of your VS Code checkout
+./scripts/code.sh --sessions --remote-debugging-port=9224
+```
+
+Wait for the window to fully initialize, then connect:
+
+```bash
+# Wait for Sessions app to start, retry until connected
+for i in 1 2 3 4 5; do agent-browser connect 9224 2>/dev/null && break || sleep 3; done
+
+# Verify you're connected to the right target (not about:blank)
+agent-browser tab
+agent-browser snapshot -i
+```
+
+**Tips:**
+- The `--sessions` flag launches the Agent Sessions workbench instead of the standard VS Code workbench.
+- Set `VSCODE_SKIP_PRELAUNCH=1` to skip the compile step if you've already built.
+
 ## Launching VS Code Extensions for Debugging
 
 To debug a VS Code extension via agent-browser, launch VS Code Insiders with `--extensionDevelopmentPath` and `--remote-debugging-port`. Use `--user-data-dir` to avoid conflicting with an already-running instance.
