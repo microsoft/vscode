@@ -155,9 +155,9 @@ export function getAgentSessionProviderDescription(provider: AgentSessionProvide
 		case AgentSessionProviders.Growth:
 			return localize('chat.session.providerDescription.growth', "Learn about Copilot features.");
 		case AgentSessionProviders.OpenCode:
-			return 'OpenCode AI coding assistant';
+			return localize('chat.session.providerDescription.openCode', "OpenCode AI coding assistant");
 		case AgentSessionProviders.AgentHostCopilot:
-			return 'Run a Copilot SDK agent in a dedicated process.';
+			return localize('chat.session.providerDescription.agentHostCopilot', "Run a Copilot SDK agent in a dedicated process.");
 	}
 }
 

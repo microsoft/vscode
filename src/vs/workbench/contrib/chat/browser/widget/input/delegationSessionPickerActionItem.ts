@@ -76,7 +76,7 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		// Third-party providers like OpenCode always start a new session, so they are always enabled.
 		// In the sessions window, only allow delegation from background sessions (not cloud).
 		const activeProvider = this.delegate.getActiveSessionProvider();
-		if (!this._isSessionsWindow && !isFirstPartyAgentSessionProvider(type) && activeProvider !== type) {
+		if (!this._isSessionsWindow && !isFirstPartyAgentSessionProvider(type)) {
 			// Third-party target: always allowed (opens new session)
 		} else if (!this._isSessionsWindow && activeProvider !== AgentSessionProviders.Local) {
 			return false;
