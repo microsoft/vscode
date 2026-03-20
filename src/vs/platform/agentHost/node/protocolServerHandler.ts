@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
+import type { IAgentDescriptor, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import type { ICommandMap } from '../common/state/protocol/messages.js';
 import { IActionEnvelope, INotification, isSessionAction, type ISessionAction } from '../common/state/sessionActions.js';
 import { isActionKnownToVersion, MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
@@ -21,7 +22,6 @@ import {
 	type IInitializeParams,
 	type IJsonRpcResponse,
 	type IReconnectParams,
-	type ISetAuthTokenParams,
 	type IStateSnapshot,
 } from '../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI, type ISessionSummary, type URI } from '../common/state/sessionState.js';
@@ -37,8 +37,17 @@ function jsonRpcSuccess(id: number, result: unknown): IJsonRpcResponse {
 }
 
 /** Build a JSON-RPC error response suitable for transport.send(). */
-function jsonRpcError(id: number, code: number, message: string): IJsonRpcResponse {
-	return { jsonrpc: '2.0', id, error: { code, message } };
+function jsonRpcError(id: number, code: number, message: string, data?: unknown): IJsonRpcResponse {
+	return { jsonrpc: '2.0', id, error: { code, message, ...(data !== undefined ? { data } : {}) } };
+}
+
+/** Build a JSON-RPC error response from an unknown thrown value, preserving {@link ProtocolError} fields. */
+function jsonRpcErrorFrom(id: number, err: unknown): IJsonRpcResponse {
+	if (err instanceof ProtocolError) {
+		return jsonRpcError(id, err.code, err.message, err.data);
+	}
+	const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
+	return jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, message);
 }
 
 /**
@@ -119,9 +128,7 @@ export class ProtocolServerHandler extends Disposable {
 						client = result.client;
 						transport.send(jsonRpcSuccess(msg.id, result.response));
 					} catch (err) {
-						const code = err instanceof ProtocolError ? err.code : JSON_RPC_INTERNAL_ERROR;
-						const message = err instanceof Error ? err.message : String(err);
-						transport.send(jsonRpcError(msg.id, code, message));
+						transport.send(jsonRpcErrorFrom(msg.id, err));
 					}
 					return;
 				}
@@ -131,9 +138,7 @@ export class ProtocolServerHandler extends Disposable {
 						client = result.client;
 						transport.send(jsonRpcSuccess(msg.id, result.response));
 					} catch (err) {
-						const code = err instanceof ProtocolError ? err.code : JSON_RPC_INTERNAL_ERROR;
-						const message = err instanceof Error ? err.message : String(err);
-						transport.send(jsonRpcError(msg.id, code, message));
+						transport.send(jsonRpcErrorFrom(msg.id, err));
 					}
 					return;
 				}
@@ -160,15 +165,6 @@ export class ProtocolServerHandler extends Disposable {
 							this._sideEffectHandler.handleAction(action);
 						}
 						break;
-					default: {
-						// VS Code extension: setAuthToken (not part of the protocol spec)
-						const method = msg.method as string;
-						if (method === 'setAuthToken') {
-							const p = msg.params as unknown as ISetAuthTokenParams;
-							this._sideEffectHandler.handleSetAuthToken(p.token);
-						}
-						break;
-					}
 				}
 			}
 			// Responses from the client (if any) are ignored on the server side.
@@ -336,23 +332,52 @@ export class ProtocolServerHandler extends Disposable {
 
 	private _handleRequest(client: IConnectedClient, method: string, params: unknown, id: number): void {
 		const handler = this._requestHandlers.hasOwnProperty(method) ? this._requestHandlers[method as RequestMethod] : undefined;
-		if (!handler) {
-			client.transport.send(jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, `Unknown method: ${method}`));
+		if (handler) {
+			(handler as (client: IConnectedClient, params: unknown) => Promise<unknown>)(client, params).then(result => {
+				this._logService.trace(`[ProtocolServer] Request '${method}' id=${id} succeeded`);
+				client.transport.send(jsonRpcSuccess(id, result ?? null));
+			}).catch(err => {
+				this._logService.error(`[ProtocolServer] Request '${method}' failed`, err);
+				client.transport.send(jsonRpcErrorFrom(id, err));
+			});
 			return;
 		}
-		(handler as (client: IConnectedClient, params: unknown) => Promise<unknown>)(client, params).then(result => {
-			this._logService.trace(`[ProtocolServer] Request '${method}' id=${id} succeeded`);
-			client.transport.send(jsonRpcSuccess(id, result ?? null));
-		}).catch(err => {
-			this._logService.error(`[ProtocolServer] Request '${method}' failed`, err);
-			const code = err instanceof ProtocolError ? err.code : JSON_RPC_INTERNAL_ERROR;
-			const message = err instanceof ProtocolError
-				? err.message
-				: err instanceof Error && err.stack
-					? err.stack
-					: String(err?.message ?? err);
-			client.transport.send(jsonRpcError(id, code, message));
-		});
+
+		// VS Code extension methods (not in the typed protocol maps yet)
+		const extensionResult = this._handleExtensionRequest(method, params);
+		if (extensionResult) {
+			extensionResult.then(result => {
+				client.transport.send(jsonRpcSuccess(id, result ?? null));
+			}).catch(err => {
+				this._logService.error(`[ProtocolServer] Extension request '${method}' failed`, err);
+				client.transport.send(jsonRpcErrorFrom(id, err));
+			});
+			return;
+		}
+
+		client.transport.send(jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, `Unknown method: ${method}`));
+	}
+
+	/**
+	 * Handle VS Code extension methods that are not yet part of the typed
+	 * protocol. Returns a Promise if the method was recognized, undefined
+	 * otherwise.
+	 */
+	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
+		switch (method) {
+			case 'getResourceMetadata':
+				return Promise.resolve(this._sideEffectHandler.handleGetResourceMetadata());
+			case 'authenticate':
+				return this._sideEffectHandler.handleAuthenticate(params as IAuthenticateParams);
+			case 'refreshModels':
+				return this._sideEffectHandler.handleRefreshModels?.() ?? Promise.resolve(null);
+			case 'listAgents':
+				return Promise.resolve(this._sideEffectHandler.handleListAgents?.() ?? []);
+			case 'shutdown':
+				return this._sideEffectHandler.handleShutdown?.() ?? Promise.resolve(null);
+			default:
+				return undefined;
+		}
 	}
 
 	// ---- Broadcasting -------------------------------------------------------
@@ -407,8 +432,15 @@ export interface IProtocolSideEffectHandler {
 	handleCreateSession(command: ICreateSessionParams): Promise<void>;
 	handleDisposeSession(session: URI): void;
 	handleListSessions(): Promise<ISessionSummary[]>;
-	handleSetAuthToken(token: string): void;
+	handleGetResourceMetadata(): IResourceMetadata;
+	handleAuthenticate(params: IAuthenticateParams): Promise<IAuthenticateResult>;
 	handleBrowseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
 	/** Returns the server's default browsing directory, if available. */
 	getDefaultDirectory?(): URI;
+	/** Refresh models from all providers (VS Code extension method). */
+	handleRefreshModels?(): Promise<void>;
+	/** List agent descriptors (VS Code extension method). */
+	handleListAgents?(): IAgentDescriptor[];
+	/** Shut down all providers (VS Code extension method). */
+	handleShutdown?(): Promise<void>;
 }

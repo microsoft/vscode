@@ -399,7 +399,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		RunInTerminalTool._activeExecutions.delete(id);
 		return true;
 	}
-
+	/**
+	 * Controls whether this tool wires up sandbox-specific command rewriting.
+	 * This is separate from ITerminalSandboxService.isEnabled(), which reports
+	 * whether terminal sandboxing is currently enabled for the running window.
+	 */
+	protected get _enableCommandLineSandboxRewriting() {
+		return true;
+	}
 	constructor(
 		@IChatService protected readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -432,8 +439,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._register(this._instantiationService.createInstance(CommandLineCdPrefixRewriter)),
 			this._register(this._instantiationService.createInstance(CommandLinePwshChainOperatorRewriter, this._treeSitterCommandParser)),
 			this._register(this._instantiationService.createInstance(CommandLinePreventHistoryRewriter)),
-			this._register(this._instantiationService.createInstance(CommandLineSandboxRewriter)),
 		];
+		if (this._enableCommandLineSandboxRewriting) {
+			this._commandLineRewriters.push(this._register(this._instantiationService.createInstance(CommandLineSandboxRewriter)));
+		}
 		this._commandLineAnalyzers = [
 			this._register(this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineFileWriteAnalyzer: ${message}`, args))),
 			this._register(this._instantiationService.createInstance(CommandLineAutoApproveAnalyzer, this._treeSitterCommandParser, this._telemetry, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args))),
@@ -771,12 +780,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			: rawDisplayCommand;
 		const escapedDisplayCommand = escapeMarkdownSyntaxTokens(displayCommand);
 		const invocationMessage = toolSpecificData.commandLine.isSandboxWrapped
-			? new MarkdownString(args.isBackground
-				? localize('runInTerminal.invocation.sandbox.background', "$(lock) Running `{0}` in sandbox in background", escapedDisplayCommand)
-				: localize('runInTerminal.invocation.sandbox', "$(lock) Running `{0}` in sandbox", escapedDisplayCommand), { supportThemeIcons: true })
-			: new MarkdownString(args.isBackground
-				? localize('runInTerminal.invocation.background', "Running `{0}` in background", escapedDisplayCommand)
-				: localize('runInTerminal.invocation', "Running `{0}`", escapedDisplayCommand));
+			? args.isBackground
+				? new MarkdownString(localize('runInTerminal.invocation.sandbox.background', "$(lock) Running `{0}` in sandbox in background", escapedDisplayCommand), { supportThemeIcons: true })
+				: new MarkdownString(localize('runInTerminal.invocation.sandbox', "$(lock) Running `{0}` in sandbox", escapedDisplayCommand), { supportThemeIcons: true })
+			: args.isBackground
+				? new MarkdownString(localize('runInTerminal.invocation.background', "Running `{0}` in background", escapedDisplayCommand))
+				: new MarkdownString(localize('runInTerminal.invocation', "Running `{0}`", escapedDisplayCommand));
 
 		return {
 			invocationMessage,

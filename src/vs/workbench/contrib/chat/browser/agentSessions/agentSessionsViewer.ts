@@ -42,15 +42,13 @@ import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
 import { AgentSessionProviders } from './agentSessions.js';
-import { AgentSessionsGrouping } from './agentSessionsFilter.js';
+import { AgentSessionsGrouping, AgentSessionsSorting } from './agentSessionsFilter.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
 
@@ -90,7 +88,9 @@ interface IAgentSessionItemTemplate {
 export interface IAgentSessionRendererOptions {
 	readonly disableHover?: boolean;
 	getHoverPosition(): HoverPosition;
+
 	isGroupedByRepository?(): boolean;
+	isSortedByUpdated?(): boolean;
 }
 
 export class AgentSessionRenderer extends Disposable implements ICompressibleTreeRenderer<IAgentSession, FuzzyScore, IAgentSessionItemTemplate> {
@@ -416,7 +416,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			}
 
 			if (!timeLabel) {
-				const date = session.timing.created;
+				const date = this.options.isSortedByUpdated?.()
+					? session.timing.lastRequestEnded ?? session.timing.created
+					: session.timing.created;
 				const seconds = Math.round((new Date().getTime() - date) / 1000);
 				if (seconds < 60) {
 					timeLabel = localize('secondsDuration', "now");
@@ -724,6 +726,12 @@ export interface IAgentSessionsFilter {
 	readonly groupResults?: () => AgentSessionsGrouping | undefined;
 
 	/**
+	 * The field to sort sessions by.
+	 * Defaults to created date when undefined.
+	 */
+	readonly sortResults?: () => AgentSessionsSorting | undefined;
+
+	/**
 	 * A callback to notify the filter about the number of
 	 * results after filtering.
 	 */
@@ -760,7 +768,6 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	constructor(
 		private readonly filter: IAgentSessionsFilter | undefined,
 		private readonly sorter: ITreeSorter<IAgentSession>,
-		private readonly logService?: ILogService,
 	) {
 		super();
 	}
@@ -881,7 +888,8 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 	private groupSessionsByDate(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
 		const result: AgentSessionListItem[] = [];
-		const groupedSessions = groupAgentSessionsByDate(sortedSessions);
+		const sortBy = this.filter?.sortResults?.();
+		const groupedSessions = groupAgentSessionsByDate(sortedSessions, sortBy);
 
 		for (const { sessions, section, label } of groupedSessions.values()) {
 			if (sessions.length === 0) {
@@ -898,8 +906,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		const repoMap = new Map<string, { label: string; sessions: IAgentSession[] }>();
 		const pinnedSessions: IAgentSession[] = [];
 		const archivedSessions: IAgentSession[] = [];
-		const unknownKey = '\x00unknown';
-		const unknownLabel = localize('agentSessions.noRepository', "Other");
+		const otherSessions: IAgentSession[] = [];
 
 		for (const session of sortedSessions) {
 			if (session.isArchived()) {
@@ -912,19 +919,17 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 				continue;
 			}
 
-			const repoName = this.getRepositoryName(session);
-			if (!repoName) {
-				this.logService?.warn('[AgentSessions] Could not determine repository name for session, categorizing as "Other"', JSON.stringify(session));
+			const repoName = getRepositoryName(session);
+			if (repoName) {
+				let group = repoMap.get(repoName);
+				if (!group) {
+					group = { label: repoName, sessions: [] };
+					repoMap.set(repoName, group);
+				}
+				group.sessions.push(session);
+			} else {
+				otherSessions.push(session);
 			}
-			const repoId = repoName || unknownKey;
-			const repoLabel = repoName || unknownLabel;
-
-			let group = repoMap.get(repoId);
-			if (!group) {
-				group = { label: repoLabel, sessions: [] };
-				repoMap.set(repoId, group);
-			}
-			group.sessions.push(session);
 		}
 
 		const result: AgentSessionListItem[] = [];
@@ -945,6 +950,14 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			});
 		}
 
+		if (otherSessions.length > 0) {
+			result.push({
+				section: AgentSessionSection.Repository,
+				label: AgentSessionSectionLabels[AgentSessionSection.Repository],
+				sessions: otherSessions,
+			});
+		}
+
 		if (archivedSessions.length > 0) {
 			result.push({
 				section: AgentSessionSection.Archived,
@@ -954,10 +967,6 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		}
 
 		return result;
-	}
-
-	private getRepositoryName(session: IAgentSession): string | undefined {
-		return getRepositoryName(session);
 	}
 }
 
@@ -1112,12 +1121,13 @@ export const AgentSessionSectionLabels = {
 	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
 	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
 	[AgentSessionSection.More]: localize('agentSessions.moreSection', "More"),
+	[AgentSessionSection.Repository]: localize('agentSessions.noRepository', "Other"),
 };
 
 const DAY_THRESHOLD = 24 * 60 * 60 * 1000;
 const WEEK_THRESHOLD = 7 * DAY_THRESHOLD;
 
-export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
+export function groupAgentSessionsByDate(sessions: IAgentSession[], sortBy?: AgentSessionsSorting): Map<AgentSessionSection, IAgentSessionSection> {
 	const now = Date.now();
 	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;
@@ -1136,7 +1146,9 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 		} else if (session.isPinned()) {
 			pinnedSessions.push(session);
 		} else {
-			const sessionTime = session.timing.created;
+			const sessionTime = sortBy === AgentSessionsSorting.Updated
+				? session.timing.lastRequestEnded ?? session.timing.created
+				: session.timing.created;
 			if (sessionTime >= startOfToday) {
 				todaySessions.push(session);
 			} else if (sessionTime >= startOfYesterday) {
@@ -1217,6 +1229,12 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 
 export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
+	private readonly getSortBy: () => AgentSessionsSorting;
+
+	constructor(getSortBy?: () => AgentSessionsSorting) {
+		this.getSortBy = getSortBy ?? (() => AgentSessionsSorting.Created);
+	}
+
 	compare(sessionA: IAgentSession, sessionB: IAgentSession, prioritizeActiveSessions = false): number {
 
 		// Special sorting if enabled
@@ -1255,8 +1273,17 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 		}
 
 		// Sort by time
-		const timeA = prioritizeActiveSessions ? sessionA.timing.lastRequestStarted ?? sessionA.timing.created : sessionA.timing.created;
-		const timeB = prioritizeActiveSessions ? sessionB.timing.lastRequestStarted ?? sessionB.timing.created : sessionB.timing.created;
+		const sortBy = this.getSortBy();
+		const timeA = prioritizeActiveSessions
+			? sessionA.timing.lastRequestStarted ?? sessionA.timing.created
+			: sortBy === AgentSessionsSorting.Updated
+				? sessionA.timing.lastRequestEnded ?? sessionA.timing.created
+				: sessionA.timing.created;
+		const timeB = prioritizeActiveSessions
+			? sessionB.timing.lastRequestStarted ?? sessionB.timing.created
+			: sortBy === AgentSessionsSorting.Updated
+				? sessionB.timing.lastRequestEnded ?? sessionB.timing.created
+				: sessionB.timing.created;
 		return timeB - timeA;
 	}
 }
