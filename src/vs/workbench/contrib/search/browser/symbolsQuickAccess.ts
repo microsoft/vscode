@@ -211,6 +211,9 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					return TriggerAction.CLOSE_PICKER;
 				},
 				accept: async (keyMods, event) => this.openSymbol(provider, symbol, token, { keyMods, preserveFocus: event.inBackground, forcePinned: event.inBackground }),
+				attach: () => {
+					console.log('[attach]', symbol, symbolUri);
+				},
 			});
 
 		}

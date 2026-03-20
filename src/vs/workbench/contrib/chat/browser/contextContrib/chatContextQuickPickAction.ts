@@ -11,6 +11,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IPickerQuickAccessItem } from '../../../../../platform/quickinput/browser/pickerQuickAccess.js';
 import { inQuickInputContextKeyValue } from '../../../../../platform/quickinput/browser/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
@@ -55,12 +56,12 @@ class AddQuickPickItemToContextAction extends Action2 {
 
 		const quickInputService = accessor.get(IQuickInputService);
 		const picker = quickInputService.currentQuickInput as IQuickPick<IQuickPickItem> | undefined;
-		const activeItem = picker?.activeItems[0];
-		if (!activeItem) {
+		const activeItem = picker?.activeItems[0] as IPickerQuickAccessItem | undefined;
+		if (!activeItem?.attach) {
 			return;
 		}
 
-		console.log('[AddQuickPickItemToContext]', activeItem);
+		activeItem.attach();
 	}
 }
 
