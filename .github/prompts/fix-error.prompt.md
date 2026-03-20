@@ -23,16 +23,32 @@ After the fix is validated (compilation clean, tests pass):
 1. **Create a branch**: `git checkout -b <github-username>/<short-description>` (e.g., `bryanchen-d/fix-notebook-index-error`).
 2. **Commit**: Stage changed files and commit with a message like `fix: <brief description> (#<issue-number>)`.
 3. **Push**: `git push -u origin <branch-name>`.
-4. **Create a draft PR** with a description that includes:
-   - A summary of the change.
-   - `Fixes #<issue-number>` so GitHub auto-closes the issue when the PR merges.
-   - What scenarios may trigger the error.
-   - The code flow explaining why the error gets thrown and goes unhandled.
-   - Steps a user can follow to manually validate the fix.
-   - How the fix addresses the issue, with a brief note per changed file.
-5. **Monitor the PR** for Copilot review comments. Wait 1-2 minutes after each push for Copilot to leave its review, then check for new comments. Evaluate each comment:
-   - If valid, apply the fix in a new commit, push, and **resolve the comment thread** using the GitHub GraphQL API (`resolveReviewThread` mutation with the thread's node ID).
-   - If not applicable, leave a reply explaining why.
-   - After addressing comments, update the PR description if the changes affect the summary, code flow explanation, or per-file notes.
-6. **Repeat monitoring** after each push: wait 1-2 minutes, check for new Copilot comments, and address them. Continue this loop until no new comments appear.
-7. **Re-run tests** after addressing review comments to confirm nothing regressed.
+4. **Create a draft PR** with a description that includes these sections:
+   - **Summary**: A concise description of what was changed and why.
+   - **Issue link**: `Fixes #<issue-number>` so GitHub auto-closes the issue when the PR merges.
+   - **Trigger scenarios**: What user actions or system conditions cause this error to surface.
+   - **Code flow diagram**: A Mermaid swimlane/sequence diagram showing the call chain from trigger to error. Use participant labels for the key components (e.g., classes, modules, processes). Example:
+     ````
+     ```mermaid
+     sequenceDiagram
+         participant A as CallerComponent
+         participant B as MiddleLayer
+         participant C as LowLevelUtil
+         A->>B: someOperation(data)
+         B->>C: validate(data)
+         C-->>C: data is invalid
+         C->>B: throws "error message"
+         B->>A: unhandled error propagates
+     ```
+     ````
+   - **Manual validation steps**: Concrete, step-by-step instructions a reviewer can follow to reproduce the original error and verify the fix. Include specific setup requirements (e.g., file types to open, settings to change, actions to perform). If the error cannot be easily reproduced manually, explain why and describe what alternative validation was performed (e.g., unit tests, code inspection).
+   - **How the fix works**: A brief explanation of the fix approach, with a note per changed file.
+5. **Monitor the PR — BLOCKING**: You MUST NOT complete the task until the monitoring loop below is done.
+   - Wait 2 minutes after each push, then check for Copilot review comments using `gh pr view <number> --json reviews,comments` and `gh api repos/{owner}/{repo}/pulls/{number}/comments`.
+   - If there are review comments, evaluate each one:
+     - If valid, apply the fix in a new commit, push, and **resolve the comment thread** using the GitHub GraphQL API (`resolveReviewThread` mutation with the thread's node ID).
+     - If not applicable, leave a reply explaining why.
+     - After addressing comments, update the PR description if the changes affect the summary, diagram, or per-file notes.
+   - **Re-run tests** after addressing review comments to confirm nothing regressed.
+   - After each push, repeat the wait-and-check cycle. Continue until **two consecutive checks return zero new comments**.
+6. **Verify CI**: After the monitoring loop is done, check that CI checks are passing using `gh pr checks <number>`. If any required checks fail, investigate and fix. Do NOT complete the task with failing CI.
