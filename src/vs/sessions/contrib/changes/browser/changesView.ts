@@ -370,26 +370,6 @@ export class ChangesViewPane extends ViewPane {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
 			return activeSession?.providerType ?? '';
 		}));
-
-		// Inline title count (replaces badge)
-		this._register(autorun(reader => {
-			const changes = this.viewModel.activeSessionChangesObs.read(reader);
-			const fileCount = changes.length;
-
-			const nextTitle = fileCount > 0
-				? localize('changesView.titleWithCount', '{0} Changes', fileCount)
-				: localize('changes', 'Changes');
-
-			if (nextTitle === _changesContainerTitleValue) {
-				return;
-			}
-
-			_changesContainerTitleValue = nextTitle;
-			const viewContainer = this.viewDescriptorService.getViewContainerById(CHANGES_VIEW_CONTAINER_ID);
-			if (viewContainer) {
-				this.viewDescriptorService.getViewContainerModel(viewContainer).refreshContainerInfo();
-			}
-		}));
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -434,12 +414,29 @@ export class ChangesViewPane extends ViewPane {
 				this.onVisible();
 			} else {
 				this.renderDisposables.clear();
+				this.updateContainerTitle(0);
 			}
 		}));
 
 		// Trigger initial render if already visible
 		if (this.isBodyVisible()) {
 			this.onVisible();
+		}
+	}
+
+	private updateContainerTitle(fileCount: number): void {
+		const nextTitle = fileCount > 0
+			? localize('changesView.titleWithCount', '{0} Changes', fileCount)
+			: localize('changes', 'Changes');
+
+		if (nextTitle === _changesContainerTitleValue) {
+			return;
+		}
+
+		_changesContainerTitleValue = nextTitle;
+		const viewContainer = this.viewDescriptorService.getViewContainerById(CHANGES_VIEW_CONTAINER_ID);
+		if (viewContainer) {
+			this.viewDescriptorService.getViewContainerModel(viewContainer).refreshContainerInfo();
 		}
 	}
 
@@ -745,6 +742,11 @@ export class ChangesViewPane extends ViewPane {
 			dom.setVisibility(hasEntries, this.contentContainer!);
 			dom.setVisibility(hasEntries, this.actionsContainer!);
 			dom.setVisibility(!hasEntries, this.welcomeContainer!);
+		}));
+
+		// Update inline title count from the same stats the tree uses
+		this.renderDisposables.add(autorun(reader => {
+			this.updateContainerTitle(topLevelStats.read(reader).files);
 		}));
 
 		// Update summary text (line counts only)
