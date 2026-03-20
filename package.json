@@ -1,9 +1,9 @@
 {
-  "name": "code-oss-dev",
+  "name": "forge-dev",
   "version": "1.113.0",
   "distro": "a469262cd3af261072efec49f751e7f9587d41a4",
   "author": {
-    "name": "Microsoft Corporation"
+    "name": "Forge Contributors"
   },
   "license": "MIT",
   "main": "./out/main.js",
