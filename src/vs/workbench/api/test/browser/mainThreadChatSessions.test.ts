@@ -34,7 +34,7 @@ import { ExtHostChatSessions } from '../../common/extHostChatSessions.js';
 import { ExtHostCommands } from '../../common/extHostCommands.js';
 import { ExtHostLanguageModels } from '../../common/extHostLanguageModels.js';
 import * as extHostTypes from '../../common/extHostTypes.js';
-import { ChatSessionDto, ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions } from '../../common/extHost.protocol.js';
+import { ChatSessionDto, ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions, IChatSessionRequestHistoryItemDto } from '../../common/extHost.protocol.js';
 import { IExtHostAuthentication } from '../../common/extHostAuthentication.js';
 import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -201,8 +201,8 @@ suite('ObservableChatSession', function () {
 		asSinonMethodStub(proxy.$forkChatSession).resolves(forkedItem);
 
 		const request: IChatSessionRequestHistoryItem = { type: 'request', id: 'request-1', prompt: 'Previous question', participant: 'participant' };
-		const expectedRequestDto = {
-			type: 'request' as const,
+		const expectedRequestDto: IChatSessionRequestHistoryItemDto = {
+			type: 'request',
 			id: 'request-1',
 			prompt: 'Previous question',
 			participant: 'participant',
