@@ -55,7 +55,7 @@ import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
 import { MockChatService } from './mockChatService.js';
-import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { MockChatSessionsService } from '../mockChatSessionsService.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
@@ -937,7 +937,7 @@ suite('ChatService', () => {
 		assert.ok(newModel, 'New model should exist at the real resource');
 		assert.ok(newModel.contributedChatSession, 'New model should have contributedChatSession');
 		assert.deepStrictEqual(
-			newModel.contributedChatSession?.initialSessionOptions?.map(o => ({ optionId: o.optionId, value: o.value })),
+			ChatSessionOptionsMap.toStrValueArray(newModel.contributedChatSession?.initialSessionOptions),
 			[
 				{ optionId: 'model', value: 'claude-3.5-sonnet' },
 				{ optionId: 'repo', value: 'my-repo' },

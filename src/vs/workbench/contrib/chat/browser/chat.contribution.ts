@@ -315,6 +315,11 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		[ChatConfiguration.RevealNextChangeOnResolve]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.editing.revealNextChangeOnResolve', "Controls whether the editor automatically reveals the next change after keeping or undoing a chat edit."),
+			default: true,
+		},
 		'chat.tips.enabled': {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
@@ -1321,6 +1326,16 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.subagentTool.customAgents', "Whether the runSubagent tool is able to use custom agents. When enabled, the tool can take the name of a custom agent, but it must be given the exact name of the agent."),
 			default: true,
+			experiment: {
+				mode: 'auto'
+			}
+		},
+		[ChatConfiguration.SubagentsMaxDepth]: {
+			type: 'number',
+			description: nls.localize('chat.subagents.maxDepth', "Maximum nesting depth for subagents. Set to 0 to disable nested subagents. A subagent at this depth will not be able to launch further subagents."),
+			default: 0,
+			minimum: 0,
+			maximum: 20,
 			experiment: {
 				mode: 'auto'
 			}

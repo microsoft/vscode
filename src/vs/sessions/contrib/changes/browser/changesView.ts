@@ -35,7 +35,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -91,6 +91,8 @@ const enum ChangesVersionMode {
 const changesVersionModeContextKey = new RawContextKey<ChangesVersionMode>('sessions.changesVersionMode', ChangesVersionMode.AllChanges);
 const isMergeBaseBranchProtectedContextKey = new RawContextKey<boolean>('sessions.isMergeBaseBranchProtected', false);
 const hasOpenPullRequestContextKey = new RawContextKey<boolean>('sessions.hasOpenPullRequest', false);
+const hasIncomingChangesContextKey = new RawContextKey<boolean>('sessions.hasIncomingChanges', false);
+const hasOutgoingChangesContextKey = new RawContextKey<boolean>('sessions.hasOutgoingChanges', false);
 
 // --- List Item
 
@@ -224,6 +226,7 @@ class ChangesViewModel extends Disposable {
 			return;
 		}
 		this.viewModeObs.set(mode, undefined);
+		this.storageService.store('changesView.viewMode', mode, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	constructor(
@@ -643,6 +646,18 @@ export class ChangesViewPane extends ViewPane {
 
 				const metadata = this.agentSessionsService.getSession(sessionResource)?.metadata;
 				return metadata?.pullRequestUrl !== undefined;
+			}));
+
+			this.renderDisposables.add(bindContextKey(hasIncomingChangesContextKey, this.scopedContextKeyService, reader => {
+				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
+				const repositoryState = repository?.state.read(reader);
+				return (repositoryState?.HEAD?.behind ?? 0) > 0;
+			}));
+
+			this.renderDisposables.add(bindContextKey(hasOutgoingChangesContextKey, this.scopedContextKeyService, reader => {
+				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
+				const repositoryState = repository?.state.read(reader);
+				return (repositoryState?.HEAD?.ahead ?? 0) > 0;
 			}));
 
 			const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);

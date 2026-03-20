@@ -31,7 +31,12 @@
 /* ---- Auxiliary Bar widget (in titlebar-right) ---- */
 
 .agent-sessions-workbench .collapsed-auxbar-widget {
-	order: 0;
+	order: 1;
+}
+
+.agent-sessions-workbench .collapsed-auxbar-widget.active .collapsed-panel-button {
+	background: var(--vscode-toolbar-activeBackground);
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 /* ---- Buttons (match titlebar action-item sizing) ---- */
