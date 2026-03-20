@@ -15,7 +15,7 @@ export function applyCoreTools(server: McpServer, appService: ApplicationService
 
 	tools.push(server.tool(
 		'vscode_automation_restart',
-		'Restart VS Code with optional workspace or folder and extra command-line arguments',
+		'Restart Forge with optional workspace or folder and extra command-line arguments',
 		{
 			workspaceOrFolder: z.string().optional().describe('Path to a workspace or folder to open on restart'),
 			extraArgs: z.array(z.string()).optional().describe('Extra CLI arguments to pass on restart')
@@ -28,7 +28,7 @@ export function applyCoreTools(server: McpServer, appService: ApplicationService
 			return {
 				content: [{
 					type: 'text' as const,
-					text: `VS Code restarted successfully${workspaceText}${argsText}`
+					text: `Forge restarted successfully${workspaceText}${argsText}`
 				}]
 			};
 		}
@@ -36,7 +36,7 @@ export function applyCoreTools(server: McpServer, appService: ApplicationService
 
 	tools.push(server.tool(
 		'vscode_automation_stop',
-		'Stop the VS Code application',
+		'Stop the Forge application',
 		async () => {
 			const app = await appService.getOrCreateApplication();
 			await app.stopTracing(undefined, true);
@@ -44,7 +44,7 @@ export function applyCoreTools(server: McpServer, appService: ApplicationService
 			return {
 				content: [{
 					type: 'text' as const,
-					text: 'VS Code stopped successfully'
+					text: 'Forge stopped successfully'
 				}]
 			};
 		}

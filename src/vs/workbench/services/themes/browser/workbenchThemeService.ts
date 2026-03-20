@@ -265,7 +265,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 		const handle = this.notificationService.prompt(
 			Severity.Info,
-			nls.localize('newDefaultTheme', "New default themes are available for VS Code."),
+			nls.localize('newDefaultTheme', "New default themes are available for Forge."),
 			[{
 				label: nls.localize('tryNewTheme', "Try Them Out"),
 				run: () => this.commandService.executeCommand('workbench.action.tryNewDefaultThemes')

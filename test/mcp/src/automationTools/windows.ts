@@ -25,7 +25,7 @@ export function applyWindowTools(server: McpServer, appService: ApplicationServi
 
 	tools.push(server.tool(
 		'vscode_automation_list_windows',
-		'List all open VS Code windows with their index and URL',
+		'List all open Forge windows with their index and URL',
 		async () => {
 			const app = await appService.getOrCreateApplication();
 			const windowInfo = app.code.driver.getWindowsInfo();
@@ -35,7 +35,7 @@ export function applyWindowTools(server: McpServer, appService: ApplicationServi
 
 	tools.push(server.tool(
 		'vscode_automation_switch_window',
-		'Switch to a different VS Code window by index or URL pattern (e.g., "agent.html")',
+		'Switch to a different Forge window by index or URL pattern (e.g., "agent.html")',
 		{
 			indexOrUrl: z.union([z.number(), z.string()]).describe('Window index (0-based) or URL pattern to match (e.g., "agent.html", "workbench")')
 		},

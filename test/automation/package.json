@@ -1,7 +1,7 @@
 {
   "name": "vscode-automation",
   "version": "1.71.0",
-  "description": "VS Code UI automation driver",
+  "description": "Forge UI automation driver",
   "author": {
     "name": "Microsoft Corporation"
   },
