@@ -21,7 +21,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
-import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles, defaultProgressBarStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { FilterWidget } from '../../../../browser/parts/views/viewFilter.js';
 import { IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { filterDebugEventsByText } from '../../common/chatDebugEvents.js';
@@ -173,7 +173,10 @@ export class ChatDebugLogsView extends Disposable {
 		DOM.append(this.tableHeader, $('span.chat-debug-col-details', undefined, localize('chatDebug.col.details', "Details")));
 
 		// Progress bar (shown when session is in progress)
-		this.progressBar = this._register(new ProgressBar(mainColumn));
+		this.progressBar = this._register(new ProgressBar(mainColumn, {
+			...defaultProgressBarStyles,
+			ariaLabel: localize('chatDebug.progressAriaLabel', "Chat debug logs loading progress")
+		}));
 
 		// Body container
 		this.bodyContainer = DOM.append(mainColumn, $('.chat-debug-logs-body'));
