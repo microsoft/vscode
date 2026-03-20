@@ -4349,7 +4349,7 @@
     "@vscode/extension-telemetry": "^0.9.8",
     "@vscode/fs-copyfile": "2.0.0",
     "byline": "^5.0.0",
-    "file-type": "21.3.1",
+    "file-type": "21.3.2",
     "picomatch": "2.3.1",
     "vscode-uri": "^2.0.0",
     "which": "4.0.0"

@@ -94,6 +94,12 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this._state = state;
 		this._onStateChange.fire(state);
 
+		// Clear transient one-time properties from Idle state after delivering the event.
+		// This prevents new windows from seeing stale error/notAvailable messages.
+		if (state.type === StateType.Idle && (state.error || state.notAvailable)) {
+			this._state = State.Idle(state.updateType);
+		}
+
 		// Schedule 5-minute checks when in Ready state and overwrite is supported
 		if (this.supportsUpdateOverwrite) {
 			if (state.type === StateType.Ready) {

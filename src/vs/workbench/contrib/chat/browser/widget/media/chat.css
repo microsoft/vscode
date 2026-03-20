@@ -9,7 +9,8 @@
 	max-width: 950px;
 	height: 100%;
 	margin: auto;
-	position: relative; /* Enable absolute positioning for child elements */
+	position: relative;
+	/* Enable absolute positioning for child elements */
 
 	/* 11px when base font is 13px */
 	--vscode-chat-font-size-body-xs: 0.846em;
@@ -849,6 +850,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
 .interactive-input-part:has(.chat-todo-list-widget-container > .chat-todo-list-widget.has-todos) .chat-input-container,
+.interactive-input-part:has(.chat-artifacts-widget-container > .chat-artifacts-widget:not([style*="display: none"])) .chat-input-container,
 .interactive-input-part:has(.chat-input-widgets-container > .chat-status-widget:not([style*="display: none"])) .chat-input-container,
 .interactive-input-part:has(.chat-getting-started-tip-container > .chat-tip-widget) .chat-input-container {
 	/* Remove top border radius when editing session, todo list, or status widget is present */
@@ -877,10 +879,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 }
 
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container:has(.chat-todo-list-widget.has-todos) + .chat-editing-session .chat-editing-session-container {
+/* Remove top radius from widgets that follow another visible widget */
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container:has(.chat-todo-list-widget.has-todos) + .chat-artifacts-widget-container .chat-artifacts-widget,
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container:has(.chat-todo-list-widget.has-todos) + .chat-editing-session .chat-editing-session-container,
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container:has(.chat-todo-list-widget.has-todos) + .chat-artifacts-widget-container + .chat-editing-session .chat-editing-session-container,
+.interactive-session .interactive-input-part > .chat-artifacts-widget-container:has(.chat-artifacts-widget:not([style*="display: none"])) + .chat-editing-session .chat-editing-session-container {
 	border-top-left-radius: 0;
 	border-top-right-radius: 0;
 }
+
 
 .interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar {
 	padding-left: 5px;
@@ -1104,6 +1111,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: 100%;
 	position: relative;
 }
+
+
+.interactive-session .interactive-input-part > .chat-artifacts-widget-container {
+	margin-bottom: -4px;
+	width: 100%;
+	position: relative;
+}
+
 
 /* Chat Todo List Widget Container - mirrors chat-editing-session styling */
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container {
@@ -2145,6 +2160,97 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: none;
 }
 
+/* Chat artifacts widget — collapsible list of session artifacts */
+.chat-artifacts-widget {
+	padding: 4px 3px 4px 3px;
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-input-border, transparent);
+	background-color: var(--vscode-editor-background);
+	border-bottom: none;
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	overflow: hidden;
+}
+
+.chat-artifacts-widget .chat-artifacts-expand {
+	width: 100%;
+}
+
+.chat-artifacts-widget .chat-artifacts-expand .monaco-button {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	cursor: pointer;
+	justify-content: space-between;
+	width: 100%;
+	background-color: transparent;
+	border-color: transparent;
+	color: var(--vscode-foreground);
+	padding: 0;
+	min-width: unset;
+}
+
+.chat-artifacts-widget .chat-artifacts-expand .monaco-button:focus:not(:focus-visible) {
+	outline: none;
+}
+
+.chat-artifacts-widget .chat-artifacts-expand .chat-artifacts-title-section {
+	padding-left: 3px;
+	display: flex;
+	align-items: center;
+	flex: 1;
+	font-size: 12px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	line-height: 22px;
+}
+
+.chat-artifacts-widget .chat-artifacts-expand .chat-artifacts-title-section .codicon {
+	font-size: 16px;
+	line-height: 22px;
+	flex-shrink: 0;
+	margin-right: 3px;
+}
+
+.chat-artifacts-widget .chat-artifacts-list {
+	width: 100%;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+.chat-artifacts-widget .chat-artifacts-list .monaco-list .monaco-list-row {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.chat-artifacts-widget .chat-artifacts-list .monaco-list .monaco-list-row:hover {
+	background-color: var(--vscode-list-hoverBackground) !important;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0 6px;
+	height: 100%;
+	cursor: pointer;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-icon {
+	font-size: 14px;
+	display: flex;
+	align-items: center;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 13px;
+}
+
 .interactive-session .checkpoint-file-changes-summary {
 	display: flex;
 	flex-direction: column;
@@ -2462,14 +2568,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	/* shimmer animation for shimmer progress */
 	&.shimmer-progress .rendered-markdown.progress-step > p {
-		background: linear-gradient(
-			90deg,
-			var(--vscode-descriptionForeground) 0%,
-			var(--vscode-descriptionForeground) 30%,
-			var(--vscode-chat-thinkingShimmer) 50%,
-			var(--vscode-descriptionForeground) 70%,
-			var(--vscode-descriptionForeground) 100%
-		);
+		background: linear-gradient(90deg,
+				var(--vscode-descriptionForeground) 0%,
+				var(--vscode-descriptionForeground) 30%,
+				var(--vscode-chat-thinkingShimmer) 50%,
+				var(--vscode-descriptionForeground) 70%,
+				var(--vscode-descriptionForeground) 100%);
 		background-size: 400% 100%;
 		background-clip: text;
 		-webkit-background-clip: text;
@@ -2705,7 +2809,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	outline: none;
 	border: none;
 
-	.codicon.codicon-file-media, .codicon.codicon-warning {
+	.codicon.codicon-file-media,
+	.codicon.codicon-warning {
 		font-size: 12px;
 		margin-right: 2px;
 	}
@@ -2900,7 +3005,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		display: none;
 	}
 
-	.interactive-item-container .header.partially-disabled .detail.show-checkmarks {
+	.interactive-item-container.show-checkmarks .header.partially-disabled .detail {
 		margin-left: 4px;
 
 		.codicon-check {
@@ -3210,7 +3315,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	justify-content: center;
 	height: 100%;
-	margin: -1px -8px -1px 0; /* Extend to button edge, accounting for button padding */
+	margin: -1px -8px -1px 0;
+	/* Extend to button edge, accounting for button padding */
 	padding: 0 4px 0 2px;
 	gap: 4px;
 	cursor: pointer;
@@ -3295,7 +3401,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	opacity: 0;
 	transition: opacity 0.15s;
 	color: var(--vscode-descriptionForeground);
-	margin-top: -4px; /* visually center with overlaid top controls */
+	margin-top: -4px;
+	/* visually center with overlaid top controls */
 }
 
 .interactive-item-container.pending-request:hover .chat-pending-drag-handle {

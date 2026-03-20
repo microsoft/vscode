@@ -1029,7 +1029,8 @@ class LeakageMonitor {
 			console.warn(message);
 			console.warn(topStack);
 
-			const error = new ListenerLeakError(message, topStack);
+			const kind = topCount / listenerCount > 0.3 ? 'dominated' : 'popular';
+			const error = new ListenerLeakError(kind, message, topStack);
 			this._errorHandler(error);
 		}
 
@@ -1071,9 +1072,16 @@ class Stacktrace {
 
 // error that is logged when going over the configured listener threshold
 export class ListenerLeakError extends Error {
-	constructor(message: string, stack: string) {
-		super(message);
+	/**
+	 * The detailed message including listener count and most frequent stack.
+	 * Available locally for debugging but intentionally not used as the error
+	 * `message` so that all leak errors group under the same title in telemetry.
+	 */
+	readonly details: string;
+	constructor(kind: 'dominated' | 'popular', details: string, stack: string) {
+		super(`potential listener LEAK detected, ${kind}`);
 		this.name = 'ListenerLeakError';
+		this.details = details;
 		this.stack = stack;
 	}
 }
@@ -1081,9 +1089,16 @@ export class ListenerLeakError extends Error {
 // SEVERE error that is logged when having gone way over the configured listener
 // threshold so that the emitter refuses to accept more listeners
 export class ListenerRefusalError extends Error {
-	constructor(message: string, stack: string) {
-		super(message);
+	/**
+	 * The detailed message including listener count and most frequent stack.
+	 * Available locally for debugging but intentionally not used as the error
+	 * `message` so that all leak errors group under the same title in telemetry.
+	 */
+	readonly details: string;
+	constructor(kind: 'dominated' | 'popular', details: string, stack: string) {
+		super(`potential listener LEAK detected, ${kind} (REFUSED to add)`);
 		this.name = 'ListenerRefusalError';
+		this.details = details;
 		this.stack = stack;
 	}
 }
@@ -1221,7 +1236,8 @@ export class Emitter<T> {
 				console.warn(message);
 
 				const tuple = this._leakageMon.getMostFrequentStack() ?? ['UNKNOWN stack', -1];
-				const error = new ListenerRefusalError(`${message}. HINT: Stack shows most frequent listener (${tuple[1]}-times)`, tuple[0]);
+				const kind = tuple[1] / this._size > 0.3 ? 'dominated' : 'popular';
+				const error = new ListenerRefusalError(kind, `${message}. HINT: Stack shows most frequent listener (${tuple[1]}-times)`, tuple[0]);
 				const errorHandler = this._options?.onListenerError || onUnexpectedError;
 				errorHandler(error);
 

@@ -185,6 +185,10 @@ pub enum Commands {
 	/// Runs the control server on process stdin/stdout
 	#[clap(hide = true)]
 	CommandShell(CommandShellArgs),
+
+	/// Runs a local agent host server.
+	#[clap(name = "agent-host")]
+	AgentHost(AgentHostArgs),
 }
 
 #[derive(Args, Debug, Clone)]
@@ -219,6 +223,31 @@ pub struct ServeWebArgs {
 	/// Use a specific commit SHA for the client.
 	#[clap(long)]
 	pub commit_id: Option<String>,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentHostArgs {
+	/// Host to listen on, defaults to 'localhost'
+	#[clap(long)]
+	pub host: Option<String>,
+	/// Port to listen on. If 0 is passed a random free port is picked.
+	#[clap(long, default_value_t = 0)]
+	pub port: u16,
+	/// A secret that must be included with all requests.
+	#[clap(long)]
+	pub connection_token: Option<String>,
+	/// A file containing a secret that must be included with all requests.
+	#[clap(long)]
+	pub connection_token_file: Option<String>,
+	/// Run without a connection token. Only use this if the connection is secured by other means.
+	#[clap(long)]
+	pub without_connection_token: bool,
+	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
+	#[clap(long)]
+	pub accept_server_license_terms: bool,
+	/// Specifies the directory that server data is kept in.
+	#[clap(long)]
+	pub server_data_dir: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]
