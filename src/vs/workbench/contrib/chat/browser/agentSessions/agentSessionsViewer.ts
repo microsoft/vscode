@@ -1148,7 +1148,7 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[], sortBy?: Age
 			pinnedSessions.push(session);
 		} else {
 			const sessionTime = sortBy === AgentSessionsSorting.Updated
-				? session.timing.lastRequestStarted ?? session.timing.created
+				? session.timing.lastRequestEnded ?? session.timing.created
 				: session.timing.created;
 			if (sessionTime >= startOfToday) {
 				todaySessions.push(session);
@@ -1271,8 +1271,8 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
 		// Sort by time
 		const useUpdated = this.sortBy === AgentSessionsSorting.Updated || prioritizeActiveSessions;
-		const timeA = useUpdated ? sessionA.timing.lastRequestStarted ?? sessionA.timing.created : sessionA.timing.created;
-		const timeB = useUpdated ? sessionB.timing.lastRequestStarted ?? sessionB.timing.created : sessionB.timing.created;
+		const timeA = useUpdated ? sessionA.timing.lastRequestEnded ?? sessionA.timing.created : sessionA.timing.created;
+		const timeB = useUpdated ? sessionB.timing.lastRequestEnded ?? sessionB.timing.created : sessionB.timing.created;
 		return timeB - timeA;
 	}
 }

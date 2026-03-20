@@ -1070,6 +1070,7 @@ suite('AgentSessionsSorter', () => {
 		isPinned: boolean;
 		created: number;
 		lastRequestStarted: number;
+		lastRequestEnded: number;
 	}>): IAgentSession {
 		const now = Date.now();
 		return {
@@ -1081,7 +1082,7 @@ suite('AgentSessionsSorter', () => {
 			icon: Codicon.terminal,
 			timing: {
 				created: overrides.created ?? now,
-				lastRequestEnded: undefined,
+				lastRequestEnded: overrides.lastRequestEnded,
 				lastRequestStarted: overrides.lastRequestStarted,
 			},
 			changes: undefined,
@@ -1141,9 +1142,9 @@ suite('AgentSessionsSorter', () => {
 		assert.deepStrictEqual(sorted.map(s => s.label), ['Session active', 'Session archived']);
 	});
 
-	test('prioritizeActive: uses lastRequestStarted for time sorting', () => {
+	test('prioritizeActive: uses lastRequestEnded for time sorting', () => {
 		const sorter = new AgentSessionsSorter();
-		const recentlyActive = createSession({ id: 'recent-active', created: 1000, lastRequestStarted: 5000 });
+		const recentlyActive = createSession({ id: 'recent-active', created: 1000, lastRequestEnded: 5000 });
 		const recentlyCreated = createSession({ id: 'recent-created', created: 3000 });
 
 		const sorted = [recentlyCreated, recentlyActive].sort((a, b) => sorter.compare(a, b, true));
@@ -1168,30 +1169,30 @@ suite('AgentSessionsSorter', () => {
 		assert.deepStrictEqual(sorted.map(s => s.label), ['Session regular', 'Session archived-pinned']);
 	});
 
-	test('sortBy Created: sorts by creation time regardless of lastRequestStarted', () => {
+	test('sortBy Created: sorts by creation time regardless of lastRequestEnded', () => {
 		const sorter = new AgentSessionsSorter();
 		sorter.sortBy = AgentSessionsSorting.Created;
-		const olderCreated = createSession({ id: 'older', created: 1000, lastRequestStarted: 5000 });
-		const newerCreated = createSession({ id: 'newer', created: 3000, lastRequestStarted: 2000 });
+		const olderCreated = createSession({ id: 'older', created: 1000, lastRequestEnded: 5000 });
+		const newerCreated = createSession({ id: 'newer', created: 3000, lastRequestEnded: 2000 });
 
 		const sorted = [olderCreated, newerCreated].sort((a, b) => sorter.compare(a, b));
 		assert.deepStrictEqual(sorted.map(s => s.label), ['Session newer', 'Session older']);
 	});
 
-	test('sortBy Updated: sorts by lastRequestStarted', () => {
+	test('sortBy Updated: sorts by lastRequestEnded', () => {
 		const sorter = new AgentSessionsSorter();
 		sorter.sortBy = AgentSessionsSorting.Updated;
-		const recentlyUpdated = createSession({ id: 'updated', created: 1000, lastRequestStarted: 5000 });
-		const recentlyCreated = createSession({ id: 'created', created: 3000, lastRequestStarted: 2000 });
+		const recentlyUpdated = createSession({ id: 'updated', created: 1000, lastRequestEnded: 5000 });
+		const recentlyCreated = createSession({ id: 'created', created: 3000, lastRequestEnded: 2000 });
 
 		const sorted = [recentlyCreated, recentlyUpdated].sort((a, b) => sorter.compare(a, b));
 		assert.deepStrictEqual(sorted.map(s => s.label), ['Session updated', 'Session created']);
 	});
 
-	test('sortBy Updated: falls back to created when lastRequestStarted is undefined', () => {
+	test('sortBy Updated: falls back to created when lastRequestEnded is undefined', () => {
 		const sorter = new AgentSessionsSorter();
 		sorter.sortBy = AgentSessionsSorting.Updated;
-		const withRequest = createSession({ id: 'with-request', created: 1000, lastRequestStarted: 3000 });
+		const withRequest = createSession({ id: 'with-request', created: 1000, lastRequestEnded: 3000 });
 		const withoutRequest = createSession({ id: 'no-request', created: 4000 });
 
 		const sorted = [withRequest, withoutRequest].sort((a, b) => sorter.compare(a, b));
@@ -1208,7 +1209,7 @@ suite('groupAgentSessionsByDate with sortBy', () => {
 		isArchived: boolean;
 		isPinned: boolean;
 		created: number;
-		lastRequestStarted: number;
+		lastRequestEnded: number;
 	}>): IAgentSession {
 		return {
 			providerType: 'test',
@@ -1219,8 +1220,8 @@ suite('groupAgentSessionsByDate with sortBy', () => {
 			icon: Codicon.terminal,
 			timing: {
 				created: overrides.created ?? Date.now(),
-				lastRequestEnded: undefined,
-				lastRequestStarted: overrides.lastRequestStarted,
+				lastRequestEnded: overrides.lastRequestEnded,
+				lastRequestStarted: undefined,
 			},
 			changes: undefined,
 			metadata: undefined,
@@ -1238,7 +1239,7 @@ suite('groupAgentSessionsByDate with sortBy', () => {
 		const now = Date.now();
 		const tenDaysAgo = now - 10 * 24 * 60 * 60 * 1000;
 
-		const oldSession = createSession({ id: 'old', created: tenDaysAgo, lastRequestStarted: now });
+		const oldSession = createSession({ id: 'old', created: tenDaysAgo, lastRequestEnded: now });
 
 		const grouped = groupAgentSessionsByDate([oldSession]);
 		const todaySessions = grouped.get(AgentSessionSection.Today)!.sessions;
@@ -1252,7 +1253,7 @@ suite('groupAgentSessionsByDate with sortBy', () => {
 		const now = Date.now();
 		const tenDaysAgo = now - 10 * 24 * 60 * 60 * 1000;
 
-		const oldButUpdated = createSession({ id: 'old-updated', created: tenDaysAgo, lastRequestStarted: now });
+		const oldButUpdated = createSession({ id: 'old-updated', created: tenDaysAgo, lastRequestEnded: now });
 
 		const grouped = groupAgentSessionsByDate([oldButUpdated], AgentSessionsSorting.Updated);
 		const todaySessions = grouped.get(AgentSessionSection.Today)!.sessions;
@@ -1262,7 +1263,7 @@ suite('groupAgentSessionsByDate with sortBy', () => {
 		assert.deepStrictEqual(olderSessions.length, 0);
 	});
 
-	test('Updated: falls back to created when lastRequestStarted is undefined', () => {
+	test('Updated: falls back to created when lastRequestEnded is undefined', () => {
 		const now = Date.now();
 		const tenDaysAgo = now - 10 * 24 * 60 * 60 * 1000;
 
@@ -1280,8 +1281,8 @@ suite('groupAgentSessionsByDate with sortBy', () => {
 		const now = Date.now();
 		const tenDaysAgo = now - 10 * 24 * 60 * 60 * 1000;
 
-		const pinnedOld = createSession({ id: 'pinned', created: tenDaysAgo, lastRequestStarted: now, isPinned: true });
-		const archivedOld = createSession({ id: 'archived', created: tenDaysAgo, lastRequestStarted: now, isArchived: true });
+		const pinnedOld = createSession({ id: 'pinned', created: tenDaysAgo, lastRequestEnded: now, isPinned: true });
+		const archivedOld = createSession({ id: 'archived', created: tenDaysAgo, lastRequestEnded: now, isArchived: true });
 
 		const grouped = groupAgentSessionsByDate([pinnedOld, archivedOld], AgentSessionsSorting.Updated);
 		const pinnedSessions = grouped.get(AgentSessionSection.Pinned)!.sessions;
