@@ -16,7 +16,7 @@ import { ExtensionType, IExtension, isAuthenticationProviderExtension, isLanguag
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { StorageManager } from '../../../../platform/extensionManagement/common/extensionEnablementService.js';
-import { webWorkerExtHostConfig, WebWorkerExtHostConfigValue } from '../../extensions/common/extensions.js';
+import { IExtensionService, webWorkerExtHostConfig, WebWorkerExtHostConfigValue } from '../../extensions/common/extensions.js';
 import { IUserDataSyncAccountService } from '../../../../platform/userDataSync/common/userDataSyncAccount.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
@@ -75,7 +75,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService productService: IProductService
 	) {
@@ -229,7 +229,13 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			throw new Error(localize('noWorkspace', "No workspace."));
 		}
 		if (isAuthenticationProviderExtension(extension.manifest)) {
-			throw new Error(localize('cannot disable auth extension in workspace', "Cannot change enablement of {0} extension in workspace because it contributes authentication providers", extension.manifest.displayName || extension.identifier.id));
+			this.instantiationService.invokeFunction(accessor => {
+				const extensionService = accessor.get(IExtensionService);
+				const status = extensionService.getExtensionsStatus()[extension.identifier.id];
+				if (status?.activationStarted || status?.activationTimes) {
+					throw new Error(localize('cannot disable active auth extension in workspace', "Cannot change enablement of {0} extension in workspace because it contributes authentication providers and is already active", extension.manifest.displayName || extension.identifier.id));
+				}
+			});
 		}
 	}
 
