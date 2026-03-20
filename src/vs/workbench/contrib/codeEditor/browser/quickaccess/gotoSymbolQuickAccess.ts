@@ -132,16 +132,17 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 			if (symbolPick.range && !symbolPick.attach) {
 				symbolPick.attach = () => {
 					const widget = this.chatWidgetService.lastFocusedWidget;
-					if (widget) {
-						const entry: ISymbolVariableEntry = {
-							kind: 'symbol',
-							id: `${modelUri.toString()}_${symbolPick.symbolName}`,
-							name: symbolPick.symbolName ?? symbolPick.label,
-							value: { uri: modelUri, range: symbolPick.range!.decoration },
-							symbolKind: symbolPick.kind,
-						};
-						widget.attachmentModel.addContext(entry);
+					if (!widget) {
+						return;
 					}
+					const entry: ISymbolVariableEntry = {
+						kind: 'symbol',
+						id: `${modelUri.toString()}_${symbolPick.symbolName}`,
+						name: symbolPick.symbolName ?? symbolPick.label,
+						value: { uri: modelUri, range: symbolPick.range!.decoration },
+						symbolKind: symbolPick.kind,
+					};
+					widget.attachmentModel.addContext(entry);
 				};
 			}
 		}

@@ -351,6 +351,14 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			}
 		}));
 
+		// Attach the active pick item as context
+		disposables.add(picker.onDidAttach(() => {
+			const [item] = picker.activeItems;
+			if (typeof item?.attach === 'function') {
+				item.attach();
+			}
+		}));
+
 		const buttonTrigger = async (button: IQuickInputButton, item: T | IPickerQuickAccessSeparator) => {
 			if (typeof item.trigger !== 'function') {
 				return;
