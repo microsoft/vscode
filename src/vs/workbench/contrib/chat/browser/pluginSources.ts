@@ -8,7 +8,7 @@ import { CancelablePromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { dirname, joinPath } from '../../../../base/common/resources.js';
+import { dirname, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -258,7 +258,10 @@ export class GitHubPluginSource extends AbstractGitPluginSource {
 		if (gh.path) {
 			const normalizedPath = gh.path.trim().replace(/^\.?\/+|\/+$/g, '');
 			if (normalizedPath) {
-				return joinPath(repoDir, normalizedPath);
+				const target = joinPath(repoDir, normalizedPath);
+				if (isEqualOrParent(target, repoDir)) {
+					return target;
+				}
 			}
 		}
 		return repoDir;
