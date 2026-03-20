@@ -41,6 +41,7 @@ import { IAICustomizationWorkspaceService, applyStorageSourceFilter } from '../.
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
@@ -101,6 +102,10 @@ export interface IAICustomizationListItem {
 	readonly pluginUri?: URI;
 	/** When set, overrides the formatted name for display. */
 	readonly displayName?: string;
+	/** When set, shows a small inline badge next to the item name. */
+	readonly badge?: string;
+	/** Tooltip shown when hovering the badge. */
+	readonly badgeTooltip?: string;
 	/** When set, overrides the default prompt-type icon. */
 	readonly typeIcon?: ThemeIcon;
 	nameMatches?: IMatch[];
@@ -154,6 +159,7 @@ interface IAICustomizationItemTemplateData {
 	readonly actionBar: ActionBar;
 	readonly typeIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
+	readonly badge: HTMLElement;
 	readonly description: HighlightedLabel;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
@@ -296,7 +302,9 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		const leftSection = DOM.append(container, $('.item-left'));
 		const typeIcon = DOM.append(leftSection, $('.item-type-icon'));
 		const textContainer = DOM.append(leftSection, $('.item-text'));
-		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(textContainer, $('.item-name'))));
+		const nameRow = DOM.append(textContainer, $('.item-name-row'));
+		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameRow, $('.item-name'))));
+		const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
 		const description = disposables.add(new HighlightedLabel(DOM.append(textContainer, $('.item-description'))));
 
 		// Right section for actions (hover-visible)
@@ -311,6 +319,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			actionBar,
 			typeIcon,
 			nameLabel,
+			badge,
 			description,
 			disposables,
 			elementDisposables,
@@ -325,10 +334,13 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		templateData.typeIcon.className = 'item-type-icon';
 		templateData.typeIcon.classList.add(...ThemeIcon.asClassNameArray(element.typeIcon ?? promptTypeToIcon(element.promptType)));
 
-		// Hover tooltip: name + full path + plugin source
+		// Hover tooltip: name + full path + badge context + plugin source
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => {
 			const uriLabel = this.labelService.getUriLabel(element.uri, { relative: false });
 			let content = `${element.name}\n${uriLabel}`;
+			if (element.badgeTooltip) {
+				content += `\n\n${element.badgeTooltip}`;
+			}
 			const plugin = element.pluginUri && this.agentPluginService.plugins.get().find(p => isEqual(p.uri, element.pluginUri));
 			if (plugin) {
 				content += `\n${localize('fromPlugin', "Plugin: {0}", plugin.label)}`;
@@ -348,6 +360,22 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		// Name with highlights — nameMatches are pre-computed against the formatted display name
 		const displayName = element.displayName ?? formatDisplayName(element.name);
 		templateData.nameLabel.set(displayName, element.nameMatches);
+
+		// Optional inline badge (e.g. "always added", "*.ts")
+		if (element.badge) {
+			templateData.badge.textContent = element.badge;
+			templateData.badge.style.display = '';
+			if (element.badgeTooltip) {
+				templateData.elementDisposables.add(this.hoverService.setupManagedHover(
+					getDefaultHoverDelegate('mouse'),
+					templateData.badge,
+					element.badgeTooltip,
+				));
+			}
+		} else {
+			templateData.badge.textContent = '';
+			templateData.badge.style.display = 'none';
+		}
 
 		// Hooks show shell commands here, so keep the full text instead of truncating to the first sentence.
 		const secondaryText = getCustomizationSecondaryText(element.description, element.filename, element.promptType);
@@ -1336,15 +1364,20 @@ export class AICustomizationListWidget extends Disposable {
 
 				if (applyTo !== undefined) {
 					// Context instruction
-					const suffix = applyTo === '**'
-						? localize('alwaysAdded', "always added", applyTo)
-						: localize('onContext', "context matching '{0}'", applyTo);
+					const badge = applyTo === '**'
+						? localize('alwaysAdded', "always added")
+						: applyTo;
+					const badgeTooltip = applyTo === '**'
+						? localize('alwaysAddedTooltip', "This instruction is automatically included in every interaction.")
+						: localize('onContextTooltip', "This instruction is automatically included when files matching '{0}' are in context.", applyTo);
 					items.push({
 						id: item.uri.toString(),
 						uri: item.uri,
 						name: friendlyName,
 						filename: this.labelService.getUriLabel(item.uri, { relative: true }),
-						displayName: `${friendlyName} - ${suffix}`,
+						displayName: friendlyName,
+						badge,
+						badgeTooltip,
 						description: description,
 						storage: item.storage,
 						promptType,
@@ -1465,8 +1498,9 @@ export class AICustomizationListWidget extends Disposable {
 				const nameMatches = matchesContiguousSubString(query, displayName);
 				const descriptionMatches = item.description ? matchesContiguousSubString(query, item.description) : null;
 				const filenameMatches = matchesContiguousSubString(query, item.filename);
+				const badgeMatches = item.badge ? matchesContiguousSubString(query, item.badge) : null;
 
-				if (nameMatches || descriptionMatches || filenameMatches) {
+				if (nameMatches || descriptionMatches || filenameMatches || badgeMatches) {
 					matchedItems.push({
 						...item,
 						nameMatches: nameMatches || undefined,
