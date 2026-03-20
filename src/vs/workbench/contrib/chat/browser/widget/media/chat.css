@@ -850,7 +850,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
 .interactive-input-part:has(.chat-todo-list-widget-container > .chat-todo-list-widget.has-todos) .chat-input-container,
-.interactive-input-part:has(.chat-artifacts-widget-container > .chat-artifacts-widget) .chat-input-container,
+.interactive-input-part:has(.chat-artifacts-widget-container > .chat-artifacts-widget:not([style*="display: none"])) .chat-input-container,
 .interactive-input-part:has(.chat-input-widgets-container > .chat-status-widget:not([style*="display: none"])) .chat-input-container,
 .interactive-input-part:has(.chat-getting-started-tip-container > .chat-tip-widget) .chat-input-container {
 	/* Remove top border radius when editing session, todo list, or status widget is present */
@@ -879,12 +879,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 }
 
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container:has(.chat-todo-list-widget.has-todos) + .chat-editing-session .chat-editing-session-container {
-	border-top-left-radius: 0;
-	border-top-right-radius: 0;
-}
-
-.interactive-session .interactive-input-part > .chat-artifacts-widget-container + .chat-editing-session .chat-editing-session-container {
+/* Remove top radius from widgets that follow another visible widget */
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container:has(.chat-todo-list-widget.has-todos) + .chat-artifacts-widget-container .chat-artifacts-widget,
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container:has(.chat-todo-list-widget.has-todos) + .chat-editing-session .chat-editing-session-container,
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container:has(.chat-todo-list-widget.has-todos) + .chat-artifacts-widget-container + .chat-editing-session .chat-editing-session-container,
+.interactive-session .interactive-input-part > .chat-artifacts-widget-container:has(.chat-artifacts-widget:not([style*="display: none"])) + .chat-editing-session .chat-editing-session-container {
 	border-top-left-radius: 0;
 	border-top-right-radius: 0;
 }
@@ -1114,8 +1113,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 
-.interactive-session .interactive-input-part > .chat-artifacts-widget-container:empty {
-	display: none;
+.interactive-session .interactive-input-part > .chat-artifacts-widget-container {
+	margin-bottom: -4px;
+	width: 100%;
+	position: relative;
 }
 
 
@@ -2161,43 +2162,67 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* Chat artifacts widget — collapsible list of session artifacts */
 .chat-artifacts-widget {
+	padding: 4px 3px 4px 3px;
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-input-border, transparent);
+	background-color: var(--vscode-editor-background);
+	border-bottom: none;
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 	display: flex;
 	flex-direction: column;
-	border-radius: 4px;
-	border: 1px solid var(--vscode-chat-requestBorder);
+	gap: 2px;
+	overflow: hidden;
 }
 
-.chat-artifacts-widget .chat-artifacts-header {
-	padding: 3px;
+.chat-artifacts-widget .chat-artifacts-expand {
 	width: 100%;
+}
+
+.chat-artifacts-widget .chat-artifacts-expand .monaco-button {
 	display: flex;
-	box-sizing: border-box;
-}
-
-.chat-artifacts-widget .chat-artifacts-label {
+	align-items: center;
+	gap: 4px;
+	cursor: pointer;
+	justify-content: space-between;
 	width: 100%;
+	background-color: transparent;
+	border-color: transparent;
+	color: var(--vscode-foreground);
+	padding: 0;
+	min-width: unset;
 }
 
-.chat-artifacts-widget .chat-artifacts-label .monaco-button {
-	width: 100%;
-	border: none;
-	text-align: initial;
-	justify-content: initial;
-	gap: 0;
+.chat-artifacts-widget .chat-artifacts-expand .monaco-button:focus:not(:focus-visible) {
+	outline: none;
 }
 
-.chat-artifacts-widget .chat-artifacts-label .monaco-button .codicon {
+.chat-artifacts-widget .chat-artifacts-expand .chat-artifacts-title-section {
+	padding-left: 3px;
+	display: flex;
+	align-items: center;
+	flex: 1;
+	font-size: 12px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	line-height: 22px;
+}
+
+.chat-artifacts-widget .chat-artifacts-expand .chat-artifacts-title-section .codicon {
 	font-size: 16px;
+	line-height: 22px;
+	flex-shrink: 0;
+	margin-right: 3px;
 }
 
 .chat-artifacts-widget .chat-artifacts-list {
 	width: 100%;
-	padding: 0 3px 4px;
+	padding: 0;
 	box-sizing: border-box;
 }
 
 .chat-artifacts-widget .chat-artifacts-list .monaco-list .monaco-list-row {
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .chat-artifacts-widget .chat-artifacts-list .monaco-list .monaco-list-row:hover {
@@ -2224,10 +2249,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	font-size: 13px;
-}
-
-.chat-artifacts-widget.chat-artifacts-collapsed .chat-artifacts-list {
-	display: none;
 }
 
 .interactive-session .checkpoint-file-changes-summary {

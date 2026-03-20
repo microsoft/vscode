@@ -101,6 +101,8 @@ const enum ChangesVersionMode {
 const changesVersionModeContextKey = new RawContextKey<ChangesVersionMode>('sessions.changesVersionMode', ChangesVersionMode.AllChanges);
 const isMergeBaseBranchProtectedContextKey = new RawContextKey<boolean>('sessions.isMergeBaseBranchProtected', false);
 const hasOpenPullRequestContextKey = new RawContextKey<boolean>('sessions.hasOpenPullRequest', false);
+const hasIncomingChangesContextKey = new RawContextKey<boolean>('sessions.hasIncomingChanges', false);
+const hasOutgoingChangesContextKey = new RawContextKey<boolean>('sessions.hasOutgoingChanges', false);
 
 // --- List Item
 
@@ -670,6 +672,18 @@ export class ChangesViewPane extends ViewPane {
 
 				const metadata = this.agentSessionsService.getSession(sessionResource)?.metadata;
 				return metadata?.pullRequestUrl !== undefined;
+			}));
+
+			this.renderDisposables.add(bindContextKey(hasIncomingChangesContextKey, this.scopedContextKeyService, reader => {
+				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
+				const repositoryState = repository?.state.read(reader);
+				return (repositoryState?.HEAD?.behind ?? 0) > 0;
+			}));
+
+			this.renderDisposables.add(bindContextKey(hasOutgoingChangesContextKey, this.scopedContextKeyService, reader => {
+				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
+				const repositoryState = repository?.state.read(reader);
+				return (repositoryState?.HEAD?.ahead ?? 0) > 0;
 			}));
 
 			const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
