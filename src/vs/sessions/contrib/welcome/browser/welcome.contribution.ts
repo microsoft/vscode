@@ -170,11 +170,17 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 		if (this._needsChatSetup()) {
 			this.showOverlay();
 		} else {
-			this.watchForRegressions();
+			this.watchEntitlementState();
 		}
 	}
 
-	private watchForRegressions(): void {
+	/**
+	 * Watches entitlement and sentiment observables after setup is complete.
+	 * If the user's state changes such that setup is needed again (e.g. sign-out),
+	 * shows the welcome overlay after a debounce period to avoid flashing during
+	 * transient state changes at startup (e.g. stale OAuth token → 401 → refresh).
+	 */
+	private watchEntitlementState(): void {
 		let wasComplete = !this._needsChatSetup();
 		let regressionTimeout: ReturnType<typeof setTimeout> | undefined;
 		const clearRegressionTimeout = () => {
@@ -256,7 +262,7 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 				overlay.dismiss();
 				this.overlayRef.clear();
-				this.watchForRegressions();
+				this.watchEntitlementState();
 			}
 		}));
 	}
