@@ -62,7 +62,7 @@ suite('WorkspacePicker', () => {
 
 		assert.ok(picker.selectedProject);
 		assert.strictEqual(picker.selectedProject.isFolder, true);
-		assert.strictEqual(picker.selectedProject.uri.fsPath, '/home/user/project');
+		assert.strictEqual(picker.selectedProject.uri.path, '/home/user/project');
 	});
 
 	test('setSelectedProject with remote agent host URI', () => {
@@ -148,7 +148,7 @@ suite('WorkspacePicker', () => {
 		picker.removeFromRecents(URI.file('/other'));
 
 		assert.ok(picker.selectedProject);
-		assert.strictEqual(picker.selectedProject.uri.fsPath, '/selected');
+		assert.strictEqual(picker.selectedProject.uri.path, '/selected');
 	});
 
 	test('remote project persists and restores from storage', () => {

@@ -494,6 +494,7 @@ export class WorkspacePicker extends Disposable {
 
 	private _getStoredProjectLabel(project: IStoredProject): string {
 		const uri = URI.revive(project.uri);
+		// TODO@roblourens HACK
 		if (uri.scheme === AGENT_HOST_FS_SCHEME) {
 			const folderName = basename(uri) || uri.path || '/';
 			const remoteName = this._getRemoteName(uri.authority) ?? project.remoteName ?? uri.authority;
