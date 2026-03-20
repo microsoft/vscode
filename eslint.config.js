@@ -183,6 +183,18 @@ export default tseslint.config(
 			]
 		}
 	},
+	// Disallow common telemetry properties in event data
+	{
+		files: [
+			'src/**/*.ts',
+		],
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-telemetry-common-property': 'warn',
+		}
+	},
 	// Disallow 'in' operator except in type predicates
 	{
 		files: [
