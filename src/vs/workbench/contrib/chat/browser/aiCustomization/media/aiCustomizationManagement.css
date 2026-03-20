@@ -503,8 +503,6 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	line-height: 18px;
-	min-width: 0;
-	flex: 1 1 auto;
 }
 
 .ai-customization-list-item .item-description {
