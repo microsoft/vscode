@@ -220,7 +220,7 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 			session.reject(entry.modifiedURI);
 		}
 
-		if (configService.getValue<boolean>(ChatConfiguration.AutoNavigation)) {
+		if (configService.getValue<boolean>(ChatConfiguration.RevealNextChangeOnResolve)) {
 			await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true);
 		}
 	}
@@ -282,7 +282,7 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 			await ctrl.rejectNearestChange(args[0] as IModifiedFileEntryChangeHunk | undefined);
 		}
 
-		if (configService.getValue<boolean>(ChatConfiguration.AutoNavigation) && entry.changesCount.get() === 0) {
+		if (configService.getValue<boolean>(ChatConfiguration.RevealNextChangeOnResolve) && entry.changesCount.get() === 0) {
 			// no more changes, move to next file
 			await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true);
 		}

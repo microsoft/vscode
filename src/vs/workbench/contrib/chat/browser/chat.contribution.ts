@@ -315,9 +315,9 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		[ChatConfiguration.AutoNavigation]: {
+		[ChatConfiguration.RevealNextChangeOnResolve]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.editing.autoNavigation', "Controls whether the editor automatically navigates to the next change after keeping or undoing a chat edit."),
+			markdownDescription: nls.localize('chat.editing.revealNextChangeOnResolve', "Controls whether the editor automatically reveals the next change after keeping or undoing a chat edit."),
 			default: true,
 		},
 		'chat.tips.enabled': {
