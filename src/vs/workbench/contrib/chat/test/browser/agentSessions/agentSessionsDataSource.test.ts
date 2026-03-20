@@ -13,6 +13,7 @@ import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { AgentSessionsGrouping } from '../../../browser/agentSessions/agentSessionsFilter.js';
+import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 
 suite('sessionDateFromNow', () => {
 
@@ -92,7 +93,7 @@ suite('AgentSessionsDataSource', () => {
 		startTime: number;
 		endTime: number;
 		metadata: { [key: string]: unknown };
-		badge: string;
+		badge: string | IMarkdownString;
 	}> = {}): IAgentSession {
 		const now = Date.now();
 		return {
@@ -1054,6 +1055,16 @@ suite('AgentSessionsDataSource', () => {
 				metadata: { repositoryPath: '/Users/user/Projects/vscode' },
 				badge: '$(repo) vscode',
 			});
+			assert.strictEqual(getRepositoryName(session), 'vscode');
+		});
+
+		test('does not throw when badge is an IMarkdownString with undefined value', () => {
+			const session = createMockSession({ id: '1', badge: { value: undefined! } as IMarkdownString });
+			assert.strictEqual(getRepositoryName(session), undefined);
+		});
+
+		test('extracts repo name from IMarkdownString badge with valid value', () => {
+			const session = createMockSession({ id: '1', badge: { value: '$(repo) vscode' } as IMarkdownString });
 			assert.strictEqual(getRepositoryName(session), 'vscode');
 		});
 	});
