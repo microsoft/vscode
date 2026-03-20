@@ -11,9 +11,8 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
-import { IBrowserViewWorkbenchService } from '../common/browserView.js';
-import { BrowserViewCommandId, BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
+import { BrowserViewCommandId } from '../../../../platform/browserView/common/browserView.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
@@ -183,37 +182,6 @@ class FocusUrlInputAction extends Action2 {
 	}
 }
 
-class ToggleDevToolsAction extends Action2 {
-	static readonly ID = BrowserViewCommandId.ToggleDevTools;
-
-	constructor() {
-		super({
-			id: ToggleDevToolsAction.ID,
-			title: localize2('browser.toggleDevToolsAction', 'Toggle Developer Tools'),
-			category: BrowserActionCategory,
-			icon: Codicon.terminal,
-			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
-			toggled: ContextKeyExpr.equals(CONTEXT_BROWSER_DEVTOOLS_OPEN.key, true),
-			menu: {
-				id: MenuId.BrowserActionsToolbar,
-				group: 'actions',
-				order: 3,
-			},
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyCode.F12
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
-		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.toggleDevTools();
-		}
-	}
-}
-
 class OpenInExternalBrowserAction extends Action2 {
 	static readonly ID = BrowserViewCommandId.OpenExternal;
 
@@ -246,83 +214,6 @@ class OpenInExternalBrowserAction extends Action2 {
 					allowContributedOpeners: false
 				});
 			}
-		}
-	}
-}
-
-class ClearGlobalBrowserStorageAction extends Action2 {
-	static readonly ID = BrowserViewCommandId.ClearGlobalStorage;
-
-	constructor() {
-		super({
-			id: ClearGlobalBrowserStorageAction.ID,
-			title: localize2('browser.clearGlobalStorageAction', 'Clear Storage (Global)'),
-			category: BrowserActionCategory,
-			icon: Codicon.clearAll,
-			f1: true,
-			menu: {
-				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Settings,
-				order: 1,
-				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Global)
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
-		await browserViewWorkbenchService.clearGlobalStorage();
-	}
-}
-
-class ClearWorkspaceBrowserStorageAction extends Action2 {
-	static readonly ID = BrowserViewCommandId.ClearWorkspaceStorage;
-
-	constructor() {
-		super({
-			id: ClearWorkspaceBrowserStorageAction.ID,
-			title: localize2('browser.clearWorkspaceStorageAction', 'Clear Storage (Workspace)'),
-			category: BrowserActionCategory,
-			icon: Codicon.clearAll,
-			f1: true,
-			menu: {
-				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Settings,
-				order: 1,
-				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Workspace)
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
-		await browserViewWorkbenchService.clearWorkspaceStorage();
-	}
-}
-
-class ClearEphemeralBrowserStorageAction extends Action2 {
-	static readonly ID = BrowserViewCommandId.ClearEphemeralStorage;
-
-	constructor() {
-		super({
-			id: ClearEphemeralBrowserStorageAction.ID,
-			title: localize2('browser.clearEphemeralStorageAction', 'Clear Storage (Ephemeral)'),
-			category: BrowserActionCategory,
-			icon: Codicon.clearAll,
-			f1: true,
-			precondition: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral),
-			menu: {
-				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Settings,
-				order: 1,
-				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral)
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
-		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.clearStorage();
 		}
 	}
 }
@@ -474,13 +365,11 @@ registerAction2(GoBackAction);
 registerAction2(GoForwardAction);
 registerAction2(ReloadAction);
 registerAction2(HardReloadAction);
+
 registerAction2(FocusUrlInputAction);
-registerAction2(ToggleDevToolsAction);
 registerAction2(OpenInExternalBrowserAction);
-registerAction2(ClearGlobalBrowserStorageAction);
-registerAction2(ClearWorkspaceBrowserStorageAction);
-registerAction2(ClearEphemeralBrowserStorageAction);
 registerAction2(OpenBrowserSettingsAction);
+
 registerAction2(ShowBrowserFindAction);
 registerAction2(HideBrowserFindAction);
 registerAction2(BrowserFindNextAction);
