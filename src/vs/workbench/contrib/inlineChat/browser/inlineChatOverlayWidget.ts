@@ -12,7 +12,6 @@ import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actio
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { HistoryNavigator2 } from '../../../../base/common/history.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -42,6 +41,7 @@ import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOpt
 import { PlaceholderTextContribution } from '../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 import { IInlineChatSession2 } from './inlineChatSessionService.js';
 import { assertType } from '../../../../base/common/types.js';
+import { IInlineChatHistoryService } from './inlineChatHistoryService.js';
 
 /**
  * Overlay widget that displays a vertical action bar menu.
@@ -63,8 +63,6 @@ export class InlineChatInputWidget extends Disposable {
 	private _anchorLeft: number = 0;
 	private _anchorAbove: boolean = false;
 
-	private readonly _historyNavigator = new HistoryNavigator2<string>([''], 50);
-
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -72,6 +70,7 @@ export class InlineChatInputWidget extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IInlineChatHistoryService private readonly _historyService: IInlineChatHistoryService,
 	) {
 		super();
 
@@ -229,7 +228,7 @@ export class InlineChatInputWidget extends Disposable {
 				const model = this._input.getModel();
 				const position = this._input.getPosition();
 				if (position && position.lineNumber === model.getLineCount()) {
-					if (!this._historyNavigator.isAtEnd()) {
+					if (!this._historyService.isAtEnd()) {
 						this._showNextHistoryValue();
 						e.preventDefault();
 						e.stopPropagation();
@@ -270,24 +269,27 @@ export class InlineChatInputWidget extends Disposable {
 	}
 
 	addToHistory(value: string): void {
-		this._historyNavigator.replaceLast(value);
-		this._historyNavigator.add('');
+		this._historyService.addToHistory(value);
 	}
 
 	private _showPreviousHistoryValue(): void {
-		if (this._historyNavigator.isAtEnd()) {
-			this._historyNavigator.replaceLast(this._input.getModel().getValue());
+		if (this._historyService.isAtEnd()) {
+			this._historyService.replaceLast(this._input.getModel().getValue());
 		}
-		const value = this._historyNavigator.previous();
-		this._input.getModel().setValue(value);
+		const value = this._historyService.previousValue();
+		if (value !== undefined) {
+			this._input.getModel().setValue(value);
+		}
 	}
 
 	private _showNextHistoryValue(): void {
-		if (this._historyNavigator.isAtEnd()) {
+		if (this._historyService.isAtEnd()) {
 			return;
 		}
-		const value = this._historyNavigator.next();
-		this._input.getModel().setValue(value);
+		const value = this._historyService.nextValue();
+		if (value !== undefined) {
+			this._input.getModel().setValue(value);
+		}
 	}
 
 	/**
@@ -300,7 +302,7 @@ export class InlineChatInputWidget extends Disposable {
 		this._showStore.clear();
 
 		// Reset history cursor to the end (current uncommitted text)
-		this._historyNavigator.resetCursor();
+		this._historyService.resetCursor();
 
 		// Clear input state
 		this._input.updateOptions({ wordWrap: 'off', placeholder });
