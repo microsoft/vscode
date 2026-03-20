@@ -26,7 +26,7 @@
 }
 
 .agent-sessions-workbench .part.auxiliarybar {
-	margin: 16px 16px 18px 0;
+	margin: 0 16px 2px 0;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
