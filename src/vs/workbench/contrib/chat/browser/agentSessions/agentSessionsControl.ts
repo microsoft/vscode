@@ -252,7 +252,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			return false;
 		};
 
-		const sorter = new AgentSessionsSorter();
+		const sorter = new AgentSessionsSorter(() => this.options.filter.sortResults?.() ?? AgentSessionsSorting.Created);
 		const approvalModel = this.options.enableApprovalRow ? this._register(this.instantiationService.createInstance(AgentSessionApprovalModel)) : undefined;
 		const activeSessionResource = observableValue<URI | undefined>(this, undefined);
 		const sessionRenderer = this._register(this.instantiationService.createInstance(AgentSessionRenderer, {

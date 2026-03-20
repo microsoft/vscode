@@ -41,7 +41,7 @@ import { IHostService } from '../../../../workbench/services/host/browser/host.j
 const $ = DOM.$;
 export const SessionsViewId = 'agentic.workbench.view.sessionsView';
 const SessionsViewFilterSubMenu = new MenuId('AgentSessionsViewFilterSubMenu');
-const SessionsViewFilterFilterSubMenu = new MenuId('AgentSessionsViewFilterFilterSubMenu');
+const SessionsViewFilterOptionsSubMenu = new MenuId('AgentSessionsViewFilterOptionsSubMenu');
 const SessionsViewGroupingContext = new RawContextKey<string>('sessionsView.grouping', AgentSessionsGrouping.Repository);
 const SessionsViewSortingContext = new RawContextKey<string>('sessionsView.sorting', AgentSessionsSorting.Created);
 const GROUPING_STORAGE_KEY = 'agentSessions.grouping';
@@ -120,7 +120,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 
 		// Sessions Filter (actions go to the nested filter submenu)
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
-			filterMenuId: SessionsViewFilterFilterSubMenu,
+			filterMenuId: SessionsViewFilterOptionsSubMenu,
 			groupResults: () => this.currentGrouping,
 			sortResults: () => this.currentSorting,
 			allowedProviders: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
@@ -312,7 +312,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 
 // Nest the filter toggles (providers, statuses, properties, reset) inside a "Filter" submenu
 MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {
-	submenu: SessionsViewFilterFilterSubMenu,
+	submenu: SessionsViewFilterOptionsSubMenu,
 	title: localize2('filter', "Filter"),
 	group: '1_filter',
 	order: 0,

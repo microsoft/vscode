@@ -794,11 +794,6 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		// Sessions model
 		if (isAgentSessionsModel(element)) {
 
-			// Sync sort preference to sorter
-			if (this.sorter instanceof AgentSessionsSorter) {
-				this.sorter.sortBy = this.filter?.sortResults?.() ?? AgentSessionsSorting.Created;
-			}
-
 			// Apply filter if configured
 			let filteredSessions = element.sessions.filter(session => !this.filter?.exclude(session));
 
@@ -1233,7 +1228,11 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 
 export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
-	sortBy: AgentSessionsSorting = AgentSessionsSorting.Created;
+	private readonly getSortBy: () => AgentSessionsSorting;
+
+	constructor(getSortBy?: () => AgentSessionsSorting) {
+		this.getSortBy = getSortBy ?? (() => AgentSessionsSorting.Created);
+	}
 
 	compare(sessionA: IAgentSession, sessionB: IAgentSession, prioritizeActiveSessions = false): number {
 
@@ -1273,9 +1272,17 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 		}
 
 		// Sort by time
-		const useUpdated = this.sortBy === AgentSessionsSorting.Updated || prioritizeActiveSessions;
-		const timeA = useUpdated ? sessionA.timing.lastRequestEnded ?? sessionA.timing.created : sessionA.timing.created;
-		const timeB = useUpdated ? sessionB.timing.lastRequestEnded ?? sessionB.timing.created : sessionB.timing.created;
+		const sortBy = this.getSortBy();
+		const timeA = prioritizeActiveSessions
+			? sessionA.timing.lastRequestStarted ?? sessionA.timing.created
+			: sortBy === AgentSessionsSorting.Updated
+				? sessionA.timing.lastRequestEnded ?? sessionA.timing.created
+				: sessionA.timing.created;
+		const timeB = prioritizeActiveSessions
+			? sessionB.timing.lastRequestStarted ?? sessionB.timing.created
+			: sortBy === AgentSessionsSorting.Updated
+				? sessionB.timing.lastRequestEnded ?? sessionB.timing.created
+				: sessionB.timing.created;
 		return timeB - timeA;
 	}
 }

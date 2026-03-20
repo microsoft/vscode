@@ -1142,9 +1142,9 @@ suite('AgentSessionsSorter', () => {
 		assert.deepStrictEqual(sorted.map(s => s.label), ['Session active', 'Session archived']);
 	});
 
-	test('prioritizeActive: uses lastRequestEnded for time sorting', () => {
+	test('prioritizeActive: uses lastRequestStarted for time sorting', () => {
 		const sorter = new AgentSessionsSorter();
-		const recentlyActive = createSession({ id: 'recent-active', created: 1000, lastRequestEnded: 5000 });
+		const recentlyActive = createSession({ id: 'recent-active', created: 1000, lastRequestStarted: 5000 });
 		const recentlyCreated = createSession({ id: 'recent-created', created: 3000 });
 
 		const sorted = [recentlyCreated, recentlyActive].sort((a, b) => sorter.compare(a, b, true));
@@ -1170,8 +1170,7 @@ suite('AgentSessionsSorter', () => {
 	});
 
 	test('sortBy Created: sorts by creation time regardless of lastRequestEnded', () => {
-		const sorter = new AgentSessionsSorter();
-		sorter.sortBy = AgentSessionsSorting.Created;
+		const sorter = new AgentSessionsSorter(() => AgentSessionsSorting.Created);
 		const olderCreated = createSession({ id: 'older', created: 1000, lastRequestEnded: 5000 });
 		const newerCreated = createSession({ id: 'newer', created: 3000, lastRequestEnded: 2000 });
 
@@ -1180,8 +1179,7 @@ suite('AgentSessionsSorter', () => {
 	});
 
 	test('sortBy Updated: sorts by lastRequestEnded', () => {
-		const sorter = new AgentSessionsSorter();
-		sorter.sortBy = AgentSessionsSorting.Updated;
+		const sorter = new AgentSessionsSorter(() => AgentSessionsSorting.Updated);
 		const recentlyUpdated = createSession({ id: 'updated', created: 1000, lastRequestEnded: 5000 });
 		const recentlyCreated = createSession({ id: 'created', created: 3000, lastRequestEnded: 2000 });
 
@@ -1190,8 +1188,7 @@ suite('AgentSessionsSorter', () => {
 	});
 
 	test('sortBy Updated: falls back to created when lastRequestEnded is undefined', () => {
-		const sorter = new AgentSessionsSorter();
-		sorter.sortBy = AgentSessionsSorting.Updated;
+		const sorter = new AgentSessionsSorter(() => AgentSessionsSorting.Updated);
 		const withRequest = createSession({ id: 'with-request', created: 1000, lastRequestEnded: 3000 });
 		const withoutRequest = createSession({ id: 'no-request', created: 4000 });
 
