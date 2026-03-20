@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 
 export enum AgentSessionProviders {
 	Local = 'local',
@@ -61,7 +61,7 @@ export function getAgentSessionProviderName(provider: AgentSessionProviders): st
 		case AgentSessionProviders.Growth:
 			return 'Growth';
 		case AgentSessionProviders.OpenCode:
-				return 'OpenCode';
+			return 'OpenCode';
 		case AgentSessionProviders.AgentHostCopilot:
 			return 'Agent Host - Copilot';
 	}
@@ -82,7 +82,7 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 		case AgentSessionProviders.Growth:
 			return Codicon.lightbulb;
 		case AgentSessionProviders.OpenCode:
-				return Codicon.rocket;
+			return Codicon.rocket;
 		case AgentSessionProviders.AgentHostCopilot:
 			return Codicon.vscodeInsiders; // default; use getAgentHostIcon() for quality-aware icon
 	}
@@ -100,9 +100,9 @@ export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders
 		case AgentSessionProviders.Local:
 		case AgentSessionProviders.Background:
 		case AgentSessionProviders.Cloud:
-		case AgentSessionProviders.OpenCode:
 		case AgentSessionProviders.AgentHostCopilot:
 			return true;
+		case AgentSessionProviders.OpenCode:
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
 		case AgentSessionProviders.Growth:
@@ -130,11 +130,11 @@ export function getAgentCanContinueIn(provider: AgentSessionProviders): boolean 
 		case AgentSessionProviders.Local:
 		case AgentSessionProviders.Background:
 		case AgentSessionProviders.Cloud:
+		case AgentSessionProviders.OpenCode:
 			return true;
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
 		case AgentSessionProviders.Growth:
-		case AgentSessionProviders.OpenCode:
 		case AgentSessionProviders.AgentHostCopilot:
 			return false;
 	}
@@ -155,7 +155,7 @@ export function getAgentSessionProviderDescription(provider: AgentSessionProvide
 		case AgentSessionProviders.Growth:
 			return localize('chat.session.providerDescription.growth', "Learn about Copilot features.");
 		case AgentSessionProviders.OpenCode:
-				return 'OpenCode AI coding assistant';
+			return 'OpenCode AI coding assistant';
 		case AgentSessionProviders.AgentHostCopilot:
 			return 'Run a Copilot SDK agent in a dedicated process.';
 	}
