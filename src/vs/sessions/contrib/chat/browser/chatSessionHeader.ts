@@ -65,6 +65,9 @@ class ChatSessionHeaderContribution extends Disposable implements IWorkbenchCont
 
 		// Mark as Done button
 		const buttonContainer = append(titleRow, $('.chat-session-header-actions'));
+		this._register(addDisposableListener(buttonContainer, EventType.CLICK, e => {
+			e.stopPropagation();
+		}));
 		this.markDoneButton = this._register(new Button(buttonContainer, { supportIcons: true, ...defaultButtonStyles }));
 		this.markDoneButton.label = `$(check) ${localize('markAsDone', "Mark as Done")}`;
 		this._register(this.markDoneButton.onDidClick(() => this.markAsDone()));
