@@ -84,6 +84,10 @@ suite('SessionsWelcomeContribution', () => {
 	}
 
 	test('first launch shows overlay', () => {
+		// First launch with no entitlement — should show overlay
+		mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, undefined);
+		mockEntitlementService.sentimentObs.set({ installed: false } as IChatSentiment, undefined);
+
 		const contribution = disposables.add(instantiationService.createInstance(SessionsWelcomeContribution));
 		assert.ok(contribution);
 		assert.strictEqual(isOverlayVisible(), true);
