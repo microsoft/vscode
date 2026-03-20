@@ -862,6 +862,12 @@ export class Response extends AbstractResponse implements IDisposable {
 		);
 
 		if (existingInvocation) {
+			// Update toolSpecificData before completing so that the UI re-render
+			// triggered by didExecuteTool already sees the latest data (e.g.
+			// terminalCommandOutput).
+			if (progress.toolSpecificData !== undefined) {
+				existingInvocation.toolSpecificData = progress.toolSpecificData;
+			}
 			if (progress.isComplete) {
 				existingInvocation.didExecuteTool({
 					content: [],
@@ -869,9 +875,6 @@ export class Response extends AbstractResponse implements IDisposable {
 					toolResultError: progress.errorMessage,
 					toolResultDetails: progress.resultDetails
 				});
-			}
-			if (progress.toolSpecificData !== undefined) {
-				existingInvocation.toolSpecificData = progress.toolSpecificData;
 			}
 			return;
 		}
