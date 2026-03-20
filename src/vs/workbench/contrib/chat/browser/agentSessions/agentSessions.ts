@@ -82,7 +82,7 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 		case AgentSessionProviders.Growth:
 			return Codicon.lightbulb;
 		case AgentSessionProviders.OpenCode:
-			return Codicon.rocket;
+			return Codicon.opencode;
 		case AgentSessionProviders.AgentHostCopilot:
 			return Codicon.vscodeInsiders; // default; use getAgentHostIcon() for quality-aware icon
 	}
