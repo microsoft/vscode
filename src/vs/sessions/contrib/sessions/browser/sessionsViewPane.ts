@@ -323,7 +323,7 @@ registerAction2(class SortByCreatedAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.sortByCreated',
-			title: localize2('sortByCreated', "Created Date"),
+			title: localize2('sortByCreated', "Sort by: Created Date"),
 			category: SessionsCategories.Sessions,
 			toggled: ContextKeyExpr.equals(SessionsViewSortingContext.key, AgentSessionsSorting.Created),
 			menu: [{
@@ -346,7 +346,7 @@ registerAction2(class SortByUpdatedAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.sortByUpdated',
-			title: localize2('sortByUpdated', "Updated Date"),
+			title: localize2('sortByUpdated', "Sort by: Updated Date"),
 			category: SessionsCategories.Sessions,
 			toggled: ContextKeyExpr.equals(SessionsViewSortingContext.key, AgentSessionsSorting.Updated),
 			menu: [{
@@ -369,7 +369,7 @@ registerAction2(class GroupByProjectAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.groupByProject',
-			title: localize2('groupByProject', "Project"),
+			title: localize2('groupByProject', "Group by: Project"),
 			category: SessionsCategories.Sessions,
 			toggled: ContextKeyExpr.equals(SessionsViewGroupingContext.key, AgentSessionsGrouping.Repository),
 			menu: [{
@@ -392,7 +392,7 @@ registerAction2(class GroupByTimeAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.groupByTime',
-			title: localize2('groupByTime', "Time"),
+			title: localize2('groupByTime', "Group by: Time"),
 			category: SessionsCategories.Sessions,
 			toggled: ContextKeyExpr.equals(SessionsViewGroupingContext.key, AgentSessionsGrouping.Date),
 			menu: [{
