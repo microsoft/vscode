@@ -752,7 +752,7 @@ export function inspectSetting(key: string, target: SettingsTarget, languageFilt
 }
 
 function sanitizeId(id: string): string {
-	return id.replace(/[\.\/]/, '_');
+	return id.replace(/[\.\/]/g, '_');
 }
 
 export function settingKeyToDisplayFormat(key: string, groupId: string = '', isLanguageTagSetting: boolean = false): { category: string; label: string } {
