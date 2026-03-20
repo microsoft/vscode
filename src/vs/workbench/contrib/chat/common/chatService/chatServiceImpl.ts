@@ -53,6 +53,7 @@ import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../langua
 import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
+import { AGENT_DEBUG_LOG_ENABLED_SETTING, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
 import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 
@@ -583,14 +584,17 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private async loadRemoteSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined> {
-		await this.chatSessionService.canResolveChatSession(sessionResource.scheme);
-
-		// Check if session already exists
+		// Check if session already exists before resolving the provider,
+		// so we can return a cached model even if the provider was unregistered.
 		{
 			const existingRef = this.acquireExistingSession(sessionResource);
 			if (existingRef) {
 				return existingRef;
 			}
+		}
+
+		if (!await this.chatSessionService.canResolveChatSession(sessionResource.scheme)) {
+			return undefined;
 		}
 
 		const providedSession = await this.chatSessionService.getOrCreateChatSession(sessionResource, token);
@@ -823,13 +827,13 @@ export class ChatService extends Disposable implements IChatService {
 			const parsedRequest = this.parseChatRequest(sessionResource, request, options?.location ?? model.initialLocation, options);
 			const commandPart = parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
 			const requestText = getPromptText(parsedRequest).message;
-			const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(sessionResource), { prompt: requestText, command: commandPart?.text }, CancellationToken.None);
+
+			// Capture session options before loading the remote session,
+			// since the alias registration below may change the lookup.
+			const initialSessionOptions = this.chatSessionService.getSessionOptions(sessionResource);
+
+			const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(sessionResource), { prompt: requestText, command: commandPart?.text, initialSessionOptions }, CancellationToken.None);
 			if (newItem) {
-
-				// Capture session options before loading the remote session,
-				// since the alias registration below may change the lookup.
-				const sessionOptions = this.chatSessionService.getSessionOptions(sessionResource);
-
 				model = (await this.loadRemoteSession(newItem.resource, model.initialLocation, CancellationToken.None))?.object as ChatModel | undefined;
 				if (!model) {
 					throw new Error(`Failed to load session for resource: ${newItem.resource}`);
@@ -842,7 +846,7 @@ export class ChatService extends Disposable implements IChatService {
 				// so that the agent receives them when invoked.
 				model.setContributedChatSession({
 					chatSessionResource: newItem.resource,
-					initialSessionOptions: sessionOptions ? [...sessionOptions].map(([optionId, value]) => ({ optionId, value })) : undefined,
+					initialSessionOptions: initialSessionOptions,
 				});
 
 				sessionResource = newItem.resource;
@@ -987,6 +991,49 @@ export class ChatService extends Disposable implements IChatService {
 			let detectedAgent: IChatAgentData | undefined;
 			let detectedCommand: IChatAgentCommand | undefined;
 
+			// Gate /troubleshoot and the troubleshoot skill behind the feature flags
+			{
+				const debugLogEnabled = this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING);
+				const fileLoggingEnabled = this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING);
+				if (!debugLogEnabled || !fileLoggingEnabled) {
+					const isTroubleshootCommand = agentSlashCommandPart?.command.name === TROUBLESHOOT_COMMAND_NAME;
+					const hasTroubleshootSkill = options?.attachedContext?.some(v => {
+						const uri = IChatRequestVariableEntry.toUri(v);
+						return uri && (uri.scheme === COPILOT_SKILL_URI_SCHEME || uri.path.includes(TROUBLESHOOT_SKILL_PATH));
+					});
+					if (isTroubleshootCommand || hasTroubleshootSkill) {
+						request = model.addRequest(parsedRequest, { variables: [] }, attempt, options?.modeInfo);
+						completeResponseCreated();
+
+						const missingSettings: string[] = [];
+						if (!debugLogEnabled) {
+							missingSettings.push('`' + AGENT_DEBUG_LOG_ENABLED_SETTING + '`');
+						}
+						if (!fileLoggingEnabled) {
+							missingSettings.push('`' + AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING + '`');
+						}
+
+						const settingsQuery = !debugLogEnabled && !fileLoggingEnabled
+							? AGENT_DEBUG_LOG_ENABLED_SETTING
+							: !debugLogEnabled ? '@id:' + AGENT_DEBUG_LOG_ENABLED_SETTING : '@id:' + AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING;
+						const settingsArg = encodeURIComponent(JSON.stringify(settingsQuery));
+						model.acceptResponseProgress(request, {
+							kind: 'markdownContent',
+							content: new MarkdownString(localize(
+								'agentDebugLog.troubleshootDisabled',
+								"The `{0}` skill requires the following settings to be enabled: {1}. After enabling, reload the window to apply. [Enable in Settings](command:workbench.action.openSettings?{2})",
+								TROUBLESHOOT_COMMAND_NAME,
+								missingSettings.join(', '),
+								settingsArg
+							), { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }),
+						});
+						model.setResponse(request, {});
+						request.response?.complete();
+						return;
+					}
+				}
+			}
+
 			// Collect hooks from hook .json files
 			let collectedHooks: ChatRequestHooks | undefined;
 			let hasDisabledClaudeHooks = false;
@@ -1077,6 +1124,7 @@ export class ChatService extends Disposable implements IChatService {
 							acceptedConfirmationData: options?.acceptedConfirmationData,
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 							userSelectedModelId: options?.userSelectedModelId,
+							modelConfiguration: options?.userSelectedModelId ? this.languageModelsService.getModelConfiguration(options.userSelectedModelId) : undefined,
 							userSelectedTools: options?.userSelectedTools?.get(),
 							modeInstructions: options?.modeInfo?.modeInstructions,
 							permissionLevel: options?.modeInfo?.permissionLevel,
@@ -1155,13 +1203,13 @@ export class ChatService extends Disposable implements IChatService {
 					}
 					completeResponseCreated();
 
-					// Check for disabled Claude Code hooks and notify the user once per workspace
+					// Check for disabled Claude Code hooks and notify the user once per workspace.
+					// Only set the flag when actually showing the hint, so the setup agent flow
+					// (which may resend requests) doesn't consume the flag before the real request runs.
 					const disabledClaudeHooksDismissedKey = 'chat.disabledClaudeHooks.notification';
-					if (!this.storageService.getBoolean(disabledClaudeHooksDismissedKey, StorageScope.WORKSPACE)) {
+					if (hasDisabledClaudeHooks && !this.storageService.getBoolean(disabledClaudeHooksDismissedKey, StorageScope.WORKSPACE)) {
 						this.storageService.store(disabledClaudeHooksDismissedKey, true, StorageScope.WORKSPACE, StorageTarget.USER);
-						if (hasDisabledClaudeHooks) {
-							progressCallback([{ kind: 'disabledClaudeHooks' }]);
-						}
+						progressCallback([{ kind: 'disabledClaudeHooks' }]);
 					}
 
 					// MCP autostart: only run for native VS Code sessions (sidebar, new editors) but not for extension contributed sessions that have inputType set.
@@ -1578,34 +1626,15 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		// Detect an in-flight request that was dequeued and started on the old session
-		const lastRequest = model.lastRequest;
-		const inFlightRequest = lastRequest?.response && !lastRequest.response.isComplete ? lastRequest : undefined;
-		// Capture send options before cancelling, since cancellation disposes the tracking
-		const inFlightSendOptions = inFlightRequest ? this._pendingRequests.get(originalResource)?.sendOptions : undefined;
-
 		const pendingRequests = [...model.getPendingRequests()];
 
-		if (!inFlightRequest && pendingRequests.length === 0) {
+		if (pendingRequests.length === 0) {
 			return;
-		}
-
-		// Cancel the in-flight request on the old session
-		if (inFlightRequest) {
-			void this.cancelCurrentRequestForSession(originalResource);
 		}
 
 		// Remove each remaining pending request from the original session
 		for (const pending of pendingRequests) {
 			this.removePendingRequest(originalResource, pending.request.id);
-		}
-
-		// Re-send the cancelled in-flight request first (it was ahead of the queued ones)
-		if (inFlightRequest) {
-			void this.sendRequest(targetResource, inFlightRequest.message.text, {
-				...inFlightSendOptions,
-				queue: ChatRequestQueueKind.Queued,
-			});
 		}
 
 		// Re-send remaining queued requests
