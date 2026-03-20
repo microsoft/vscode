@@ -18,7 +18,7 @@ env:
 jobs:
   compile:
     name: Compile & Hygiene
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-ubuntu-22.04-x64 ]
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v6
@@ -158,7 +158,7 @@ jobs:
 
   copilot-check-test-cache:
     name: Copilot - Check Test Cache
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-ubuntu-22.04-x64 ]
     permissions:
       contents: read
       pull-requests: read
@@ -205,7 +205,7 @@ jobs:
 
   copilot-check-telemetry:
     name: Copilot - Check Telemetry
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-ubuntu-22.04-x64 ]
     permissions:
       contents: read
     steps:
@@ -225,7 +225,7 @@ jobs:
 
   copilot-linux-tests:
     name: Copilot - Test (Linux)
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-ubuntu-22.04-x64 ]
     permissions:
       contents: read
     steps:
@@ -334,7 +334,7 @@ jobs:
 
   copilot-windows-tests:
     name: Copilot - Test (Windows)
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64 ]
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-windows-2022-x64 ]
     permissions:
       contents: read
     steps:
