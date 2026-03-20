@@ -22,6 +22,7 @@ import { ITerminalInstance, ITerminalService } from '../../terminal/browser/term
 import { IEnsureRepositoryOptions, IPullRepositoryOptions } from '../common/plugins/agentPluginRepositoryService.js';
 import { IGitHubPluginSource, IGitUrlPluginSource, IMarketplacePlugin, INpmPluginSource, IPipPluginSource, IPluginSourceDescriptor, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
 import { IPluginSource } from '../common/plugins/pluginSource.js';
+import { IPluginGitCommandService } from '../common/plugins/pluginGitCommandService.js';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -70,6 +71,7 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 		@IFileService protected readonly _fileService: IFileService,
 		@ILogService protected readonly _logService: ILogService,
 		@INotificationService protected readonly _notificationService: INotificationService,
+		@IPluginGitCommandService protected readonly _pluginGit: IPluginGitCommandService,
 		@IProgressService protected readonly _progressService: IProgressService,
 	) { }
 
@@ -116,17 +118,17 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 
 		try {
 			const doUpdate = async () => {
-				await this._commandService.executeCommand('git.openRepository', repoDir.fsPath);
+				await this._pluginGit.openRepository(repoDir);
 				const git = descriptor as IGitHubPluginSource | IGitUrlPluginSource;
 				let changed: boolean;
 				if (git.sha) {
-					const headBefore = await this._commandService.executeCommand<string>('_git.revParse', repoDir.fsPath, 'HEAD').catch(() => undefined);
-					await this._commandService.executeCommand('git.fetch', repoDir.fsPath);
+					const headBefore = await this._pluginGit.revParse(repoDir, 'HEAD').catch(() => undefined);
+					await this._pluginGit.fetch(repoDir);
 					await this._checkoutRevision(repoDir, descriptor, failureLabel);
-					const headAfter = await this._commandService.executeCommand<string>('_git.revParse', repoDir.fsPath, 'HEAD').catch(() => undefined);
+					const headAfter = await this._pluginGit.revParse(repoDir, 'HEAD').catch(() => undefined);
 					changed = headBefore !== headAfter;
 				} else {
-					changed = !!(await this._commandService.executeCommand<boolean>('_git.pull', repoDir.fsPath));
+					changed = await this._pluginGit.pull(repoDir);
 					await this._checkoutRevision(repoDir, descriptor, failureLabel);
 				}
 				return changed;
@@ -169,7 +171,7 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 				},
 				async () => {
 					await this._fileService.createFolder(dirname(repoDir));
-					await this._commandService.executeCommand('_git.cloneRepository', cloneUrl, repoDir.fsPath, ref);
+					await this._pluginGit.cloneRepository(cloneUrl, repoDir, ref);
 				}
 			);
 		} catch (err) {
@@ -191,10 +193,11 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 
 		try {
 			if (git.sha) {
-				await this._commandService.executeCommand('_git.checkout', repoDir.fsPath, git.sha, true);
+				await this._pluginGit.checkout(repoDir, git.sha, true);
 				return;
 			}
-			await this._commandService.executeCommand('_git.checkout', repoDir.fsPath, git.ref);
+			// git.ref is guaranteed non-nullish by the guard above
+			await this._pluginGit.checkout(repoDir, git.ref!);
 		} catch (err) {
 			this._logService.error(`[${this.kind}] Failed to checkout revision for '${failureLabel}':`, err);
 			this._notificationService.notify({
