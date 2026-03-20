@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, Details, GPUFeatureStatus, powerMonitor, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, desktopCapturer, Details, GPUFeatureStatus, powerMonitor, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -225,12 +225,16 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Allow getDisplayMedia() calls from the core window (e.g. issue reporter recording).
-		// Use frame-level capture so Region Capture (CropTarget) can crop to the workbench.
-		session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
-			const frame = request.frame;
-			if (frame && isUrlFromWindow(frame.url)) {
-				callback({ video: frame });
-			} else {
+		// Auto-select the entire primary screen so no picker is needed.
+		session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
+			try {
+				const sources = await desktopCapturer.getSources({ types: ['screen'] });
+				if (sources.length > 0) {
+					callback({ video: sources[0] });
+				} else {
+					callback({});
+				}
+			} catch {
 				callback({});
 			}
 		});

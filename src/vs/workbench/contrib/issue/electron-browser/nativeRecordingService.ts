@@ -59,7 +59,7 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 		return formats;
 	}
 
-	async startRecording(preferredMimeType?: string, cropElement?: HTMLElement): Promise<void> {
+	async startRecording(preferredMimeType?: string): Promise<void> {
 		if (this._state === RecordingState.Recording) {
 			throw new Error('Recording already in progress.');
 		}
@@ -75,23 +75,6 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 		} catch (err) {
 			this.logService.error('[RecordingService] Failed to get display media:', err);
 			throw new Error('Failed to start recording. The user may have cancelled the source picker.');
-		}
-
-		// Crop the video stream to just the target element using Region Capture API
-		if (cropElement) {
-			try {
-				// CropTarget is a Chromium-only API not in standard TS lib types
-				const CropTargetCtor = (globalThis as unknown as Record<string, { fromElement?(el: Element): Promise<unknown> }>)['CropTarget'];
-				if (CropTargetCtor?.fromElement) {
-					const cropTarget = await CropTargetCtor.fromElement(cropElement);
-					if (cropTarget) {
-						const videoTrack = this.mediaStream.getVideoTracks()[0];
-						await (videoTrack as unknown as { cropTo(target: unknown): Promise<void> }).cropTo(cropTarget);
-					}
-				}
-			} catch (err) {
-				this.logService.warn('[RecordingService] Region Capture not available, recording full window:', err);
-			}
 		}
 
 		// Select mime type: prefer caller's choice, fall back to best available

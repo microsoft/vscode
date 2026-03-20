@@ -133,7 +133,7 @@ export class IssueFormService implements IIssueFormService {
 		// Handle recording start
 		this.overlayDisposables.add(this.overlay.onDidRequestStartRecording(async () => {
 			try {
-				await this.recordingService.startRecording('video/mp4', this.layoutService.mainContainer);
+				await this.recordingService.startRecording('video/mp4');
 				this.overlay?.setRecordingState(RecordingState.Recording);
 			} catch (err) {
 				this.logService.error('[IssueFormService] Failed to start recording:', err);

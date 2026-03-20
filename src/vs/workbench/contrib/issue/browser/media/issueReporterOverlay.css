@@ -143,6 +143,40 @@ body.wizard-resizing {
 	background: rgba(255, 255, 255, 0.08);
 }
 
+/* ── Collapse Toggle Button ── */
+.wizard-collapse-toggle {
+	flex-shrink: 0;
+}
+
+.wizard-collapse-icon {
+	display: flex;
+	align-items: center;
+	font-size: 14px;
+}
+
+/* ── Toolbar Actions Slot (for collapsed screenshot step) ── */
+.wizard-toolbar-actions-slot {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.wizard-toolbar-actions-slot:empty {
+	display: none;
+}
+
+/* ── Collapsed Mode ── */
+.issue-reporter-wizard.wizard-collapsed .wizard-step-container,
+.issue-reporter-wizard.wizard-collapsed .wizard-nav {
+	display: none !important;
+}
+
+.issue-reporter-wizard.wizard-collapsed {
+	max-height: none !important;
+	height: auto !important;
+	overflow: hidden;
+}
+
 /* ── Step Container ── */
 .wizard-step-container {
 	flex: 1;
@@ -186,6 +220,7 @@ body.wizard-resizing {
 		transform: translateX(100%);
 		opacity: 0;
 	}
+
 	to {
 		transform: translateX(0);
 		opacity: 1;
@@ -197,6 +232,7 @@ body.wizard-resizing {
 		transform: translateX(-100%);
 		opacity: 0;
 	}
+
 	to {
 		transform: translateX(0);
 		opacity: 1;
@@ -754,15 +790,38 @@ body.wizard-resizing {
 }
 
 @keyframes recording-pulse {
-	0%, 100% { opacity: 1; }
-	50% { opacity: 0.7; }
+
+	0%,
+	100% {
+		opacity: 1;
+	}
+
+	50% {
+		opacity: 0.7;
+	}
 }
 
 /* When recording, dim everything except the record button */
-.wizard-recording .wizard-toolbar,
+.wizard-recording .wizard-toolbar {
+	pointer-events: none;
+}
+
+.wizard-recording .wizard-toolbar .wizard-progress-area,
+.wizard-recording .wizard-toolbar .wizard-collapse-toggle,
+.wizard-recording .wizard-toolbar .wizard-discard {
+	opacity: 0.3;
+}
+
 .wizard-recording .wizard-nav {
 	pointer-events: none;
 	opacity: 0.3;
+}
+
+/* Keep toolbar actions slot (record/stop button) interactive during recording */
+.wizard-recording .wizard-toolbar .wizard-toolbar-actions-slot,
+.wizard-recording .wizard-toolbar .wizard-toolbar-actions-slot .wizard-record-btn {
+	pointer-events: auto;
+	opacity: 1;
 }
 
 /* Dim step content individually so the actions row stays full opacity */

@@ -48,10 +48,9 @@ export interface IRecordingService {
 	/**
 	 * Start recording the current window.
 	 * @param mimeType Optional preferred MIME type (e.g. 'video/mp4'). Falls back to default if unsupported.
-	 * @param cropElement Optional DOM element to crop the recording to (uses Region Capture API).
 	 * Rejects if recording is not supported or already in progress.
 	 */
-	startRecording(mimeType?: string, cropElement?: HTMLElement): Promise<void>;
+	startRecording(mimeType?: string): Promise<void>;
 
 	/**
 	 * Stop the current recording.

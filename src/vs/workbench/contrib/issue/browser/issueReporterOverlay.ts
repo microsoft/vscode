@@ -16,7 +16,7 @@ import { IssueReporterModel } from './issueReporterModel.js';
 import { RecordingState } from './recordingService.js';
 import { ScreenshotAnnotationEditor } from './screenshotAnnotation.js';
 
-const MAX_SCREENSHOTS = 3;
+const MAX_ATTACHMENTS = 5;
 
 const enum WizardStep {
 	Describe = 0,
@@ -66,7 +66,7 @@ export class IssueReporterOverlay {
 	private screenshotDelay = 0;
 	private captureBtn!: HTMLElement;
 	private captureLabel!: HTMLElement;
-	private recordBtn!: HTMLElement;
+	private recordBtn: HTMLElement | undefined;
 	private recordLabel!: HTMLElement;
 	private recordingElapsedLabel!: HTMLElement;
 	private recordingElapsedTimer: ReturnType<typeof setInterval> | undefined;
@@ -93,6 +93,12 @@ export class IssueReporterOverlay {
 	private visible = false;
 	private animating = false;
 	private resizeSash!: HTMLElement;
+
+	// Collapse/expand toggle
+	private collapsed = false;
+	private wasCollapsedBeforeRecording = false;
+	private collapseToggle!: HTMLElement;
+	private toolbarActionsSlot!: HTMLElement;
 
 	constructor(
 		private readonly data: IssueReporterData,
@@ -126,6 +132,19 @@ export class IssueReporterOverlay {
 		}
 		this.stepIndicator = append(progressArea, $('span.wizard-step-indicator'));
 		this.stepLabel = append(progressArea, $('span.wizard-step-label'));
+
+		// Collapse/expand toggle
+		this.collapseToggle = append(toolbar, $('div.wizard-nav-btn.primary.wizard-collapse-toggle'));
+		this.collapseToggle.setAttribute('role', 'button');
+		this.collapseToggle.setAttribute('tabindex', '0');
+		this.collapseToggle.setAttribute('aria-label', localize('toggleCollapse', "Toggle compact mode"));
+		const collapseIcon = append(this.collapseToggle, $('span.wizard-collapse-icon'));
+		collapseIcon.appendChild(renderIcon(Codicon.chevronUp));
+		const collapseLabel = append(this.collapseToggle, $('span'));
+		collapseLabel.textContent = localize('minimize', "Minimize");
+
+		// Slot for screenshot/record buttons when collapsed on step 3
+		this.toolbarActionsSlot = append(toolbar, $('div.wizard-toolbar-actions-slot'));
 
 		append(toolbar, $('div.spacer'));
 
@@ -251,14 +270,14 @@ export class IssueReporterOverlay {
 		this.stepPages.push(page);
 
 		const heading = append(page, $('h2.wizard-heading'));
-		heading.textContent = localize('screenshotsHeading', "Add screenshots for better context?");
+		heading.textContent = localize('screenshotsHeading', "Add attachments for better context");
 
 		const subtitle = append(page, $('p.wizard-subtitle'));
-		subtitle.textContent = localize('screenshotsSubtitle', "You can add up to {0} screenshots. Navigate VS Code and choose when to capture.", MAX_SCREENSHOTS);
-
-		this.screenshotContainer = append(page, $('div.wizard-screenshots'));
+		subtitle.textContent = localize('screenshotsSubtitle', "You can add up to {0} screenshots or videos. Navigate VS Code and choose when to capture.", MAX_ATTACHMENTS);
 
 		const actions = append(page, $('div.wizard-screenshot-actions'));
+
+		this.screenshotContainer = append(page, $('div.wizard-screenshots'));
 
 		// Delay dropdown
 		const delayGroup = append(actions, $('div.wizard-delay-group'));
@@ -290,7 +309,7 @@ export class IssueReporterOverlay {
 		this.captureLabel.textContent = localize('addScreenshot', "Add screenshot");
 
 		this.disposables.add(addDisposableListener(this.captureBtn, EventType.CLICK, () => {
-			if (this.screenshots.length >= MAX_SCREENSHOTS) {
+			if (this.getTotalAttachments() >= MAX_ATTACHMENTS) {
 				return;
 			}
 			if (this.captureBtn.classList.contains('disabled')) {
@@ -333,7 +352,7 @@ export class IssueReporterOverlay {
 			this.disposables.add(addDisposableListener(this.recordBtn, EventType.CLICK, () => {
 				if (this.currentRecordingState === RecordingState.Recording) {
 					this._onDidRequestStopRecording.fire();
-				} else if (this.currentRecordingState === RecordingState.Idle) {
+				} else if (this.currentRecordingState === RecordingState.Idle && this.getTotalAttachments() < MAX_ATTACHMENTS) {
 					this._onDidRequestStartRecording.fire();
 				}
 			}));
@@ -370,7 +389,74 @@ export class IssueReporterOverlay {
 		append(page, $('div.wizard-review-details'));
 	}
 
+	private toggleCollapsed(): void {
+		this.collapsed = !this.collapsed;
+		this.wizardPanel.classList.toggle('wizard-collapsed', this.collapsed);
+
+		// Update toggle icon and label
+		const icon = this.collapseToggle.querySelector('.wizard-collapse-icon');
+		const label = this.collapseToggle.querySelector('span:not(.wizard-collapse-icon)');
+		if (icon) {
+			icon.textContent = '';
+			icon.appendChild(renderIcon(this.collapsed ? Codicon.chevronDown : Codicon.chevronUp));
+		}
+		if (label) {
+			label.textContent = this.collapsed
+				? localize('expand', "Expand")
+				: localize('minimize', "Minimize");
+		}
+
+		// Move screenshot/record buttons to toolbar slot when collapsed on step 3
+		this.updateToolbarActionsSlot();
+
+		if (this.collapsed) {
+			this.wizardPanel.style.height = '';
+			this.wizardPanel.style.maxHeight = '';
+			this.resizeSash.style.display = 'none';
+		} else {
+			this.resizeSash.style.display = '';
+		}
+		this.layoutService.layout();
+	}
+
+	private updateToolbarActionsSlot(): void {
+		const shouldShowInToolbar = this.collapsed && (
+			this.currentStep === WizardStep.Screenshots ||
+			this.currentRecordingState === RecordingState.Recording
+		);
+
+		const actionsContainer = this.stepPages[WizardStep.Screenshots]?.querySelector('.wizard-screenshot-actions') as HTMLElement | null;
+		if (!actionsContainer) {
+			return;
+		}
+
+		if (shouldShowInToolbar) {
+			if (actionsContainer.parentElement !== this.toolbarActionsSlot) {
+				this.toolbarActionsSlot.appendChild(actionsContainer);
+			}
+		} else {
+			if (actionsContainer.parentElement === this.toolbarActionsSlot) {
+				const page = this.stepPages[WizardStep.Screenshots];
+				const screenshotContainer = page.querySelector('.wizard-screenshots');
+				if (screenshotContainer) {
+					page.insertBefore(actionsContainer, screenshotContainer);
+				} else {
+					page.appendChild(actionsContainer);
+				}
+			}
+		}
+	}
+
 	private registerEventHandlers(): void {
+		// Collapse toggle
+		this.disposables.add(addDisposableListener(this.collapseToggle, EventType.CLICK, () => this.toggleCollapsed()));
+		this.disposables.add(addDisposableListener(this.collapseToggle, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				this.toggleCollapsed();
+			}
+		}));
+
 		// Discard
 		this.disposables.add(addDisposableListener(this.discardButton, EventType.CLICK, () => this.close()));
 		this.disposables.add(addDisposableListener(this.discardButton, EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -408,13 +494,26 @@ export class IssueReporterOverlay {
 		}));
 	}
 
+	private getContentHeight(): number {
+		// Measure the natural height the wizard needs to display all its content
+		const toolbar = this.wizardPanel.querySelector('.wizard-toolbar') as HTMLElement | null;
+		const nav = this.wizardPanel.querySelector('.wizard-nav') as HTMLElement | null;
+		const stepContainer = this.stepContainer;
+		if (!toolbar || !nav || !stepContainer) {
+			return 400;
+		}
+		const currentPage = this.stepPages[this.currentStep];
+		return toolbar.offsetHeight + currentPage.scrollHeight + nav.offsetHeight;
+	}
+
 	private setupResizeSash(): void {
 		let startY = 0;
 		let startHeight = 0;
 
 		const onPointerMove = (e: PointerEvent) => {
 			const delta = e.clientY - startY;
-			const newHeight = Math.max(150, Math.min(startHeight + delta, window.innerHeight - 100));
+			const maxContentHeight = this.getContentHeight();
+			const newHeight = Math.max(150, Math.min(startHeight + delta, maxContentHeight, window.innerHeight - 100));
 			this.wizardPanel.style.height = `${newHeight}px`;
 			this.wizardPanel.style.maxHeight = 'none';
 			this.layoutService.layout();
@@ -484,6 +583,7 @@ export class IssueReporterOverlay {
 		}, 250);
 
 		this.updateStepUI();
+		this.updateToolbarActionsSlot();
 
 		if (step === WizardStep.Describe) {
 			this.descriptionTextarea.focus();
@@ -543,7 +643,7 @@ export class IssueReporterOverlay {
 					: localize('next', "Next");
 			}
 			if (nextArrow) {
-				nextArrow.textContent = ' \u00BB'; // »
+				nextArrow.textContent = ' \u00BB'; // �>>
 			}
 			this.nextButton.classList.remove('submit');
 		} else {
@@ -679,23 +779,35 @@ export class IssueReporterOverlay {
 		this.layoutService.layout();
 	}
 
+	private getTotalAttachments(): number {
+		return this.screenshots.length + this.recordings.length;
+	}
+
 	addScreenshot(screenshot: IScreenshot): void {
-		if (this.screenshots.length >= MAX_SCREENSHOTS) {
+		if (this.getTotalAttachments() >= MAX_ATTACHMENTS) {
 			return;
 		}
 		this.screenshots.push(screenshot);
 		this.updateScreenshotThumbnails();
-		this.updateCaptureButton();
+		this.updateAttachmentButtons();
 		this.updateStepUI();
 	}
 
-	private updateCaptureButton(): void {
-		const atMax = this.screenshots.length >= MAX_SCREENSHOTS;
+	private updateAttachmentButtons(): void {
+		const atMax = this.getTotalAttachments() >= MAX_ATTACHMENTS;
+
 		this.captureBtn.classList.toggle('disabled', atMax);
-		if (atMax) {
-			this.captureLabel.textContent = localize('maxScreenshotsReached', "Max screenshots reached");
-		} else {
-			this.captureLabel.textContent = localize('addScreenshot', "Add screenshot");
+		this.captureLabel.textContent = atMax
+			? localize('maxAttachmentsReached', "Max attachments reached")
+			: localize('addScreenshot', "Add screenshot");
+
+		if (this.recordBtn) {
+			this.recordBtn.classList.toggle('disabled', atMax);
+			if (this.currentRecordingState !== RecordingState.Recording) {
+				this.recordLabel.textContent = atMax
+					? localize('maxAttachmentsReached', "Max attachments reached")
+					: localize('recordVideo', "Record video");
+			}
 		}
 	}
 
@@ -728,7 +840,7 @@ export class IssueReporterOverlay {
 				e.stopPropagation();
 				this.screenshots.splice(i, 1);
 				this.updateScreenshotThumbnails();
-				this.updateCaptureButton();
+				this.updateAttachmentButtons();
 				this.updateStepUI();
 			}));
 		}
@@ -759,11 +871,12 @@ export class IssueReporterOverlay {
 				e.stopPropagation();
 				this.recordings.splice(i, 1);
 				this.updateScreenshotThumbnails();
+				this.updateAttachmentButtons();
 				this.updateStepUI();
 			}));
 		}
 
-		if (this.screenshots.length < MAX_SCREENSHOTS) {
+		if (this.getTotalAttachments() < MAX_ATTACHMENTS) {
 			const addCard = append(this.screenshotContainer, $('div.wizard-screenshot-card.wizard-screenshot-add'));
 			const plus = append(addCard, $('div.wizard-screenshot-plus'));
 			plus.appendChild(renderIcon(Codicon.add));
@@ -830,6 +943,12 @@ export class IssueReporterOverlay {
 		this.currentRecordingState = state;
 
 		if (state === RecordingState.Recording) {
+			// Auto-minimize when starting recording from expanded state
+			this.wasCollapsedBeforeRecording = this.collapsed;
+			if (!this.collapsed) {
+				this.toggleCollapsed();
+			}
+
 			// Switch to recording mode: disable all wizard UI except stop button
 			this.wizardPanel.classList.add('wizard-recording');
 			if (this.recordBtn) {
@@ -857,12 +976,21 @@ export class IssueReporterOverlay {
 				clearInterval(this.recordingElapsedTimer);
 				this.recordingElapsedTimer = undefined;
 			}
+
+			// Restore expanded state if we auto-minimized for recording
+			if (!this.wasCollapsedBeforeRecording && this.collapsed) {
+				this.toggleCollapsed();
+			}
 		}
+
+		// Keep record button accessible in toolbar when collapsed and recording
+		this.updateToolbarActionsSlot();
 	}
 
 	addRecording(filePath: string, durationMs: number): void {
 		this.recordings.push({ filePath, durationMs });
 		this.updateScreenshotThumbnails();
+		this.updateAttachmentButtons();
 		this.updateStepUI();
 	}
 
