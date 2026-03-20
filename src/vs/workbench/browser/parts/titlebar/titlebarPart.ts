@@ -31,7 +31,7 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { WindowTitle } from './windowTitle.js';
 import { CommandCenterControl } from './commandCenterControl.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../common/activity.js';
 import { AccountsActivityActionViewItem, isAccountsActionVisible, SimpleAccountActivityActionViewItem, SimpleGlobalActivityActionViewItem } from '../globalCompositeBar.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -268,6 +268,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private readonly actionToolBarDisposable = this._register(new DisposableStore());
 	private readonly editorActionsChangeDisposable = this._register(new DisposableStore());
 	private actionToolBarElement!: HTMLElement;
+	private readonly centerAdjacentToolBarDisposable = this._register(new DisposableStore());
 
 	private globalToolbarMenu: IMenu | undefined;
 	private layoutToolbarMenu: IMenu | undefined;
@@ -475,6 +476,20 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		// Title
 		this.title = append(this.centerContent, $('div.window-title'));
 		this.createTitle();
+
+		// Center-Adjacent Toolbar (e.g., update indicator)
+		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
+			const centerAdjacentToolBarElement = append(this.rightContent, $('div.center-adjacent-toolbar-container'));
+			this.centerAdjacentToolBarDisposable.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerAdjacentToolBarElement, MenuId.TitleBarAdjacentCenter, {
+				contextMenu: MenuId.TitleBarContext,
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				toolbarOptions: {
+					primaryGroup: () => true,
+				},
+				actionViewItemProvider: (action, options) => createActionViewItem(this.instantiationService, action, options),
+				hoverDelegate: this.hoverDelegate
+			}));
+		}
 
 		// Create Toolbar Actions
 		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {

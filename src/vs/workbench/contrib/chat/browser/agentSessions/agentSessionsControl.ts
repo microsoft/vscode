@@ -13,7 +13,7 @@ import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection } from './agentSessionsModel.js';
-import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionsSorter, IAgentSessionsFilter, IAgentSessionsSorterOptions } from './agentSessionsViewer.js';
+import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionSectionLabels, AgentSessionsSorter, getRepositoryName, IAgentSessionsFilter } from './agentSessionsViewer.js';
 import { AgentSessionsGrouping } from './agentSessionsFilter.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
@@ -33,7 +33,7 @@ import { IAgentSessionsService } from './agentSessionsService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { getAgentSessionTime, IAgentSessionsControl } from './agentSessions.js';
+import { IAgentSessionsControl } from './agentSessions.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ISessionOpenOptions, openSession } from './agentSessionsOpener.js';
@@ -42,14 +42,12 @@ import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IChatWidget } from '../chat.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 
-export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOptions {
+export interface IAgentSessionsControlOptions {
 	readonly overrideStyles: IStyleOverride<IListStyles>;
 	readonly filter: IAgentSessionsFilter;
 	readonly source: string;
 	readonly disableHover?: boolean;
-	readonly showIsolationIcon?: boolean;
 	readonly enableApprovalRow?: boolean;
 
 	getHoverPosition(): HoverPosition;
@@ -81,8 +79,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	private emptyFilterMessage: HTMLElement | undefined;
 
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore> | undefined;
+	private static readonly RECENT_SESSIONS_FOR_EXPAND = 5;
+
 	private sessionsListFindIsOpen = false;
 	private _isProgrammaticCollapseChange = false;
+	private readonly _recentRepositoryLabels = new Set<string>();
 
 	private readonly updateSessionsListThrottler = this._register(new Throttler());
 
@@ -92,6 +93,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	private visible: boolean = true;
 
 	private focusedAgentSessionArchivedContextKey: IContextKey<boolean>;
+	private focusedAgentSessionPinnedContextKey: IContextKey<boolean>;
 	private focusedAgentSessionReadContextKey: IContextKey<boolean>;
 	private focusedAgentSessionTypeContextKey: IContextKey<string>;
 	private hasMultipleAgentSessionsSelectedContextKey: IContextKey<boolean>;
@@ -109,11 +111,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
 		this.focusedAgentSessionArchivedContextKey = ChatContextKeys.isArchivedAgentSession.bindTo(this.contextKeyService);
+		this.focusedAgentSessionPinnedContextKey = ChatContextKeys.isPinnedAgentSession.bindTo(this.contextKeyService);
 		this.focusedAgentSessionReadContextKey = ChatContextKeys.isReadAgentSession.bindTo(this.contextKeyService);
 		this.focusedAgentSessionTypeContextKey = ChatContextKeys.agentSessionType.bindTo(this.contextKeyService);
 		this.hasMultipleAgentSessionsSelectedContextKey = ChatContextKeys.hasMultipleAgentSessionsSelected.bindTo(this.contextKeyService);
@@ -214,6 +216,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.storageService.store(AgentSessionsControl.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
 	}
 
+	resetSectionCollapseState(): void {
+		this.storageService.remove(AgentSessionsControl.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+	}
+
 	private createList(container: HTMLElement): void {
 		const collapseByDefault = (element: unknown) => {
 			if (isAgentSessionSection(element)) {
@@ -237,20 +243,23 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 					if (element.section === AgentSessionSection.Yesterday && this.hasTodaySessions()) {
 						return true; // Also collapse Yesterday when there are sessions from Today
 					}
+					if (element.section === AgentSessionSection.Repository && !this._recentRepositoryLabels.has(element.label)) {
+						return true; // Collapse repository sections that don't contain recent sessions
+					}
 				}
 			}
 
 			return false;
 		};
 
-		const sorter = new AgentSessionsSorter(this.options);
+		const sorter = new AgentSessionsSorter();
 		const approvalModel = this.options.enableApprovalRow ? this._register(this.instantiationService.createInstance(AgentSessionApprovalModel)) : undefined;
 		const activeSessionResource = observableValue<URI | undefined>(this, undefined);
 		const sessionRenderer = this._register(this.instantiationService.createInstance(AgentSessionRenderer, {
 			...this.options,
 			isGroupedByRepository: () => this.options.filter.groupResults?.() === AgentSessionsGrouping.Repository,
 		}, approvalModel, activeSessionResource));
-		const sessionFilter = this._register(new AgentSessionsDataSource(this.options.filter, sorter, this.logService));
+		const sessionFilter = this._register(new AgentSessionsDataSource(this.options.filter, sorter));
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
 			container,
@@ -304,6 +313,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			}
 		}));
 
+		this.computeRecentRepositoryLabels();
 		list.setInput(model);
 
 		this._register(list.onDidOpen(e => this.openAgentSession(e)));
@@ -319,11 +329,13 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			const focused = list.getFocus().at(0);
 			if (focused && isAgentSession(focused)) {
 				this.focusedAgentSessionArchivedContextKey.set(focused.isArchived());
+				this.focusedAgentSessionPinnedContextKey.set(focused.isPinned());
 				this.focusedAgentSessionReadContextKey.set(focused.isRead());
 				this.focusedAgentSessionTypeContextKey.set(focused.providerType);
 				activeSessionResource.set(focused.resource, undefined);
 			} else {
 				this.focusedAgentSessionArchivedContextKey.reset();
+				this.focusedAgentSessionPinnedContextKey.reset();
 				this.focusedAgentSessionReadContextKey.reset();
 				this.focusedAgentSessionTypeContextKey.reset();
 				activeSessionResource.set(undefined, undefined);
@@ -369,8 +381,22 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		return this.agentSessionsService.model.sessions.some(session =>
 			!session.isArchived() &&
-			getAgentSessionTime(session.timing) >= startOfToday
+			session.timing.created >= startOfToday
 		);
+	}
+
+	private computeRecentRepositoryLabels(): void {
+		this._recentRepositoryLabels.clear();
+
+		const sessions = this.agentSessionsService.model.sessions
+			.filter(s => !s.isArchived() && !s.isPinned())
+			.sort((a, b) => b.timing.created - a.timing.created)
+			.slice(0, AgentSessionsControl.RECENT_SESSIONS_FOR_EXPAND);
+
+		for (const session of sessions) {
+			const name = getRepositoryName(session);
+			this._recentRepositoryLabels.add(name ?? AgentSessionSectionLabels[AgentSessionSection.Repository]);
+		}
 	}
 
 	private async openAgentSession(e: IOpenEvent<AgentSessionListItem | undefined>): Promise<void> {
@@ -418,7 +444,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.contextMenuService.showContextMenu({
 			getActions: () => Separator.join(...menu.getActions({ arg: section, shouldForwardArgs: true }).map(([, actions]) => actions)),
 			getAnchor: () => anchor,
-			getActionsContext: () => section,
+			getActionsContext: () => this,
 		});
 
 		menu.dispose();
@@ -429,6 +455,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		const contextOverlay: Array<[string, boolean | string]> = [];
 		contextOverlay.push([ChatContextKeys.isArchivedAgentSession.key, session.isArchived()]);
+		contextOverlay.push([ChatContextKeys.isPinnedAgentSession.key, session.isPinned()]);
 		contextOverlay.push([ChatContextKeys.isReadAgentSession.key, session.isRead()]);
 		contextOverlay.push([ChatContextKeys.agentSessionType.key, session.providerType]);
 
@@ -505,8 +532,22 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		return this.agentSessionsService.model.resolve(undefined);
 	}
 
+	collapseAllSections(): void {
+		if (!this.sessionsList) {
+			return;
+		}
+
+		const model = this.agentSessionsService.model;
+		for (const child of this.sessionsList.getNode(model).children) {
+			if (isAgentSessionSection(child.element) && !child.collapsed) {
+				this.sessionsList.collapse(child.element);
+			}
+		}
+	}
+
 	async update(): Promise<void> {
 		return this.updateSessionsListThrottler.queue(async () => {
+			this.computeRecentRepositoryLabels();
 			await this.sessionsList?.updateChildren();
 
 			this._onDidUpdate.fire();

@@ -277,6 +277,9 @@ export class PluginListWidget extends Disposable {
 	private readonly _onDidSelectPlugin = this._register(new Emitter<IAgentPluginItem>());
 	readonly onDidSelectPlugin = this._onDidSelectPlugin.event;
 
+	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
+	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
+
 	private sectionHeader!: HTMLElement;
 	private sectionDescription!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
@@ -384,9 +387,10 @@ export class PluginListWidget extends Disposable {
 
 		// Empty state
 		this.emptyContainer = DOM.append(this.element, $('.mcp-empty-state'));
-		const emptyIcon = DOM.append(this.emptyContainer, $('.empty-icon'));
+		const emptyHeader = DOM.append(this.emptyContainer, $('.empty-state-header'));
+		const emptyIcon = DOM.append(emptyHeader, $('.empty-icon'));
 		emptyIcon.classList.add(...ThemeIcon.asClassNameArray(pluginIcon));
-		this.emptyText = DOM.append(this.emptyContainer, $('.empty-text'));
+		this.emptyText = DOM.append(emptyHeader, $('.empty-text'));
 		this.emptySubtext = DOM.append(this.emptyContainer, $('.empty-subtext'));
 
 		// List container
@@ -398,7 +402,7 @@ export class PluginListWidget extends Disposable {
 		this.sectionDescription.textContent = localize('pluginsDescription', "Extend your AI agent with plugins that add commands, skills, agents, hooks, and MCP servers from reusable packages.");
 		this.sectionLink = DOM.append(this.sectionHeader, $('a.section-footer-link')) as HTMLAnchorElement;
 		this.sectionLink.textContent = localize('learnMorePlugins', "Learn more about agent plugins");
-		this.sectionLink.href = 'https://code.visualstudio.com/docs/copilot/chat/agent-plugins';
+		this.sectionLink.href = 'https://code.visualstudio.com/docs/copilot/customization/agent-plugins';
 		this._register(DOM.addDisposableListener(this.sectionLink, 'click', (e) => {
 			e.preventDefault();
 			const href = this.sectionLink.href;
@@ -657,6 +661,25 @@ export class PluginListWidget extends Disposable {
 
 		this.displayEntries = entries;
 		this.list.splice(0, this.list.length, this.displayEntries);
+
+		// Compute sidebar badge directly from the data array (same source as group headers)
+		this._onDidChangeItemCount.fire(this.itemCount);
+	}
+
+	/**
+	 * Gets the total item count from the underlying data array
+	 * (the same source used to build group headers).
+	 */
+	get itemCount(): number {
+		return this.installedItems.length;
+	}
+
+	/**
+	 * Re-fires the current item count. Call after subscribing to onDidChangeItemCount
+	 * to ensure the subscriber receives the latest count.
+	 */
+	fireItemCount(): void {
+		this._onDidChangeItemCount.fire(this.itemCount);
 	}
 
 	private toggleGroup(entry: IPluginGroupHeaderEntry): void {

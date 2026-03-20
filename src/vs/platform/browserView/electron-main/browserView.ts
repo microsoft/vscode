@@ -138,11 +138,12 @@ export class BrowserView extends Disposable implements ICDPTarget {
 				action: 'allow',
 				createWindow: (options) => {
 					const childView = createChildView(options);
-					const resource = BrowserViewUri.forUrl(details.url, childView.id);
+					const resource = BrowserViewUri.forId(childView.id);
 
 					// Fire event for the workbench to open this view
 					this._onDidRequestNewPage.fire({
 						resource,
+						url: details.url,
 						location,
 						position: { x: options.x, y: options.y, width: options.width, height: options.height }
 					});
@@ -162,8 +163,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		});
 
 		this._debugger = new BrowserViewDebugger(this, this.logService);
-
-		this._register(session.acquire());
 
 		this.setupEventListeners();
 	}
@@ -222,11 +221,13 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		});
 
 		const fireNavigationEvent = () => {
+			const url = webContents.getURL();
 			this._onDidNavigate.fire({
-				url: webContents.getURL(),
+				url,
 				title: webContents.getTitle(),
 				canGoBack: webContents.navigationHistory.canGoBack(),
-				canGoForward: webContents.navigationHistory.canGoForward()
+				canGoForward: webContents.navigationHistory.canGoForward(),
+				certificateError: this.session.trust.getCertificateError(url)
 			});
 		};
 
@@ -251,7 +252,9 @@ export class BrowserView extends Disposable implements ICDPTarget {
 				this._lastError = {
 					url: validatedURL,
 					errorCode,
-					errorDescription
+					errorDescription,
+					// -200 - -220 are the range of certificate errors in Chromium.
+					certificateError: errorCode <= -200 && errorCode >= -220 ? this.session.trust.getCertificateError(validatedURL) : undefined
 				};
 
 				fireLoadingEvent(false);
@@ -259,11 +262,14 @@ export class BrowserView extends Disposable implements ICDPTarget {
 					url: validatedURL,
 					title: '',
 					canGoBack: webContents.navigationHistory.canGoBack(),
-					canGoForward: webContents.navigationHistory.canGoForward()
+					canGoForward: webContents.navigationHistory.canGoForward(),
+					certificateError: this.session.trust.getCertificateError(validatedURL)
 				});
 			}
 		});
 		webContents.on('did-finish-load', () => fireLoadingEvent(false));
+
+		this.session.trust.installCertErrorHandler(webContents);
 
 		webContents.on('render-process-gone', (_event, details) => {
 			this._lastError = {
@@ -360,8 +366,10 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	 */
 	getState(): IBrowserViewState {
 		const webContents = this._view.webContents;
+		const url = webContents.getURL();
+
 		return {
-			url: webContents.getURL(),
+			url,
 			title: webContents.getTitle(),
 			canGoBack: webContents.navigationHistory.canGoBack(),
 			canGoForward: webContents.navigationHistory.canGoForward(),
@@ -372,6 +380,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			lastScreenshot: this._lastScreenshot,
 			lastFavicon: this._lastFavicon,
 			lastError: this._lastError,
+			certificateError: this.session.trust.getCertificateError(url),
 			storageScope: this.session.storageScope,
 			browserZoomIndex: this._browserZoomIndex
 		};
@@ -582,7 +591,23 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	 * Clear all storage data for this browser view's session
 	 */
 	async clearStorage(): Promise<void> {
-		await this.session.electronSession.clearData();
+		await this.session.clearData();
+	}
+
+	/**
+	 * Trust a certificate for a given host and reload the page.
+	 */
+	async trustCertificate(host: string, fingerprint: string): Promise<void> {
+		await this.session.trust.trustCertificate(host, fingerprint);
+		this._view.webContents.reload();
+	}
+
+	/**
+	 * Revoke trust for a previously trusted certificate and close the view.
+	 */
+	async untrustCertificate(host: string, fingerprint: string): Promise<void> {
+		await this.session.trust.untrustCertificate(host, fingerprint);
+		this.dispose();
 	}
 
 	/**

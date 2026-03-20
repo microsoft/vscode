@@ -176,7 +176,7 @@ suite('PromptsService', () => {
 
 		instaService.stub(IAgentPluginService, {
 			plugins: testPluginsObservable,
-			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, setEnabled: () => { } },
+			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, setEnabled: () => { }, remove: () => { } },
 		});
 
 		service = disposables.add(instaService.createInstance(PromptsService));
@@ -3763,6 +3763,7 @@ suite('PromptsService', () => {
 				type: HookType.PreToolUse,
 				originalId: 'plugin-pre-tool-use',
 				hooks: [{ type: 'command', command: 'echo from-plugin' }],
+				uri: URI.file('/plugins/test-plugin/hooks.json'),
 			}]);
 
 			testPluginsObservable.set([plugin], undefined);
@@ -3784,6 +3785,7 @@ suite('PromptsService', () => {
 				type: HookType.PreToolUse,
 				originalId: 'plugin-pre-tool-use',
 				hooks: [{ type: 'command', command: 'echo before' }],
+				uri: URI.file('/plugins/test-plugin/hooks.json'),
 			}]);
 
 			testPluginsObservable.set([plugin], undefined);
@@ -3796,6 +3798,7 @@ suite('PromptsService', () => {
 				type: HookType.PreToolUse,
 				originalId: 'plugin-pre-tool-use',
 				hooks: [{ type: 'command', command: 'echo after' }],
+				uri: URI.file('/plugins/test-plugin/hooks.json'),
 			}], undefined);
 
 			const after = await service.getHooks(CancellationToken.None);
@@ -3848,6 +3851,7 @@ suite('PromptsService', () => {
 				type: HookType.PreToolUse,
 				originalId: 'plugin-pre-tool-use',
 				hooks: [{ type: 'command', command: 'echo from-plugin' }],
+				uri: URI.file('/plugins/test-plugin/hooks.json'),
 			}]);
 
 			testPluginsObservable.set([plugin], undefined);
