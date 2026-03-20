@@ -12,19 +12,6 @@
 	margin: 0 auto;
 	padding: 0px 8px;
 	box-sizing: border-box;
-	transition: padding 200ms ease;
-}
-
-.agent-sessions-workbench .chat-session-header::after {
-	content: '';
-	position: absolute;
-	left: 0;
-	right: 0;
-	bottom: -40px;
-	height: 40px;
-	background: linear-gradient(to bottom, var(--vscode-sideBar-background), transparent);
-	pointer-events: none;
-	z-index: 1;
 }
 
 .agent-sessions-workbench .chat-session-header-content {
@@ -33,6 +20,12 @@
 	min-width: 0;
 	cursor: pointer;
 	padding: 2px 8px 6px;
+}
+
+.agent-sessions-workbench .chat-session-header-content:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+	border-radius: 4px;
 }
 
 .agent-sessions-workbench .chat-session-header-title-row {
@@ -52,7 +45,7 @@
 	word-break: break-word;
 	border-radius: 4px 4px 4px 0;
 	padding: 2px 4px;
-	transition: font-size 200ms ease, background 150ms ease;
+	transition: background 150ms ease;
 }
 
 .agent-sessions-workbench .chat-session-header-title:hover,
@@ -82,7 +75,6 @@
 	font-size: 14px;
 	opacity: 0.6;
 	flex-shrink: 0;
-	transition: font-size 200ms ease;
 }
 
 /* Repo folder — secondary text */
@@ -90,26 +82,6 @@
 	font-size: 13px;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
-	transition: font-size 200ms ease;
-}
-
-/* ---- Shrunk state (after scrolling) ---- */
-
-.agent-sessions-workbench .chat-session-header.chat-session-header-shrunk {
-	padding: 12px 24px 8px 24px;
-}
-
-.agent-sessions-workbench .chat-session-header.chat-session-header-shrunk .chat-session-header-title {
-	font-size: 14px;
-	font-weight: 600;
-}
-
-.agent-sessions-workbench .chat-session-header.chat-session-header-shrunk .chat-session-header-icon {
-	font-size: 12px;
-}
-
-.agent-sessions-workbench .chat-session-header.chat-session-header-shrunk .chat-session-header-repo {
-	font-size: 12px;
 }
 
 /* ---- Mark as Done button ---- */
@@ -139,10 +111,8 @@
 /* ---- Reduced motion ---- */
 
 @media (prefers-reduced-motion: reduce) {
-	.agent-sessions-workbench .chat-session-header,
-	.agent-sessions-workbench .chat-session-header-icon,
 	.agent-sessions-workbench .chat-session-header-title,
-	.agent-sessions-workbench .chat-session-header-repo {
+	.agent-sessions-workbench .chat-session-header-repo-row {
 		transition: none;
 	}
 }

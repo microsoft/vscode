@@ -27,7 +27,6 @@ import { ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js'
 
 /**
  * Renders a PR-style header at the top of the chat messages area.
- * Shows the session title large initially, then shrinks as the user scrolls.
  * Displays: session title + folder name (no diff numbers).
  */
 class ChatSessionHeaderContribution extends Disposable implements IWorkbenchContribution {
@@ -41,6 +40,7 @@ class ChatSessionHeaderContribution extends Disposable implements IWorkbenchCont
 	private readonly markDoneButton: Button;
 	private readonly modelChangeListener = this._register(new MutableDisposable());
 	private lastRenderState: string | undefined;
+	private isRendering = false;
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -135,43 +135,51 @@ class ChatSessionHeaderContribution extends Disposable implements IWorkbenchCont
 	}
 
 	private render(): void {
-		// Ensure header is in the DOM (may have been created before the view mounted)
-		this.tryInject();
-
-		const label = this.getLabel();
-		const icon = this.getIcon();
-		const repoLabel = this.getRepoLabel();
-
-		const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}`;
-		if (this.lastRenderState === renderState) {
+		if (this.isRendering) {
 			return;
 		}
-		this.lastRenderState = renderState;
+		this.isRendering = true;
+		try {
+			// Ensure header is in the DOM (may have been created before the view mounted)
+			this.tryInject();
 
-		// Icon
-		this.iconElement.className = 'chat-session-header-icon';
-		if (icon) {
-			this.iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
-			this.iconElement.style.display = '';
-		} else {
-			this.iconElement.style.display = 'none';
+			const label = this.getLabel();
+			const icon = this.getIcon();
+			const repoLabel = this.getRepoLabel();
+
+			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}`;
+			if (this.lastRenderState === renderState) {
+				return;
+			}
+			this.lastRenderState = renderState;
+
+			// Icon
+			this.iconElement.className = 'chat-session-header-icon';
+			if (icon) {
+				this.iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+				this.iconElement.style.display = '';
+			} else {
+				this.iconElement.style.display = 'none';
+			}
+
+			// Title
+			this.titleElement.textContent = label;
+
+			// Repo folder
+			if (repoLabel) {
+				this.repoElement.textContent = repoLabel;
+				this.repoElement.style.display = '';
+			} else {
+				this.repoElement.style.display = 'none';
+			}
+
+			// Show the button only when there is an active session with an agent session
+			const activeSession = this.sessionsManagementService.getActiveSession();
+			const hasAgentSession = activeSession ? !!this.agentSessionsService.getSession(activeSession.resource) : false;
+			this.markDoneButton.element.style.display = hasAgentSession ? '' : 'none';
+		} finally {
+			this.isRendering = false;
 		}
-
-		// Title
-		this.titleElement.textContent = label;
-
-		// Repo folder
-		if (repoLabel) {
-			this.repoElement.textContent = repoLabel;
-			this.repoElement.style.display = '';
-		} else {
-			this.repoElement.style.display = 'none';
-		}
-
-		// Show the button only when there is an active session with an agent session
-		const activeSession = this.sessionsManagementService.getActiveSession();
-		const hasAgentSession = activeSession ? !!this.agentSessionsService.getSession(activeSession.resource) : false;
-		this.markDoneButton.element.style.display = hasAgentSession ? '' : 'none';
 	}
 
 	private getLabel(): string {
@@ -213,7 +221,7 @@ class ChatSessionHeaderContribution extends Disposable implements IWorkbenchCont
 		if (!activeSession?.repository) {
 			return undefined;
 		}
-		return decodeURIComponent(basename(activeSession.repository));
+		return basename(activeSession.repository);
 	}
 
 	private markAsDone(): void {
