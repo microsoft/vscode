@@ -184,6 +184,10 @@ Prompt files bundled with the Sessions app live in `src/vs/sessions/prompts/`. T
 | Instructions | `listPromptFiles()` + `listAgentInstructions()` | Includes AGENTS.md, CLAUDE.md etc. |
 | Hooks | `listPromptFiles()` | Individual hooks parsed via `parseHooksFromFile()` |
 
+### Item Badges
+
+`IAICustomizationListItem.badge` is an optional string that renders as a small inline tag next to the item name (same visual style as the MCP "Bridged" badge). Used by context instructions to show "always added" or "context matching '{pattern}'" without baking metadata into the display name. The badge text is also included in search filtering.
+
 ### Debug Panel
 
 Toggle via Command Palette: "Toggle Customizations Debug Panel". Shows a 4-stage pipeline view:

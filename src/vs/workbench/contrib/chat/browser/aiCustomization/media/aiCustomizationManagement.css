@@ -489,12 +489,30 @@
 	min-width: 0;
 }
 
+.ai-customization-list-item .item-name-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	overflow: hidden;
+}
+
 .ai-customization-list-item .item-name {
 	font-size: 13px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	line-height: 18px;
+}
+
+.ai-customization-list-item .item-badge {
+	flex-shrink: 0;
+	font-size: 10px;
+	padding: 0 4px;
+	border-radius: 3px;
+	color: var(--vscode-descriptionForeground);
+	background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+	white-space: nowrap;
+	line-height: 16px;
 }
 
 .ai-customization-list-item .item-description {

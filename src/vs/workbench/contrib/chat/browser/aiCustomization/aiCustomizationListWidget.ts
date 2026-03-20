@@ -99,6 +99,8 @@ export interface IAICustomizationListItem {
 	readonly pluginUri?: URI;
 	/** When set, overrides the formatted name for display. */
 	readonly displayName?: string;
+	/** When set, shows a small inline badge next to the item name. */
+	readonly badge?: string;
 	/** When set, overrides the default prompt-type icon. */
 	readonly typeIcon?: ThemeIcon;
 	nameMatches?: IMatch[];
@@ -152,6 +154,7 @@ interface IAICustomizationItemTemplateData {
 	readonly actionBar: ActionBar;
 	readonly typeIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
+	readonly badge: HTMLElement;
 	readonly description: HighlightedLabel;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
@@ -294,7 +297,9 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		const leftSection = DOM.append(container, $('.item-left'));
 		const typeIcon = DOM.append(leftSection, $('.item-type-icon'));
 		const textContainer = DOM.append(leftSection, $('.item-text'));
-		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(textContainer, $('.item-name'))));
+		const nameRow = DOM.append(textContainer, $('.item-name-row'));
+		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameRow, $('.item-name'))));
+		const badge = DOM.append(nameRow, $('.item-badge'));
 		const description = disposables.add(new HighlightedLabel(DOM.append(textContainer, $('.item-description'))));
 
 		// Right section for actions (hover-visible)
@@ -309,6 +314,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			actionBar,
 			typeIcon,
 			nameLabel,
+			badge,
 			description,
 			disposables,
 			elementDisposables,
@@ -346,6 +352,15 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		// Name with highlights — nameMatches are pre-computed against the formatted display name
 		const displayName = element.displayName ?? formatDisplayName(element.name);
 		templateData.nameLabel.set(displayName, element.nameMatches);
+
+		// Optional inline badge (e.g. "always added", "context matching '*.ts'")
+		if (element.badge) {
+			templateData.badge.textContent = element.badge;
+			templateData.badge.style.display = '';
+		} else {
+			templateData.badge.textContent = '';
+			templateData.badge.style.display = 'none';
+		}
 
 		// Hooks show shell commands here, so keep the full text instead of truncating to the first sentence.
 		const secondaryText = getCustomizationSecondaryText(element.description, element.filename, element.promptType);
@@ -1259,7 +1274,7 @@ export class AICustomizationListWidget extends Disposable {
 
 				if (applyTo !== undefined) {
 					// Context instruction
-					const suffix = applyTo === '**'
+					const badge = applyTo === '**'
 						? localize('alwaysAdded', "always added", applyTo)
 						: localize('onContext', "context matching '{0}'", applyTo);
 					items.push({
@@ -1267,7 +1282,8 @@ export class AICustomizationListWidget extends Disposable {
 						uri: item.uri,
 						name: friendlyName,
 						filename: this.labelService.getUriLabel(item.uri, { relative: true }),
-						displayName: `${friendlyName} - ${suffix}`,
+						displayName: friendlyName,
+						badge,
 						description: description,
 						storage: item.storage,
 						promptType,
@@ -1382,8 +1398,9 @@ export class AICustomizationListWidget extends Disposable {
 				const nameMatches = matchesContiguousSubString(query, displayName);
 				const descriptionMatches = item.description ? matchesContiguousSubString(query, item.description) : null;
 				const filenameMatches = matchesContiguousSubString(query, item.filename);
+				const badgeMatches = item.badge ? matchesContiguousSubString(query, item.badge) : null;
 
-				if (nameMatches || descriptionMatches || filenameMatches) {
+				if (nameMatches || descriptionMatches || filenameMatches || badgeMatches) {
 					matchedItems.push({
 						...item,
 						nameMatches: nameMatches || undefined,
