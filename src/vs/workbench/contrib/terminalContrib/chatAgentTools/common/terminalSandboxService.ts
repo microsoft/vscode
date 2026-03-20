@@ -21,12 +21,14 @@ import { IRemoteAgentService } from '../../../../services/remote/common/remoteAg
 import { TerminalChatAgentToolsSettingId } from './terminalChatAgentToolsConfiguration.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { ITrustedDomainService } from '../../../url/common/trustedDomainService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
 export interface ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): Promise<boolean>;
+	getOS(): Promise<OperatingSystem>;
 	wrapCommand(command: string): string;
 	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
@@ -47,6 +49,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private _remoteEnvDetails: IRemoteAgentEnvironment | null = null;
 	private _appRoot: string;
 	private _os: OperatingSystem = OS;
+	private _defaultWritePaths: string[] = ['~/.npm'];
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -55,6 +58,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 		this._appRoot = dirname(FileAccess.asFileUri('').path);
@@ -79,15 +83,24 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		this._register(this._trustedDomainService.onDidChangeTrustedDomains(() => {
 			this.setNeedsForceUpdateConfigFile();
 		}));
+
+		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
+			this.setNeedsForceUpdateConfigFile();
+		}));
 	}
 
 	public async isEnabled(): Promise<boolean> {
-		this._remoteEnvDetails = await this._remoteEnvDetailsPromise;
-		this._os = this._remoteEnvDetails ? this._remoteEnvDetails.os : OS;
-		if (this._os === OperatingSystem.Windows) {
+		const os = await this.getOS();
+		if (os === OperatingSystem.Windows) {
 			return false;
 		}
 		return this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled);
+	}
+
+	public async getOS(): Promise<OperatingSystem> {
+		this._remoteEnvDetails = await this._remoteEnvDetailsPromise;
+		this._os = this._remoteEnvDetails ? this._remoteEnvDetails.os : OS;
+		return this._os;
 	}
 
 	public wrapCommand(command: string): string {
@@ -163,6 +176,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				? this._configurationService.getValue<{ denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }>(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem) ?? {}
 				: {};
 			const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
+			const linuxAllowWrite = this._updateAllowWritePathsWithWorkspaceFolders(linuxFileSystemSetting.allowWrite);
+			const macAllowWrite = this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite);
 
 			let allowedDomains = networkSetting.allowedDomains ?? [];
 			if (networkSetting.allowTrustedDomains) {
@@ -176,7 +191,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				},
 				filesystem: {
 					denyRead: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.denyRead : linuxFileSystemSetting.denyRead,
-					allowWrite: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.allowWrite : linuxFileSystemSetting.allowWrite,
+					allowWrite: this._os === OperatingSystem.Macintosh ? macAllowWrite : linuxAllowWrite,
 					denyWrite: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.denyWrite : linuxFileSystemSetting.denyWrite,
 				}
 			};
@@ -203,6 +218,9 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				const environmentService = this._environmentService as IEnvironmentService & { tmpDir?: URI };
 				this._tempDir = environmentService.tmpDir;
 			}
+			if (this._tempDir) {
+				this._defaultWritePaths.push(this._tempDir.path);
+			}
 			if (!this._tempDir) {
 				this._logService.warn('TerminalSandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');
 			}
@@ -222,5 +240,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			}
 		}
 		return Array.from(allowedDomainsSet);
+	}
+
+	private _updateAllowWritePathsWithWorkspaceFolders(configuredAllowWrite: string[] | undefined): string[] {
+		const workspaceFolderPaths = this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri.path);
+		return [...new Set([...workspaceFolderPaths, ...this._defaultWritePaths, ...(configuredAllowWrite ?? [])])];
 	}
 }

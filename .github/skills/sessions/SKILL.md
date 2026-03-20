@@ -272,7 +272,9 @@ Views and contributions that should only appear in the agent sessions window (no
 
 1. Run `npm run compile-check-ts-native` to run a repo-wide TypeScript compilation check (including `src/vs/sessions/`). This is a fast way to catch TypeScript errors introduced by your changes.
 2. Run `npm run valid-layers-check` to verify layering rules are not violated.
-3. Run tests under `src/vs/sessions/test/` to confirm nothing is broken.
+3. Use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests (add `--grep <pattern>` to filter tests)
+
+**Important** do not run `tsc` to check for TypeScript errors always use above methods to validate TypeScript changes in `src/vs/**`.
 
 ### 10.3 Layout Changes
 

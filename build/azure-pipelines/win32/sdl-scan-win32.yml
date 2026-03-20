@@ -100,7 +100,11 @@ steps:
     env:
       VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
 
-  - powershell: npm run compile
+  - template: ../common/install-builtin-extensions.yml@self
+
+  - powershell: npm run gulp core-ci
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Compile
 
   - powershell: npm run gulp "vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}"

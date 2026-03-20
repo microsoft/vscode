@@ -58,7 +58,7 @@ MANDATORY: Always check for compilation errors before running any tests or valid
 ### TypeScript compilation steps
 - If the `#runTasks/getTaskOutput` tool is available, check the `VS Code - Build` watch task output for compilation errors. This task runs `Core - Build` and `Ext - Build` to incrementally compile VS Code TypeScript sources and built-in extensions. Start the task if it's not already running in the background.
 - If the tool is not available (e.g. in CLI environments) and you only changed code under `src/`, run `npm run compile-check-ts-native` after making changes to type-check the main VS Code sources (it validates `./src/tsconfig.json`).
-- If you changed built-in extensions under `extensions/` and the tool is not available, run the corresponding gulp task `gulp compile-extensions` instead so that TypeScript errors in extensions are also reported.
+- If you changed built-in extensions under `extensions/` and the tool is not available, run the corresponding gulp task `npm run gulp compile-extensions` instead so that TypeScript errors in extensions are also reported.
 - For TypeScript changes in the `build` folder, you can simply run `npm run typecheck` in the `build` folder.
 
 ### TypeScript validation steps
@@ -145,6 +145,7 @@ function f(x: number, y: string): void { }
 - You MUST NOT use storage keys of another component only to make changes to that component. You MUST come up with proper API to change another component.
 - Use `IEditorService` to open editors instead of `IEditorGroupsService.activeGroup.openEditor` to ensure that the editor opening logic is properly followed and to avoid bypassing important features such as `revealIfOpened` or `preserveFocus`.
 - Avoid using `bind()`, `call()` and `apply()` solely to control `this` or partially apply arguments; prefer arrow functions or closures to capture the necessary context, and use these methods only when required by an API or interoperability.
+- Avoid using events to drive control flow between components. Instead, prefer direct method calls or service interactions to ensure clearer dependencies and easier traceability of logic. Events should be reserved for broadcasting state changes or notifications rather than orchestrating behavior across components.
 
 ## Learnings
 - Minimize the amount of assertions in tests. Prefer one snapshot-style `assert.deepStrictEqual` over multiple precise assertions, as they are much more difficult to understand and to update.

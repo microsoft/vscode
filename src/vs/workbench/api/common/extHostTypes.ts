@@ -1275,6 +1275,12 @@ export enum TaskScope {
 	Workspace = 2
 }
 
+export enum TaskRunOn {
+	Default = 1,
+	FolderOpen = 2,
+	WorktreeCreated = 3,
+}
+
 export class CustomExecution implements vscode.CustomExecution {
 	private _callback: (resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>;
 	constructor(callback: (resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
@@ -3573,6 +3579,12 @@ export enum ChatDebugToolCallResult {
 	Error = 1
 }
 
+export enum ChatDebugHookResult {
+	Success = 0,
+	Error = 1,
+	NonBlockingError = 2
+}
+
 export class ChatDebugToolCallEvent {
 	readonly _kind = 'toolCall';
 	id?: string;
@@ -3747,6 +3759,22 @@ export class ChatDebugEventModelTurnContent {
 
 	constructor(requestName: string) {
 		this.requestName = requestName;
+	}
+}
+
+export class ChatDebugEventHookContent {
+	readonly _kind = 'hookContent';
+	hookType: string;
+	command?: string;
+	result?: ChatDebugHookResult;
+	durationInMillis?: number;
+	input?: string;
+	output?: string;
+	exitCode?: number;
+	errorMessage?: string;
+
+	constructor(hookType: string) {
+		this.hookType = hookType;
 	}
 }
 

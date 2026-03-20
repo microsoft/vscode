@@ -22,15 +22,16 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { getModeNameForTelemetry, IChatMode, IChatModeService } from '../../common/chatModes.js';
+import { getModeNameForTelemetry, buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/requestParser/chatParserTypes.js';
 import { ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatService } from '../../common/chatService/chatService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { isInClaudeAgentsFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { getAgentSessionProvider, AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
@@ -185,8 +186,19 @@ const requestInProgressOrPendingToolCall = ContextKeyExpr.or(
 	ChatContextKeys.Editing.hasToolConfirmation,
 	ChatContextKeys.Editing.hasQuestionCarousel,
 );
+const requestInProgressWithoutInput = ContextKeyExpr.and(
+	ChatContextKeys.requestInProgress,
+	ChatContextKeys.inputHasText.negate(),
+);
+const pendingToolCall = ContextKeyExpr.or(
+	ChatContextKeys.Editing.hasToolConfirmation,
+	ContextKeyExpr.and(ChatContextKeys.Editing.hasQuestionCarousel, ChatContextKeys.inputHasText.negate()),
+);
+const noQuestionCarouselOrHasInput = ContextKeyExpr.or(
+	ChatContextKeys.Editing.hasQuestionCarousel.negate(),
+	ChatContextKeys.inputHasText,
+);
 const whenNotInProgress = ChatContextKeys.requestInProgress.negate();
-const whenNoRequestOrPendingToolCall = requestInProgressOrPendingToolCall!.negate();
 
 export class ChatSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.chat.submit';
@@ -195,7 +207,7 @@ export class ChatSubmitAction extends SubmitAction {
 		const menuCondition = ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasText,
-			whenNoRequestOrPendingToolCall,
+			whenNotInProgress,
 			ChatContextKeys.chatSessionOptionsValid,
 		);
 
@@ -224,9 +236,10 @@ export class ChatSubmitAction extends SubmitAction {
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
-						whenNoRequestOrPendingToolCall,
+						whenNotInProgress,
 						menuCondition,
 						ChatContextKeys.withinEditSessionDiff.negate(),
+						noQuestionCarouselOrHasInput,
 					),
 					group: 'navigation',
 					alt: {
@@ -240,7 +253,7 @@ export class ChatSubmitAction extends SubmitAction {
 					order: 4,
 					when: ContextKeyExpr.and(
 						ContextKeyExpr.or(ctxHasEditorModification.negate(), ChatContextKeys.inputHasText),
-						whenNoRequestOrPendingToolCall,
+						whenNotInProgress,
 						ChatContextKeys.requestInProgress.negate(),
 						menuCondition
 					),
@@ -440,6 +453,46 @@ export class OpenModelPickerAction extends Action2 {
 		}
 	}
 }
+
+export class OpenPermissionPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.openPermissionPicker';
+
+	constructor() {
+		super({
+			id: OpenPermissionPickerAction.ID,
+			title: localize2('interactive.openPermissionPicker.label', "Open Permission Picker"),
+			tooltip: localize('setPermissionLevel', "Set Permissions"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: {
+				id: MenuId.ChatInputSecondary,
+				order: 10,
+				group: 'navigation',
+				when:
+					ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+						ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask),
+						ChatContextKeys.inQuickChat.negate(),
+						ContextKeyExpr.or(
+							ChatContextKeys.lockedToCodingAgent.negate(),
+							ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Background),
+						),
+					)
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.lastFocusedWidget;
+		if (widget) {
+			widget.input.openPermissionPicker();
+		}
+	}
+}
+
 export class OpenModePickerAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.openModePicker';
 
@@ -508,6 +561,18 @@ export class OpenSessionTargetPickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
+						ChatContextKeys.chatSessionIsEmpty,
+						IsSessionsWindowContext),
+					group: 'navigation',
+				},
+				{
+					id: MenuId.ChatInputSecondary,
+					order: 0,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+						ChatContextKeys.inQuickChat.negate(),
+						IsSessionsWindowContext.negate(),
 						ChatContextKeys.chatSessionIsEmpty),
 					group: 'navigation',
 				},
@@ -537,13 +602,15 @@ export class OpenDelegationPickerAction extends Action2 {
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatSessionIsEmpty.negate(), ChatContextKeys.currentlyEditingInput.negate(), ChatContextKeys.currentlyEditing.negate()),
 			menu: [
 				{
-					id: MenuId.ChatInput,
+					id: MenuId.ChatInputSecondary,
 					order: 0.5,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.chatSessionIsEmpty.negate()),
+						ChatContextKeys.chatSessionSupportsDelegation,
+						ChatContextKeys.chatSessionIsEmpty.negate()
+					),
 					group: 'navigation',
 				},
 			]
@@ -576,7 +643,18 @@ export class OpenWorkspacePickerAction extends Action2 {
 					order: 0.6,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.inAgentSessionsWelcome,
-						ChatContextKeys.chatSessionType.isEqualTo('local')
+						ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
+						IsSessionsWindowContext
+					),
+					group: 'navigation',
+				},
+				{
+					id: MenuId.ChatInputSecondary,
+					order: 0.6,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.inAgentSessionsWelcome,
+						ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
+						IsSessionsWindowContext.negate()
 					),
 					group: 'navigation',
 				},
@@ -594,7 +672,7 @@ export class ChatSessionPrimaryPickerAction extends Action2 {
 	constructor() {
 		super({
 			id: ChatSessionPrimaryPickerAction.ID,
-			title: localize2('interactive.openChatSessionPrimaryPicker.label', "Open Model Picker"),
+			title: localize2('interactive.openChatSessionPrimaryPicker.label', "Open Primary Session Picker"),
 			category: CHAT_CATEGORY,
 			f1: false,
 			precondition: ChatContextKeys.enabled,
@@ -657,8 +735,9 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 
 	constructor() {
 		const notInProgressOrEditing = ContextKeyExpr.and(
-			ContextKeyExpr.or(whenNoRequestOrPendingToolCall, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
-			ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.QueueOrSteer)
+			ContextKeyExpr.or(whenNotInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
+			ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.Queue),
+			ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.Steer)
 		);
 
 		const menuCondition = ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask);
@@ -681,7 +760,8 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 					order: 4,
 					when: ContextKeyExpr.and(
 						notInProgressOrEditing,
-						menuCondition),
+						menuCondition,
+						noQuestionCarouselOrHasInput),
 					group: 'navigation',
 					alt: {
 						id: 'workbench.action.chat.sendToNewChat',
@@ -808,7 +888,7 @@ class SendToNewChatAction extends Action2 {
 
 		// Cancel any in-progress request before clearing
 		if (widget.viewModel) {
-			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionResource, 'newSessionAction');
+			await chatService.cancelCurrentRequestForSession(widget.viewModel.sessionResource, 'newSessionAction');
 		}
 
 		if (widget.viewModel?.model) {
@@ -839,8 +919,7 @@ export class CancelAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
-					requestInProgressOrPendingToolCall,
-					ChatContextKeys.inputHasText.negate(),
+					ContextKeyExpr.or(requestInProgressWithoutInput, pendingToolCall),
 					ChatContextKeys.remoteJobCreating.negate(),
 					ChatContextKeys.currentlyEditing.negate(),
 				),
@@ -869,7 +948,7 @@ export class CancelAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: unknown[]) {
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const context = args[0] as IChatExecuteActionContext | undefined;
 		const widgetService = accessor.get(IChatWidgetService);
 		const logService = accessor.get(ILogService);
@@ -888,7 +967,7 @@ export class CancelAction extends Action2 {
 
 		const chatService = accessor.get(IChatService);
 		if (widget.viewModel) {
-			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionResource, 'cancelAction');
+			await chatService.cancelCurrentRequestForSession(widget.viewModel.sessionResource, 'cancelAction');
 		} else {
 			telemetryService.publicLog2<ChatStopCancellationNoopEvent, ChatStopCancellationNoopClassification>(ChatStopCancellationNoopEventName, {
 				source: 'cancelAction',
@@ -943,6 +1022,163 @@ export class CancelEdit extends Action2 {
 	}
 }
 
+// --- Handoff Discovery & Execution Commands ---
+
+export const GetHandoffsActionId = 'workbench.action.chat.getHandoffs';
+
+interface IGetHandoffsArgs {
+	/**
+	 * Name of the custom agent (defined in an `.agent.md` file) whose handoffs
+	 * you want to retrieve. If omitted, all
+	 * handoffs from all agents and built-in modes are returned.
+	 */
+	sourceCustomAgent?: string;
+}
+
+/**
+ * Discovers the handoffs available across custom agents (and built-in modes).
+ *
+ * **Return value**: `ICustomAgentInfo[]` — an array where each element
+ * represents an agent/mode with its `id`, `name`, `isBuiltin`,
+ * `visibility`, and `handoffs` list.
+ *
+ * @see ICustomAgentInfo
+ * @see IHandoffInfo
+ */
+class GetHandoffsAction extends Action2 {
+
+	static readonly ID = GetHandoffsActionId;
+
+	constructor() {
+		super({
+			id: GetHandoffsAction.ID,
+			title: localize2('chat.getHandoffs.label', "Get Handoffs"),
+			f1: false,
+			category: CHAT_CATEGORY,
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const modeService = accessor.get(IChatModeService);
+		const arg = args.at(0) as IGetHandoffsArgs | undefined;
+
+		const { builtin, custom } = modeService.getModes();
+		let allModes: readonly IChatMode[] = [...builtin, ...custom];
+
+		if (arg?.sourceCustomAgent) {
+			const filterName = arg.sourceCustomAgent;
+			allModes = allModes.filter(m => m.name.get().toLowerCase() === filterName.toLowerCase());
+		}
+
+		return buildCustomAgentHandoffsInfo(allModes);
+	}
+}
+
+export const ExecuteHandoffActionId = 'workbench.action.chat.executeHandoff';
+
+interface IExecuteHandoffArgs {
+	/**
+	 * The stable handoff ID (from getHandoffs). Primary match key.
+	 * IDs are unique within a given source agent; when handoffs from
+	 * multiple source agents share the same target+label, also provide
+	 * `sourceCustomAgent` to disambiguate.
+	 */
+	id?: string;
+	/** Fallback: handoff label to match. Case-insensitive. */
+	label?: string;
+	/**
+	 * The chat session URI identifying which chat widget to execute in.
+	 * If omitted, falls back to the last-focused chat widget.
+	 */
+	sessionResource?: string;
+	/**
+	 * Name of the *source* custom agent (from `.agent.md`) that declares the handoff to
+	 * execute. If omitted, falls back to the session's currently active mode/agent.
+	 */
+	sourceCustomAgent?: string;
+}
+
+interface IExecuteHandoffResult {
+	success: boolean;
+	targetMode?: string;
+	error?: string;
+}
+
+class ExecuteHandoffAction extends Action2 {
+
+	static readonly ID = ExecuteHandoffActionId;
+
+	constructor() {
+		super({
+			id: ExecuteHandoffAction.ID,
+			title: localize2('chat.executeHandoff.label', "Execute Handoff"),
+			f1: false,
+			category: CHAT_CATEGORY,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<IExecuteHandoffResult> {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const modeService = accessor.get(IChatModeService);
+
+		const arg = args.at(0) as IExecuteHandoffArgs | undefined;
+		if (!arg?.id && !arg?.label) {
+			return { success: false, error: 'Either id or label is required' };
+		}
+
+		// Resolve the target widget: explicit sessionResource, or fall back to last-focused
+		let widget: IChatWidget | undefined;
+		if (arg.sessionResource) {
+			let sessionResource;
+			try {
+				sessionResource = URI.parse(arg.sessionResource);
+			} catch {
+				return { success: false, error: `Invalid sessionResource URI: '${arg.sessionResource}'` };
+			}
+			widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
+		} else {
+			widget = chatWidgetService.lastFocusedWidget;
+		}
+		if (!widget) {
+			return { success: false, error: 'No chat widget found. Provide sessionResource or focus a chat widget.' };
+		}
+
+		// Resolve the source custom agent whose handoffs we search (case-insensitive)
+		let sourceMode: IChatMode | undefined;
+		if (arg.sourceCustomAgent) {
+			const filterName = arg.sourceCustomAgent.toLowerCase();
+			const { builtin, custom } = modeService.getModes();
+			sourceMode = [...builtin, ...custom].find(m => m.name.get().toLowerCase() === filterName || m.id.toLowerCase() === filterName);
+		}
+		if (!sourceMode) {
+			sourceMode = widget.input.currentModeObs.get();
+		}
+
+		const handoffs = sourceMode?.handOffs?.get();
+		if (!handoffs || handoffs.length === 0) {
+			return { success: false, error: `No handoffs available for mode '${sourceMode?.name.get()}'` };
+		}
+
+		// Match by id first, then by label
+		let matchedHandoff = arg.id
+			? handoffs.find(h => getHandoffId(h) === arg.id)
+			: undefined;
+
+		if (!matchedHandoff && arg.label) {
+			const labelLower = arg.label.trim().toLowerCase();
+			matchedHandoff = handoffs.find(h => h.label.trim().toLowerCase() === labelLower);
+		}
+
+		if (!matchedHandoff) {
+			const identifier = arg.id ?? arg.label;
+			return { success: false, error: `No handoff with identifier '${identifier}' found for mode '${sourceMode?.name.get()}'` };
+		}
+
+		await widget.executeHandoff(matchedHandoff);
+		return { success: true, targetMode: matchedHandoff.agent };
+	}
+}
+
 
 export function registerChatExecuteActions() {
 	registerAction2(ChatSubmitAction);
@@ -954,6 +1190,7 @@ export function registerChatExecuteActions() {
 	registerAction2(ToggleChatModeAction);
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
+	registerAction2(OpenPermissionPickerAction);
 	registerAction2(OpenModePickerAction);
 	registerAction2(OpenSessionTargetPickerAction);
 	registerAction2(OpenDelegationPickerAction);
@@ -961,4 +1198,6 @@ export function registerChatExecuteActions() {
 	registerAction2(ChatSessionPrimaryPickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);
+	registerAction2(GetHandoffsAction);
+	registerAction2(ExecuteHandoffAction);
 }

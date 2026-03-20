@@ -9,7 +9,7 @@ import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
-import { joinPath } from '../../../../../base/common/resources.js';
+import { isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -115,7 +115,7 @@ export class ChatSessionStore extends Disposable {
 			joinPath(this.environmentService.workspaceStorageHome, newWorkspaceId, 'chatSessions');
 
 		// If the storage roots are identical, there is nothing to migrate
-		if (oldStorageRoot.toString() === newStorageRoot.toString()) {
+		if (isEqual(oldStorageRoot, newStorageRoot)) {
 			this.storageRoot = newStorageRoot;
 			return;
 		}

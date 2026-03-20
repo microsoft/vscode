@@ -40,8 +40,9 @@ import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/lang
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IInstructionDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
+import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -153,12 +154,60 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 		// Push the initial active session if there is already a focused widget
 		this._acceptActiveChatSession(this._chatWidgetService.lastFocusedWidget);
+
+		// Push custom agents to ext host
+		void this._pushCustomAgents();
+		this._register(this._promptsService.onDidChangeCustomAgents(() => {
+			void this._pushCustomAgents();
+		}));
+
+		// Push instructions to ext host
+		void this._pushInstructions();
+		this._register(this._promptsService.onDidChangeInstructions(() => {
+			void this._pushInstructions();
+		}));
+
+		// Push skills to ext host
+		void this._pushSkills();
+		this._register(this._promptsService.onDidChangeSkills(() => {
+			void this._pushSkills();
+		}));
 	}
 
 	private _acceptActiveChatSession(widget: IChatWidget | undefined): void {
 		const sessionResource = widget?.viewModel?.sessionResource;
 		const isLocal = sessionResource && getAgentSessionProvider(sessionResource) === AgentSessionProviders.Local;
 		this._proxy.$acceptActiveChatSession(isLocal ? sessionResource : undefined);
+	}
+
+	private async _pushCustomAgents(): Promise<void> {
+		try {
+			const customAgents = await this._promptsService.getCustomAgents(CancellationToken.None);
+			const dtos: ICustomAgentDto[] = customAgents.map(agent => ({ uri: agent.uri }));
+			this._proxy.$acceptCustomAgents(dtos);
+		} catch (error) {
+			this._logService.error('[chat] Failed to push custom agents to extension host', error);
+		}
+	}
+
+	private async _pushInstructions(): Promise<void> {
+		try {
+			const instructions = await this._promptsService.getInstructionFiles(CancellationToken.None);
+			const dtos: IInstructionDto[] = instructions.map(instruction => ({ uri: instruction.uri }));
+			this._proxy.$acceptInstructions(dtos);
+		} catch (error) {
+			this._logService.error('[chat] Failed to push instructions to extension host', error);
+		}
+	}
+
+	private async _pushSkills(): Promise<void> {
+		try {
+			const skills = await this._promptsService.findAgentSkills(CancellationToken.None) ?? [];
+			const dtos: ISkillDto[] = skills.map(skill => ({ uri: skill.uri }));
+			this._proxy.$acceptSkills(dtos);
+		} catch (error) {
+			this._logService.error('[chat] Failed to push skills to extension host', error);
+		}
 	}
 
 	$unregisterAgent(handle: number): void {
@@ -198,34 +247,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					const contributedSession = chatSession?.contributedChatSession;
 					let chatSessionContext: IChatSessionContextDto | undefined;
 					if (contributedSession) {
-						let chatSessionResource = contributedSession.chatSessionResource;
-						let isUntitled = contributedSession.isUntitled;
-
-						// For new untitled sessions, invoke the controller's newChatSessionItemHandler
-						// to let the extension create a proper session item before the first request.
-						if (isUntitled) {
-							const newItem = await this._chatSessionService.createNewChatSessionItem(contributedSession.chatSessionType, request, token);
-							if (newItem) {
-								chatSessionResource = newItem.resource;
-								isUntitled = false;
-
-								// Update the model's contributed session with the resolved resource
-								// so subsequent requests don't re-invoke newChatSessionItemHandler
-								// and getChatSessionFromInternalUri returns the real resource.
-								chatSession?.setContributedChatSession({
-									chatSessionType: contributedSession.chatSessionType,
-									chatSessionResource,
-									isUntitled: false,
-									initialSessionOptions: contributedSession.initialSessionOptions,
-								});
-
-								// Register alias so session-option lookups work with the new resource
-								this._chatSessionService.registerSessionResourceAlias(
-									contributedSession.chatSessionResource,
-									chatSessionResource
-								);
-							}
-						}
+						const chatSessionResource = contributedSession.chatSessionResource;
+						const isUntitled = isUntitledChatSession(chatSessionResource);
 
 						chatSessionContext = {
 							chatSessionResource,
@@ -363,6 +386,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						kind: 'usage',
 						promptTokens: progress.promptTokens,
 						completionTokens: progress.completionTokens,
+						outputBuffer: progress.outputBuffer,
 						promptTokenDetails: progress.promptTokenDetails
 					});
 				}

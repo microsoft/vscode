@@ -68,8 +68,9 @@ class ApplyChangesToParentRepoAction extends Action2 {
 					group: 'navigation',
 					order: 2,
 					when: ContextKeyExpr.and(
+						ContextKeyExpr.false(),
 						IsSessionsWindowContext,
-						hasWorktreeAndRepositoryContextKey,
+						hasWorktreeAndRepositoryContextKey
 					),
 				},
 			],

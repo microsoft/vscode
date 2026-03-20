@@ -12,6 +12,7 @@ import { revive } from '../../../base/common/marshalling.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { IPreparedToolInvocation, IStreamedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolInvocationPresentation } from '../../contrib/chat/common/tools/languageModelToolsService.js';
+import { computeCombinationKey } from '../../contrib/chat/common/tools/languageModelToolsConfirmationService.js';
 import { ExtensionEditToolId, InternalEditToolId } from '../../contrib/chat/common/tools/builtinTools/editFileTool.js';
 import { InternalFetchWebPageToolId } from '../../contrib/chat/common/tools/builtinTools/tools.js';
 import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
@@ -304,10 +305,22 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				checkProposedApiEnabled(item.extension, 'chatParticipantPrivate');
 			}
 
+			if (result.confirmationMessages?.approveCombination !== undefined) {
+				checkProposedApiEnabled(item.extension, 'toolInvocationApproveCombination');
+			}
+
+			const approveCombinationLabel = result.confirmationMessages?.approveCombination
+				? typeConvert.MarkdownString.fromStrict(result.confirmationMessages.approveCombination)
+				: undefined;
+			const approveCombinationKey = approveCombinationLabel
+				? await computeCombinationKey(toolId, context.parameters)
+				: undefined;
+
 			return {
 				confirmationMessages: result.confirmationMessages ? {
 					title: typeof result.confirmationMessages.title === 'string' ? result.confirmationMessages.title : typeConvert.MarkdownString.from(result.confirmationMessages.title),
 					message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
+					approveCombination: approveCombinationLabel && approveCombinationKey ? { label: approveCombinationLabel, key: approveCombinationKey } : undefined,
 				} : undefined,
 				invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
 				pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),

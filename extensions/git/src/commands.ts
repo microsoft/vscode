@@ -1040,24 +1040,57 @@ export class CommandCenter {
 	}
 
 	@command('_git.cloneRepository')
-	async cloneRepository(url: string, parentPath: string): Promise<void> {
+	async cloneRepository(url: string, localPath: string, ref?: string): Promise<void> {
 		const opts = {
 			location: ProgressLocation.Notification,
 			title: l10n.t('Cloning git repository "{0}"...', url),
 			cancellable: true
 		};
 
+		const parentPath = path.dirname(localPath);
+		const targetName = path.basename(localPath);
+
 		await window.withProgress(
 			opts,
-			(progress, token) => this.model.git.clone(url, { parentPath, progress }, token)
+			(progress, token) => this.model.git.clone(url, { parentPath, targetName, progress, ref }, token)
 		);
 	}
 
-	@command('_git.pull')
-	async pullRepository(repositoryPath: string): Promise<void> {
+	@command('_git.checkout')
+	async checkoutRepository(repositoryPath: string, treeish: string, detached?: boolean): Promise<void> {
 		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
 		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
-		await repo.pull();
+		await repo.checkout(treeish, [], detached ? { detached: true } : {});
+	}
+
+	@command('_git.pull')
+	async pullRepository(repositoryPath: string): Promise<boolean> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		return repo.pull();
+	}
+
+	@command('_git.fetchRepository')
+	async fetchRepository(repositoryPath: string): Promise<void> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		await repo.fetch();
+	}
+
+	@command('_git.revParse')
+	async revParse(repositoryPath: string, ref: string): Promise<string> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		const result = await repo.exec(['rev-parse', ref]);
+		return result.stdout.trim();
+	}
+
+	@command('_git.revListCount')
+	async revListCount(repositoryPath: string, fromRef: string, toRef: string): Promise<number> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		const result = await repo.exec(['rev-list', '--count', `${fromRef}..${toRef}`]);
+		return Number(result.stdout.trim()) || 0;
 	}
 
 	@command('_git.revParseAbbrevRef')

@@ -3,16 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { ChatConfiguration } from '../../constants.js';
 import { ILanguageModelToolsService } from '../languageModelToolsService.js';
 import { AskQuestionsTool, AskQuestionsToolData } from './askQuestionsTool.js';
-import { ConfirmationTool, ConfirmationToolData, ConfirmationToolWithOptionsData } from './confirmationTool.js';
+import { ConfirmationTool, ConfirmationToolData, ConfirmationToolWithOptionsData, ModifiedFilesConfirmationTool, ModifiedFilesConfirmationToolData } from './confirmationTool.js';
 import { EditTool, EditToolData } from './editFileTool.js';
 import { createManageTodoListToolData, ManageTodoListTool } from './manageTodoListTool.js';
-import { ResolveDebugEventDetailsTool, ResolveDebugEventDetailsToolData } from './resolveDebugEventDetailsTool.js';
 import { RunSubagentTool } from './runSubagentTool.js';
+import { SetArtifactsTool, SetArtifactsToolData } from './setArtifactsTool.js';
+import { TaskCompleteTool, TaskCompleteToolData } from './taskCompleteTool.js';
 
 export class BuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -21,6 +24,7 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 	constructor(
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -35,14 +39,34 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		const manageTodoListTool = this._register(instantiationService.createInstance(ManageTodoListTool));
 		this._register(toolsService.registerTool(todoToolData, manageTodoListTool));
 
-		// Register the confirmation tool
 		const confirmationTool = instantiationService.createInstance(ConfirmationTool);
 		this._register(toolsService.registerTool(ConfirmationToolData, confirmationTool));
 		this._register(toolsService.registerTool(ConfirmationToolWithOptionsData, confirmationTool));
 
-		const resolveDebugEventDetailsTool = instantiationService.createInstance(ResolveDebugEventDetailsTool);
-		this._register(toolsService.registerTool(ResolveDebugEventDetailsToolData, resolveDebugEventDetailsTool));
-		this._register(toolsService.readToolSet.addTool(ResolveDebugEventDetailsToolData));
+		const modifiedFilesConfirmationTool = instantiationService.createInstance(ModifiedFilesConfirmationTool);
+		this._register(toolsService.registerTool(ModifiedFilesConfirmationToolData, modifiedFilesConfirmationTool));
+
+
+		const taskCompleteTool = instantiationService.createInstance(TaskCompleteTool);
+		this._register(toolsService.registerTool(TaskCompleteToolData, taskCompleteTool));
+
+		const setArtifactsTool = instantiationService.createInstance(SetArtifactsTool);
+		const setArtifactsRegistration = this._register(new MutableDisposable());
+		const updateArtifactsRegistration = () => {
+			if (configurationService.getValue<boolean>(ChatConfiguration.ArtifactsEnabled)) {
+				if (!setArtifactsRegistration.value) {
+					setArtifactsRegistration.value = toolsService.registerTool(SetArtifactsToolData, setArtifactsTool);
+				}
+			} else {
+				setArtifactsRegistration.clear();
+			}
+		};
+		updateArtifactsRegistration();
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ArtifactsEnabled)) {
+				updateArtifactsRegistration();
+			}
+		}));
 
 		const runSubagentTool = this._register(instantiationService.createInstance(RunSubagentTool));
 

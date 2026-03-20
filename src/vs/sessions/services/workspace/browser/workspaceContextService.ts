@@ -13,8 +13,6 @@ import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/co
 import { getWorkspaceIdentifier } from '../../../../workbench/services/workspaces/browser/workspaces.js';
 import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-
 export class SessionsWorkspaceContextService extends Disposable implements IWorkspaceContextService, IWorkspaceEditingService {
 
 	declare readonly _serviceBrand: undefined;
@@ -35,7 +33,6 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 	constructor(
 		workspaceIdentifier: IWorkspaceIdentifier,
 		private readonly uriIdentityService: IUriIdentityService,
-		private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.workspace = new Workspace(workspaceIdentifier.id, [], false, workspaceIdentifier.configPath, uri => uriIdentityService.extUri.ignorePathCasing(uri));
@@ -54,7 +51,7 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 	}
 
 	hasWorkspaceData(): boolean {
-		return this.configurationService.getValue('sessions.workspace.sendWorkspaceDataToExtHost') === true;
+		return true;
 	}
 
 	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
@@ -159,7 +156,8 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 
 		// Update workspace
 		const workspaceIdentifier = getWorkspaceIdentifier(this.workspace.configuration!);
-		this.workspace = new Workspace(workspaceIdentifier.id, newFolders, false, workspaceIdentifier.configPath, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
+		const workspace = new Workspace(workspaceIdentifier.id, newFolders, false, workspaceIdentifier.configPath, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
+		this.workspace.update(workspace);
 
 		// Fire did change event
 		this._onDidChangeWorkspaceFolders.fire(changes);

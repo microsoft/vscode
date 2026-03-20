@@ -6,15 +6,16 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IsolationMode } from './sessionTargetPicker.js';
+import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 
-export type NewSessionChangeType = 'repoUri' | 'isolationMode' | 'branch' | 'options' | 'disabled';
+export type NewSessionChangeType = 'repoUri' | 'isolationMode' | 'branch' | 'options' | 'disabled' | 'agent';
 
 /**
  * Represents a resolved option group with its current selected value.
@@ -32,19 +33,21 @@ export interface ISessionOptionGroup {
 export interface INewSession extends IDisposable {
 	readonly resource: URI;
 	readonly target: AgentSessionProviders;
-	readonly repoUri: URI | undefined;
-	readonly isolationMode: IsolationMode;
+	readonly project: SessionWorkspace | undefined;
+	readonly isolationMode: IsolationMode | undefined;
 	readonly branch: string | undefined;
 	readonly modelId: string | undefined;
+	readonly mode: IChatMode | undefined;
 	readonly query: string | undefined;
 	readonly attachedContext: IChatRequestVariableEntry[] | undefined;
 	readonly selectedOptions: ReadonlyMap<string, IChatSessionProviderOptionItem>;
 	readonly disabled: boolean;
 	readonly onDidChange: Event<NewSessionChangeType>;
-	setRepoUri(uri: URI): void;
+	setProject(project: SessionWorkspace): void;
 	setIsolationMode(mode: IsolationMode): void;
 	setBranch(branch: string | undefined): void;
 	setModelId(modelId: string | undefined): void;
+	setMode(mode: IChatMode | undefined): void;
 	setQuery(query: string): void;
 	setAttachedContext(context: IChatRequestVariableEntry[] | undefined): void;
 	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void;
@@ -53,18 +56,21 @@ export interface INewSession extends IDisposable {
 const REPOSITORY_OPTION_ID = 'repository';
 const BRANCH_OPTION_ID = 'branch';
 const ISOLATION_OPTION_ID = 'isolation';
+const AGENT_OPTION_ID = 'agent';
 
 /**
  * Local new session for Background agent sessions.
  * Fires `onDidChange` for both `repoUri` and `isolationMode` changes.
  * Notifies the extension service with session options for each property change.
  */
-export class LocalNewSession extends Disposable implements INewSession {
+export class CopilotCLISession extends Disposable implements INewSession {
 
 	private _repoUri: URI | undefined;
-	private _isolationMode: IsolationMode = 'worktree';
+	private _project: SessionWorkspace | undefined;
+	private _isolationMode: IsolationMode;
 	private _branch: string | undefined;
 	private _modelId: string | undefined;
+	private _mode: IChatMode | undefined;
 	private _query: string | undefined;
 	private _attachedContext: IChatRequestVariableEntry[] | undefined;
 
@@ -74,10 +80,11 @@ export class LocalNewSession extends Disposable implements INewSession {
 	readonly target = AgentSessionProviders.Background;
 	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
 
-	get repoUri(): URI | undefined { return this._repoUri; }
+	get project(): SessionWorkspace | undefined { return this._project; }
 	get isolationMode(): IsolationMode { return this._isolationMode; }
 	get branch(): string | undefined { return this._branch; }
 	get modelId(): string | undefined { return this._modelId; }
+	get mode(): IChatMode | undefined { return this._mode; }
 	get query(): string | undefined { return this._query; }
 	get attachedContext(): IChatRequestVariableEntry[] | undefined { return this._attachedContext; }
 	get disabled(): boolean {
@@ -94,22 +101,24 @@ export class LocalNewSession extends Disposable implements INewSession {
 		readonly resource: URI,
 		defaultRepoUri: URI | undefined,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		if (defaultRepoUri) {
 			this._repoUri = defaultRepoUri;
 			this.setOption(REPOSITORY_OPTION_ID, defaultRepoUri.fsPath);
 		}
+		this._isolationMode = 'worktree';
+		this.setOption(ISOLATION_OPTION_ID, 'worktree');
 	}
 
-	setRepoUri(uri: URI): void {
-		this._repoUri = uri;
-		this._isolationMode = 'workspace';
+	setProject(project: SessionWorkspace): void {
+		this._project = project;
+		this._repoUri = project.uri;
+		this.setIsolationMode('worktree');
 		this._branch = undefined;
 		this._onDidChange.fire('repoUri');
 		this._onDidChange.fire('disabled');
-		this.setOption(REPOSITORY_OPTION_ID, uri.fsPath);
+		this.setOption(REPOSITORY_OPTION_ID, project.uri.fsPath);
 	}
 
 	setIsolationMode(mode: IsolationMode): void {
@@ -134,6 +143,15 @@ export class LocalNewSession extends Disposable implements INewSession {
 		this._modelId = modelId;
 	}
 
+	setMode(mode: IChatMode | undefined): void {
+		if (this._mode?.id !== mode?.id) {
+			this._mode = mode;
+			this._onDidChange.fire('agent');
+			const modeName = mode?.isBuiltin ? undefined : mode?.name.get();
+			this.setOption(AGENT_OPTION_ID, modeName ?? '');
+		}
+	}
+
 	setQuery(query: string): void {
 		this._query = query;
 	}
@@ -148,10 +166,7 @@ export class LocalNewSession extends Disposable implements INewSession {
 		} else {
 			this.selectedOptions.set(optionId, value);
 		}
-		this.chatSessionsService.notifySessionOptionsChange(
-			this.resource,
-			[{ optionId, value }]
-		).catch((err) => this.logService.error(`Failed to notify session option ${optionId} change:`, err));
+		this.chatSessionsService.setSessionOption(this.resource, optionId, value);
 	}
 }
 
@@ -163,6 +178,7 @@ export class LocalNewSession extends Disposable implements INewSession {
 export class RemoteNewSession extends Disposable implements INewSession {
 
 	private _repoUri: URI | undefined;
+	private _project: SessionWorkspace | undefined;
 	private _modelId: string | undefined;
 	private _query: string | undefined;
 	private _attachedContext: IChatRequestVariableEntry[] | undefined;
@@ -175,10 +191,11 @@ export class RemoteNewSession extends Disposable implements INewSession {
 
 	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
 
-	get repoUri(): URI | undefined { return this._repoUri; }
-	get isolationMode(): IsolationMode { return 'worktree'; }
+	get project(): SessionWorkspace | undefined { return this._project; }
+	get isolationMode(): undefined { return undefined; }
 	get branch(): string | undefined { return undefined; }
 	get modelId(): string | undefined { return this._modelId; }
+	get mode(): IChatMode | undefined { return undefined; }
 	get query(): string | undefined { return this._query; }
 	get attachedContext(): IChatRequestVariableEntry[] | undefined { return this._attachedContext; }
 	get disabled(): boolean {
@@ -192,7 +209,6 @@ export class RemoteNewSession extends Disposable implements INewSession {
 		readonly target: AgentSessionProviders,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -210,11 +226,12 @@ export class RemoteNewSession extends Disposable implements INewSession {
 		}));
 	}
 
-	setRepoUri(uri: URI): void {
-		this._repoUri = uri;
+	setProject(project: SessionWorkspace): void {
+		this._project = project;
+		this._repoUri = project.uri;
 		this._onDidChange.fire('repoUri');
 		this._onDidChange.fire('disabled');
-		const id = uri.path.substring(1);
+		const id = project.uri.path.substring(1);
 		this.setOption('repositories', { id, name: id });
 	}
 
@@ -228,6 +245,11 @@ export class RemoteNewSession extends Disposable implements INewSession {
 
 	setModelId(modelId: string | undefined): void {
 		this._modelId = modelId;
+	}
+
+	setMode(_mode: IChatMode | undefined): void {
+		// Intentionally a no-op: remote sessions do not support client-side mode selection.
+		// Any mode or behavior differences are determined by the remote session provider/server.
 	}
 
 	setQuery(query: string): void {
@@ -244,10 +266,7 @@ export class RemoteNewSession extends Disposable implements INewSession {
 		}
 		this._onDidChange.fire('options');
 		this._onDidChange.fire('disabled');
-		this.chatSessionsService.notifySessionOptionsChange(
-			this.resource,
-			[{ optionId, value }]
-		).catch((err) => this.logService.error(`Failed to notify extension of ${optionId} change:`, err));
+		this.chatSessionsService.setSessionOption(this.resource, optionId, value);
 	}
 
 	// --- Option group accessors ---

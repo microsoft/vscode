@@ -271,6 +271,18 @@ export class ChatListWidget extends Disposable {
 		this._lastItemIdContextKey = ChatContextKeys.lastItemId.bindTo(this.contextKeyService);
 		this._container = container;
 
+		// Toggle link-style for inline reference widgets based on configuration (single listener for all widgets)
+		const updateInlineReferencesStyle = () => {
+			const style = this.configurationService.getValue<string>(ChatConfiguration.InlineReferencesStyle);
+			this._container.classList.toggle('chat-inline-references-link-style', style === 'link');
+		};
+		updateInlineReferencesStyle();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.InlineReferencesStyle)) {
+				updateInlineReferencesStyle();
+			}
+		}));
+
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this.contextKeyService])
 		));

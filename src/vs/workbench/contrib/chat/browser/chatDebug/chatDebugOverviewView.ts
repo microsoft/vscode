@@ -6,6 +6,7 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { BreadcrumbsWidget } from '../../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -14,14 +15,16 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
+import { safeIntl } from '../../../../../base/common/date.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem } from './chatDebugTypes.js';
 
 const $ = DOM.$;
+const numberFormatter = safeIntl.NumberFormat();
 
 export const enum OverviewNavigation {
 	Home = 'home',
@@ -42,6 +45,7 @@ export class ChatDebugOverviewView extends Disposable {
 	private currentSessionResource: URI | undefined;
 	private metricsContainer: HTMLElement | undefined;
 	private isFirstLoad: boolean = true;
+	private readonly refreshScheduler: RunOnceScheduler;
 
 	constructor(
 		parent: HTMLElement,
@@ -53,6 +57,8 @@ export class ChatDebugOverviewView extends Disposable {
 		super();
 		this.container = DOM.append(parent, $('.chat-debug-overview'));
 		DOM.hide(this.container);
+
+		this.refreshScheduler = this._register(new RunOnceScheduler(() => this.doRefresh(), 100));
 
 		// Breadcrumb
 		const breadcrumbContainer = DOM.append(this.container, $('.chat-debug-breadcrumb'));
@@ -84,19 +90,26 @@ export class ChatDebugOverviewView extends Disposable {
 
 	hide(): void {
 		DOM.hide(this.container);
+		this.refreshScheduler.cancel();
 	}
 
 	refresh(): void {
 		if (this.container.style.display !== 'none') {
-			// On refresh, only update the metrics section in-place
-			if (this.metricsContainer && this.currentSessionResource) {
-				DOM.clearNode(this.metricsContainer);
-				const events = this.chatDebugService.getEvents(this.currentSessionResource);
-				this.renderMetricsContent(this.metricsContainer, events);
-				this.isFirstLoad = false;
-			} else {
-				this.load();
+			if (!this.refreshScheduler.isScheduled()) {
+				this.refreshScheduler.schedule();
 			}
+		}
+	}
+
+	private doRefresh(): void {
+		// On refresh, only update the metrics section in-place
+		if (this.metricsContainer && this.currentSessionResource) {
+			DOM.clearNode(this.metricsContainer);
+			const events = this.chatDebugService.getEvents(this.currentSessionResource);
+			this.renderMetricsContent(this.metricsContainer, events);
+			this.isFirstLoad = false;
+		} else {
+			this.load();
 		}
 	}
 
@@ -106,7 +119,7 @@ export class ChatDebugOverviewView extends Disposable {
 		}
 		const sessionTitle = this.chatService.getSessionTitle(this.currentSessionResource) || LocalChatSessionUri.parseLocalSessionId(this.currentSessionResource) || this.currentSessionResource.toString();
 		this.breadcrumbWidget.setItems([
-			new TextBreadcrumbItem(localize('chatDebug.title', "Agent Debug Panel"), true),
+			new TextBreadcrumbItem(localize('chatDebug.title', "Agent Debug Logs"), true),
 			new TextBreadcrumbItem(sessionTitle),
 		]);
 	}
@@ -159,7 +172,7 @@ export class ChatDebugOverviewView extends Disposable {
 		// Session type
 		const sessionType = getChatSessionType(sessionUri);
 		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
-		const sessionTypeName = contribution?.displayName || (sessionType === 'local'
+		const sessionTypeName = contribution?.displayName || (sessionType === localChatSessionType
 			? localize('chatDebug.sessionType.local', "Local")
 			: sessionType);
 		details.push({ label: localize('chatDebug.detail.sessionType', "Session Type"), value: sessionTypeName });
@@ -273,7 +286,7 @@ export class ChatDebugOverviewView extends Disposable {
 		const metrics: OverviewMetric[] = [
 			{ label: localize('chatDebug.metric.modelTurns', "Model Turns"), value: String(modelTurns.length) },
 			{ label: localize('chatDebug.metric.toolCalls', "Tool Calls"), value: String(toolCalls.length) },
-			{ label: localize('chatDebug.metric.totalTokens', "Total Tokens"), value: totalTokens.toLocaleString() },
+			{ label: localize('chatDebug.metric.totalTokens', "Total Tokens"), value: numberFormatter.value.format(totalTokens) },
 			{ label: localize('chatDebug.metric.errors', "Errors"), value: String(errors.length) },
 			{ label: localize('chatDebug.metric.totalEvents', "Total Events"), value: String(events.length) },
 		];

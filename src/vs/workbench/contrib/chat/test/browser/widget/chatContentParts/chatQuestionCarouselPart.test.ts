@@ -9,7 +9,7 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../../browser/widget/chatContentParts/chatQuestionCarouselPart.js';
-import { IChatQuestionCarousel } from '../../../../common/chatService/chatService.js';
+import { IChatQuestionAnswerValue, IChatQuestionCarousel } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 
@@ -29,7 +29,7 @@ suite('ChatQuestionCarouselPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let widget: ChatQuestionCarouselPart;
-	let submittedAnswers: Map<string, unknown> | undefined | null = null;
+	let submittedAnswers: Map<string, IChatQuestionAnswerValue> | undefined | null = null;
 
 	function createWidget(carousel: IChatQuestionCarousel): ChatQuestionCarouselPart {
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -58,6 +58,7 @@ suite('ChatQuestionCarouselPart', () => {
 			createWidget(carousel);
 
 			assert.ok(widget.domNode.classList.contains('chat-question-carousel-container'));
+			assert.ok(widget.domNode.querySelector('.chat-question-header-row'));
 			assert.ok(widget.domNode.querySelector('.chat-question-carousel-content'));
 		});
 
@@ -98,12 +99,7 @@ suite('ChatQuestionCarouselPart', () => {
 
 			const title = widget.domNode.querySelector('.chat-question-title');
 			assert.ok(title, 'title element should exist');
-			const messageEl = widget.domNode.querySelector('.chat-question-message');
-			assert.ok(messageEl, 'message element should exist');
-			assert.ok(messageEl?.querySelector('.rendered-markdown'), 'markdown content should be rendered');
-			assert.strictEqual(messageEl?.textContent?.includes('**details**'), false, 'markdown syntax should not be shown as raw text');
-			const link = messageEl?.querySelector('a') as HTMLAnchorElement | null;
-			assert.ok(link, 'markdown link should render as anchor');
+			assert.ok(title?.querySelector('.rendered-markdown'), 'markdown content should be rendered');
 		});
 
 		test('renders plain string question message as text', () => {
@@ -117,13 +113,12 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const messageEl = widget.domNode.querySelector('.chat-question-message');
-			assert.ok(messageEl, 'message element should exist');
-			assert.ok(messageEl?.textContent?.includes('details'), 'plain text content should be rendered');
-			assert.strictEqual(messageEl?.querySelector('.rendered-markdown'), null, 'plain string message should not use markdown renderer');
+			const title = widget.domNode.querySelector('.chat-question-title');
+			assert.ok(title, 'title element should exist');
+			assert.ok(title?.textContent?.includes('details'), 'content should be rendered');
 		});
 
-		test('renders tab bar for multi-question carousel', () => {
+		test('renders progress indicator correctly', () => {
 			const carousel = createMockCarousel([
 				{ id: 'q1', type: 'text', title: 'Question 1', message: 'Question 1' },
 				{ id: 'q2', type: 'text', title: 'Question 2', message: 'Question 2' },
@@ -131,11 +126,104 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const tabBar = widget.domNode.querySelector('.chat-question-tab-bar');
-			assert.ok(tabBar, 'Tab bar should exist for multi-question carousel');
-			const tabs = widget.domNode.querySelectorAll('.chat-question-tab');
-			// 3 question tabs + 1 review tab
-			assert.strictEqual(tabs.length, 4, 'Should have 3 question tabs + 1 review tab');
+			// Progress is shown in the step indicator in the footer as "1/3"
+			const stepIndicator = widget.domNode.querySelector('.chat-question-step-indicator');
+			assert.ok(stepIndicator);
+			assert.ok(stepIndicator?.textContent?.includes('1'));
+			assert.ok(stepIndicator?.textContent?.includes('3'));
+		});
+
+		test('renders close button in title row for multi-question carousels', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			], true);
+			createWidget(carousel);
+
+			const titleRow = widget.domNode.querySelector('.chat-question-title-row');
+			assert.ok(titleRow, 'title row should exist');
+
+			const closeContainer = titleRow?.querySelector('.chat-question-close-container');
+			assert.ok(closeContainer, 'close button container should be rendered in the title row');
+
+			const directChildCloseContainer = widget.domNode.querySelector(':scope > .chat-question-close-container');
+			assert.strictEqual(directChildCloseContainer, null, 'close button container should not be positioned as a direct child of the carousel container');
+		});
+
+		test('renders collapse button in title row even when skip is disabled', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' }
+			], false);
+			createWidget(carousel);
+
+			const titleRow = widget.domNode.querySelector('.chat-question-title-row');
+			assert.ok(titleRow, 'title row should exist');
+
+			const collapseButton = titleRow?.querySelector('.chat-question-collapse-toggle');
+			assert.ok(collapseButton, 'collapse button should be rendered even when skip is disabled');
+		});
+
+		test('renders collapse button to the right of close button', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			], true);
+			createWidget(carousel);
+
+			const actionsContainer = widget.domNode.querySelector('.chat-question-header-actions');
+			assert.ok(actionsContainer, 'actions container should exist');
+			if (!actionsContainer) {
+				return;
+			}
+
+			const actionButtons = Array.from(actionsContainer.querySelectorAll('.monaco-button'));
+			const closeIndex = actionButtons.findIndex(button => button.classList.contains('chat-question-close'));
+			const collapseIndex = actionButtons.findIndex(button => button.classList.contains('chat-question-collapse-toggle'));
+
+			assert.ok(closeIndex >= 0, 'close button should exist');
+			assert.ok(collapseIndex >= 0, 'collapse button should exist');
+			assert.ok(collapseIndex > closeIndex, 'collapse button should be positioned to the right of close button');
+		});
+
+		test('toggles collapsed state and updates aria-expanded', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			], true);
+			createWidget(carousel);
+
+			const collapseButton = widget.domNode.querySelector('.chat-question-collapse-toggle') as HTMLElement;
+			assert.ok(collapseButton, 'collapse button should exist');
+			assert.strictEqual(collapseButton.getAttribute('aria-expanded'), 'true');
+
+			collapseButton.click();
+			assert.ok(widget.domNode.classList.contains('chat-question-carousel-collapsed'), 'widget should enter collapsed state');
+			assert.strictEqual(collapseButton.getAttribute('aria-expanded'), 'false');
+			const collapsedSummary = widget.domNode.querySelector('.chat-question-collapsed-summary');
+			assert.strictEqual(collapsedSummary, null, 'collapsed mode should not render an additional summary section');
+
+			const titleRow = widget.domNode.querySelector('.chat-question-title-row');
+			assert.ok(titleRow, 'header should remain visible when collapsed');
+
+			const inputScrollable = widget.domNode.querySelector('.chat-question-input-scrollable');
+			assert.ok(inputScrollable, 'input section exists in DOM but is hidden while collapsed');
+
+			collapseButton.click();
+			assert.ok(!widget.domNode.classList.contains('chat-question-carousel-collapsed'), 'widget should exit collapsed state');
+			assert.strictEqual(collapseButton.getAttribute('aria-expanded'), 'true');
+		});
+
+		test('restores draft collapsed state from carousel data', () => {
+			const carousel = new ChatQuestionCarouselData([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			], true);
+			carousel.draftCollapsed = true;
+			createWidget(carousel);
+
+			assert.ok(widget.domNode.classList.contains('chat-question-carousel-collapsed'), 'widget should restore collapsed draft state');
+			const collapseButton = widget.domNode.querySelector('.chat-question-collapse-toggle');
+			assert.strictEqual(collapseButton?.getAttribute('aria-expanded'), 'false');
 		});
 	});
 
@@ -191,7 +279,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(checkboxes.length, 3, 'Should have 3 checkboxes');
 		});
 
-		test('freeform textarea is always rendered for singleSelect', () => {
+		test('freeform textarea is rendered for singleSelect by default', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
@@ -205,10 +293,10 @@ suite('ChatQuestionCarouselPart', () => {
 			createWidget(carousel);
 
 			const freeformTextarea = widget.domNode.querySelector('.chat-question-freeform-textarea');
-			assert.ok(freeformTextarea, 'Freeform textarea should always be rendered for singleSelect');
+			assert.ok(freeformTextarea, 'Freeform textarea should be rendered by default for singleSelect');
 		});
 
-		test('freeform textarea is always rendered for multiSelect', () => {
+		test('freeform textarea is rendered for multiSelect by default', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
@@ -222,7 +310,45 @@ suite('ChatQuestionCarouselPart', () => {
 			createWidget(carousel);
 
 			const freeformTextarea = widget.domNode.querySelector('.chat-question-freeform-textarea');
-			assert.ok(freeformTextarea, 'Freeform textarea should always be rendered for multiSelect');
+			assert.ok(freeformTextarea, 'Freeform textarea should be rendered by default for multiSelect');
+		});
+
+		test('freeform textarea is hidden when allowFreeformInput is false for singleSelect', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'singleSelect',
+					title: 'Choose one',
+					allowFreeformInput: false,
+					options: [
+						{ id: 'a', label: 'Option A', value: 'a' },
+						{ id: 'b', label: 'Option B', value: 'b' }
+					]
+				}
+			]);
+			createWidget(carousel);
+
+			const freeformTextarea = widget.domNode.querySelector('.chat-question-freeform-textarea');
+			assert.strictEqual(freeformTextarea, null, 'Freeform textarea should not be rendered when allowFreeformInput is false');
+		});
+
+		test('freeform textarea is hidden when allowFreeformInput is false for multiSelect', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'multiSelect',
+					title: 'Choose multiple',
+					allowFreeformInput: false,
+					options: [
+						{ id: 'a', label: 'Option A', value: 'a' },
+						{ id: 'b', label: 'Option B', value: 'b' }
+					]
+				}
+			]);
+			createWidget(carousel);
+
+			const freeformTextarea = widget.domNode.querySelector('.chat-question-freeform-textarea');
+			assert.strictEqual(freeformTextarea, null, 'Freeform textarea should not be rendered when allowFreeformInput is false');
 		});
 
 		test('default options are pre-selected for singleSelect', () => {
@@ -269,16 +395,48 @@ suite('ChatQuestionCarouselPart', () => {
 	});
 
 	suite('Navigation', () => {
-		test('single question has no tab bar or submit button', () => {
+		test('previous button is disabled on first question', () => {
 			const carousel = createMockCarousel([
-				{ id: 'q1', type: 'text', title: 'Only Question' }
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
 			]);
 			createWidget(carousel);
 
-			const tabBar = widget.domNode.querySelector('.chat-question-tab-bar');
-			assert.strictEqual(tabBar, null, 'Tab bar should not exist for single question');
-			const submitButton = widget.domNode.querySelector('.chat-question-submit-button');
-			assert.strictEqual(submitButton, null, 'Submit button is only in review panel for multi-question');
+			const navArrows = widget.domNode.querySelectorAll('.chat-question-nav-arrow') as NodeListOf<HTMLButtonElement>;
+			const prevButton = navArrows[0];
+			assert.ok(prevButton, 'Previous button should exist');
+			assert.ok(prevButton.classList.contains('disabled') || prevButton.disabled, 'Previous button should be disabled on first question');
+		});
+
+		test('next button stays as arrow and is disabled on last question', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Only Question' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			]);
+			createWidget(carousel);
+
+			// Navigate to last question
+			widget.navigateToNextQuestion();
+
+			const navArrows = widget.domNode.querySelectorAll('.chat-question-nav-arrow') as NodeListOf<HTMLButtonElement>;
+			const nextButton = navArrows[1];
+			assert.ok(nextButton, 'Next button should exist');
+			assert.ok(nextButton.classList.contains('disabled') || nextButton.disabled, 'Next button should be disabled on last question');
+		});
+
+		test('submit button is shown on last question', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			]);
+			createWidget(carousel);
+
+			// Navigate to last question
+			widget.navigateToNextQuestion();
+
+			const submitButton = widget.domNode.querySelector('.chat-question-submit-button') as HTMLButtonElement;
+			assert.ok(submitButton, 'Submit button should exist');
+			assert.notStrictEqual(submitButton.style.display, 'none', 'Submit button should be visible on last question');
 		});
 	});
 
@@ -373,14 +531,13 @@ suite('ChatQuestionCarouselPart', () => {
 	suite('Accessibility', () => {
 		test('navigation area has proper role and aria-label', () => {
 			const carousel = createMockCarousel([
-				{ id: 'q1', type: 'text', title: 'Question 1' },
-				{ id: 'q2', type: 'text', title: 'Question 2' }
+				{ id: 'q1', type: 'text', title: 'Question 1' }
 			]);
 			createWidget(carousel);
 
-			const tabList = widget.domNode.querySelector('.chat-question-tabs');
-			assert.strictEqual(tabList?.getAttribute('role'), 'tablist');
-			assert.ok(tabList?.getAttribute('aria-label'), 'Tab list should have aria-label');
+			const nav = widget.domNode.querySelector('.chat-question-carousel-nav');
+			assert.strictEqual(nav?.getAttribute('role'), 'navigation');
+			assert.ok(nav?.getAttribute('aria-label'), 'Navigation should have aria-label');
 		});
 
 		test('single select list has proper role and aria-label', () => {
@@ -559,20 +716,19 @@ suite('ChatQuestionCarouselPart', () => {
 			], true);
 
 			const firstWidget = createWidget(carousel);
-			// Click the second tab to navigate
-			const tabs = firstWidget.domNode.querySelectorAll('.chat-question-tab');
-			assert.ok(tabs.length >= 2, 'should have at least 2 tabs');
-			(tabs[1] as HTMLElement).click();
-
-			// Verify navigation happened
-			assert.strictEqual(tabs[1].getAttribute('aria-selected'), 'true', 'second tab should be selected after click');
+			const nextButton = firstWidget.domNode.querySelector('.chat-question-nav-next') as HTMLElement | null;
+			assert.ok(nextButton, 'next button should exist');
+			nextButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
 			firstWidget.dispose();
 			firstWidget.domNode.remove();
 
 			const recreatedWidget = createWidget(carousel);
-			const recreatedTabs = recreatedWidget.domNode.querySelectorAll('.chat-question-tab');
-			assert.strictEqual(recreatedTabs[1]?.getAttribute('aria-selected'), 'true', 'should restore to second tab after recreation');
+			const stepIndicator = recreatedWidget.domNode.querySelector('.chat-question-step-indicator');
+			assert.strictEqual(stepIndicator?.textContent, '2/2', 'should restore the current question index after navigation');
+
+			const title = recreatedWidget.domNode.querySelector('.chat-question-title');
+			assert.ok(title?.textContent?.includes('Question 2'), 'should restore to the second question view');
 		});
 
 		test('retains draft answers and current question after widget recreation', () => {
@@ -587,9 +743,9 @@ suite('ChatQuestionCarouselPart', () => {
 			firstInput.value = 'first draft answer';
 			firstInput.dispatchEvent(new Event('input', { bubbles: true }));
 
-			// Click the second tab to navigate
-			const tabs = firstWidget.domNode.querySelectorAll('.chat-question-tab');
-			(tabs[1] as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			const nextButton = firstWidget.domNode.querySelector('.chat-question-nav-next') as HTMLElement | null;
+			assert.ok(nextButton, 'next button should exist');
+			nextButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
 			const secondInput = firstWidget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement | null;
 			assert.ok(secondInput, 'second question input should exist');
@@ -600,16 +756,16 @@ suite('ChatQuestionCarouselPart', () => {
 			firstWidget.domNode.remove();
 
 			const recreatedWidget = createWidget(carousel);
-			const recreatedTabs = recreatedWidget.domNode.querySelectorAll('.chat-question-tab');
-			assert.strictEqual(recreatedTabs[1]?.getAttribute('aria-selected'), 'true', 'should restore the current question index');
+			const stepIndicator = recreatedWidget.domNode.querySelector('.chat-question-step-indicator');
+			assert.strictEqual(stepIndicator?.textContent, '2/2', 'should restore the current question index');
 
 			const recreatedSecondInput = recreatedWidget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement | null;
 			assert.ok(recreatedSecondInput, 'recreated second question input should exist');
 			assert.strictEqual(recreatedSecondInput.value, 'second draft answer', 'should restore draft input for current question');
 
-			// Click the first tab to go back
-			const recreatedTabsAgain = recreatedWidget.domNode.querySelectorAll('.chat-question-tab');
-			(recreatedTabsAgain[0] as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			const prevButton = recreatedWidget.domNode.querySelector('.chat-question-nav-prev') as HTMLElement | null;
+			assert.ok(prevButton, 'previous button should exist');
+			prevButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
 			const recreatedFirstInput = recreatedWidget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement | null;
 			assert.ok(recreatedFirstInput, 'recreated first question input should exist');
@@ -629,7 +785,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(summary, 'Should show summary container after skip');
 			const summaryItem = summary?.querySelector('.chat-question-summary-item');
 			assert.ok(summaryItem, 'Should have summary item for the question');
-			const summaryValue = summaryItem?.querySelector('.chat-question-summary-answer');
+			const summaryValue = summaryItem?.querySelector('.chat-question-summary-answer-title');
 			assert.ok(summaryValue?.textContent?.includes('default answer'), 'Summary should show the default answer');
 		});
 
@@ -663,7 +819,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(widget.domNode.classList.contains('chat-question-carousel-used'), 'Should have used class');
 			const summary = widget.domNode.querySelector('.chat-question-carousel-summary');
 			assert.ok(summary, 'Should show summary container when isUsed is true');
-			const summaryValue = summary?.querySelector('.chat-question-summary-answer');
+			const summaryValue = summary?.querySelector('.chat-question-summary-answer-title');
 			assert.ok(summaryValue?.textContent?.includes('saved answer'), 'Summary should show saved answer from data');
 		});
 
@@ -683,6 +839,165 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(summary, 'Should show summary container');
 			const skippedMessage = summary?.querySelector('.chat-question-summary-skipped');
 			assert.ok(skippedMessage, 'Should show skipped message when no data');
+		});
+	});
+
+	suite('Description and Message', () => {
+		test('renders question description when provided', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Email', description: 'Enter your email address' }
+			]);
+			createWidget(carousel);
+
+			const desc = widget.domNode.querySelector('.chat-question-description');
+			assert.ok(desc, 'Description element should be rendered');
+			assert.strictEqual(desc?.textContent, 'Enter your email address');
+		});
+
+		test('does not render description element when not provided', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Name' }
+			]);
+			createWidget(carousel);
+
+			const desc = widget.domNode.querySelector('.chat-question-description');
+			assert.strictEqual(desc, null, 'Description element should not exist when not provided');
+		});
+
+		test('renders carousel-level message on first question', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Name' },
+				{ id: 'q2', type: 'text', title: 'Email' }
+			]);
+			carousel.message = 'Please fill in the following:';
+			createWidget(carousel);
+
+			const message = widget.domNode.querySelector('.chat-question-carousel-message');
+			assert.ok(message, 'Carousel message should be rendered');
+			assert.ok(message?.textContent?.includes('Please fill in the following:'));
+		});
+
+		test('renders carousel-level message as markdown', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Name' }
+			]);
+			carousel.message = new MarkdownString('**Important:** Fill this form');
+			createWidget(carousel);
+
+			const message = widget.domNode.querySelector('.chat-question-carousel-message');
+			assert.ok(message, 'Carousel message should be rendered');
+			assert.ok(message?.querySelector('.rendered-markdown'), 'Message should be rendered as markdown');
+		});
+
+		test('shows required indicator on required questions', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Name', required: true }
+			]);
+			createWidget(carousel);
+
+			const title = widget.domNode.querySelector('.chat-question-title');
+			assert.ok(title?.textContent?.includes('*'), 'Required indicator (*) should be shown');
+		});
+
+		test('does not show required indicator on optional questions', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Nickname' }
+			]);
+			createWidget(carousel);
+
+			const title = widget.domNode.querySelector('.chat-question-title');
+			assert.ok(title?.textContent);
+			assert.ok(!title?.textContent?.includes('*'), 'Required indicator should not be shown');
+		});
+	});
+
+	suite('Validation', () => {
+		test('renders validation message element', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'text',
+					title: 'Email',
+					validation: { format: 'email' }
+				}
+			]);
+			createWidget(carousel);
+
+			const validationMsg = widget.domNode.querySelector('.chat-question-validation-message') as HTMLElement | null;
+			assert.ok(validationMsg, 'Validation message element should exist');
+			assert.strictEqual(validationMsg?.style.display, 'none', 'Validation message should be hidden initially');
+		});
+
+		test('blocks submit on required empty text field', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Name', required: true }
+			]);
+			createWidget(carousel);
+
+			// Try to submit without entering a value
+			const submitButton = widget.domNode.querySelector('.chat-question-submit-button') as HTMLButtonElement;
+			assert.ok(submitButton, 'Submit button should exist');
+			submitButton.click();
+
+			// Should show validation error and not submit
+			const validationMsg = widget.domNode.querySelector('.chat-question-validation-message');
+			assert.ok(validationMsg?.textContent, 'Validation error should be shown');
+			assert.strictEqual(submittedAnswers, null, 'Should not have submitted');
+		});
+
+		test('next button is disabled when required text field is empty', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Name', required: true },
+				{ id: 'q2', type: 'text', title: 'Age' }
+			]);
+			createWidget(carousel);
+
+			// Next button should be disabled since required field has no answer
+			const nextButton = widget.domNode.querySelector('.chat-question-nav-next') as HTMLButtonElement;
+			assert.ok(nextButton, 'Next button should exist');
+			assert.ok(nextButton.classList.contains('disabled'), 'Next button should be disabled when required field is empty');
+		});
+
+		test('allows submit on required field with value', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Name', required: true }
+			]);
+			createWidget(carousel);
+
+			// Enter a value in the text input
+			const inputBox = widget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement;
+			assert.ok(inputBox, 'Input should exist');
+			inputBox.value = 'John';
+			inputBox.dispatchEvent(new Event('input', { bubbles: true }));
+
+			// Submit
+			const submitButton = widget.domNode.querySelector('.chat-question-submit-button') as HTMLButtonElement;
+			submitButton.click();
+
+			assert.ok(submittedAnswers !== null, 'Should have submitted');
+		});
+
+		test('validates required field across questions on submit', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Optional' },
+				{ id: 'q2', type: 'text', title: 'Required', required: true }
+			]);
+			createWidget(carousel);
+
+			// Navigate to q2 without filling q1 (optional, so allowed)
+			widget.navigateToNextQuestion();
+
+			// Go back to q1 and try to submit (q2 required but empty)
+			widget.navigateToPreviousQuestion();
+
+			// Cmd+Enter should check all required fields
+			const submitButton = widget.domNode.querySelector('.chat-question-submit-button') as HTMLButtonElement;
+			if (submitButton) {
+				submitButton.click();
+			}
+
+			// Should not submit because q2 is required but empty
+			assert.strictEqual(submittedAnswers, null, 'Should not submit when required field is empty');
 		});
 	});
 });

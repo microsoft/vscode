@@ -45,7 +45,5 @@ export interface IExtensionRecommendationNotificationService {
 
 	promptImportantExtensionsInstallNotification(recommendations: IExtensionRecommendations): Promise<RecommendationsNotificationResult>;
 	promptWorkspaceRecommendations(recommendations: Array<string | URI>): Promise<void>;
-	promptStronglyRecommendedExtensions(recommendations: Array<string | URI>): Promise<void>;
-	resetStronglyRecommendedIgnoreState(): void;
 }
 

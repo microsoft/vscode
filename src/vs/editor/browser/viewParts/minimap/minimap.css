@@ -61,3 +61,7 @@
 .monaco-editor .minimap {
 	z-index: 5;
 }
+
+.monaco-editor .minimap canvas {
+	opacity: 0.9;
+}

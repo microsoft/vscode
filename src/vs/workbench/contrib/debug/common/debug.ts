@@ -834,6 +834,12 @@ export interface IGlobalConfig {
 	configurations: IConfig[];
 }
 
+export interface IConfigPresentation {
+	hidden?: boolean;
+	group?: string;
+	order?: number;
+}
+
 interface IEnvConfig {
 	internalConsoleOptions?: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	preRestartTask?: string | ITaskIdentifier;
@@ -843,12 +849,7 @@ interface IEnvConfig {
 	debugServer?: number;
 	noDebug?: boolean;
 	suppressMultipleSessionWarning?: boolean;
-}
-
-export interface IConfigPresentation {
-	hidden?: boolean;
-	group?: string;
-	order?: number;
+	presentation?: IConfigPresentation;
 }
 
 export interface IConfig extends IEnvConfig {
@@ -877,6 +878,10 @@ export interface ICompound {
 	preLaunchTask?: string | ITaskIdentifier;
 	configurations: (string | { name: string; folder: string })[];
 	presentation?: IConfigPresentation;
+}
+
+export function isDebugConfig(thing: IConfig | ICompound): thing is IConfig {
+	return 'type' in thing && 'request' in thing;
 }
 
 export interface IDebugAdapter extends IDisposable {

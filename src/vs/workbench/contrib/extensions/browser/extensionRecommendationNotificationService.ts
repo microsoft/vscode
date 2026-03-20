@@ -6,7 +6,6 @@
 import { distinct } from '../../../../base/common/arrays.js';
 import { CancelablePromise, createCancelablePromise, Promises, raceCancellablePromises, raceCancellation, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -14,13 +13,11 @@ import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IGalleryExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IExtensionRecommendationNotificationService, IExtensionRecommendations, RecommendationsNotificationResult, RecommendationSource, RecommendationSourceToString } from '../../../../platform/extensionRecommendations/common/extensionRecommendations.js';
 import { INotificationHandle, INotificationService, IPromptChoice, IPromptChoiceWithMenu, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { renderStronglyRecommendedExtensionList, StronglyRecommendedExtensionListResult } from './stronglyRecommendedExtensionList.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IUserDataSyncEnablementService, SyncResource } from '../../../../platform/userDataSync/common/userDataSync.js';
@@ -45,18 +42,6 @@ type ExtensionWorkspaceRecommendationsNotificationClassification = {
 
 const ignoreImportantExtensionRecommendationStorageKey = 'extensionsAssistant/importantRecommendationsIgnore';
 const donotShowWorkspaceRecommendationsStorageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
-const stronglyRecommendedIgnoreStorageKey = 'extensionsAssistant/stronglyRecommendedIgnore';
-const stronglyRecommendedMajorVersionIgnoreStorageKey = 'extensionsAssistant/stronglyRecommendedMajorVersionIgnore';
-
-interface MajorVersionIgnoreEntry {
-	readonly id: string;
-	readonly majorVersion: number;
-}
-
-function parseMajorVersion(version: string): number {
-	const major = parseInt(version.split('.')[0], 10);
-	return isNaN(major) ? 0 : major;
-}
 
 type RecommendationsNotificationActions = {
 	onDidInstallRecommendedExtensions(extensions: IExtension[]): void;
@@ -147,7 +132,6 @@ export class ExtensionRecommendationNotificationService extends Disposable imple
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -482,159 +466,6 @@ export class ExtensionRecommendationNotificationService extends Disposable imple
 			importantRecommendationsIgnoreList.push(id.toLowerCase());
 			this.storageService.store(ignoreImportantExtensionRecommendationStorageKey, JSON.stringify(importantRecommendationsIgnoreList), StorageScope.PROFILE, StorageTarget.USER);
 		}
-	}
-
-	async promptStronglyRecommendedExtensions(recommendations: Array<string | URI>): Promise<void> {
-		if (this.hasToIgnoreRecommendationNotifications()) {
-			return;
-		}
-
-		const ignoredList = this._getStronglyRecommendedIgnoreList();
-		recommendations = recommendations.filter(rec => {
-			const key = isString(rec) ? rec.toLowerCase() : rec.toString();
-			return !ignoredList.includes(key);
-		});
-		if (!recommendations.length) {
-			return;
-		}
-
-		let installed = await this.extensionManagementService.getInstalled();
-		installed = installed.filter(l => this.extensionEnablementService.getEnablementState(l) !== EnablementState.DisabledByExtensionKind);
-		recommendations = recommendations.filter(recommendation =>
-			installed.every(local =>
-				isString(recommendation) ? !areSameExtensions({ id: recommendation }, local.identifier) : !this.uriIdentityService.extUri.isEqual(recommendation, local.location)
-			)
-		);
-		if (!recommendations.length) {
-			return;
-		}
-
-		const allExtensions = await this.getInstallableExtensions(recommendations);
-		if (!allExtensions.length) {
-			return;
-		}
-
-		const majorVersionIgnoreList = this._getStronglyRecommendedMajorVersionIgnoreList();
-		const extensions = allExtensions.filter(ext => {
-			const ignored = majorVersionIgnoreList.find(e => e.id === ext.identifier.id.toLowerCase());
-			return !ignored || parseMajorVersion(ext.version) > ignored.majorVersion;
-		});
-		if (!extensions.length) {
-			return;
-		}
-
-		const message = extensions.length === 1
-			? localize('stronglyRecommended1', "This workspace strongly recommends installing the '{0}' extension. Do you want to install?", extensions[0].displayName)
-			: localize('stronglyRecommendedN', "This workspace strongly recommends installing {0} extensions. Do you want to install?", extensions.length);
-
-		let listResult!: StronglyRecommendedExtensionListResult<IExtension>;
-
-		const { result } = await this.dialogService.prompt<boolean | undefined>({
-			message,
-			buttons: [
-				{
-					label: localize('install', "Install"),
-					run: () => true,
-				},
-			],
-			cancelButton: localize('cancel', "Cancel"),
-			custom: {
-				icon: Codicon.extensions,
-				renderBody: (container, disposables) => {
-					listResult = renderStronglyRecommendedExtensionList(container, disposables, extensions);
-				},
-				buttonOptions: [{
-					styleButton: (button) => listResult.styleInstallButton(button),
-				}],
-			},
-		});
-
-		if (result) {
-			const selected = extensions.filter(e => listResult.checkboxStates.get(e));
-			const unselected = extensions.filter(e => !listResult.checkboxStates.get(e));
-			if (unselected.length) {
-				this._addToStronglyRecommendedIgnoreList(
-					unselected.map(e => e.identifier.id)
-				);
-			}
-			if (listResult.doNotShowAgainUnlessMajorVersionChange()) {
-				this._addToStronglyRecommendedIgnoreWithMajorVersion(
-					extensions.map(e => ({ id: e.identifier.id, majorVersion: parseMajorVersion(e.version) }))
-				);
-			}
-			if (selected.length) {
-				const galleryExtensions: IGalleryExtension[] = [];
-				const resourceExtensions: IExtension[] = [];
-				for (const extension of selected) {
-					if (extension.gallery) {
-						galleryExtensions.push(extension.gallery);
-					} else if (extension.resourceExtension) {
-						resourceExtensions.push(extension);
-					}
-				}
-				await Promises.settled<unknown>([
-					Promises.settled(selected.map(extension => this.extensionsWorkbenchService.open(extension, { pinned: true }))),
-					galleryExtensions.length ? this.extensionManagementService.installGalleryExtensions(galleryExtensions.map(e => ({ extension: e, options: {} }))) : Promise.resolve(),
-					resourceExtensions.length ? Promise.allSettled(resourceExtensions.map(r => this.extensionsWorkbenchService.install(r))) : Promise.resolve(),
-				]);
-			}
-		}
-	}
-
-	private _getStronglyRecommendedIgnoreList(): string[] {
-		const raw = this.storageService.get(stronglyRecommendedIgnoreStorageKey, StorageScope.WORKSPACE);
-		if (raw === undefined) {
-			return [];
-		}
-		try {
-			const parsed = JSON.parse(raw);
-			return Array.isArray(parsed) ? parsed : [];
-		} catch {
-			return [];
-		}
-	}
-
-	private _addToStronglyRecommendedIgnoreList(recommendations: Array<string | URI>): void {
-		const list = this._getStronglyRecommendedIgnoreList();
-		for (const rec of recommendations) {
-			const key = isString(rec) ? rec.toLowerCase() : rec.toString();
-			if (!list.includes(key)) {
-				list.push(key);
-			}
-		}
-		this.storageService.store(stronglyRecommendedIgnoreStorageKey, JSON.stringify(list), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-	}
-
-	private _getStronglyRecommendedMajorVersionIgnoreList(): MajorVersionIgnoreEntry[] {
-		const raw = this.storageService.get(stronglyRecommendedMajorVersionIgnoreStorageKey, StorageScope.WORKSPACE);
-		if (raw === undefined) {
-			return [];
-		}
-		try {
-			const parsed = JSON.parse(raw);
-			return Array.isArray(parsed) ? parsed : [];
-		} catch {
-			return [];
-		}
-	}
-
-	private _addToStronglyRecommendedIgnoreWithMajorVersion(entries: MajorVersionIgnoreEntry[]): void {
-		const list = this._getStronglyRecommendedMajorVersionIgnoreList();
-		for (const entry of entries) {
-			const key = entry.id.toLowerCase();
-			const existing = list.findIndex(e => e.id === key);
-			if (existing !== -1) {
-				list[existing] = { id: key, majorVersion: entry.majorVersion };
-			} else {
-				list.push({ id: key, majorVersion: entry.majorVersion });
-			}
-		}
-		this.storageService.store(stronglyRecommendedMajorVersionIgnoreStorageKey, JSON.stringify(list), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-	}
-
-	resetStronglyRecommendedIgnoreState(): void {
-		this.storageService.remove(stronglyRecommendedIgnoreStorageKey, StorageScope.WORKSPACE);
-		this.storageService.remove(stronglyRecommendedMajorVersionIgnoreStorageKey, StorageScope.WORKSPACE);
 	}
 
 	private setIgnoreRecommendationsConfig(configVal: boolean) {

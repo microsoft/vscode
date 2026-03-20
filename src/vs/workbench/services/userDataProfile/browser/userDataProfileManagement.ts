@@ -161,7 +161,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 	async getBuiltinProfileTemplates(): Promise<IProfileTemplateInfo[]> {
 		if (this.productService.profileTemplatesUrl) {
 			try {
-				const context = await this.requestService.request({ type: 'GET', url: this.productService.profileTemplatesUrl }, CancellationToken.None);
+				const context = await this.requestService.request({ type: 'GET', url: this.productService.profileTemplatesUrl, callSite: 'userDataProfileManagement.getProfileTemplates' }, CancellationToken.None);
 				if (context.res.statusCode === 200) {
 					return (await asJson<IProfileTemplateInfo[]>(context)) || [];
 				} else {
