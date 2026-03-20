@@ -134,7 +134,7 @@ class SlashCommandCompletions extends Disposable {
 				return {
 					suggestions: slashCommands
 						.filter(c => {
-							// execute immediately commands are client-side only... so they're not "attaching anything"
+							// silent commands are client-side only... so they're not "attaching anything"
 							// so this check can be scoped to when the command _does_ attach something before
 							// checking if the widget supports attachments at all
 							if (!c.silent && !widget.attachmentCapabilities.supportsPromptAttachments) {

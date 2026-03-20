@@ -223,7 +223,7 @@ export class ChatRequestParser {
 			}
 		}
 
-		const capabilities = context?.attachmentCapabilities ?? usedAgent?.capabilities ?? context?.attachmentCapabilities;
+		const capabilities = context?.attachmentCapabilities ?? usedAgent?.capabilities;
 		const slashCommands = this.slashCommandService.getCommands(location, context?.mode ?? ChatModeKind.Ask);
 		const slashCommand = slashCommands.find(c => c.command === command);
 		// If there is no agent, we allow any slash command.
