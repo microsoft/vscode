@@ -40,6 +40,7 @@
 
 .ci-status-widget-title .monaco-icon-label {
 	width: 100%;
+	height: 18px;
 }
 
 .ci-status-widget-title .monaco-icon-label-container,
