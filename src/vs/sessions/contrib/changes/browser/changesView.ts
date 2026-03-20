@@ -79,6 +79,7 @@ export const changesContainerTitle: ILocalizedString = {
 	original: 'Changes',
 	get value() { return _changesContainerTitleValue; }
 };
+
 const RUN_SESSION_CODE_REVIEW_ACTION_ID = 'sessions.codeReview.run';
 
 // --- View Mode
@@ -369,6 +370,18 @@ export class ChangesViewPane extends ViewPane {
 		this._register(bindContextKey(ChatContextKeys.agentSessionType, this.scopedContextKeyService, reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
 			return activeSession?.providerType ?? '';
+		}));
+
+		// Fallback title update: when the view is not visible (renderDisposables
+		// cleared), keep the container title in sync with the raw session changes
+		// so the tab still shows a count when the user switches sessions.
+		this._register(autorun(reader => {
+			if (this.isBodyVisible()) {
+				// onVisible() drives the title from topLevelStats while visible
+				return;
+			}
+			const changes = this.viewModel.activeSessionChangesObs.read(reader);
+			this.updateContainerTitle(changes.length);
 		}));
 	}
 
@@ -1013,6 +1026,7 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	override dispose(): void {
+		this.updateContainerTitle(0);
 		this.tree?.dispose();
 		this.tree = undefined;
 		super.dispose();
