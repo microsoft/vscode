@@ -1,5 +1,5 @@
 ---
-description: Merge changes from topic branch to the merge base branch
+description: Merge changes from the topic branch to the merge base branch
 ---
 <!-- Customize this prompt and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
 
