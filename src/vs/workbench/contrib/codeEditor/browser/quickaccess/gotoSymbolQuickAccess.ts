@@ -128,9 +128,9 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		const picks = await super.doGetSymbolPicks(symbolsPromise, query, options, token, model);
 		const modelUri = model.uri;
 		for (const pick of picks) {
-			if ('range' in pick && pick.range && 'kind' in pick) {
-				const symbolPick = pick as IGotoSymbolQuickPickItem;
-				(symbolPick as IGotoSymbolQuickPickItem & { attach?(): void }).attach = () => {
+			const symbolPick = pick as IGotoSymbolQuickPickItem;
+			if (symbolPick.range) {
+				(symbolPick as any).attach = () => {
 					const widget = this.chatWidgetService.lastFocusedWidget;
 					if (widget) {
 						const entry: ISymbolVariableEntry = {
