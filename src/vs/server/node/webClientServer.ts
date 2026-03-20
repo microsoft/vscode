@@ -77,10 +77,26 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 
 		// Data
 		const fileStream = createReadStream(filePath);
+		fileStream.on('error', error => {
+			const err = error as NodeJS.ErrnoException;
+			if (err.code !== 'ENOENT') {
+				logService.error(err);
+				console.error(err.toString());
+			} else {
+				console.error(`File not found: ${filePath}`);
+			}
+
+			if (!res.headersSent) {
+				res.writeHead(404, { 'Content-Type': 'text/plain' });
+				res.end('Not found');
+			} else {
+				res.destroy();
+			}
+		});
 		fileStream.pipe(res);
 		// Destroy the read stream if the response is closed prematurely
 		// (e.g. client disconnect) to avoid leaking the file descriptor.
-		res.on('close', () => fileStream.destroy());
+		res.once('close', () => fileStream.destroy());
 	} catch (error) {
 		if (error.code !== 'ENOENT') {
 			logService.error(error);
