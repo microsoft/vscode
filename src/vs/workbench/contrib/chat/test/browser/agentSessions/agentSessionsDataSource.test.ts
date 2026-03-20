@@ -12,7 +12,7 @@ import { ChatSessionStatus } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { AgentSessionsGrouping } from '../../../browser/agentSessions/agentSessionsFilter.js';
+import { AgentSessionsGrouping, AgentSessionsSorting } from '../../../browser/agentSessions/agentSessionsFilter.js';
 
 suite('sessionDateFromNow', () => {
 
@@ -1166,5 +1166,35 @@ suite('AgentSessionsSorter', () => {
 
 		const sorted = [archivedPinned, regular].sort((a, b) => sorter.compare(a, b));
 		assert.deepStrictEqual(sorted.map(s => s.label), ['Session regular', 'Session archived-pinned']);
+	});
+
+	test('sortBy Created: sorts by creation time regardless of lastRequestStarted', () => {
+		const sorter = new AgentSessionsSorter();
+		sorter.sortBy = AgentSessionsSorting.Created;
+		const olderCreated = createSession({ id: 'older', created: 1000, lastRequestStarted: 5000 });
+		const newerCreated = createSession({ id: 'newer', created: 3000, lastRequestStarted: 2000 });
+
+		const sorted = [olderCreated, newerCreated].sort((a, b) => sorter.compare(a, b));
+		assert.deepStrictEqual(sorted.map(s => s.label), ['Session newer', 'Session older']);
+	});
+
+	test('sortBy Updated: sorts by lastRequestStarted', () => {
+		const sorter = new AgentSessionsSorter();
+		sorter.sortBy = AgentSessionsSorting.Updated;
+		const recentlyUpdated = createSession({ id: 'updated', created: 1000, lastRequestStarted: 5000 });
+		const recentlyCreated = createSession({ id: 'created', created: 3000, lastRequestStarted: 2000 });
+
+		const sorted = [recentlyCreated, recentlyUpdated].sort((a, b) => sorter.compare(a, b));
+		assert.deepStrictEqual(sorted.map(s => s.label), ['Session updated', 'Session created']);
+	});
+
+	test('sortBy Updated: falls back to created when lastRequestStarted is undefined', () => {
+		const sorter = new AgentSessionsSorter();
+		sorter.sortBy = AgentSessionsSorting.Updated;
+		const withRequest = createSession({ id: 'with-request', created: 1000, lastRequestStarted: 3000 });
+		const withoutRequest = createSession({ id: 'no-request', created: 4000 });
+
+		const sorted = [withRequest, withoutRequest].sort((a, b) => sorter.compare(a, b));
+		assert.deepStrictEqual(sorted.map(s => s.label), ['Session no-request', 'Session with-request']);
 	});
 });
