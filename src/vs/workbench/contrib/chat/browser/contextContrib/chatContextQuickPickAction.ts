@@ -6,6 +6,7 @@
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -38,7 +39,7 @@ class AddQuickPickItemToContextAction extends Action2 {
 			f1: false,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-				weight: 200, // KeybindingWeight.WorkbenchContrib
+				weight: KeybindingWeight.WorkbenchContrib + 100,
 				when: ContextKeyExpr.has(inQuickInputContextKeyValue),
 			},
 			precondition: ContextKeyExpr.and(
