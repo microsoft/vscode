@@ -15,7 +15,7 @@ export function applyChatTools(server: McpServer, appService: ApplicationService
 
 	tools.push(server.tool(
 		'vscode_automation_chat_send_message',
-		'Send a message to the VS Code chat panel',
+		'Send a message to the Forge chat panel',
 		{
 			message: z.string().describe('The message to send to the chat')
 		},

@@ -4,12 +4,12 @@
 	<description />
 	<resources>
 		<stringTable>
-			<string id="Application">Code - OSS</string>
-			<string id="Supported_1_101">Code - OSS &gt;= 1.101</string>
-			<string id="Supported_1_104">Code - OSS &gt;= 1.104</string>
-			<string id="Supported_1_67">Code - OSS &gt;= 1.67</string>
-			<string id="Supported_1_96">Code - OSS &gt;= 1.96</string>
-			<string id="Supported_1_99">Code - OSS &gt;= 1.99</string>
+			<string id="Application">Forge</string>
+			<string id="Supported_1_101">Forge &gt;= 1.101</string>
+			<string id="Supported_1_104">Forge &gt;= 1.104</string>
+			<string id="Supported_1_67">Forge &gt;= 1.67</string>
+			<string id="Supported_1_96">Forge &gt;= 1.96</string>
+			<string id="Supported_1_99">Forge &gt;= 1.99</string>
 			<string id="Category_interactiveSessionConfigurationTitle">Chat</string>
 			<string id="Category_extensionsConfigurationTitle">Extensions</string>
 			<string id="Category_terminalIntegratedConfigurationTitle">Integrated Terminal</string>
@@ -22,7 +22,7 @@
 			<string id="ChatMCP">ChatMCP</string>
 			<string id="ChatMCP_chat_mcp_access">Controls access to installed Model Context Protocol servers.</string>
 			<string id="ChatMCP_chat_mcp_access_none">No access to MCP servers.</string>
-			<string id="ChatMCP_chat_mcp_access_registry">Allows access to MCP servers installed from the registry that VS Code is connected to.</string>
+			<string id="ChatMCP_chat_mcp_access_registry">Allows access to MCP servers installed from the registry that Forge is connected to.</string>
 			<string id="ChatMCP_chat_mcp_access_any">Allow access to any installed MCP server.</string>
 			<string id="ChatPromptFiles">ChatPromptFiles</string>
 			<string id="ChatPromptFiles_chat_promptFiles_policy">Enables reusable prompt and instruction files in Chat sessions.</string>
@@ -51,7 +51,7 @@ This feature disables critical security protections and makes it much easier for
 			<string id="UpdateMode_none">Disable updates.</string>
 			<string id="UpdateMode_manual">Disable automatic background update checks. Updates will be available if you manually check for updates.</string>
 			<string id="UpdateMode_start">Check for updates only on startup. Disable automatic background update checks.</string>
-			<string id="UpdateMode_default">Enable automatic update checks. Code will check for updates automatically and periodically.</string>
+			<string id="UpdateMode_default">Enable automatic update checks. Forge will check for updates automatically and periodically.</string>
 		</stringTable>
 		<presentationTable>
 			<presentation id="ChatAgentExtensionTools"><checkBox refId="ChatAgentExtensionTools">ChatAgentExtensionTools</checkBox></presentation>

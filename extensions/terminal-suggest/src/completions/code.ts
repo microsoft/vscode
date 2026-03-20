@@ -8,7 +8,7 @@ import { filepaths } from '../helpers/filepaths';
 export const commonOptions: Fig.Option[] = [
 	{
 		name: '-',
-		description: `Read from stdin (e.g. 'ps aux | grep code | code -')`,
+		description: `Read from stdin (e.g. 'ps aux | grep forge | forge -')`,
 	},
 	{
 		name: ['-d', '--diff'],
@@ -127,7 +127,7 @@ export const commonOptions: Fig.Option[] = [
 	{
 		name: '--user-data-dir',
 		description:
-			'Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code',
+			'Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Forge',
 		args: {
 			name: 'dir',
 			template: 'folders',
@@ -556,7 +556,7 @@ export const extTunnelSubcommand = {
 export const codeTunnelSubcommands: Fig.Subcommand[] = [
 	{
 		name: 'tunnel',
-		description: 'Create a tunnel that\'s accessible on vscode.dev from anywhere. Run`code tunnel --help` for more usage info',
+		description: 'Create a tunnel that\'s accessible on the web from anywhere. Run`code tunnel --help` for more usage info',
 		subcommands: [
 			{
 				name: 'prune',
@@ -858,7 +858,7 @@ export const codeTunnelSubcommands: Fig.Subcommand[] = [
 	},
 	{
 		name: 'serve-web',
-		description: 'Runs a local web version of Code - OSS',
+		description: 'Runs a local web version of Forge',
 		options: [
 			{
 				name: '--host',
@@ -939,7 +939,7 @@ export const codeTunnelSubcommands: Fig.Subcommand[] = [
 		subcommands: [
 			{
 				name: 'tunnel',
-				description: 'Create a tunnel that\'s accessible on vscode.dev from anywhere. Run`code tunnel --help` for more usage info',
+				description: 'Create a tunnel that\'s accessible on the web from anywhere. Run`code tunnel --help` for more usage info',
 				subcommands: [
 					{
 						name: 'prune',
@@ -1027,7 +1027,7 @@ export const codeTunnelSubcommands: Fig.Subcommand[] = [
 			},
 			{
 				name: 'serve-web',
-				description: 'Runs a local web version of Code - OSS',
+				description: 'Runs a local web version of Forge',
 			},
 			{
 				name: 'command-shell',
@@ -1048,7 +1048,7 @@ export const codeTunnelSubcommands: Fig.Subcommand[] = [
 
 const codeCompletionSpec: Fig.Spec = {
 	name: 'code',
-	description: 'Visual Studio Code',
+	description: 'Forge',
 	args: {
 		template: ['filepaths', 'folders'],
 		isVariadic: true,

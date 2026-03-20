@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=@@NAME_LONG@@
-Comment=Code Editing. Redefined.
+Comment=Forge. Code editing. Redefined.
 GenericName=Text Editor
 Exec=@@EXEC@@ %F
 Icon=@@ICON@@
@@ -10,7 +10,7 @@ StartupWMClass=@@NAME_SHORT@@
 Categories=TextEditor;Development;IDE;
 MimeType=application/x-@@NAME@@-workspace;
 Actions=new-empty-window;
-Keywords=vscode;
+Keywords=forge;
 
 [Desktop Action new-empty-window]
 Name=New Empty Window

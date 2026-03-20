@@ -1,8 +1,8 @@
 {
 	"displayName": "Default Themes",
-	"description": "The default Visual Studio light and dark themes",
-	"vsCodeLightThemeLabel": "VS Code Light",
-	"vsCodeDarkThemeLabel": "VS Code Dark",
+	"description": "The default Forge light and dark themes",
+	"vsCodeLightThemeLabel": "Forge Light",
+	"vsCodeDarkThemeLabel": "Forge Dark",
 	"darkPlusColorThemeLabel": "Dark+",
 	"darkModernThemeLabel": "Dark Modern",
 	"lightPlusColorThemeLabel": "Light+",
@@ -11,5 +11,5 @@
 	"lightColorThemeLabel": "Light (Visual Studio)",
 	"hcColorThemeLabel": "Dark High Contrast",
 	"lightHcColorThemeLabel": "Light High Contrast",
-	"minimalIconThemeLabel": "Minimal (Visual Studio Code)"
+	"minimalIconThemeLabel": "Minimal (Forge)"
 }

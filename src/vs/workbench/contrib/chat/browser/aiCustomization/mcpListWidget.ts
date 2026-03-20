@@ -167,7 +167,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 		templateData.disposables.add(this.hoverService.setupManagedHover(
 			getDefaultHoverDelegate('mouse'),
 			templateData.bridgedBadge,
-			localize('bridgedHover', "This server is managed by VS Code and forwarded to all compatible agent sessions."),
+			localize('bridgedHover', "This server is managed by Forge and forwarded to all compatible agent sessions."),
 		));
 
 		if (element.type === 'builtin-item') {
@@ -798,7 +798,7 @@ export class McpListWidget extends Disposable {
 				icon: extensionIcon,
 				count: extensionServers.length,
 				isFirst,
-				description: localize('extensionGroupDescription', "MCP servers contributed by installed VS Code extensions."),
+				description: localize('extensionGroupDescription', "MCP servers contributed by installed Forge extensions."),
 				collapsed,
 			});
 			if (!collapsed) {
@@ -825,7 +825,7 @@ export class McpListWidget extends Disposable {
 				icon: builtinIcon,
 				count: otherBuiltinServers.length,
 				isFirst,
-				description: localize('builtInGroupDescription', "MCP servers built into VS Code. These are available automatically."),
+				description: localize('builtInGroupDescription', "MCP servers built into Forge. These are available automatically."),
 				collapsed,
 			});
 			if (!collapsed) {

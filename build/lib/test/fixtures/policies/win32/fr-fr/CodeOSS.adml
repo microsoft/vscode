@@ -4,12 +4,12 @@
 	<description />
 	<resources>
 		<stringTable>
-			<string id="Application">Code - OSS</string>
-			<string id="Supported_1_101">Code - OSS &gt;= 1.101</string>
-			<string id="Supported_1_104">Code - OSS &gt;= 1.104</string>
-			<string id="Supported_1_67">Code - OSS &gt;= 1.67</string>
-			<string id="Supported_1_96">Code - OSS &gt;= 1.96</string>
-			<string id="Supported_1_99">Code - OSS &gt;= 1.99</string>
+			<string id="Application">Forge</string>
+			<string id="Supported_1_101">Forge &gt;= 1.101</string>
+			<string id="Supported_1_104">Forge &gt;= 1.104</string>
+			<string id="Supported_1_67">Forge &gt;= 1.67</string>
+			<string id="Supported_1_96">Forge &gt;= 1.96</string>
+			<string id="Supported_1_99">Forge &gt;= 1.99</string>
 			<string id="Category_interactiveSessionConfigurationTitle">Session interactive</string>
 			<string id="Category_extensionsConfigurationTitle">Extensions</string>
 			<string id="Category_terminalIntegratedConfigurationTitle">Terminal intégré</string>
@@ -22,7 +22,7 @@
 			<string id="ChatMCP">ChatMCP</string>
 			<string id="ChatMCP_chat_mcp_access">Contrôle l’accès aux serveurs de protocole de contexte du modèle.</string>
 			<string id="ChatMCP_chat_mcp_access_none">Aucun accès aux serveurs MCP.</string>
-			<string id="ChatMCP_chat_mcp_access_registry">Autorise l’accès aux serveurs MCP installés à partir du registre auquel VS Code est connecté.</string>
+			<string id="ChatMCP_chat_mcp_access_registry">Autorise l’accès aux serveurs MCP installés à partir du registre auquel Forge est connecté.</string>
 			<string id="ChatMCP_chat_mcp_access_any">Autorisez l’accès à tout serveur MCP installé.</string>
 			<string id="ChatPromptFiles">ChatPromptFiles</string>
 			<string id="ChatPromptFiles_chat_promptFiles_policy">Active les fichiers d’instruction et de requête réutilisables dans les sessions Conversation.</string>
