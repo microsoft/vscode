@@ -437,9 +437,14 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	private updateContainerTitle(fileCount: number): void {
-		const nextTitle = fileCount > 0
-			? localize('changesView.titleWithCount', '{0} Changes', fileCount)
-			: localize('changes', 'Changes');
+		let nextTitle: string;
+		if (fileCount === 0) {
+			nextTitle = localize('changes', 'Changes');
+		} else if (fileCount === 1) {
+			nextTitle = localize('changesView.titleWithCountOne', '1 Change');
+		} else {
+			nextTitle = localize('changesView.titleWithCount', '{0} Changes', fileCount);
+		}
 
 		if (nextTitle === _changesContainerTitleValue) {
 			return;
