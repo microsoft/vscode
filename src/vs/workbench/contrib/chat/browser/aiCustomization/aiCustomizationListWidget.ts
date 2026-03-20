@@ -56,6 +56,8 @@ import { ICustomizationHarnessService, matchesWorkspaceSubpath, matchesInstructi
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { getCleanPromptName, isInClaudeRulesFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { evaluateApplyToPattern } from '../../common/promptSyntax/computeAutomaticInstructions.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 
 export { truncateToFirstSentence } from './aiCustomizationListWidgetUtils.js';
 
@@ -514,6 +516,7 @@ export class AICustomizationListWidget extends Disposable {
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		this.element = $('.ai-customization-list-widget');
@@ -1021,6 +1024,61 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
+	 * Returns true if the given extension identifier matches the default
+	 * chat extension (e.g. GitHub Copilot Chat). Used to group items from
+	 * the chat extension under "Built-in" instead of "Extensions", similar
+	 * to how MCP categorizes built-in servers.
+	 */
+	private isChatExtensionItem(extensionId: ExtensionIdentifier): boolean {
+		const chatExtensionId = this.productService.defaultChatAgent?.chatExtensionId;
+		return !!chatExtensionId && ExtensionIdentifier.equals(extensionId, chatExtensionId);
+	}
+
+	/**
+	 * Resolves the display group key for an extension-storage item.
+	 * Items from the default chat extension are re-grouped under "Built-in";
+	 * all other extension items keep their original storage as group key.
+	 *
+	 * Returns `undefined` when no override is needed (the item will fall back
+	 * to its `storage` value for grouping).
+	 *
+	 * This is the single point where extension → group mapping is decided,
+	 * making it easy to add dynamic filter layers in the future.
+	 */
+	private resolveExtensionGroupKey(extensionId: ExtensionIdentifier | undefined): string | undefined {
+		if (extensionId && this.isChatExtensionItem(extensionId)) {
+			return BUILTIN_STORAGE;
+		}
+		return undefined;
+	}
+
+	/**
+	 * Post-processes items to assign groupKey overrides for extension-sourced
+	 * items. Applies the built-in grouping consistently across all item types.
+	 *
+	 * Items that already have an explicit groupKey (e.g. instruction categories,
+	 * agent hooks) are left untouched — groupKey overrides are only applied to
+	 * items whose current groupKey is `undefined`.
+	 */
+	private applyBuiltinGroupKeys(items: IAICustomizationListItem[], extensionIdByUri: ReadonlyMap<string, ExtensionIdentifier>): void {
+		for (const item of items) {
+			if (item.groupKey !== undefined) {
+				continue; // respect explicit groupKey from upstream (e.g. instruction categories)
+			}
+			if (item.storage !== PromptsStorage.extension) {
+				continue;
+			}
+			const extId = extensionIdByUri.get(item.uri.toString());
+			const override = this.resolveExtensionGroupKey(extId);
+			if (override) {
+				// IAICustomizationListItem.groupKey is readonly for consumers but
+				// we own the items array here, so the mutation is safe.
+				(item as { groupKey?: string }).groupKey = override;
+			}
+		}
+	}
+
+	/**
 	 * Fetches and filters items for a given section.
 	 * Shared between `loadItems` (active section) and `computeItemCountForSection` (any section).
 	 */
@@ -1028,6 +1086,7 @@ export class AICustomizationListWidget extends Disposable {
 		const promptType = sectionToPromptType(section);
 		const items: IAICustomizationListItem[] = [];
 		const disabledUris = this.promptsService.getDisabledPromptFiles(promptType);
+		const extensionIdByUri = new Map<string, ExtensionIdentifier>();
 
 
 		if (promptType === PromptsType.agent) {
@@ -1046,10 +1105,21 @@ export class AICustomizationListWidget extends Disposable {
 					pluginUri: agent.source.storage === PromptsStorage.plugin ? agent.source.pluginUri : undefined,
 					disabled: disabledUris.has(agent.uri),
 				});
+				// Track extension ID for built-in grouping
+				if (agent.source.storage === PromptsStorage.extension) {
+					extensionIdByUri.set(agent.uri.toString(), agent.source.extensionId);
+				}
 			}
 		} else if (promptType === PromptsType.skill) {
 			// Use findAgentSkills for enabled skills (has parsed name/description from frontmatter)
 			const skills = await this.promptsService.findAgentSkills(CancellationToken.None);
+			// Build extension ID lookup from raw file list (like MCP builds collectionSources)
+			const allSkillFiles = await this.promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None);
+			for (const file of allSkillFiles) {
+				if (file.extension) {
+					extensionIdByUri.set(file.uri.toString(), file.extension.identifier);
+				}
+			}
 			const seenUris = new ResourceSet();
 			for (const skill of skills || []) {
 				const filename = basename(skill.uri);
@@ -1069,7 +1139,6 @@ export class AICustomizationListWidget extends Disposable {
 			}
 			// Also include disabled skills from the raw file list
 			if (disabledUris.size > 0) {
-				const allSkillFiles = await this.promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None);
 				for (const file of allSkillFiles) {
 					if (!seenUris.has(file.uri) && disabledUris.has(file.uri)) {
 						const filename = basename(file.uri);
@@ -1106,6 +1175,9 @@ export class AICustomizationListWidget extends Disposable {
 					pluginUri: command.promptPath.storage === PromptsStorage.plugin ? command.promptPath.pluginUri : undefined,
 					disabled: disabledUris.has(command.promptPath.uri),
 				});
+				if (command.promptPath.extension) {
+					extensionIdByUri.set(command.promptPath.uri.toString(), command.promptPath.extension.identifier);
+				}
 			}
 		} else if (promptType === PromptsType.hook) {
 			// Try to parse individual hooks from each file; fall back to showing the file itself
@@ -1212,6 +1284,11 @@ export class AICustomizationListWidget extends Disposable {
 		} else {
 			// For instructions, group by category: agent instructions, context instructions, on-demand instructions
 			const promptFiles = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
+			for (const file of promptFiles) {
+				if (file.extension) {
+					extensionIdByUri.set(file.uri.toString(), file.extension.identifier);
+				}
+			}
 			const agentInstructionFiles = await this.promptsService.listAgentInstructions(CancellationToken.None, undefined);
 			const agentInstructionUris = new ResourceSet(agentInstructionFiles.map(f => f.uri));
 
@@ -1295,6 +1372,12 @@ export class AICustomizationListWidget extends Disposable {
 				}
 			}
 		}
+
+		// Assign built-in groupKeys — items from the default chat extension
+		// are re-grouped under "Built-in" instead of "Extensions".
+		// This is a single-pass transformation applied after all items are
+		// collected, keeping the item-building code free of grouping logic.
+		this.applyBuiltinGroupKeys(items, extensionIdByUri);
 
 		// Apply storage source filter (removes items not in visible sources or excluded user roots)
 		const filter = this.workspaceService.getStorageSourceFilter(promptType);
@@ -1406,8 +1489,8 @@ export class AICustomizationListWidget extends Disposable {
 				: [
 					{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
 					{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
-					{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
 					{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
+					{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
 					{ groupKey: BUILTIN_STORAGE, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
 					{ groupKey: 'agents', label: localize('agentsGroup', "Agents"), icon: agentIcon, description: localize('agentsGroupDescription', "Hooks defined in agent files."), items: [] },
 				].filter(g => visibleSources.has(g.groupKey as PromptsStorage) || g.groupKey === 'agents');
