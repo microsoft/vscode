@@ -399,7 +399,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		RunInTerminalTool._activeExecutions.delete(id);
 		return true;
 	}
-	protected get _sandboxingEnabled() {
+	/**
+	 * Controls whether this tool wires up sandbox-specific command rewriting.
+	 * This is separate from ITerminalSandboxService.isEnabled(), which reports
+	 * whether terminal sandboxing is currently enabled for the running window.
+	 */
+	protected get _enableCommandLineSandboxRewriting() {
 		return true;
 	}
 	constructor(
@@ -435,7 +440,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._register(this._instantiationService.createInstance(CommandLinePwshChainOperatorRewriter, this._treeSitterCommandParser)),
 			this._register(this._instantiationService.createInstance(CommandLinePreventHistoryRewriter)),
 		];
-		if (this._sandboxingEnabled) {
+		if (this._enableCommandLineSandboxRewriting) {
 			this._commandLineRewriters.push(this._register(this._instantiationService.createInstance(CommandLineSandboxRewriter)));
 		}
 		this._commandLineAnalyzers = [
