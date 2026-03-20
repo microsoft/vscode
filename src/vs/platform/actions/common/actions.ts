@@ -309,6 +309,7 @@ export class MenuId {
 	static readonly ChatViewSessionTitleNavigationToolbar = new MenuId('ChatViewSessionTitleNavigationToolbar');
 	static readonly ChatViewSessionTitleToolbar = new MenuId('ChatViewSessionTitleToolbar');
 	static readonly ChatContextUsageActions = new MenuId('ChatContextUsageActions');
+	static readonly MarkerHoverStatusBar = new MenuId('MarkerHoverParticipant.StatusBar');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier
