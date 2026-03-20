@@ -33,4 +33,20 @@ flakySuite('Crypto', () => {
 
 		await checksum(testFile, 'a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e');
 	});
+
+	test('checksum mismatch rejects and cleans up stream', async () => {
+		const testFile = join(testDir, 'checksum-mismatch.txt');
+		await Promises.writeFile(testFile, 'Hello World');
+
+		try {
+			await checksum(testFile, 'wrong-hash');
+			throw new Error('Expected checksum to reject');
+		} catch (err: any) {
+			// The read stream should be destroyed by the done() callback,
+			// preventing a file descriptor leak.
+			if (!(err instanceof Error) || !err.message.includes('Hash mismatch')) {
+				throw err;
+			}
+		}
+	});
 });

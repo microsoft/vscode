@@ -76,7 +76,11 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 		res.writeHead(200, responseHeaders);
 
 		// Data
-		createReadStream(filePath).pipe(res);
+		const fileStream = createReadStream(filePath);
+		fileStream.pipe(res);
+		// Destroy the read stream if the response is closed prematurely
+		// (e.g. client disconnect) to avoid leaking the file descriptor.
+		res.on('close', () => fileStream.destroy());
 	} catch (error) {
 		if (error.code !== 'ENOENT') {
 			logService.error(error);
