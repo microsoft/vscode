@@ -37,7 +37,7 @@ class AddQuickPickItemToContextAction extends Action2 {
 			category: CHAT_CATEGORY,
 			f1: false,
 			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 				weight: 200, // KeybindingWeight.WorkbenchContrib
 				when: ContextKeyExpr.has(inQuickInputContextKeyValue),
 			},
