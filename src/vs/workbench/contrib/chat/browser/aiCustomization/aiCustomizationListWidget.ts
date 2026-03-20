@@ -337,7 +337,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			const uriLabel = this.labelService.getUriLabel(element.uri, { relative: false });
 			let content = `${element.name}\n${uriLabel}`;
 			if (element.badgeTooltip) {
-				content += `\n${element.badgeTooltip}`;
+				content += `\n\n${element.badgeTooltip}`;
 			}
 			const plugin = element.pluginUri && this.agentPluginService.plugins.get().find(p => isEqual(p.uri, element.pluginUri));
 			if (plugin) {
