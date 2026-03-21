@@ -36,7 +36,7 @@ import { ITerminalSandboxService } from '../../common/terminalSandboxService.js'
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolInvocationPreparationContext, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
-import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
+import { createRunInTerminalToolData, RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { TerminalChatService } from '../../../chat/browser/terminalChatService.js';
@@ -204,6 +204,14 @@ suite('RunInTerminalTool', () => {
 	}
 
 	suite('sandbox invocation messaging', () => {
+		test('should instruct models to use $TMPDIR instead of /tmp when sandboxed', async () => {
+			sandboxEnabled = true;
+
+			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
+
+			ok(toolData.modelDescription?.includes('explicitly use $TMPDIR, not /tmp'), 'Expected sandboxed tool description to prefer $TMPDIR over /tmp');
+		});
+
 		test('should use sandbox labels when command is sandbox wrapped', async () => {
 			terminalSandboxService.isEnabled = async () => true;
 			terminalSandboxService.getSandboxConfigPath = async () => '/tmp/vscode-sandbox-settings.json';
