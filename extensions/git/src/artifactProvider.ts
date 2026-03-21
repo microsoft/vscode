@@ -155,7 +155,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 				const stashes = await this.repository.getStashes();
 
 				return stashes.map(s => ({
-					id: `stash@{${s.index}}`,
+					id: s.hash,
 					name: s.description,
 					description: s.branchName,
 					icon: new ThemeIcon('git-stash'),
