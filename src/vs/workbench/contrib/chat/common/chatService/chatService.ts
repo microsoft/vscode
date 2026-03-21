@@ -1204,35 +1204,35 @@ export interface IChatCompleteResponse {
 }
 
 export interface IChatSessionStats {
-	fileCount: number;
-	added: number;
-	removed: number;
+	readonly fileCount: number;
+	readonly added: number;
+	readonly removed: number;
 }
 
 export type IChatSessionTiming = {
 	/**
 	 * Timestamp when the session was created in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 	 */
-	created: number;
+	readonly created: number;
 
 	/**
 	 * Timestamp when the most recent request started in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 	 *
 	 * Should be undefined if no requests have been made yet.
 	 */
-	lastRequestStarted: number | undefined;
+	readonly lastRequestStarted: number | undefined;
 
 	/**
 	 * Timestamp when the most recent request completed in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 	 *
 	 * Should be undefined if the most recent request is still in progress or if no requests have been made yet.
 	 */
-	lastRequestEnded: number | undefined;
+	readonly lastRequestEnded: number | undefined;
 };
 
 interface ILegacyChatSessionTiming {
-	startTime: number;
-	endTime?: number;
+	readonly startTime: number;
+	readonly endTime?: number;
 }
 
 export function convertLegacyChatSessionTiming(timing: IChatSessionTiming | ILegacyChatSessionTiming): IChatSessionTiming {

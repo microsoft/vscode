@@ -1668,8 +1668,8 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		labelElement.textContent = '';
 		if (this._isSandboxWrapped) {
 			dom.reset(labelElement, ...renderLabelWithIcons(this._isComplete
-				? localize('chat.terminal.ranInSandbox', "$(lock) Ran `{0}` in sandbox", this._commandText)
-				: localize('chat.terminal.runningInSandbox', "$(lock) Running `{0}` in sandbox", this._commandText)));
+				? '$(lock) ' + localize('chat.terminal.ranInSandbox', "Ran `{0}` in sandbox", this._commandText)
+				: '$(lock) ' + localize('chat.terminal.runningInSandbox', "Running `{0}` in sandbox", this._commandText)));
 			return;
 		}
 
