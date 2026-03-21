@@ -53,6 +53,7 @@ import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.
 import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
 import { INotebookCellStatusBarService } from '../../common/notebookCellStatusBarService.js';
 import { CellKind, CellUri, ICellDto2, INotebookDiffEditorModel, INotebookEditorModel, INotebookFindOptions, IOutputDto, IResolvedNotebookEditorModel, NotebookCellExecutionState, NotebookCellMetadata, SelectionStateType } from '../../common/notebookCommon.js';
+import { CellExecutionUpdateType } from '../../common/notebookExecutionService.js';
 import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent } from '../../common/notebookExecutionStateService.js';
 import { NotebookOptions } from '../../browser/notebookOptions.js';
 import { ICellRange } from '../../common/notebookRange.js';
@@ -544,24 +545,35 @@ export function valueBytesFromString(value: string): VSBuffer {
 }
 
 class TestCellExecution implements INotebookCellExecution {
+	private _state: NotebookCellExecutionState = NotebookCellExecutionState.Unconfirmed;
+
 	constructor(
 		readonly notebook: URI,
 		readonly cellHandle: number,
 		private onComplete: () => void,
 	) { }
 
-	readonly state: NotebookCellExecutionState = NotebookCellExecutionState.Unconfirmed;
+	get state(): NotebookCellExecutionState {
+		return this._state;
+	}
 
 	readonly didPause: boolean = false;
 	readonly isPaused: boolean = false;
 
 	confirm(): void {
+		this._state = NotebookCellExecutionState.Pending;
 	}
 
 	update(updates: ICellExecuteUpdate[]): void {
+		const executionUpdate = updates.find(u => u.editType === CellExecutionUpdateType.ExecutionState);
+		if (executionUpdate) {
+			this._state = NotebookCellExecutionState.Executing;
+		}
 	}
 
 	complete(complete: ICellExecutionComplete): void {
+		// Execution is complete - it will be removed from the map
+		// No need to update state as the execution object will be disposed
 		this.onComplete();
 	}
 }
@@ -607,5 +619,14 @@ export class TestNotebookExecutionStateService implements INotebookExecutionStat
 	}
 	createExecution(notebook: URI): INotebookExecution {
 		throw new Error('Method not implemented.');
+	}
+	hasRunningExecutions(): boolean {
+		for (const execution of this._executions.values()) {
+			if (execution.state === NotebookCellExecutionState.Pending ||
+				execution.state === NotebookCellExecutionState.Executing) {
+				return true;
+			}
+		}
+		return false;
 	}
 }
