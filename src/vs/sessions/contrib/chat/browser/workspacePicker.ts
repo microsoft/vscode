@@ -12,18 +12,14 @@ import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { GITHUB_REMOTE_FILE_SCHEME, SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
-import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { agentHostAuthority } from '../../remoteAgentHost/browser/remoteAgentHost.contribution.js';
-import { AGENT_HOST_FS_SCHEME, agentHostUri } from '../../remoteAgentHost/browser/agentHostFileSystemProvider.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
+import { ISessionsBrowseAction } from '../../sessions/browser/sessionsProvider.js';
+import { AGENT_HOST_FS_SCHEME } from '../../remoteAgentHost/browser/agentHostFileSystemProvider.js';
 
-const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
 const STORAGE_KEY_LAST_PROJECT = 'sessions.lastPickedProject';
 const STORAGE_KEY_RECENT_PROJECTS = 'sessions.recentlyPickedProjects';
 const MAX_RECENT_PROJECTS = 10;
@@ -35,9 +31,10 @@ const LEGACY_STORAGE_KEY_RECENT_FOLDERS = 'agentSessions.recentlyPickedFolders';
 const LEGACY_STORAGE_KEY_LAST_REPO = 'agentSessions.lastPickedRepo';
 const LEGACY_STORAGE_KEY_RECENT_REPOS = 'agentSessions.recentlyPickedRepos';
 
-const COMMAND_BROWSE_FOLDERS = 'command:browseFolders';
-const COMMAND_BROWSE_REPOS = 'command:browseRepos';
-const COMMAND_BROWSE_REMOTE_AGENT_HOSTS = 'command:browseRemoteAgentHosts';
+/**
+ * Sentinel URI scheme for browse action items in the picker list.
+ */
+const BROWSE_ACTION_SCHEME = 'command';
 
 /**
  * Serializable form of a project entry for storage.
@@ -76,11 +73,8 @@ export class WorkspacePicker extends Disposable {
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
@@ -204,13 +198,10 @@ export class WorkspacePicker extends Disposable {
 		const delegate: IActionListDelegate<IStoredProject> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
-				const uriStr = URI.revive(item.uri).toString();
-				if (uriStr === COMMAND_BROWSE_FOLDERS) {
-					this._browseForFolder();
-				} else if (uriStr === COMMAND_BROWSE_REPOS) {
-					this._browseForRepo();
-				} else if (uriStr === COMMAND_BROWSE_REMOTE_AGENT_HOSTS) {
-					this._browseForRemoteAgentHost();
+				const uri = URI.revive(item.uri);
+				if (uri.scheme === BROWSE_ACTION_SCHEME) {
+					// Browse action — find and execute the matching provider browse action
+					this._executeBrowseAction(uri.path);
 				} else {
 					this._selectProject(this._fromStored(item));
 				}
@@ -276,88 +267,32 @@ export class WorkspacePicker extends Disposable {
 		}
 	}
 
-	private async _browseForFolder(): Promise<void> {
-		try {
-			const selected = await this.fileDialogService.showOpenDialog({
-				canSelectFiles: false,
-				canSelectFolders: true,
-				canSelectMany: false,
-				title: localize('selectFolder', "Select Folder"),
-			});
-			if (selected?.[0]) {
-				this._selectProject(new SessionWorkspace(selected[0]));
-			}
-		} catch {
-			// dialog was cancelled or failed
-		}
-	}
-
-	private async _browseForRepo(): Promise<void> {
-		try {
-			const result: string | undefined = await this.commandService.executeCommand(OPEN_REPO_COMMAND);
-			if (result) {
-				this._selectProject(new SessionWorkspace(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${result}/HEAD` })));
-			}
-		} catch {
-			// command was cancelled or failed
-		}
-	}
-
-	private async _browseForRemoteAgentHost(): Promise<void> {
-		const connections = this.remoteAgentHostService.connections;
-		if (connections.length === 0) {
+	/**
+	 * Executes a browse action from a provider, identified by index.
+	 */
+	private async _executeBrowseAction(actionIndex: string): Promise<void> {
+		const allActions = this._getAllBrowseActions();
+		const index = parseInt(actionIndex, 10);
+		const action = allActions[index];
+		if (!action) {
 			return;
 		}
 
-		// Show remote picker even with a single connection so the user
-		// can see which remote they are connecting to.
-		let selectedAddress: string;
-		let selectedName: string;
-		let defaultDirectory: string | undefined;
-		{
-			const picks = connections.map(c => ({
-				label: c.name,
-				description: c.address,
-				address: c.address,
-				defaultDirectory: c.defaultDirectory,
-			}));
-
-			const picked = await this.quickInputService.pick(picks, {
-				title: localize('selectRemote', "Select Remote"),
-				placeHolder: localize('selectRemotePlaceholder', "Choose a remote agent host"),
-			});
-			if (!picked) {
-				return;
-			}
-			selectedAddress = picked.address;
-			selectedName = picked.label;
-			defaultDirectory = picked.defaultDirectory;
-		}
-
-		// Open a folder picker scoped to the remote filesystem.
-		// The defaultUri carries both the scheme (agenthost) and authority
-		// (sanitized address), so SimpleFileDialog stays scoped to this
-		// particular remote connection.
-		const authority = agentHostAuthority(selectedAddress);
-		const defaultUri = defaultDirectory
-			? agentHostUri(authority, defaultDirectory)
-			: agentHostUri(authority, '/');
-
 		try {
-			const selected = await this.fileDialogService.showOpenDialog({
-				canSelectFiles: false,
-				canSelectFolders: true,
-				canSelectMany: false,
-				title: localize('selectRemoteFolder', "Select Folder on {0}", selectedName),
-				availableFileSystems: [AGENT_HOST_FS_SCHEME],
-				defaultUri,
-			});
-			if (selected?.[0]) {
-				this._selectProject(new SessionWorkspace(selected[0]));
+			const workspace = await action.execute();
+			if (workspace) {
+				this._selectProject(workspace);
 			}
 		} catch {
-			// dialog was cancelled or failed
+			// browse action was cancelled or failed
 		}
+	}
+
+	/**
+	 * Collects browse actions from all registered providers.
+	 */
+	private _getAllBrowseActions(): ISessionsBrowseAction[] {
+		return this.sessionsProvidersService.getProviders().flatMap(p => p.browseActions);
 	}
 
 	private _addToRecents(stored: IStoredProject): void {
@@ -437,28 +372,18 @@ export class WorkspacePicker extends Disposable {
 			});
 		}
 
-		// Separator + Browse actions
-		if (items.length > 0) {
+		// Separator + Browse actions from providers
+		const allBrowseActions = this._getAllBrowseActions();
+		if (items.length > 0 && allBrowseActions.length > 0) {
 			items.push({ kind: ActionListItemKind.Separator, label: '' });
 		}
-		items.push({
-			kind: ActionListItemKind.Action,
-			label: localize('browseFolders', "Browse Folders..."),
-			group: { title: '', icon: Codicon.folderOpened },
-			item: { uri: URI.parse(COMMAND_BROWSE_FOLDERS).toJSON() },
-		});
-		items.push({
-			kind: ActionListItemKind.Action,
-			label: localize('browseRepositories', "Browse Repositories..."),
-			group: { title: '', icon: Codicon.repo },
-			item: { uri: URI.parse(COMMAND_BROWSE_REPOS).toJSON() },
-		});
-		if (this.remoteAgentHostService.connections.length > 0) {
+		for (let i = 0; i < allBrowseActions.length; i++) {
+			const action = allBrowseActions[i];
 			items.push({
 				kind: ActionListItemKind.Action,
-				label: localize('browseRemotes', "Browse Remotes..."),
-				group: { title: '', icon: Codicon.remote },
-				item: { uri: URI.parse(COMMAND_BROWSE_REMOTE_AGENT_HOSTS).toJSON() },
+				label: action.label,
+				group: { title: '', icon: action.icon },
+				item: { uri: URI.from({ scheme: BROWSE_ACTION_SCHEME, path: String(i) }).toJSON() },
 			});
 		}
 
@@ -494,10 +419,9 @@ export class WorkspacePicker extends Disposable {
 
 	private _getStoredProjectLabel(project: IStoredProject): string {
 		const uri = URI.revive(project.uri);
-		// TODO@roblourens HACK
 		if (uri.scheme === AGENT_HOST_FS_SCHEME) {
 			const folderName = basename(uri) || uri.path || '/';
-			const remoteName = this._getRemoteName(uri.authority) ?? project.remoteName ?? uri.authority;
+			const remoteName = project.remoteName ?? uri.authority;
 			return `${folderName} [${remoteName}]`;
 		}
 		if (uri.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
@@ -507,28 +431,8 @@ export class WorkspacePicker extends Disposable {
 		return uri.path.substring(1).replace(/\/HEAD$/, '');
 	}
 
-	/**
-	 * Resolves a sanitized authority back to a user-facing remote name.
-	 */
-	private _getRemoteName(authority: string): string | undefined {
-		for (const conn of this.remoteAgentHostService.connections) {
-			if (agentHostAuthority(conn.address) === authority) {
-				return conn.name;
-			}
-		}
-		return undefined;
-	}
-
 	private _toStored(project: SessionWorkspace): IStoredProject {
-		const uri = project.uri;
-		const stored: IStoredProject = { uri: uri.toJSON() };
-		if (uri.scheme === AGENT_HOST_FS_SCHEME) {
-			const remoteName = this._getRemoteName(uri.authority);
-			if (remoteName) {
-				return { ...stored, remoteName };
-			}
-		}
-		return stored;
+		return { uri: project.uri.toJSON() };
 	}
 
 	private _fromStored(stored: IStoredProject): SessionWorkspace {
