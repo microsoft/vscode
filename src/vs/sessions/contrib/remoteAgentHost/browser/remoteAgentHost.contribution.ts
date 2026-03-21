@@ -15,7 +15,7 @@ import { type AgentProvider, type IAgentConnection } from '../../../../platform/
 import { isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../platform/agentHost/common/state/sessionClientState.js';
 import { ROOT_STATE_URI, type IAgentInfo, type IRootState } from '../../../../platform/agentHost/common/state/sessionState.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostsSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, normalizeRemoteAgentHostAddress, RemoteAgentHostsSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
@@ -43,13 +43,14 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
  * 3. Everything else is url-safe base64-encoded with a `b64-` prefix.
  */
 export function agentHostAuthority(address: string): string {
-	if (/^[a-zA-Z0-9]+$/.test(address)) {
-		return address;
+	const normalized = normalizeRemoteAgentHostAddress(address);
+	if (/^[a-zA-Z0-9]+$/.test(normalized)) {
+		return normalized;
 	}
 	if (/^[a-zA-Z0-9.:\-]+$/.test(address)) {
 		return address.replaceAll(':', '__');
 	}
-	return 'b64-' + encodeBase64(VSBuffer.fromString(address), false, true);
+	return 'b64-' + encodeBase64(VSBuffer.fromString(normalized), false, true);
 }
 
 /**
