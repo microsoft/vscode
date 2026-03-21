@@ -11,6 +11,8 @@ export const additionalDeps = [
 	'libnss3 (>= 3.26)',
 	'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3', // For Breakpad crash reports.
 	'xdg-utils (>= 1.0.2)', // OS integration
+	'bubblewrap', // agent command sandboxing
+	'socat', // agent command sandboxing
 ];
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/debian/manual_recommends
@@ -22,6 +24,7 @@ export const recommendedDeps = [
 
 export const referenceGeneratedDepsByArch = {
 	'amd64': [
+		'bubblewrap',
 		'ca-certificates',
 		'libasound2 (>= 1.0.17)',
 		'libatk-bridge2.0-0 (>= 2.5.3)',
@@ -57,9 +60,11 @@ export const referenceGeneratedDepsByArch = {
 		'libxkbcommon0 (>= 0.5.0)',
 		'libxkbfile1 (>= 1:1.1.0)',
 		'libxrandr2',
+		'socat',
 		'xdg-utils (>= 1.0.2)'
 	],
 	'armhf': [
+		'bubblewrap',
 		'ca-certificates',
 		'libasound2 (>= 1.0.17)',
 		'libatk-bridge2.0-0 (>= 2.5.3)',
@@ -99,9 +104,11 @@ export const referenceGeneratedDepsByArch = {
 		'libxkbcommon0 (>= 0.5.0)',
 		'libxkbfile1 (>= 1:1.1.0)',
 		'libxrandr2',
+		'socat',
 		'xdg-utils (>= 1.0.2)'
 	],
 	'arm64': [
+		'bubblewrap',
 		'ca-certificates',
 		'libasound2 (>= 1.0.17)',
 		'libatk-bridge2.0-0 (>= 2.5.3)',
@@ -138,6 +145,7 @@ export const referenceGeneratedDepsByArch = {
 		'libxkbcommon0 (>= 0.5.0)',
 		'libxkbfile1 (>= 1:1.1.0)',
 		'libxrandr2',
+		'socat',
 		'xdg-utils (>= 1.0.2)'
 	]
 };
