@@ -1672,7 +1672,6 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 
 		const labelElement = this._collapseButton.labelElement;
 		labelElement.textContent = '';
-
 		const prefixText = this._isComplete
 			? localize('chat.terminal.ran.prefix', "Ran ")
 			: localize('chat.terminal.running.prefix', "Running ");
