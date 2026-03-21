@@ -25,7 +25,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 }
 
 // https://github.com/microsoft/vscode/issues/303531
-(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('chat - run_in_terminal (issue #303531)', () => {
+(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('chat - run_in_terminal', () => {
 
 	let disposables: vscode.Disposable[] = [];
 
@@ -156,7 +156,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			await termConfig.update('shellIntegration.timeout', 0, vscode.ConfigurationTarget.Global);
 
 			const toolConfig = vscode.workspace.getConfiguration('chat.tools.terminal');
-			await toolConfig.update('idlePollInterval', 50, vscode.ConfigurationTarget.Global);
+			await toolConfig.update('idlePollInterval', 100, vscode.ConfigurationTarget.Global);
 		});
 
 		teardown(async () => {
@@ -304,7 +304,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				].join('\n');
 				const acceptable = [
 					// With shell integration: known failure with exit code
-					`Command failed while running in sandboxed mode. If the command failed due to sandboxing:\n${sandboxBody}\n\n\nCommand exited with code 1`,
+					`Command failed while running in sandboxed mode. If the command failed due to sandboxing:\n${sandboxBody}\n\nCommand exited with code 1`,
 					// Without shell integration: heuristic detection, no exit code
 					...(!hasShellIntegration ? [`Command ran in sandboxed mode and may have been blocked by the sandbox. If the command failed due to sandboxing:\n${sandboxBody}`] : []),
 				];

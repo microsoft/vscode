@@ -84,6 +84,21 @@ export function createAltBufferPromise(
 export function stripCommandEchoAndPrompt(output: string, commandLine: string, log?: (message: string) => void): string {
 	log?.(`stripCommandEchoAndPrompt input: ${JSON.stringify(output)}, commandLine: ${JSON.stringify(commandLine)}`);
 
+	const result = _stripCommandEchoAndPromptOnce(output, commandLine, log);
+
+	// After stripping the first command echo and trailing prompt, the remaining
+	// content may still contain the command re-echoed by the shell (prompt + echo).
+	// This happens when the terminal buffer captures both the raw sendText output
+	// and the shell's subsequent prompt + command echo. If the command appears again
+	// in the remaining text, strip it one more time.
+	if (result.trim().length > 0 && findCommandEcho(result, commandLine)) {
+		return _stripCommandEchoAndPromptOnce(result, commandLine, log);
+	}
+
+	return result;
+}
+
+function _stripCommandEchoAndPromptOnce(output: string, commandLine: string, log?: (message: string) => void): string {
 	// Strip leading lines that are part of the command echo using findCommandEcho.
 	const echoResult = findCommandEcho(output, commandLine);
 	const lines = echoResult ? echoResult.linesAfter : output.split('\n');
