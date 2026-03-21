@@ -183,6 +183,18 @@ export default tseslint.config(
 			]
 		}
 	},
+	// Disallow common telemetry properties in event data
+	{
+		files: [
+			'src/**/*.ts',
+		],
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-telemetry-common-property': 'warn',
+		}
+	},
 	// Disallow 'in' operator except in type predicates
 	{
 		files: [
@@ -2372,6 +2384,10 @@ export default tseslint.config(
 				{
 					'selector': `NewExpression[callee.object.name='Intl']`,
 					'message': 'Use safeIntl helper instead for safe and lazy use of potentially expensive Intl methods.'
+				},
+				{
+					'selector': 'TSAsExpression[typeAnnotation.type="TSTypeReference"][typeAnnotation.typeName.type="TSQualifiedName"][typeAnnotation.typeName.left.type="Identifier"][typeAnnotation.typeName.left.name="sinon"][typeAnnotation.typeName.right.name="SinonStub"]',
+					'message': `Avoid casting with 'as sinon.SinonStub'. Prefer typed stubs from 'sinon.stub(...)' or capture the stub in a typed variable.`
 				},
 			],
 		}

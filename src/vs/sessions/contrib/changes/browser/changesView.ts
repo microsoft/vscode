@@ -12,13 +12,14 @@ import { IObjectTreeElement, ITreeNode } from '../../../../base/browser/ui/tree/
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IObservableWithChange, ISettableObservable, ObservablePromise, observableSignalFromEvent, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { basename, dirname } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
+import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId, Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -52,7 +53,6 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
-import { IActivityService, NumberBadge } from '../../../../workbench/services/activity/common/activity.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -70,6 +70,16 @@ const $ = dom.$;
 
 export const CHANGES_VIEW_CONTAINER_ID = 'workbench.view.agentSessions.changesContainer';
 export const CHANGES_VIEW_ID = 'workbench.view.agentSessions.changes';
+
+// Dynamic title for the Changes view container tab.
+// Uses a getter so that ViewContainerModel.updateContainerInfo() picks up
+// the latest value each time it re-reads viewContainer.title.value.
+let _changesContainerTitleValue = localize('changes', 'Changes');
+export const changesContainerTitle: ILocalizedString = {
+	original: 'Changes',
+	get value() { return _changesContainerTitleValue; }
+};
+
 const RUN_SESSION_CODE_REVIEW_ACTION_ID = 'sessions.codeReview.run';
 
 // --- View Mode
@@ -91,6 +101,8 @@ const enum ChangesVersionMode {
 const changesVersionModeContextKey = new RawContextKey<ChangesVersionMode>('sessions.changesVersionMode', ChangesVersionMode.AllChanges);
 const isMergeBaseBranchProtectedContextKey = new RawContextKey<boolean>('sessions.isMergeBaseBranchProtected', false);
 const hasOpenPullRequestContextKey = new RawContextKey<boolean>('sessions.hasOpenPullRequest', false);
+const hasIncomingChangesContextKey = new RawContextKey<boolean>('sessions.hasIncomingChanges', false);
+const hasOutgoingChangesContextKey = new RawContextKey<boolean>('sessions.hasOutgoingChanges', false);
 
 // --- List Item
 
@@ -333,7 +345,6 @@ export class ChangesViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IActivityService private readonly activityService: IActivityService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -363,20 +374,16 @@ export class ChangesViewPane extends ViewPane {
 			return activeSession?.providerType ?? '';
 		}));
 
-		// Badge
-		const badgeDisposable = this._register(new MutableDisposable());
-
+		// Fallback title update: when the view is not visible (renderDisposables
+		// cleared), keep the container title in sync with the raw session changes
+		// so the tab still shows a count when the user switches sessions.
 		this._register(autorun(reader => {
-			const changes = this.viewModel.activeSessionChangesObs.read(reader);
-			if (changes.length === 0) {
-				badgeDisposable.clear();
+			if (this.isBodyVisible()) {
+				// onVisible() drives the title from topLevelStats while visible
 				return;
 			}
-
-			const message = changes.length === 1
-				? localize('changesView.oneFileChanged', '1 file changed')
-				: localize('changesView.filesChanged', '{0} files changed', changes.length);
-			badgeDisposable.value = this.activityService.showViewActivity(CHANGES_VIEW_ID, { badge: new NumberBadge(changes.length, () => message) });
+			const changes = this.viewModel.activeSessionChangesObs.read(reader);
+			this.updateContainerTitle(changes.length);
 		}));
 	}
 
@@ -428,6 +435,27 @@ export class ChangesViewPane extends ViewPane {
 		// Trigger initial render if already visible
 		if (this.isBodyVisible()) {
 			this.onVisible();
+		}
+	}
+
+	private updateContainerTitle(fileCount: number): void {
+		let nextTitle: string;
+		if (fileCount === 0) {
+			nextTitle = localize('changes', 'Changes');
+		} else if (fileCount === 1) {
+			nextTitle = localize('changesView.titleWithCountOne', '1 Change');
+		} else {
+			nextTitle = localize('changesView.titleWithCount', '{0} Changes', fileCount);
+		}
+
+		if (nextTitle === _changesContainerTitleValue) {
+			return;
+		}
+
+		_changesContainerTitleValue = nextTitle;
+		const viewContainer = this.viewDescriptorService.getViewContainerById(CHANGES_VIEW_CONTAINER_ID);
+		if (viewContainer) {
+			this.viewDescriptorService.getViewContainerModel(viewContainer).refreshContainerInfo();
 		}
 	}
 
@@ -646,12 +674,30 @@ export class ChangesViewPane extends ViewPane {
 				return metadata?.pullRequestUrl !== undefined;
 			}));
 
+			this.renderDisposables.add(bindContextKey(hasIncomingChangesContextKey, this.scopedContextKeyService, reader => {
+				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
+				const repositoryState = repository?.state.read(reader);
+				return (repositoryState?.HEAD?.behind ?? 0) > 0;
+			}));
+
+			const outgoingChangesObs = derived(reader => {
+				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
+				const repositoryState = repository?.state.read(reader);
+				return repositoryState?.HEAD?.ahead ?? 0;
+			});
+
+			this.renderDisposables.add(bindContextKey(hasOutgoingChangesContextKey, this.scopedContextKeyService, reader => {
+				const outgoingChanges = outgoingChangesObs.read(reader);
+				return outgoingChanges > 0;
+			}));
+
 			const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
 			const scopedInstantiationService = this.instantiationService.createChild(scopedServiceCollection);
 			this.renderDisposables.add(scopedInstantiationService);
 
 			this.renderDisposables.add(autorun(reader => {
 				const { added, removed } = topLevelStats.read(reader);
+				const outgoingChanges = outgoingChangesObs.read(reader);
 				const sessionResource = this.viewModel.activeSessionResourceObs.read(reader);
 
 				// Read code review state to update the button label dynamically
@@ -712,6 +758,13 @@ export class ChangesViewPane extends ViewPane {
 							if (action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR') {
 								return { showIcon: true, showLabel: true, isSecondary: false };
 							}
+							if (action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR') {
+								const customLabel = outgoingChanges > 0
+									? localize('updatePRWithOutgoingChanges', 'Update Pull Request {0}↑', outgoingChanges)
+									: localize('updatePR', 'Update Pull Request');
+
+								return { customLabel, showIcon: true, showLabel: true, isSecondary: false };
+							}
 							if (action.id === 'github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR') {
 								return { showIcon: true, showLabel: false, isSecondary: true };
 							}
@@ -735,7 +788,12 @@ export class ChangesViewPane extends ViewPane {
 			dom.setVisibility(!hasEntries, this.welcomeContainer!);
 		}));
 
-		// Update summary text (line counts only, file count is shown in badge)
+		// Update inline title count from the same stats the tree uses
+		this.renderDisposables.add(autorun(reader => {
+			this.updateContainerTitle(topLevelStats.read(reader).files);
+		}));
+
+		// Update summary text (line counts only)
 		if (this.summaryContainer) {
 			dom.clearNode(this.summaryContainer);
 
@@ -999,6 +1057,7 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	override dispose(): void {
+		this.updateContainerTitle(0);
 		this.tree?.dispose();
 		this.tree = undefined;
 		super.dispose();

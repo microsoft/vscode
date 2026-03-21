@@ -480,12 +480,7 @@ suite('RunInTerminalTool', () => {
 			}
 			ok(confirmationMessage.value.includes('Reason for leaving the sandbox: Needs network access outside the sandbox'));
 
-			const disclaimer = result?.confirmationMessages?.disclaimer;
-			ok(disclaimer && typeof disclaimer !== 'string');
-			if (!disclaimer || typeof disclaimer === 'string') {
-				throw new Error('Expected markdown disclaimer');
-			}
-			ok(disclaimer.value.includes('outside the terminal sandbox'));
+			strictEqual(result?.confirmationMessages?.disclaimer, undefined);
 			strictEqual(result?.confirmationMessages?.terminalCustomActions, undefined);
 		});
 	});

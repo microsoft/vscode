@@ -445,5 +445,72 @@ suite('AgentPluginRepositoryService', () => {
 			assert.strictEqual(deleted.length, 1);
 			assert.ok(deleted[0].includes('github.com/owner/repo'));
 		});
+
+		test('skips deletion when another installed plugin shares the same cleanup target', async () => {
+			const deleted: string[] = [];
+			const service = createServiceWithDel(r => deleted.push(r.path));
+
+			await service.cleanupPluginSource(
+				{
+					name: 'plugin-a',
+					description: '',
+					version: '',
+					source: '',
+					sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', path: 'plugins/a' },
+					marketplace: 'owner/marketplace',
+					marketplaceReference: parseMarketplaceReference('owner/marketplace')!,
+					marketplaceType: MarketplaceType.Copilot,
+				},
+				// Another plugin from the same repo still installed
+				[{ kind: PluginSourceKind.GitHub, repo: 'owner/repo', path: 'plugins/b' }],
+			);
+
+			assert.strictEqual(deleted.length, 0);
+		});
+
+		test('proceeds with deletion when no other plugin shares the cleanup target', async () => {
+			const deleted: string[] = [];
+			const service = createServiceWithDel(r => deleted.push(r.path));
+
+			await service.cleanupPluginSource(
+				{
+					name: 'plugin-a',
+					description: '',
+					version: '',
+					source: '',
+					sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', path: 'plugins/a' },
+					marketplace: 'owner/marketplace',
+					marketplaceReference: parseMarketplaceReference('owner/marketplace')!,
+					marketplaceType: MarketplaceType.Copilot,
+				},
+				// Only unrelated plugins remain
+				[{ kind: PluginSourceKind.GitHub, repo: 'other-owner/other-repo' }],
+			);
+
+			assert.ok(deleted.length >= 1);
+			assert.ok(deleted[0].includes('github.com/owner/repo'));
+		});
+
+		test('proceeds with deletion when otherInstalledDescriptors is empty', async () => {
+			const deleted: string[] = [];
+			const service = createServiceWithDel(r => deleted.push(r.path));
+
+			await service.cleanupPluginSource(
+				{
+					name: 'plugin-a',
+					description: '',
+					version: '',
+					source: '',
+					sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo' },
+					marketplace: 'owner/marketplace',
+					marketplaceReference: parseMarketplaceReference('owner/marketplace')!,
+					marketplaceType: MarketplaceType.Copilot,
+				},
+				[],
+			);
+
+			assert.ok(deleted.length >= 1);
+			assert.ok(deleted[0].includes('github.com/owner/repo'));
+		});
 	});
 });

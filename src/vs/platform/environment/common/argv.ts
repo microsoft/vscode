@@ -24,6 +24,7 @@ export interface NativeParsedArgs {
 		};
 	};
 	'serve-web'?: INativeCliOptions;
+	'agent-host'?: INativeCliOptions;
 	chat?: {
 		_: string[];
 		'add-file'?: string[];

@@ -830,8 +830,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			// Capture session options before loading the remote session,
 			// since the alias registration below may change the lookup.
-			const sessionOptions = this.chatSessionService.getSessionOptions(sessionResource);
-			const initialSessionOptions = sessionOptions ? [...sessionOptions].map(([optionId, value]) => ({ optionId, value })) : undefined;
+			const initialSessionOptions = this.chatSessionService.getSessionOptions(sessionResource);
 
 			const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(sessionResource), { prompt: requestText, command: commandPart?.text, initialSessionOptions }, CancellationToken.None);
 			if (newItem) {
@@ -847,7 +846,7 @@ export class ChatService extends Disposable implements IChatService {
 				// so that the agent receives them when invoked.
 				model.setContributedChatSession({
 					chatSessionResource: newItem.resource,
-					initialSessionOptions: sessionOptions ? [...sessionOptions].map(([optionId, value]) => ({ optionId, value })) : undefined,
+					initialSessionOptions: initialSessionOptions,
 				});
 
 				sessionResource = newItem.resource;

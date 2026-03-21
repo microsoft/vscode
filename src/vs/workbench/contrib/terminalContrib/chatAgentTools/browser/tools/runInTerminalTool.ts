@@ -720,10 +720,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		if (requiresUnsandboxConfirmation) {
-			disclaimer = new MarkdownString([
-				disclaimer?.value,
-				localize('runInTerminal.unsandboxed.disclaimer', "$(warning) This command will run outside the terminal sandbox and may access files, network resources, or system state that sandboxed commands cannot reach.")
-			].filter(Boolean).join(' '), { supportThemeIcons: true, isTrusted: disclaimer?.isTrusted });
 			confirmationTitle = args.isBackground
 				? localize('runInTerminal.unsandboxed.background', "Run `{0}` command outside the sandbox in background?", shellType)
 				: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the sandbox?", shellType);
