@@ -69,7 +69,11 @@ function isGenericEditToolId(toolId: string): boolean {
 		lowerToolId.includes('editfile');
 }
 
-export function getToolInvocationIcon(toolId: string): ThemeIcon {
+export function getToolInvocationIcon(toolId: string, registeredIcon?: ThemeIcon): ThemeIcon {
+	if (registeredIcon) {
+		return registeredIcon;
+	}
+
 	const lowerToolId = toolId.toLowerCase();
 
 	if (
@@ -1593,6 +1597,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
 		const isMarkdownEdit = toolInvocationOrMarkdown?.kind === 'markdownContent';
 		const isTerminalTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'terminal';
+		const toolInvocationIcon = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? toolInvocationOrMarkdown.icon : undefined;
 
 		let icon: ThemeIcon;
 		if (isMarkdownEdit) {
@@ -1600,13 +1605,13 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		} else if (isTerminalTool) {
 			const terminalData = (toolInvocationOrMarkdown as IChatToolInvocation | IChatToolInvocationSerialized).toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode?: number } };
 			const exitCode = terminalData?.terminalCommandState?.exitCode;
-			icon = exitCode !== undefined && exitCode !== 0 ? Codicon.error : Codicon.terminal;
+			icon = exitCode !== undefined && exitCode !== 0 ? Codicon.error : (toolInvocationIcon ?? Codicon.terminal);
 		} else if (content.classList.contains('chat-hook-outcome-blocked')) {
 			icon = Codicon.error;
 		} else if (content.classList.contains('chat-hook-outcome-warning')) {
 			icon = Codicon.warning;
 		} else {
-			icon = toolInvocationId ? getToolInvocationIcon(toolInvocationId) : Codicon.tools;
+			icon = toolInvocationId ? getToolInvocationIcon(toolInvocationId, toolInvocationIcon) : Codicon.tools;
 		}
 
 		const iconElement = createThinkingIcon(icon);
