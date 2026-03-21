@@ -21,7 +21,8 @@ import { IAgentSession, isAgentSession } from '../../../../workbench/contrib/cha
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { INewSession, CopilotCLISession, RemoteNewSession, AgentHostNewSession } from '../../chat/browser/newSession.js';
+import { INewSession } from '../../chat/browser/newSession.js';
+import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { isBuiltinChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
@@ -152,6 +153,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@ICommandService private readonly commandService: ICommandService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
@@ -270,14 +272,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this.isNewChatSessionContext.set(true);
 		}
 
-		let newSession: INewSession;
-		if (target === AgentSessionProviders.Background) {
-			newSession = this.instantiationService.createInstance(CopilotCLISession, sessionResource, options?.defaultRepoUri);
-		} else if (options?.agentHost) {
-			newSession = new AgentHostNewSession(sessionResource, target);
-		} else {
-			newSession = this.instantiationService.createInstance(RemoteNewSession, sessionResource, target);
+		// Find the provider that handles this target
+		const providers = this.sessionsProvidersService.getProviders();
+		const provider = providers.find(p => p.sessionTypes.some(t => t.id === target));
+		if (!provider) {
+			throw new Error(`No sessions provider found for target '${target}'`);
 		}
+
+		const sessionType = provider.sessionTypes.find(t => t.id === target)!;
+		const newSession = provider.createNewSession(sessionType, sessionResource);
+
 		this._newSession.value = newSession;
 		this.setActiveSession(newSession);
 		return newSession;
