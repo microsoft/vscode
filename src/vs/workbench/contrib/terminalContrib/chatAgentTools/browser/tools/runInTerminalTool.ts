@@ -72,16 +72,16 @@ import { clamp } from '../../../../../../base/common/numbers.js';
 import { IOutputAnalyzer } from './outputAnalyzer.js';
 import { SandboxOutputAnalyzer } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
-import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
+import { ITerminalSandboxService, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
 
 // #region Tool data
 
 const TOOL_REFERENCE_NAME = 'runInTerminal';
 const LEGACY_TOOL_REFERENCE_FULL_NAMES = ['runCommands/runInTerminal'];
 
-function createPowerShellModelDescription(shell: string): string {
+function createPowerShellModelDescription(shell: string, isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	const isWinPwsh = isWindowsPowerShell(shell);
-	return [
+	const parts = [
 		`This tool allows you to execute ${isWinPwsh ? 'Windows PowerShell 5.1' : 'PowerShell'} commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.`,
 		'',
 		'Command Execution:',
@@ -106,6 +106,13 @@ function createPowerShellModelDescription(shell: string): string {
 		'- For long-running tasks (e.g., servers), set isBackground=true',
 		'- Returns a terminal ID for checking status and runtime later',
 		'- Use Start-Job for background PowerShell jobs',
+	];
+
+	if (isSandboxEnabled) {
+		parts.push(...createSandboxLines(networkDomains));
+	}
+
+	parts.push(
 		'',
 		'Output Management:',
 		'- Output is automatically truncated if longer than 60KB to prevent context overflow',
@@ -121,10 +128,38 @@ function createPowerShellModelDescription(shell: string): string {
 		'- Use Test-Path to check file/directory existence',
 		'- Be specific with Select-Object properties to avoid excessive output',
 		'- Avoid printing credentials unless absolutely required',
-	].join('\n');
+	);
+
+	return parts.join('\n');
 }
 
-function createGenericDescription(isSandboxEnabled: boolean): string {
+function createSandboxLines(networkDomains?: ITerminalSandboxResolvedNetworkDomains): string[] {
+	const lines = [
+		'',
+		'Sandboxing:',
+		'- ATTENTION: Terminal sandboxing is enabled, commands run in a sandbox by default',
+		'- When executing commands within the sandboxed environment, all operations requiring a temporary directory must utilize the $TMPDIR environment variable. The /tmp directory is not guaranteed to be accessible or writable and must be avoided',
+		'- Tools and scripts should respect the TMPDIR environment variable, which is automatically set to an appropriate path within the sandbox',
+		'- When a command fails due to sandbox restrictions, immediately re-run it with requestUnsandboxedExecution=true. Do NOT ask the user for permission — setting this flag automatically shows a confirmation prompt to the user',
+		'- Only set requestUnsandboxedExecution=true when there is evidence of failures caused by the sandbox, e.g. \'Operation not permitted\' errors, network failures, or file access errors, etc',
+		'- When setting requestUnsandboxedExecution=true, also provide requestUnsandboxedExecutionReason explaining why the command needs unsandboxed access',
+	];
+	if (networkDomains) {
+		const deniedSet = new Set(networkDomains.deniedDomains);
+		const effectiveAllowed = networkDomains.allowedDomains.filter(d => !deniedSet.has(d));
+		if (effectiveAllowed.length === 0) {
+			lines.push('- All network access is blocked in the sandbox');
+		} else {
+			lines.push(`- Only the following domains are accessible in the sandbox (all other network access is blocked): ${effectiveAllowed.join(', ')}`);
+		}
+		if (networkDomains.deniedDomains.length > 0) {
+			lines.push(`- The following domains are explicitly blocked in the sandbox: ${networkDomains.deniedDomains.join(', ')}`);
+		}
+	}
+	return lines;
+}
+
+function createGenericDescription(isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	const parts = [`
 Command Execution:
 - Use && to chain simple commands on one line
@@ -148,14 +183,7 @@ Background Processes:
 - Returns a terminal ID for checking status and runtime later`];
 
 	if (isSandboxEnabled) {
-		parts.push(`
-Sandboxing:
-- ATTENTION: Terminal sandboxing is enabled, commands run in a sandbox by default
-- When executing commands within the sandboxed environment, all operations requiring a temporary directory must utilize the $TMPDIR environment variable. The /tmp directory is not guaranteed to be accessible or writable and must be avoided
-- Tools and scripts should respect the TMPDIR environment variable, which is automatically set to an appropriate path within the sandbox
-- When a command fails due to sandbox restrictions, immediately re-run it with requestUnsandboxedExecution=true and prompt the user to bypass the sandbox
-- Only set requestUnsandboxedExecution=true when there is evidence of failures caused by the sandbox, e.g. 'Operation not permitted' errors, network failures, or file access errors, etc
-- When setting requestUnsandboxedExecution=true, also provide requestUnsandboxedExecutionReason; the user will be prompted before it runs unsandboxed`);
+		parts.push(createSandboxLines(networkDomains).join('\n'));
 	}
 
 	parts.push(`
@@ -175,20 +203,20 @@ Best Practices:
 	return parts.join('');
 }
 
-function createBashModelDescription(isSandboxEnabled: boolean): string {
+function createBashModelDescription(isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	return [
 		'This tool allows you to execute shell commands in a persistent bash terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		createGenericDescription(isSandboxEnabled),
+		createGenericDescription(isSandboxEnabled, networkDomains),
 		'- Use [[ ]] for conditional tests instead of [ ]',
 		'- Prefer $() over backticks for command substitution',
 		'- Use set -e at start of complex commands to exit on errors'
 	].join('\n');
 }
 
-function createZshModelDescription(isSandboxEnabled: boolean): string {
+function createZshModelDescription(isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	return [
 		'This tool allows you to execute shell commands in a persistent zsh terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		createGenericDescription(isSandboxEnabled),
+		createGenericDescription(isSandboxEnabled, networkDomains),
 		'- Use type to check command type (builtin, function, alias)',
 		'- Use jobs, fg, bg for job control',
 		'- Use [[ ]] for conditional tests instead of [ ]',
@@ -198,10 +226,10 @@ function createZshModelDescription(isSandboxEnabled: boolean): string {
 	].join('\n');
 }
 
-function createFishModelDescription(isSandboxEnabled: boolean): string {
+function createFishModelDescription(isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	return [
 		'This tool allows you to execute shell commands in a persistent fish terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		createGenericDescription(isSandboxEnabled),
+		createGenericDescription(isSandboxEnabled, networkDomains),
 		'- Use type to check command type (builtin, function, alias)',
 		'- Use jobs, fg, bg for job control',
 		'- Use test expressions for conditionals (no [[ ]] syntax)',
@@ -225,15 +253,17 @@ export async function createRunInTerminalToolData(
 		terminalSandboxService.isEnabled(),
 	]);
 
+	const networkDomains = isSandboxEnabled ? terminalSandboxService.getResolvedNetworkDomains() : undefined;
+
 	let modelDescription: string;
 	if (shell && os && isPowerShell(shell, os)) {
-		modelDescription = createPowerShellModelDescription(shell);
+		modelDescription = createPowerShellModelDescription(shell, isSandboxEnabled, networkDomains);
 	} else if (shell && os && isZsh(shell, os)) {
-		modelDescription = createZshModelDescription(isSandboxEnabled);
+		modelDescription = createZshModelDescription(isSandboxEnabled, networkDomains);
 	} else if (shell && os && isFish(shell, os)) {
-		modelDescription = createFishModelDescription(isSandboxEnabled);
+		modelDescription = createFishModelDescription(isSandboxEnabled, networkDomains);
 	} else {
-		modelDescription = createBashModelDescription(isSandboxEnabled);
+		modelDescription = createBashModelDescription(isSandboxEnabled, networkDomains);
 	}
 
 	return {

@@ -116,6 +116,7 @@ suite('RunInTerminalTool', () => {
 			getTempDir: () => undefined,
 			setNeedsForceUpdateConfigFile: () => { },
 			getOS: async () => OperatingSystem.Linux,
+			getResolvedNetworkDomains: () => ({ allowedDomains: [], deniedDomains: [] }),
 		};
 		instantiationService.stub(ITerminalSandboxService, terminalSandboxService);
 
@@ -211,6 +212,32 @@ suite('RunInTerminalTool', () => {
 
 			ok(toolData.modelDescription?.includes('must utilize the $TMPDIR environment variable'), 'Expected sandboxed tool description to require $TMPDIR usage');
 			ok(toolData.modelDescription?.includes('The /tmp directory is not guaranteed to be accessible or writable and must be avoided'), 'Expected sandboxed tool description to discourage /tmp usage');
+		});
+
+		test('should include allowed and denied network domains in model description', async () => {
+			sandboxEnabled = true;
+			terminalSandboxService.getResolvedNetworkDomains = () => ({
+				allowedDomains: ['github.com', 'npmjs.org'],
+				deniedDomains: ['evil.com'],
+			});
+
+			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
+
+			ok(toolData.modelDescription?.includes('github.com, npmjs.org'), 'Expected allowed domains in description');
+			ok(toolData.modelDescription?.includes('evil.com'), 'Expected denied domains in description');
+		});
+
+		test('should exclude denied domains from effective allowed list', async () => {
+			sandboxEnabled = true;
+			terminalSandboxService.getResolvedNetworkDomains = () => ({
+				allowedDomains: ['github.com', 'evil.com', 'npmjs.org'],
+				deniedDomains: ['evil.com'],
+			});
+
+			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
+
+			ok(toolData.modelDescription?.includes('github.com, npmjs.org'), 'Expected effective allowed list without denied domain');
+			ok(!toolData.modelDescription?.includes('accessible in the sandbox (all other network access is blocked): github.com, evil.com'), 'Expected denied domain removed from allowed list');
 		});
 
 		test('should use sandbox labels when command is sandbox wrapped', async () => {
