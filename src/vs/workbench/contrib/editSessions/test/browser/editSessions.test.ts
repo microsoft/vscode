@@ -164,6 +164,8 @@ suite('Edit session sync', () => {
 				mcpResource: URI.file('mcp.json'),
 				snippetsHome: URI.file('snippetsHome'),
 				promptsHome: URI.file('promptsHome'),
+				skillsHome: URI.file('skillsHome'),
+				hooksHome: URI.file('hooksHome'),
 				extensionsResource: URI.file('extensionsResource'),
 				cacheHome: URI.file('cacheHome'),
 			};
