@@ -17,10 +17,14 @@ export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer
 	}
 
 	async analyze(options: IOutputAnalyzerOptions): Promise<string | undefined> {
-		if (options.exitCode === undefined || options.exitCode === 0) {
+		if (!options.isSandboxWrapped) {
 			return undefined;
 		}
-		if (!options.isSandboxWrapped) {
+
+		const knownFailure = options.exitCode !== undefined && options.exitCode !== 0;
+		const suspectedFailure = !knownFailure && options.exitCode === undefined && this._outputLooksSandboxBlocked(options.exitResult);
+
+		if (!knownFailure && !suspectedFailure) {
 			return undefined;
 		}
 
@@ -28,10 +32,22 @@ export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer
 		const fileSystemSetting = os === OperatingSystem.Linux
 			? TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem
 			: TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem;
-		return `Command failed while running in sandboxed mode. If the command failed due to sandboxing:
+
+		const prefix = knownFailure
+			? 'Command failed while running in sandboxed mode. If the command failed due to sandboxing:'
+			: 'Command ran in sandboxed mode and may have been blocked by the sandbox. If the command failed due to sandboxing:';
+		return `${prefix}
 - If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${fileSystemSetting}, or to add required domains to ${TerminalChatAgentToolsSettingId.TerminalSandboxNetwork}.allowedDomains.
 - Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user — setting this flag automatically shows a confirmation prompt to the user.
 
 Here is the output of the command:\n`;
+	}
+
+	/**
+	 * Checks whether the command output contains strings that typically indicate
+	 * the sandbox blocked the operation. Used when exit code is unavailable.
+	 */
+	private _outputLooksSandboxBlocked(output: string): boolean {
+		return /Operation not permitted|Permission denied|sandbox-exec|bwrap|sandbox_violation/i.test(output);
 	}
 }
