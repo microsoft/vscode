@@ -1603,9 +1603,16 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		if (isMarkdownEdit) {
 			icon = Codicon.pencil;
 		} else if (isTerminalTool) {
-			const terminalData = (toolInvocationOrMarkdown as IChatToolInvocation | IChatToolInvocationSerialized).toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode?: number } };
+			const terminalData = (toolInvocationOrMarkdown as IChatToolInvocation | IChatToolInvocationSerialized).toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode?: number }; commandLine?: { isSandboxWrapped?: boolean } };
 			const exitCode = terminalData?.terminalCommandState?.exitCode;
-			icon = exitCode !== undefined && exitCode !== 0 ? Codicon.error : (toolInvocationIcon ?? Codicon.terminal);
+			const isSandboxWrapped = terminalData?.commandLine?.isSandboxWrapped;
+			if (exitCode !== undefined && exitCode !== 0) {
+				icon = Codicon.error;
+			} else if (isSandboxWrapped) {
+				icon = Codicon.terminalSecure;
+			} else {
+				icon = toolInvocationIcon ?? Codicon.terminal;
+			}
 		} else if (content.classList.contains('chat-hook-outcome-blocked')) {
 			icon = Codicon.error;
 		} else if (content.classList.contains('chat-hook-outcome-warning')) {
