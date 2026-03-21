@@ -276,6 +276,10 @@ export class InlineAnchorWidget extends Disposable {
 		const fragment = location.range ? `${location.range.startLineNumber},${location.range.startColumn}` : '';
 		element.setAttribute('data-href', (fragment ? location.uri.with({ fragment }) : location.uri).toString());
 
+		// The markdown renderer can leave a native title attribute on the anchor.
+		// Drop it before installing the managed hover to avoid duplicate tooltip paths.
+		element.removeAttribute('title');
+
 		// Hover
 		const relativeLabel = labelService.getUriLabel(location.uri, { relative: true });
 		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, relativeLabel));
