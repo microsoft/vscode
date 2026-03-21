@@ -2599,7 +2599,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
-		const inputMaxHeight = this._dynamicMessageLayoutData
+		const inputMaxHeight = this._dynamicMessageLayoutData || this.location !== ChatAgentLocation.Chat
 			? undefined
 			: this.inputPartMaxHeightOverride !== undefined
 				? Math.max(0, this.inputPartMaxHeightOverride - chatSuggestNextWidgetHeight - MIN_LIST_HEIGHT)

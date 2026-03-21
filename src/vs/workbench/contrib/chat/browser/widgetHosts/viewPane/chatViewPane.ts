@@ -903,6 +903,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Sessions Control
 		const { heightReduction, widthReduction } = this.layoutSessionsControl(remainingHeight, remainingWidth);
+
+		// In stacked mode the sessions viewer sits above the chat widget, so the
+		// widget's layout height is reduced by `heightReduction`. However, the input
+		// part's max-height needs to be based on the full `remainingHeight` (before
+		// the sessions viewer deduction) so the input can grow freely. As the input
+		// grows, an autorun triggers relayout which shrinks the sessions viewer,
+		// giving the widget more space and converging to the right sizes.
 		this._widget.setInputPartMaxHeightOverride(this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked ? remainingHeight : undefined);
 
 		// Chat Widget
