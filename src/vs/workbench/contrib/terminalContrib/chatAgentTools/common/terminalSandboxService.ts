@@ -177,9 +177,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		this._srtPathResolved = true;
 		const remoteEnv = this._remoteEnvDetails || await this._remoteEnvDetailsPromise;
 		if (remoteEnv) {
-
 			this._appRoot = remoteEnv.appRoot.path;
-			this._execPath = this._pathJoin(this._appRoot, 'node');
+			this._execPath = remoteEnv.execPath;
 		}
 		this._srtPath = this._pathJoin(this._appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
 		this._rgPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg');
