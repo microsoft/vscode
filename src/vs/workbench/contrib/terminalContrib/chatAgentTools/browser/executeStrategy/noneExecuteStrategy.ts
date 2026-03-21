@@ -121,7 +121,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 				// command echo (since the start marker is placed at the cursor before
 				// sendText), and trailing lines that look like shell prompts are removed.
 				if (output !== undefined) {
-					output = stripCommandEchoAndPrompt(output, commandLine);
+					output = stripCommandEchoAndPrompt(output, commandLine, this._log.bind(this));
 				}
 			} catch {
 				this._log('Failed to fetch output via markers');

@@ -356,4 +356,28 @@ suite('stripCommandEchoAndPrompt', () => {
 			''
 		);
 	});
+
+	test('strips mid-word wrapped command continuation (PowerShell/Windows)', () => {
+		// PowerShell wraps "echo MARKER_123_ECHO" across lines at column boundary
+		const output = [
+			'PS D:\\a\\_work\\vscode\\testWorkspace> echo MARK',
+			'ER_123_ECHO',
+			'MARKER_123_ECHO',
+		].join('\n');
+
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(output, 'echo MARKER_123_ECHO'),
+			'MARKER_123_ECHO'
+		);
+	});
+
+	test('strips PowerShell prompt from getOutput() result', () => {
+		// When shell integration markers misfire, getOutput() includes the prompt + command
+		const output = 'PS D:\\a\\_work\\vscode\\testWorkspace> cmd /c exit 42';
+
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(output, 'cmd /c exit 42'),
+			''
+		);
+	});
 });

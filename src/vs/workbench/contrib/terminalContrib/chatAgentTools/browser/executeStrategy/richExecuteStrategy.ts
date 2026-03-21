@@ -114,7 +114,11 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 				const commandOutput = finishedCommand?.getOutput();
 				if (commandOutput !== undefined) {
 					this._log('Fetched output via finished command');
-					output = commandOutput;
+					// On some platforms (e.g. Windows/PowerShell), shell integration
+					// markers can misfire and getOutput() includes the command echo.
+					// Strip it defensively — the function is a no-op when the output
+					// is already clean.
+					output = stripCommandEchoAndPrompt(commandOutput, commandLine, this._log.bind(this));
 				}
 			}
 			if (output === undefined) {
@@ -125,7 +129,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 					// The marker-based output includes the command echo and trailing
 					// prompt lines. Strip them to isolate the actual command output.
 					if (output !== undefined) {
-						output = stripCommandEchoAndPrompt(output, commandLine);
+						output = stripCommandEchoAndPrompt(output, commandLine, this._log.bind(this));
 					}
 				} catch {
 					this._log('Failed to fetch output via markers');

@@ -81,57 +81,25 @@ export function createAltBufferPromise(
  *
  * This function removes (1) and (3) to isolate the actual output.
  */
-export function stripCommandEchoAndPrompt(output: string, commandLine: string): string {
-	const lines = output.split('\n');
+export function stripCommandEchoAndPrompt(output: string, commandLine: string, log?: (message: string) => void): string {
+	log?.(`stripCommandEchoAndPrompt input: ${JSON.stringify(output)}, commandLine: ${JSON.stringify(commandLine)}`);
 
-	// Strip leading lines that are part of the command echo. The start marker
-	// is placed at the cursor before sendText, so the first captured line(s)
-	// contain the prompt + command text, possibly wrapped across terminal columns.
-	let startIndex = 0;
-	const trimmedCommand = commandLine.trim();
-	if (trimmedCommand.length > 0) {
-		// Use a short prefix of the command for matching — enough to be unique
-		// but handles terminal wrapping where lines are fragments.
-		const commandPrefix = trimmedCommand.substring(0, Math.min(30, trimmedCommand.length));
+	// Strip leading lines that are part of the command echo using findCommandEcho.
+	const echoResult = findCommandEcho(output, commandLine);
+	const lines = echoResult ? echoResult.linesAfter : output.split('\n');
+	const startIndex = 0;
 
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
-
-			// Check if this line contains the beginning of the command (handles
-			// prompt prefix like `user@host:dir] $ <command>` on the first line)
-			if (line.includes(commandPrefix)) {
-				startIndex = i + 1;
-				continue;
-			}
-
-			// For continuation lines of a wrapped command: if we already matched
-			// the first echo line, keep consuming lines whose content is clearly
-			// part of the wrapped command (e.g. long env var assignments, paths
-			// with slashes, or sandbox wrapper fragments). This uses a heuristic
-			// based on the line's presence in the original command and patterns
-			// like path separators, env var assignments, or quoted strings.
-			if (startIndex > 0 && i === startIndex) {
-				const lineContent = line.trim();
-				// A continuation line of a wrapped command typically contains
-				// path separators, env var assignments, or quoted strings — not
-				// plain output text. Also require it to appear in the command.
-				if (lineContent.length > 0 && trimmedCommand.includes(lineContent) &&
-					(/[\/\\=]/.test(lineContent) || /^['"]/.test(lineContent))) {
-					startIndex = i + 1;
-					continue;
-				}
-			}
-
-			// If the command echo hasn't been found yet, keep scanning —
-			// there can be stale prompt fragments (e.g. from ^C) or wrapped
-			// prompt lines before the actual command echo line.
-			if (startIndex === 0) {
-				continue;
-			}
-
-			break;
-		}
-	}
+	// Use evidence from the prompt prefix (content before the command echo)
+	// to narrow down which trailing prompt patterns to check.
+	const promptBefore = echoResult?.contentBefore ?? '';
+	const isUnixAt = /\w+@[\w.-]+:/.test(promptBefore);
+	const isUnixHost = !isUnixAt && /[\w.-]+:\S/.test(promptBefore);
+	const isUnix = isUnixAt || isUnixHost;
+	const isPowerShell = /^PS\s/i.test(promptBefore);
+	const isCmd = !isPowerShell && /^[A-Z]:\\/.test(promptBefore);
+	const isStarship = /\u276f/.test(promptBefore);
+	const isPython = />>>/.test(promptBefore);
+	const knownPrompt = isUnix || isPowerShell || isCmd || isStarship || isPython;
 
 	// Strip trailing lines that are part of the next shell prompt. Prompts may
 	// span multiple lines due to terminal column wrapping. We strip from the
@@ -146,30 +114,32 @@ export function stripCommandEchoAndPrompt(output: string, commandLine: string): 
 			line.length === 0 ||
 			// Bash/zsh prompt: user@host:path ending with $ or #
 			// e.g., "user@host:~/src $ " or "root@server:/var/log# "
-			/^\s*\w+@[\w.-]+:.*[#$]\s*$/.test(line) ||
+			(!knownPrompt || isUnixAt) && /^\s*\w+@[\w.-]+:.*[#$]\s*$/.test(line) ||
 			// Prompt without @: hostname:path user$ or hostname:path user#
 			// e.g., "dsm12-be220-abc:testWorkspace runner$"
-			/^\s*[\w.-]+:\S.*\s\w+[#$]\s*$/.test(line) ||
+			(!knownPrompt || isUnixHost) && /^\s*[\w.-]+:\S.*\s\w+[#$]\s*$/.test(line) ||
 			// Wrapped prompt fragment ending with $ or # (e.g. "er$", "ts/testWorkspace$")
 			// These appear when a prompt wraps across terminal columns.
-			/^\s*[\w/.-]+[#$]\s*$/.test(line) ||
+			(!knownPrompt || isUnix) && /^\s*[\w/.-]+[#$]\s*$/.test(line) ||
 			// Bracketed prompt start: [ user@host:/path (wrapped prompt first line)
 			// e.g., "[ alex@MacBook-Pro:/Users/alex/src/vscode4/extensions/vscode-api-test"
-			/^\[\s*\w+@[\w.-]+:/.test(line) ||
+			(!knownPrompt || isUnixAt) && /^\[\s*\w+@[\w.-]+:/.test(line) ||
 			// Wrapped prompt continuation: user@host:path or hostname:path (no trailing $)
 			// Only matched after we've already stripped a prompt fragment below.
 			// e.g., "cloudtest@host:/mnt/vss/.../vscode-api-tes" or "dsm12-abc:testWorkspace runn"
-			(trailingStrippedCount > 0 && /^\s*[\w][-\w.]*(@[\w.-]+)?:\S/.test(line)) ||
+			(!knownPrompt || isUnix) && trailingStrippedCount > 0 && /^\s*[\w][-\w.]*(@[\w.-]+)?:\S/.test(line) ||
 			// Bracketed prompt end: ...] $ or ...] #
 			// e.g., "s/testWorkspace (main**) ] $ "
-			/\]\s*[#$]\s*$/.test(line) ||
+			(!knownPrompt || isUnixAt) && /\]\s*[#$]\s*$/.test(line) ||
 			// PowerShell prompt: PS C:\path>
-			/^PS\s+[A-Z]:\\.*>\s*$/.test(line) ||
+			(!knownPrompt || isPowerShell) && /^PS\s+[A-Z]:\\.*>\s*$/.test(line) ||
 			// Windows cmd prompt: C:\path>
-			/^[A-Z]:\\.*>\s*$/.test(line) ||
-			// Starship prompt character (❯)		// allow-any-unicode-next-line			/\u276f\s*$/.test(line) ||
+			(!knownPrompt || isCmd) && /^[A-Z]:\\.*>\s*$/.test(line) ||
+			// Starship prompt character
+			// allow-any-unicode-next-line
+			(!knownPrompt || isStarship) && /\u276f\s*$/.test(line) ||
 			// Python REPL prompt
-			/^>>>\s*$/.test(line)
+			(!knownPrompt || isPython) && /^>>>\s*$/.test(line)
 		) {
 			endIndex--;
 			trailingStrippedCount++;
@@ -178,5 +148,59 @@ export function stripCommandEchoAndPrompt(output: string, commandLine: string): 
 		}
 	}
 
-	return lines.slice(startIndex, endIndex).join('\n');
+	const result = lines.slice(startIndex, endIndex).join('\n');
+	log?.(`stripCommandEchoAndPrompt result: ${JSON.stringify(result)} (startIndex=${startIndex}, endIndex=${endIndex}, totalLines=${lines.length})`);
+	return result;
+}
+
+export function findCommandEcho(output: string, commandLine: string): { contentBefore: string; linesAfter: string[] } | undefined {
+	const trimmedCommand = commandLine.trim();
+	if (trimmedCommand.length === 0) {
+		return undefined;
+	}
+
+	// Strip newlines from the output so we can find the command as a
+	// contiguous substring even when terminal wrapping splits it across lines.
+	const { strippedOutput, indexMapping } = stripNewLinesAndBuildMapping(output);
+	const matchIndex = strippedOutput.indexOf(trimmedCommand);
+	if (matchIndex === -1) {
+		return undefined;
+	}
+
+	// The content before the command in the stripped output is the prompt text
+	// (e.g. "user@host:~/src $ "). Trim whitespace to get the meaningful part.
+	const contentBefore = strippedOutput.substring(0, matchIndex).trim();
+
+	// Map the match end back to the original output position and determine
+	// which line it falls on to split linesAfter.
+	const originalEnd = indexMapping[matchIndex + trimmedCommand.length - 1];
+
+	const lines = output.split('\n');
+	let echoEndLine = 0;
+	let offset = 0;
+	for (let i = 0; i < lines.length; i++) {
+		const lineEnd = offset + lines[i].length; // excludes the \n
+		if (offset <= originalEnd && originalEnd <= lineEnd) {
+			echoEndLine = i + 1;
+			break;
+		}
+		offset = lineEnd + 1; // +1 for the \n
+	}
+
+	return {
+		contentBefore,
+		linesAfter: lines.slice(echoEndLine),
+	};
+}
+
+export function stripNewLinesAndBuildMapping(output: string): { strippedOutput: string; indexMapping: number[] } {
+	const indexMapping: number[] = [];
+	let strippedOutput = '';
+	for (let i = 0; i < output.length; i++) {
+		if (output[i] !== '\n') {
+			strippedOutput += output[i];
+			indexMapping.push(i);
+		}
+	}
+	return { strippedOutput, indexMapping };
 }

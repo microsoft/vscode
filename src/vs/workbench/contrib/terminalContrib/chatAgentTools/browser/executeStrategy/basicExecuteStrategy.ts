@@ -168,7 +168,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 				const commandOutput = finishedCommand?.getOutput();
 				if (commandOutput !== undefined) {
 					this._log('Fetched output via finished command');
-					output = stripCommandEchoAndPrompt(commandOutput, commandLine);
+					output = stripCommandEchoAndPrompt(commandOutput, commandLine, this._log.bind(this));
 				}
 			}
 			if (output === undefined) {
@@ -179,7 +179,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 					// The marker-based output includes the command echo and trailing
 					// prompt lines. Strip them to isolate the actual command output.
 					if (output !== undefined) {
-						output = stripCommandEchoAndPrompt(output, commandLine);
+						output = stripCommandEchoAndPrompt(output, commandLine, this._log.bind(this));
 					}
 				} catch {
 					this._log('Failed to fetch output via markers');
