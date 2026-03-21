@@ -391,7 +391,7 @@ declare module 'vscode' {
 		 */
 		// TODO: Are these the right types to use?
 		// TODO: link request + response to encourage correct usage?
-		readonly history: ReadonlyArray<ChatRequestTurn | ChatResponseTurn2>;
+		readonly history: ReadonlyArray<ChatRequestTurn2 | ChatResponseTurn2>;
 
 		/**
 		 * Options configured for this session as key-value pairs.
