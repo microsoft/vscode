@@ -13,6 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IWebContentExtractorService, WebContentExtractResult } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { detectEncodingFromBuffer } from '../../../../services/textfile/common/encoding.js';
 import { ITrustedDomainService } from '../../../url/browser/trustedDomainService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
@@ -56,6 +57,7 @@ export class FetchWebPageTool implements IToolImpl {
 		@IFileService private readonly _fileService: IFileService,
 		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
 		@IChatService private readonly _chatService: IChatService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -172,10 +174,13 @@ export class FetchWebPageTool implements IToolImpl {
 		const invalid = [...Array.from(invalidUris), ...additionalInvalidUrls];
 		// All valid URIs (web + file) for display in messages
 		const allFetchedUris = new ResourceSet([...webUris.values(), ...validFileUris]);
-		// Only web URIs need trust-based confirmation; non-web URIs (file://, mcp-resource://, etc.)
-		// are accessed through the file system and don't carry the web content risks
-		// (prompt injection, malicious redirects) that justify the confirmation dialog
-		const urlsNeedingConfirmation = new ResourceSet([...webUris.values()]);
+		// File URIs that are inside the workspace don't need confirmation — they're already accessible
+		// and don't carry the web content risks (prompt injection, malicious redirects).
+		// File URIs outside the workspace are treated like web URIs and require confirmation.
+		const fileUrisOutsideWorkspace = validFileUris.filter(
+			uri => !this._workspaceContextService.getWorkspaceFolder(uri)
+		);
+		const urlsNeedingConfirmation = new ResourceSet([...webUris.values(), ...fileUrisOutsideWorkspace]);
 
 		const pastTenseMessage = invalid.length
 			? invalid.length > 1
