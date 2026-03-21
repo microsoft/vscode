@@ -29,6 +29,7 @@ import { AGENT_DEBUG_LOG_ENABLED_SETTING, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_S
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ChatConfiguration, ChatModeKind } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
+import { getPerfTracer } from '../../../../../base/common/performance.js';
 
 export type InstructionsCollectionEvent = {
 	applyingInstructionsCount: number;
@@ -95,6 +96,8 @@ export class ComputeAutomaticInstructions {
 	}
 
 	public async collect(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
+		const trace = getPerfTracer('code/chat')?.findTraceByCorrelation('sessionResource', this._sessionResource?.toString());
+		trace?.mark('willCollectInstructions');
 
 		const instructionFiles = await this._promptsService.getInstructionFiles(token, this._sessionResource);
 
@@ -119,6 +122,7 @@ export class ComputeAutomaticInstructions {
 		}
 
 		this.sendTelemetry(telemetryEvent);
+		trace?.mark('didCollectInstructions');
 	}
 
 	private sendTelemetry(telemetryEvent: InstructionsCollectionEvent): void {

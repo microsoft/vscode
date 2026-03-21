@@ -6,6 +6,7 @@
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { createPerfTracer } from '../../../../../base/common/performance.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -70,6 +71,8 @@ const ToolsAgentContextKey = ContextKeyExpr.and(
 );
 
 export class SetupAgent extends Disposable implements IChatAgentImplementation {
+
+	private readonly _perfTracer = this._register(createPerfTracer('code/chat/setup', { local: true }));
 
 	static registerDefaultAgents(instantiationService: IInstantiationService, location: ChatAgentLocation, mode: ChatModeKind, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
 		return instantiationService.invokeFunction(accessor => {
@@ -242,6 +245,8 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	async invoke(request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void): Promise<IChatAgentResult> {
+		const trace = this._perfTracer.start({ requestId: request.requestId });
+		trace.mark('willInvoke');
 		return this.instantiationService.invokeFunction(async accessor /* using accessor for lazy loading */ => {
 			const chatService = accessor.get(IChatService);
 			const languageModelsService = accessor.get(ILanguageModelsService);
@@ -250,7 +255,9 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			const languageModelToolsService = accessor.get(ILanguageModelToolsService);
 			const defaultAccountService = accessor.get(IDefaultAccountService);
 
-			return this.doInvoke(request, part => progress([part]), chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService, defaultAccountService);
+			const result = await this.doInvoke(request, part => progress([part]), chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService, defaultAccountService);
+			trace.done();
+			return result;
 		});
 	}
 
@@ -272,6 +279,8 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doInvokeWithoutSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService): Promise<IChatAgentResult> {
+		const trace = this._perfTracer.start({ requestId: request.requestId });
+		trace.mark('invokeWithoutSetup');
 		const requestModel = chatWidgetService.getWidgetBySessionResource(request.sessionResource)?.viewModel?.model.getRequests().at(-1);
 		if (!requestModel) {
 			this.logService.error('[chat setup] Request model not found, cannot redispatch request.');
@@ -286,6 +295,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		await this.forwardRequestToChat(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
 
+		trace.done();
 		return {};
 	}
 
@@ -318,6 +328,8 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doForwardRequestToChatWhenReady(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
+		const trace = this._perfTracer.start({ requestId: requestModel.id });
+		trace.mark('willForwardRequestToChatWhenReady');
 
 		// Ensure auth extension is enabled before waiting for chat readiness.
 		// This must run before the readiness event listeners are set up because
@@ -338,6 +350,8 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		let agentReady = false;
 		let languageModelReady = false;
 		let toolsModelReady = false;
+
+		trace.mark('willWaitForReadiness');
 
 		const whenAgentActivated = this.whenAgentActivated(chatService).then(() => agentActivated = true);
 		const whenAgentReady = this.whenAgentReady(chatAgentService, modeInfo?.kind)?.then(() => agentReady = true);
@@ -534,6 +548,8 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			}
 		}
 
+		trace.mark('didWaitForReadiness');
+		trace.done();
 		await chatService.resendRequest(requestModel, {
 			...widget?.getModeRequestOptions(),
 			modeInfo,
@@ -644,6 +660,8 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doInvokeWithSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService, defaultAccountService: IDefaultAccountService): Promise<IChatAgentResult> {
+		const trace = this._perfTracer.start({ requestId: request.requestId });
+		trace.mark('invokeWithSetup');
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'chat' });
 
 		const widget = chatWidgetService.getWidgetBySessionResource(request.sessionResource);
@@ -707,6 +725,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			});
 		}
 
+		trace.done();
 		return {};
 	}
 
