@@ -49,6 +49,7 @@
 .sessions-welcome-header h2 {
 	margin: 0;
 	font-size: 22px;
+	line-height: 1.3;
 	font-weight: 600;
 	color: var(--vscode-foreground);
 }
