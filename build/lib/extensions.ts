@@ -65,11 +65,17 @@ function updateExtensionPackageJSON(input: Stream, update: (data: any) => any): 
 
 function fromLocal(extensionPath: string, forWeb: boolean, _disableMangle: boolean): Stream {
 
-	const esbuildConfigFileName = forWeb
+	let esbuildConfigFileName = forWeb
 		? 'esbuild.browser.mts'
 		: 'esbuild.mts';
 
-	const hasEsbuild = fs.existsSync(path.join(extensionPath, esbuildConfigFileName));
+	let hasEsbuild = fs.existsSync(path.join(extensionPath, esbuildConfigFileName));
+
+	// Fallback: check for .esbuild.ts (used by extensions with their own build system, e.g. copilot)
+	if (!hasEsbuild && !forWeb) {
+		esbuildConfigFileName = '.esbuild.ts';
+		hasEsbuild = fs.existsSync(path.join(extensionPath, esbuildConfigFileName));
+	}
 
 	let input: Stream;
 	let isBundled = false;
