@@ -378,13 +378,13 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return this.getLanguageModelByIdentifier(extension, defaultModelId);
 	}
 
-	async getLanguageModelByIdentifier(extension: IExtensionDescription, modelId: string | undefined): Promise<vscode.LanguageModelChat | undefined> {
+	async getLanguageModelByIdentifier(extension: IExtensionDescription, modelId: string | undefined, resolveIfMissing: boolean = true): Promise<vscode.LanguageModelChat | undefined> {
 		if (!modelId) {
 			return undefined;
 		}
 
 		let model = this._localModels.get(modelId);
-		if (!model) {
+		if (!model && resolveIfMissing) {
 			// model gone? is this an error on us? Try to resolve model again
 			this._logService.warn(`[LanguageModelProxy](${extension.identifier.value}) Could not find model '${modelId}' in local cache. Trying to resolve model again.`);
 			const vendor = this.getVendorFromModelIdentifier(modelId);
@@ -398,6 +398,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				this._logService.warn(`[LanguageModelProxy](${extension.identifier.value}) Could not find model '${modelId}' in local cache after re-resolving models.`);
 				return undefined;
 			}
+		} else if (!model) {
+			this._logService.warn(`[LanguageModelProxy](${extension.identifier.value}) Could not find model '${modelId}' in local cache.`);
+			return undefined;
 		}
 
 		// make sure auth information is correct
@@ -447,7 +450,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		const result: vscode.LanguageModelChat[] = [];
 
-		const modelPromises = models.map(identifier => this.getLanguageModelByIdentifier(extension, identifier));
+		// don't attempt to resolve again or we will go in a loop
+		const modelPromises = models.map(identifier => this.getLanguageModelByIdentifier(extension, identifier, false));
 		const modelResults = await Promise.all(modelPromises);
 		for (const model of modelResults) {
 			if (model) {
