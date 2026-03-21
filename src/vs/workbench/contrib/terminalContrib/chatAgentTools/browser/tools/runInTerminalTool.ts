@@ -610,6 +610,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			treeSitterLanguage: isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
 			terminalToolSessionId,
 			chatSessionResource,
+			requiresUnsandboxConfirmation,
 		};
 		const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
 
@@ -625,7 +626,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const analyzersIsAutoApproveAllowed = commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed);
-		const customActions = !requiresUnsandboxConfirmation && isEligibleForAutoApproval() && analyzersIsAutoApproveAllowed ? commandLineAnalyzerResults.map(e => e.customActions ?? []).flat() : undefined;
+		const customActions = isEligibleForAutoApproval() && analyzersIsAutoApproveAllowed ? commandLineAnalyzerResults.map(e => e.customActions ?? []).flat() : undefined;
 
 		let shellType = basename(shell, '.exe');
 		if (shellType === 'powershell') {
@@ -766,7 +767,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			title: confirmationTitle,
 			message: confirmationMessage,
 			disclaimer,
-			allowAutoConfirm: requiresUnsandboxConfirmation ? false : undefined,
+			allowAutoConfirm: undefined,
 			terminalCustomActions: customActions,
 		} : undefined;
 
