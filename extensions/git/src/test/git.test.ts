@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, sanitizeStderr } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
 
@@ -641,6 +641,41 @@ suite('git', () => {
 				parseCoAuthors('Fix bug\n\nSigned-off-by: Admin <admin@corp.com>\nCo-authored-by: Jane Doe <jane@example.com>'),
 				[{ name: 'Jane Doe', email: 'jane@example.com' }]
 			);
+		});
+	});
+
+	suite('sanitizeStderr', () => {
+		test('empty string', () => {
+			assert.strictEqual(sanitizeStderr(''), '');
+		});
+
+		test('strips SSH permanently added warning (lowercase)', () => {
+			const stderr = "warning: Permanently added 'gitlab.com' (ED25519) to the list of known hosts.";
+			assert.strictEqual(sanitizeStderr(stderr), '');
+		});
+
+		test('strips SSH permanently added warning (capitalized Warning)', () => {
+			const stderr = "Warning: Permanently added 'github.com' (RSA) to the list of known hosts.";
+			assert.strictEqual(sanitizeStderr(stderr), '');
+		});
+
+		test('preserves actual error messages', () => {
+			const stderr = 'fatal: repository not found';
+			assert.strictEqual(sanitizeStderr(stderr), 'fatal: repository not found');
+		});
+
+		test('strips warning but preserves error in mixed stderr', () => {
+			const stderr =
+				"warning: Permanently added 'gitlab.com' (ED25519) to the list of known hosts.\n" +
+				'fatal: repository not found';
+			assert.strictEqual(sanitizeStderr(stderr), 'fatal: repository not found');
+		});
+
+		test('strips multiple warning lines', () => {
+			const stderr =
+				"warning: Permanently added 'host1.com' (RSA) to the list of known hosts.\n" +
+				"Warning: Permanently added 'host2.com' (ED25519) to the list of known hosts.";
+			assert.strictEqual(sanitizeStderr(stderr), '');
 		});
 	});
 
