@@ -46,8 +46,21 @@ Here is the output of the command:\n`;
 	/**
 	 * Checks whether the command output contains strings that typically indicate
 	 * the sandbox blocked the operation. Used when exit code is unavailable.
+	 *
+	 * The output may contain newlines inserted by terminal wrapping, so we
+	 * strip them before testing.
 	 */
 	private _outputLooksSandboxBlocked(output: string): boolean {
-		return /Operation not permitted|Permission denied|sandbox-exec|bwrap|sandbox_violation/i.test(output);
+		return outputLooksSandboxBlocked(output);
 	}
+}
+
+/**
+ * Checks whether the command output contains strings that typically indicate
+ * the sandbox blocked the operation. The output may contain newlines inserted
+ * by terminal wrapping, so we strip them before testing.
+ */
+export function outputLooksSandboxBlocked(output: string): boolean {
+	const normalized = output.replace(/\n/g, ' ');
+	return /Operation not permitted|Permission denied|Read-only file system|sandbox-exec|bwrap|sandbox_violation/i.test(normalized);
 }

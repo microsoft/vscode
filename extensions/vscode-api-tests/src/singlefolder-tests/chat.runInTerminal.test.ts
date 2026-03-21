@@ -294,13 +294,19 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				const marker = `SANDBOX_TMP_${Date.now()}`;
 				const output = await invokeRunInTerminal(`echo "${marker}" > /tmp/${marker}.txt`);
 
+				// macOS sandbox-exec returns "Operation not permitted" via /bin/bash;
+				// Linux read-only bind mount returns "Read-only file system" via /usr/bin/bash.
+				// Some shells include "line N:" in the error (e.g. "/usr/bin/bash: line 1: …").
+				const shellError = isMacOS
+					? `/bin/bash: /tmp/${marker}.txt: Operation not permitted`
+					: `/usr/bin/bash: line 1: /tmp/${marker}.txt: Read-only file system`;
 				const sandboxBody = [
 					`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.tools.terminal.sandbox.network.allowedDomains.`,
 					'- Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user \u2014 setting this flag automatically shows a confirmation prompt to the user.',
 					'',
 					'Here is the output of the command:',
 					'',
-					`/bin/bash: /tmp/${marker}.txt: Operation not permitted`,
+					shellError,
 				].join('\n');
 				const acceptable = [
 					// With shell integration: known failure with exit code
