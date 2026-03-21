@@ -1136,6 +1136,13 @@ export class Repository implements Disposable {
 		return this.run(Operation.Config(false), () => this.repository.config('unset', 'local', key));
 	}
 
+	setConfigByScope(scope: 'local' | 'global', key: string, value: string): Promise<string> {
+		return this.run(Operation.Config(false), async () => {
+			const result = await this.repository.exec(['config', `--${scope}`, key, value]);
+			return result.stdout.trim();
+		});
+	}
+
 	log(options?: LogOptions & { silent?: boolean }, cancellationToken?: CancellationToken): Promise<Commit[]> {
 		const showProgress = !options || options.silent !== true;
 		return this.run(Operation.Log(showProgress), () => this.repository.log(options, cancellationToken));
