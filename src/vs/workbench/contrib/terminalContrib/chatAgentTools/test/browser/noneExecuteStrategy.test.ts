@@ -48,7 +48,7 @@ suite('NoneExecuteStrategy', () => {
 					active: {
 						...activeBuffer,
 						baseY: 0,
-						cursorY: 0,
+						cursorY: 1,
 						getLine: () => ({
 							translateToString: () => cursorLineText,
 						}),
