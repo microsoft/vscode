@@ -91,6 +91,7 @@ export interface IListViewOptions<T> extends IListViewOptionsUpdate {
 	readonly alwaysConsumeMouseWheel?: boolean;
 	readonly initialSize?: Dimension;
 	readonly scrollToActiveElement?: boolean;
+	readonly redirectFocusOnRemove?: boolean;
 }
 
 const DefaultOptions = {
@@ -378,7 +379,7 @@ export class ListView<T> implements IListView<T> {
 		container: HTMLElement,
 		private virtualDelegate: IListVirtualDelegate<T>,
 		renderers: IListRenderer<any /* TODO@joao */, any>[],
-		options: IListViewOptions<T> = DefaultOptions
+		private options: IListViewOptions<T> = DefaultOptions
 	) {
 		if (options.horizontalScrolling && options.supportDynamicHeights) {
 			throw new Error('Horizontal scrolling and dynamic heights not supported simultaneously');
@@ -1058,6 +1059,18 @@ export class ListView<T> implements IListView<T> {
 		item.checkedDisposable.dispose();
 
 		if (item.row) {
+			// When opted in, if the row being removed contains the currently
+			// focused element, redirect focus to the list's domNode to prevent
+			// focus from escaping the widget entirely (e.g. when scrolling causes
+			// a focused checkbox to be recycled, which would otherwise blur the
+			// whole quick pick).
+			if (this.options.redirectFocusOnRemove) {
+				const activeElement = getActiveElement();
+				if (activeElement && isAncestor(activeElement, item.row.domNode)) {
+					this.domNode.focus();
+				}
+			}
+
 			const renderer = this.renderers.get(item.templateId);
 
 			if (renderer && renderer.disposeElement) {
