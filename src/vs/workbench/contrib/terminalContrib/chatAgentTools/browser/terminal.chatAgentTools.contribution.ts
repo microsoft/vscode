@@ -76,11 +76,12 @@ class OutputLocationMigrationContribution extends Disposable implements IWorkben
 }
 registerWorkbenchContribution2(OutputLocationMigrationContribution.ID, OutputLocationMigrationContribution, WorkbenchPhase.Eventually);
 
-class ChatAgentToolsContribution extends Disposable implements IWorkbenchContribution {
+export class ChatAgentToolsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'terminal.chatAgentTools';
 
 	private readonly _runInTerminalToolRegistration = this._register(new MutableDisposable<DisposableStore>());
+	private _runInTerminalToolRegistrationVersion = 0;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -154,8 +155,9 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 	private _runInTerminalTool: RunInTerminalTool | undefined;
 
 	private _registerRunInTerminalTool(): void {
+		const version = ++this._runInTerminalToolRegistrationVersion;
 		this._instantiationService.invokeFunction(createRunInTerminalToolData).then(runInTerminalToolData => {
-			if (this._store.isDisposed) {
+			if (this._store.isDisposed || version !== this._runInTerminalToolRegistrationVersion) {
 				return;
 			}
 			if (!this._runInTerminalTool) {
