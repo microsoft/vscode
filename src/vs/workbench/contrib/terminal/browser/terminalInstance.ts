@@ -1131,7 +1131,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 
 			// Skip processing by xterm.js of keyboard events that resolve to commands defined in
-			// the commandsToSkipShell setting, or that use the Meta/Super modifier (Cmd on macOS).
+			// the commandsToSkipShell setting, or that use the Meta.
 			// The metaKey check is needed because when a shell like fish enables the kitty
 			// keyboard protocol, xterm.js encodes Meta-modified keys as CSI u sequences and
 			// consumes them via preventDefault. The (non-kitty) traditional xterm.js handler already skips
