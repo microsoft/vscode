@@ -15,9 +15,10 @@ import { type AgentProvider, type IAgentConnection } from '../../../../platform/
 import { isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../platform/agentHost/common/state/sessionClientState.js';
 import { ROOT_STATE_URI, type IAgentInfo, type IRootState } from '../../../../platform/agentHost/common/state/sessionState.js';
-import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostsSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.js';
@@ -25,6 +26,9 @@ import { AgentHostSessionListController } from '../../../../workbench/contrib/ch
 import { ISessionsManagementService } from '../../../contrib/sessions/browser/sessionsManagementService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { AGENT_HOST_FS_SCHEME, AgentHostFileSystemProvider } from './agentHostFileSystemProvider.js';
+import * as nls from '../../../../nls.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 
 /**
  * Encode a remote address into an identifier that is safe for use in
@@ -39,6 +43,24 @@ export function agentHostAuthority(address: string): string {
 		return address;
 	}
 	return 'b64-' + encodeBase64(VSBuffer.fromString(address), false, true);
+}
+
+/**
+ * Given a sanitized URI authority, resolves the corresponding agent host
+ * session target string by looking up the matching connection.
+ *
+ * Returns `undefined` if no connection matches the authority.
+ */
+export function getRemoteAgentHostSessionTarget(
+	connections: readonly IRemoteAgentHostConnectionInfo[],
+	authority: string,
+): AgentSessionTarget | undefined {
+	for (const conn of connections) {
+		if (agentHostAuthority(conn.address) === authority) {
+			return `remote-${agentHostAuthority(conn.address)}-copilot`;
+		}
+	}
+	return undefined;
 }
 
 /** Per-connection state bundle, disposed when a connection is removed. */
@@ -419,3 +441,23 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 }
 
 registerWorkbenchContribution2(RemoteAgentHostContribution.ID, RemoteAgentHostContribution, WorkbenchPhase.AfterRestored);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	properties: {
+		[RemoteAgentHostsSettingId]: {
+			type: 'array',
+			items: {
+				type: 'object',
+				properties: {
+					address: { type: 'string', description: nls.localize('chat.remoteAgentHosts.address', "The address of the remote agent host (e.g. \"localhost:3000\").") },
+					name: { type: 'string', description: nls.localize('chat.remoteAgentHosts.name', "A display name for this remote agent host.") },
+					connectionToken: { type: 'string', description: nls.localize('chat.remoteAgentHosts.connectionToken', "An optional connection token for authenticating with the remote agent host.") },
+				},
+				required: ['address', 'name'],
+			},
+			description: nls.localize('chat.remoteAgentHosts', "A list of remote agent host addresses to connect to (e.g. \"localhost:3000\")."),
+			default: [],
+			tags: ['experimental', 'advanced'],
+		},
+	},
+});
