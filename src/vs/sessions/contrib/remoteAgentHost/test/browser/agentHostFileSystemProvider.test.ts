@@ -52,13 +52,26 @@ suite('AgentHostAuthority - encoding', () => {
 		assert.strictEqual(agentHostAuthority('localhost'), 'localhost');
 	});
 
-	test('address with special characters is base64-encoded', () => {
-		const authority = agentHostAuthority('localhost:8081');
-		assert.ok(authority.startsWith('b64-'));
+	test('normal host:port address uses human-readable encoding', () => {
+		assert.strictEqual(agentHostAuthority('localhost:8081'), 'localhost__8081');
+		assert.strictEqual(agentHostAuthority('192.168.1.1:8080'), '192.168.1.1__8080');
+		assert.strictEqual(agentHostAuthority('my-host:9090'), 'my-host__9090');
+		assert.strictEqual(agentHostAuthority('host.name:80'), 'host.name__80');
+	});
+
+	test('address with underscore falls through to base64', () => {
+		const authority = agentHostAuthority('host_name:8080');
+		assert.ok(authority.startsWith('b64-'), `expected base64 for underscore address, got: ${authority}`);
+	});
+
+	test('address with exotic characters is base64-encoded', () => {
+		assert.ok(agentHostAuthority('user@host:8080').startsWith('b64-'));
+		assert.ok(agentHostAuthority('host with spaces').startsWith('b64-'));
+		assert.ok(agentHostAuthority('http://myhost:3000').startsWith('b64-'));
 	});
 
 	test('different addresses produce different authorities', () => {
-		const cases = ['localhost:8080', 'localhost:8081', '192.168.1.1:8080', 'host-name:80', 'host.name:80'];
+		const cases = ['localhost:8080', 'localhost:8081', '192.168.1.1:8080', 'host-name:80', 'host.name:80', 'host_name:80', 'user@host:8080'];
 		const results = cases.map(agentHostAuthority);
 		const unique = new Set(results);
 		assert.strictEqual(unique.size, cases.length, 'all authorities must be unique');
