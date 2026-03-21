@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Selection } from '../../../../common/core/selection.js';
 import { TextModel } from '../../../../common/model/textModel.js';
 import { SnippetParser, Variable, VariableResolver } from '../../browser/snippetParser.js';
-import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from '../../browser/snippetVariables.js';
+import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, UserBasedVariableResolver, WorkspaceBasedVariableResolver } from '../../browser/snippetVariables.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
@@ -445,5 +445,19 @@ suite('Snippet Variables Resolver', function () {
 		}
 
 		model.dispose();
+	});
+
+	test('User variables for snippets #64599', function () {
+
+		const resolver = new UserBasedVariableResolver;
+
+		// USER_NAME resolves to a non-empty string on all platforms
+		const snippetUserName = new SnippetParser().parse('$USER_NAME');
+		const variableUserName = <Variable>snippetUserName.children[0];
+		assert.strictEqual(variableUserName.resolve(resolver), true, 'USER_NAME failed to resolve');
+
+		const snippetUserHome = new SnippetParser().parse('$USER_HOME');
+		const variableUserHome = <Variable>snippetUserHome.children[0];
+		assert.strictEqual(variableUserHome.resolve(resolver), true, 'USER_HOME failed to resolve');
 	});
 });
