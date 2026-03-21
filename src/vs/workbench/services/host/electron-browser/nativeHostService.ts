@@ -9,8 +9,12 @@ import { FocusMode, INativeHostService } from '../../../../platform/native/commo
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
-import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions, IPoint, IRectangle, IOpenedAuxiliaryWindow, IOpenedMainWindow } from '../../../../platform/window/common/window.js';
+import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions, IPoint, IRectangle, IOpenedAuxiliaryWindow, IOpenedMainWindow, IWindowSettings } from '../../../../platform/window/common/window.js';
 import { Disposable, DisposableSet, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import Severity from '../../../../base/common/severity.js';
+import { localize } from '../../../../nls.js';
 import { NativeHostService } from '../../../../platform/native/common/nativeHostService.js';
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-browser/environmentService.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
@@ -39,7 +43,9 @@ class WorkbenchHostService extends Disposable implements IHostService {
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -125,7 +131,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return this.doOpenEmptyWindow(arg1);
 	}
 
-	private doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
+	private async doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
 		const remoteAuthority = this.environmentService.remoteAuthority;
 		if (remoteAuthority) {
 			toOpen.forEach(openable => openable.label = openable.label || this.getRecentLabel(openable));
@@ -137,7 +143,41 @@ class WorkbenchHostService extends Disposable implements IHostService {
 			}
 		}
 
+		// Resolve 'ask' to a concrete forceNewWindow/forceReuseWindow before IPC
+		// since the main process is synchronous and cannot show UI.
+		const hasFolderOrWorkspace = toOpen.some(o => isFolderToOpen(o) || isWorkspaceToOpen(o));
+		if (hasFolderOrWorkspace && !options?.forceNewWindow && !options?.forceReuseWindow) {
+			const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
+			if (windowConfig?.openFoldersInNewWindow === 'ask') {
+				const reuseWindow = await this.askUserForWindowBehavior();
+				if (reuseWindow === undefined) {
+					return; // cancelled
+				}
+				options = { ...options, ...(reuseWindow ? { forceReuseWindow: true } : { forceNewWindow: true }) };
+			}
+		}
+
 		return this.nativeHostService.openWindow(toOpen, options);
+	}
+
+	private async askUserForWindowBehavior(): Promise<boolean | undefined> {
+		const { result } = await this.dialogService.prompt<boolean>({
+			type: Severity.Info,
+			message: localize('openFolderInNewWindow', "How would you like to open the folder?"),
+			buttons: [
+				{
+					label: localize({ key: 'openFolderCurrentWindow', comment: ['&& denotes a mnemonic'] }, "&&Current Window"),
+					run: () => true
+				},
+				{
+					label: localize({ key: 'openFolderNewWindow', comment: ['&& denotes a mnemonic'] }, "&&New Window"),
+					run: () => false
+				}
+			],
+			cancelButton: true
+		});
+
+		return result; // undefined when cancelled
 	}
 
 	private getRecentLabel(openable: IWindowOpenable): string {
