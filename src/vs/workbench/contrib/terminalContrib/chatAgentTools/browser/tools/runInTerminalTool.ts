@@ -153,9 +153,9 @@ Sandboxing:
 - ATTENTION: Terminal sandboxing is enabled, commands run in a sandbox by default
 - When executing commands within the sandboxed environment, all operations requiring a temporary directory must utilize the $TMPDIR environment variable. The /tmp directory is not guaranteed to be accessible or writable and must be avoided
 - Tools and scripts should respect the TMPDIR environment variable, which is automatically set to an appropriate path within the sandbox
-- When a command fails due to sandbox restrictions, immediately re-run it with requestUnsandboxedExecution=true and prompt the user to bypass the sandbox
+- When a command fails due to sandbox restrictions, immediately re-run it with requestUnsandboxedExecution=true. Do NOT ask the user for permission — setting this flag automatically shows a confirmation prompt to the user
 - Only set requestUnsandboxedExecution=true when there is evidence of failures caused by the sandbox, e.g. 'Operation not permitted' errors, network failures, or file access errors, etc
-- When setting requestUnsandboxedExecution=true, also provide requestUnsandboxedExecutionReason; the user will be prompted before it runs unsandboxed`);
+- When setting requestUnsandboxedExecution=true, also provide requestUnsandboxedExecutionReason explaining why the command needs unsandboxed access`);
 	}
 
 	parts.push(`
