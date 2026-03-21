@@ -70,6 +70,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private readonly advancedIndicator: SettingIndicator;
 	private readonly workspaceTrustIndicator: SettingIndicator;
 	private readonly scopeOverridesIndicator: SettingIndicator;
+	private readonly applicationAttributesIndicator: SettingIndicator;
 	private readonly syncIgnoredIndicator: SettingIndicator;
 	private readonly defaultOverrideIndicator: SettingIndicator;
 
@@ -97,9 +98,10 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 		this.workspaceTrustIndicator = this.createWorkspaceTrustIndicator();
 		this.scopeOverridesIndicator = this.createScopeOverridesIndicator();
+		this.applicationAttributesIndicator = this.createApplicationAttributesIndicator();
 		this.syncIgnoredIndicator = this.createSyncIgnoredIndicator();
 		this.defaultOverrideIndicator = this.createDefaultOverrideIndicator();
-		this.parenthesizedIndicators = [this.workspaceTrustIndicator, this.scopeOverridesIndicator, this.syncIgnoredIndicator, this.defaultOverrideIndicator];
+		this.parenthesizedIndicators = [this.workspaceTrustIndicator, this.scopeOverridesIndicator, this.applicationAttributesIndicator, this.syncIgnoredIndicator, this.defaultOverrideIndicator];
 	}
 
 	private defaultHoverOptions: Partial<IHoverOptions> = {
@@ -179,6 +181,17 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		};
 	}
 
+	private createApplicationAttributesIndicator(): SettingIndicator {
+		const disposables = new DisposableStore();
+		const applicationAttributesElement = $('span.setting-indicator.setting-item-application-attributes');
+		const applicationAttributesLabel = disposables.add(new SimpleIconLabel(applicationAttributesElement));
+		return {
+			element: applicationAttributesElement,
+			label: applicationAttributesLabel,
+			disposables
+		};
+	}
+
 	private createSyncIgnoredIndicator(): SettingIndicator {
 		const disposables = new DisposableStore();
 		const syncIgnoredElement = $('span.setting-indicator.setting-item-ignored');
@@ -247,6 +260,26 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			label: advancedLabel,
 			disposables
 		};
+	}
+
+	updateApplicationAttributesIndicator(element: SettingsTreeSettingElement) {
+		this.applicationAttributesIndicator.disposables.clear();
+		this.applicationAttributesIndicator.element.style.display = 'none';
+		if (element.settingsTarget === ConfigurationTarget.USER_LOCAL && this.configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
+			this.applicationAttributesIndicator.element.style.display = 'inline';
+			this.applicationAttributesIndicator.label.text = localize('applicationSetting', "Applies to all profiles");
+
+			const content = localize('applicationSettingDescription', "The setting is not specific to the current profile, and will retain its value when switching profiles.");
+			const showHover = (focus: boolean) => {
+				return this.hoverService.showInstantHover({
+					...this.defaultHoverOptions,
+					content,
+					target: this.applicationAttributesIndicator.element
+				}, focus);
+			};
+			this.addHoverDisposables(this.applicationAttributesIndicator.disposables, this.applicationAttributesIndicator.element, showHover);
+		}
+		this.render();
 	}
 
 	private render() {
@@ -413,21 +446,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 							onApplyFilter.fire(`@${POLICY_SETTING_TAG}`);
 						}
 					}],
-					target: this.scopeOverridesIndicator.element
-				}, focus);
-			};
-			this.addHoverDisposables(this.scopeOverridesIndicator.disposables, this.scopeOverridesIndicator.element, showHover);
-		} else if (element.settingsTarget === ConfigurationTarget.USER_LOCAL && this.configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
-			this.scopeOverridesIndicator.element.style.display = 'inline';
-			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
-
-			this.scopeOverridesIndicator.label.text = localize('applicationSetting', "Applies to all profiles");
-
-			const content = localize('applicationSettingDescription', "The setting is not specific to the current profile, and will retain its value when switching profiles.");
-			const showHover = (focus: boolean) => {
-				return this.hoverService.showInstantHover({
-					...this.defaultHoverOptions,
-					content,
 					target: this.scopeOverridesIndicator.element
 				}, focus);
 			};
@@ -620,9 +638,13 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 
 	if (element.hasPolicyValue) {
 		ariaLabelSections.push(localize('policyDescriptionAccessible', "Managed by organization policy; setting value not applied"));
-	} else if (element.settingsTarget === ConfigurationTarget.USER_LOCAL && configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
+	}
+
+	if (element.settingsTarget === ConfigurationTarget.USER_LOCAL && configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
 		ariaLabelSections.push(localize('applicationSettingDescriptionAccessible', "Setting value retained when switching profiles"));
-	} else {
+	}
+
+	if (!element.hasPolicyValue) {
 		// Add other overrides text
 		const otherOverridesStart = element.isConfigured ?
 			localize('alsoConfiguredIn', "Also modified in") :
