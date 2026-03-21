@@ -9,7 +9,6 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
 import { AgentHostEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { RemoteAgentHostsSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -499,12 +498,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['experimental']
 		},
-		[ChatConfiguration.ImageCarouselEnabled]: {
-			default: true,
-			description: nls.localize('chat.imageCarousel.enabled', "Controls whether clicking an image attachment in chat opens the image carousel viewer."),
-			type: 'boolean',
-			tags: ['preview']
-		},
 		[ChatConfiguration.ArtifactsEnabled]: {
 			default: false,
 			description: nls.localize('chat.artifacts.enabled', "Controls whether the artifacts view is available in chat."),
@@ -734,23 +727,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process."),
 			default: false,
-			tags: ['experimental'],
-			included: product.quality !== 'stable',
-		},
-		[RemoteAgentHostsSettingId]: {
-			type: 'array',
-			items: {
-				type: 'object',
-				properties: {
-					address: { type: 'string', description: nls.localize('chat.remoteAgentHosts.address', "The address of the remote agent host (e.g. \"localhost:3000\").") },
-					name: { type: 'string', description: nls.localize('chat.remoteAgentHosts.name', "A display name for this remote agent host.") },
-					connectionToken: { type: 'string', description: nls.localize('chat.remoteAgentHosts.connectionToken', "An optional connection token for authenticating with the remote agent host.") },
-				},
-				required: ['address', 'name'],
-			},
-			description: nls.localize('chat.remoteAgentHosts', "A list of remote agent host addresses to connect to (e.g. \"localhost:3000\")."),
-			default: [],
-			tags: ['experimental'],
+			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
 		[ChatConfiguration.PlanAgentDefaultModel]: {
@@ -1343,7 +1320,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ChatCustomizationMenuEnabled]: {
 			type: 'boolean',
 			tags: ['preview'],
-			description: nls.localize('chat.aiCustomizationMenu.enabled', "Controls whether the Chat Customizations editor is available in the Command Palette. When disabled, the Chat Customizations editor and related commands are hidden."),
+			description: nls.localize('chat.aiCustomizationMenu.enabled', "Controls whether the Chat Customizations editor is enabled. When enabled, the gear icon in the Chat view opens the Customizations editor directly and additional actions are moved to the overflow menu. When disabled, the gear icon shows the legacy configuration dropdown."),
 			default: true,
 		},
 		[ChatConfiguration.ChatCustomizationHarnessSelectorEnabled]: {

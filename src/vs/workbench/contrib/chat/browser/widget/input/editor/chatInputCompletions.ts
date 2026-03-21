@@ -139,6 +139,9 @@ class SlashCommandCompletions extends Disposable {
 				return {
 					suggestions: slashCommands
 						.filter(c => {
+							if (c.when && !widget.scopedContextKeyService.contextMatchesRules(c.when)) {
+								return false;
+							}
 							if (!widget.lockedAgentId) {
 								return true;
 							}
@@ -194,19 +197,21 @@ class SlashCommandCompletions extends Disposable {
 				}
 
 				return {
-					suggestions: slashCommands.map((c, i): CompletionItem => {
-						const withSlash = `${chatSubcommandLeader}${c.command}`;
-						return {
-							label: { label: withSlash, description: c.detail },
-							insertText: c.executeImmediately ? '' : `${withSlash} `,
-							documentation: c.detail,
-							range,
-							filterText: `${chatAgentLeader}${c.command}`,
-							sortText: c.sortText ?? 'z'.repeat(i + 1),
-							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-							command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` } satisfies IChatExecuteActionContext] } : undefined,
-						};
-					})
+					suggestions: slashCommands
+						.filter(c => !c.when || widget.scopedContextKeyService.contextMatchesRules(c.when))
+						.map((c, i): CompletionItem => {
+							const withSlash = `${chatSubcommandLeader}${c.command}`;
+							return {
+								label: { label: withSlash, description: c.detail },
+								insertText: c.executeImmediately ? '' : `${withSlash} `,
+								documentation: c.detail,
+								range,
+								filterText: `${chatAgentLeader}${c.command}`,
+								sortText: c.sortText ?? 'z'.repeat(i + 1),
+								kind: CompletionItemKind.Text, // The icons are disabled here anyway,
+								command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` } satisfies IChatExecuteActionContext] } : undefined,
+							};
+						})
 				};
 			}
 		}));
