@@ -122,6 +122,13 @@ export function stripCommandEchoAndPrompt(output: string, commandLine: string): 
 				}
 			}
 
+			// If the command echo hasn't been found yet, keep scanning —
+			// there can be stale prompt fragments (e.g. from ^C) or wrapped
+			// prompt lines before the actual command echo line.
+			if (startIndex === 0) {
+				continue;
+			}
+
 			break;
 		}
 	}

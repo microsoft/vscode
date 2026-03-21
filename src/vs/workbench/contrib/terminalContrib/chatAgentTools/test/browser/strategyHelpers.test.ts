@@ -257,4 +257,49 @@ suite('stripCommandEchoAndPrompt', () => {
 			'hello'
 		);
 	});
+
+	test('strips stale prompt fragments and ^C residue before command echo', () => {
+		// Simulates CI environment where previous ^C produces stale prompt
+		// fragments before the actual command echo line
+		const output = [
+			'ts/testWorkspace$ ^C',
+			'cloudtest@5ac6b023c000000:/mnt/vss/_work/vscode/vscode/extensions/vscode-api-tes',
+			'ts/testWorkspace$  echo MARKER_123',
+			'MARKER_123',
+		].join('\n');
+
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(output, 'echo MARKER_123'),
+			'MARKER_123'
+		);
+	});
+
+	test('strips stale prompt fragments for no-output command', () => {
+		const output = [
+			'ts/testWorkspace$ ^C',
+			'cloudtest@5ac6b023c000000:/mnt/vss/_work/vscode/vscode/extensions/vscode-api-tes',
+			'ts/testWorkspace$  true',
+		].join('\n');
+
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(output, 'true'),
+			''
+		);
+	});
+
+	test('strips stale prompt fragments for multi-line output', () => {
+		const output = [
+			'ts/testWorkspace$ ^C',
+			'cloudtest@5ac6b023c000000:/mnt/vss/_work/vscode/vscode/extensions/vscode-api-tes',
+			'ts/testWorkspace$  echo M1 && echo M2 && echo M3',
+			'M1',
+			'M2',
+			'M3',
+		].join('\n');
+
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(output, 'echo M1 && echo M2 && echo M3'),
+			'M1\nM2\nM3'
+		);
+	});
 });
