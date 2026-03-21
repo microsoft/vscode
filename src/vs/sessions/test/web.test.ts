@@ -35,6 +35,7 @@ import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.
 import { getSingletonServiceDescriptors } from '../../platform/instantiation/common/extensions.js';
 import { ServiceIdentifier } from '../../platform/instantiation/common/instantiation.js';
 import { IWorkbench } from '../../workbench/browser/web.api.js';
+import { isEqual } from '../../base/common/resources.js';
 
 /**
  * Mock files pre-seeded in the in-memory file system. These match the
@@ -283,14 +284,14 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 		}));
 
 		// Add or update session in list
-		const existing = this._sessionItems.find(s => s.resource.toString() === key);
-		let addedOrUpdated: IChatSessionItem | undefined = existing;
-		if (existing) {
-			existing.timing.lastRequestStarted = now;
-			existing.timing.lastRequestEnded = now;
+		const existingIndex = this._sessionItems.findIndex(s => isEqual(s.resource, resource));
+		let addedOrUpdated = existingIndex !== -1 ? { ...this._sessionItems[existingIndex] } : undefined;
+		if (addedOrUpdated) {
+			addedOrUpdated.timing = { ...addedOrUpdated.timing, lastRequestStarted: now, lastRequestEnded: now };
 			if (changes) {
-				existing.changes = changes;
+				addedOrUpdated.changes = changes;
 			}
+			this._sessionItems[existingIndex] = addedOrUpdated;
 		} else {
 			addedOrUpdated = {
 				resource,

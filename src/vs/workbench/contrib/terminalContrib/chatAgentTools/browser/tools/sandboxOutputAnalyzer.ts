@@ -30,7 +30,7 @@ export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer
 			: TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem;
 		return `Command failed while running in sandboxed mode. If the command failed due to sandboxing:
 - If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${fileSystemSetting}, or to add required domains to ${TerminalChatAgentToolsSettingId.TerminalSandboxNetwork}.allowedDomains.
-- You can also rerun requestUnsandboxedExecution=true and prompt the user to bypass the sandbox.
+- Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user — setting this flag automatically shows a confirmation prompt to the user.
 
 Here is the output of the command:\n`;
 	}
