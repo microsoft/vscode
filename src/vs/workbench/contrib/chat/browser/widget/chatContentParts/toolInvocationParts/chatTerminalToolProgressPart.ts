@@ -5,7 +5,7 @@
 
 import { h } from '../../../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
-import { isMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownSyntaxTokens, isMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
@@ -1640,11 +1640,11 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		const title = isComplete ? `Ran \`${commandText}\`` : `Running \`${commandText}\``;
+		const title = isComplete ? `Ran \`${escapeMarkdownSyntaxTokens(commandText)}\`` : `Running \`${escapeMarkdownSyntaxTokens(commandText)}\``;
 		super(title, context, undefined, hoverService, configurationService);
 
 		this._terminalContentElement = contentElement;
-		this._commandText = commandText;
+		this._commandText = escapeMarkdownSyntaxTokens(commandText);
 		this._isSandboxWrapped = isSandboxWrapped;
 		this._isComplete = isComplete;
 
