@@ -240,7 +240,7 @@ export class ChatStatusDashboard extends DomWidget {
 					if (count > 0) {
 						const displayName = this.getDisplayNameForChatSessionType(chatSessionType);
 						if (displayName) {
-							const text = localize('inProgressChatSession', "$(loading~spin) {0} in progress", displayName);
+							const text = '$(loading~spin) ' + localize('inProgressChatSession', "{0} in progress", displayName);
 							const chatSessionsElement = this.element.appendChild($('div.description'));
 							const parts = renderLabelWithIcons(text);
 							chatSessionsElement.append(...parts);

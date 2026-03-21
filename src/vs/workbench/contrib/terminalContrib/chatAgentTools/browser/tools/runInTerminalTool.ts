@@ -777,8 +777,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const escapedDisplayCommand = escapeMarkdownSyntaxTokens(displayCommand);
 		const invocationMessage = toolSpecificData.commandLine.isSandboxWrapped
 			? args.isBackground
-				? new MarkdownString(localize('runInTerminal.invocation.sandbox.background', "$(lock) Running `{0}` in sandbox in background", escapedDisplayCommand), { supportThemeIcons: true })
-				: new MarkdownString(localize('runInTerminal.invocation.sandbox', "$(lock) Running `{0}` in sandbox", escapedDisplayCommand), { supportThemeIcons: true })
+				? new MarkdownString('$(lock) ' + localize('runInTerminal.invocation.sandbox.background', "Running `{0}` in sandbox in background", escapedDisplayCommand), { supportThemeIcons: true })
+				: new MarkdownString('$(lock) ' + localize('runInTerminal.invocation.sandbox', "Running `{0}` in sandbox", escapedDisplayCommand), { supportThemeIcons: true })
 			: args.isBackground
 				? new MarkdownString(localize('runInTerminal.invocation.background', "Running `{0}` in background", escapedDisplayCommand))
 				: new MarkdownString(localize('runInTerminal.invocation', "Running `{0}`", escapedDisplayCommand));
