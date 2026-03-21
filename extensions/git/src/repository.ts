@@ -1324,8 +1324,8 @@ export class Repository implements Disposable {
 			},
 			() => {
 				const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-				const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
-				const untrackedChangesResourceGroupType = untrackedChanges === 'mixed' ? ResourceGroupType.WorkingTree : ResourceGroupType.Untracked;
+				const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden' | 'default'>('untrackedChanges');
+				const untrackedChangesResourceGroupType = untrackedChanges === 'mixed' || untrackedChanges === 'default' ? ResourceGroupType.WorkingTree : ResourceGroupType.Untracked;
 
 				const resourcePaths = resources.length === 0 ?
 					this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath) : resources.map(r => r.fsPath);
@@ -1348,7 +1348,7 @@ export class Repository implements Disposable {
 					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
 
 				// Add resource(s) to working group
-				const workingTreeGroup = untrackedChanges === 'mixed' ?
+				const workingTreeGroup = untrackedChanges === 'mixed' || untrackedChanges === 'default' ?
 					[...this.workingTreeGroup.resourceStates, ...trackedResources, ...untrackedResources] :
 					[...this.workingTreeGroup.resourceStates, ...trackedResources];
 
@@ -2879,7 +2879,14 @@ export class Repository implements Disposable {
 		}
 
 		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const untrackedChanges = scopedConfig.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
+		let untrackedChanges = scopedConfig.get<'mixed' | 'separate' | 'hidden' | 'default'>('untrackedChanges');
+
+		// Resolve 'default' by reading git's status.showUntrackedFiles config
+		if (untrackedChanges === 'default') {
+			const gitConfig = await this.repository.config('get', '', 'status.showUntrackedFiles');
+			untrackedChanges = gitConfig.trim() === 'no' ? 'hidden' : 'mixed';
+		}
+
 		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
 
 		const limit = scopedConfig.get<number>('statusLimit', 10000);
@@ -3019,7 +3026,7 @@ export class Repository implements Disposable {
 	private setCountBadge(): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const countBadge = config.get<'all' | 'tracked' | 'off'>('countBadge');
-		const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
+		const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden' | 'default'>('untrackedChanges');
 
 		let count =
 			this.mergeGroup.resourceStates.length +
@@ -3029,7 +3036,7 @@ export class Repository implements Disposable {
 		switch (countBadge) {
 			case 'off': count = 0; break;
 			case 'tracked':
-				if (untrackedChanges === 'mixed') {
+				if (untrackedChanges === 'mixed' || untrackedChanges === 'default') {
 					count -= this.workingTreeGroup.resourceStates.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED).length;
 				}
 				break;
