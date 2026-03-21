@@ -408,6 +408,10 @@ export const ACTIVITY_BAR_INACTIVE_FOREGROUND = registerColor('activityBar.inact
 	hcLight: editorForeground
 }, localize('activityBarInActiveForeground', "Activity bar item foreground color when it is inactive. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
+export const ACTIVITY_BAR_HOVER_FOREGROUND = registerColor('activityBar.hoverForeground', null, localize('activityBarHoverForeground', "Activity bar item foreground color when hovering. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_HOVER_BACKGROUND = registerColor('activityBar.hoverBackground', null, localize('activityBarHoverBackground', "Activity bar item background color when hovering. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
 export const ACTIVITY_BAR_BORDER = registerColor('activityBar.border', {
 	dark: null,
 	light: null,
@@ -469,6 +473,10 @@ export const ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND = registerColor('activityBarTo
 	hcDark: Color.white,
 	hcLight: editorForeground
 }, localize('activityBarTopInActiveForeground', "Inactive foreground color of the item in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_TOP_HOVER_FOREGROUND = registerColor('activityBarTop.hoverForeground', null, localize('activityBarTopHoverForeground', "Foreground color of the item when hovering in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_TOP_HOVER_BACKGROUND = registerColor('activityBarTop.hoverBackground', null, localize('activityBarTopHoverBackground', "Background color of the item when hovering in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER = registerColor('activityBarTop.dropBorder', ACTIVITY_BAR_TOP_FOREGROUND, localize('activityBarTopDragAndDropBorder', "Drag and drop feedback color for the items in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
 
