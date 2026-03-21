@@ -26,6 +26,7 @@ suite('NotebookKernelService', () => {
 
 	let instantiationService: TestInstantiationService;
 	let kernelService: INotebookKernelService;
+	let notebookService: INotebookService & { addNotebookTextModel: (model: NotebookTextModel) => NotebookTextModel };
 	let disposables: DisposableStore;
 
 	let onDidAddNotebookDocument: Emitter<NotebookTextModel>;
@@ -42,11 +43,17 @@ suite('NotebookKernelService', () => {
 		disposables.add(onDidAddNotebookDocument);
 
 		instantiationService = setupInstantiationService(disposables);
-		instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
+		notebookService = instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
+			private _notebookTextModels: NotebookTextModel[] = [];
 			override onDidAddNotebookDocument = onDidAddNotebookDocument.event;
 			override onWillRemoveNotebookDocument = Event.None;
-			override getNotebookTextModels() { return []; }
-		});
+			override getNotebookTextModels() { return this._notebookTextModels; }
+			override getNotebookTextModel(uri: URI) { return this._notebookTextModels.find(model => model.uri.toString() === uri.toString()); }
+			addNotebookTextModel(model: NotebookTextModel) {
+				this._notebookTextModels.push(model);
+				return model;
+			}
+		}) as INotebookService & { addNotebookTextModel: (model: NotebookTextModel) => NotebookTextModel };
 		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
 			override createMenu() {
 				return new class extends mock<IMenu>() {
@@ -178,6 +185,86 @@ suite('NotebookKernelService', () => {
 			const event2 = await p2;
 			assert.strictEqual(event2.newKernel, dotnetKernel.id);
 		}
+	});
+
+	test('kernel affinity for REPL should reset after REPL creation for untitled notebook URI', function () {
+		const untitledUri = URI.parse('untitled:notebook');
+		const notebook = notebookService.addNotebookTextModel(
+			{ uri: untitledUri, viewType: 'jupyter', notebookType: 'jupyter' } as NotebookTextModel
+		);
+
+		// Create and register two kernels
+		const kernel1 = new TestNotebookKernel({ viewType: notebook.viewType });
+		const kernel2 = new TestNotebookKernel({ viewType: notebook.viewType });
+		disposables.add(kernelService.registerKernel(kernel1));
+		disposables.add(kernelService.registerKernel(kernel2));
+
+		// Set preferred affinity for kernel1
+		kernelService.updateKernelNotebookAffinity(kernel1, untitledUri, 2);
+
+		let info = kernelService.getMatchingKernel(notebook);
+		assert.strictEqual(info.suggestions[0], kernel1, 'kernel1 should have higher affinity initially');
+		assert.strictEqual(!info.selected, true, 'No kernel should be selected initially');
+
+		kernelService.preselectKernelForRepl(notebook);
+
+		// Verify affinity was reset for the untitled URI, but kernel1 is still selected
+		info = kernelService.getMatchingKernel(notebook);
+		assert.ok(info.suggestions.indexOf(kernel1) === -1, 'kernel1 should no longer have preferred affinity');
+		assert.strictEqual(info.selected, kernel1, 'kernel1 should still be selected');
+	});
+
+	test('kernel affinity for non-existing notebook should not auto-select for REPL editor', function () {
+		const untitledUri = URI.parse('untitled:notebook');
+		const notebook = { uri: untitledUri, viewType: 'jupyter', notebookType: 'jupyter' };
+
+		// Create and register two kernels
+		const kernel1 = new TestNotebookKernel({ viewType: notebook.viewType });
+		const kernel2 = new TestNotebookKernel({ viewType: notebook.viewType });
+		disposables.add(kernelService.registerKernel(kernel1));
+		disposables.add(kernelService.registerKernel(kernel2));
+
+		// Set preferred affinity for kernel1
+		kernelService.updateKernelNotebookAffinity(kernel1, untitledUri, 2);
+
+		let info = kernelService.getMatchingKernel(notebook);
+		assert.strictEqual(info.suggestions[0], kernel1, 'kernel1 should have higher affinity initially');
+		assert.strictEqual(!info.selected, true, 'No kernel should be selected initially');
+
+		kernelService.preselectKernelForRepl(notebook);
+
+		// affinity was not set for existing document, so it should not change the selection nor affect suggestions
+		info = kernelService.getMatchingKernel(notebook);
+		assert.strictEqual(info.suggestions[0], kernel1, 'kernel1 should still have higher affinity');
+		assert.strictEqual(!info.selected, true, 'No kernel should be selected');
+	});
+
+	test('Competing kernel affinity for a REPL means neither is selected', function () {
+		const untitledUri = URI.parse('untitled:notebook');
+		const notebook = notebookService.addNotebookTextModel(
+			{ uri: untitledUri, viewType: 'jupyter', notebookType: 'jupyter' } as NotebookTextModel
+		);
+
+		// Create and register two kernels
+		const kernel1 = new TestNotebookKernel({ viewType: notebook.viewType });
+		const kernel2 = new TestNotebookKernel({ viewType: notebook.viewType });
+		disposables.add(kernelService.registerKernel(kernel1));
+		disposables.add(kernelService.registerKernel(kernel2));
+
+		// Set preferred affinity for both kernels
+		kernelService.updateKernelNotebookAffinity(kernel1, untitledUri, 2);
+		kernelService.updateKernelNotebookAffinity(kernel2, untitledUri, 2);
+
+		let info = kernelService.getMatchingKernel(notebook);
+		assert.strictEqual(info.suggestions.length, 2, 'Both kernels should be suggested');
+		assert.strictEqual(!info.selected, true, 'No kernel should be selected initially');
+
+		kernelService.preselectKernelForRepl(notebook);
+
+		// Verify that neither kernel is selected due to competing affinities
+		info = kernelService.getMatchingKernel(notebook);
+		assert.strictEqual(info.suggestions.length, 2, 'Both kernels should be suggested');
+		assert.strictEqual(!info.selected, true, 'No kernel should be selected initially');
 	});
 });
 
