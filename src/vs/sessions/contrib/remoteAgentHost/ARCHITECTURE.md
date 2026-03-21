@@ -98,9 +98,13 @@ Remote addresses are encoded into URI-safe authority strings via
 `agentHostAuthority(address)`:
 
 - Alphanumeric addresses pass through unchanged
-- Others are url-safe base64 encoded with a `b64-` prefix
+- "Normal" addresses (`[a-zA-Z0-9.:-]`) get colons replaced with `__`
+- Everything else is url-safe base64 encoded with a `b64-` prefix
 
-Example: `http://127.0.0.1:3000` → `b64-aHR0cDovLzEyNy4wLjAuMTozMDAw`
+Examples:
+- `localhost:8081` → `localhost__8081`
+- `192.168.1.1:8080` → `192.168.1.1__8080`
+- `http://127.0.0.1:3000` → `b64-aHR0cDovLzEyNy4wLjAuMTozMDAw`
 
 ## Agent Registration
 
@@ -110,10 +114,10 @@ When `_registerAgent()` is called for a discovered copilot agent from address `X
 
 | Concept | Value | Example |
 |---------|-------|---------|
-| **Authority** | `agentHostAuthority(address)` | `b64-aHR0cA` |
-| **Session type** | `remote-${authority}-${provider}` | `remote-b64-aHR0cA-copilot` |
-| **Agent ID** | same as session type | `remote-b64-aHR0cA-copilot` |
-| **Vendor** | same as session type | `remote-b64-aHR0cA-copilot` |
+| **Authority** | `agentHostAuthority(address)` | `localhost__8081` |
+| **Session type** | `remote-${authority}-${provider}` | `remote-localhost__8081-copilot` |
+| **Agent ID** | same as session type | `remote-localhost__8081-copilot` |
+| **Vendor** | same as session type | `remote-localhost__8081-copilot` |
 | **Display name** | `configuredName \|\| "${displayName} (${address})"` | `dev-box` |
 
 ### Four Registrations Per Agent
@@ -134,23 +138,23 @@ When `_registerAgent()` is called for a discovered copilot agent from address `X
 
 4. **Language model provider** - `AgentHostLanguageModelProvider` registers
    models under the vendor descriptor. Model IDs are prefixed with the session
-   type (e.g., `remote-b64-xxx-copilot:claude-sonnet-4-20250514`).
+   type (e.g., `remote-localhost__8081-copilot:claude-sonnet-4-20250514`).
 
 ## URI Conventions
 
 | Context | Scheme | Format | Example |
 |---------|--------|--------|---------|
-| New session resource | `<sessionType>` | `<sessionType>:/untitled-<uuid>` | `remote-b64-xxx-copilot:/untitled-abc` |
-| Existing session | `<sessionType>` | `<sessionType>:/<rawId>` | `remote-b64-xxx-copilot:/abc-123` |
+| New session resource | `<sessionType>` | `<sessionType>:/untitled-<uuid>` | `remote-localhost__8081-copilot:/untitled-abc` |
+| Existing session | `<sessionType>` | `<sessionType>:/<rawId>` | `remote-localhost__8081-copilot:/abc-123` |
 | Backend session state | `<provider>` | `<provider>:/<rawId>` | `copilot:/abc-123` |
 | Root state subscription | (string) | `agenthost:/root` | - |
-| Remote filesystem | `agenthost` | `agenthost://<authority>/<path>` | `agenthost://b64-aHR0cA/home/user/project` |
-| Language model ID | - | `<sessionType>:<rawModelId>` | `remote-b64-xxx-copilot:claude-sonnet-4-20250514` |
+| Remote filesystem | `agenthost` | `agenthost://<authority>/<path>` | `agenthost://localhost__8081/home/user/project` |
+| Language model ID | - | `<sessionType>:<rawModelId>` | `remote-localhost__8081-copilot:claude-sonnet-4-20250514` |
 
 ### Key distinction: session resource vs backend session URI
 
 - The **session resource** URI uses the session type as its scheme
-  (e.g., `remote-b64-xxx-copilot:/untitled-abc`). This is the URI visible to
+  (e.g., `remote-localhost__8081-copilot:/untitled-abc`). This is the URI visible to
   the chat UI and session management.
 - The **backend session** URI uses the provider as its scheme
   (e.g., `copilot:/abc-123`). This is sent over the agent host protocol to the
@@ -173,8 +177,8 @@ remote host, then picks a folder on the remote filesystem. This produces a
 `SessionWorkspace` with an `agenthost://` URI:
 
 ```
-agenthost://b64-aHR0cA/home/user/myproject
-              ↑ authority          ↑ remote filesystem path
+agenthost://localhost__8081/home/user/myproject
+                ↑ authority            ↑ remote filesystem path
 ```
 
 ### 2. Session Target Resolution
@@ -184,7 +188,7 @@ resolves the matching session type via `getRemoteAgentHostSessionTarget()`
 (defined in `remoteAgentHost.contribution.ts`):
 
 ```typescript
-// authority "b64-aHR0cA" → find connection → "remote-b64-aHR0cA-copilot"
+// authority "localhost__8081" → find connection → "remote-localhost__8081-copilot"
 const target = getRemoteAgentHostSessionTarget(connections, authority);
 ```
 
@@ -194,7 +198,7 @@ const target = getRemoteAgentHostSessionTarget(connections, authority);
 
 ```typescript
 URI.from({ scheme: target, path: `/untitled-${generateUuid()}` })
-// → remote-b64-aHR0cA-copilot:/untitled-abc-123
+// → remote-localhost__8081-copilot:/untitled-abc-123
 ```
 
 ### 4. Session Object Creation

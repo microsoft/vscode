@@ -274,7 +274,7 @@ export async function createRunInTerminalToolData(
 		modelDescription,
 		userDescription: localize('runInTerminalTool.userDescription', 'Run commands in the terminal'),
 		source: ToolDataSource.Internal,
-		icon: Codicon.terminal,
+		icon: isSandboxEnabled ? Codicon.terminalSecure : Codicon.terminal,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -810,14 +810,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const escapedDisplayCommand = escapeMarkdownSyntaxTokens(displayCommand);
 		const invocationMessage = toolSpecificData.commandLine.isSandboxWrapped
 			? args.isBackground
-				? new MarkdownString('$(lock) ' + localize('runInTerminal.invocation.sandbox.background', "Running `{0}` in sandbox in background", escapedDisplayCommand), { supportThemeIcons: true })
-				: new MarkdownString('$(lock) ' + localize('runInTerminal.invocation.sandbox', "Running `{0}` in sandbox", escapedDisplayCommand), { supportThemeIcons: true })
+				? new MarkdownString(localize('runInTerminal.invocation.sandbox.background', "Running `{0}` in sandbox in background", escapedDisplayCommand))
+				: new MarkdownString(localize('runInTerminal.invocation.sandbox', "Running `{0}` in sandbox", escapedDisplayCommand))
 			: args.isBackground
 				? new MarkdownString(localize('runInTerminal.invocation.background', "Running `{0}` in background", escapedDisplayCommand))
 				: new MarkdownString(localize('runInTerminal.invocation', "Running `{0}`", escapedDisplayCommand));
 
 		return {
 			invocationMessage,
+			icon: toolSpecificData.commandLine.isSandboxWrapped ? Codicon.terminalSecure : Codicon.terminal,
 			confirmationMessages,
 			toolSpecificData,
 		};

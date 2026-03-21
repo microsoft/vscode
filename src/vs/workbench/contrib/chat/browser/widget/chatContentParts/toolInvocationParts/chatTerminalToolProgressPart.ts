@@ -1665,8 +1665,8 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 
 		if (this._isSandboxWrapped) {
 			this._collapseButton.label = new MarkdownString(this._isComplete
-				? '$(lock) ' + localize('chat.terminal.ranInSandbox', "Ran `{0}` in sandbox", this._commandText)
-				: '$(lock) ' + localize('chat.terminal.runningInSandbox', "Running `{0}` in sandbox", this._commandText), { supportThemeIcons: true });
+				? localize('chat.terminal.ranInSandbox', "Ran `{0}` in sandbox", this._commandText)
+				: localize('chat.terminal.runningInSandbox', "Running `{0}` in sandbox", this._commandText));
 			return;
 		}
 
