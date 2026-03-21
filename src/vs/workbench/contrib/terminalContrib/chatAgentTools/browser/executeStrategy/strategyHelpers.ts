@@ -107,9 +107,9 @@ export function stripCommandEchoAndPrompt(output: string, commandLine: string): 
 			// For continuation lines of a wrapped command: if we already matched
 			// the first echo line, keep consuming lines whose content is clearly
 			// part of the wrapped command (e.g. long env var assignments, paths
-			// with slashes, or sandbox wrapper fragments). We require the line to
-			// end WITHOUT a newline-induced break in a word, so it must look like
-			// a proper continuation — not regular command output.
+			// with slashes, or sandbox wrapper fragments). This uses a heuristic
+			// based on the line's presence in the original command and patterns
+			// like path separators, env var assignments, or quoted strings.
 			if (startIndex > 0 && i === startIndex) {
 				const lineContent = line.trim();
 				// A continuation line of a wrapped command typically contains
