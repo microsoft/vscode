@@ -8,6 +8,7 @@ import { EditOperation, ISingleEditOperation } from '../../../common/core/editOp
 import { Range } from '../../../common/core/range.js';
 import { EndOfLineSequence } from '../../../common/model.js';
 import { TextEdit } from '../../../common/languages.js';
+import { TextModelEditSource } from '../../../common/textModelEditSource.js';
 import { StableEditorScrollState } from '../../../browser/stableEditorScroll.js';
 
 export class FormattingEdit {
@@ -44,7 +45,7 @@ export class FormattingEdit {
 		return fullModelRange.equalsRange(editRange);
 	}
 
-	static execute(editor: ICodeEditor, _edits: TextEdit[], addUndoStops: boolean) {
+	static execute(editor: ICodeEditor, _edits: TextEdit[], addUndoStops: boolean, reason: TextModelEditSource) {
 		if (addUndoStops) {
 			editor.pushUndoStop();
 		}
@@ -52,9 +53,9 @@ export class FormattingEdit {
 		const edits = FormattingEdit._handleEolEdits(editor, _edits);
 		if (edits.length === 1 && FormattingEdit._isFullModelReplaceEdit(editor, edits[0])) {
 			// We use replace semantics and hope that markers stay put...
-			editor.executeEdits('formatEditsCommand', edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+			editor.executeEdits(reason, edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 		} else {
-			editor.executeEdits('formatEditsCommand', edits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text)));
+			editor.executeEdits(reason, edits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text)));
 		}
 		if (addUndoStops) {
 			editor.pushUndoStop();
