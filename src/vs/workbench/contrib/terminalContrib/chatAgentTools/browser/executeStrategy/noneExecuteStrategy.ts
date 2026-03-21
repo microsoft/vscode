@@ -7,11 +7,13 @@ import type { CancellationToken } from '../../../../../../base/common/cancellati
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { createAltBufferPromise, setupRecreatingStartMarker } from './strategyHelpers.js';
+import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
+import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 
 /**
  * This strategy is used when no shell integration is available. There are very few extension APIs
@@ -30,6 +32,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		private readonly _hasReceivedUserInput: () => boolean,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 		super();
@@ -50,9 +53,11 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 			}
 			const alternateBufferPromise = createAltBufferPromise(xterm, store, this._log.bind(this));
 
+			const idlePollInterval = this._configurationService.getValue<number>(TerminalChatAgentToolsSettingId.IdlePollInterval) ?? 1000;
+
 			// Wait for the terminal to idle before executing the command
 			this._log('Waiting for idle');
-			await waitForIdle(this._instance.onData, 1000);
+			await waitForIdle(this._instance.onData, idlePollInterval);
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -82,7 +87,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 			// Assume the command is done when it's idle
 			this._log('Waiting for idle with prompt heuristics');
 			const promptResultOrAltBuffer = await Promise.race([
-				waitForIdleWithPromptHeuristics(this._instance.onData, this._instance, 1000, 10000),
+				waitForIdleWithPromptHeuristics(this._instance.onData, this._instance, idlePollInterval, idlePollInterval * 10),
 				alternateBufferPromise.then(() => 'alternateBuffer' as const)
 			]);
 			if (promptResultOrAltBuffer === 'alternateBuffer') {
@@ -109,10 +114,24 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 			try {
 				output = xterm.getContentsAsText(this._startMarker.value, endMarker);
 				this._log('Fetched output via markers');
+
+				// The marker-based output includes the command echo (the line where the
+				// command was typed) and the next prompt line. Strip them to isolate
+				// only the actual command output. The first line always contains the
+				// command echo (since the start marker is placed at the cursor before
+				// sendText), and trailing lines that look like shell prompts are removed.
+				if (output !== undefined) {
+					output = stripCommandEchoAndPrompt(output, commandLine);
+				}
 			} catch {
 				this._log('Failed to fetch output via markers');
 				additionalInformationLines.push('Failed to retrieve command output');
 			}
+
+			if (output !== undefined && output.trim().length === 0) {
+				additionalInformationLines.push('Command produced no output');
+			}
+
 			return {
 				output,
 				additionalInformation: additionalInformationLines.length > 0 ? additionalInformationLines.join('\n') : undefined,

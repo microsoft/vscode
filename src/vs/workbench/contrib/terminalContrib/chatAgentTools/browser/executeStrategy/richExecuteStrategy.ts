@@ -8,12 +8,14 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { createAltBufferPromise, setupRecreatingStartMarker } from './strategyHelpers.js';
+import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 
 /**
  * This strategy is used when the terminal has rich shell integration/command detection is
@@ -32,6 +34,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		private readonly _commandDetection: ICommandDetectionCapability,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 		super();
@@ -48,6 +51,8 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 			}
 			const alternateBufferPromise = createAltBufferPromise(xterm, store, this._log.bind(this));
 
+			const idlePollInterval = this._configurationService.getValue<number>(TerminalChatAgentToolsSettingId.IdlePollInterval) ?? 1000;
+
 			const onDone = Promise.race([
 				Event.toPromise(this._commandDetection.onCommandFinished, store).then(e => {
 					this._log('onDone via end event');
@@ -63,7 +68,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 					this._log('onDone via terminal disposal');
 					return { type: 'disposal' } as const;
 				}),
-				trackIdleOnPrompt(this._instance, 1000, store).then(() => {
+				trackIdleOnPrompt(this._instance, idlePollInterval, store, idlePollInterval).then(() => {
 					this._log('onDone via idle prompt');
 				}),
 			]);

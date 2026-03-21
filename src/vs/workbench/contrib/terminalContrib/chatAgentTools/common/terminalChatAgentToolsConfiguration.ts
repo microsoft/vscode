@@ -26,6 +26,7 @@ export const enum TerminalChatAgentToolsSettingId {
 	TerminalSandboxMacFileSystem = 'chat.tools.terminal.sandbox.macFileSystem',
 	PreventShellHistory = 'chat.tools.terminal.preventShellHistory',
 	EnforceTimeoutFromModel = 'chat.tools.terminal.enforceTimeoutFromModel',
+	IdlePollInterval = 'chat.tools.terminal.idlePollInterval',
 
 	TerminalProfileLinux = 'chat.tools.terminal.terminalProfile.linux',
 	TerminalProfileMacOs = 'chat.tools.terminal.terminalProfile.osx',
@@ -441,6 +442,13 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		maximum: 60000,
 		default: -1,
 		markdownDeprecationMessage: localize('shellIntegrationTimeout.deprecated', 'Use {0} instead', `\`#${TerminalSettingId.ShellIntegrationTimeout}#\``)
+	},
+	[TerminalChatAgentToolsSettingId.IdlePollInterval]: {
+		markdownDescription: localize('idlePollInterval.description', "Configures the idle poll interval in milliseconds used by the run in terminal tool to detect when commands have finished executing. Lower values make command detection faster but may cause false positives on slow systems. This primarily affects terminals without shell integration where idle detection is used instead of shell integration events."),
+		type: 'integer',
+		minimum: 50,
+		maximum: 10000,
+		default: 1000,
 	},
 	[TerminalChatAgentToolsSettingId.TerminalProfileLinux]: {
 		restricted: true,
