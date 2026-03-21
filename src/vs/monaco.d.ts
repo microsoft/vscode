@@ -4473,6 +4473,14 @@ declare namespace monaco.editor {
 		 * Define whether to scroll sticky scroll with editor horizontal scrollbae
 		 */
 		scrollWithEditor?: boolean;
+		/**
+		 * Use heuristics to find a more meaningful scope header by walking back from
+		 * the raw fold-start line. Handles Allman-style braces, trailing return types
+		 * (`-> T`) on their own line, and multi-line signatures. Best-effort;
+		 * primarily designed for C++ and Rust. Has no effect on languages that do not
+		 * use brace-delimited blocks.
+		 */
+		foldHeaderDetection?: boolean;
 	}
 
 	/**
