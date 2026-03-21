@@ -19,6 +19,7 @@ import { ISharedWebContentExtractorService } from '../../../../platform/webConte
 import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IChatWidgetHistoryService } from '../../../contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IChatContextPickService } from '../../../contrib/chat/browser/attachments/chatContextPickService.js';
@@ -39,13 +40,14 @@ import { IChatEntitlementService } from '../../../services/chat/common/chatEntit
 import { IChatModeService } from '../../../contrib/chat/common/chatModes.js';
 import { IChatService } from '../../../contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
-import { ILanguageModelsService } from '../../../contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../contrib/chat/common/languageModels.js';
 import { IChatAgentService } from '../../../contrib/chat/common/participants/chatAgents.js';
 import { ILanguageModelToolsService } from '../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -93,11 +95,13 @@ interface ChatInputFixtureOptions {
 	readonly artifacts?: readonly { label: string; uri: string; type: 'devServer' | 'screenshot' | 'plan' | undefined }[];
 	readonly editingSession?: IChatEditingSession;
 	readonly todos?: IChatTodo[];
+	readonly width?: number;
+	readonly modelTitle?: string;
 }
 
 async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { artifacts = [], editingSession, todos = [] } = fixtureOptions;
+	const { artifacts = [], editingSession, todos = [], width = 500, modelTitle = 'GPT-5.3-Codex' } = fixtureOptions;
 	const artifactsObs = observableValue<readonly typeof artifacts[number][]>('artifacts', artifacts);
 
 	const instantiationService = createEditorServices(disposableStore, {
@@ -109,7 +113,29 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() { override async createModelReference() { return { object: { textEditorModel: null }, dispose() { } } as unknown as Awaited<ReturnType<ITextModelService['createModelReference']>>; } }());
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
-			reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() { override onDidChangeLanguageModels = Event.None; override getLanguageModelIds() { return []; } }());
+			reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
+				override onDidChangeLanguageModels = Event.None;
+				override getLanguageModelIds() { return [`copilot/${modelTitle}`]; }
+				override lookupLanguageModel() {
+					return {
+						extension: new ExtensionIdentifier('github.copilot'),
+						name: modelTitle,
+						id: modelTitle,
+						vendor: 'copilot',
+						version: '1',
+						family: 'gpt',
+						maxInputTokens: 128000,
+						maxOutputTokens: 16000,
+						isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+						isUserSelectable: true,
+						modelPickerCategory: undefined,
+						capabilities: { toolCalling: true, agentMode: true },
+					} satisfies ILanguageModelChatMetadata;
+				}
+				override getVendors() { return [{ vendor: 'copilot', displayName: 'Copilot', isDefault: true, configuration: undefined, managementCommand: undefined, when: undefined }]; }
+				override getRecentlyUsedModelIds() { return []; }
+				override getModelsControlManifest() { return { free: {}, paid: {} }; }
+			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() { override onDidFilesChange = Event.None; override onDidRunOperation = Event.None; }());
 			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() { override onDidActiveEditorChange = Event.None; }());
 			reg.defineInstance(IChatAgentService, new class extends mock<IChatAgentService>() { override onDidChangeAgents = Event.None; override getAgents() { return []; } override getActivatedAgents() { return []; } }());
@@ -158,7 +184,13 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 		await configService.setUserConfiguration(ChatConfiguration.ArtifactsEnabled, true);
 	}
 
-	container.style.width = '500px';
+	// Pre-populate storage with model selection so initSelectedModel() finds it
+	const modelId = `copilot/${modelTitle}`;
+	const storageService = instantiationService.get(IStorageService);
+	storageService.store(`chat.currentLanguageModel.${ChatAgentLocation.Chat}`, modelId, StorageScope.APPLICATION, StorageTarget.USER);
+	storageService.store(`chat.currentLanguageModel.${ChatAgentLocation.Chat}.isDefault`, true, StorageScope.APPLICATION, StorageTarget.USER);
+
+	container.style.width = `${width}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
 	container.classList.add('monaco-workbench');
 
@@ -169,7 +201,7 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 	const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
 	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.attachContext', title: '+', icon: Codicon.add }, group: 'navigation', order: -1 });
 	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModePicker', title: 'Agent' }, group: 'navigation', order: 1 });
-	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModelPicker', title: 'GPT-5.3-Codex' }, group: 'navigation', order: 3 });
+	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModelPicker', title: modelTitle }, group: 'navigation', order: 3 });
 	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.configureTools', title: '', icon: Codicon.settingsGear }, group: 'navigation', order: 100 });
 	menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUp }, group: 'navigation', order: 4 });
 	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openSessionTargetPicker', title: 'Local' }, group: 'navigation', order: 0 });
@@ -200,9 +232,31 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 		}();
 
 		inputPart.render(session, '', mockWidget);
-		inputPart.layout(500);
+
+		const modelInfo: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: `copilot/${modelTitle}`,
+			metadata: {
+				extension: new ExtensionIdentifier('github.copilot'),
+				name: modelTitle,
+				id: modelTitle,
+				vendor: 'copilot',
+				version: '1',
+				family: 'gpt',
+				maxInputTokens: 128000,
+				maxOutputTokens: 16000,
+				isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+				isUserSelectable: true,
+				modelPickerCategory: undefined,
+				capabilities: { toolCalling: true, agentMode: true },
+			} satisfies ILanguageModelChatMetadata,
+		};
+
+		inputPart.setCurrentLanguageModel(modelInfo);
+
+		inputPart.layout(width);
 		await new Promise(r => setTimeout(r, 100));
-		inputPart.layout(500);
+		inputPart.layout(width);
+
 		inputPart.renderArtifactsWidget(URI.parse('chat-session:test-session'));
 		await inputPart.renderChatTodoListWidget(URI.parse('chat-session:test-session'));
 		await new Promise(r => setTimeout(r, 50));
@@ -265,6 +319,8 @@ const sampleTodos: IChatTodo[] = [
 
 export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	Default: defineComponentFixture({ render: context => renderChatInput(context) }),
+	Narrow: defineComponentFixture({ render: context => renderChatInput(context, { width: 350 }) }),
+	NarrowLongModel: defineComponentFixture({ render: context => renderChatInput(context, { width: 350, modelTitle: 'Claude 3.5 Sonnet' }) }),
 	WithArtifacts: defineComponentFixture({ render: context => renderChatInput(context, { artifacts: sampleArtifacts }) }),
 	WithFileChanges: defineComponentFixture({
 		render: context => renderChatInput(context, { editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/fibon.ts', added: 21, removed: 1 }]) })

@@ -223,6 +223,18 @@ export class ToolBar extends Disposable {
 		return this.actionBar.length();
 	}
 
+	/**
+	 * Force the responsive overflow logic to re-evaluate item visibility.
+	 * Call this after action view items change their rendered size externally
+	 * (e.g. label text changes) without the toolbar being notified.
+	 */
+	relayout(): void {
+		if (this.options.responsiveBehavior?.enabled) {
+			const width = this.element.getBoundingClientRect().width;
+			this.updateActions(width);
+		}
+	}
+
 	setAriaLabel(label: string): void {
 		this.actionBar.setAriaLabel(label);
 	}
@@ -278,7 +290,8 @@ export class ToolBar extends Disposable {
 			}
 
 			// Update toolbar actions to fit with container width
-			this.updateActions(this.element.getBoundingClientRect().width);
+			const elementWidth = this.element.getBoundingClientRect().width;
+			this.updateActions(elementWidth);
 		}
 	}
 
@@ -295,6 +308,12 @@ export class ToolBar extends Disposable {
 	private updateActions(containerWidth: number) {
 		// Actions bar is empty
 		if (this.actionBar.isEmpty()) {
+			return;
+		}
+
+		// Skip when element hasn't been laid out yet (not in DOM or display:none).
+		// The ResizeObserver will call us again once the element gets a real size.
+		if (containerWidth <= 0) {
 			return;
 		}
 
@@ -317,7 +336,7 @@ export class ToolBar extends Disposable {
 					itemsWidth += this.actionBar.getWidth(i) + ACTION_PADDING;
 				}
 
-				itemsWidth += actualWidth ? this.actionBar.getWidth(primaryActionsCount - 1) : this.actionMinWidth; // item to shrink
+				itemsWidth += actualWidth ? this.actionBar.getWidth(primaryActionsCount - 1) : (this.actionMinWidth - ACTION_PADDING); // item to shrink (no gap after the last primary item)
 				itemsWidth += hasToggleMenuAction ? ACTION_MIN_WIDTH + ACTION_PADDING : 0; // toggle menu action
 
 				return itemsWidth;
@@ -331,49 +350,18 @@ export class ToolBar extends Disposable {
 			return;
 		}
 
-		if (actionBarWidth(false) > containerWidth) {
-			// Check for max items limit
-			if (this.options.responsiveBehavior?.minItems !== undefined) {
-				const primaryActionsCount = this.actionBar.hasAction(this.toggleMenuAction)
-					? this.actionBar.length() - 1
-					: this.actionBar.length();
-
-				if (primaryActionsCount <= this.options.responsiveBehavior.minItems) {
-					return;
-				}
-			}
-
-			// Hide actions from the right
-			while (actionBarWidth(true) > containerWidth && this.actionBar.length() > 0) {
-				const index = this.originalPrimaryActions.length - this.hiddenActions.length - 1;
-				if (index < 0) {
-					break;
-				}
-
-				// Store the action and its size
-				const size = Math.min(this.actionMinWidth, this.getItemWidth(index));
-				const action = this.originalPrimaryActions[index];
-				this.hiddenActions.unshift({ action, size });
-
-				// Remove the action
-				this.actionBar.pull(index);
-
-				// There are no secondary actions, but we have actions that we need to hide so we
-				// create the overflow menu. This will ensure that another primary action will be
-				// removed making space for the overflow menu.
-				if (this.originalSecondaryActions.length === 0 && this.hiddenActions.length === 1) {
-					this.actionBar.push(this.toggleMenuAction, {
-						icon: this.options.icon ?? true,
-						label: this.options.label ?? false,
-						keybinding: this.getKeybindingLabel(this.toggleMenuAction),
-					});
-				}
-			}
-		} else {
-			// Show actions from the top of the toggle menu
+		// Show actions from the overflow menu when there's space
+		if (actionBarWidth(false) <= containerWidth && this.hiddenActions.length > 0) {
 			while (this.hiddenActions.length > 0) {
 				const entry = this.hiddenActions.shift()!;
-				if (actionBarWidth(true) + entry.size > containerWidth) {
+
+				// When showing the last hidden action with no secondary actions,
+				// the overflow menu will be removed, freeing up its space.
+				const willRemoveOverflow = this.originalSecondaryActions.length === 0 && this.hiddenActions.length === 0;
+				const freedOverflowWidth = willRemoveOverflow ? ACTION_MIN_WIDTH + ACTION_PADDING : 0;
+
+				const showCheck = actionBarWidth(true) - freedOverflowWidth + entry.size + ACTION_PADDING;
+				if (showCheck > containerWidth) {
 					// Not enough space to show the action
 					this.hiddenActions.unshift(entry);
 					break;
@@ -392,7 +380,31 @@ export class ToolBar extends Disposable {
 				if (this.originalSecondaryActions.length === 0 && this.hiddenActions.length === 0) {
 					this.toggleMenuAction.menuActions = [];
 					this.actionBar.pull(this.actionBar.length() - 1);
+
+					// Toggle has-overflow immediately so CSS flex-shrink stops
+					// targeting nth-last-child(2) and targets :last-child instead.
+					this.actionBar.domNode.classList.remove('has-overflow');
 				}
+			}
+		}
+
+		// Hide actions from the right when they don't fit.
+		// This also runs after showing items above, because removing the overflow
+		// menu can change the CSS flex state (e.g. a previously flex-shrunk item
+		// expands) causing the total width to exceed the container.
+		if (actionBarWidth(true) > containerWidth) {
+			// Check for max items limit
+			const minItems = this.options.responsiveBehavior?.minItems;
+			if (minItems !== undefined) {
+				const primaryActionsCount = this.actionBar.hasAction(this.toggleMenuAction)
+					? this.actionBar.length() - 1
+					: this.actionBar.length();
+
+				if (primaryActionsCount > minItems) {
+					this.hideOverflowingActions(containerWidth, actionBarWidth);
+				}
+			} else {
+				this.hideOverflowingActions(containerWidth, actionBarWidth);
 			}
 		}
 
@@ -404,6 +416,39 @@ export class ToolBar extends Disposable {
 		}
 
 		this.actionBar.domNode.classList.toggle('has-overflow', this.actionBar.hasAction(this.toggleMenuAction));
+	}
+
+	private hideOverflowingActions(containerWidth: number, actionBarWidth: (actualWidth: boolean) => number): void {
+		while (actionBarWidth(true) > containerWidth && this.actionBar.length() > 0) {
+			const index = this.originalPrimaryActions.length - this.hiddenActions.length - 1;
+			if (index < 0) {
+				break;
+			}
+
+			// Store the action and its size
+			const size = this.getItemWidth(index);
+			const action = this.originalPrimaryActions[index];
+			this.hiddenActions.unshift({ action, size });
+
+			// Remove the action
+			this.actionBar.pull(index);
+
+			// There are no secondary actions, but we have actions that we need to hide so we
+			// create the overflow menu. This will ensure that another primary action will be
+			// removed making space for the overflow menu.
+			if (this.originalSecondaryActions.length === 0 && this.hiddenActions.length === 1) {
+				this.actionBar.push(this.toggleMenuAction, {
+					icon: this.options.icon ?? true,
+					label: this.options.label ?? false,
+					keybinding: this.getKeybindingLabel(this.toggleMenuAction),
+				});
+
+				// Toggle has-overflow immediately so CSS flex-shrink targets
+				// the correct item (nth-last-child(2)) during width checks
+				// in the next loop iteration.
+				this.actionBar.domNode.classList.add('has-overflow');
+			}
+		}
 	}
 
 	private clear(): void {
