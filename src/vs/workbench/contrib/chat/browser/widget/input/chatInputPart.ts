@@ -3116,26 +3116,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-	 * Set the maximum height budget for the entire input part. The editor height will
-	 * be clamped so it does not grow beyond what this budget allows after accounting
-	 * for non-editor chrome (attachments, toolbars, widgets, etc.).
-	 * Set by the parent chat widget based on its own layout height.
+	 * Sets the maximum height budget for the input part. The editor height will be
+	 * clamped so it does not grow beyond what this budget allows after accounting
+	 * for non-editor chrome such as attachments, toolbars, and widgets.
 	 */
-	set maxHeight(value: number | undefined) {
-		this._maxHeight = value;
-	}
-
-	private get _effectiveInputEditorMaxHeight(): number {
-		if (this._maxHeight === undefined) {
-			return this.inputEditorMaxHeight;
-		}
-
-		// Compute non-editor height from the cached container height (updated by ResizeObserver)
-		// minus the current editor height. This avoids a forced reflow from reading offsetHeight.
-		const currentEditorHeight = this.previousInputEditorDimension?.height ?? 0;
-		const nonEditorHeight = Math.max(0, this.height.get() - currentEditorHeight);
-		const budgetForEditor = this._maxHeight - nonEditorHeight;
-		return Math.min(this.inputEditorMaxHeight, Math.max(0, budgetForEditor));
+	setMaxHeight(maxHeight: number | undefined): void {
+		this._maxHeight = maxHeight;
 	}
 
 	/**
@@ -3147,6 +3133,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._stableInputPartWidth.set(width, undefined);
 
 		return this._layout(width);
+	}
+
+	private get _effectiveInputEditorMaxHeight(): number {
+		return computeEffectiveInputEditorMaxHeight(
+			this._maxHeight,
+			this.inputEditorMaxHeight,
+			this.height.get(),
+			this.previousInputEditorDimension?.height ?? 0,
+		);
 	}
 
 	private previousInputEditorDimension: IDimension | undefined;
@@ -3332,4 +3327,29 @@ class HiddenActionViewItem extends BaseActionViewItem {
 		super.render(container);
 		container.style.display = 'none';
 	}
+}
+
+/**
+ * Compute the effective maximum editor height given an optional overall budget.
+ *
+ * When {@link maxHeight} is `undefined` the default {@link inputEditorMaxHeight} is
+ * returned unchanged. Otherwise the editor is given whatever portion of
+ * {@link maxHeight} is left after subtracting the non-editor chrome (attachments,
+ * toolbars, widgets, etc.), clamped to `[0, inputEditorMaxHeight]`.
+ */
+export function computeEffectiveInputEditorMaxHeight(
+	maxHeight: number | undefined,
+	inputEditorMaxHeight: number,
+	inputPartHeight: number,
+	currentEditorHeight: number,
+): number {
+	if (maxHeight === undefined) {
+		return inputEditorMaxHeight;
+	}
+
+	// Compute non-editor height from the cached container height
+	// minus the current editor height. This avoids a forced reflow from reading offsetHeight.
+	const nonEditorHeight = Math.max(0, inputPartHeight - currentEditorHeight);
+	const budgetForEditor = maxHeight - nonEditorHeight;
+	return Math.min(inputEditorMaxHeight, Math.max(0, budgetForEditor));
 }
