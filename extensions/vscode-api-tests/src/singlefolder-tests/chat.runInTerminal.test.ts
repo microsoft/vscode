@@ -168,16 +168,16 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			await toolConfig.update('idlePollInterval', undefined, vscode.ConfigurationTarget.Global);
 		});
 
-		defineTests();
+		defineTests(false);
 	});
 
 	// --- Shell integration ON ---
 
 	suite('shell integration on', () => {
-		defineTests();
+		defineTests(true);
 	});
 
-	function defineTests() {
+	function defineTests(hasShellIntegration: boolean) {
 
 		// --- Sandbox OFF tests ---
 
@@ -220,7 +220,12 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				const command = isWindows ? 'cmd /c exit 42' : 'bash -c "exit 42"';
 				const output = await invokeRunInTerminal(command);
 
-				assert.strictEqual(output.trim(), 'Command produced no output\nCommand exited with code 42');
+				// Without shell integration, exit codes are unavailable
+				const acceptable = [
+					'Command produced no output\nCommand exited with code 42',
+					...(!hasShellIntegration ? ['Command produced no output'] : []),
+				];
+				assert.ok(acceptable.includes(output.trim()), `Unexpected output: ${JSON.stringify(output.trim())}`);
 			});
 
 			test('output with special characters is captured verbatim', async function () {
@@ -262,20 +267,25 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 
 				const output = await invokeRunInTerminal('curl -s --max-time 5 https://example.com');
 
-				// The sandbox blocks network access. curl fails and the sandbox
-				// output analyzer prepends its error message.
-				assert.strictEqual(output.trim(), [
-					'Command failed while running in sandboxed mode. If the command failed due to sandboxing:',
-					`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.tools.terminal.sandbox.network.allowedDomains.`,
-					'- Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user \u2014 setting this flag automatically shows a confirmation prompt to the user.',
-					'',
-					'Here is the output of the command:',
-					'',
-					'',
-					'',
-					'Command produced no output',
-					'Command exited with code 56',
-				].join('\n'));
+				// Without shell integration, exit code is unavailable and
+				// curl produces no sandbox-specific error strings, so the
+				// sandbox analyzer may not trigger.
+				const acceptable = [
+					[
+						'Command failed while running in sandboxed mode. If the command failed due to sandboxing:',
+						`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.tools.terminal.sandbox.network.allowedDomains.`,
+						'- Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user \u2014 setting this flag automatically shows a confirmation prompt to the user.',
+						'',
+						'Here is the output of the command:',
+						'',
+						'',
+						'',
+						'Command produced no output',
+						'Command exited with code 56',
+					].join('\n'),
+					...(!hasShellIntegration ? ['Command produced no output'] : []),
+				];
+				assert.ok(acceptable.includes(output.trim()), `Unexpected output: ${JSON.stringify(output.trim())}`);
 			});
 
 			test('cannot write to /tmp', async function () {
@@ -284,18 +294,21 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				const marker = `SANDBOX_TMP_${Date.now()}`;
 				const output = await invokeRunInTerminal(`echo "${marker}" > /tmp/${marker}.txt`);
 
-				assert.strictEqual(output.trim(), [
-					'Command failed while running in sandboxed mode. If the command failed due to sandboxing:',
+				const sandboxBody = [
 					`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.tools.terminal.sandbox.network.allowedDomains.`,
 					'- Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user \u2014 setting this flag automatically shows a confirmation prompt to the user.',
 					'',
 					'Here is the output of the command:',
 					'',
 					`/bin/bash: /tmp/${marker}.txt: Operation not permitted`,
-					'',
-					'',
-					'Command exited with code 1',
-				].join('\n'));
+				].join('\n');
+				const acceptable = [
+					// With shell integration: known failure with exit code
+					`Command failed while running in sandboxed mode. If the command failed due to sandboxing:\n${sandboxBody}\n\n\nCommand exited with code 1`,
+					// Without shell integration: heuristic detection, no exit code
+					...(!hasShellIntegration ? [`Command ran in sandboxed mode and may have been blocked by the sandbox. If the command failed due to sandboxing:\n${sandboxBody}`] : []),
+				];
+				assert.ok(acceptable.includes(output.trim()), `Unexpected output: ${JSON.stringify(output.trim())}`);
 			});
 
 			test('can read files outside the workspace', async function () {
