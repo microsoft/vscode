@@ -214,6 +214,41 @@ suite('RunInTerminalTool', () => {
 			ok(toolData.modelDescription?.includes('The /tmp directory is not guaranteed to be accessible or writable and must be avoided'), 'Expected sandboxed tool description to discourage /tmp usage');
 		});
 
+		test('should include requestUnsandboxedExecution in schema when sandbox is enabled', async () => {
+			sandboxEnabled = true;
+
+			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
+			const properties = toolData.inputSchema?.properties as Record<string, object> | undefined;
+
+			ok(properties?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution in schema when sandbox is enabled');
+			ok(properties?.['requestUnsandboxedExecutionReason'], 'Expected requestUnsandboxedExecutionReason in schema when sandbox is enabled');
+		});
+
+		test('should not include requestUnsandboxedExecution in schema when sandbox is disabled', async () => {
+			sandboxEnabled = false;
+
+			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
+			const properties = toolData.inputSchema?.properties as Record<string, object> | undefined;
+
+			ok(!properties?.['requestUnsandboxedExecution'], 'Expected no requestUnsandboxedExecution in schema when sandbox is disabled');
+			ok(!properties?.['requestUnsandboxedExecutionReason'], 'Expected no requestUnsandboxedExecutionReason in schema when sandbox is disabled');
+		});
+
+		test('should reflect sandbox setting changes in tool data', async () => {
+			sandboxEnabled = false;
+
+			const toolDataBefore = await instantiationService.invokeFunction(createRunInTerminalToolData);
+			const propertiesBefore = toolDataBefore.inputSchema?.properties as Record<string, object> | undefined;
+			ok(!propertiesBefore?.['requestUnsandboxedExecution'], 'Expected no requestUnsandboxedExecution before enabling sandbox');
+
+			sandboxEnabled = true;
+
+			const toolDataAfter = await instantiationService.invokeFunction(createRunInTerminalToolData);
+			const propertiesAfter = toolDataAfter.inputSchema?.properties as Record<string, object> | undefined;
+			ok(propertiesAfter?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution after enabling sandbox');
+			ok(toolDataAfter.modelDescription?.includes('Sandboxing:'), 'Expected sandbox instructions in description after enabling sandbox');
+		});
+
 		test('should include allowed and denied network domains in model description', async () => {
 			sandboxEnabled = true;
 			terminalSandboxService.getResolvedNetworkDomains = () => ({
