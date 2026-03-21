@@ -51,7 +51,7 @@ export interface IChatSessionProviderOptionGroup {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
-	readonly items: IChatSessionProviderOptionItem[];
+	readonly items: readonly IChatSessionProviderOptionItem[];
 	readonly searchable?: boolean;
 	readonly onSearch?: (query: string, token: CancellationToken) => Thenable<IChatSessionProviderOptionItem[]>;
 	/**
