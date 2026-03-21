@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { DeferredPromise, RunOnceScheduler, timeout } from '../../../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import type { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
+
+interface ICommandLike {
+	id: string | undefined;
+}
 
 export interface ITerminalExecuteStrategy extends IDisposable {
 	readonly type: 'rich' | 'basic' | 'none';
@@ -41,6 +45,44 @@ export async function waitForIdle(onData: Event<unknown>, idleDurationMs: number
 	store.add(onData(() => scheduler.schedule()));
 	scheduler.schedule();
 	return deferred.p.finally(() => store.dispose());
+}
+
+/**
+ * Returns whether the finished command matches the requested command id. When no command id is
+ * provided, any command is considered a match.
+ */
+export function commandMatchesRequestedId(command: ICommandLike, commandId?: string): boolean {
+	return !commandId || command.id === commandId;
+}
+
+/**
+ * Waits briefly for terminal output to settle before reading output from xterm markers.
+ *
+ * The wait is bounded by {@link maxWaitMs} and can be cancelled via {@link token}.
+ */
+export async function waitForOutputFlush(onData: Event<unknown>, token?: CancellationToken, maxWaitMs: number = 2000): Promise<void> {
+	if (token?.isCancellationRequested) {
+		return;
+	}
+
+	const waitForIdlePromise = waitForIdle(onData, 50);
+	const maxWaitPromise = timeout(maxWaitMs);
+
+	if (!token) {
+		await Promise.race([waitForIdlePromise, maxWaitPromise]);
+	} else {
+		const store = new DisposableStore();
+		try {
+			const cancellationPromise = new Promise<void>(resolve => {
+				store.add(token.onCancellationRequested(() => resolve()));
+			});
+			await Promise.race([waitForIdlePromise, maxWaitPromise, cancellationPromise]);
+		} finally {
+			store.dispose();
+		}
+	}
+
+	await timeout(0);
 }
 
 export interface IPromptDetectionResult {
