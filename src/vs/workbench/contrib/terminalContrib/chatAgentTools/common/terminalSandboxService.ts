@@ -28,6 +28,11 @@ import { ILifecycleService, WillShutdownJoinerOrder } from '../../../../services
 
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
+export interface ITerminalSandboxResolvedNetworkDomains {
+	allowedDomains: string[];
+	deniedDomains: string[];
+}
+
 export interface ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): Promise<boolean>;
@@ -36,6 +41,7 @@ export interface ITerminalSandboxService {
 	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
+	getResolvedNetworkDomains(): ITerminalSandboxResolvedNetworkDomains;
 }
 
 export class TerminalSandboxService extends Disposable implements ITerminalSandboxService {
@@ -262,6 +268,18 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}
 
 		return undefined;
+	}
+
+	public getResolvedNetworkDomains(): ITerminalSandboxResolvedNetworkDomains {
+		const networkSetting = this._configurationService.getValue<ITerminalSandboxNetworkSettings>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
+		let allowedDomains = networkSetting.allowedDomains ?? [];
+		if (networkSetting.allowTrustedDomains) {
+			allowedDomains = this._addTrustedDomainsToAllowedDomains(allowedDomains);
+		}
+		return {
+			allowedDomains,
+			deniedDomains: networkSetting.deniedDomains ?? []
+		};
 	}
 
 	private _addTrustedDomainsToAllowedDomains(allowedDomains: string[]): string[] {

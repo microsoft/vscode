@@ -116,6 +116,7 @@ suite('RunInTerminalTool', () => {
 			getTempDir: () => undefined,
 			setNeedsForceUpdateConfigFile: () => { },
 			getOS: async () => OperatingSystem.Linux,
+			getResolvedNetworkDomains: () => ({ allowedDomains: [], deniedDomains: [] }),
 		};
 		instantiationService.stub(ITerminalSandboxService, terminalSandboxService);
 
