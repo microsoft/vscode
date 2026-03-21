@@ -151,6 +151,17 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'default',
 				'description': localize('tabDescription', "Controls the format of the label for an editor."),
 			},
+			'workbench.editor.tabHoverVerbosity': {
+				'type': 'string',
+				'enum': ['default', 'short', 'detailed'],
+				'enumDescriptions': [
+					localize('workbench.editor.tabHoverVerbosity.default', "Show the full file path in the tab hover."),
+					localize('workbench.editor.tabHoverVerbosity.short', "Show only the file name in the tab hover."),
+					localize('workbench.editor.tabHoverVerbosity.detailed', "Show the file name on the first line and the file path on the second line in the tab hover.")
+				],
+				'default': 'default',
+				'markdownDescription': localize({ comment: ['{0} will be a setting name rendered as a link'], key: 'tabHoverVerbosity' }, "Controls the verbosity of the tab hover tooltip. This value is ignored when {0} is not set to {1}.", '`#workbench.editor.showTabs#`', '`multiple`'),
+			},
 			'workbench.editor.untitled.labelFormat': {
 				'type': 'string',
 				'enum': ['content', 'name'],
