@@ -365,7 +365,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 			this._pluginPromptFilesByType.get(type) ?? [],
 		]);
 
-		return [...prompts.flat(), ...this.internalCustomizations.getPromptPaths(type)];
+		// Deduplicate by URI, keeping the first occurrence (user > local > extension > plugin > internal)
+		const seen = new ResourceSet();
+		const result: IPromptPath[] = [];
+		for (const prompt of [...prompts.flat(), ...this.internalCustomizations.getPromptPaths(type)]) {
+			if (!seen.has(prompt.uri)) {
+				seen.add(prompt.uri);
+				result.push(prompt);
+			}
+		}
+		return result;
 	}
 
 	/**

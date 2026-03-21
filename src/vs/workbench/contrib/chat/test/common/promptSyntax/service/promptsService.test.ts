@@ -1883,6 +1883,59 @@ suite('PromptsService', () => {
 			assert.strictEqual(result.length, 1, 'Should find 1 skill from tilde-expanded path');
 			assert.ok(result[0].uri.path.includes('/home/user/my-custom-skills'), 'Path should be expanded from tilde');
 		});
+
+		test('should deduplicate skills found in both skill locations and plugin locations', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'dedup-skill-plugin';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const skillUri = URI.file(`${rootFolder}/.github/skills/my-skill/SKILL.md`);
+
+			await mockFiles(fileService, [
+				{
+					path: skillUri.path,
+					contents: [
+						'---',
+						'name: "My Skill"',
+						'description: "A skill from both locations"',
+						'---',
+						'Skill content',
+					],
+				},
+			]);
+
+			// Also register the same skill URI via a plugin
+			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
+			const skills = observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', [
+				{ uri: skillUri, name: 'my-skill' },
+			]);
+			const plugin: IAgentPlugin = {
+				uri: URI.file(`${rootFolder}/plugin`),
+				label: 'test-plugin',
+				enablement,
+				remove: () => { },
+				hooks: observableValue('hooks', []),
+				commands: observableValue('commands', []),
+				skills,
+				agents: observableValue('agents', []),
+				instructions: observableValue('instructions', []),
+				mcpServerDefinitions: observableValue('mcpServerDefinitions', []),
+			};
+
+			testPluginsObservable.set([plugin], undefined);
+
+			const result = (await service.listPromptFiles(PromptsType.skill, CancellationToken.None)).filter(s => s.storage !== PromptsStorage.internal);
+
+			// Should deduplicate by URI: the skill found by both the locator and the plugin should appear only once
+			const matchingSkills = result.filter(s => s.uri.toString() === skillUri.toString());
+			assert.strictEqual(matchingSkills.length, 1, 'Same skill URI should appear only once (deduplicated)');
+			assert.strictEqual(matchingSkills[0].storage, PromptsStorage.local, 'Should keep the locator version (local) over the plugin version');
+		});
 	});
 
 	suite('listPromptFiles - extensions', () => {
