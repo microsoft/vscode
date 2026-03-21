@@ -94,20 +94,73 @@ suite('stripCommandEchoAndPrompt', () => {
 		);
 	});
 
-	test('strips trailing prompt with various prompt characters ($ > # %)', () => {
-		for (const promptChar of ['$', '>', '#', '%']) {
-			const output = [
-				`prompt ${promptChar} echo hello`,
-				'hello',
-				`prompt ${promptChar} `,
-			].join('\n');
+	test('strips trailing prompt with various prompt styles', () => {
+		// bash user@host:path $
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(
+				['user@host:~ $ echo hello', 'hello', 'user@host:~ $ '].join('\n'),
+				'echo hello'
+			),
+			'hello',
+			'Failed for bash $ prompt'
+		);
+		// root user@host:path #
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(
+				['root@server:/var/log# echo hello', 'hello', 'root@server:/var/log# '].join('\n'),
+				'echo hello'
+			),
+			'hello',
+			'Failed for root # prompt'
+		);
+		// bracketed prompt ending with ] $
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(
+				['s/workspace ] $ echo hello', 'hello', 's/workspace ] $ '].join('\n'),
+				'echo hello'
+			),
+			'hello',
+			'Failed for bracketed ] $ prompt'
+		);
+		// PowerShell PS C:\>
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(
+				['PS C:\\Users\\test> echo hello', 'hello', 'PS C:\\Users\\test>'].join('\n'),
+				'echo hello'
+			),
+			'hello',
+			'Failed for PowerShell prompt'
+		);
+	});
 
-			assert.strictEqual(
-				stripCommandEchoAndPrompt(output, 'echo hello'),
-				'hello',
-				`Failed for prompt character: ${promptChar}`
-			);
-		}
+	test('does not strip output lines ending with prompt-like characters', () => {
+		// Output ending with % (e.g. percentage)
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(
+				['user@host:~ $ echo "100%"', '100%', 'user@host:~ $ '].join('\n'),
+				'echo "100%"'
+			),
+			'100%',
+			'Should not strip line ending with %'
+		);
+		// Output ending with > (e.g. HTML or comparison)
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(
+				['user@host:~ $ echo "<div>"', '<div>', 'user@host:~ $ '].join('\n'),
+				'echo "<div>"'
+			),
+			'<div>',
+			'Should not strip line ending with >'
+		);
+		// Output ending with # (e.g. comment marker)
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(
+				['user@host:~ $ echo "item #"', 'item #', 'user@host:~ $ '].join('\n'),
+				'echo "item #"'
+			),
+			'item #',
+			'Should not strip line ending with #'
+		);
 	});
 
 	test('handles command with leading space (history prevention)', () => {

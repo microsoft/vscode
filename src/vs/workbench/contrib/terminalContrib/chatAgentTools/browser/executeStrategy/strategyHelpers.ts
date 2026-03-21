@@ -128,19 +128,30 @@ export function stripCommandEchoAndPrompt(output: string, commandLine: string): 
 
 	// Strip trailing lines that are part of the next shell prompt. Prompts may
 	// span multiple lines due to terminal column wrapping. We strip from the
-	// bottom any line that is either:
-	// - Empty/whitespace
-	// - Ends with a prompt character ($, >, #, %)
-	// - Looks like a shell prompt (contains ] $ or user@host patterns)
+	// bottom any line that matches a known prompt pattern. Patterns are
+	// intentionally anchored and specific to avoid stripping legitimate output
+	// that happens to end with characters like $, #, %, or >.
 	let endIndex = lines.length;
 	while (endIndex > startIndex) {
 		const line = lines[endIndex - 1].trimEnd();
 		if (
 			line.length === 0 ||
-			/[>$#%]\s*$/.test(line) ||
-			/\]\s*\$/.test(line) ||
-			/\w+@[\w-]+:/.test(line) ||
-			/^\[?\s*\w+@/.test(line)
+			// Bash/zsh prompt: user@host:path ending with $ or #
+			// e.g., "user@host:~/src $ " or "root@server:/var/log# "
+			/^\s*\w+@[\w.-]+:.*[#$]\s*$/.test(line) ||
+			// Bracketed prompt start: [ user@host:/path (wrapped prompt first line)
+			// e.g., "[ alex@MacBook-Pro:/Users/alex/src/vscode4/extensions/vscode-api-test"
+			/^\[\s*\w+@[\w.-]+:/.test(line) ||
+			// Bracketed prompt end: ...] $ or ...] #
+			// e.g., "s/testWorkspace (main**) ] $ "
+			/\]\s*[#$]\s*$/.test(line) ||
+			// PowerShell prompt: PS C:\path>
+			/^PS\s+[A-Z]:\\.*>\s*$/.test(line) ||
+			// Windows cmd prompt: C:\path>
+			/^[A-Z]:\\.*>\s*$/.test(line) ||
+			// Starship prompt character (❯)		// allow-any-unicode-next-line			/\u276f\s*$/.test(line) ||
+			// Python REPL prompt
+			/^>>>\s*$/.test(line)
 		) {
 			endIndex--;
 		} else {
