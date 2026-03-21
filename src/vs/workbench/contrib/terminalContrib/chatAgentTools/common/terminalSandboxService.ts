@@ -142,9 +142,9 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		// Use ELECTRON_RUN_AS_NODE=1 to make Electron executable behave as Node.js
 		// TMPDIR must be set as environment variable before the command
 		// Quote shell arguments so the wrapped command cannot break out of the outer shell.
-		const wrappedCommand = `PATH="$PATH:${dirname(this._rgPath)}" TMPDIR="${this._tempDir.path}" CLAUDE_TMPDIR="${this._tempDir.path}" "${this._srtPath}" --settings "${this._sandboxConfigPath}" -c ${this._quoteShellArgument(command)}`;
+		const wrappedCommand = `PATH="$PATH:${dirname(this._rgPath)}" TMPDIR="${this._tempDir.path}" CLAUDE_TMPDIR="${this._tempDir.path}" "${this._execPath}" "${this._srtPath}" --settings "${this._sandboxConfigPath}" -c ${this._quoteShellArgument(command)}`;
 		if (this._remoteEnvDetails) {
-			return `"${this._execPath}" ${wrappedCommand}`;
+			return `${wrappedCommand}`;
 		}
 		return `ELECTRON_RUN_AS_NODE=1 ${wrappedCommand}`;
 	}
@@ -258,16 +258,25 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	}
 
 	private _getSandboxTempDirPath(remoteEnv: IRemoteAgentEnvironment | null): URI | undefined {
+		const sandboxTempDirName = this._getSandboxWindowTempDirName();
 		if (remoteEnv?.userHome) {
-			return URI.joinPath(remoteEnv.userHome, this._productService.serverDataFolderName ?? this._productService.dataFolderName, TerminalSandboxService._sandboxTempDirName);
+			const sandboxRoot = URI.joinPath(remoteEnv.userHome, this._productService.serverDataFolderName ?? this._productService.dataFolderName, TerminalSandboxService._sandboxTempDirName);
+			return sandboxTempDirName ? URI.joinPath(sandboxRoot, sandboxTempDirName) : sandboxRoot;
 		}
 
 		const nativeEnv = this._environmentService as IEnvironmentService & { userHome?: URI };
 		if (nativeEnv.userHome) {
-			return URI.joinPath(nativeEnv.userHome, this._productService.dataFolderName, TerminalSandboxService._sandboxTempDirName);
+			const sandboxRoot = URI.joinPath(nativeEnv.userHome, this._productService.dataFolderName, TerminalSandboxService._sandboxTempDirName);
+			return sandboxTempDirName ? URI.joinPath(sandboxRoot, sandboxTempDirName) : sandboxRoot;
 		}
 
 		return undefined;
+	}
+
+	private _getSandboxWindowTempDirName(): string | undefined {
+		const workbenchEnv = this._environmentService as IEnvironmentService & { window?: { id?: number } };
+		const windowId = workbenchEnv.window?.id;
+		return typeof windowId === 'number' ? `tmp_vscode_${windowId}` : undefined;
 	}
 
 	public getResolvedNetworkDomains(): ITerminalSandboxResolvedNetworkDomains {
