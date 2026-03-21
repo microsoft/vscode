@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { NoneExecuteStrategy } from '../../browser/executeStrategy/noneExecuteStrategy.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 suite('NoneExecuteStrategy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -78,7 +79,8 @@ suite('NoneExecuteStrategy', () => {
 		);
 
 		const logService = createLogService();
-		const strategy = store.add(new NoneExecuteStrategy(instance, () => false, logService));
+		const configService = new TestConfigurationService();
+		const strategy = store.add(new NoneExecuteStrategy(instance, () => false, configService, logService));
 		const cts = store.add(new CancellationTokenSource());
 
 		const result = await strategy.execute('echo test', cts.token);
@@ -104,7 +106,8 @@ suite('NoneExecuteStrategy', () => {
 		);
 
 		const logService = createLogService();
-		const strategy = store.add(new NoneExecuteStrategy(instance, () => false, logService));
+		const configService = new TestConfigurationService();
+		const strategy = store.add(new NoneExecuteStrategy(instance, () => false, configService, logService));
 		const cts = store.add(new CancellationTokenSource());
 
 		const result = await strategy.execute(
