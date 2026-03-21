@@ -647,11 +647,11 @@ export function isSerializedFileMatch(arg: ISerializedSearchProgressItem): arg i
 	return !!(<ISerializedFileMatch>arg).path;
 }
 
-export function isFilePatternMatch(candidate: IRawFileMatch, filePatternToUse: string, fuzzy = true): boolean {
+export function isFilePatternMatch(candidate: IRawFileMatch, filePatternToUse: string, fuzzy = true, ignoreCase?: boolean): boolean {
 	const pathToMatch = candidate.searchPath ? candidate.searchPath : candidate.relativePath;
 	return fuzzy ?
 		fuzzyContains(pathToMatch, filePatternToUse) :
-		glob.match(filePatternToUse, pathToMatch);
+		glob.match(filePatternToUse, pathToMatch, ignoreCase ? { ignoreCase } : undefined);
 }
 
 export interface ISerializedFileMatch {
