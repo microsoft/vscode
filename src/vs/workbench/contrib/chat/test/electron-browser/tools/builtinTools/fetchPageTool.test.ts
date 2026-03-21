@@ -203,6 +203,90 @@ suite('FetchWebPageTool', () => {
 		assert.ok(messageText.includes('invalid://invalid'), 'Should mention invalid URL');
 	});
 
+	test('should not show confirmation dialog for local file URIs', async () => {
+		const fileContentMap = new ResourceMap<string | VSBuffer>([
+			[URI.parse('file:///tmp/plan.md'), 'Plan content'],
+			[URI.parse('test://static/resource/50'), 'MCP resource content']
+		]);
+
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorService(new ResourceMap<string>()),
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService(),
+			new MockChatService(),
+		);
+
+		// Local file URI - should not trigger confirmation
+		const filePreparation = await tool.prepareToolInvocation(
+			{ parameters: { urls: ['file:///tmp/plan.md'] }, toolCallId: 'test-file', chatSessionResource: undefined },
+			CancellationToken.None
+		);
+		assert.ok(filePreparation, 'Should return prepared invocation');
+		assert.strictEqual(filePreparation.confirmationMessages?.title, undefined, 'File URI should not show confirmation dialog');
+		assert.strictEqual(filePreparation.confirmationMessages?.confirmResults, false, 'File URI should not require post-confirmation');
+
+		// Non-http/https URI (e.g. MCP resource) - should not trigger confirmation
+		const mcpPreparation = await tool.prepareToolInvocation(
+			{ parameters: { urls: ['test://static/resource/50'] }, toolCallId: 'test-mcp', chatSessionResource: undefined },
+			CancellationToken.None
+		);
+		assert.ok(mcpPreparation, 'Should return prepared invocation');
+		assert.strictEqual(mcpPreparation.confirmationMessages?.title, undefined, 'Non-web URI should not show confirmation dialog');
+		assert.strictEqual(mcpPreparation.confirmationMessages?.confirmResults, false, 'Non-web URI should not require post-confirmation');
+	});
+
+	test('should show confirmation dialog for untrusted web URIs', async () => {
+		const webContentMap = new ResourceMap<string>([
+			[URI.parse('https://example.com'), 'Web content']
+		]);
+
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorService(webContentMap),
+			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+			new MockTrustedDomainService([]), // No trusted domains
+			new MockChatService(),
+		);
+
+		const preparation = await tool.prepareToolInvocation(
+			{ parameters: { urls: ['https://example.com'] }, toolCallId: 'test-web', chatSessionResource: undefined },
+			CancellationToken.None
+		);
+		assert.ok(preparation, 'Should return prepared invocation');
+		assert.ok(preparation.confirmationMessages?.title, 'Untrusted web URI should show confirmation dialog');
+		assert.strictEqual(preparation.confirmationMessages?.confirmResults, true, 'Web URI should require post-confirmation');
+	});
+
+	test('should not show confirmation for file URI even when mixed with untrusted web URI', async () => {
+		const webContentMap = new ResourceMap<string>([
+			[URI.parse('https://example.com'), 'Web content']
+		]);
+		const fileContentMap = new ResourceMap<string | VSBuffer>([
+			[URI.parse('file:///tmp/plan.md'), 'Plan content']
+		]);
+
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorService(webContentMap),
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService([]), // No trusted domains
+			new MockChatService(),
+		);
+
+		// Mix: one web URI (needs confirmation) + one file URI (no confirmation needed)
+		const preparation = await tool.prepareToolInvocation(
+			{ parameters: { urls: ['https://example.com', 'file:///tmp/plan.md'] }, toolCallId: 'test-mixed', chatSessionResource: undefined },
+			CancellationToken.None
+		);
+		assert.ok(preparation, 'Should return prepared invocation');
+		// Confirmation should only be shown for the web URI
+		assert.ok(preparation.confirmationMessages?.title, 'Should show confirmation for untrusted web URI');
+		// The confirmation message should only mention the web URI, not the file URI
+		const msgValue = typeof preparation.confirmationMessages?.message === 'string'
+			? preparation.confirmationMessages.message
+			: preparation.confirmationMessages?.message?.value ?? '';
+		assert.ok(!msgValue.includes('file:///'), 'Confirmation message should not mention file URI');
+		assert.ok(msgValue.includes('example.com'), 'Confirmation message should mention web URI');
+	});
+
 	test('should approve when all URLs were mentioned in chat', async () => {
 		const webContentMap = new ResourceMap<string>([
 			[URI.parse('https://valid.com'), 'Valid content']

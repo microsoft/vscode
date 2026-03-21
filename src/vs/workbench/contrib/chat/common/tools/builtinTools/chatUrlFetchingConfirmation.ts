@@ -57,6 +57,10 @@ export class ChatUrlFetchingConfirmationContribution implements ILanguageModelTo
 		const allApproved = urls.every(url => {
 			try {
 				const uri = URI.parse(url);
+				// Non-web URIs (file://, custom://, etc.) don't require web trust approval
+				if (uri.scheme !== 'http' && uri.scheme !== 'https') {
+					return true;
+				}
 				return isUrlApproved(uri, approvedUrls, checkRequest);
 			} catch {
 				return false;

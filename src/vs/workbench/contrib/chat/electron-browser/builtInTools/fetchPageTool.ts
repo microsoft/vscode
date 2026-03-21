@@ -170,7 +170,12 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 
 		const invalid = [...Array.from(invalidUris), ...additionalInvalidUrls];
-		const urlsNeedingConfirmation = new ResourceSet([...webUris.values(), ...validFileUris]);
+		// All valid URIs (web + file) for display in messages
+		const allFetchedUris = new ResourceSet([...webUris.values(), ...validFileUris]);
+		// Only web URIs need trust-based confirmation; non-web URIs (file://, mcp-resource://, etc.)
+		// are accessed through the file system and don't carry the web content risks
+		// (prompt injection, malicious redirects) that justify the confirmation dialog
+		const urlsNeedingConfirmation = new ResourceSet([...webUris.values()]);
 
 		const pastTenseMessage = invalid.length
 			? invalid.length > 1
@@ -178,7 +183,7 @@ export class FetchWebPageTool implements IToolImpl {
 				? new MarkdownString(
 					localize(
 						'fetchWebPage.pastTenseMessage.plural',
-						'Fetched {0} resources, but the following were invalid URLs:\n\n{1}\n\n', urlsNeedingConfirmation.size, invalid.map(url => `- ${url}`).join('\n')
+						'Fetched {0} resources, but the following were invalid URLs:\n\n{1}\n\n', allFetchedUris.size, invalid.map(url => `- ${url}`).join('\n')
 					))
 				// If there is only one invalid URL, show it
 				: new MarkdownString(
@@ -190,11 +195,11 @@ export class FetchWebPageTool implements IToolImpl {
 			: new MarkdownString();
 
 		const invocationMessage = new MarkdownString();
-		if (urlsNeedingConfirmation.size > 1) {
-			pastTenseMessage.appendMarkdown(localize('fetchWebPage.pastTenseMessageResult.plural', 'Fetched {0} resources', urlsNeedingConfirmation.size));
-			invocationMessage.appendMarkdown(localize('fetchWebPage.invocationMessage.plural', 'Fetching {0} resources', urlsNeedingConfirmation.size));
-		} else if (urlsNeedingConfirmation.size === 1) {
-			const url = Iterable.first(urlsNeedingConfirmation)!.toString(true);
+		if (allFetchedUris.size > 1) {
+			pastTenseMessage.appendMarkdown(localize('fetchWebPage.pastTenseMessageResult.plural', 'Fetched {0} resources', allFetchedUris.size));
+			invocationMessage.appendMarkdown(localize('fetchWebPage.invocationMessage.plural', 'Fetching {0} resources', allFetchedUris.size));
+		} else if (allFetchedUris.size === 1) {
+			const url = Iterable.first(allFetchedUris)!.toString(true);
 			// If the URL is too long or it's a file url, show it as a link... otherwise, show it as plain text
 			if (url.length > 400 || validFileUris.length === 1) {
 				pastTenseMessage.appendMarkdown(localize({
