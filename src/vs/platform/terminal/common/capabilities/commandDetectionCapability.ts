@@ -585,7 +585,7 @@ const enum AdjustCommandStartMarkerConstants {
 
 /**
  * An object that integrated with and decorates the command detection capability to add heuristics
- * that adjust various markers to work better with Windows and ConPTY. This isn't depended upon the
+ * that adjust various markers to work better with Windows and ConPTY. This isn't dependent upon the
  * frontend OS, or even the backend OS, but the `IsWindows` property which technically a non-Windows
  * client can emit (for example in tests).
  */
