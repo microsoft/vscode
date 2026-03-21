@@ -190,26 +190,50 @@ export class PackageJSONContribution implements IJSONContribution {
 				const info = await this.fetchPackageInfo(currentKey, resource);
 				if (info && info.version) {
 
-					let name = JSON.stringify(info.version);
+					// Latest version with caret (most common pattern)
+					let name = JSON.stringify('^' + info.version);
 					let proposal = new CompletionItem(name);
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = name;
-					proposal.documentation = l10n.t("The currently latest version of the package");
+					proposal.documentation = l10n.t("Matches the most recent major version (1.x.x)");
+					proposal.sortText = '!0';
 					result.add(proposal);
 
-					name = JSON.stringify('^' + info.version);
+					// Latest exact version
+					name = JSON.stringify(info.version);
 					proposal = new CompletionItem(name);
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = name;
-					proposal.documentation = l10n.t("Matches the most recent major version (1.x.x)");
+					proposal.documentation = l10n.t("The currently latest version of the package");
+					proposal.sortText = '!1';
 					result.add(proposal);
 
+					// Latest version with tilde
 					name = JSON.stringify('~' + info.version);
 					proposal = new CompletionItem(name);
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = name;
 					proposal.documentation = l10n.t("Matches the most recent minor version (1.2.x)");
+					proposal.sortText = '!2';
 					result.add(proposal);
+
+					// All available versions (newest first, skip latest which is already shown)
+					if (info.versions) {
+						const maxVersions = 20;
+						let count = 0;
+						for (const ver of info.versions) {
+							if (ver === info.version || count >= maxVersions) {
+								continue;
+							}
+							name = JSON.stringify(ver);
+							proposal = new CompletionItem(name);
+							proposal.kind = CompletionItemKind.Property;
+							proposal.insertText = name;
+							proposal.sortText = `~${String(count).padStart(4, '0')}`;
+							result.add(proposal);
+							count++;
+						}
+					}
 				}
 			}
 		}
@@ -286,7 +310,7 @@ export class PackageJSONContribution implements IJSONContribution {
 	private async npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
 		const cp = await import('child_process');
 		return new Promise((resolve, _reject) => {
-			const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time'];
+			const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'versions', 'time'];
 			const cwd = resource && resource.scheme === 'file' ? dirname(resource.fsPath) : undefined;
 
 			// corepack npm wrapper would automatically update package.json. disable that behavior.
@@ -305,9 +329,11 @@ export class PackageJSONContribution implements IJSONContribution {
 					try {
 						const content = JSON.parse(stdout);
 						const version = content['dist-tags.latest'] || content['version'];
+						const allVersions: string[] = Array.isArray(content['versions']) ? [...content['versions']].reverse() : [];
 						resolve({
 							description: content['description'],
 							version,
+							versions: allVersions,
 							time: content.time?.[version],
 							homepage: content['homepage']
 						});
@@ -330,9 +356,11 @@ export class PackageJSONContribution implements IJSONContribution {
 			});
 			const obj = JSON.parse(success.responseText);
 			const version = obj['dist-tags']?.latest || Object.keys(obj.versions).pop() || '';
+			const allVersions = obj.versions ? Object.keys(obj.versions).reverse() : [];
 			return {
 				description: obj.description || '',
 				version,
+				versions: allVersions,
 				time: obj.time?.[version],
 				homepage: obj.homepage || ''
 			};
@@ -397,6 +425,7 @@ interface SearchPackageInfo {
 interface ViewPackageInfo {
 	description: string;
 	version?: string;
+	versions?: string[];
 	time?: string;
 	homepage?: string;
 }
