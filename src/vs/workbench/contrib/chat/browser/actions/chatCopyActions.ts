@@ -104,6 +104,55 @@ export function registerChatCopyActions() {
 		}
 	});
 
+	registerAction2(class CopyMessageAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.copyMessage',
+				title: localize2('interactive.copyMessage.label', "Copy Message"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.copy,
+				menu: [{
+					id: MenuId.ChatMessageFooter,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.or(ChatContextKeys.isResponse, ChatContextKeys.isRequest),
+						ChatContextKeys.responseIsFiltered.negate()
+					)
+				}]
+			});
+		}
+
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
+			const chatWidgetService = accessor.get(IChatWidgetService);
+			const clipboardService = accessor.get(IClipboardService);
+
+			const widget = chatWidgetService.lastFocusedWidget;
+			let item = args[0] as ChatTreeItem | undefined;
+			if (!isChatTreeItem(item)) {
+				item = widget?.getFocus();
+				if (!item) {
+					return;
+				}
+			}
+
+			if (isRequestVM(item)) {
+				await clipboardService.writeText(item.messageText);
+			} else if (isResponseVM(item)) {
+				// Copy the full markdown output of the response
+				const markdown = item.response.getMarkdown();
+				if (markdown) {
+					await clipboardService.writeText(markdown);
+				} else {
+					// Fallback to the string representation
+					const text = stringifyItem(item, false);
+					await clipboardService.writeText(text);
+				}
+			}
+		}
+	});
+
 	registerAction2(class CopyKatexMathSourceAction extends Action2 {
 		constructor() {
 			super({
