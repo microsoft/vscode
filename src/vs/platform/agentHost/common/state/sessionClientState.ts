@@ -21,6 +21,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IActionEnvelope, INotification, ISessionAction, isRootAction, isSessionAction, IStateAction } from './sessionActions.js';
 import { rootReducer, sessionReducer } from './sessionReducers.js';
 import { IRootState, ISessionState, ROOT_STATE_URI } from './sessionState.js';
+import { ILogService } from '../../../log/common/log.js';
 
 // ---- Pending action tracking ------------------------------------------------
 
@@ -49,6 +50,7 @@ interface IPendingAction {
 export class SessionClientState extends Disposable {
 
 	private readonly _clientId: string;
+	private readonly _log: (msg: string) => void;
 	private _nextClientSeq = 1;
 	private _lastSeenServerSeq = 0;
 
@@ -72,9 +74,10 @@ export class SessionClientState extends Disposable {
 	private readonly _onDidReceiveNotification = this._register(new Emitter<INotification>());
 	readonly onDidReceiveNotification: Event<INotification> = this._onDidReceiveNotification.event;
 
-	constructor(clientId: string) {
+	constructor(clientId: string, logService: ILogService) {
 		super();
 		this._clientId = clientId;
+		this._log = msg => logService.warn(`[SessionClientState] ${msg}`);
 	}
 
 	get clientId(): string {
@@ -208,13 +211,13 @@ export class SessionClientState extends Disposable {
 
 	private _applyToConfirmed(action: IStateAction): void {
 		if (isRootAction(action) && this._confirmedRootState) {
-			this._confirmedRootState = rootReducer(this._confirmedRootState, action);
+			this._confirmedRootState = rootReducer(this._confirmedRootState, action, this._log);
 		}
 		if (isSessionAction(action)) {
 			const key = action.session.toString();
 			const state = this._confirmedSessionStates.get(key);
 			if (state) {
-				this._confirmedSessionStates.set(key, sessionReducer(state, action));
+				this._confirmedSessionStates.set(key, sessionReducer(state, action, this._log));
 			}
 		}
 	}
@@ -223,7 +226,7 @@ export class SessionClientState extends Disposable {
 		const key = action.session.toString();
 		const state = this._optimisticSessionStates.get(key);
 		if (state) {
-			const newState = sessionReducer(state, action);
+			const newState = sessionReducer(state, action, this._log);
 			this._optimisticSessionStates.set(key, newState);
 			this._onDidChangeSessionState.fire({ session: action.session, state: newState });
 		}
@@ -266,7 +269,7 @@ export class SessionClientState extends Disposable {
 		let state = confirmed;
 		for (const pending of this._pendingActions) {
 			if (isSessionAction(pending.action) && pending.action.session === session) {
-				state = sessionReducer(state, pending.action);
+				state = sessionReducer(state, pending.action, this._log);
 			}
 		}
 

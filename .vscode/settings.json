@@ -12,7 +12,6 @@
 	"chat.tools.edits.autoApprove": {
 		".github/skills/azure-pipelines/azure-pipeline.ts": false
 	},
-	"chat.viewSessions.enabled": true,
 	"chat.editing.explainChanges.enabled": true,
 	// --- Editor ---
 	"editor.insertSpaces": false,

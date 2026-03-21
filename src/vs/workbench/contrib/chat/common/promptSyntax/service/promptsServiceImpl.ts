@@ -29,7 +29,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
-import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, getCleanPromptName, GITHUB_CONFIG_FOLDER, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
+import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, getCleanPromptName, getSkillFolderName, GITHUB_CONFIG_FOLDER, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, Target, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import {
 	IWorkspaceInstructionFile,
@@ -267,11 +267,23 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		this._register(autorun(reader => {
 			const plugins = this.agentPluginService.plugins.read(reader);
+			const hookFiles: IPluginPromptPath[] = [];
 			for (const plugin of plugins) {
 				if (isContributionEnabled(plugin.enablement.read(reader))) {
-					plugin.hooks.read(reader);
+					for (const hook of plugin.hooks.read(reader)) {
+						hookFiles.push({
+							uri: hook.uri,
+							storage: PromptsStorage.plugin,
+							type: PromptsType.hook,
+							name: getCanonicalPluginCommandId(plugin, hook.originalId),
+							pluginUri: plugin.uri,
+						});
+					}
 				}
 			}
+
+			this._pluginPromptFilesByType.set(PromptsType.hook, hookFiles);
+			this.cachedFileLocations[PromptsType.hook] = undefined;
 			this._onDidPluginHooksChange.fire();
 		}));
 	}
@@ -603,7 +615,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const promptFiles = await this.listPromptFiles(PromptsType.prompt, token);
 		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
 		const skills = useAgentSkills ? await this.listPromptFiles(PromptsType.skill, token) : [];
-		const slashCommandFiles = [...promptFiles, ...skills];
+		const disabledSkills = this.getDisabledPromptFiles(PromptsType.skill);
+		const slashCommandFiles = [
+			...promptFiles,
+			...skills.filter(s => !disabledSkills.has(s.uri)),
+		];
 		const details = await Promise.all(slashCommandFiles.map(async promptPath => {
 			try {
 				const parsedPromptFile = await this.parseNew(promptPath.uri, token);
@@ -1007,6 +1023,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		this.storageService.store(this.disabledPromptsStorageKeyPrefix + type, JSON.stringify(disabled), StorageScope.PROFILE, StorageTarget.USER);
 		if (type === PromptsType.agent) {
 			this.cachedCustomAgents.refresh();
+		} else if (type === PromptsType.skill) {
+			this.cachedSkills.refresh();
+			this.cachedSlashCommands.refresh();
 		}
 	}
 
@@ -1040,8 +1059,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const sanitizedName = this.truncateAgentSkillName(name, uri);
 
 		// Validate that the sanitized name matches the parent folder name (per agentskills.io specification)
-		const skillFolderUri = dirname(uri);
-		const folderName = basename(skillFolderUri);
+		const folderName = getSkillFolderName(uri);
 		if (sanitizedName !== folderName) {
 			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill name "${sanitizedName}" does not match folder name "${folderName}": ${uri}`);
 			throw new SkillNameMismatchError(uri, sanitizedName, folderName);
@@ -1374,7 +1392,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		const { files } = await this.computeSkillDiscoveryInfo(token);
-		return { type: PromptsType.skill, files };
+		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.skill);
+		return { type: PromptsType.skill, files, sourceFolders };
 	}
 
 	/**
@@ -1445,20 +1464,18 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 			try {
 				const parsedFile = await this.parseNew(uri, token);
-				const name = parsedFile.header?.name;
-				if (!name) {
-					this.logger.error(`[computeSkillDiscoveryInfo] Agent skill file missing name attribute: ${uri}`);
-					files.push({ uri, storage, status: 'skipped', skipReason: 'missing-name', extensionId, source });
-					continue;
-				}
+				const folderName = getSkillFolderName(uri);
 
+				let name = parsedFile.header?.name;
+
+				if (!name) {
+					this.logger.warn(`[computeSkillDiscoveryInfo] Agent skill file missing name attribute, using folder name "${folderName}": ${uri}`);
+					name = folderName;
+				}
 				const sanitizedName = this.truncateAgentSkillName(name, uri);
-				const skillFolderUri = dirname(uri);
-				const folderName = basename(skillFolderUri);
 				if (sanitizedName !== folderName) {
-					this.logger.error(`[computeSkillDiscoveryInfo] Agent skill name "${sanitizedName}" does not match folder name "${folderName}": ${uri}`);
-					files.push({ uri, storage, status: 'skipped', skipReason: 'name-mismatch', name: sanitizedName, extensionId, source });
-					continue;
+					this.logger.warn(`[computeSkillDiscoveryInfo] Agent skill name "${sanitizedName}" does not match folder name "${folderName}", using folder name: ${uri}`);
+
 				}
 
 				if (seenNames.has(sanitizedName)) {
@@ -1468,11 +1485,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 				}
 
 				const description = parsedFile.header?.description;
-				if (!description) {
-					this.logger.error(`[computeSkillDiscoveryInfo] Agent skill file missing description attribute: ${uri}`);
-					files.push({ uri, storage, status: 'skipped', skipReason: 'missing-description', name: sanitizedName, extensionId, source });
-					continue;
-				}
 
 				seenNames.add(sanitizedName);
 				nameToUri.set(sanitizedName, uri);

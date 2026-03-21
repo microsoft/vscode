@@ -286,11 +286,25 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		}
 	}
 
-	async cleanupPluginSource(plugin: IMarketplacePlugin): Promise<void> {
+	async cleanupPluginSource(plugin: IMarketplacePlugin, otherInstalledDescriptors?: readonly IPluginSourceDescriptor[]): Promise<void> {
 		const repo = this.getPluginSource(plugin.sourceDescriptor.kind);
 		const cleanupDir = repo.getCleanupTarget(this._cacheRoot, plugin.sourceDescriptor);
 		if (!cleanupDir) {
 			return;
+		}
+
+		// Skip deletion when another installed plugin shares the same
+		// cleanup target (e.g. same cloned repository with different sub-paths).
+		if (otherInstalledDescriptors) {
+			const shared = otherInstalledDescriptors.some(other => {
+				const otherRepo = this.getPluginSource(other.kind);
+				const otherTarget = otherRepo.getCleanupTarget(this._cacheRoot, other);
+				return otherTarget && isEqual(otherTarget, cleanupDir);
+			});
+			if (shared) {
+				this._logService.info(`[${plugin.sourceDescriptor.kind}] Skipping cleanup of shared cache: ${cleanupDir.toString()}`);
+				return;
+			}
 		}
 
 		try {

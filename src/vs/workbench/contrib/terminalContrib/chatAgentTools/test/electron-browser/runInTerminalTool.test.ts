@@ -67,6 +67,8 @@ suite('RunInTerminalTool', () => {
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
 	let chatServiceDisposeEmitter: Emitter<{ sessionResource: URI[]; reason: 'cleared' }>;
 	let chatSessionArchivedEmitter: Emitter<IAgentSession>;
+	let sandboxEnabled: boolean;
+	let terminalSandboxService: ITerminalSandboxService;
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
@@ -81,6 +83,7 @@ suite('RunInTerminalTool', () => {
 
 		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 		setConfig(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
+		sandboxEnabled = false;
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
 		chatServiceDisposeEmitter = new Emitter<{ sessionResource: URI[]; reason: 'cleared' }>();
 		chatSessionArchivedEmitter = new Emitter<IAgentSession>();
@@ -105,14 +108,16 @@ suite('RunInTerminalTool', () => {
 		instantiationService.stub(IHistoryService, {
 			getLastActiveWorkspaceRoot: () => undefined
 		});
-		instantiationService.stub(ITerminalSandboxService, {
+		terminalSandboxService = {
 			_serviceBrand: undefined,
-			isEnabled: async () => false,
-			wrapCommand: command => command,
-			getSandboxConfigPath: async () => undefined,
+			isEnabled: async () => sandboxEnabled,
+			wrapCommand: (command: string) => `sandbox:${command}`,
+			getSandboxConfigPath: async () => sandboxEnabled ? '/tmp/sandbox.json' : undefined,
 			getTempDir: () => undefined,
-			setNeedsForceUpdateConfigFile: () => { }
-		});
+			setNeedsForceUpdateConfigFile: () => { },
+			getOS: async () => OperatingSystem.Linux,
+		};
+		instantiationService.stub(ITerminalSandboxService, terminalSandboxService);
 
 		const treeSitterLibraryService = store.add(instantiationService.createInstance(TreeSitterLibraryService));
 		treeSitterLibraryService.isTest = true;
@@ -197,6 +202,22 @@ suite('RunInTerminalTool', () => {
 			strictEqual(preparedInvocation.confirmationMessages!.title, expectedTitle);
 		}
 	}
+
+	suite('sandbox invocation messaging', () => {
+		test('should use sandbox labels when command is sandbox wrapped', async () => {
+			terminalSandboxService.isEnabled = async () => true;
+			terminalSandboxService.getSandboxConfigPath = async () => '/tmp/vscode-sandbox-settings.json';
+			terminalSandboxService.wrapCommand = (command: string) => `sandbox-runtime ${command}`;
+
+			const preparedInvocation = await executeToolTest({ command: 'echo hello' });
+
+			ok(preparedInvocation, 'Expected prepared invocation to be defined');
+			strictEqual((preparedInvocation.invocationMessage as IMarkdownString).value, '$(lock) Running `echo hello` in sandbox');
+
+			const terminalData = preparedInvocation.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
+		});
+	});
 
 	suite('default auto-approve rules', () => {
 		const defaults = terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>;
@@ -432,6 +453,43 @@ suite('RunInTerminalTool', () => {
 					assertConfirmationRequired(await executeToolTest({ command }));
 				});
 			}
+		});
+	});
+
+	suite('sandbox bypass requests', () => {
+		test('should force confirmation for explicit unsandboxed execution requests', async () => {
+			sandboxEnabled = true;
+			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+
+			const result = await executeToolTest({
+				requestUnsandboxedExecution: true,
+				requestUnsandboxedExecutionReason: 'Needs network access outside the sandbox',
+			});
+
+			assertConfirmationRequired(result, 'Run `bash` command outside the sandbox?');
+			strictEqual(result?.confirmationMessages?.allowAutoConfirm, undefined);
+			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.requestUnsandboxedExecution, true);
+			strictEqual(terminalData.requestUnsandboxedExecutionReason, 'Needs network access outside the sandbox');
+			strictEqual(terminalData.commandLine.toolEdited, undefined);
+
+			const confirmationMessage = result?.confirmationMessages?.message;
+			ok(confirmationMessage && typeof confirmationMessage !== 'string');
+			if (!confirmationMessage || typeof confirmationMessage === 'string') {
+				throw new Error('Expected markdown confirmation message');
+			}
+			ok(confirmationMessage.value.includes('Reason for leaving the sandbox: Needs network access outside the sandbox'));
+
+			strictEqual(result?.confirmationMessages?.disclaimer, undefined);
+			const actions = result?.confirmationMessages?.terminalCustomActions;
+			ok(actions, 'Expected custom actions to be defined');
+			strictEqual(actions.length, 11);
+			ok(!isSeparator(actions[0]));
+			strictEqual(actions[0].label, 'Allow `echo …` in this Session');
+			ok(!isSeparator(actions[4]));
+			strictEqual(actions[4].label, 'Allow Exact Command Line in this Session');
+			ok(!isSeparator(actions[10]));
+			strictEqual(actions[10].label, 'Configure Auto Approve...');
 		});
 	});
 

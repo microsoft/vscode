@@ -8,7 +8,7 @@ import { CancelablePromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { dirname, joinPath } from '../../../../base/common/resources.js';
+import { dirname, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -79,18 +79,27 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 	protected abstract _displayLabel(descriptor: IPluginSourceDescriptor): string;
 
 	getCleanupTarget(cacheRoot: URI, descriptor: IPluginSourceDescriptor): URI | undefined {
+		return this._getRepoDir(cacheRoot, descriptor);
+	}
+
+	/**
+	 * Returns the on-disk directory of the cloned repository. Subclasses that
+	 * support a sub-path within a repository should override this to return the
+	 * repository root, while {@link getInstallUri} returns root + sub-path.
+	 */
+	protected _getRepoDir(cacheRoot: URI, descriptor: IPluginSourceDescriptor): URI {
 		return this.getInstallUri(cacheRoot, descriptor);
 	}
 
 	async ensure(cacheRoot: URI, plugin: IMarketplacePlugin, options?: IEnsureRepositoryOptions): Promise<URI> {
 		const descriptor = plugin.sourceDescriptor;
-		const repoDir = this.getInstallUri(cacheRoot, descriptor);
+		const repoDir = this._getRepoDir(cacheRoot, descriptor);
 		const repoExists = await this._fileService.exists(repoDir);
 		const label = this._displayLabel(descriptor);
 
 		if (repoExists) {
 			await this._checkoutRevision(repoDir, descriptor, options?.failureLabel ?? label);
-			return repoDir;
+			return this.getInstallUri(cacheRoot, descriptor);
 		}
 
 		const progressTitle = options?.progressTitle ?? localize('cloningPluginSource', "Cloning plugin source '{0}'...", label);
@@ -99,12 +108,12 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 
 		await this._cloneRepository(repoDir, this._cloneUrl(descriptor), progressTitle, failureLabel, ref);
 		await this._checkoutRevision(repoDir, descriptor, failureLabel);
-		return repoDir;
+		return this.getInstallUri(cacheRoot, descriptor);
 	}
 
 	async update(cacheRoot: URI, plugin: IMarketplacePlugin, options?: IPullRepositoryOptions): Promise<boolean> {
 		const descriptor = plugin.sourceDescriptor;
-		const repoDir = this.getInstallUri(cacheRoot, descriptor);
+		const repoDir = this._getRepoDir(cacheRoot, descriptor);
 		const repoExists = await this._fileService.exists(repoDir);
 		if (!repoExists) {
 			this._logService.warn(`[${this.kind}] Cannot update plugin '${options?.pluginName ?? plugin.name}': source repository not cloned`);
@@ -242,14 +251,32 @@ export class RelativePathPluginSource implements IPluginSource {
 export class GitHubPluginSource extends AbstractGitPluginSource {
 	readonly kind = PluginSourceKind.GitHub;
 
+	/** Returns the URI where the plugin content lives (repo root + optional sub-path). */
 	getInstallUri(cacheRoot: URI, descriptor: IPluginSourceDescriptor): URI {
+		const repoDir = this._getRepoDir(cacheRoot, descriptor);
+		const gh = descriptor as IGitHubPluginSource;
+		if (gh.path) {
+			const normalizedPath = gh.path.trim().replace(/^\.?\/+|\/+$/g, '');
+			if (normalizedPath) {
+				const target = joinPath(repoDir, normalizedPath);
+				if (isEqualOrParent(target, repoDir)) {
+					return target;
+				}
+			}
+		}
+		return repoDir;
+	}
+
+	/** Returns the cloned repository root (without sub-path). */
+	protected override _getRepoDir(cacheRoot: URI, descriptor: IPluginSourceDescriptor): URI {
 		const gh = descriptor as IGitHubPluginSource;
 		const [owner, repo] = gh.repo.split('/');
 		return joinPath(cacheRoot, 'github.com', owner, repo, ...gitRevisionCacheSuffix(gh.ref, gh.sha));
 	}
 
 	getLabel(descriptor: IPluginSourceDescriptor): string {
-		return (descriptor as IGitHubPluginSource).repo;
+		const gh = descriptor as IGitHubPluginSource;
+		return gh.path ? `${gh.repo}/${gh.path}` : gh.repo;
 	}
 
 	protected _cloneUrl(descriptor: IPluginSourceDescriptor): string {

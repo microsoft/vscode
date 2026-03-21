@@ -32,6 +32,8 @@ export interface IAgentFeedback {
 	readonly suggestion?: ICodeReviewSuggestion;
 	readonly codeSelection?: string;
 	readonly diffHunks?: string;
+	/** When this feedback was converted from a PR review comment, the original thread ID. */
+	readonly sourcePRReviewCommentId?: string;
 }
 
 export interface INavigableSessionComment {
@@ -61,12 +63,17 @@ export interface IAgentFeedbackService {
 	/**
 	 * Add a feedback item for the given session.
 	 */
-	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext): IAgentFeedback;
+	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string): IAgentFeedback;
 
 	/**
 	 * Remove a single feedback item.
 	 */
 	removeFeedback(sessionResource: URI, feedbackId: string): void;
+
+	/**
+	 * Update the text of an existing feedback item.
+	 */
+	updateFeedback(sessionResource: URI, feedbackId: string, newText: string): void;
 
 	/**
 	 * Get all feedback items for a session.
@@ -110,7 +117,7 @@ export interface IAgentFeedbackService {
 	 * Add a feedback item and then submit the feedback. Waits for the
 	 * attachment to be updated in the chat widget before submitting.
 	 */
-	addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext): Promise<void>;
+	addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string): Promise<void>;
 }
 
 // --- Implementation -----------------------------------------------------------
@@ -141,7 +148,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		super();
 	}
 
-	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext): IAgentFeedback {
+	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string): IAgentFeedback {
 		const key = sessionResource.toString();
 		let feedbackItems = this._feedbackBySession.get(key);
 		if (!feedbackItems) {
@@ -158,6 +165,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			suggestion,
 			codeSelection: context?.codeSelection,
 			diffHunks: context?.diffHunks,
+			sourcePRReviewCommentId,
 		};
 
 		// Insert at the correct sorted position.
@@ -216,6 +224,25 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 				this._sessionUpdatedOrder.delete(key);
 			}
 
+			this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
+		}
+	}
+
+	updateFeedback(sessionResource: URI, feedbackId: string, newText: string): void {
+		const key = sessionResource.toString();
+		const feedbackItems = this._feedbackBySession.get(key);
+		if (!feedbackItems) {
+			return;
+		}
+
+		const idx = feedbackItems.findIndex(f => f.id === feedbackId);
+		if (idx >= 0) {
+			const existing = feedbackItems[idx];
+			feedbackItems[idx] = {
+				...existing,
+				text: newText,
+			};
+			this._sessionUpdatedOrder.set(key, ++this._sessionUpdatedSequence);
 			this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
 		}
 	}
@@ -419,8 +446,8 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems: [] });
 	}
 
-	async addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext): Promise<void> {
-		this.addFeedback(sessionResource, resourceUri, range, text, suggestion, context);
+	async addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string): Promise<void> {
+		this.addFeedback(sessionResource, resourceUri, range, text, suggestion, context, sourcePRReviewCommentId);
 
 		// Wait for the attachment contribution to update the chat widget's attachment model
 		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
