@@ -27,7 +27,7 @@ import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, ICh
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatModel, ChatRequestModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { ChatRequestQueueKind, IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatService, IChatTerminalToolInvocationData, IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
 
@@ -552,6 +552,65 @@ suite('Response', () => {
 		const notebookEditGroups = response.value.filter(p => p.kind === 'notebookEditGroup');
 		assert.strictEqual(textEditGroups.length, 0, 'Should not have textEditGroup for cell edits');
 		assert.strictEqual(notebookEditGroups.length, 1, 'Should have notebookEditGroup for cell edits');
+	});
+
+	test('external terminal tool updates preserve toolSpecificData when completing an existing invocation', () => {
+		const response = store.add(new Response([]));
+		const toolSpecificData: IChatTerminalToolInvocationData = {
+			kind: 'terminal',
+			language: 'bash',
+			commandLine: { original: 'npm test' },
+			terminalCommandOutput: { text: 'all green' },
+			terminalCommandState: { exitCode: 0 },
+		};
+
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-call-1',
+			toolName: 'run_in_terminal',
+			isComplete: false,
+			invocationMessage: 'Running npm test',
+		});
+
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-call-1',
+			toolName: 'run_in_terminal',
+			isComplete: true,
+			pastTenseMessage: 'Ran npm test',
+			toolSpecificData,
+		});
+
+		assert.strictEqual(response.value.length, 1);
+		assert.strictEqual(response.value[0].kind, 'toolInvocation');
+		assert.deepStrictEqual(response.value[0].toolSpecificData, toolSpecificData);
+		assert.strictEqual(IChatToolInvocation.isComplete(response.value[0]), true);
+	});
+
+	test('external terminal tool updates preserve toolSpecificData when first pushed as complete', () => {
+		const response = store.add(new Response([]));
+		const toolSpecificData: IChatTerminalToolInvocationData = {
+			kind: 'terminal',
+			language: 'bash',
+			commandLine: { original: 'npm test' },
+			terminalCommandOutput: { text: 'all green' },
+			terminalCommandState: { exitCode: 0 },
+		};
+
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-call-2',
+			toolName: 'run_in_terminal',
+			isComplete: true,
+			invocationMessage: 'Running npm test',
+			pastTenseMessage: 'Ran npm test',
+			toolSpecificData,
+		});
+
+		assert.strictEqual(response.value.length, 1);
+		assert.strictEqual(response.value[0].kind, 'toolInvocation');
+		assert.deepStrictEqual(response.value[0].toolSpecificData, toolSpecificData);
+		assert.strictEqual(IChatToolInvocation.isComplete(response.value[0]), true);
 	});
 });
 
