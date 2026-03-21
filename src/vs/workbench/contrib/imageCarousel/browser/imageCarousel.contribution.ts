@@ -29,19 +29,24 @@ import { ResourceSet } from '../../../../base/common/map.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { Limiter } from '../../../../base/common/async.js';
 
 // --- Configuration ---
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'imageCarousel',
-	title: localize('imageCarouselConfigurationTitle', "Image Carousel"),
+	title: localize('imageCarouselConfigurationTitle', "Images Preview"),
 	type: 'object',
 	properties: {
 		'imageCarousel.explorerContextMenu.enabled': {
 			type: 'boolean',
-			default: false,
-			markdownDescription: localize('imageCarousel.explorerContextMenu.enabled', "Controls whether the **Open in Image Carousel** option appears in the Explorer context menu. This is an experimental feature."),
+			default: true,
+			markdownDescription: localize('imageCarousel.explorerContextMenu.enabled', "Controls whether the **Open in Images Preview** option appears in the Explorer context menu."),
+			tags: ['experimental'],
+		},
+		'imageCarousel.chat.enabled': {
+			type: 'boolean',
+			default: true,
+			description: localize('imageCarousel.chat.enabled', "Controls whether clicking an image attachment in chat opens the Images Preview viewer."),
 			tags: ['experimental'],
 		},
 	}
@@ -53,7 +58,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		ImageCarouselEditor,
 		ImageCarouselEditor.ID,
-		localize('imageCarouselEditor', "Image Carousel")
+		localize('imageCarouselEditor', "Images Preview")
 	),
 	[
 		new SyncDescriptor(ImageCarouselEditorInput)
@@ -112,7 +117,7 @@ class OpenImageInCarouselAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.openImageInCarousel',
-			title: localize2('openImageInCarousel', "Open Image in Carousel"),
+			title: localize2('openImageInCarousel', "Open in Images Preview"),
 			f1: false
 		});
 	}
@@ -129,7 +134,7 @@ class OpenImageInCarouselAction extends Action2 {
 		} else if (isSingleImageArgs(args)) {
 			collection = {
 				id: generateUuid(),
-				title: args.title ?? localize('imageCarousel.title', "Image Carousel"),
+				title: args.title ?? localize('imageCarousel.title', "Images Preview"),
 				sections: [{
 					title: '',
 					images: [{
@@ -175,33 +180,20 @@ async function collectImageFilesFromFolder(fileService: IFileService, folderUri:
 	return imageUris;
 }
 
-async function readImageFiles(fileService: IFileService, uris: URI[]): Promise<ICarouselImage[]> {
-	const limiter = new Limiter<ICarouselImage | undefined>(10);
-	const results = await Promise.all(
-		uris.map(uri => limiter.queue(async () => {
-			try {
-				const content = await fileService.readFile(uri);
-				const mimeType = getMediaMime(uri.path) ?? 'image/png';
-				return {
-					id: generateUuid(),
-					name: basename(uri),
-					mimeType,
-					data: content.value,
-					uri,
-				};
-			} catch {
-				return undefined;
-			}
-		}))
-	);
-	return results.filter((r): r is ICarouselImage => r !== undefined);
+function createImageEntries(uris: URI[]): ICarouselImage[] {
+	return uris.map(uri => ({
+		id: generateUuid(),
+		name: basename(uri),
+		mimeType: getMediaMime(uri.path) ?? 'image/png',
+		uri,
+	}));
 }
 
 class OpenImagesInCarouselFromExplorerAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openImagesInCarousel',
-			title: localize2('openImagesInCarousel', "Open in Image Carousel"),
+			title: localize2('openImagesInCarousel', "Open in Images Preview"),
 			f1: false,
 			menu: [{
 				id: MenuId.ExplorerContext,
@@ -292,11 +284,7 @@ class OpenImagesInCarouselFromExplorerAction extends Action2 {
 			return;
 		}
 
-		const images = await readImageFiles(fileService, imageUris);
-		if (images.length === 0) {
-			notificationService.error(localize('imageReadError', "Could not read the selected images."));
-			return;
-		}
+		const images = createImageEntries(imageUris);
 
 		let startIndex = 0;
 		if (startUri) {
@@ -308,7 +296,7 @@ class OpenImagesInCarouselFromExplorerAction extends Action2 {
 
 		const collection: IImageCarouselCollection = {
 			id: generateUuid(),
-			title: localize('imageCarousel.explorerTitle', "Image Carousel"),
+			title: localize('imageCarousel.explorerTitle', "Images Preview"),
 			sections: [{
 				title: '',
 				images,

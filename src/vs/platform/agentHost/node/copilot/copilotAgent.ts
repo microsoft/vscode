@@ -156,11 +156,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info('[Copilot] Listing sessions...');
 		const client = await this._ensureClient();
 		const sessions = await client.listSessions();
-		const result = sessions.map(s => ({
+		const result: IAgentSessionMetadata[] = sessions.map(s => ({
 			session: AgentSession.uri(this.id, s.sessionId),
 			startTime: s.startTime.getTime(),
 			modifiedTime: s.modifiedTime.getTime(),
 			summary: s.summary,
+			workingDirectory: typeof s.context?.cwd === 'string' ? s.context.cwd : undefined,
 		}));
 		this._logService.info(`[Copilot] Found ${result.length} sessions`);
 		return result;

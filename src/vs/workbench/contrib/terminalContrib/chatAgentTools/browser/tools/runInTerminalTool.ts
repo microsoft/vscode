@@ -610,6 +610,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			treeSitterLanguage: isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
 			terminalToolSessionId,
 			chatSessionResource,
+			requiresUnsandboxConfirmation,
 		};
 		const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
 
@@ -625,7 +626,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const analyzersIsAutoApproveAllowed = commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed);
-		const customActions = !requiresUnsandboxConfirmation && isEligibleForAutoApproval() && analyzersIsAutoApproveAllowed ? commandLineAnalyzerResults.map(e => e.customActions ?? []).flat() : undefined;
+		const customActions = isEligibleForAutoApproval() && analyzersIsAutoApproveAllowed ? commandLineAnalyzerResults.map(e => e.customActions ?? []).flat() : undefined;
 
 		let shellType = basename(shell, '.exe');
 		if (shellType === 'powershell') {
@@ -720,10 +721,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		if (requiresUnsandboxConfirmation) {
-			disclaimer = new MarkdownString([
-				disclaimer?.value,
-				localize('runInTerminal.unsandboxed.disclaimer', "$(warning) This command will run outside the terminal sandbox and may access files, network resources, or system state that sandboxed commands cannot reach.")
-			].filter(Boolean).join(' '), { supportThemeIcons: true, isTrusted: disclaimer?.isTrusted });
 			confirmationTitle = args.isBackground
 				? localize('runInTerminal.unsandboxed.background', "Run `{0}` command outside the sandbox in background?", shellType)
 				: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the sandbox?", shellType);
@@ -756,7 +753,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
-		const shouldShowConfirmation = requiresUnsandboxConfirmation || (!isFinalAutoApproved && !isSessionAutoApproved) || context.forceConfirmationReason !== undefined;
+		const shouldShowConfirmation = (!isFinalAutoApproved && !isSessionAutoApproved) || context.forceConfirmationReason !== undefined;
 		const confirmationMessage = requiresUnsandboxConfirmation
 			? new MarkdownString(localize(
 				'runInTerminal.unsandboxed.confirmationMessage',
@@ -770,7 +767,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			title: confirmationTitle,
 			message: confirmationMessage,
 			disclaimer,
-			allowAutoConfirm: requiresUnsandboxConfirmation ? false : undefined,
+			allowAutoConfirm: undefined,
 			terminalCustomActions: customActions,
 		} : undefined;
 
@@ -781,8 +778,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const escapedDisplayCommand = escapeMarkdownSyntaxTokens(displayCommand);
 		const invocationMessage = toolSpecificData.commandLine.isSandboxWrapped
 			? args.isBackground
-				? new MarkdownString(localize('runInTerminal.invocation.sandbox.background', "$(lock) Running `{0}` in sandbox in background", escapedDisplayCommand), { supportThemeIcons: true })
-				: new MarkdownString(localize('runInTerminal.invocation.sandbox', "$(lock) Running `{0}` in sandbox", escapedDisplayCommand), { supportThemeIcons: true })
+				? new MarkdownString('$(lock) ' + localize('runInTerminal.invocation.sandbox.background', "Running `{0}` in sandbox in background", escapedDisplayCommand), { supportThemeIcons: true })
+				: new MarkdownString('$(lock) ' + localize('runInTerminal.invocation.sandbox', "Running `{0}` in sandbox", escapedDisplayCommand), { supportThemeIcons: true })
 			: args.isBackground
 				? new MarkdownString(localize('runInTerminal.invocation.background', "Running `{0}` in background", escapedDisplayCommand))
 				: new MarkdownString(localize('runInTerminal.invocation', "Running `{0}`", escapedDisplayCommand));
@@ -1009,12 +1006,23 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 								? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 								: `Command is running in terminal with ID=${termId}`
 				);
+				const backgroundOutput = pollingResult?.modelOutputEvalResponse ?? pollingResult?.output;
+				const outputAnalyzerMessage = backgroundOutput
+					? await this._getOutputAnalyzerMessage(undefined, backgroundOutput, command, didSandboxWrapCommand)
+					: undefined;
 				if (pollingResult && pollingResult.modelOutputEvalResponse) {
-					resultText += `\n\ The command became idle with output:\n${pollingResult.modelOutputEvalResponse}`;
+					resultText += `\n\ The command became idle with output:\n`;
+					if (outputAnalyzerMessage) {
+						resultText += `${outputAnalyzerMessage}\n`;
+					}
+					resultText += pollingResult.modelOutputEvalResponse;
 				} else if (pollingResult) {
-					resultText += `\n\ The command is still running, with output:\n${pollingResult.output}`;
+					resultText += `\n\ The command is still running, with output:\n`;
+					if (outputAnalyzerMessage) {
+						resultText += `${outputAnalyzerMessage}\n`;
+					}
+					resultText += pollingResult.output;
 				}
-
 				const endCwd = await toolTerminal.instance.getCwdResource();
 				return {
 					toolMetadata: {
@@ -1209,14 +1217,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (didTimeout && timeoutValue !== undefined && timeoutValue > 0) {
 			resultText.push(`Note: Command timed out after ${timeoutValue}ms. Output collected so far is shown below and the command may still be running in terminal ID ${termId}.\n\n`);
 		}
-		let outputAnalyzerMessage: string | undefined;
-		for (const analyzer of this._outputAnalyzers) {
-			const message = await analyzer.analyze({ exitCode, exitResult: terminalResult, commandLine: command, isSandboxWrapped: didSandboxWrapCommand });
-			if (message) {
-				outputAnalyzerMessage = message;
-				break;
-			}
-		}
+		const outputAnalyzerMessage = await this._getOutputAnalyzerMessage(exitCode, terminalResult, command, didSandboxWrapCommand);
 		if (outputAnalyzerMessage) {
 			resultText.push(`${outputAnalyzerMessage}\n`);
 		}
@@ -1249,6 +1250,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				...imageContent,
 			]
 		};
+	}
+
+	private async _getOutputAnalyzerMessage(exitCode: number | undefined, exitResult: string, commandLine: string, isSandboxWrapped: boolean): Promise<string | undefined> {
+		for (const analyzer of this._outputAnalyzers) {
+			const message = await analyzer.analyze({ exitCode, exitResult, commandLine, isSandboxWrapped });
+			if (message) {
+				return message;
+			}
+		}
+
+		return undefined;
 	}
 
 	private static readonly _maxImageFileSize = 5 * 1024 * 1024;

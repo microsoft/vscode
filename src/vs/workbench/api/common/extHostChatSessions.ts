@@ -18,11 +18,11 @@ import { SymbolKind, SymbolKinds } from '../../../editor/common/languages.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
-import { IChatNewSessionRequest, IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
-import { ChatSessionContentContextDto, ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatSessionRequestHistoryItemDto, IChatSessionProviderOptions, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
+import { ChatSessionContentContextDto, IChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatSessionRequestHistoryItemDto, IChatSessionProviderOptions, MainContext, MainThreadChatSessionsShape, IChatNewSessionRequestDto } from './extHost.protocol.js';
 import { ChatAgentResponseStream } from './extHostChatAgents2.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
@@ -303,8 +303,6 @@ class ExtHostChatSession {
 }
 
 export class ExtHostChatSessions extends Disposable implements ExtHostChatSessionsShape {
-	private static _sessionHandlePool = 0;
-
 	private readonly _proxy: Proxied<MainThreadChatSessionsShape>;
 
 	private _itemControllerHandlePool = 0;
@@ -485,7 +483,11 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		if (provider.onDidChangeChatSessionOptions) {
 			disposables.add(provider.onDidChangeChatSessionOptions(evt => {
-				this._proxy.$onDidChangeChatSessionOptions(handle, evt.resource, evt.updates);
+				const updates: Record<string, string | IChatSessionProviderOptionItem> = Object.create(null);
+				for (const update of evt.updates) {
+					updates[update.optionId] = update.value;
+				}
+				this._proxy.$onDidChangeChatSessionOptions(handle, evt.resource, updates);
 			}));
 		}
 
@@ -502,7 +504,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		});
 	}
 
-	async $provideChatSessionContent(handle: number, sessionResourceComponents: UriComponents, context: ChatSessionContentContextDto, token: CancellationToken): Promise<ChatSessionDto> {
+	async $provideChatSessionContent(handle: number, sessionResourceComponents: UriComponents, context: ChatSessionContentContextDto, token: CancellationToken): Promise<IChatSessionDto> {
 		const provider = this._chatSessionContentProviders.get(handle);
 		if (!provider) {
 			throw new Error(`No provider for handle ${handle}`);
@@ -520,7 +522,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		const controllerData = this.getChatSessionItemController(sessionResource.scheme);
 
 		const sessionDisposables = new DisposableStore();
-		const sessionId = ExtHostChatSessions._sessionHandlePool++;
 		const id = sessionResource.toString();
 		const chatSession = new ExtHostChatSession(session, provider.extension, {
 			sessionResource,
@@ -550,7 +551,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 		const { capabilities } = provider;
 		return {
-			id: sessionId + '',
 			resource: URI.revive(sessionResource),
 			title: session.title,
 			hasActiveResponseCallback: !!session.activeResponseCallback,
@@ -568,7 +568,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		};
 	}
 
-	async $provideHandleOptionsChange(handle: number, sessionResourceComponents: UriComponents, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem | undefined }>, token: CancellationToken): Promise<void> {
+	async $provideHandleOptionsChange(handle: number, sessionResourceComponents: UriComponents, updates: Record<string, string | IChatSessionProviderOptionItem | undefined>, token: CancellationToken): Promise<void> {
 		const sessionResource = URI.revive(sessionResourceComponents);
 		const provider = this._chatSessionContentProviders.get(handle);
 		if (!provider) {
@@ -582,11 +582,11 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 
 		try {
-			const updatesToSend = updates.map(update => ({
-				optionId: update.optionId,
-				value: update.value === undefined ? undefined : (typeof update.value === 'string' ? update.value : update.value.id)
+			const updatesToSend = Object.entries(updates).map(([optionId, value]) => ({
+				optionId,
+				value: value === undefined ? undefined : (typeof value === 'string' ? value : value.id)
 			}));
-			await provider.provider.provideHandleOptionsChange(sessionResource, updatesToSend, token);
+			provider.provider.provideHandleOptionsChange(sessionResource, updatesToSend, token);
 		} catch (error) {
 			this._logService.error(`Error calling provideHandleOptionsChange for handle ${handle}, sessionResource ${sessionResource}:`, error);
 		}
@@ -831,7 +831,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		await controllerData.controller.refreshHandler(token);
 	}
 
-	async $newChatSessionItem(handle: number, request: IChatNewSessionRequest, token: CancellationToken): Promise<ReturnType<typeof typeConvert.ChatSessionItem.from> | undefined> {
+	async $newChatSessionItem(handle: number, request: IChatNewSessionRequestDto, token: CancellationToken): Promise<ReturnType<typeof typeConvert.ChatSessionItem.from> | undefined> {
 		const controllerData = this._chatSessionItemControllers.get(handle);
 		if (!controllerData) {
 			this._logService.warn(`No controller found for handle ${handle}`);
