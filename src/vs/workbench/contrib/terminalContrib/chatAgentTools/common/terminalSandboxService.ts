@@ -11,6 +11,7 @@ import { dirname, posix, win32 } from '../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { localize } from '../../../../../nls.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -22,6 +23,8 @@ import { TerminalChatAgentToolsSettingId } from './terminalChatAgentToolsConfigu
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { ITrustedDomainService } from '../../../url/common/trustedDomainService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ILifecycleService, WillShutdownJoinerOrder } from '../../../../services/lifecycle/common/lifecycle.js';
 
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
@@ -50,6 +53,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private _appRoot: string;
 	private _os: OperatingSystem = OS;
 	private _defaultWritePaths: string[] = ['~/.npm'];
+	private static readonly _sandboxTempDirName = 'tmp';
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -59,6 +63,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IProductService private readonly _productService: IProductService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 	) {
 		super();
 		this._appRoot = dirname(FileAccess.asFileUri('').path);
@@ -86,6 +92,17 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
 			this.setNeedsForceUpdateConfigFile();
+		}));
+
+		this._register(this._lifecycleService.onWillShutdown(e => {
+			if (!this._tempDir) {
+				return;
+			}
+			e.join(this._cleanupSandboxTempDir(), {
+				id: 'join.deleteFilesInSandboxTempDir',
+				label: localize('deleteFilesInSandboxTempDir', "Delete Files in Sandbox Temp Dir"),
+				order: WillShutdownJoinerOrder.Default
+			});
 		}));
 	}
 
@@ -119,9 +136,9 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		// Use ELECTRON_RUN_AS_NODE=1 to make Electron executable behave as Node.js
 		// TMPDIR must be set as environment variable before the command
 		// Quote shell arguments so the wrapped command cannot break out of the outer shell.
-		const wrappedCommand = `PATH="$PATH:${dirname(this._rgPath)}" TMPDIR="${this._tempDir.path}" "${this._execPath}" "${this._srtPath}" --settings "${this._sandboxConfigPath}" -c ${this._quoteShellArgument(command)}`;
+		const wrappedCommand = `PATH="$PATH:${dirname(this._rgPath)}" TMPDIR="${this._tempDir.path}" CLAUDE_TMPDIR="${this._tempDir.path}" "${this._srtPath}" --settings "${this._sandboxConfigPath}" -c ${this._quoteShellArgument(command)}`;
 		if (this._remoteEnvDetails) {
-			return `${wrappedCommand}`;
+			return `"${this._execPath}" ${wrappedCommand}`;
 		}
 		return `ELECTRON_RUN_AS_NODE=1 ${wrappedCommand}`;
 	}
@@ -212,19 +229,39 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		if (await this.isEnabled()) {
 			this._needsForceUpdateConfigFile = true;
 			const remoteEnv = this._remoteEnvDetails || await this._remoteEnvDetailsPromise;
-			if (remoteEnv) {
-				this._tempDir = remoteEnv.tmpDir;
-			} else {
-				const environmentService = this._environmentService as IEnvironmentService & { tmpDir?: URI };
-				this._tempDir = environmentService.tmpDir;
-			}
+			this._tempDir = this._getSandboxTempDirPath(remoteEnv);
 			if (this._tempDir) {
+				await this._fileService.createFolder(this._tempDir);
 				this._defaultWritePaths.push(this._tempDir.path);
 			}
 			if (!this._tempDir) {
 				this._logService.warn('TerminalSandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');
 			}
 		}
+	}
+
+	private async _cleanupSandboxTempDir(): Promise<void> {
+		if (!this._tempDir) {
+			return;
+		}
+		try {
+			await this._fileService.del(this._tempDir, { recursive: true, useTrash: false });
+		} catch (error) {
+			this._logService.warn('TerminalSandboxService: Failed to delete sandbox temp dir', error);
+		}
+	}
+
+	private _getSandboxTempDirPath(remoteEnv: IRemoteAgentEnvironment | null): URI | undefined {
+		if (remoteEnv?.userHome) {
+			return URI.joinPath(remoteEnv.userHome, this._productService.serverDataFolderName ?? this._productService.dataFolderName, TerminalSandboxService._sandboxTempDirName);
+		}
+
+		const nativeEnv = this._environmentService as IEnvironmentService & { userHome?: URI };
+		if (nativeEnv.userHome) {
+			return URI.joinPath(nativeEnv.userHome, this._productService.dataFolderName, TerminalSandboxService._sandboxTempDirName);
+		}
+
+		return undefined;
 	}
 
 	private _addTrustedDomainsToAllowedDomains(allowedDomains: string[]): string[] {
