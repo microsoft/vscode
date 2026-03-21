@@ -19,7 +19,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 
 class MockProtocolClient extends Disposable {
 	private static _nextId = 1;
-	readonly clientId = `mock-client-${MockProtocolClient._nextId++}`;
+	readonly clientId: string;
 
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
@@ -27,13 +27,31 @@ class MockProtocolClient extends Disposable {
 	readonly onDidNotification = Event.None;
 
 	public connectDeferred = new DeferredPromise<void>();
+	public reconnectDeferred: DeferredPromise<{ type: string }> | undefined;
 
-	constructor(public readonly mockAddress: string) {
+	/** Tracks the last serverSeq seen during connect/reconnect. */
+	private _serverSeq = 0;
+	get serverSeq(): number { return this._serverSeq; }
+
+	constructor(
+		public readonly mockAddress: string,
+		public readonly connectionToken: string | undefined,
+		clientId: string | undefined,
+	) {
 		super();
+		this.clientId = clientId ?? `mock-client-${MockProtocolClient._nextId++}`;
 	}
 
 	async connect(): Promise<void> {
 		return this.connectDeferred.p;
+	}
+
+	async reconnect(lastSeenServerSeq: number): Promise<{ type: string }> {
+		this._serverSeq = lastSeenServerSeq;
+		if (!this.reconnectDeferred) {
+			this.reconnectDeferred = new DeferredPromise();
+		}
+		return this.reconnectDeferred.p;
 	}
 
 	fireClose(): void {
@@ -85,7 +103,7 @@ suite('RemoteAgentHostService', () => {
 		// Mock the instantiation service to capture created protocol clients
 		const mockInstantiationService: Partial<IInstantiationService> = {
 			createInstance: (_ctor: unknown, ...args: unknown[]) => {
-				const client = new MockProtocolClient(args[0] as string);
+				const client = new MockProtocolClient(args[0] as string, args[1] as string | undefined, args[2] as string | undefined);
 				disposables.add(client);
 				createdClients.push(client);
 				return client;
@@ -110,22 +128,28 @@ suite('RemoteAgentHostService', () => {
 	test('creates connection when setting is updated', async () => {
 		const connectionChanged = Event.toPromise(service.onDidChangeConnections);
 		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
-
-		// Resolve the connect promise
-		assert.strictEqual(createdClients.length, 1);
-		createdClients[0].connectDeferred.complete();
 		await connectionChanged;
 
+		// Entry exists but is not yet connected
 		assert.strictEqual(service.connections.length, 1);
 		assert.strictEqual(service.connections[0].address, 'ws://host1:8080');
 		assert.strictEqual(service.connections[0].name, 'Host 1');
+		assert.strictEqual(service.connections[0].connected, false);
+
+		// Complete the connect
+		const stateEvent = Event.toPromise(service.onDidChangeConnectionState);
+		createdClients[0].connectDeferred.complete();
+		await stateEvent;
+
+		assert.strictEqual(service.connections[0].connected, true);
 	});
 
 	test('getConnection returns client after successful connect', async () => {
-		const connectionChanged = Event.toPromise(service.onDidChangeConnections);
 		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
+
+		const stateEvent = Event.toPromise(service.onDidChangeConnectionState);
 		createdClients[0].connectDeferred.complete();
-		await connectionChanged;
+		await stateEvent;
 
 		const connection = service.getConnection('ws://host1:8080');
 		assert.ok(connection);
@@ -133,10 +157,11 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	test('removes connection when setting entry is removed', async () => {
-		// Add a connection
+		// Add a connection and connect
 		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
+		const stateEvent = Event.toPromise(service.onDidChangeConnectionState);
 		createdClients[0].connectDeferred.complete();
-		await Event.toPromise(service.onDidChangeConnections);
+		await stateEvent;
 
 		// Remove it
 		const removedEvent = Event.toPromise(service.onDidChangeConnections);
@@ -147,31 +172,42 @@ suite('RemoteAgentHostService', () => {
 		assert.strictEqual(service.getConnection('ws://host1:8080'), undefined);
 	});
 
-	test('fires onDidChangeConnections when connection closes', async () => {
+	test('fires onDidChangeConnections when connection closes but retains entry', async () => {
 		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
+		const stateEvent = Event.toPromise(service.onDidChangeConnectionState);
 		createdClients[0].connectDeferred.complete();
-		await Event.toPromise(service.onDidChangeConnections);
+		await stateEvent;
 
 		// Simulate connection close
-		const closedEvent = Event.toPromise(service.onDidChangeConnections);
+		const closedEvent = Event.toPromise(service.onDidChangeConnectionState);
 		createdClients[0].fireClose();
-		await closedEvent;
+		const stateChange = await closedEvent;
 
-		assert.strictEqual(service.connections.length, 0);
+		assert.strictEqual(stateChange.address, 'ws://host1:8080');
+		assert.strictEqual(stateChange.connected, false);
+
+		// Entry is retained as disconnected
+		assert.strictEqual(service.connections.length, 1);
+		assert.strictEqual(service.connections[0].connected, false);
+		// getConnection returns undefined for disconnected entries
 		assert.strictEqual(service.getConnection('ws://host1:8080'), undefined);
 	});
 
-	test('removes connection on connect failure', async () => {
+	test('retains entry in disconnected state on connect failure', async () => {
 		configService.setEntries([{ address: 'ws://bad:9999', name: 'Bad' }]);
 		assert.strictEqual(createdClients.length, 1);
 
 		// Fail the connection
+		const stateEvent = Event.toPromise(service.onDidChangeConnectionState);
 		createdClients[0].connectDeferred.error(new Error('Connection refused'));
+		const stateChange = await stateEvent;
 
-		// Wait for async error handling
-		await new Promise(r => setTimeout(r, 10));
+		assert.strictEqual(stateChange.address, 'ws://bad:9999');
+		assert.strictEqual(stateChange.connected, false);
 
-		assert.strictEqual(service.connections.length, 0);
+		// Entry is retained as disconnected, not removed
+		assert.strictEqual(service.connections.length, 1);
+		assert.strictEqual(service.connections[0].connected, false);
 		assert.strictEqual(service.getConnection('ws://bad:9999'), undefined);
 	});
 
@@ -183,9 +219,9 @@ suite('RemoteAgentHostService', () => {
 
 		assert.strictEqual(createdClients.length, 2);
 		createdClients[0].connectDeferred.complete();
-		await Event.toPromise(service.onDidChangeConnections);
+		await Event.toPromise(service.onDidChangeConnectionState);
 		createdClients[1].connectDeferred.complete();
-		await Event.toPromise(service.onDidChangeConnections);
+		await Event.toPromise(service.onDidChangeConnectionState);
 
 		assert.strictEqual(service.connections.length, 2);
 
@@ -199,7 +235,7 @@ suite('RemoteAgentHostService', () => {
 	test('does not re-create existing connections on setting update', async () => {
 		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
 		createdClients[0].connectDeferred.complete();
-		await Event.toPromise(service.onDidChangeConnections);
+		await Event.toPromise(service.onDidChangeConnectionState);
 
 		const firstClientId = createdClients[0].clientId;
 
@@ -216,5 +252,73 @@ suite('RemoteAgentHostService', () => {
 
 		// But name should be updated
 		assert.strictEqual(service.connections[0].name, 'Renamed');
+	});
+
+	test('ensureConnected reconnects a disconnected entry', async () => {
+		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
+		createdClients[0].connectDeferred.complete();
+		await Event.toPromise(service.onDidChangeConnectionState);
+
+		const firstClientId = createdClients[0].clientId;
+
+		// Disconnect
+		const disconnectEvent = Event.toPromise(service.onDidChangeConnectionState);
+		createdClients[0].fireClose();
+		await disconnectEvent;
+		assert.strictEqual(service.connections[0].connected, false);
+
+		// Reconnect via ensureConnected - the mock's reconnect() creates its own
+		// deferred, so we need to resolve it after the method call starts.
+		const reconnectPromise = service.ensureConnected('ws://host1:8080');
+
+		// A new client should have been created with the same clientId
+		assert.strictEqual(createdClients.length, 2);
+		assert.strictEqual(createdClients[1].clientId, firstClientId);
+
+		// Complete the reconnect deferred that the mock already created
+		createdClients[1].reconnectDeferred!.complete({ type: 'replayed' });
+
+		const conn = await reconnectPromise;
+		assert.ok(conn);
+		assert.strictEqual(service.connections[0].connected, true);
+	});
+
+	test('ensureConnected returns existing connection if already connected', async () => {
+		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
+		createdClients[0].connectDeferred.complete();
+		await Event.toPromise(service.onDidChangeConnectionState);
+
+		const conn = await service.ensureConnected('ws://host1:8080');
+		assert.ok(conn);
+		// Should not have created a second client
+		assert.strictEqual(createdClients.length, 1);
+	});
+
+	test('ensureConnected throws for unknown address', async () => {
+		await assert.rejects(
+			() => service.ensureConnected('ws://unknown:9999'),
+			/No configured connection/,
+		);
+	});
+
+	test('removing address from settings clears disconnected entry', async () => {
+		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
+		createdClients[0].connectDeferred.complete();
+		await Event.toPromise(service.onDidChangeConnectionState);
+
+		// Disconnect
+		const disconnectEvent = Event.toPromise(service.onDidChangeConnectionState);
+		createdClients[0].fireClose();
+		await disconnectEvent;
+
+		// Entry still present (disconnected)
+		assert.strictEqual(service.connections.length, 1);
+
+		// Remove from settings
+		const removedEvent = Event.toPromise(service.onDidChangeConnections);
+		configService.setEntries([]);
+		await removedEvent;
+
+		assert.strictEqual(service.connections.length, 0);
 	});
 });
