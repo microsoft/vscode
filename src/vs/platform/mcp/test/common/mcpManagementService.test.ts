@@ -1189,4 +1189,39 @@ suite('McpResourceManagementService', () => {
 		assert.strictEqual(updateCount, 1);
 		assert.deepStrictEqual(updated[0].rootSandbox, updatedSandbox);
 	});
+
+	test('waits for file system provider before reading servers', async () => {
+		const customScheme = 'test-remote';
+		const remoteMcpResource = URI.from({ scheme: customScheme, path: '/workspace/.vscode/mcp.json' });
+
+		const remoteFileService = disposables.add(new FileService(new NullLogService()));
+		const uriIdentityService = disposables.add(new UriIdentityService(remoteFileService));
+		const scannerService = disposables.add(new McpResourceScannerService(remoteFileService, uriIdentityService));
+		const remoteService = disposables.add(new TestMcpResourceManagementService(remoteMcpResource, remoteFileService, uriIdentityService, scannerService));
+
+		// Call getInstalled() before the provider is registered - it should wait
+		const getInstalledPromise = remoteService.getInstalled();
+
+		// Write the config file to the provider before registering it,
+		// so data is available when whenProviderRegistered resolves
+		const provider = disposables.add(new InMemoryFileSystemProvider());
+		await provider.mkdir(URI.from({ scheme: customScheme, path: '/workspace' }));
+		await provider.mkdir(URI.from({ scheme: customScheme, path: '/workspace/.vscode' }));
+		await provider.writeFile(remoteMcpResource, VSBuffer.fromString(JSON.stringify({
+			servers: {
+				'remote-server': {
+					type: 'stdio',
+					command: 'node',
+					args: ['server.js']
+				}
+			}
+		}, null, '\t')).buffer, { create: true, overwrite: true, unlock: false, atomic: false });
+
+		// Register the provider - this unblocks whenProviderRegistered and populateLocalServers
+		disposables.add(remoteFileService.registerProvider(customScheme, provider));
+
+		const servers = await getInstalledPromise;
+		assert.strictEqual(servers.length, 1);
+		assert.strictEqual(servers[0].name, 'remote-server');
+	});
 });
