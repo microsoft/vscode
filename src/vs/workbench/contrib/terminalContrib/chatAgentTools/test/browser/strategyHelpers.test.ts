@@ -302,4 +302,44 @@ suite('stripCommandEchoAndPrompt', () => {
 			'M1\nM2\nM3'
 		);
 	});
+
+	test('strips trailing prompt without @ (hostname:path user$)', () => {
+		const output = [
+			'dsm12-be220-abc:testWorkspace runner$  echo hello',
+			'hello',
+			'dsm12-be220-abc:testWorkspace runner$',
+		].join('\n');
+
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(output, 'echo hello'),
+			'hello'
+		);
+	});
+
+	test('strips wrapped trailing prompt without @ (hostname:path + fragment$)', () => {
+		const output = [
+			'dsm12-be220-abc:testWorkspace runner$  echo hello',
+			'hello',
+			'dsm12-be220-8627ea7f-2c5a-40cd-8ba1-bf324bb4f59a-DA35C080942E:testWorkspace runn',
+			'er$',
+		].join('\n');
+
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(output, 'echo hello'),
+			'hello'
+		);
+	});
+
+	test('strips trailing prompt fragment for no-output command', () => {
+		const output = [
+			'dsm12-be220-abc:testWorkspace runner$  true',
+			'dsm12-be220-8627ea7f-2c5a-40cd-8ba1-bf324bb4f59a-DA35C080942E:testWorkspace runn',
+			'er$',
+		].join('\n');
+
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(output, 'true'),
+			''
+		);
+	});
 });

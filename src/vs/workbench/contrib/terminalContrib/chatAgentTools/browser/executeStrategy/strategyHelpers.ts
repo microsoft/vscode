@@ -139,6 +139,7 @@ export function stripCommandEchoAndPrompt(output: string, commandLine: string): 
 	// intentionally anchored and specific to avoid stripping legitimate output
 	// that happens to end with characters like $, #, %, or >.
 	let endIndex = lines.length;
+	let trailingStrippedCount = 0;
 	while (endIndex > startIndex) {
 		const line = lines[endIndex - 1].trimEnd();
 		if (
@@ -146,9 +147,19 @@ export function stripCommandEchoAndPrompt(output: string, commandLine: string): 
 			// Bash/zsh prompt: user@host:path ending with $ or #
 			// e.g., "user@host:~/src $ " or "root@server:/var/log# "
 			/^\s*\w+@[\w.-]+:.*[#$]\s*$/.test(line) ||
+			// Prompt without @: hostname:path user$ or hostname:path user#
+			// e.g., "dsm12-be220-abc:testWorkspace runner$"
+			/^\s*[\w.-]+:\S.*\s\w+[#$]\s*$/.test(line) ||
+			// Wrapped prompt fragment: short word ending with $ or # (e.g. "er$", "ner$")
+			// These appear when a prompt wraps across terminal columns.
+			/^\s*\w+[#$]\s*$/.test(line) ||
 			// Bracketed prompt start: [ user@host:/path (wrapped prompt first line)
 			// e.g., "[ alex@MacBook-Pro:/Users/alex/src/vscode4/extensions/vscode-api-test"
 			/^\[\s*\w+@[\w.-]+:/.test(line) ||
+			// Wrapped prompt continuation: hostname:path or hostname:path user (no trailing $)
+			// Only matched after we've already stripped a prompt fragment below.
+			// e.g., "dsm12-be220-abc:testWorkspace runn" (the "er$" was on the next line)
+			(trailingStrippedCount > 0 && /^\s*[\w][-\w.]*:\S/.test(line)) ||
 			// Bracketed prompt end: ...] $ or ...] #
 			// e.g., "s/testWorkspace (main**) ] $ "
 			/\]\s*[#$]\s*$/.test(line) ||
@@ -161,6 +172,7 @@ export function stripCommandEchoAndPrompt(output: string, commandLine: string): 
 			/^>>>\s*$/.test(line)
 		) {
 			endIndex--;
+			trailingStrippedCount++;
 		} else {
 			break;
 		}
