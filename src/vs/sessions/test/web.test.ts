@@ -347,7 +347,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 					// ChatEditingService computes actual diffs
 					if (response.fileEdits) {
 						emitFileEdits(response.fileEdits, progress);
-						console.log(`[Sessions Web Test] Emitted ${response.fileEdits.length} file edits`);
+						console.log(`[Sessions Web Test] Emitted ${response.fileEdits.length} file edits OK`);
 					}
 
 					self.addSessionItem(request.sessionResource, request.message, response.text, response.fileEdits);
@@ -372,7 +372,12 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 				this._register(this.chatSessionsService.registerChatSessionContentProvider(scheme, {
 					async provideChatSessionContent(sessionResource, _token) {
 						const key = sessionResource.toString();
-						const history = self._sessionHistory.get(key) ?? [];
+						// Ensure the history array is stored in _sessionHistory so
+						// addSessionItem pushes into the SAME reference returned here.
+						if (!self._sessionHistory.has(key)) {
+							self._sessionHistory.set(key, []);
+						}
+						const history = self._sessionHistory.get(key)!;
 						console.log(`[Sessions Web Test] Opening session ${key} (${history.length} history items)`);
 						const disposeEmitter = new Emitter<void>();
 						const isComplete = observableValue('isComplete', history.length > 0);
