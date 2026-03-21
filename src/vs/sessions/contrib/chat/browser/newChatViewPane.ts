@@ -57,7 +57,7 @@ import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { SessionTypePicker, IsolationPicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
-import { AgentHostNewSession, INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
+import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { WorkspacePicker } from './workspacePicker.js';
 import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
@@ -368,17 +368,17 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private _setNewSession(session: INewSession): void {
 		this._newSession.value = session;
 
-		if (session.target === AgentSessionProviders.Background && this._branchPicker.selectedBranch) {
+		if (session.pickerVisibility.branch && this._branchPicker.selectedBranch) {
 			session.setBranch(this._branchPicker.selectedBranch);
 		}
 
-		// Set the current model on the session (for local sessions)
+		// Set the current model on the session
 		const currentModel = this._currentLanguageModel.get();
 		if (currentModel) {
 			session.setModelId(currentModel.identifier);
 		}
 
-		// Set the current mode on the session (for local sessions)
+		// Set the current mode on the session
 		session.setMode(this._modePicker.selectedMode);
 
 		// Listen for session changes
@@ -391,22 +391,59 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		this._sessionTypePicker.setProject(session.project);
 
-		if (session instanceof AgentHostNewSession) {
-			this._renderAgentHostSessionPickers();
-		} else if (session instanceof RemoteNewSession) {
-			this._renderRemoteSessionPickers(session, true);
-			listeners.add(session.onDidChangeOptionGroups(() => {
-				this._renderRemoteSessionPickers(session);
-			}));
-		} else {
-			this._renderLocalSessionPickers();
-			if (session.project) {
-				this._openRepository(session.project.uri);
-			}
-		}
+		// Render pickers based on session's declared visibility
+		this._renderSessionPickers(session, listeners);
 
 		this._newSessionListener.value = listeners;
 		this._updateSendButtonState();
+	}
+
+	/**
+	 * Renders pickers based on the session's declared {@link INewSessionPickerVisibility}.
+	 * Replaces the previous instanceof-based rendering logic.
+	 */
+	private _renderSessionPickers(session: INewSession, listeners: DisposableStore): void {
+		const vis = session.pickerVisibility;
+
+		this._clearAllPickers();
+
+		// Model pickers
+		if (this._localModelPickerContainer) {
+			this._localModelPickerContainer.style.display = vis.localModel ? '' : 'none';
+		}
+		this._cloudModelPicker.setVisible(!!vis.cloudModel);
+
+		// Mode & permission pickers
+		this._modePicker.setVisible(!!vis.mode);
+		this._permissionPicker.setVisible(!!vis.permission);
+
+		// Repository config pickers (isolation, branch)
+		if (!vis.isolation) {
+			this._isolationPicker.setVisible(false);
+		}
+		if (!vis.branch) {
+			this._branchPicker.setVisible(false);
+		}
+
+		// Cloud model picker session binding
+		if (vis.cloudModel && session.getModelOptionGroup) {
+			this._cloudModelPicker.setSession(session as RemoteNewSession);
+		}
+
+		// Extension-driven toolbar option groups
+		if (vis.hasToolbarOptionGroups && session.getOtherOptionGroups) {
+			this._renderToolbarPickers(session as RemoteNewSession, true);
+			if (session.onDidChangeOptionGroups) {
+				listeners.add(session.onDidChangeOptionGroups(() => {
+					this._renderToolbarPickers(session as RemoteNewSession);
+				}));
+			}
+		}
+
+		// Open git repo for local sessions
+		if (vis.localModel && session.project) {
+			this._openRepository(session.project.uri);
+		}
 	}
 
 	private _openRepository(folderUri: URI): void {
@@ -717,50 +754,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	 * Agent Host sessions use the standard model picker and mode picker
 	 * but don't need repo, folder, isolation, branch, or cloud option pickers.
 	 */
-	private _renderAgentHostSessionPickers(): void {
-		this._clearAllPickers();
-		if (this._localModelPickerContainer) {
-			this._localModelPickerContainer.style.display = '';
-		}
-		this._modePicker.setVisible(true);
-		this._permissionPicker.setVisible(false);
-		this._cloudModelPicker.setVisible(false);
-		this._branchPicker.setVisible(false);
-		this._isolationPicker.setVisible(false);
-	}
-
-	// --- Local session pickers ---
-
-	private _renderLocalSessionPickers(): void {
-		this._clearAllPickers();
-		// Show local model and mode pickers, hide remote
-		if (this._localModelPickerContainer) {
-			this._localModelPickerContainer.style.display = '';
-		}
-		this._modePicker.setVisible(true);
-		this._permissionPicker.setVisible(true);
-		this._cloudModelPicker.setVisible(false);
-	}
-
-	// --- Remote session pickers ---
-
-	private _renderRemoteSessionPickers(session: RemoteNewSession, force?: boolean): void {
-		// Show remote model picker, hide local pickers
-		if (this._localModelPickerContainer) {
-			this._localModelPickerContainer.style.display = 'none';
-		}
-		this._modePicker.setVisible(false);
-		this._permissionPicker.setVisible(false);
-		this._branchPicker.setVisible(false);
-		this._isolationPicker.setVisible(false);
-
-		this._cloudModelPicker.setSession(session);
-		this._cloudModelPicker.setVisible(true);
-
-		// Render toolbar pickers (other groups) — separator visibility is managed inside
-		this._renderToolbarPickers(session, force);
-	}
-
 	private _renderToolbarPickers(session: RemoteNewSession, force?: boolean): void {
 		if (!this._toolbarPickersContainer) {
 			return;

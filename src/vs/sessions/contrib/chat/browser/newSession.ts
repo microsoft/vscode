@@ -30,6 +30,21 @@ export interface ISessionOptionGroup {
  * request is sent. It holds the user's selections (repoUri, isolationMode)
  * and fires a single event when any property changes.
  */
+/**
+ * Describes which pickers should be visible for a new session.
+ * Each property defaults to false if omitted.
+ */
+export interface INewSessionPickerVisibility {
+	readonly localModel?: boolean;
+	readonly cloudModel?: boolean;
+	readonly mode?: boolean;
+	readonly permission?: boolean;
+	readonly isolation?: boolean;
+	readonly branch?: boolean;
+	/** Whether the session has extension-driven toolbar option groups. */
+	readonly hasToolbarOptionGroups?: boolean;
+}
+
 export interface INewSession extends IDisposable {
 	readonly resource: URI;
 	readonly target: AgentSessionTarget;
@@ -42,7 +57,11 @@ export interface INewSession extends IDisposable {
 	readonly attachedContext: IChatRequestVariableEntry[] | undefined;
 	readonly selectedOptions: ReadonlyMap<string, IChatSessionProviderOptionItem>;
 	readonly disabled: boolean;
+	/** Describes which pickers the widget should show for this session. */
+	readonly pickerVisibility: INewSessionPickerVisibility;
 	readonly onDidChange: Event<NewSessionChangeType>;
+	/** Fires when extension-driven option groups change. Only present when {@link INewSessionPickerVisibility.hasToolbarOptionGroups} is true. */
+	readonly onDidChangeOptionGroups?: Event<void>;
 	setProject(project: SessionWorkspace): void;
 	setIsolationMode(mode: IsolationMode): void;
 	setBranch(branch: string | undefined): void;
@@ -51,6 +70,10 @@ export interface INewSession extends IDisposable {
 	setQuery(query: string): void;
 	setAttachedContext(context: IChatRequestVariableEntry[] | undefined): void;
 	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void;
+	/** Returns the model option group for cloud sessions. Only present when {@link INewSessionPickerVisibility.cloudModel} is true. */
+	getModelOptionGroup?(): ISessionOptionGroup | undefined;
+	/** Returns extension-driven option groups. Only present when {@link INewSessionPickerVisibility.hasToolbarOptionGroups} is true. */
+	getOtherOptionGroups?(): ISessionOptionGroup[];
 }
 
 const REPOSITORY_OPTION_ID = 'repository';
@@ -79,6 +102,11 @@ export class CopilotCLISession extends Disposable implements INewSession {
 
 	readonly target = AgentSessionProviders.Background;
 	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
+	readonly pickerVisibility: INewSessionPickerVisibility = {
+		localModel: true,
+		mode: true,
+		permission: true,
+	};
 
 	get project(): SessionWorkspace | undefined { return this._project; }
 	get isolationMode(): IsolationMode { return this._isolationMode; }
@@ -190,6 +218,10 @@ export class RemoteNewSession extends Disposable implements INewSession {
 	readonly onDidChangeOptionGroups: Event<void> = this._onDidChangeOptionGroups.event;
 
 	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
+	readonly pickerVisibility: INewSessionPickerVisibility = {
+		cloudModel: true,
+		hasToolbarOptionGroups: true,
+	};
 
 	get project(): SessionWorkspace | undefined { return this._project; }
 	get isolationMode(): undefined { return undefined; }
@@ -383,6 +415,10 @@ export class AgentHostNewSession extends Disposable implements INewSession {
 	readonly onDidChange: Event<NewSessionChangeType> = this._onDidChange.event;
 
 	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
+	readonly pickerVisibility: INewSessionPickerVisibility = {
+		localModel: true,
+		mode: true,
+	};
 
 	get project(): SessionWorkspace | undefined { return this._project; }
 	get isolationMode(): undefined { return undefined; }
