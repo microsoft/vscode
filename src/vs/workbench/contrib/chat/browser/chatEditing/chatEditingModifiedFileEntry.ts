@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
@@ -179,6 +179,33 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 				};
 				update();
 			}
+		}));
+	}
+
+	protected _registerOpenEditorWhenDirtySuppression(isDirty: () => boolean, onDidChangeDirty: Event<unknown>): void {
+		const openEditorWhenDirtyOff = this._store.add(new MutableDisposable());
+		let keepOpenEditorWhenDirtyDisabledUntilClean = false;
+		const updateOpenEditorWhenDirtyDisabled = () => {
+			if (this._stateObs.get() === ModifiedFileEntryState.Modified) {
+				keepOpenEditorWhenDirtyDisabledUntilClean = true;
+			} else if (!isDirty()) {
+				keepOpenEditorWhenDirtyDisabledUntilClean = false;
+			}
+
+			if (keepOpenEditorWhenDirtyDisabledUntilClean) {
+				openEditorWhenDirtyOff.value = this._fileConfigService.disableOpenEditorWhenDirty(this.modifiedURI);
+			} else {
+				openEditorWhenDirtyOff.clear();
+			}
+		};
+
+		this._store.add(autorun(r => {
+			this._stateObs.read(r);
+			updateOpenEditorWhenDirtyDisabled();
+		}));
+
+		this._store.add(onDidChangeDirty(() => {
+			updateOpenEditorWhenDirtyDisabled();
 		}));
 	}
 

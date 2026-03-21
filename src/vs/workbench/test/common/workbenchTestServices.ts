@@ -351,6 +351,8 @@ export const NullFilesConfigurationService = new class implements IFilesConfigur
 	toggleAutoSave(): Promise<void> { throw new Error('Method not implemented.'); }
 	enableAutoSaveAfterShortDelay(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
 	disableAutoSave(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
+	isOpenEditorWhenDirtyDisabled(resourceOrEditor: URI | EditorInput | undefined): boolean { throw new Error('Method not implemented.'); }
+	disableOpenEditorWhenDirty(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
 	isReadonly(resource: URI, stat?: IBaseFileStat | undefined): boolean { return false; }
 	async updateReadonly(resource: URI, readonly: boolean | 'toggle' | 'reset'): Promise<void> { }
 	preventSaveConflicts(resource: URI, language?: string | undefined): boolean { throw new Error('Method not implemented.'); }

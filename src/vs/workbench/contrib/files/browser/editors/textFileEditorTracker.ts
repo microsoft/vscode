@@ -78,6 +78,10 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 				return false;
 			}
 
+			if (this.filesConfigurationService.isOpenEditorWhenDirtyDisabled(resource)) {
+				return false; // resource must not be opened when dirty
+			}
+
 			if (this.editorService.isOpened({ resource, typeId: resource.scheme === Schemas.untitled ? UntitledTextEditorInput.ID : FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id })) {
 				return false; // model must not be opened already as file (fast check via editor type)
 			}

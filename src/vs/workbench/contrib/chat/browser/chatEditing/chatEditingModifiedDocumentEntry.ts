@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../../base/common/event.js';
 import { IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ITransaction, autorun, transaction } from '../../../../../base/common/observable.js';
@@ -179,6 +180,17 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 				resourceFilter.clear();
 			}
 		}));
+
+		this._registerOpenEditorWhenDirtySuppression(
+			() => this._textFileService.isDirty(this.modifiedURI),
+			Event.filter(
+				Event.any(
+					Event.map(this._textFileService.files.onDidChangeDirty, model => model.resource),
+					Event.map(this._textFileService.untitled.onDidChangeDirty, model => model.resource)
+				),
+				resource => isEqual(resource, this.modifiedURI)
+			)
+		);
 	}
 
 	getDiffInfo(): Promise<IDocumentDiff> {

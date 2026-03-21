@@ -94,6 +94,8 @@ export interface IFilesConfigurationService {
 
 	enableAutoSaveAfterShortDelay(resourceOrEditor: EditorInput | URI): IDisposable;
 	disableAutoSave(resourceOrEditor: EditorInput | URI): IDisposable;
+	isOpenEditorWhenDirtyDisabled(resourceOrEditor: EditorInput | URI | undefined): boolean;
+	disableOpenEditorWhenDirty(resourceOrEditor: EditorInput | URI): IDisposable;
 
 	//#endregion
 
@@ -151,6 +153,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	private readonly autoSaveAfterShortDelayOverrides = new ResourceMap<number /* counter */>();
 	private readonly autoSaveDisabledOverrides = new ResourceMap<number /* counter */>();
+	private readonly openEditorWhenDirtyDisabledOverrides = new ResourceMap<number /* counter */>();
 
 	private readonly autoSaveAfterShortDelayContext: IContextKey<boolean>;
 
@@ -499,6 +502,30 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 				this._onDidChangeAutoSaveDisabled.fire(resource);
 			} else {
 				this.autoSaveDisabledOverrides.set(resource, counter - 1);
+			}
+		});
+	}
+
+	isOpenEditorWhenDirtyDisabled(resourceOrEditor: EditorInput | URI | undefined): boolean {
+		const resource = this.toResource(resourceOrEditor);
+		return !!resource && this.openEditorWhenDirtyDisabledOverrides.has(resource);
+	}
+
+	disableOpenEditorWhenDirty(resourceOrEditor: EditorInput | URI): IDisposable {
+		const resource = this.toResource(resourceOrEditor);
+		if (!resource) {
+			return Disposable.None;
+		}
+
+		const counter = this.openEditorWhenDirtyDisabledOverrides.get(resource) ?? 0;
+		this.openEditorWhenDirtyDisabledOverrides.set(resource, counter + 1);
+
+		return toDisposable(() => {
+			const counter = this.openEditorWhenDirtyDisabledOverrides.get(resource) ?? 0;
+			if (counter <= 1) {
+				this.openEditorWhenDirtyDisabledOverrides.delete(resource);
+			} else {
+				this.openEditorWhenDirtyDisabledOverrides.set(resource, counter - 1);
 			}
 		});
 	}

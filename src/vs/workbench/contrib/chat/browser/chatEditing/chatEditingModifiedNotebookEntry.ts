@@ -197,6 +197,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this.originalModel = this._register(originalResourceRef).object.notebook;
 		this.originalURI = this.originalModel.uri;
 		this.initialContent = initialContent;
+		this._registerOpenEditorWhenDirtySuppression(() => this.notebookResolver.isDirty(this.modifiedURI), this.modifiedResourceRef.object.onDidChangeDirty);
 		this.initializeModelsFromDiff();
 		this._register(this.modifiedModel.onDidChangeContent(this.mirrorNotebookEdits, this));
 	}
