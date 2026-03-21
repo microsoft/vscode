@@ -209,7 +209,8 @@ suite('RunInTerminalTool', () => {
 
 			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
 
-			ok(toolData.modelDescription?.includes('explicitly use $TMPDIR, not /tmp'), 'Expected sandboxed tool description to prefer $TMPDIR over /tmp');
+			ok(toolData.modelDescription?.includes('must utilize the $TMPDIR environment variable'), 'Expected sandboxed tool description to require $TMPDIR usage');
+			ok(toolData.modelDescription?.includes('The /tmp directory is not guaranteed to be accessible or writable and must be avoided'), 'Expected sandboxed tool description to discourage /tmp usage');
 		});
 
 		test('should use sandbox labels when command is sandbox wrapped', async () => {
