@@ -3,11 +3,13 @@
 	"compilerOptions": {
 		"rootDir": "./src",
 		"outDir": "./out",
+		"types": ["mocha", "node"],
 		"typeRoots": [
 			"./node_modules/@types"
 		],
 		"lib": [
-			"WebWorker"
+			"WebWorker",
+			"ES2020"
 		]
 	},
 	"include": [

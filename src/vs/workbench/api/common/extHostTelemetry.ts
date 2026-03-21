@@ -11,8 +11,7 @@ import { ICommonProperties, TelemetryLevel } from '../../../platform/telemetry/c
 import { ILogger, ILoggerService } from '../../../platform/log/common/log.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { UIKind } from '../../services/extensions/common/extensionHostProtocol.js';
-import { cleanData, cleanRemoteAuthority, TelemetryLogGroup } from '../../../platform/telemetry/common/telemetryUtils.js';
+import { cleanData, TelemetryLogGroup } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { mixin } from '../../../base/common/objects.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
@@ -89,35 +88,8 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 	}
 
 	getBuiltInCommonProperties(extension: IExtensionDescription): ICommonProperties {
-		const commonProperties: ICommonProperties = Object.create(null);
-		// TODO @lramos15, does os info like node arch, platform version, etc exist here.
-		// Or will first party extensions just mix this in
-		commonProperties['common.extname'] = `${extension.publisher}.${extension.name}`;
-		commonProperties['common.extversion'] = extension.version;
-		commonProperties['common.vscodemachineid'] = this.initData.telemetryInfo.machineId;
-		commonProperties['common.vscodesessionid'] = this.initData.telemetryInfo.sessionId;
-		commonProperties['common.vscodecommithash'] = this.initData.commit;
-		commonProperties['common.sqmid'] = this.initData.telemetryInfo.sqmId;
-		commonProperties['common.devDeviceId'] = this.initData.telemetryInfo.devDeviceId ?? this.initData.telemetryInfo.machineId;
-		commonProperties['common.vscodeversion'] = this.initData.version;
-		commonProperties['common.vscodereleasedate'] = this.initData.date;
-		commonProperties['common.isnewappinstall'] = isNewAppInstall(this.initData.telemetryInfo.firstSessionDate);
-		commonProperties['common.product'] = this.initData.environment.appHost;
-
-		switch (this.initData.uiKind) {
-			case UIKind.Web:
-				commonProperties['common.uikind'] = 'web';
-				break;
-			case UIKind.Desktop:
-				commonProperties['common.uikind'] = 'desktop';
-				break;
-			default:
-				commonProperties['common.uikind'] = 'unknown';
-		}
-
-		commonProperties['common.remotename'] = cleanRemoteAuthority(this.initData.remote.authority, this.initData);
-
-		return commonProperties;
+		// Telemetry disabled - return empty properties
+		return Object.create(null);
 	}
 
 	$onDidChangeTelemetryLevel(level: TelemetryLevel): void {
@@ -194,7 +166,8 @@ export class ExtHostTelemetryLogger {
 	constructor(
 		sender: vscode.TelemetrySender,
 		options: vscode.TelemetryLoggerOptions | undefined,
-		private readonly _extension: IExtensionDescription,
+		// private readonly _extension: IExtensionDescription,
+		_extension: IExtensionDescription,
 		private readonly _logger: ILogger,
 		private readonly _inLoggingOnlyMode: boolean,
 		private readonly _commonProperties: Record<string, any>,
@@ -240,21 +213,8 @@ export class ExtHostTelemetryLogger {
 	}
 
 	private logEvent(eventName: string, data?: Record<string, any>): void {
-		// No sender means likely disposed of, we should no-op
-		if (!this._sender) {
-			return;
-		}
-		// If it's a built-in extension (vscode publisher) we don't prefix the publisher and only the ext name
-		if (this._extension.publisher === 'vscode') {
-			eventName = this._extension.name + '/' + eventName;
-		} else {
-			eventName = this._extension.identifier.value + '/' + eventName;
-		}
-		data = this.mixInCommonPropsAndCleanData(data || {});
-		if (!this._inLoggingOnlyMode) {
-			this._sender?.sendEventData(eventName, data);
-		}
-		this._logger.trace(eventName, data);
+		// Telemetry disabled - no-op
+		return;
 	}
 
 	logUsage(eventName: string, data?: Record<string, any>): void {

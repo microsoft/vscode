@@ -155,5 +155,9 @@
 		"github-enterprise": [
 			"GitHub.copilot-chat"
 		]
+	},
+	"extensionsGallery": {
+	"serviceUrl": "https://open-vsx.org/vscode/gallery",
+	"itemUrl": "https://open-vsx.org/vscode/item"
 	}
 }

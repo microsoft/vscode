@@ -7,6 +7,7 @@
 			"ES2024",
 			"DOM"
 		],
+		"types": ["mocha", "node"],
 		"typeRoots": [
 			"./node_modules/@types"
 		]
