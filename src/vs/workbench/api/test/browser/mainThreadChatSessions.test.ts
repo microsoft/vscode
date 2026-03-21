@@ -7,8 +7,10 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import type * as vscode from 'vscode';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { asSinonMethodStub } from '../../../../base/test/common/sinonUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -16,13 +18,17 @@ import { ContextKeyService } from '../../../../platform/contextkey/browser/conte
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
+import { IAgentSessionsModel } from '../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { IAgentSessionsService } from '../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions/chatSessions.contribution.js';
-import { IChatAgentRequest, IChatAgentResult } from '../../../contrib/chat/common/participants/chatAgents.js';
 import { IChatProgress, IChatProgressMessage, IChatService } from '../../../contrib/chat/common/chatService/chatService.js';
-import { IChatSessionRequestHistoryItem, IChatSessionProviderOptionGroup, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../../../contrib/chat/common/model/chatUri.js';
+import { IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
+import { LocalChatSessionUri } from '../../../contrib/chat/common/model/chatUri.js';
+import { IChatAgentRequest, IChatAgentResult } from '../../../contrib/chat/common/participants/chatAgents.js';
+import { MockChatService } from '../../../contrib/chat/test/common/chatService/mockChatService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
 import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
@@ -30,20 +36,14 @@ import { IExtensionService, nullExtensionDescription } from '../../../services/e
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { mock, TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
+import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionDto, IChatSessionProviderOptions, IChatSessionRequestHistoryItemDto } from '../../common/extHost.protocol.js';
+import { IExtHostAuthentication } from '../../common/extHostAuthentication.js';
 import { ExtHostChatSessions } from '../../common/extHostChatSessions.js';
 import { ExtHostCommands } from '../../common/extHostCommands.js';
 import { ExtHostLanguageModels } from '../../common/extHostLanguageModels.js';
-import * as extHostTypes from '../../common/extHostTypes.js';
-import { ChatSessionDto, ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions, IChatSessionRequestHistoryItemDto } from '../../common/extHost.protocol.js';
-import { IExtHostAuthentication } from '../../common/extHostAuthentication.js';
 import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
-import { ILabelService } from '../../../../platform/label/common/label.js';
-import { MockChatService } from '../../../contrib/chat/test/common/chatService/mockChatService.js';
-import { IAgentSessionsService } from '../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { IAgentSessionsModel } from '../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
-import { Event } from '../../../../base/common/event.js';
+import * as extHostTypes from '../../common/extHostTypes.js';
 import { AnyCallRPCProtocol } from '../common/testRPCProtocol.js';
-import { asSinonMethodStub } from '../../../../base/test/common/sinonUtils.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -90,10 +90,9 @@ suite('ObservableChatSession', function () {
 		hasActiveResponseCallback?: boolean;
 		hasRequestHandler?: boolean;
 		hasForkHandler?: boolean;
-	} = {}): ChatSessionDto {
+	} = {}): IChatSessionDto {
 		const id = options.id || 'test-id';
 		return {
-			id,
 			resource: LocalChatSessionUri.forSession(id),
 			title: options.title,
 			history: options.history || [],
@@ -517,8 +516,7 @@ suite('MainThreadChatSessions', function () {
 		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
 
 		const resource = URI.parse(`${sessionScheme}:/test-session`);
-		const sessionContent: ChatSessionDto = {
-			id: 'test-session',
+		const sessionContent: IChatSessionDto = {
 			resource,
 			history: [],
 			hasActiveResponseCallback: false,
@@ -544,8 +542,7 @@ suite('MainThreadChatSessions', function () {
 		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
 
 		const resource = URI.parse(`${sessionScheme}:/test-session`);
-		const sessionContent: ChatSessionDto = {
-			id: 'test-session',
+		const sessionContent: IChatSessionDto = {
 			resource,
 			title: 'My Session Title',
 			history: [],
@@ -569,8 +566,7 @@ suite('MainThreadChatSessions', function () {
 		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
 
 		const resource = URI.parse(`${sessionScheme}:/test-session`);
-		const sessionContent: ChatSessionDto = {
-			id: 'test-session',
+		const sessionContent: IChatSessionDto = {
 			resource,
 			history: [],
 			hasActiveResponseCallback: false,
@@ -597,8 +593,7 @@ suite('MainThreadChatSessions', function () {
 		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
 
 		const resource = URI.parse(`${sessionScheme}:/test-session`);
-		const sessionContent: ChatSessionDto = {
-			id: 'test-session',
+		const sessionContent: IChatSessionDto = {
 			resource,
 			history: [],
 			hasActiveResponseCallback: false,
@@ -625,8 +620,7 @@ suite('MainThreadChatSessions', function () {
 		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
 
 		const resource = URI.parse(`${sessionScheme}:/multi-turn-session`);
-		const sessionContent: ChatSessionDto = {
-			id: 'multi-turn-session',
+		const sessionContent: IChatSessionDto = {
 			resource,
 			history: [
 				{ type: 'request', prompt: 'First question', participant: 'test-participant' },
@@ -705,8 +699,7 @@ suite('MainThreadChatSessions', function () {
 		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
 
 		const resource = URI.parse(`${sessionScheme}:/test-session`);
-		const sessionContent: ChatSessionDto = {
-			id: 'test-session',
+		const sessionContent: IChatSessionDto = {
 			resource,
 			history: [],
 			hasActiveResponseCallback: false,
@@ -731,8 +724,7 @@ suite('MainThreadChatSessions', function () {
 		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
 
 		const resource = URI.parse(`${sessionScheme}:/test-session`);
-		const sessionContent: ChatSessionDto = {
-			id: 'test-session',
+		const sessionContent: IChatSessionDto = {
 			resource,
 			history: [],
 			hasActiveResponseCallback: false,
@@ -765,8 +757,7 @@ suite('MainThreadChatSessions', function () {
 
 		mainThread.$registerChatSessionContentProvider(handle, sessionScheme);
 
-		const sessionContent: ChatSessionDto = {
-			id: 'test-session',
+		const sessionContent: IChatSessionDto = {
 			resource: URI.parse(`${sessionScheme}:/test-session`),
 			history: [],
 			hasActiveResponseCallback: false,
@@ -824,8 +815,7 @@ suite('MainThreadChatSessions', function () {
 		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
 
 		const resource = URI.parse(`${sessionScheme}:/test-session`);
-		const sessionContent: ChatSessionDto = {
-			id: 'test-session',
+		const sessionContent: IChatSessionDto = {
 			resource,
 			history: [],
 			hasActiveResponseCallback: false,
@@ -858,8 +848,7 @@ suite('MainThreadChatSessions', function () {
 		const resourceWithoutOptions = URI.parse(`${sessionScheme}:/session-without-options`);
 
 		// Session with options
-		const sessionContentWithOptions: ChatSessionDto = {
-			id: 'session-with-options',
+		const sessionContentWithOptions: IChatSessionDto = {
 			resource: resourceWithOptions,
 			history: [],
 			hasActiveResponseCallback: false,
@@ -870,8 +859,7 @@ suite('MainThreadChatSessions', function () {
 		};
 
 		// Session without options
-		const sessionContentWithoutOptions: ChatSessionDto = {
-			id: 'session-without-options',
+		const sessionContentWithoutOptions: IChatSessionDto = {
 			resource: resourceWithoutOptions,
 			history: [],
 			hasActiveResponseCallback: false,

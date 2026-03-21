@@ -31,6 +31,7 @@ import { IProcessEnvironment } from '../../base/common/platform.js';
 import { Registry } from '../../platform/registry/common/platform.js';
 import { InMemoryFileSystemProvider } from '../../platform/files/common/inMemoryFilesystemProvider.js';
 import { VSBuffer } from '../../base/common/buffer.js';
+import { isEqual } from '../../base/common/resources.js';
 
 /**
  * Mock files pre-seeded in the in-memory file system. These match the
@@ -279,14 +280,14 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 		}));
 
 		// Add or update session in list
-		const existing = this._sessionItems.find(s => s.resource.toString() === key);
-		let addedOrUpdated: IChatSessionItem | undefined = existing;
-		if (existing) {
-			existing.timing.lastRequestStarted = now;
-			existing.timing.lastRequestEnded = now;
+		const existingIndex = this._sessionItems.findIndex(s => isEqual(s.resource, resource));
+		let addedOrUpdated = existingIndex !== -1 ? { ...this._sessionItems[existingIndex] } : undefined;
+		if (addedOrUpdated) {
+			addedOrUpdated.timing = { ...addedOrUpdated.timing, lastRequestStarted: now, lastRequestEnded: now };
 			if (changes) {
-				existing.changes = changes;
+				addedOrUpdated.changes = changes;
 			}
+			this._sessionItems[existingIndex] = addedOrUpdated;
 		} else {
 			addedOrUpdated = {
 				resource,
