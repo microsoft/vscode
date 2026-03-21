@@ -373,7 +373,12 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		));
 
 		// No file contents — with lazy loading, no readFile should be called at action time
+		let readFileCallCount = 0;
 		stubFileService(resolveMap, new Map());
+		instantiationService.stub(IFileService, 'readFile', async () => {
+			readFileCallCount++;
+			throw new Error('readFile should not be called');
+		});
 		stubExplorerService([]);
 		stubEditorService();
 		stubNotificationService();
@@ -384,6 +389,7 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 
 		await instantiationService.invokeFunction(command.handler, folderUri);
 
+		assert.strictEqual(readFileCallCount, 0, 'readFile should not be called during action');
 		assert.strictEqual(openedInputs.length, 1, 'Should open carousel with lazy image entries');
 		const images = openedInputs[0].input.collection.sections[0].images;
 		assert.strictEqual(images.length, 2, 'Should include 2 lazy image entries');

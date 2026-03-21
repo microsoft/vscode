@@ -297,25 +297,33 @@ export class ImageCarouselEditor extends EditorPane {
 			return;
 		}
 
+		// Capture the navigation index before starting async work so that
+		// we can discard stale results if the user navigates while loading/decoding.
+		const navigationIndex = this._currentIndex;
+
 		// Swap main image using cached/lazy-loaded blob URL.
 		// Pre-decode via decode() before assigning to <img> so the browser
 		// decodes on a worker thread, avoiding main-thread stalls during commit.
-		// We track the navigation index so stale decode results are discarded.
-		const entry = this._flatImages[this._currentIndex];
+		const entry = this._flatImages[navigationIndex];
 		const currentImage = entry.image;
 		const url = await this._loadBlobUrl(currentImage);
-		const targetIndex = this._currentIndex;
+
+		// If the user navigated while loading the blob URL, discard this result.
+		if (this._currentIndex !== navigationIndex) {
+			return;
+		}
+
 		const tmp = new Image();
 		tmp.src = url;
 		tmp.decode().then(() => {
 			// Only apply if user hasn't navigated away during decode
-			if (this._currentIndex === targetIndex && this._elements) {
+			if (this._currentIndex === navigationIndex && this._elements) {
 				this._elements.mainImage.src = url;
 				this._elements.mainImage.alt = currentImage.name;
 			}
 		}, () => {
 			// Decode failed (invalid image) — still show src for browser fallback
-			if (this._currentIndex === targetIndex && this._elements) {
+			if (this._currentIndex === navigationIndex && this._elements) {
 				this._elements.mainImage.src = url;
 				this._elements.mainImage.alt = currentImage.name;
 			}
