@@ -443,7 +443,28 @@ function getArgvConfigPath(): string {
 		dataFolderName = `${dataFolderName}-dev`;
 	}
 
-	return path.join(os.homedir(), dataFolderName!, 'argv.json');
+	// On Linux, respect XDG_CONFIG_HOME to align with how
+	// userDataPath is resolved (see userDataPath.ts)
+	const newArgvConfigPath = process.platform === 'linux'
+		? path.join(process.env['XDG_CONFIG_HOME'] || path.join(os.homedir(), '.config'), dataFolderName!, 'argv.json')
+		: path.join(os.homedir(), dataFolderName!, 'argv.json');
+
+	// Migrate from the legacy path (~/.vscode/argv.json) if needed
+	if (process.platform === 'linux' && process.env['XDG_CONFIG_HOME']) {
+		const legacyArgvConfigPath = path.join(os.homedir(), dataFolderName!, 'argv.json');
+		if (legacyArgvConfigPath !== newArgvConfigPath) {
+			try {
+				if (fs.existsSync(legacyArgvConfigPath) && !fs.existsSync(newArgvConfigPath)) {
+					fs.mkdirSync(path.dirname(newArgvConfigPath), { recursive: true });
+					fs.renameSync(legacyArgvConfigPath, newArgvConfigPath);
+				}
+			} catch (error) {
+				console.error(`Unable to migrate argv.json from ${legacyArgvConfigPath} to ${newArgvConfigPath} (${error})`);
+			}
+		}
+	}
+
+	return newArgvConfigPath;
 }
 
 function configureCrashReporter(): void {
