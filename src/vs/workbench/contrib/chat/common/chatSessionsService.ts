@@ -66,7 +66,7 @@ export interface IChatSessionProviderOptionGroup {
 	 * Custom commands to show in the option group's picker UI.
 	 * These will be shown in a separate section at the end of the picker.
 	 */
-	readonly commands?: IChatSessionProviderOptionGroupCommand[];
+	readonly commands?: readonly IChatSessionProviderOptionGroupCommand[];
 }
 
 export interface IChatSessionsExtensionPoint {
