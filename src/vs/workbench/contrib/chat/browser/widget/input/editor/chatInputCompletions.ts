@@ -21,7 +21,7 @@ import { ICodeEditor, getCodeEditor, isCodeEditor } from '../../../../../../../e
 import { ICodeEditorService } from '../../../../../../../editor/browser/services/codeEditorService.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
-import { IWordAtPosition, getWordAtText } from '../../../../../../../editor/common/core/wordHelper.js';
+import { IWordAtPosition } from '../../../../../../../editor/common/core/wordHelper.js';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, DocumentSymbol, Location, ProviderResult, SymbolKind, SymbolKinds } from '../../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
@@ -68,6 +68,8 @@ import { IChatDebugService } from '../../../../common/chatDebugService.js';
 import { createDebugEventsAttachment } from '../../../chatDebug/chatDebugAttachment.js';
 import { getPromptFileType } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
+import { computeCompletionRanges, escapeForCharClass, IChatCompletionRangeResult, isEmptyUpToCompletionWord } from './chatInputCompletionUtils.js';
+export { computeCompletionRanges, escapeForCharClass, IChatCompletionRangeResult } from './chatInputCompletionUtils.js';
 
 /**
  * Regex matching a slash command word (e.g. `/foo`). Uses `\p{L}` for Unicode
@@ -850,10 +852,6 @@ interface IVariableCompletionsDetails {
 	range: IChatCompletionRangeResult;
 }
 
-export function escapeForCharClass(text: string): string {
-	return text.replace(/[-\\^\]]/g, '\\$&');
-}
-
 class BuiltinDynamicCompletions extends Disposable {
 	private static readonly addReferenceCommand = '_addReferenceCmd';
 	private static readonly addDebugEventsSnapshotCommand = '_addDebugEventsSnapshotCmd';
@@ -921,13 +919,13 @@ class BuiltinDynamicCompletions extends Disposable {
 
 			const typedLeader = range.varWord?.word?.charAt(0) === chatAgentLeader ? chatAgentLeader : chatVariableLeader;
 			const basename = this.labelService.getUriBasenameLabel(currentResource);
-			const text = `${chatVariableLeader}file:${basename}:${currentSelection.startLineNumber}-${currentSelection.endLineNumber}`;
+			const text = `${typedLeader}file:${basename}:${currentSelection.startLineNumber}-${currentSelection.endLineNumber}`;
 			const fullRangeText = `:${currentSelection.startLineNumber}:${currentSelection.startColumn}-${currentSelection.endLineNumber}:${currentSelection.endColumn}`;
 			const description = this.labelService.getUriLabel(currentResource, { relative: true }) + fullRangeText;
 
 			const result: CompletionList = { suggestions: [] };
 			result.suggestions.push({
-				label: { label: `${chatVariableLeader}selection`, description },
+				label: { label: `${typedLeader}selection`, description },
 				filterText: `${typedLeader}selection`,
 				insertText: range.varWord?.endColumn === range.replace.endColumn ? `${text} ` : text,
 				range,
@@ -1056,7 +1054,7 @@ class BuiltinDynamicCompletions extends Disposable {
 
 		const makeCompletionItem = (resource: URI, kind: FileKind, description?: string, boostPriority?: boolean): CompletionItem => {
 			const basename = this.labelService.getUriBasenameLabel(resource);
-			const text = `${chatVariableLeader}file:${basename}`;
+			const text = `${typedLeader}file:${basename}`;
 			const uriLabel = this.labelService.getUriLabel(resource, { relative: true });
 			const labelDescription = description
 				? localize('fileEntryDescription', '{0} ({1})', uriLabel, description)
@@ -1153,7 +1151,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		const typedLeader = info.varWord?.word?.charAt(0) === chatAgentLeader ? chatAgentLeader : chatVariableLeader;
 
 		const makeSymbolCompletionItem = (symbolItem: { name: string; location: Location; kind: SymbolKind }, pattern: string): CompletionItem => {
-			const text = `${chatVariableLeader}sym:${symbolItem.name}`;
+			const text = `${typedLeader}sym:${symbolItem.name}`;
 			const resource = symbolItem.location.uri;
 			const uriLabel = this.labelService.getUriLabel(resource, { relative: true });
 			const sortText = pattern ? '{' /* after z */ : '|' /* after { */;
@@ -1228,51 +1226,6 @@ class BuiltinDynamicCompletions extends Disposable {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BuiltinDynamicCompletions, LifecyclePhase.Eventually);
-
-export interface IChatCompletionRangeResult {
-	insert: Range;
-	replace: Range;
-	varWord: IWordAtPosition | null;
-}
-
-export function computeCompletionRanges(model: ITextModel, position: Position, reg: RegExp, onlyOnWordStart = false): IChatCompletionRangeResult | undefined {
-	const varWord = getWordAtText(position.column, reg, model.getLineContent(position.lineNumber), 0);
-	if (!varWord && model.getWordUntilPosition(position).word) {
-		// inside a "normal" word
-		return;
-	}
-
-	if (!varWord && position.column > 1) {
-		const textBefore = model.getValueInRange(new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column));
-		if (textBefore !== ' ') {
-			return;
-		}
-	}
-
-	if (varWord && onlyOnWordStart) {
-		const wordBefore = model.getWordUntilPosition({ lineNumber: position.lineNumber, column: varWord.startColumn });
-		if (wordBefore.word) {
-			// inside a word
-			return;
-		}
-	}
-
-	let insert: Range;
-	let replace: Range;
-	if (!varWord) {
-		insert = replace = Range.fromPositions(position);
-	} else {
-		insert = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, position.column);
-		replace = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, varWord.endColumn);
-	}
-
-	return { insert, replace, varWord };
-}
-
-function isEmptyUpToCompletionWord(model: ITextModel, rangeResult: IChatCompletionRangeResult): boolean {
-	const startToCompletionWordStart = new Range(1, 1, rangeResult.replace.startLineNumber, rangeResult.replace.startColumn);
-	return !!model.getValueInRange(startToCompletionWordStart).match(/^\s*$/);
-}
 
 class ToolCompletions extends Disposable {
 
@@ -1355,7 +1308,7 @@ class ToolCompletions extends Disposable {
 						}
 					}
 
-					const withLeader = `${chatVariableLeader}${name}`;
+					const withLeader = `${typedLeader}${name}`;
 					suggestions.push({
 						label: withLeader,
 						range,

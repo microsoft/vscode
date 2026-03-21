@@ -10,7 +10,7 @@ import { Position } from '../../../../../../../../editor/common/core/position.js
 import { Range } from '../../../../../../../../editor/common/core/range.js';
 import { createTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
 import { DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
-import { computeCompletionRanges, escapeForCharClass } from '../../../../../browser/widget/input/editor/chatInputCompletions.js';
+import { computeCompletionRanges, escapeForCharClass } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
 import { chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
 
 suite('escapeForCharClass', () => {
