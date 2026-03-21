@@ -1392,7 +1392,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		const { files } = await this.computeSkillDiscoveryInfo(token);
-		return { type: PromptsType.skill, files };
+		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.skill);
+		return { type: PromptsType.skill, files, sourceFolders };
 	}
 
 	/**
