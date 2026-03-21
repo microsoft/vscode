@@ -250,6 +250,46 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(writes.length, 1);
 			strictEqual(writes[0].replace(/\x1b/g, '\\x1b').replace(/\r/g, '\\r'), '\\x1b[200~echo hello\\rworld\\x1b[201~\\r');
 		});
+
+		test('should not use bracketed paste mode for non-executed carriage return input', async () => {
+			const instance = await createTerminalInstance();
+			const writes: string[] = [];
+			const processManager = (instance as unknown as { _processManager: { write(data: string): Promise<void> } })._processManager;
+			const originalWrite = processManager.write;
+			const originalXterm = instance.xterm!;
+			const testRaw = Object.create(originalXterm.raw) as typeof originalXterm.raw;
+			Object.defineProperty(testRaw, 'modes', {
+				value: {
+					...originalXterm.raw.modes,
+					bracketedPasteMode: true
+				},
+				configurable: true
+			});
+			const testXterm = Object.create(originalXterm) as typeof originalXterm;
+			Object.defineProperty(testXterm, 'raw', {
+				value: testRaw,
+				configurable: true
+			});
+			Object.defineProperty(testXterm, 'scrollToBottom', {
+				value: () => { },
+				configurable: true
+			});
+
+			processManager.write = async (data: string) => {
+				writes.push(data);
+			};
+			instance.xterm = testXterm;
+
+			try {
+				await instance.sendText('\r', false);
+			} finally {
+				processManager.write = originalWrite;
+				instance.xterm = originalXterm;
+			}
+
+			strictEqual(writes.length, 1);
+			strictEqual(writes[0].replace(/\x1b/g, '\\x1b').replace(/\r/g, '\\r'), '\\r');
+		});
 	});
 	suite('parseExitResult', () => {
 		test('should return no message for exit code = undefined', () => {
