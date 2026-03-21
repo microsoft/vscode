@@ -547,6 +547,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			{
 				listForeground: SIDE_BAR_FOREGROUND,
 				listBackground: locationBasedColors.background,
+				listShadow: locationBasedColors.listOverrideStyles.treeStickyScrollShadow,
 				overlayBackground: locationBasedColors.overlayBackground,
 				inputEditorBackground: locationBasedColors.background,
 				resultEditorBackground: editorBackground,
