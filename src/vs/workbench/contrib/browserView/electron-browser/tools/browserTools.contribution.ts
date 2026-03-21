@@ -12,6 +12,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatContextService } from '../../../chat/browser/contextContrib/chatContextService.js';
+import { ChatUrlFetchingConfirmationContribution } from '../../../chat/common/tools/builtinTools/chatUrlFetchingConfirmation.js';
+import { ILanguageModelToolsConfirmationService } from '../../../chat/common/tools/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService, ToolDataSource, ToolSet } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { ClickBrowserTool, ClickBrowserToolData } from './clickBrowserTool.js';
@@ -43,6 +45,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
 		@IChatContextService private readonly chatContextService: IChatContextService,
 		@IEditorService private readonly editorService: IEditorService,
+		@ILanguageModelToolsConfirmationService confirmationService: ILanguageModelToolsConfirmationService,
 	) {
 		super();
 
@@ -63,6 +66,30 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 				this._updateToolRegistrations();
 			}
 		}));
+
+		// Register URL-based confirmation contributions for open and navigate tools.
+		// This confirmation will be stored in settings and shared with other tools that
+		// register ChatUrlFetchingConfirmationContribution, such as the `fetch` tool.
+		this._register(confirmationService.registerConfirmationContribution(
+			OpenBrowserToolData.id,
+			instantiationService.createInstance(
+				ChatUrlFetchingConfirmationContribution,
+				(params: unknown) => {
+					const url = (params as { url?: string }).url;
+					return url ? [url] : undefined;
+				}
+			)
+		));
+		this._register(confirmationService.registerConfirmationContribution(
+			NavigateBrowserToolData.id,
+			instantiationService.createInstance(
+				ChatUrlFetchingConfirmationContribution,
+				(params: unknown) => {
+					const p = params as { type?: string; url?: string };
+					return (!p.type || p.type === 'url') && p.url ? [p.url] : undefined;
+				}
+			)
+		));
 	}
 
 	private _updateToolRegistrations(): void {
