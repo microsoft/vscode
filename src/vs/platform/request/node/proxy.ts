@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { parse as parseUrl, Url } from 'url';
+import { urlToHttpOptions } from 'url';
 import { isBoolean } from '../../../base/common/types.js';
 
 export type Agent = any;
 
-function getSystemProxyURI(requestURL: Url, env: typeof process.env): string | null {
+function getSystemProxyURI(requestURL: URL, env: typeof process.env): string | null {
 	if (requestURL.protocol === 'http:') {
 		return env.HTTP_PROXY || env.http_proxy || null;
 	} else if (requestURL.protocol === 'https:') {
@@ -24,23 +24,23 @@ export interface IOptions {
 }
 
 export async function getProxyAgent(rawRequestURL: string, env: typeof process.env, options: IOptions = {}): Promise<Agent> {
-	const requestURL = parseUrl(rawRequestURL);
+	const requestURL = new URL(rawRequestURL);
 	const proxyURL = options.proxyUrl || getSystemProxyURI(requestURL, env);
 
 	if (!proxyURL) {
 		return null;
 	}
 
-	const proxyEndpoint = parseUrl(proxyURL);
+	const proxyEndpoint = new URL(proxyURL);
 
-	if (!/^https?:$/.test(proxyEndpoint.protocol || '')) {
+	if (proxyEndpoint.protocol !== "http:" && proxyEndpoint.protocol !== "https:") {
 		return null;
 	}
 
 	const opts = {
-		host: proxyEndpoint.hostname || '',
-		port: (proxyEndpoint.port ? +proxyEndpoint.port : 0) || (proxyEndpoint.protocol === 'https' ? 443 : 80),
-		auth: proxyEndpoint.auth,
+		host: proxyEndpoint.hostname,
+		port: +proxyEndpoint.port || (proxyEndpoint.protocol === 'https:' ? 443 : 80),
+		auth: urlToHttpOptions(proxyEndpoint).auth,
 		rejectUnauthorized: isBoolean(options.strictSSL) ? options.strictSSL : true,
 	};
 

@@ -8,7 +8,6 @@ import type * as http from 'http';
 import * as net from 'net';
 import { createRequire } from 'node:module';
 import { performance } from 'perf_hooks';
-import * as url from 'url';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { CharCode } from '../../base/common/charCode.js';
 import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
@@ -112,7 +111,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			return serveError(req, res, 400, `Bad request.`);
 		}
 
-		const parsedUrl = url.parse(req.url, true);
+		const parsedUrl = new URL(req.url, 'http://localhost');
 		let pathname = parsedUrl.pathname;
 
 		if (!pathname) {
@@ -149,7 +148,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		if (pathname === '/vscode-remote-resource') {
 			// Handle HTTP requests for resources rendered in the rich client (images, fonts, etc.)
 			// These resources could be files shipped with extensions or even workspace files.
-			const desiredPath = parsedUrl.query['path'];
+			const desiredPath = parsedUrl.searchParams.get('path');
 			if (typeof desiredPath !== 'string') {
 				return serveError(req, res, 400, `Bad request.`);
 			}
@@ -195,14 +194,14 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		let skipWebSocketFrames = false;
 
 		if (req.url) {
-			const query = url.parse(req.url, true).query;
-			if (typeof query.reconnectionToken === 'string') {
-				reconnectionToken = query.reconnectionToken;
+			const query = new URL(req.url, 'http://localhost').searchParams;
+			if (typeof query.get('reconnectionToken') === 'string') {
+				reconnectionToken = query.get('reconnectionToken')!;
 			}
-			if (query.reconnection === 'true') {
+			if (query.get('reconnection') === 'true') {
 				isReconnection = true;
 			}
-			if (query.skipWebSocketFrames === 'true') {
+			if (query.get('skipWebSocketFrames') === 'true') {
 				skipWebSocketFrames = true;
 			}
 		}

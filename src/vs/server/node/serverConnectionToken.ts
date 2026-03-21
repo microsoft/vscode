@@ -6,7 +6,6 @@
 import * as cookie from 'cookie';
 import * as fs from 'fs';
 import type * as http from 'http';
-import * as url from 'url';
 import * as path from '../../base/common/path.js';
 import { generateUuid } from '../../base/common/uuid.js';
 import { connectionTokenCookieName, connectionTokenQueryName } from '../../base/common/network.js';
@@ -120,9 +119,9 @@ export async function determineServerConnectionToken(args: ServerParsedArgs): Pr
 	return parseServerConnectionToken(args, readOrGenerateConnectionToken);
 }
 
-export function requestHasValidConnectionToken(connectionToken: ServerConnectionToken, req: http.IncomingMessage, parsedUrl: url.UrlWithParsedQuery) {
+export function requestHasValidConnectionToken(connectionToken: ServerConnectionToken, req: http.IncomingMessage, parsedUrl: URL) {
 	// First check if there is a valid query parameter
-	if (connectionToken.validate(parsedUrl.query[connectionTokenQueryName])) {
+	if (connectionToken.validate(parsedUrl.searchParams.get(connectionTokenQueryName))) {
 		return true;
 	}
 

@@ -7,7 +7,6 @@ import * as https from 'https';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as cp from 'child_process';
-import { parse as parseUrl } from 'url';
 
 function ensureFolderExists(loc: string) {
 	if (!fs.existsSync(loc)) {
@@ -31,9 +30,9 @@ async function downloadVSCodeServerArchive(updateUrl: string, commit: string, qu
 
 	return new Promise((resolve, reject) => {
 		log(`Downloading VS Code Server from: ${downloadUrl}`);
-		const requestOptions: https.RequestOptions = parseUrl(downloadUrl);
+		const requestUrl = new URL(downloadUrl);
 
-		https.get(requestOptions, res => {
+		https.get(requestUrl, res => {
 			if (res.statusCode !== 302) {
 				reject('Failed to get VS Code server archive location');
 				res.resume(); // read the rest of the response data and discard it
@@ -46,7 +45,7 @@ async function downloadVSCodeServerArchive(updateUrl: string, commit: string, qu
 				return;
 			}
 
-			const archiveRequestOptions: https.RequestOptions = parseUrl(archiveUrl);
+			const archiveRequestUrl = new URL(archiveUrl);
 			const archivePath = path.resolve(destDir, `vscode-server-${commit}.${archiveUrl.endsWith('.zip') ? 'zip' : 'tgz'}`);
 			const outStream = fs.createWriteStream(archivePath);
 			outStream.on('finish', () => {
@@ -55,7 +54,7 @@ async function downloadVSCodeServerArchive(updateUrl: string, commit: string, qu
 			outStream.on('error', err => {
 				reject(err);
 			});
-			https.get(archiveRequestOptions, res => {
+			https.get(archiveRequestUrl, res => {
 				res.pipe(outStream);
 				res.on('error', err => {
 					reject(err);
