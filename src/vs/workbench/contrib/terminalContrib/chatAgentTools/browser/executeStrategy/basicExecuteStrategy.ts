@@ -104,7 +104,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			this._log('Waiting for idle');
 			await waitForIdle(this._instance.onData, idlePollInterval);
 
-			setupRecreatingStartMarker(
+			const markerRecreation = setupRecreatingStartMarker(
 				xterm,
 				this._startMarker,
 				m => this._onDidCreateStartMarker.fire(m),
@@ -128,6 +128,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			// ^C being sent and also to return the exit code of 130 when from the shell when that
 			// occurs.
 			this._log(`Executing command line \`${commandLine}\``);
+			markerRecreation.dispose();
 			this._instance.sendText(commandLine, true);
 
 			// Wait for the next end execution event - note that this may not correspond to the actual

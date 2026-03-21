@@ -62,7 +62,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 				throw new CancellationError();
 			}
 
-			setupRecreatingStartMarker(
+			const markerRecreation = setupRecreatingStartMarker(
 				xterm,
 				this._startMarker,
 				m => this._onDidCreateStartMarker.fire(m),
@@ -82,7 +82,30 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 			// is used as sending ctrl+c before a shell is initialized (eg. PSReadLine) can result
 			// in failure (https://github.com/microsoft/vscode/issues/258989)
 			this._log(`Executing command line \`${commandLine}\``);
+			markerRecreation.dispose();
+			const startLine = this._startMarker.value?.line;
 			this._instance.sendText(commandLine, true);
+
+			// Wait for the cursor to move past the command line before
+			// starting idle detection. Without this, the idle poll may
+			// resolve immediately on the existing prompt if the shell
+			// hasn't started processing the command yet.
+			if (startLine !== undefined) {
+				this._log('Waiting for cursor to move past start line');
+				await new Promise<void>(resolve => {
+					const check = () => {
+						const buffer = xterm.raw.buffer.active;
+						const cursorLine = buffer.baseY + buffer.cursorY;
+						if (cursorLine > startLine) {
+							resolve();
+						} else {
+							store.add(Event.once(this._instance.onData)(() => check()));
+						}
+					};
+					check();
+				});
+			}
+
 
 			// Assume the command is done when it's idle
 			this._log('Waiting for idle with prompt heuristics');

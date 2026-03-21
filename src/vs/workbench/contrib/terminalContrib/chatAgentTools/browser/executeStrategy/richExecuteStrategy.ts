@@ -73,7 +73,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 				}),
 			]);
 
-			setupRecreatingStartMarker(
+			const markerRecreation = setupRecreatingStartMarker(
 				xterm,
 				this._startMarker,
 				m => this._onDidCreateStartMarker.fire(m),
@@ -83,6 +83,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 
 			// Execute the command
 			this._log(`Executing command line \`${commandLine}\``);
+			markerRecreation.dispose();
 			this._instance.runCommand(commandLine, true, commandId);
 
 			// Wait for the terminal to idle

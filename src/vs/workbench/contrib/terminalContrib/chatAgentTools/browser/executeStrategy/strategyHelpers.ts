@@ -18,7 +18,7 @@ export function setupRecreatingStartMarker(
 	fire: (marker: IXtermMarker | undefined) => void,
 	store: DisposableStore,
 	log?: (message: string) => void,
-): void {
+): IDisposable {
 	const markerListener = new MutableDisposable<IDisposable>();
 	const recreateStartMarker = () => {
 		if (store.isDisposed) {
@@ -43,6 +43,12 @@ export function setupRecreatingStartMarker(
 		fire(undefined);
 	}));
 	store.add(startMarker);
+
+	// Return a disposable that stops the recreation loop without clearing
+	// the current marker. Callers should dispose this before sending a
+	// command so that prompt re-renders (e.g. PSReadLine transient prompts)
+	// don't move the start marker past the command output.
+	return toDisposable(() => markerListener.dispose());
 }
 
 export function createAltBufferPromise(
@@ -100,7 +106,9 @@ export function stripCommandEchoAndPrompt(output: string, commandLine: string, l
 
 function _stripCommandEchoAndPromptOnce(output: string, commandLine: string, log?: (message: string) => void): string {
 	// Strip leading lines that are part of the command echo using findCommandEcho.
-	const echoResult = findCommandEcho(output, commandLine);
+	// Allow suffix matching to handle partial command echoes from getOutput()
+	// where the prompt line is not included.
+	const echoResult = findCommandEcho(output, commandLine, /*allowSuffixMatch*/ true);
 	const lines = echoResult ? echoResult.linesAfter : output.split('\n');
 	const startIndex = 0;
 
@@ -168,7 +176,7 @@ function _stripCommandEchoAndPromptOnce(output: string, commandLine: string, log
 	return result;
 }
 
-export function findCommandEcho(output: string, commandLine: string): { contentBefore: string; linesAfter: string[] } | undefined {
+export function findCommandEcho(output: string, commandLine: string, allowSuffixMatch?: boolean): { contentBefore: string; linesAfter: string[] } | undefined {
 	const trimmedCommand = commandLine.trim();
 	if (trimmedCommand.length === 0) {
 		return undefined;
@@ -178,17 +186,46 @@ export function findCommandEcho(output: string, commandLine: string): { contentB
 	// contiguous substring even when terminal wrapping splits it across lines.
 	const { strippedOutput, indexMapping } = stripNewLinesAndBuildMapping(output);
 	const matchIndex = strippedOutput.indexOf(trimmedCommand);
-	if (matchIndex === -1) {
+
+	let matchEndInStripped: number;
+	let contentBefore: string;
+
+	if (matchIndex !== -1) {
+		// Full command found in the output
+		contentBefore = strippedOutput.substring(0, matchIndex).trim();
+		matchEndInStripped = matchIndex + trimmedCommand.length - 1;
+	} else if (allowSuffixMatch) {
+		// If the full command wasn't found, check if the output starts with a
+		// suffix of the command. This happens when getOutput() doesn't include
+		// the prompt line, so only the wrapped continuation of the command echo
+		// appears at the beginning of the output.
+		let suffixLen = 0;
+		for (let len = trimmedCommand.length - 1; len >= 1; len--) {
+			const suffix = trimmedCommand.substring(trimmedCommand.length - len);
+			if (strippedOutput.startsWith(suffix)) {
+				// Require the suffix to start mid-word in the command (not at
+				// a word boundary). A word-boundary match like "MARKER_123"
+				// matching the tail of "echo MARKER_123" is almost certainly
+				// actual output, not a wrapped command continuation.
+				const charBefore = trimmedCommand[trimmedCommand.length - len - 1];
+				if (charBefore !== undefined && charBefore !== ' ' && charBefore !== '\t') {
+					suffixLen = len;
+				}
+				break;
+			}
+		}
+		if (suffixLen === 0) {
+			return undefined;
+		}
+		contentBefore = '';
+		matchEndInStripped = suffixLen - 1;
+	} else {
 		return undefined;
 	}
 
-	// The content before the command in the stripped output is the prompt text
-	// (e.g. "user@host:~/src $ "). Trim whitespace to get the meaningful part.
-	const contentBefore = strippedOutput.substring(0, matchIndex).trim();
-
 	// Map the match end back to the original output position and determine
 	// which line it falls on to split linesAfter.
-	const originalEnd = indexMapping[matchIndex + trimmedCommand.length - 1];
+	const originalEnd = indexMapping[matchEndInStripped];
 
 	const lines = output.split('\n');
 	let echoEndLine = 0;

@@ -208,9 +208,24 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				const m1 = `M1_${Date.now()}`;
 				const m2 = `M2_${Date.now()}`;
 				const m3 = `M3_${Date.now()}`;
-				const output = await invokeRunInTerminal(`echo ${m1} && echo ${m2} && echo ${m3}`);
+				// Use `;` on Windows (PowerShell) since `&&` is rewritten to `;`
+				const sep = isWindows ? ';' : '&&';
+				const output = await invokeRunInTerminal(`echo ${m1} ${sep} echo ${m2} ${sep} echo ${m3}`);
 
 				assert.strictEqual(output.trim(), `${m1}\n${m2}\n${m3}`);
+			});
+
+			(isWindows ? test : test.skip)('&& operators are converted to ; on PowerShell', async function () {
+				this.timeout(60000);
+
+				const m1 = `CHAIN_${Date.now()}_A`;
+				const m2 = `CHAIN_${Date.now()}_B`;
+				const output = await invokeRunInTerminal(`echo ${m1} && echo ${m2}`);
+
+				// The rewriter prepends a note explaining the simplification
+				const trimmed = output.trim();
+				assert.ok(trimmed.startsWith('Note: The tool simplified the command to'), `Expected rewrite note, got: ${trimmed}`);
+				assert.ok(trimmed.endsWith(`${m1}\n${m2}`), `Expected markers at end, got: ${trimmed}`);
 			});
 
 			test('non-zero exit code is reported', async function () {
@@ -220,10 +235,14 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				const command = isWindows ? 'cmd /c exit 42' : 'bash -c "exit 42"';
 				const output = await invokeRunInTerminal(command);
 
-				// Without shell integration, exit codes are unavailable
+				// Without shell integration, exit codes are unavailable.
+				// On Windows with shell integration, `cmd /c exit 42` may report
+				// exit code 1 instead of 42 due to how PowerShell propagates
+				// cmd.exe exit codes through shell integration sequences.
 				const acceptable = [
 					'Command produced no output\nCommand exited with code 42',
 					...(!hasShellIntegration ? ['Command produced no output'] : []),
+					...(isWindows && hasShellIntegration ? ['Command produced no output\nCommand exited with code 1'] : []),
 				];
 				assert.ok(acceptable.includes(output.trim()), `Unexpected output: ${JSON.stringify(output.trim())}`);
 			});

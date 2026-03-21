@@ -381,6 +381,22 @@ suite('stripCommandEchoAndPrompt', () => {
 		);
 	});
 
+	test('strips partial command echo (suffix from wrapped getOutput)', () => {
+		// When getOutput() doesn't include the prompt line, only the wrapped
+		// continuation of the command echo appears at the start of the output.
+		const output = [
+			'90741 ; echo M2_1774133190741 ; echo M3_1774133190741',
+			'M1_1774133190741',
+			'M2_1774133190741',
+			'M3_1774133190741',
+		].join('\n');
+
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(output, 'echo M1_1774133190741 ; echo M2_1774133190741 ; echo M3_1774133190741'),
+			'M1_1774133190741\nM2_1774133190741\nM3_1774133190741'
+		);
+	});
+
 	test('strips sandbox-wrapped command echo with error output and trailing prompt', () => {
 		const commandLine = 'ELECTRON_RUN_AS_NODE=1 PATH="$PATH:/Users/alex/src/vscode4/node_modules/@vscode/ripgrep/bin" TMPDIR="/Users/alex/.vscode-oss-dev/tmp" CLAUDE_TMPDIR="/Users/alex/.vscode-oss-dev/tmp" "/Users/alex/src/vscode4/node_modules/@anthropic-ai/sandbox-runtime/dist/cli.js" --settings "/Users/alex/.vscode-oss-dev/tmp/vscode-sandbox-settings-cf5b6232-825b-4f4c-8902-32a8591007fd.json" -c \' echo "SANDBOX_TMP_1774127409076" > /tmp/SANDBOX_TMP_1774127409076.txt\'';
 		const output = [
