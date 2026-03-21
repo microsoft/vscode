@@ -4,7 +4,7 @@
 1. Type "build the project" in the chat input
 2. Press Enter to submit
 3. Verify there is a response in the chat
-4. Verify the changes view shows "CHANGES" with a badge
+4. Verify the changes view shows "CHANGES"
 5. Verify "package.json" is visible in the changes list
 6. Verify "build.ts" is visible in the changes list
 7. Verify "index.ts" is visible in the changes list

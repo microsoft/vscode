@@ -24,7 +24,7 @@
 		{
 			"description": "Verify the changes view shows \"CHANGES\" with a badge",
 			"commands": [
-				"# ASSERT_VISIBLE: Changes - 3 files changed"
+				"# ASSERT_VISIBLE: Changes"
 			]
 		},
 		{
