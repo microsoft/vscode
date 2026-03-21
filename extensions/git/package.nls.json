@@ -142,6 +142,8 @@
 	"command.graphCheckout": "Checkout",
 	"command.graphCheckoutDetached": "Checkout (Detached)",
 	"command.graphCherryPick": "Cherry Pick",
+	"command.graphRevertCommit": "Revert Commit",
+	"command.graphResetCommit": "Reset Commit",
 	"command.graphDeleteBranch": "Delete Branch",
 	"command.graphDeleteTag": "Delete Tag",
 	"command.graphCompareRef": "Compare with...",
