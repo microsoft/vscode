@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h } from '../../../../../../../base/browser/dom.js';
-import { renderLabelWithIcons } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -1664,14 +1663,15 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 			return;
 		}
 
-		const labelElement = this._collapseButton.labelElement;
-		labelElement.textContent = '';
 		if (this._isSandboxWrapped) {
-			dom.reset(labelElement, ...renderLabelWithIcons(this._isComplete
+			this._collapseButton.label = new MarkdownString(this._isComplete
 				? '$(lock) ' + localize('chat.terminal.ranInSandbox', "Ran `{0}` in sandbox", this._commandText)
-				: '$(lock) ' + localize('chat.terminal.runningInSandbox', "Running `{0}` in sandbox", this._commandText)));
+				: '$(lock) ' + localize('chat.terminal.runningInSandbox', "Running `{0}` in sandbox", this._commandText), { supportThemeIcons: true });
 			return;
 		}
+
+		const labelElement = this._collapseButton.labelElement;
+		labelElement.textContent = '';
 
 		const prefixText = this._isComplete
 			? localize('chat.terminal.ran.prefix', "Ran ")
