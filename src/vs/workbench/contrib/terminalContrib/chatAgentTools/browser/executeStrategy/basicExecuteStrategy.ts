@@ -168,7 +168,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 				const commandOutput = finishedCommand?.getOutput();
 				if (commandOutput !== undefined) {
 					this._log('Fetched output via finished command');
-					output = commandOutput;
+					output = stripCommandEchoAndPrompt(commandOutput, commandLine);
 				}
 			}
 			if (output === undefined) {

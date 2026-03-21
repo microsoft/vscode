@@ -9,6 +9,10 @@ import * as vscode from 'vscode';
 import { DeferredPromise, assertNoRpc, closeAllEditors, disposeAll } from '../utils';
 
 const isWindows = process.platform === 'win32';
+const isMacOS = process.platform === 'darwin';
+const sandboxFileSystemSetting = isMacOS
+	? 'chat.tools.terminal.sandbox.macFileSystem'
+	: 'chat.tools.terminal.sandbox.linuxFileSystem';
 
 /**
  * Extracts all text content from a LanguageModelToolResult.
@@ -262,7 +266,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				// output analyzer prepends its error message.
 				assert.strictEqual(output.trim(), [
 					'Command failed while running in sandboxed mode. If the command failed due to sandboxing:',
-					'- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in chat.tools.terminal.sandbox.macFileSystem, or to add required domains to chat.tools.terminal.sandbox.network.allowedDomains.',
+					`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.tools.terminal.sandbox.network.allowedDomains.`,
 					'- Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user \u2014 setting this flag automatically shows a confirmation prompt to the user.',
 					'',
 					'Here is the output of the command:',
@@ -282,7 +286,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 
 				assert.strictEqual(output.trim(), [
 					'Command failed while running in sandboxed mode. If the command failed due to sandboxing:',
-					'- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in chat.tools.terminal.sandbox.macFileSystem, or to add required domains to chat.tools.terminal.sandbox.network.allowedDomains.',
+					`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.tools.terminal.sandbox.network.allowedDomains.`,
 					'- Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user \u2014 setting this flag automatically shows a confirmation prompt to the user.',
 					'',
 					'Here is the output of the command:',
@@ -299,7 +303,13 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 
 				const output = await invokeRunInTerminal('head -1 /etc/shells');
 
-				assert.strictEqual(output.trim(), '# List of acceptable shells for chpass(1).');
+				const trimmed = output.trim();
+				// macOS: "# List of acceptable shells for chpass(1)."
+				// Linux: "# /etc/shells: valid login shells"
+				assert.ok(
+					trimmed.startsWith('#'),
+					`Expected a comment line from /etc/shells, got: ${trimmed}`
+				);
 			});
 
 			test('can write inside the workspace folder', async function () {

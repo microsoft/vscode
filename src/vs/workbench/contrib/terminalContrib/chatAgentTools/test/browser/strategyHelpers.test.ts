@@ -330,6 +330,20 @@ suite('stripCommandEchoAndPrompt', () => {
 		);
 	});
 
+	test('strips wrapped trailing prompt with path-like fragment (ts/testWorkspace$)', () => {
+		const output = [
+			'user@host:~ $ echo hello',
+			'hello',
+			'cloudtest@d4b0d881c000000:/mnt/vss/_work/vscode/vscode/extensions/vscode-api-tes',
+			'ts/testWorkspace$',
+		].join('\n');
+
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(output, 'echo hello'),
+			'hello'
+		);
+	});
+
 	test('strips trailing prompt fragment for no-output command', () => {
 		const output = [
 			'dsm12-be220-abc:testWorkspace runner$  true',
