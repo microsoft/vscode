@@ -1151,7 +1151,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public getNewSessionOptionsForSessionType(chatSessionType: string): ReadonlyChatSessionOptionsMap | undefined {
-		return new Map(this._sessionTypeNewSessionOptions.get(chatSessionType));
+		const options = this._sessionTypeNewSessionOptions.get(chatSessionType);
+		if (!options || options.size === 0) {
+			return undefined;
+		}
+		return new Map(options);
 	}
 
 	public setNewSessionOptionsForSessionType(chatSessionType: string, options: ReadonlyChatSessionOptionsMap): void {
