@@ -37,8 +37,9 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
-import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessionPickerActionItem.js';
 import { SearchableOptionPickerActionItem } from '../../../../workbench/contrib/chat/browser/chatSessions/searchableOptionPickerActionItem.js';
@@ -70,8 +71,7 @@ import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { NewChatPermissionPicker } from './newChatPermissionPicker.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
-import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { getRemoteAgentHostSessionTarget } from '../../remoteAgentHost/browser/remoteAgentHost.contribution.js';
+
 
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
 const MIN_EDITOR_HEIGHT = 50;
@@ -179,10 +179,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		@ILogService private readonly logService: ILogService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IGitService private readonly gitService: IGitService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 	) {
 		super();
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
@@ -328,29 +328,34 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	private async _createNewSession(project?: SessionWorkspace): Promise<void> {
-		const isAgentHost = project?.isRemoteAgentHost ?? false;
-		let target: AgentSessionTarget;
-		if (isAgentHost) {
-			// Find the matching remote agent host session type from the URI authority
-			// TODO@roblourens HACK - view should not do this
-			const remoteTarget = getRemoteAgentHostSessionTarget(this.remoteAgentHostService.connections, project!.uri.authority);
-			if (!remoteTarget) {
-				this.logService.error(`Failed to find remote agent host session type for authority: ${project!.uri.authority}`);
-				return;
-			}
-			target = remoteTarget;
-		} else {
-			target = project?.isRepo ? AgentSessionProviders.Cloud : AgentSessionProviders.Background;
+		// Resolve the provider for this workspace via the registry
+		const providers = project
+			? this.sessionsProvidersService.getProvidersForWorkspace(project)
+			: this.sessionsProvidersService.getProviders();
+
+		const provider = providers[0];
+		if (!provider) {
+			this.logService.error('No sessions provider found for workspace');
+			return;
+		}
+
+		// Determine session type: if provider supports multiple, pick the first.
+		// TODO: Show type picker when provider has multiple session types and
+		// the workspace doesn't imply a specific one.
+		const sessionType = provider.sessionTypes[0];
+		if (!sessionType) {
+			this.logService.error(`Sessions provider '${provider.id}' has no session types`);
+			return;
 		}
 
 		const resource = getResourceForNewChatSession({
-			type: target,
+			type: sessionType.id,
 			position: this._options.sessionPosition ?? ChatSessionPosition.Sidebar,
 			displayName: '',
 		});
 
 		try {
-			const session = await this.sessionsManagementService.createNewSessionForTarget(target, resource, { agentHost: isAgentHost });
+			const session = this.sessionsProvidersService.createNewSession(provider.id, sessionType, resource, project);
 			if (project) {
 				session.setProject(project);
 			}
@@ -936,8 +941,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// If the session is disabled due to missing folder/repo, open the picker
 		if (session.disabled) {
-			if (!this._hasRequiredRepoOrFolderSelection(session.target)) {
-				this._openRepoOrFolderPicker(session.target);
+			if (!this._hasRequiredRepoOrFolderSelection()) {
+				this._openRepoOrFolderPicker();
 			}
 			return;
 		}
@@ -996,11 +1001,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	 * For Local/Background targets, checks the folder picker.
 	 * For other targets, checks extension-contributed repo/folder option groups.
 	 */
-	private _hasRequiredRepoOrFolderSelection(_sessionType: AgentSessionTarget): boolean {
+	private _hasRequiredRepoOrFolderSelection(): boolean {
 		return !!this._newSession.value?.project;
 	}
 
-	private _openRepoOrFolderPicker(_sessionType: AgentSessionTarget): void {
+	private _openRepoOrFolderPicker(): void {
 		this._workspacePicker.showPicker();
 	}
 
