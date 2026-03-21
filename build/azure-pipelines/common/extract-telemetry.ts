@@ -79,12 +79,7 @@ if (hasLocalConfigOverrides) {
 }
 
 try {
-	const excludedDirs = [
-		path.join(BUILD_SOURCESDIRECTORY, 'extensions'),
-		path.join(BUILD_SOURCESDIRECTORY, 'extensions', 'copilot'),
-	];
-	const excludedDirArgs = excludedDirs.map(dir => `--excludedDir "${dir}"`).join(' ');
-	cp.execSync(`node "${extractor}" --sourceDir "${BUILD_SOURCESDIRECTORY}" ${excludedDirArgs} --outputDir . --applyEndpoints`, { cwd: extractionDir, stdio: 'inherit' });
+	cp.execSync(`node "${extractor}" --sourceDir "${path.join(BUILD_SOURCESDIRECTORY, 'src')}" --outputDir . --applyEndpoints`, { cwd: extractionDir, stdio: 'inherit' });
 	cp.execSync(`node "${extractor}" --config "${telemetryConfigForExtraction}" -o .`, { cwd: extractionDir, stdio: 'inherit' });
 } catch (error) {
 	const message = error instanceof Error ? error.message : String(error);
