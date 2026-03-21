@@ -114,6 +114,11 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 
 	parts.push(
 		'',
+		'Timeout Handling:',
+		'- NEVER use the timeout command in your command line (e.g., timeout 30 command)',
+		'- Instead, use the timeout parameter of this tool to enforce time limits',
+		'- Example: set timeout=30000 for a 30 second timeout (value is in milliseconds)',
+		'',
 		'Output Management:',
 		'- Output is automatically truncated if longer than 60KB to prevent context overflow',
 		'- Use Select-Object, Where-Object, Format-Table to filter output',
@@ -187,6 +192,11 @@ Background Processes:
 	}
 
 	parts.push(`
+
+Timeout Handling:
+- NEVER use the timeout command in your command line (e.g., timeout 30 command)
+- Instead, use the timeout parameter of this tool to enforce time limits
+- Example: set timeout=30000 for a 30 second timeout (value is in milliseconds)
 
 Output Management:
 - Output is automatically truncated if longer than 60KB to prevent context overflow
