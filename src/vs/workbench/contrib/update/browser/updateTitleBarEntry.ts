@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
 import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
@@ -62,12 +63,15 @@ registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
  * Displays update status and actions in the title bar.
  */
 export class UpdateTitleBarContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.updateTitleBar';
+
 	private readonly context!: IContextKey<boolean>;
 	private readonly tooltip!: UpdateTooltip;
 	private mode: 'always' | 'detailed' | 'actionable' | 'none' = 'none';
 	private state!: State;
 	private entry: UpdateTitleBarEntry | undefined;
 	private tooltipVisible = false;
+	private pendingPostInstall: { buttonLabel?: string; autoShowTooltip?: boolean; markdown?: string; actionLabel?: string; actionCommand?: string; actionArgs?: unknown[] } | undefined;
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
@@ -109,9 +113,13 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			(action, options) => {
 				this.entry = instantiationService.createInstance(UpdateTitleBarEntry, action, options, this.tooltip, () => {
 					this.tooltipVisible = false;
+					this.pendingPostInstall = undefined;
 					this.updateContext();
 				});
-				if (this.tooltipVisible) {
+				if (this.pendingPostInstall) {
+					this.entry.showPostInstall(this.pendingPostInstall);
+					this.pendingPostInstall = undefined;
+				} else if (this.tooltipVisible) {
 					this.entry.showTooltip();
 				}
 				return this.entry;
@@ -195,6 +203,16 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		return false;
 	}
 
+	testShowPostInstall(options?: { buttonLabel?: string; autoShowTooltip?: boolean; markdown?: string; actionLabel?: string; actionCommand?: string; actionArgs?: unknown[] }) {
+		this.tooltipVisible = true;
+		this.context.set(true);
+		if (this.entry) {
+			this.entry.showPostInstall(options);
+		} else {
+			this.pendingPostInstall = options ?? {};
+		}
+	}
+
 	private trackVersionChange(from: ILastKnownVersion, to: ILastKnownVersion) {
 		type VersionChangeEvent = {
 			fromVersion: string | undefined;
@@ -239,6 +257,10 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 export class UpdateTitleBarEntry extends BaseActionViewItem {
 	private content: HTMLElement | undefined;
 	private showTooltipOnRender = false;
+	private hintTimer: ReturnType<typeof setTimeout> | undefined;
+	private hintInterval: ReturnType<typeof setInterval> | undefined;
+	private postInstallTimer: ReturnType<typeof setTimeout> | undefined;
+	private postInstallOptions: { markdown?: string; actionLabel?: string; actionCommand?: string; actionArgs?: unknown[] } | undefined;
 
 	constructor(
 		action: IAction,
@@ -275,12 +297,22 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 			return;
 		}
 
+		this.content.classList.add('hint-visible');
+
+		// Keep post-install button visible while tooltip is open
+		if (this.postInstallTimer !== undefined) {
+			clearTimeout(this.postInstallTimer);
+			this.postInstallTimer = undefined;
+		}
+
 		this.hoverService.showInstantHover({
 			content: this.tooltip.domNode,
 			target: {
 				targetElements: [this.content],
 				dispose: () => {
 					if (!!this.content?.isConnected) {
+						this.content.classList.remove('hint-visible');
+						this.dismissPostInstall();
 						this.onUserDismissedTooltip();
 					}
 				}
@@ -320,37 +352,108 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 			return;
 		}
 
+		// Clear previous state
+		if (this.hintTimer !== undefined) {
+			clearTimeout(this.hintTimer);
+			this.hintTimer = undefined;
+		}
+		if (this.hintInterval !== undefined) {
+			mainWindow.clearInterval(this.hintInterval);
+			this.hintInterval = undefined;
+		}
 		dom.clearNode(this.content);
-		this.content.classList.remove('prominent', 'progress-indefinite', 'progress-percent', 'update-disabled');
+		this.content.classList.remove('prominent', 'progress-indefinite', 'progress-percent', 'update-disabled', 'hint-visible');
 		this.content.style.removeProperty('--update-progress');
 
 		const label = dom.append(this.content, dom.$('.indicator-label'));
-		label.textContent = localize('updateIndicator.update', "Update");
 
 		switch (state.type) {
 			case StateType.Disabled:
+				label.textContent = localize('updateIndicator.update', "Update");
 				this.content.classList.add('update-disabled');
 				break;
 
 			case StateType.CheckingForUpdates:
-			case StateType.Overwriting:
+				label.textContent = localize('updateIndicator.checking', "Checking...");
 				this.renderProgressState(this.content);
 				break;
 
-			case StateType.AvailableForDownload:
-			case StateType.Downloaded:
-			case StateType.Ready:
-				this.content.classList.add('prominent');
+			case StateType.Overwriting:
+				label.textContent = localize('updateIndicator.updating', "Updating...");
+				this.renderProgressState(this.content);
 				break;
 
+			case StateType.AvailableForDownload: {
+				label.textContent = localize('updateIndicator.update', "Update");
+				this.content.classList.add('prominent');
+				const hint = dom.append(this.content, dom.$('.indicator-hint'));
+				hint.textContent = localize('updateIndicator.availableHint', "Available. Download?");
+				this.startPeriodicHint();
+				break;
+			}
+
+			case StateType.Downloaded: {
+				label.textContent = localize('updateIndicator.update', "Update");
+				this.content.classList.add('prominent');
+				const hint = dom.append(this.content, dom.$('.indicator-hint'));
+				hint.textContent = localize('updateIndicator.downloadedHint', "Downloaded. Install?");
+				this.startPeriodicHint();
+				break;
+			}
+
+			case StateType.Ready: {
+				label.textContent = localize('updateIndicator.update', "Update");
+				this.content.classList.add('prominent');
+				const hint = dom.append(this.content, dom.$('.indicator-hint'));
+				hint.textContent = localize('updateIndicator.readyHint', "Installed. Restart?");
+				this.startPeriodicHint();
+				break;
+			}
+
 			case StateType.Downloading:
+				label.textContent = localize('updateIndicator.downloading', "Downloading...");
 				this.renderProgressState(this.content, computeProgressPercent(state.downloadedBytes, state.totalBytes));
 				break;
 
 			case StateType.Updating:
+				label.textContent = localize('updateIndicator.installing', "Installing...");
 				this.renderProgressState(this.content, computeProgressPercent(state.currentProgress, state.maxProgress));
 				break;
+
+			default:
+				label.textContent = localize('updateIndicator.update', "Update");
+				break;
 		}
+	}
+
+	private startPeriodicHint() {
+		if (!this.content) {
+			return;
+		}
+
+		// Show after a short delay to allow DOM attachment and CSS transition
+		this.hintTimer = setTimeout(() => {
+			this.flashHint();
+			this.hintTimer = undefined;
+		}, 500);
+
+		// Then repeat every 60 seconds
+		this.hintInterval = mainWindow.setInterval(() => this.flashHint(), 60_000);
+	}
+
+	private flashHint() {
+		if (!this.content) {
+			return;
+		}
+
+		dom.getWindow(this.content).requestAnimationFrame(() => {
+			this.content?.classList.add('hint-visible');
+		});
+
+		this.hintTimer = setTimeout(() => {
+			this.content?.classList.remove('hint-visible');
+			this.hintTimer = undefined;
+		}, 3000);
 	}
 
 	private renderProgressState(content: HTMLElement, percentage?: number) {
@@ -360,5 +463,68 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		} else {
 			content.classList.add('progress-indefinite');
 		}
+	}
+
+	public showPostInstall(options?: { buttonLabel?: string; autoShowTooltip?: boolean; markdown?: string; actionLabel?: string; actionCommand?: string; actionArgs?: unknown[] }) {
+		if (!this.content) {
+			this.postInstallOptions = options;
+			return;
+		}
+
+		// Clear any existing state
+		if (this.hintTimer !== undefined) {
+			clearTimeout(this.hintTimer);
+			this.hintTimer = undefined;
+		}
+		if (this.hintInterval !== undefined) {
+			mainWindow.clearInterval(this.hintInterval);
+			this.hintInterval = undefined;
+		}
+		if (this.postInstallTimer !== undefined) {
+			clearTimeout(this.postInstallTimer);
+			this.postInstallTimer = undefined;
+		}
+		dom.clearNode(this.content);
+		this.content.classList.remove('prominent', 'progress-indefinite', 'progress-percent', 'update-disabled', 'hint-visible');
+		this.content.style.removeProperty('--update-progress');
+
+		// Show post-install text as plain text (no prominent background)
+		this.content.classList.add('post-install');
+		const label = dom.append(this.content, dom.$('.indicator-label'));
+		label.textContent = options?.buttonLabel ?? localize('updateIndicator.postInstall', "Update Complete");
+
+		// Prepare tooltip content
+		this.tooltip.renderPostInstall(options);
+
+		// Auto-show tooltip if requested
+		if (options?.autoShowTooltip) {
+			dom.scheduleAtNextAnimationFrame(dom.getWindow(this.content), () => this.showTooltip());
+		}
+
+		// Fade away after 6 seconds
+		this.postInstallTimer = setTimeout(() => {
+			this.dismissPostInstall();
+			this.postInstallTimer = undefined;
+		}, 6000);
+	}
+
+	private dismissPostInstall() {
+		if (!this.content?.classList.contains('post-install')) {
+			return;
+		}
+		if (this.postInstallTimer !== undefined) {
+			clearTimeout(this.postInstallTimer);
+			this.postInstallTimer = undefined;
+		}
+		this.content.classList.add('post-install-fade');
+		setTimeout(() => {
+			this.content?.classList.remove('post-install', 'post-install-fade');
+			if (this.content) {
+				dom.clearNode(this.content);
+				const label = dom.append(this.content, dom.$('.indicator-label'));
+				label.textContent = localize('updateIndicator.update', "Update");
+			}
+			this.onUserDismissedTooltip();
+		}, 500);
 	}
 }
