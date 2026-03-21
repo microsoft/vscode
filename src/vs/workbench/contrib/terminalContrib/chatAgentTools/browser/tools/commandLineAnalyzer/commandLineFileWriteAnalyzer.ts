@@ -8,12 +8,11 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { win32, posix } from '../../../../../../../base/common/path.js';
 import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
-import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 import { TreeSitterCommandParserLanguage, type TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
 import type { ICommandLineAnalyzer, ICommandLineAnalyzerOptions, ICommandLineAnalyzerResult } from './commandLineAnalyzer.js';
 import { OperatingSystem } from '../../../../../../../base/common/platform.js';
-import { isString } from '../../../../../../../base/common/types.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 
 const nullDevice = Symbol('null device');
@@ -67,24 +66,17 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 						return e;
 					}
 
-					// Surrounding quotes where it's difficult to determine whether this is absolute
-					// or relative
-					if (/^['"].*['"]$/.test(e)) {
-						// Strip surrounding quotes to get a more reasonable view of the path. Note
-						// that this may not get the real file in the case of inner quotes, but the
-						// important thing here is the resolving whether it's absolute or not.
-						e = this._stripSurroundingQuotes(e);
-					}
+					const normalizedPath = this._normalizePathForParsing(e, options.os);
 
 					// Absolute
-					const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(e) : posix.isAbsolute(e);
+					const isAbsolute = this._isAbsolutePath(normalizedPath, options.os);
 					if (isAbsolute) {
 						// Ensure cwd's scheme and authority is retained
-						return cwd.with({ path: e });
+						return cwd.with({ path: normalizedPath });
 					}
 
 					// Relative
-					return URI.joinPath(cwd, e);
+					return URI.joinPath(cwd, normalizedPath);
 				});
 			} else {
 				this._log('Cwd could not be detected');
@@ -135,15 +127,12 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 								continue;
 							}
 
-							if (isString(fileWrite)) {
-								const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(fileWrite) : posix.isAbsolute(fileWrite);
-								if (!isAbsolute) {
-									isAutoApproveAllowed = false;
-									this._log('File write blocked due to unknown terminal cwd', fileWrite);
-									break;
-								}
+							const fileUri = this._toFileWriteUri(fileWrite, options);
+							if (!fileUri) {
+								isAutoApproveAllowed = false;
+								this._log('File write blocked due to unknown terminal cwd', fileWrite);
+								break;
 							}
-							const fileUri = URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite);
 							// TODO: Handle command substitutions/complex destinations properly https://github.com/microsoft/vscode/issues/274167
 							// TODO: Handle environment variables properly https://github.com/microsoft/vscode/issues/274166
 							if (fileUri.fsPath.match(/[$\(\){}`]/)) {
@@ -152,10 +141,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 								break;
 							}
 
-							const isInsideWorkspace = workspaceFolders.some(folder =>
-								folder.uri.scheme === fileUri.scheme &&
-								(fileUri.path.startsWith(folder.uri.path + '/') || fileUri.path === folder.uri.path)
-							);
+							const isInsideWorkspace = this._isWithinWorkspace(fileUri, workspaceFolders, options.os);
 							if (!isInsideWorkspace) {
 								isAutoApproveAllowed = false;
 								this._log('File write blocked outside workspace', fileUri.toString());
@@ -192,5 +178,49 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 			isAutoApproveAllowed,
 			disclaimers,
 		};
+	}
+
+	private _isWithinWorkspace(fileUri: URI, workspaceFolders: readonly IWorkspaceFolder[], os: OperatingSystem): boolean {
+		const normalizedFilePath = this._normalizePathForComparison(fileUri.path, os);
+		return workspaceFolders.some(folder => {
+			const folderAuthority = folder.uri.authority ?? '';
+			const fileAuthority = fileUri.authority ?? '';
+			if (folder.uri.scheme !== fileUri.scheme || folderAuthority !== fileAuthority) {
+				return false;
+			}
+			const normalizedFolderPath = this._normalizePathForComparison(folder.uri.path, os);
+			const folderPrefix = normalizedFolderPath.endsWith('/') ? normalizedFolderPath : `${normalizedFolderPath}/`;
+			return normalizedFilePath === normalizedFolderPath || normalizedFilePath.startsWith(folderPrefix);
+		});
+	}
+
+	private _toFileWriteUri(fileWrite: URI | string, options: ICommandLineAnalyzerOptions): URI | undefined {
+		if (URI.isUri(fileWrite)) {
+			return fileWrite;
+		}
+
+		const normalizedPath = this._normalizePathForParsing(fileWrite, options.os);
+		if (!this._isAbsolutePath(normalizedPath, options.os)) {
+			return undefined;
+		}
+
+		return URI.file(normalizedPath);
+	}
+
+	private _isAbsolutePath(path: string, os: OperatingSystem): boolean {
+		return os === OperatingSystem.Windows ? win32.isAbsolute(path) : posix.isAbsolute(path);
+	}
+
+	private _normalizePathForComparison(path: string, os: OperatingSystem): string {
+		const normalizedPath = this._normalizePathForParsing(path, os);
+		return os === OperatingSystem.Windows ? normalizedPath.toLowerCase() : normalizedPath;
+	}
+
+	private _normalizePathForParsing(path: string, os: OperatingSystem): string {
+		const strippedPath = this._stripSurroundingQuotes(path);
+		if (os === OperatingSystem.Windows) {
+			return strippedPath.replace(/\\/g, '/');
+		}
+		return strippedPath;
 	}
 }
