@@ -884,7 +884,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const didToolEditCommand = (
 			!didUserEditCommand &&
 			toolSpecificData.commandLine.toolEdited !== undefined &&
-			toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original
+			toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original &&
+			// Only consider it a meaningful edit if the display form also differs from the
+			// original. Cosmetic rewrites like prepending a space to prevent shell history
+			// should not trigger the "tool simplified the command" note.
+			normalizeTerminalCommandForDisplay(toolSpecificData.commandLine.toolEdited).trim() !== normalizeTerminalCommandForDisplay(toolSpecificData.commandLine.original).trim()
 		);
 
 		const didSandboxWrapCommand = toolSpecificData.commandLine.isSandboxWrapped === true;
@@ -1741,6 +1745,15 @@ export class TerminalProfileFetcher {
 				...defaultProfile,
 				path: 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
 				profileName: 'PowerShell'
+			};
+		}
+
+		// Force bash over sh as sh doesn't have shell integration
+		if (defaultProfile.path === '/bin/sh') {
+			return {
+				...defaultProfile,
+				path: '/bin/bash',
+				profileName: 'bash',
 			};
 		}
 
