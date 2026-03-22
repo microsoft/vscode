@@ -688,9 +688,15 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			keyCode >= KeyCode.F1 && keyCode <= KeyCode.F24 ||
 			keyCode >= KeyCode.AudioVolumeMute;
 
+		// Arrow keys are standard text navigation (word, line, document movement
+		// and selection) — always let them pass through to web content.
+		if (isArrowKey) {
+			return false;
+		}
+
 		// Ignore most Alt-only inputs (often used for accented characters or menu accelerators)
 		const isAltOnlyInput = input.alt && !input.control && !input.meta;
-		if (isAltOnlyInput && !isNonEditingKey && !isArrowKey) {
+		if (isAltOnlyInput && !isNonEditingKey) {
 			return false;
 		}
 
