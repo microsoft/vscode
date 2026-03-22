@@ -3,7 +3,7 @@
   "version": "1.113.0",
   "distro": "a469262cd3af261072efec49f751e7f9587d41a4",
   "author": {
-    "name": "Forge Contributors"
+    "name": "Guillermo Barrena"
   },
   "license": "MIT",
   "main": "./out/main.js",

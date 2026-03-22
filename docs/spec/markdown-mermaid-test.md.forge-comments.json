@@ -3,69 +3,37 @@
 	"documentPath": "/home/workstation/Documents/projects/forge-1/docs/spec/markdown-mermaid-test.md",
 	"threads": [
 		{
-			"id": "sc-bd5d76c2",
+			"id": "sc-c19ae13c",
 			"status": "open",
 			"anchor": {
 				"kind": "selection",
-				"markerId": "bd5d76c2",
-				"quotedText": "em o",
-				"anchorLine": 6
-			},
-			"comments": [],
-			"createdAt": "2026-03-20T22:57:37.624Z",
-			"updatedAt": "2026-03-20T22:57:37.624Z"
-		},
-		{
-			"id": "sc-5bb1565d",
-			"status": "outdated",
-			"anchor": {
-				"kind": "selection",
-				"markerId": "5bb1565d",
-				"quotedText": "<!-- forge-cmt:a33a59d6:start -->I<!-- forge-cmt:a62d7485:start -->tem two",
+				"markerId": "c19ae13c",
+				"quotedText": "<!-- forge-cmt:c7cd89e8:start -->mt:5bb1565d:start -->Item two\n- Item three<!-- forge-cmt:c7cd89e8:end -->",
 				"anchorLine": 7
 			},
-			"comments": [],
-			"createdAt": "2026-03-20T22:57:41.279Z",
-			"updatedAt": "2026-03-20T22:57:41.279Z"
+			"comments": [
+				{
+					"id": "cm-1774165979460-j1uvmpc",
+					"authorName": "You",
+					"bodyMd": "asdfasdf",
+					"createdAt": "2026-03-22T07:52:59.460Z"
+				}
+			],
+			"createdAt": "2026-03-22T07:51:51.882Z",
+			"updatedAt": "2026-03-22T07:52:59.460Z"
 		},
 		{
-			"id": "sc-a33a59d6",
+			"id": "sc-c7cd89e8",
 			"status": "open",
 			"anchor": {
 				"kind": "selection",
-				"markerId": "a33a59d6",
-				"quotedText": "I<!-- forge-cmt:a62d7485:start -->tem two<!-- forge-cmt:5bb1565d:end -->\n- Item<!-- forge-cmt:c5e63d24:end --> three<!-- forge-cmt:a62d7485:end -->",
+				"markerId": "c7cd89e8",
+				"quotedText": "mt:5bb1565d:start -->Item two\n- Item three",
 				"anchorLine": 7
 			},
 			"comments": [],
-			"createdAt": "2026-03-20T22:57:43.875Z",
-			"updatedAt": "2026-03-20T22:57:43.875Z"
-		},
-		{
-			"id": "sc-a62d7485",
-			"status": "open",
-			"anchor": {
-				"kind": "selection",
-				"markerId": "a62d7485",
-				"quotedText": "tem two<!-- forge-cmt:5bb1565d:end -->\n- Item<!-- forge-cmt:c5e63d24:end --> three",
-				"anchorLine": 7
-			},
-			"comments": [],
-			"createdAt": "2026-03-20T22:57:46.672Z",
-			"updatedAt": "2026-03-20T22:57:46.672Z"
-		},
-		{
-			"id": "sc-c5e63d24",
-			"status": "open",
-			"anchor": {
-				"kind": "selection",
-				"markerId": "c5e63d24",
-				"quotedText": "mt:5bb1565d:start --><!-- forge-cmt:a33a59d6:start -->I<!-- forge-cmt:a62d7485:start -->tem two<!-- forge-cmt:5bb1565d:end -->\n- Item",
-				"anchorLine": 7
-			},
-			"comments": [],
-			"createdAt": "2026-03-20T22:59:18.123Z",
-			"updatedAt": "2026-03-20T22:59:18.123Z"
+			"createdAt": "2026-03-22T07:55:13.710Z",
+			"updatedAt": "2026-03-22T07:55:13.710Z"
 		}
 	]
 }
