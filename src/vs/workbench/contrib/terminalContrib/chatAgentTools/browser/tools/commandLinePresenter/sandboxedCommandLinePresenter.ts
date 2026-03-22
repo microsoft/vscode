@@ -22,7 +22,7 @@ export class SandboxedCommandLinePresenter implements ICommandLinePresenter {
 			return undefined;
 		}
 		return {
-			commandLine: options.commandLine.original ?? options.commandLine.forDisplay,
+			commandLine: options.commandLine.forDisplay,
 			processOtherPresenters: true
 		};
 	}

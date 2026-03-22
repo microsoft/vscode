@@ -24,7 +24,6 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		.join('');
 }
 
-// https://github.com/microsoft/vscode/issues/303531
 (vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('chat - run_in_terminal', () => {
 
 	let disposables: vscode.Disposable[] = [];
