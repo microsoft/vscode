@@ -8,6 +8,31 @@ import { DisposableStore, MutableDisposable, toDisposable, type IDisposable } fr
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 /**
+ * Picks the best start marker for output capture: prefer non-disposed markers,
+ * then choose the earliest line.
+ */
+export function getPreferredOutputStartMarker(
+	startMarker: IXtermMarker | undefined,
+	commandMarker: IXtermMarker | undefined,
+	executedMarker: IXtermMarker | undefined,
+	log?: (message: string) => void,
+): IXtermMarker | undefined {
+	let best: IXtermMarker | undefined;
+	for (const marker of [startMarker, commandMarker, executedMarker]) {
+		if (!marker || marker.isDisposed || marker.line < 0) {
+			continue;
+		}
+		if (!best || marker.line < best.line) {
+			best = marker;
+		}
+	}
+	if (best && best !== startMarker) {
+		log?.(`Using ${best === commandMarker ? 'command' : 'executed'} marker as output start (line ${best.line})`);
+	}
+	return best;
+}
+
+/**
  * Sets up a recreating start marker which is resilient to prompts that clear/re-render (eg. transient
  * or powerlevel10k style prompts). The marker is recreated at the cursor position whenever the
  * existing marker is disposed. The caller is responsible for adding the startMarker to the store.
@@ -20,17 +45,37 @@ export function setupRecreatingStartMarker(
 	log?: (message: string) => void,
 ): void {
 	const markerListener = new MutableDisposable<IDisposable>();
+	let earliestStartLine = startMarker.value && startMarker.value.line >= 0 ? startMarker.value.line : undefined;
 	const recreateStartMarker = () => {
 		if (store.isDisposed) {
 			return;
 		}
 		const marker = xterm.raw.registerMarker();
-		startMarker.value = marker ?? undefined;
-		fire(marker);
 		if (!marker) {
+			log?.('Failed to create start marker');
 			markerListener.clear();
+			if (!startMarker.value) {
+				fire(undefined);
+			}
 			return;
 		}
+
+		const candidateLine = marker.line >= 0 ? marker.line : undefined;
+		if (earliestStartLine !== undefined && candidateLine !== undefined && candidateLine > earliestStartLine) {
+			log?.(`Start marker recreation at line ${candidateLine} is past earliest known line ${earliestStartLine}, skipping`);
+			if (startMarker.value && (startMarker.value.isDisposed || startMarker.value.line < 0)) {
+				startMarker.clear();
+				fire(undefined);
+			}
+		} else {
+			startMarker.value = marker;
+			fire(marker);
+			if (candidateLine !== undefined) {
+				earliestStartLine = earliestStartLine === undefined ? candidateLine : Math.min(earliestStartLine, candidateLine);
+			}
+		}
+
+		// Always listen even on rejected markers so the chain keeps running
 		markerListener.value = marker.onDispose(() => {
 			log?.('Start marker was disposed, recreating');
 			recreateStartMarker();
