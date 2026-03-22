@@ -19,6 +19,7 @@ export type LocalizedValue = {
 
 export enum PolicyCategory {
 	Extensions = 'Extensions',
+	General = 'General',
 	IntegratedTerminal = 'IntegratedTerminal',
 	InteractiveSession = 'InteractiveSession',
 	Telemetry = 'Telemetry',
@@ -31,6 +32,11 @@ export const PolicyCategoryData: {
 	[PolicyCategory.Extensions]: {
 		name: {
 			key: 'extensionsConfigurationTitle', value: localize('extensionsConfigurationTitle', "Extensions"),
+		}
+	},
+	[PolicyCategory.General]: {
+		name: {
+			key: 'generalConfigurationTitle', value: localize('generalConfigurationTitle', "General"),
 		}
 	},
 	[PolicyCategory.IntegratedTerminal]: {
