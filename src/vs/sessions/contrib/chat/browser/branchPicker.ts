@@ -6,12 +6,16 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
-import { IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
+import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+
 const COPILOT_WORKTREE_PATTERN = 'copilot-worktree-';
 const FILTER_THRESHOLD = 10;
 
@@ -21,16 +25,18 @@ interface IBranchItem {
 
 /**
  * A self-contained widget for selecting a git branch.
- * Uses `IGitRepository.getRefs` to list local branches.
- * Copilot worktree branches are shown in a collapsible section;
- * other branches are listed without a section header.
- * Writes the selected branch to the new session object.
+ * Observes the active session from {@link ISessionsManagementService} to get
+ * the current project, opens the git repository via {@link IGitService},
+ * and loads branches automatically.
+ *
+ * Emits `onDidChange` with the selected branch name.
  */
 export class BranchPicker extends Disposable {
 
 	private _selectedBranch: string | undefined;
 	private _preferredBranch: string | undefined;
 	private _branches: string[] = [];
+	private _repository: IGitRepository | undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<string | undefined>());
 	readonly onDidChange: Event<string | undefined> = this._onDidChange.event;
@@ -39,6 +45,7 @@ export class BranchPicker extends Disposable {
 	readonly onDidChangeLoading: Event<boolean> = this._onDidChangeLoading.event;
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private _slotElement: HTMLElement | undefined;
 	private _triggerElement: HTMLElement | undefined;
 
@@ -55,15 +62,30 @@ export class BranchPicker extends Disposable {
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@IGitService private readonly gitService: IGitService,
 	) {
 		super();
+
+		// Observe the active session's project and load branches when it changes
+		this._register(autorun(reader => {
+			const activeSession = this.sessionsManagementService.activeSession.read(reader);
+			if (activeSession?.isUntitled) {
+				// For new sessions, get the project from the new session object
+				const project = (this.sessionsManagementService as any)._newSession?.value?.project;
+				const repository = project?.repository;
+				this._onRepositoryChanged(repository);
+			} else {
+				this._onRepositoryChanged(undefined);
+			}
+		}));
 	}
 
-	/**
-	 * Sets the git repository and loads its branches.
-	 * When undefined, the picker is shown disabled.
-	 */
-	async setRepository(repository: IGitRepository | undefined): Promise<void> {
+	private async _onRepositoryChanged(repository: IGitRepository | undefined): Promise<void> {
+		// Cancel any in-flight branch loading
+		this._loadCts.value?.cancel();
+
+		this._repository = repository;
 		this._branches = [];
 		this._selectedBranch = undefined;
 
@@ -71,13 +93,19 @@ export class BranchPicker extends Disposable {
 			this._onDidChange.fire(undefined);
 			this._setLoading(false);
 			this._updateTriggerLabel();
+			this._updateVisibility();
 			return;
 		}
 
 		this._setLoading(true);
+		const cts = this._loadCts.value = new CancellationTokenSource();
 
 		try {
 			const refs = await repository.getRefs({ pattern: 'refs/heads' });
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+
 			this._branches = refs
 				.map(ref => ref.name)
 				.filter((name): name is string => !!name)
@@ -95,14 +123,14 @@ export class BranchPicker extends Disposable {
 				this._selectBranch(defaultBranch);
 			}
 		} finally {
-			this._setLoading(false);
-			this._updateTriggerLabel();
+			if (!cts.token.isCancellationRequested) {
+				this._setLoading(false);
+				this._updateTriggerLabel();
+				this._updateVisibility();
+			}
 		}
 	}
 
-	/**
-	 * Renders the branch picker trigger into the given container.
-	 */
 	render(container: HTMLElement): void {
 		this._renderDisposables.clear();
 
@@ -115,6 +143,7 @@ export class BranchPicker extends Disposable {
 		trigger.role = 'button';
 		this._triggerElement = trigger;
 		this._updateTriggerLabel();
+		this._updateVisibility();
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
 			dom.EventHelper.stop(e, true);
@@ -129,18 +158,6 @@ export class BranchPicker extends Disposable {
 		}));
 	}
 
-	/**
-	 * Shows or hides the picker.
-	 */
-	setVisible(visible: boolean): void {
-		if (this._slotElement) {
-			this._slotElement.style.display = visible ? '' : 'none';
-		}
-	}
-
-	/**
-	 * Shows the branch picker dropdown anchored to the trigger element.
-	 */
 	showPicker(): void {
 		if (!this._triggerElement || this.actionWidgetService.isVisible || this._branches.length === 0) {
 			return;
@@ -188,6 +205,13 @@ export class BranchPicker extends Disposable {
 			this._selectedBranch = branch;
 			this._onDidChange.fire(branch);
 			this._updateTriggerLabel();
+		}
+	}
+
+	private _updateVisibility(): void {
+		if (this._slotElement) {
+			const shouldShow = !!this._repository && this._branches.length > 0;
+			this._slotElement.style.display = shouldShow ? '' : 'none';
 		}
 	}
 
