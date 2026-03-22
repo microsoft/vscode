@@ -5,12 +5,12 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -53,6 +53,42 @@ const CopilotCloudSessionType: ISessionType = {
 	label: 'Cloud',
 	icon: Codicon.cloud,
 };
+
+// ── Static Menu Registrations ──
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.defaultCopilot.isolationPicker',
+			title: localize2('isolationPicker', "Isolation Mode"),
+			f1: false,
+			menu: [{
+				id: Menus.NewSessionRepositoryConfig,
+				group: 'isolation',
+				order: 1,
+				when: IsActiveSessionBackgroundProviderContext,
+			}],
+		});
+	}
+	override async run(): Promise<void> { /* handled by action view item */ }
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.defaultCopilot.branchPicker',
+			title: localize2('branchPicker', "Branch"),
+			f1: false,
+			menu: [{
+				id: Menus.NewSessionRepositoryConfig,
+				group: 'branch',
+				order: 2,
+				when: IsActiveSessionBackgroundProviderContext,
+			}],
+		});
+	}
+	override async run(): Promise<void> { /* handled by action view item */ }
+});
 
 /**
  * Wraps a standalone picker widget (like IsolationPicker, BranchPicker) as a
@@ -353,6 +389,22 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
 			this._refreshSessionCache();
 		}));
+
+		// Register action view item factories for picker widgets
+		this._register(this.actionViewItemService.register(
+			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.isolationPicker',
+			(_action, _options) => {
+				const picker = this.instantiationService.createInstance(IsolationPicker);
+				return new PickerActionViewItem(picker);
+			},
+		));
+		this._register(this.actionViewItemService.register(
+			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.branchPicker',
+			(_action, _options) => {
+				const picker = this.instantiationService.createInstance(BranchPicker);
+				return new PickerActionViewItem(picker);
+			},
+		));
 	}
 
 	// ── Workspaces ──
@@ -438,67 +490,6 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 		if (agentSession) {
 			this.chatService.setChatSessionTitle(agentSession.resource, title);
 		}
-	}
-
-	// ── Menu Contributions ──
-
-	registerMenuContributions(): IDisposable {
-		const disposables = new DisposableStore();
-
-		// Register IsolationPicker action into RepositoryConfigMenu
-		disposables.add(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'sessions.defaultCopilot.isolationPicker',
-					title: localize2('isolationPicker', "Isolation Mode"),
-					f1: false,
-					menu: [{
-						id: Menus.NewSessionRepositoryConfig,
-						group: 'isolation',
-						order: 1,
-						when: IsActiveSessionBackgroundProviderContext,
-					}],
-				});
-			}
-			override async run(): Promise<void> { /* handled by action view item */ }
-		}));
-
-		// Register BranchPicker action into RepositoryConfigMenu
-		disposables.add(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'sessions.defaultCopilot.branchPicker',
-					title: localize2('branchPicker', "Branch"),
-					f1: false,
-					menu: [{
-						id: Menus.NewSessionRepositoryConfig,
-						group: 'branch',
-						order: 2,
-						when: IsActiveSessionBackgroundProviderContext,
-					}],
-				});
-			}
-			override async run(): Promise<void> { /* handled by action view item */ }
-		}));
-
-		// Register action view item factories for the picker widgets
-		disposables.add(this.actionViewItemService.register(
-			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.isolationPicker',
-			(_action, _options) => {
-				const picker = this.instantiationService.createInstance(IsolationPicker);
-				return new PickerActionViewItem(picker);
-			},
-		));
-
-		disposables.add(this.actionViewItemService.register(
-			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.branchPicker',
-			(_action, _options) => {
-				const picker = this.instantiationService.createInstance(BranchPicker);
-				return new PickerActionViewItem(picker);
-			},
-		));
-
-		return disposables;
 	}
 
 	// ── Private ──
