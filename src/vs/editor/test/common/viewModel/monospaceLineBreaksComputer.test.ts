@@ -61,7 +61,9 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 		spaceWidth: 7,
 		middotWidth: 7,
 		wsmiddotWidth: 7,
-		maxDigitWidth: 7
+		maxDigitWidth: 7,
+		fontAscent: 15,
+		fontDescent: 4
 	}, false);
 	const context: ILineBreaksComputerContext = {
 		getLineContent(lineNumber: number) {
