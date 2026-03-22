@@ -472,11 +472,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._commandLineRewriters = [
 			this._register(this._instantiationService.createInstance(CommandLineCdPrefixRewriter)),
 			this._register(this._instantiationService.createInstance(CommandLinePwshChainOperatorRewriter, this._treeSitterCommandParser)),
-			this._register(this._instantiationService.createInstance(CommandLinePreventHistoryRewriter)),
 		];
 		if (this._enableCommandLineSandboxRewriting) {
 			this._commandLineRewriters.push(this._register(this._instantiationService.createInstance(CommandLineSandboxRewriter)));
 		}
+		// PreventHistoryRewriter must be last so the leading space is applied to the final
+		// command, including any sandbox wrapping.
+		this._commandLineRewriters.push(this._register(this._instantiationService.createInstance(CommandLinePreventHistoryRewriter)));
 		this._commandLineAnalyzers = [
 			this._register(this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineFileWriteAnalyzer: ${message}`, args))),
 			this._register(this._instantiationService.createInstance(CommandLineAutoApproveAnalyzer, this._treeSitterCommandParser, this._telemetry, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args))),
@@ -578,7 +580,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			});
 			if (rewriteResult) {
 				rewrittenCommand = rewriteResult.rewritten;
-				forDisplayCommand = rewriteResult.forDisplay;
+				forDisplayCommand = rewriteResult.forDisplay ?? forDisplayCommand;
 				if (rewriteResult.isSandboxWrapped) {
 					isSandboxWrapped = true;
 				}
@@ -994,7 +996,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.None) {
 				toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
 			}
-			this._logService.debug(`RunInTerminalTool: Using \`${execution.strategy.type}\` execute strategy for command \`${command}\``);
+			this._logService.info(`RunInTerminalTool: Using \`${execution.strategy.type}\` execute strategy for command \`${command}\``);
 			store.add(execution);
 			RunInTerminalTool._activeExecutions.set(termId, execution);
 
@@ -1148,7 +1150,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							toolSpecificData.terminalCommandState = state;
 						}
 
-						this._logService.debug(`RunInTerminalTool: Finished \`${execution.strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
+						this._logService.info(`RunInTerminalTool: Finished \`${execution.strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
 						outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
 						exitCode = executeResult.exitCode;
 						error = executeResult.error;
