@@ -9,9 +9,6 @@
 		"scripts/test-integration.bat": true,
 		"scripts/test-integration.sh": true,
 	},
-	"chat.tools.edits.autoApprove": {
-		".github/skills/azure-pipelines/azure-pipeline.ts": false
-	},
 	"chat.editing.explainChanges.enabled": true,
 	// --- Editor ---
 	"editor.insertSpaces": false,
@@ -210,7 +207,6 @@
 	"azureMcp.readOnly": true,
 	"debug.breakpointsView.presentation": "tree",
 	"chat.agentSkillsLocations": {
-		".github/skills/.local": true,
 		".agents/skills/.local": true,
 		".claude/skills/.local": true,
 	}

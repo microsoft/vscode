@@ -20,7 +20,7 @@ When a major repository learning is discovered — a recurring pattern, a non-ob
 **Add a learning to an existing instruction** when:
 - The insight is small (1-4 sentences) and fits naturally into an existing instruction file
 - It refines or extends an existing guideline
-- Follow the pattern in `.github/instructions/learnings.instructions.md`
+- It fits the pattern of other files under `.github/instructions/*.instructions.md`
 
 **Create or update a skill** (`.github/skills/{name}/SKILL.md` or `.agents/skills/{name}/SKILL.md`) when:
 - The knowledge is substantial (multi-step procedure, detailed guidelines, or rich examples)
