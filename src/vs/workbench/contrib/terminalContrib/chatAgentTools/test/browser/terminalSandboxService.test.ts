@@ -77,6 +77,7 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 				os: OperatingSystem.Linux,
 				tmpDir: URI.file('/tmp'),
 				appRoot: URI.file('/app'),
+				execPath: '/app/node',
 				pid: 1234,
 				connectionToken: 'test-token',
 				settingsPath: URI.file('/settings'),
