@@ -12,7 +12,7 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { RemoteAgentHostService } from '../../electron-browser/remoteAgentHostServiceImpl.js';
-import { RemoteAgentHostsSettingId, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
+import { parseRemoteAgentHostInput, RemoteAgentHostsSettingId, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 
 // ---- Mock protocol client ---------------------------------------------------
@@ -50,6 +50,20 @@ class TestConfigurationService {
 	private _entries: IRemoteAgentHostEntry[] = [];
 
 	getValue(_key?: string): IRemoteAgentHostEntry[] {
+		return this._entries;
+	}
+
+	inspect(_key: string) {
+		return {
+			userValue: this._entries,
+		};
+	}
+
+	async updateValue(_key: string, value: unknown): Promise<void> {
+		this.setEntries((value as IRemoteAgentHostEntry[] | undefined) ?? []);
+	}
+
+	get entries(): readonly IRemoteAgentHostEntry[] {
 		return this._entries;
 	}
 
@@ -103,6 +117,22 @@ suite('RemoteAgentHostService', () => {
 		assert.deepStrictEqual(service.connections, []);
 	});
 
+	test('parses supported remote host inputs', () => {
+		assert.deepStrictEqual([
+			parseRemoteAgentHostInput('Listening on ws://127.0.0.1:8089'),
+			parseRemoteAgentHostInput('127.0.0.1:8089'),
+			parseRemoteAgentHostInput('ws://127.0.0.1:8089'),
+			parseRemoteAgentHostInput('ws://127.0.0.1:40147?tkn=c9d12867-da33-425e-8d39-0d071e851597'),
+			parseRemoteAgentHostInput('wss://secure.example.com:443'),
+		], [
+			{ parsed: { address: '127.0.0.1:8089', connectionToken: undefined, suggestedName: '127.0.0.1:8089' } },
+			{ parsed: { address: '127.0.0.1:8089', connectionToken: undefined, suggestedName: '127.0.0.1:8089' } },
+			{ parsed: { address: '127.0.0.1:8089', connectionToken: undefined, suggestedName: '127.0.0.1:8089' } },
+			{ parsed: { address: '127.0.0.1:40147', connectionToken: 'c9d12867-da33-425e-8d39-0d071e851597', suggestedName: '127.0.0.1:40147' } },
+			{ parsed: { address: 'wss://secure.example.com', connectionToken: undefined, suggestedName: 'secure.example.com' } },
+		]);
+	});
+
 	test('getConnection returns undefined for unknown address', () => {
 		assert.strictEqual(service.getConnection('ws://unknown:1234'), undefined);
 	});
@@ -117,7 +147,7 @@ suite('RemoteAgentHostService', () => {
 		await connectionChanged;
 
 		assert.strictEqual(service.connections.length, 1);
-		assert.strictEqual(service.connections[0].address, 'ws://host1:8080');
+		assert.strictEqual(service.connections[0].address, 'host1:8080');
 		assert.strictEqual(service.connections[0].name, 'Host 1');
 	});
 
@@ -216,5 +246,80 @@ suite('RemoteAgentHostService', () => {
 
 		// But name should be updated
 		assert.strictEqual(service.connections[0].name, 'Renamed');
+	});
+
+	test('addRemoteAgentHost stores the entry and waits for connection', async () => {
+		const connectionPromise = service.addRemoteAgentHost({
+			address: 'ws://host1:8080',
+			name: 'Host 1',
+			connectionToken: 'secret-token',
+		});
+
+		assert.deepStrictEqual(configService.entries, [{
+			address: 'host1:8080',
+			name: 'Host 1',
+			connectionToken: 'secret-token',
+		}]);
+		assert.strictEqual(createdClients.length, 1);
+
+		createdClients[0].connectDeferred.complete();
+		const connection = await connectionPromise;
+
+		assert.deepStrictEqual(connection, {
+			address: 'host1:8080',
+			name: 'Host 1',
+			clientId: createdClients[0].clientId,
+			defaultDirectory: undefined,
+		});
+	});
+
+	test('addRemoteAgentHost updates existing configured entries without reconnecting', async () => {
+		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
+		createdClients[0].connectDeferred.complete();
+		await Event.toPromise(service.onDidChangeConnections);
+
+		const connection = await service.addRemoteAgentHost({
+			address: 'ws://host1:8080',
+			name: 'Updated Host',
+			connectionToken: 'new-token',
+		});
+
+		assert.strictEqual(createdClients.length, 1);
+		assert.deepStrictEqual(configService.entries, [{
+			address: 'host1:8080',
+			name: 'Updated Host',
+			connectionToken: 'new-token',
+		}]);
+		assert.deepStrictEqual(connection, {
+			address: 'host1:8080',
+			name: 'Updated Host',
+			clientId: createdClients[0].clientId,
+			defaultDirectory: undefined,
+		});
+	});
+
+	test('addRemoteAgentHost appends when adding a second host', async () => {
+		// Add first host
+		const firstPromise = service.addRemoteAgentHost({
+			address: 'host1:8080',
+			name: 'Host 1',
+		});
+		createdClients[0].connectDeferred.complete();
+		await firstPromise;
+
+		// Add second host
+		const secondPromise = service.addRemoteAgentHost({
+			address: 'host2:9090',
+			name: 'Host 2',
+		});
+		createdClients[1].connectDeferred.complete();
+		await secondPromise;
+
+		assert.strictEqual(createdClients.length, 2);
+		assert.deepStrictEqual(configService.entries, [
+			{ address: 'host1:8080', name: 'Host 1' },
+			{ address: 'host2:9090', name: 'Host 2' },
+		]);
+		assert.strictEqual(service.connections.length, 2);
 	});
 });

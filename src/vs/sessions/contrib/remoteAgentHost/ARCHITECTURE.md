@@ -170,11 +170,26 @@ private _resolveSessionUri(sessionResource: URI): URI {
 
 ## Session Creation Flow
 
-### 1. User Selects a Remote Workspace
+### 1. User Selects or Adds a Remote Workspace
 
-In the `WorkspacePicker`, the user clicks **"Browse Remotes..."**, selects a
-remote host, then picks a folder on the remote filesystem. This produces a
-`SessionWorkspace` with an `agenthost://` URI:
+In the `WorkspacePicker`, the user clicks **"Browse Remotes..."**. The picker
+shows existing connected remotes and an **"Add Remote..."** action. When the
+user chooses **"Add Remote..."**, they:
+
+1. Paste a host, `host:port`, or WebSocket URL.
+2. Enter a display name for that remote.
+3. The parsed address is written into `chat.remoteAgentHosts`.
+4. The client waits for the new remote connection to come up.
+5. The user is immediately taken into the remote folder picker.
+
+Supported address inputs include raw `host:port`, `ws://` / `wss://` URLs, and
+log-line text such as `Listening on ws://127.0.0.1:8089`. If the input includes
+`?tkn=...`, the token is extracted into `connectionToken` and the stored address
+is normalized without that query parameter.
+
+After choosing an existing remote or successfully adding a new one, the user
+picks a folder on the remote filesystem. This produces a `SessionWorkspace`
+with an `agenthost://` URI:
 
 ```
 agenthost://localhost__8081/home/user/myproject
