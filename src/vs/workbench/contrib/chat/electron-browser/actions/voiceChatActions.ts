@@ -867,7 +867,28 @@ interface DictationInputState {
 	readonly previewInput: string;
 }
 
-function applyDictationInputState(
+function stripTrailingPreviewSuffix(currentInput: string, state: DictationInputState): string {
+	if (state.committedInput === state.previewInput) {
+		return currentInput;
+	}
+
+	if (!state.previewInput.startsWith(state.committedInput)) {
+		return currentInput;
+	}
+
+	const previewSuffix = state.previewInput.slice(state.committedInput.length);
+	if (!previewSuffix) {
+		return currentInput;
+	}
+
+	if (currentInput.endsWith(previewSuffix)) {
+		return currentInput.slice(0, currentInput.length - previewSuffix.length);
+	}
+
+	return currentInput;
+}
+
+export function applyDictationInputState(
 	state: DictationInputState,
 	currentInput: string,
 	recognizedText: string,
@@ -878,7 +899,7 @@ function applyDictationInputState(
 	// User edits are authoritative.
 	// Treat them as new base for upcoming speech composition.
 	if (currentInput !== state.previewInput) {
-		committedInput = currentInput;
+		committedInput = stripTrailingPreviewSuffix(currentInput, state);
 	}
 
 	const nextInput = composeDictationInput(committedInput, recognizedText);
