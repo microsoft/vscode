@@ -282,6 +282,22 @@ suite('ChatImageCarouselService helpers', () => {
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].images.length, 3);
 		});
+
+		test('image data is a plain Uint8Array usable by Blob constructor', async () => {
+			const request = makeRequest('req-1', [
+				makeImageVariableEntry({ value: new Uint8Array([1, 2, 3]) }),
+			], 'Screenshot request');
+			const response = makeResponse('req-1');
+
+			const result = await collectCarouselSections([request, response], async () => new Uint8Array());
+
+			assert.strictEqual(result.length, 1);
+			const data = result[0].images[0].data;
+			// data must be a Uint8Array (not VSBuffer or ArrayBuffer) so that
+			// new Blob([data]) in the carousel editor works correctly.
+			assert.ok(data instanceof Uint8Array, 'image data should be Uint8Array');
+			assert.deepStrictEqual([...data], [1, 2, 3]);
+		});
 	});
 
 });
