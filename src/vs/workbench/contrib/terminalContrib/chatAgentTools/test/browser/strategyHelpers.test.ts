@@ -397,6 +397,42 @@ suite('stripCommandEchoAndPrompt', () => {
 		);
 	});
 
+	test('strips bracketed prompt without @ (hostname:path format)', () => {
+		// macOS CI prompt: [hostname:path] username$ (wrapped so username is truncated)
+		const output = [
+			'[W007DV9PF9-1:~/vss/_work/1/s/extensions/vscode-api-tests/testWorkspace] cloudte',
+			'st$',
+		].join('\n');
+
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(output, 'true'),
+			''
+		);
+	});
+
+	test('strips bracketed prompt without @ (single line, no trailing $)', () => {
+		// When the terminal captures just the prompt (no-output command)
+		const output = '[W007DV9PF9-1:~/vss/_work/1/s/extensions/vscode-api-tests/testWorkspace] cloudte';
+
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(output, 'true'),
+			''
+		);
+	});
+
+	test('strips bracketed prompt without @ with command echo', () => {
+		const output = [
+			'[W007DV9PF9-1:~/vss/_work] cloudtest$  echo MARKER_123',
+			'MARKER_123',
+			'[W007DV9PF9-1:~/vss/_work] cloudtest$',
+		].join('\n');
+
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(output, 'echo MARKER_123'),
+			'MARKER_123'
+		);
+	});
+
 	test('strips sandbox-wrapped command echo with error output and trailing prompt', () => {
 		const commandLine = 'ELECTRON_RUN_AS_NODE=1 PATH="$PATH:/Users/alex/src/vscode4/node_modules/@vscode/ripgrep/bin" TMPDIR="/Users/alex/.vscode-oss-dev/tmp" CLAUDE_TMPDIR="/Users/alex/.vscode-oss-dev/tmp" "/Users/alex/src/vscode4/node_modules/@anthropic-ai/sandbox-runtime/dist/cli.js" --settings "/Users/alex/.vscode-oss-dev/tmp/vscode-sandbox-settings-cf5b6232-825b-4f4c-8902-32a8591007fd.json" -c \' echo "SANDBOX_TMP_1774127409076" > /tmp/SANDBOX_TMP_1774127409076.txt\'';
 		const output = [
