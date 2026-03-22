@@ -472,11 +472,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._commandLineRewriters = [
 			this._register(this._instantiationService.createInstance(CommandLineCdPrefixRewriter)),
 			this._register(this._instantiationService.createInstance(CommandLinePwshChainOperatorRewriter, this._treeSitterCommandParser)),
-			this._register(this._instantiationService.createInstance(CommandLinePreventHistoryRewriter)),
 		];
 		if (this._enableCommandLineSandboxRewriting) {
 			this._commandLineRewriters.push(this._register(this._instantiationService.createInstance(CommandLineSandboxRewriter)));
 		}
+		// PreventHistoryRewriter must be last so the leading space is applied to the final
+		// command, including any sandbox wrapping.
+		this._commandLineRewriters.push(this._register(this._instantiationService.createInstance(CommandLinePreventHistoryRewriter)));
 		this._commandLineAnalyzers = [
 			this._register(this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineFileWriteAnalyzer: ${message}`, args))),
 			this._register(this._instantiationService.createInstance(CommandLineAutoApproveAnalyzer, this._treeSitterCommandParser, this._telemetry, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args))),
@@ -578,7 +580,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			});
 			if (rewriteResult) {
 				rewrittenCommand = rewriteResult.rewritten;
-				forDisplayCommand = rewriteResult.forDisplay;
+				forDisplayCommand = rewriteResult.forDisplay ?? forDisplayCommand;
 				if (rewriteResult.isSandboxWrapped) {
 					isSandboxWrapped = true;
 				}
