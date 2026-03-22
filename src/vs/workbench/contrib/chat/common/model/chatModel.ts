@@ -911,6 +911,14 @@ export class Response extends AbstractResponse implements IDisposable {
 			});
 		}
 
+		autorunSelfDisposable(reader => {
+			invocation.state.read(reader); // update repr when state changes
+			this._contentChanged(false);
+
+			if (IChatToolInvocation.isComplete(invocation, reader)) {
+				reader.dispose();
+			}
+		});
 		this._responseParts.push(invocation);
 	}
 
