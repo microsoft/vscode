@@ -30,7 +30,7 @@
 	width: 100%;
 	height: 100%;
 
-	.browser-toolbar {
+	.browser-navbar {
 		display: flex;
 		align-items: center;
 		padding: 6px 8px;
@@ -364,10 +364,6 @@
 		position: relative;
 		z-index: 10;
 		overflow: hidden;
-
-		&.find-visible {
-			border-bottom: 1px solid var(--vscode-widget-border);
-		}
 
 		/* Override SimpleFindWidget absolute positioning to flow in layout */
 		.simple-find-part-wrapper {

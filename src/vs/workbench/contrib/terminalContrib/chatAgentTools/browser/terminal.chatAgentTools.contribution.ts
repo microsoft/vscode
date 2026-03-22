@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -32,6 +32,7 @@ import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/cre
 import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { ITrustedDomainService } from '../../../url/common/trustedDomainService.js';
 import { ITerminalSandboxService, TerminalSandboxService } from '../common/terminalSandboxService.js';
 
 // #region Services
@@ -75,64 +76,102 @@ class OutputLocationMigrationContribution extends Disposable implements IWorkben
 }
 registerWorkbenchContribution2(OutputLocationMigrationContribution.ID, OutputLocationMigrationContribution, WorkbenchPhase.Eventually);
 
-class ChatAgentToolsContribution extends Disposable implements IWorkbenchContribution {
+export class ChatAgentToolsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'terminal.chatAgentTools';
 
+	private readonly _runInTerminalToolRegistration = this._register(new MutableDisposable<DisposableStore>());
+	private _runInTerminalToolRegistrationVersion = 0;
+
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
 	) {
 		super();
 
 		// #region Terminal
 
-		const confirmTerminalCommandTool = instantiationService.createInstance(ConfirmTerminalCommandTool);
-		this._register(toolsService.registerTool(ConfirmTerminalCommandToolData, confirmTerminalCommandTool));
-		const getTerminalOutputTool = instantiationService.createInstance(GetTerminalOutputTool);
-		this._register(toolsService.registerTool(GetTerminalOutputToolData, getTerminalOutputTool));
-		this._register(toolsService.executeToolSet.addTool(GetTerminalOutputToolData));
+		const confirmTerminalCommandTool = _instantiationService.createInstance(ConfirmTerminalCommandTool);
+		this._register(_toolsService.registerTool(ConfirmTerminalCommandToolData, confirmTerminalCommandTool));
+		const getTerminalOutputTool = _instantiationService.createInstance(GetTerminalOutputTool);
+		this._register(_toolsService.registerTool(GetTerminalOutputToolData, getTerminalOutputTool));
+		this._register(_toolsService.executeToolSet.addTool(GetTerminalOutputToolData));
 
-		const awaitTerminalTool = instantiationService.createInstance(AwaitTerminalTool);
-		this._register(toolsService.registerTool(AwaitTerminalToolData, awaitTerminalTool));
-		this._register(toolsService.executeToolSet.addTool(AwaitTerminalToolData));
+		const awaitTerminalTool = _instantiationService.createInstance(AwaitTerminalTool);
+		this._register(_toolsService.registerTool(AwaitTerminalToolData, awaitTerminalTool));
+		this._register(_toolsService.executeToolSet.addTool(AwaitTerminalToolData));
 
-		const killTerminalTool = instantiationService.createInstance(KillTerminalTool);
-		this._register(toolsService.registerTool(KillTerminalToolData, killTerminalTool));
-		this._register(toolsService.executeToolSet.addTool(KillTerminalToolData));
+		const killTerminalTool = _instantiationService.createInstance(KillTerminalTool);
+		this._register(_toolsService.registerTool(KillTerminalToolData, killTerminalTool));
+		this._register(_toolsService.executeToolSet.addTool(KillTerminalToolData));
 
-		instantiationService.invokeFunction(createRunInTerminalToolData).then(runInTerminalToolData => {
-			const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);
-			this._register(toolsService.registerTool(runInTerminalToolData, runInTerminalTool));
-			this._register(toolsService.executeToolSet.addTool(runInTerminalToolData));
-		});
+		this._registerRunInTerminalTool();
 
-		const getTerminalSelectionTool = instantiationService.createInstance(GetTerminalSelectionTool);
-		this._register(toolsService.registerTool(GetTerminalSelectionToolData, getTerminalSelectionTool));
+		const getTerminalSelectionTool = _instantiationService.createInstance(GetTerminalSelectionTool);
+		this._register(_toolsService.registerTool(GetTerminalSelectionToolData, getTerminalSelectionTool));
 
-		const getTerminalLastCommandTool = instantiationService.createInstance(GetTerminalLastCommandTool);
-		this._register(toolsService.registerTool(GetTerminalLastCommandToolData, getTerminalLastCommandTool));
+		const getTerminalLastCommandTool = _instantiationService.createInstance(GetTerminalLastCommandTool);
+		this._register(_toolsService.registerTool(GetTerminalLastCommandToolData, getTerminalLastCommandTool));
 
-		this._register(toolsService.readToolSet.addTool(GetTerminalSelectionToolData));
-		this._register(toolsService.readToolSet.addTool(GetTerminalLastCommandToolData));
+		this._register(_toolsService.readToolSet.addTool(GetTerminalSelectionToolData));
+		this._register(_toolsService.readToolSet.addTool(GetTerminalLastCommandToolData));
 
 		// #endregion
 
 		// #region Tasks
 
-		const runTaskTool = instantiationService.createInstance(RunTaskTool);
-		this._register(toolsService.registerTool(RunTaskToolData, runTaskTool));
+		const runTaskTool = _instantiationService.createInstance(RunTaskTool);
+		this._register(_toolsService.registerTool(RunTaskToolData, runTaskTool));
 
-		const getTaskOutputTool = instantiationService.createInstance(GetTaskOutputTool);
-		this._register(toolsService.registerTool(GetTaskOutputToolData, getTaskOutputTool));
+		const getTaskOutputTool = _instantiationService.createInstance(GetTaskOutputTool);
+		this._register(_toolsService.registerTool(GetTaskOutputToolData, getTaskOutputTool));
 
-		const createAndRunTaskTool = instantiationService.createInstance(CreateAndRunTaskTool);
-		this._register(toolsService.registerTool(CreateAndRunTaskToolData, createAndRunTaskTool));
-		this._register(toolsService.executeToolSet.addTool(RunTaskToolData));
-		this._register(toolsService.executeToolSet.addTool(CreateAndRunTaskToolData));
-		this._register(toolsService.readToolSet.addTool(GetTaskOutputToolData));
+		const createAndRunTaskTool = _instantiationService.createInstance(CreateAndRunTaskTool);
+		this._register(_toolsService.registerTool(CreateAndRunTaskToolData, createAndRunTaskTool));
+		this._register(_toolsService.executeToolSet.addTool(RunTaskToolData));
+		this._register(_toolsService.executeToolSet.addTool(CreateAndRunTaskToolData));
+		this._register(_toolsService.readToolSet.addTool(GetTaskOutputToolData));
 
 		// #endregion
+
+		// Re-register run_in_terminal tool when sandbox-related settings change,
+		// so the tool description and input schema stay in sync with the current
+		// sandbox state.
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork)
+			) {
+				this._registerRunInTerminalTool();
+			}
+		}));
+		this._register(this._trustedDomainService.onDidChangeTrustedDomains(() => {
+			this._registerRunInTerminalTool();
+		}));
+	}
+
+	private _runInTerminalTool: RunInTerminalTool | undefined;
+
+	private _registerRunInTerminalTool(): void {
+		const version = ++this._runInTerminalToolRegistrationVersion;
+		this._instantiationService.invokeFunction(createRunInTerminalToolData).then(runInTerminalToolData => {
+			if (this._store.isDisposed || version !== this._runInTerminalToolRegistrationVersion) {
+				return;
+			}
+			if (!this._runInTerminalTool) {
+				this._runInTerminalTool = this._register(this._instantiationService.createInstance(RunInTerminalTool));
+			}
+			// Dispose old registration first so registerToolData doesn't throw
+			// "already registered" for the same tool ID.
+			this._runInTerminalToolRegistration.value = undefined;
+			const store = new DisposableStore();
+			store.add(this._toolsService.registerToolData(runInTerminalToolData));
+			store.add(this._toolsService.registerToolImplementation(runInTerminalToolData.id, this._runInTerminalTool));
+			store.add(this._toolsService.executeToolSet.addTool(runInTerminalToolData));
+			this._runInTerminalToolRegistration.value = store;
+		});
 	}
 }
 registerWorkbenchContribution2(ChatAgentToolsContribution.ID, ChatAgentToolsContribution, WorkbenchPhase.AfterRestored);
