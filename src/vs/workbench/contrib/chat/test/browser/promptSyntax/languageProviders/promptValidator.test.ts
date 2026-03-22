@@ -28,6 +28,7 @@ import { PromptFileParser } from '../../../../common/promptSyntax/promptFilePars
 import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
 import { MockPromptsService } from '../../../common/promptSyntax/service/mockPromptsService.js';
+import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 
 suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -42,7 +43,8 @@ suite('PromptValidator', () => {
 
 		testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
-		testConfigService.setUserConfiguration('chat.useCustomAgentHooks', true);
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOM_AGENT_HOOKS, true);
+		testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 		instaService = workbenchInstantiationService({
 			contextKeyService: () => disposables.add(new ContextKeyService(testConfigService)),
 			configurationService: () => testConfigService
@@ -1130,71 +1132,6 @@ suite('PromptValidator', () => {
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 			}
 
-			// Valid infer: 'all' - shows deprecation warning
-			{
-				const content = [
-					'---',
-					'name: "TestAgent"',
-					'description: "Test agent"',
-					'infer: all',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1, 'infer: all should produce deprecation warning');
-				assert.strictEqual(markers[0].message, deprecationMessage);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			}
-
-			// Valid infer: 'user' - shows deprecation warning
-			{
-				const content = [
-					'---',
-					'name: "TestAgent"',
-					'description: "Test agent"',
-					'infer: user',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1, 'infer: user should produce deprecation warning');
-				assert.strictEqual(markers[0].message, deprecationMessage);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			}
-
-			// Valid infer: 'agent' - shows deprecation warning
-			{
-				testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
-				const content = [
-					'---',
-					'name: "TestAgent"',
-					'description: "Test agent"',
-					'infer: agent',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1, 'infer: agent should produce deprecation warning');
-				assert.strictEqual(markers[0].message, deprecationMessage);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			}
-
-			// Valid infer: 'hidden' - shows deprecation warning
-			{
-				const content = [
-					'---',
-					'name: "TestAgent"',
-					'description: "Test agent"',
-					'infer: hidden',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1, 'infer: hidden should produce deprecation warning');
-				assert.strictEqual(markers[0].message, deprecationMessage);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			}
-
 			// Invalid infer: unknown string value - shows deprecation warning (validation removed for deprecated attribute)
 			{
 				const content = [
@@ -1207,22 +1144,6 @@ suite('PromptValidator', () => {
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
 				assert.strictEqual(markers.length, 1, 'infer: "yes" should produce deprecation warning');
-				assert.strictEqual(markers[0].message, deprecationMessage);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			}
-
-			// Invalid infer: number value - shows deprecation warning (validation removed for deprecated attribute)
-			{
-				const content = [
-					'---',
-					'name: "TestAgent"',
-					'description: "Test agent"',
-					'infer: 1',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1, 'infer: 1 should produce deprecation warning');
 				assert.strictEqual(markers[0].message, deprecationMessage);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 			}
@@ -1241,16 +1162,16 @@ suite('PromptValidator', () => {
 			}
 		});
 
-		test('infer attribute warns when customAgentInSubagent.enabled is disabled', async () => {
+		test('disable-model-invocation: false warns when customAgentInSubagent.enabled is disabled', async () => {
 			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, false);
 
-			// infer: true should warn when config is disabled
+			// disable-model-invocation: false should warn when config is disabled
 			{
 				const content = [
 					'---',
 					'name: "TestAgent"',
 					'description: "Test agent"',
-					'infer: true',
+					'disable-model-invocation: false',
 					'---',
 					'Body',
 				].join('\n');
@@ -1258,78 +1179,6 @@ suite('PromptValidator', () => {
 				assert.strictEqual(markers.length, 1);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
 				assert.strictEqual(markers[0].message, `For agents to be used as subagent you also need to enable the 'chat.customAgentInSubagent.enabled' setting.`);
-			}
-
-			// infer: agent should warn when config is disabled
-			{
-				const content = [
-					'---',
-					'name: "TestAgent"',
-					'description: "Test agent"',
-					'infer: agent',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-				assert.strictEqual(markers[0].message, `For agents to be used as subagent you also need to enable the 'chat.customAgentInSubagent.enabled' setting.`);
-			}
-
-			// infer: false should NOT warn
-			{
-				const content = [
-					'---',
-					'name: "TestAgent"',
-					'description: "Test agent"',
-					'infer: false',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.deepStrictEqual(markers, [], 'infer: false should not warn');
-			}
-
-			// infer: all should NOT warn
-			{
-				const content = [
-					'---',
-					'name: "TestAgent"',
-					'description: "Test agent"',
-					'infer: all',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.deepStrictEqual(markers, [], 'infer: all should not warn');
-			}
-
-			// infer: user should NOT warn
-			{
-				const content = [
-					'---',
-					'name: "TestAgent"',
-					'description: "Test agent"',
-					'infer: user',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.deepStrictEqual(markers, [], 'infer: user should not warn');
-			}
-
-			// infer: hidden should NOT warn
-			{
-				const content = [
-					'---',
-					'name: "TestAgent"',
-					'description: "Test agent"',
-					'infer: hidden',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.deepStrictEqual(markers, [], 'infer: hidden should not warn');
 			}
 		});
 
