@@ -1748,6 +1748,15 @@ export class TerminalProfileFetcher {
 			};
 		}
 
+		// Force bash over sh as sh doesn't have shell integration
+		if (defaultProfile.path === '/bin/sh') {
+			return {
+				...defaultProfile,
+				path: '/bin/bash',
+				profileName: 'bash',
+			};
+		}
+
 		// Setting icon: undefined allows the system to use the default AI terminal icon (not overridden or removed)
 		return { ...defaultProfile, icon: undefined };
 	}
