@@ -51,28 +51,23 @@ export type ChatRequestHooks = {
  * Computes a signature string for a hook command that captures all fields
  * which determine whether two hooks would execute identically.
  * Used for deduplication when the same hook is defined in multiple discovery paths.
+ * Uses JSON.stringify for unambiguous encoding (avoids collisions from
+ * separator characters in env keys/values).
  */
 function computeHookSignature(hook: IHookCommand): string {
-	const parts = [
-		hook.command ?? '',
-		hook.windows ?? '',
-		hook.linux ?? '',
-		hook.osx ?? '',
-		hook.cwd?.toString() ?? '',
-		hook.timeout !== undefined ? String(hook.timeout) : '',
-	];
+	const envEntries = hook.env
+		? Object.entries(hook.env).sort(([a], [b]) => a.localeCompare(b))
+		: [];
 
-	if (hook.env) {
-		const sortedEnv = Object.entries(hook.env)
-			.sort(([a], [b]) => a.localeCompare(b))
-			.map(([k, v]) => `${k}=${v}`)
-			.join('|');
-		parts.push(sortedEnv);
-	} else {
-		parts.push('');
-	}
-
-	return parts.join('\0');
+	return JSON.stringify({
+		command: hook.command ?? '',
+		windows: hook.windows ?? '',
+		linux: hook.linux ?? '',
+		osx: hook.osx ?? '',
+		cwd: hook.cwd?.toString() ?? '',
+		timeout: hook.timeout ?? null,
+		env: envEntries.length > 0 ? envEntries : null,
+	});
 }
 
 /**
@@ -82,7 +77,7 @@ function computeHookSignature(hook: IHookCommand): string {
  * hook is defined in multiple discovery paths (e.g., `.github/hooks/` and
  * `.claude/settings.json`). First occurrence is kept, preserving path priority order.
  */
-export function deduplicateHooks(hooks: IHookCommand[]): IHookCommand[] {
+export function deduplicateHooks(hooks: readonly IHookCommand[]): readonly IHookCommand[] {
 	if (hooks.length <= 1) {
 		return hooks;
 	}

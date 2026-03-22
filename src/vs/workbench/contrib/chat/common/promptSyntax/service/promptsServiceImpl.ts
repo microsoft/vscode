@@ -1374,7 +1374,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			if (deduped.length < commands.length) {
 				this.logger.trace(`[PromptsService] Deduplicated ${hookType} hooks: ${commands.length} → ${deduped.length}`);
 			}
-			collectedHooks.set(hookType, deduped);
+			collectedHooks.set(hookType, deduped as IHookCommand[]);
 		}
 
 		// Build the result
