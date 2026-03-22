@@ -376,10 +376,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// Handle visible editors changing for parts visibility
 			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(() => {
-				const handled = maybeMaximizeAuxiliaryBar();
-				if (!handled) {
-					showEditorIfHidden();
-				}
+				maybeMaximizeAuxiliaryBar();
 			}));
 			this._register(this.editorGroupService.mainPart.onDidActivateGroup(e => {
 				if (e.reason !== GroupActivationReason.PART_CLOSE) {
