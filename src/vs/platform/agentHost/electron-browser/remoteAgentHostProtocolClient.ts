@@ -8,6 +8,7 @@
 // higher-level API matching IAgentService.
 
 import { DeferredPromise } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { hasKey } from '../../../base/common/types.js';
@@ -16,9 +17,10 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentDescriptor, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import type { IClientNotificationMap, ICommandMap } from '../common/state/protocol/messages.js';
+import type { IReconnectResult } from '../common/state/protocol/commands.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
-import { isJsonRpcNotification, isJsonRpcResponse, type IJsonRpcResponse, type IProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { ReconnectResultType, isJsonRpcNotification, isJsonRpcResponse, type IJsonRpcResponse, type IProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import type { ISessionSummary } from '../common/state/sessionState.js';
 import { WebSocketClientTransport } from './webSocketClientTransport.js';
 
@@ -34,7 +36,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _clientId = generateUuid();
+	private readonly _clientId: string;
 	private readonly _transport: WebSocketClientTransport;
 	private _serverSeq = 0;
 	private _nextClientSeq = 1;
@@ -65,21 +67,34 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._defaultDirectory;
 	}
 
+	/** Last server sequence number received, for reconnection. */
+	get serverSeq(): number {
+		return this._serverSeq;
+	}
+
 	constructor(
 		address: string,
 		connectionToken: string | undefined,
+		clientId: string | undefined,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this._clientId = clientId ?? generateUuid();
 		this._transport = this._register(new WebSocketClientTransport(address, connectionToken));
 		this._register(this._transport.onMessage(msg => this._handleMessage(msg)));
-		this._register(this._transport.onClose(() => this._onDidClose.fire()));
+		this._register(this._transport.onClose(() => {
+			this._rejectPendingRequests();
+			this._onDidClose.fire();
+		}));
 	}
 
 	/**
 	 * Connect to the remote agent host and perform the protocol handshake.
 	 */
-	async connect(): Promise<void> {
+	async connect(token?: CancellationToken): Promise<void> {
+		if (token?.isCancellationRequested) {
+			throw new Error('Cancelled');
+		}
 		await this._transport.connect();
 
 		const result = await this._sendRequest('initialize', {
@@ -87,15 +102,67 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			clientId: this._clientId,
 		});
 		this._serverSeq = result.serverSeq;
+		this._parseDefaultDirectory(result.defaultDirectory);
+	}
+
+	/**
+	 * Reconnect to the remote agent host using a previous session's
+	 * clientId and serverSeq. The server either replays missed actions
+	 * or sends fresh snapshots.
+	 *
+	 * Replay actions are NOT automatically fired. The caller must call
+	 * {@link emitReplayActions} after consumers are wired to the new
+	 * connection, passing the returned result.
+	 */
+	async reconnect(lastSeenServerSeq: number, subscriptions: URI[], token?: CancellationToken): Promise<IReconnectResult> {
+		if (token?.isCancellationRequested) {
+			throw new Error('Cancelled');
+		}
+		await this._transport.connect();
+
+		const result = await this._sendRequest('reconnect', {
+			clientId: this._clientId,
+			lastSeenServerSeq,
+			subscriptions: subscriptions.map(u => u.toString()),
+		});
+
+		// Ensure serverSeq is at least what we sent, even if no actions
+		// were replayed (e.g. empty replay or snapshot-mode reconnect).
+		this._serverSeq = Math.max(this._serverSeq, lastSeenServerSeq);
+
+		// Advance serverSeq from replay actions but do not fire them yet -
+		// the caller must wire consumers first, then call emitReplayActions().
+		if (result.type === ReconnectResultType.Replay) {
+			for (const envelope of result.actions) {
+				this._serverSeq = Math.max(this._serverSeq, envelope.serverSeq);
+			}
+		}
+
+		return result;
+	}
+
+	/**
+	 * Emit replayed action envelopes through {@link onDidAction} so that
+	 * listeners (e.g. SessionClientState) can consume them. Must be called
+	 * after consumers are wired to this client's events.
+	 */
+	emitReplayActions(result: IReconnectResult): void {
+		if (result.type === ReconnectResultType.Replay) {
+			for (const envelope of result.actions) {
+				this._onDidAction.fire(envelope);
+			}
+		}
+	}
+
+	private _parseDefaultDirectory(defaultDirectory: unknown): void {
 		// defaultDirectory arrives from the protocol as either a URI string
 		// (e.g. "file:///Users/roblou") or a serialized URI object
 		// ({ scheme, path, ... }). Extract just the filesystem path.
-		if (result.defaultDirectory) {
-			const dir = result.defaultDirectory;
-			if (typeof dir === 'string') {
-				this._defaultDirectory = URI.parse(dir).path;
+		if (defaultDirectory) {
+			if (typeof defaultDirectory === 'string') {
+				this._defaultDirectory = URI.parse(defaultDirectory).path;
 			} else {
-				this._defaultDirectory = URI.revive(dir).path;
+				this._defaultDirectory = URI.revive(defaultDirectory as { scheme: string; path: string }).path;
 			}
 		}
 	}
@@ -105,6 +172,11 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 */
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
 		const result = await this._sendRequest('subscribe', { resource: resource.toString() });
+		// Advance serverSeq from the snapshot so subsequent reconnects
+		// don't re-request already-seen state.
+		if (result.snapshot?.fromSeq !== undefined) {
+			this._serverSeq = Math.max(this._serverSeq, result.snapshot.fromSeq);
+		}
 		return result.snapshot;
 	}
 
@@ -272,5 +344,13 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 */
 	nextClientSeq(): number {
 		return this._nextClientSeq++;
+	}
+
+	/** Reject all pending requests with a connection-closed error. */
+	private _rejectPendingRequests(): void {
+		for (const [id, deferred] of this._pendingRequests) {
+			deferred.error(new Error('Connection closed'));
+			this._pendingRequests.delete(id);
+		}
 	}
 }

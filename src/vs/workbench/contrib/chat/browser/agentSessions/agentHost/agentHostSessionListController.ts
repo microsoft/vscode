@@ -5,7 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -27,18 +27,37 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	readonly onDidChangeChatSessionItems = this._onDidChangeChatSessionItems.event;
 
 	private _items: IChatSessionItem[] = [];
+	private _connection: IAgentConnection;
+	private readonly _connectionSubscriptions = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		private readonly _sessionType: string,
 		private readonly _provider: string,
-		private readonly _connection: IAgentConnection,
+		connection: IAgentConnection,
 		private readonly _description: string | undefined,
 		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
+		this._connection = connection;
+		this._wireConnectionEvents();
+	}
 
+	/**
+	 * Replace the underlying connection after a reconnect.
+	 * Re-wires event subscriptions and triggers a refresh.
+	 */
+	updateConnection(connection: IAgentConnection): void {
+		this._connection = connection;
+		this._wireConnectionEvents();
+		const cts = new CancellationTokenSource();
+		this.refresh(cts.token).finally(() => cts.dispose());
+	}
+
+	private _wireConnectionEvents(): void {
+		const store = new DisposableStore();
+		this._connectionSubscriptions.value = store;
 		// React to protocol notifications for session list changes
-		this._register(this._connection.onDidNotification(n => {
+		store.add(this._connection.onDidNotification(n => {
 			if (n.type === 'notify/sessionAdded' && n.summary.provider === this._provider) {
 				const rawId = AgentSession.id(n.summary.resource);
 				const workingDir = typeof n.summary.workingDirectory === 'string' ? n.summary.workingDirectory : undefined;
@@ -68,7 +87,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		}));
 
 		// Refresh on turnComplete actions for metadata updates (title, timing)
-		this._register(this._connection.onDidAction(e => {
+		store.add(this._connection.onDidAction(e => {
 			if (e.action.type === 'session/turnComplete' && isSessionAction(e.action) && AgentSession.provider(e.action.session) === this._provider) {
 				const cts = new CancellationTokenSource();
 				this.refresh(cts.token).finally(() => cts.dispose());
@@ -99,7 +118,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				},
 			}));
 		} catch {
-			this._items = [];
+			// Preserve cached items on failure (e.g. during disconnect)
 		}
 		this._onDidChangeChatSessionItems.fire({ addedOrUpdated: this._items });
 	}

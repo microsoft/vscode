@@ -177,7 +177,7 @@ suite('WorkspacePicker', () => {
 		const authority = agentHostAuthority(address);
 
 		// Simulate a live connection so remoteName gets cached
-		connections = [{ address, name: 'macbook', clientId: 'test-client' }];
+		connections = [{ address, name: 'macbook', clientId: 'test-client', connected: true }];
 		const picker1 = ds.add(instantiationService.createInstance(WorkspacePicker));
 		const remoteUri = agentHostUri(authority, '/home/user/project');
 		picker1.setSelectedProject(new SessionWorkspace(remoteUri), false);

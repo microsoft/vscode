@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -99,6 +99,12 @@ export interface IAgentHostSessionHandlerConfig {
 	 */
 	readonly resolveWorkingDirectory?: (resourceKey: string) => string | undefined;
 	/**
+	 * Optional callback to resolve a live connection on demand, reconnecting
+	 * if necessary. When provided, the handler calls this before creating
+	 * sessions or dispatching turn actions.
+	 */
+	readonly resolveConnection?: () => Promise<IAgentConnection>;
+	/**
 	 * Optional callback invoked when the server rejects an operation because
 	 * authentication is required. Should trigger interactive authentication
 	 * and return true if the user authenticated successfully.
@@ -116,6 +122,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** Client state manager shared across all sessions for this handler. */
 	private readonly _clientState: SessionClientState;
 
+	/** Current live connection - swapped on reconnect. */
+	private _connection: IAgentConnection;
+	/** Disposables scoped to the current connection (re-wired on reconnect). */
+	private readonly _connectionSubscriptions = this._register(new MutableDisposable<DisposableStore>());
+
 	constructor(
 		config: IAgentHostSessionHandlerConfig,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -126,18 +137,74 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	) {
 		super();
 		this._config = config;
+		this._connection = config.connection;
 
 		// Create shared client state manager for this handler instance
 		this._clientState = this._register(new SessionClientState(config.connection.clientId, this._logService));
 
-		// Forward action envelopes from IPC to client state
-		this._register(config.connection.onDidAction(envelope => {
+		this._wireConnectionEvents();
+		this._registerAgent();
+	}
+
+	/**
+	 * Resolve and ensure a live connection, re-wiring events if the connection
+	 * object has changed (e.g. after reconnect).
+	 */
+	private async _ensureConnection(): Promise<IAgentConnection> {
+		if (!this._config.resolveConnection) {
+			return this._connection;
+		}
+		const conn = await this._config.resolveConnection();
+		if (conn !== this._connection) {
+			this.updateConnection(conn);
+		}
+		return conn;
+	}
+
+	/**
+	 * Replace the underlying connection after a reconnect.
+	 * Re-wires event subscriptions and re-subscribes to active sessions.
+	 */
+	updateConnection(connection: IAgentConnection): void {
+		this._connection = connection;
+		this._wireConnectionEvents();
+		this._resubscribeActiveSessions();
+	}
+
+	/**
+	 * Subscribe to the current connection's action events and forward
+	 * session actions to the handler's client state.
+	 */
+	private _wireConnectionEvents(): void {
+		const store = new DisposableStore();
+		this._connectionSubscriptions.value = store;
+		store.add(this._connection.onDidAction(envelope => {
 			if (isSessionAction(envelope.action)) {
 				this._clientState.receiveEnvelope(envelope);
 			}
 		}));
+	}
 
-		this._registerAgent();
+	/**
+	 * Re-subscribe to all backend sessions that were active before the
+	 * connection dropped, so the server resumes sending actions for them.
+	 */
+	private _resubscribeActiveSessions(): void {
+		const connectionAtCallTime = this._connection;
+		for (const [resourceKey, sessionUri] of this._sessionToBackend) {
+			this._connection.subscribe(sessionUri).then(snapshot => {
+				// Guard: skip if the session was closed or the connection
+				// was swapped again while the subscribe was in-flight.
+				if (this._connection !== connectionAtCallTime || !this._sessionToBackend.has(resourceKey)) {
+					return;
+				}
+				if (snapshot?.state) {
+					this._clientState.handleSnapshot(sessionUri.toString(), snapshot.state, snapshot.fromSeq);
+				}
+			}).catch(err => {
+				this._logService.error(`[AgentHost] Failed to re-subscribe to session ${sessionUri}`, err);
+			});
+		}
 	}
 
 	async provideChatSessionContent(sessionResource: URI, _token: CancellationToken): Promise<IChatSession> {
@@ -153,7 +220,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			resolvedSession = this._resolveSessionUri(sessionResource);
 			this._sessionToBackend.set(resourceKey, resolvedSession);
 			try {
-				const snapshot = await this._config.connection.subscribe(resolvedSession);
+				const connection = await this._ensureConnection();
+				const snapshot = await connection.subscribe(resolvedSession);
 				if (snapshot?.state) {
 					this._clientState.handleSnapshot(resolvedSession.toString(), snapshot.state, snapshot.fromSeq);
 					const sessionState = this._clientState.getSessionState(resolvedSession.toString());
@@ -162,7 +230,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					}
 				}
 			} catch (err) {
-				this._logService.warn(`[AgentHost] Failed to subscribe to existing session: ${resolvedSession.toString()}`, err);
+				this._logService.warn(`[AgentHost] Failed to subscribe to existing session: ${resolvedSession?.toString()}`, err);
 			}
 		}
 		const session = this._instantiationService.createInstance(
@@ -180,8 +248,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._sessionToBackend.delete(resourceKey);
 				if (resolvedSession) {
 					this._clientState.unsubscribe(resolvedSession.toString());
-					this._config.connection.unsubscribe(resolvedSession);
-					this._config.connection.disposeSession(resolvedSession);
+					this._connection.unsubscribe(resolvedSession);
+					// disposeSession is async RPC; if the connection is dead the
+					// request will never complete, so fire-and-forget with catch.
+					this._connection.disposeSession(resolvedSession).catch(() => { });
 				}
 			},
 		);
@@ -257,6 +327,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return;
 		}
 
+		// Ensure we have a live connection (reconnect if needed)
+		const connection = await this._ensureConnection();
+
 		const turnId = generateUuid();
 		const attachments = this._convertVariablesToAttachments(request);
 		const messageAttachments: IMessageAttachment[] = attachments.map(a => ({
@@ -278,11 +351,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					model: rawModelId,
 				};
 				const modelSeq = this._clientState.applyOptimistic(modelAction);
-				this._config.connection.dispatchAction(modelAction, this._clientState.clientId, modelSeq);
+				connection.dispatchAction(modelAction, this._clientState.clientId, modelSeq);
 			}
 		}
 
-		// Dispatch session/turnStarted — the server will call sendMessage on
+		// Dispatch session/turnStarted - the server will call sendMessage on
 		// the provider as a side effect.
 		const turnAction = {
 			type: ActionType.SessionTurnStarted as const,
@@ -294,7 +367,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			},
 		};
 		const clientSeq = this._clientState.applyOptimistic(turnAction);
-		this._config.connection.dispatchAction(turnAction, this._clientState.clientId, clientSeq);
+		connection.dispatchAction(turnAction, this._clientState.clientId, clientSeq);
 
 		// Track live ChatToolInvocation/permission objects for this turn
 		const activeToolInvocations = new Map<string, ChatToolInvocation>();
@@ -407,7 +480,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						approved,
 					};
 					const seq = this._clientState.applyOptimistic(resolveAction);
-					this._config.connection.dispatchAction(resolveAction, this._clientState.clientId, seq);
+					this._connection.dispatchAction(resolveAction, this._clientState.clientId, seq);
 					if (approved) {
 						confirmInvocation.didExecuteTool(undefined);
 					} else {
@@ -427,7 +500,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				turnId,
 			};
 			const seq = this._clientState.applyOptimistic(cancelAction);
-			this._config.connection.dispatchAction(cancelAction, this._clientState.clientId, seq);
+			this._connection.dispatchAction(cancelAction, this._clientState.clientId, seq);
 			finish();
 		}));
 
@@ -451,9 +524,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		this._logService.trace(`[AgentHost] Creating new session, model=${rawModelId ?? '(default)'}, provider=${this._config.provider}`);
 
+		// Ensure a live connection before creating the session
+		const connection = await this._ensureConnection();
+
 		let session: URI;
 		try {
-			session = await this._config.connection.createSession({
+			session = await connection.createSession({
 				model: rawModelId,
 				provider: this._config.provider,
 				workingDirectory,
@@ -464,7 +540,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._logService.info('[AgentHost] Authentication required, prompting user...');
 				const authenticated = await this._config.resolveAuthentication();
 				if (authenticated) {
-					session = await this._config.connection.createSession({
+					// Re-resolve the connection - it may have reconnected
+					// during the interactive auth prompt.
+					const freshConnection = await this._ensureConnection();
+					session = await freshConnection.createSession({
 						model: rawModelId,
 						provider: this._config.provider,
 						workingDirectory,
@@ -479,9 +558,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		this._logService.trace(`[AgentHost] Created session: ${session.toString()}`);
 
-		// Subscribe to the new session's state
+		// Subscribe to the new session's state - use the current connection
+		// which may have changed during auth.
 		try {
-			const snapshot = await this._config.connection.subscribe(session);
+			const snapshot = await this._connection.subscribe(session);
 			this._clientState.handleSnapshot(session.toString(), snapshot.state, snapshot.fromSeq);
 		} catch (err) {
 			this._logService.error(`[AgentHost] Failed to subscribe to new session: ${session.toString()}`, err);

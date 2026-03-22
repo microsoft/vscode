@@ -144,20 +144,23 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 
 	// ---- Internals ----------------------------------------------------------
 
-	private _getConnection(authority: string) {
+	private async _getConnection(authority: string) {
 		const address = this._authorityToAddress.get(authority);
 		if (!address) {
 			throw createFileSystemProviderError(`No connection for authority: ${authority}`, FileSystemProviderErrorCode.Unavailable);
 		}
-		const connection = this._remoteAgentHostService.getConnection(address);
-		if (!connection) {
-			throw createFileSystemProviderError(`Connection unavailable: ${address}`, FileSystemProviderErrorCode.Unavailable);
+		try {
+			return await this._remoteAgentHostService.ensureConnected(address);
+		} catch (err) {
+			throw createFileSystemProviderError(
+				err instanceof Error ? err.message : `Connection unavailable: ${address}`,
+				FileSystemProviderErrorCode.Unavailable,
+			);
 		}
-		return connection;
 	}
 
 	private async _listDirectory(authority: string, resource: URI): Promise<readonly IDirectoryEntry[]> {
-		const connection = this._getConnection(authority);
+		const connection = await this._getConnection(authority);
 		try {
 			// Convert the agenthost URI to a file URI for the remote server
 			const remoteUri = URI.from({ scheme: 'file', path: resource.path || '/' });
