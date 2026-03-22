@@ -726,7 +726,7 @@ export class DebugService implements IDebugService {
 		this.disposables.add(listenerDisposables);
 
 		const sessionRunningScheduler = listenerDisposables.add(new RunOnceScheduler(() => {
-			// Do not immediatly defocus the stack frame if the session is running
+			// Do not immediately defocus the stack frame if the session is running
 			if (session.state === State.Running && this.viewModel.focusedSession === session) {
 				this.viewModel.setFocus(undefined, this.viewModel.focusedThread, session, false);
 			}
