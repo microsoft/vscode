@@ -75,6 +75,11 @@ import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';
 import { ThemeMainService } from '../../platform/theme/electron-main/themeMainServiceImpl.js';
 import { LINUX_SYSTEM_POLICY_FILE_PATH } from '../../base/common/policy.js';
 
+// Capture NODE_OPTIONS early before Electron strips it (https://github.com/microsoft/vscode/issues/231076)
+// Store in a global so patchEnvironment can access it
+const CAPTURED_NODE_OPTIONS = process.env['NODE_OPTIONS'];
+const CAPTURED_NODE_REPL_EXTERNAL_MODULE = process.env['NODE_REPL_EXTERNAL_MODULE'];
+
 /**
  * The main VS Code entry point.
  *
@@ -258,6 +263,18 @@ class CodeMain {
 				instanceEnvironment[key] = value;
 			}
 		});
+
+		// Preserve NODE_OPTIONS for terminals on Windows and macOS (https://github.com/microsoft/vscode/issues/231076)
+		// Electron restricts NODE_OPTIONS early, so we use globally captured values
+		// and restore them in the terminal environment
+		if (isMacintosh || isWindows) {
+			if (CAPTURED_NODE_OPTIONS) {
+				instanceEnvironment['VSCODE_NODE_OPTIONS'] = CAPTURED_NODE_OPTIONS;
+			}
+			if (CAPTURED_NODE_REPL_EXTERNAL_MODULE) {
+				instanceEnvironment['VSCODE_NODE_REPL_EXTERNAL_MODULE'] = CAPTURED_NODE_REPL_EXTERNAL_MODULE;
+			}
+		}
 
 		Object.assign(process.env, instanceEnvironment);
 

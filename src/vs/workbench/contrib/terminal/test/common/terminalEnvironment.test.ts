@@ -321,6 +321,20 @@ suite('Workbench - TerminalEnvironment', () => {
 				{ foo: 'bar', empty: '', ...commonVariables }
 			);
 		});
+		test('should restore NODE_OPTIONS from VSCODE_NODE_OPTIONS on macOS and Windows', async () => {
+			const env = await createTerminalEnvironment({}, undefined, undefined, undefined, 'off', {
+				VSCODE_NODE_OPTIONS: '--max-old-space-size=8192',
+				VSCODE_NODE_REPL_EXTERNAL_MODULE: 'test-module'
+			});
+			// On macOS and Windows, VSCODE_NODE_OPTIONS should be restored to NODE_OPTIONS
+			if (process.platform === 'darwin' || process.platform === 'win32') {
+				strictEqual(env['NODE_OPTIONS'], '--max-old-space-size=8192');
+				strictEqual(env['NODE_REPL_EXTERNAL_MODULE'], 'test-module');
+				strictEqual(env['VSCODE_NODE_OPTIONS'], undefined);
+				strictEqual(env['VSCODE_NODE_REPL_EXTERNAL_MODULE'], undefined);
+			}
+			// On other platforms, behavior may differ (currently not implemented)
+		});
 	});
 	suite('getWorkspaceForTerminal', () => {
 		test('should resolve workspace folder from cwd, not last active workspace', () => {

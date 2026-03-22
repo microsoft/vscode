@@ -26,6 +26,9 @@ set VSCODE_CLI=1
 set ELECTRON_ENABLE_LOGGING=1
 set ELECTRON_ENABLE_STACK_DUMPING=1
 
+if defined NODE_OPTIONS set "VSCODE_NODE_OPTIONS=%NODE_OPTIONS%"
+if defined NODE_REPL_EXTERNAL_MODULE set "VSCODE_NODE_REPL_EXTERNAL_MODULE=%NODE_REPL_EXTERNAL_MODULE%"
+
 set DISABLE_TEST_EXTENSION="--disable-extension=vscode.vscode-api-tests"
 for %%A in (%*) do (
 	if "%%~A"=="--extensionTestsPath" (
