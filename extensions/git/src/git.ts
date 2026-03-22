@@ -3324,7 +3324,12 @@ export class Repository {
 			return [];
 		}
 
-		return result.stdout.trim().split('\n');
+		const stdout = result.stdout.trim();
+		if (!stdout) {
+			return [];
+		}
+
+		return stdout.split('\n');
 	}
 
 	async revParse(ref: string): Promise<string | undefined> {
