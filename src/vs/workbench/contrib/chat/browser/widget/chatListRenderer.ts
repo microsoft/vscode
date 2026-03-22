@@ -391,12 +391,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.fileTreesByResponseId.clear();
 		this.focusedFileTreesByResponseId.clear();
 		this.responseTemplateDataByRequestId.clear();
+
+		// Fire first so that templates clear their rendered parts and release pool
+		// items back into the pool arrays, then clear the pools to dispose them.
+		// Clearing the pools before firing would leave released items undisposed.
+		this._onDidUpdateViewModel.fire();
 		this._editorPool.clear();
 		this._toolEditorPool.clear();
 		this._diffEditorPool.clear();
 		this._treePool.clear();
 		this._contentReferencesListPool.clear();
-		this._onDidUpdateViewModel.fire();
 	}
 
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
