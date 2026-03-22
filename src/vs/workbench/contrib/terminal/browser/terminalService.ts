@@ -433,9 +433,9 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
 		// Confirm on kill in the editor is handled by the editor input
+		const confirmOnKill = this._terminalConfigurationService.config.confirmOnKill;
 		if (instance.target !== TerminalLocation.Editor &&
-			instance.hasChildProcesses &&
-			(this._terminalConfigurationService.config.confirmOnKill === 'panel' || this._terminalConfigurationService.config.confirmOnKill === 'always')) {
+			(confirmOnKill === 'always' || (instance.hasChildProcesses && confirmOnKill === 'panel'))) {
 			const veto = await this._showTerminalCloseConfirmation(true);
 			if (veto) {
 				return;
