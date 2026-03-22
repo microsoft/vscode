@@ -27,7 +27,6 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { URI } from '../../../../base/common/uri.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ISessionsManagementService } from './sessionsManagementService.js';
-import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { FocusAgentSessionsAction } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsPicker } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsPicker.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -77,11 +76,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super(undefined, action, options);
 
-		// Re-render when the active session changes (from either service)
+		// Re-render when the active session changes
 		this._register(autorun(reader => {
 			const activeSession = this.activeSessionService.activeSession.read(reader);
 			this._trackModelTitleChanges(activeSession?.resource);
@@ -89,11 +87,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._render();
 		}));
 
-		// Re-render when the provider-level active session changes
+		// Re-render when the active session data changes (title, status)
 		this._register(autorun(reader => {
-			const sessionData = this.sessionsProvidersService.activeSession.read(reader);
+			const sessionData = this.activeSessionService.activeSessionData.read(reader);
 			if (sessionData) {
-				// Read reactive properties to trigger re-render on changes
 				sessionData.title.read(reader);
 				sessionData.status.read(reader);
 			}
@@ -257,7 +254,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 */
 	private _getActiveSessionLabel(): string {
 		// Prefer ISessionData from the providers service
-		const sessionData = this.sessionsProvidersService.activeSession.get();
+		const sessionData = this.activeSessionService.activeSessionData.get();
 		if (sessionData) {
 			const title = sessionData.title.get();
 			if (title) {
@@ -287,7 +284,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 */
 	private _getActiveSessionIcon(): ThemeIcon | undefined {
 		// Prefer ISessionData from the providers service
-		const sessionData = this.sessionsProvidersService.activeSession.get();
+		const sessionData = this.activeSessionService.activeSessionData.get();
 		if (sessionData) {
 			return sessionData.icon;
 		}
@@ -320,7 +317,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 */
 	private _getRepositoryLabel(): string | undefined {
 		// Prefer ISessionData from the providers service
-		const sessionData = this.sessionsProvidersService.activeSession.get();
+		const sessionData = this.activeSessionService.activeSessionData.get();
 		if (sessionData) {
 			const workspace = sessionData.workspace.get();
 			if (workspace) {

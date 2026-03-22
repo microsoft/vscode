@@ -5,7 +5,6 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -46,13 +45,6 @@ export interface ISessionsProvidersService {
 	/** Fires when sessions change across any provider. */
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
 
-	// ── Active Session ──
-
-	/** The currently active session. */
-	readonly activeSession: IObservable<ISessionData | undefined>;
-	/** Open a session by its globally unique ID. */
-	openSession(sessionId: string): Promise<void>;
-
 	// ── Session Actions (routed to the correct provider via sessionId) ──
 
 	/** Archive a session. */
@@ -83,9 +75,6 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionsChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent> = this._onDidChangeSessions.event;
-
-	private readonly _activeSession = observableValue<ISessionData | undefined>(this, undefined);
-	readonly activeSession: IObservable<ISessionData | undefined> = this._activeSession;
 
 	// ── Provider Registry ──
 
@@ -148,18 +137,6 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 			return undefined;
 		}
 		return provider.getSessions().find(s => s.sessionId === sessionId);
-	}
-
-	// ── Active Session ──
-
-	openSession(sessionId: string): Promise<void> {
-		const session = this.getSession(sessionId);
-		if (session) {
-			transaction(tx => {
-				this._activeSession.set(session, tx);
-			});
-		}
-		return Promise.resolve();
 	}
 
 	// ── Session Actions ──

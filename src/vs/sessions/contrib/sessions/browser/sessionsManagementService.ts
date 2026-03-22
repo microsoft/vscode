@@ -23,6 +23,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { INewSession } from '../../chat/browser/newSession.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
+import { ISessionData } from '../common/sessionData.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { isBuiltinChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
@@ -63,6 +64,12 @@ export interface ISessionsManagementService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Observable for the currently active session as {@link ISessionData}.
+	 */
+	readonly activeSessionData: IObservable<ISessionData | undefined>;
+
+	/**
+	 * @deprecated Use {@link activeSessionData} instead.
 	 * Observable for the currently active session.
 	 */
 	readonly activeSession: IObservable<IActiveSessionItem | undefined>;
@@ -133,6 +140,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _activeSession = observableValue<IActiveSessionItem | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSessionItem | undefined> = this._activeSession;
+	private readonly _activeSessionData = observableValue<ISessionData | undefined>(this, undefined);
+	readonly activeSessionData: IObservable<ISessionData | undefined> = this._activeSessionData;
 	private readonly _newActiveSessionDisposables = this._register(new DisposableStore());
 
 	private readonly _newSession = this._register(new MutableDisposable<INewSession>());
@@ -282,12 +291,18 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		const sessionType = provider.sessionTypes.find(t => t.id === target)!;
-		const newSession = provider.createNewSession(sessionType, sessionResource);
+		const sessionData = provider.createNewSession(sessionType, sessionResource);
 
-		this._newSession.value = newSession;
-		this._newSessionObservable.set(newSession, undefined);
-		this.setActiveSession(newSession);
-		return newSession;
+		// The provider returns ISessionData which wraps an INewSession internally.
+		// Extract the underlying INewSession for the legacy send flow.
+		const newSession = (sessionData as any)._newSession as INewSession | undefined;
+		if (newSession) {
+			this._newSession.value = newSession;
+			this._newSessionObservable.set(newSession, undefined);
+			this.setActiveSession(newSession);
+		}
+		this._activeSessionData.set(sessionData, undefined);
+		return newSession ?? sessionData as any;
 	}
 
 	async sendRequestForNewSession(sessionResource: URI, options?: { permissionLevel?: ChatPermissionLevel }): Promise<void> {
