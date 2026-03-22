@@ -92,18 +92,28 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 			// hasn't started processing the command yet.
 			if (startLine !== undefined) {
 				this._log('Waiting for cursor to move past start line');
-				await new Promise<void>(resolve => {
+				const cursorMovedPromise = new Promise<void>(resolve => {
 					const check = () => {
 						const buffer = xterm.raw.buffer.active;
 						const cursorLine = buffer.baseY + buffer.cursorY;
 						if (cursorLine > startLine) {
 							resolve();
-						} else {
-							store.add(Event.once(this._instance.onData)(() => check()));
 						}
 					};
+					const listener = this._instance.onData(() => check());
+					store.add(listener);
 					check();
 				});
+
+				const cursorMoveTimeout = new Promise<'timeout'>(resolve => {
+					const handle = setTimeout(() => resolve('timeout'), 5000);
+					store.add({ dispose: () => clearTimeout(handle) });
+				});
+
+				const raceResult = await Promise.race([cursorMovedPromise, cursorMoveTimeout]);
+				if (raceResult === 'timeout') {
+					this._log('Cursor did not move past start line before timeout, proceeding with idle detection');
+				}
 			}
 
 

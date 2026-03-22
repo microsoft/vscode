@@ -88,7 +88,7 @@ export function createAltBufferPromise(
  * This function removes (1) and (3) to isolate the actual output.
  */
 export function stripCommandEchoAndPrompt(output: string, commandLine: string, log?: (message: string) => void): string {
-	log?.(`stripCommandEchoAndPrompt input: ${JSON.stringify(output)}, commandLine: ${JSON.stringify(commandLine)}`);
+	log?.(`stripCommandEchoAndPrompt input: output length=${output.length}, commandLine length=${commandLine.length}`);
 
 	const result = _stripCommandEchoAndPromptOnce(output, commandLine, log);
 
@@ -172,7 +172,7 @@ function _stripCommandEchoAndPromptOnce(output: string, commandLine: string, log
 	}
 
 	const result = lines.slice(startIndex, endIndex).join('\n');
-	log?.(`stripCommandEchoAndPrompt result: ${JSON.stringify(result)} (startIndex=${startIndex}, endIndex=${endIndex}, totalLines=${lines.length})`);
+	log?.(`stripCommandEchoAndPrompt result: length=${result.length} (startIndex=${startIndex}, endIndex=${endIndex}, totalLines=${lines.length})`);
 	return result;
 }
 
@@ -247,12 +247,12 @@ export function findCommandEcho(output: string, commandLine: string, allowSuffix
 
 export function stripNewLinesAndBuildMapping(output: string): { strippedOutput: string; indexMapping: number[] } {
 	const indexMapping: number[] = [];
-	let strippedOutput = '';
+	const strippedChars: string[] = [];
 	for (let i = 0; i < output.length; i++) {
 		if (output[i] !== '\n') {
-			strippedOutput += output[i];
+			strippedChars.push(output[i]);
 			indexMapping.push(i);
 		}
 	}
-	return { strippedOutput, indexMapping };
+	return { strippedOutput: strippedChars.join(''), indexMapping };
 }
