@@ -42,7 +42,7 @@ import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
 import { AgentSessionProviders } from './agentSessions.js';
-import { AgentSessionsGrouping } from './agentSessionsFilter.js';
+import { AgentSessionsGrouping, AgentSessionsSorting } from './agentSessionsFilter.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -88,7 +88,9 @@ interface IAgentSessionItemTemplate {
 export interface IAgentSessionRendererOptions {
 	readonly disableHover?: boolean;
 	getHoverPosition(): HoverPosition;
+
 	isGroupedByRepository?(): boolean;
+	isSortedByUpdated?(): boolean;
 }
 
 export class AgentSessionRenderer extends Disposable implements ICompressibleTreeRenderer<IAgentSession, FuzzyScore, IAgentSessionItemTemplate> {
@@ -414,7 +416,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			}
 
 			if (!timeLabel) {
-				const date = session.timing.created;
+				const date = this.options.isSortedByUpdated?.()
+					? session.timing.lastRequestEnded ?? session.timing.created
+					: session.timing.created;
 				const seconds = Math.round((new Date().getTime() - date) / 1000);
 				if (seconds < 60) {
 					timeLabel = localize('secondsDuration', "now");
@@ -569,6 +573,7 @@ export function toStatusLabel(status: AgentSessionStatus): string {
 interface IAgentSessionSectionTemplate {
 	readonly container: HTMLElement;
 	readonly label: HTMLSpanElement;
+	readonly count: HTMLSpanElement;
 	readonly toolbar: MenuWorkbenchToolBar;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: IDisposable;
@@ -592,6 +597,7 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 			'div.agent-session-section@container',
 			[
 				h('span.agent-session-section-label@label'),
+				h('span.agent-session-section-count@count'),
 				h('div.agent-session-section-toolbar@toolbar')
 			]
 		);
@@ -607,6 +613,7 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 		return {
 			container: elements.container,
 			label: elements.label,
+			count: elements.count,
 			toolbar,
 			contextKeyService,
 			disposables
@@ -617,6 +624,9 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 
 		// Label
 		template.label.textContent = element.element.label;
+
+		// Count
+		template.count.textContent = String(element.element.sessions.length);
 
 		// Toolbar
 		ChatContextKeys.agentSessionSection.bindTo(template.contextKeyService).set(element.element.section);
@@ -687,7 +697,7 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 
 	getAriaLabel(element: AgentSessionListItem): string | null {
 		if (isAgentSessionSection(element)) {
-			return localize('agentSessionSectionAriaLabel', "{0} sessions section", element.label);
+			return localize('agentSessionSectionAriaLabel', "{0} sessions section, {1} sessions", element.label, element.sessions.length);
 		}
 
 		return localize('agentSessionItemAriaLabel', "{0} session {1} ({2}), created {3}", element.providerLabel, element.label, toStatusLabel(element.status), new Date(element.timing.created).toLocaleString());
@@ -720,6 +730,12 @@ export interface IAgentSessionsFilter {
 	 * When undefined, sessions are shown as a flat list.
 	 */
 	readonly groupResults?: () => AgentSessionsGrouping | undefined;
+
+	/**
+	 * The field to sort sessions by.
+	 * Defaults to created date when undefined.
+	 */
+	readonly sortResults?: () => AgentSessionsSorting | undefined;
 
 	/**
 	 * A callback to notify the filter about the number of
@@ -878,7 +894,8 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 	private groupSessionsByDate(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
 		const result: AgentSessionListItem[] = [];
-		const groupedSessions = groupAgentSessionsByDate(sortedSessions);
+		const sortBy = this.filter?.sortResults?.();
+		const groupedSessions = groupAgentSessionsByDate(sortedSessions, sortBy);
 
 		for (const { sessions, section, label } of groupedSessions.values()) {
 			if (sessions.length === 0) {
@@ -967,6 +984,19 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 export function getRepositoryName(session: IAgentSession): string | undefined {
 	const metadata = session.metadata;
 	if (metadata) {
+		// Remote agent host sessions: group by folder + remote name (e.g. "myproject [dev-box]")
+		const remoteAgentHost = metadata.remoteAgentHost as string | undefined;
+		if (remoteAgentHost) {
+			const workingDir = metadata.workingDirectoryPath as string | undefined;
+			if (workingDir) {
+				const folderName = extractRepoNameFromPath(workingDir);
+				if (folderName) {
+					return `${folderName} [${remoteAgentHost}]`;
+				}
+			}
+			return remoteAgentHost;
+		}
+
 		// Cloud sessions: metadata.owner + metadata.name
 		const owner = metadata.owner as string | undefined;
 		const name = metadata.name as string | undefined;
@@ -1116,7 +1146,7 @@ export const AgentSessionSectionLabels = {
 const DAY_THRESHOLD = 24 * 60 * 60 * 1000;
 const WEEK_THRESHOLD = 7 * DAY_THRESHOLD;
 
-export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
+export function groupAgentSessionsByDate(sessions: IAgentSession[], sortBy?: AgentSessionsSorting): Map<AgentSessionSection, IAgentSessionSection> {
 	const now = Date.now();
 	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;
@@ -1135,7 +1165,9 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 		} else if (session.isPinned()) {
 			pinnedSessions.push(session);
 		} else {
-			const sessionTime = session.timing.created;
+			const sessionTime = sortBy === AgentSessionsSorting.Updated
+				? session.timing.lastRequestEnded ?? session.timing.created
+				: session.timing.created;
 			if (sessionTime >= startOfToday) {
 				todaySessions.push(session);
 			} else if (sessionTime >= startOfYesterday) {
@@ -1216,6 +1248,12 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 
 export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
+	private readonly getSortBy: () => AgentSessionsSorting;
+
+	constructor(getSortBy?: () => AgentSessionsSorting) {
+		this.getSortBy = getSortBy ?? (() => AgentSessionsSorting.Created);
+	}
+
 	compare(sessionA: IAgentSession, sessionB: IAgentSession, prioritizeActiveSessions = false): number {
 
 		// Special sorting if enabled
@@ -1254,8 +1292,17 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 		}
 
 		// Sort by time
-		const timeA = prioritizeActiveSessions ? sessionA.timing.lastRequestStarted ?? sessionA.timing.created : sessionA.timing.created;
-		const timeB = prioritizeActiveSessions ? sessionB.timing.lastRequestStarted ?? sessionB.timing.created : sessionB.timing.created;
+		const sortBy = this.getSortBy();
+		const timeA = prioritizeActiveSessions
+			? sessionA.timing.lastRequestStarted ?? sessionA.timing.created
+			: sortBy === AgentSessionsSorting.Updated
+				? sessionA.timing.lastRequestEnded ?? sessionA.timing.created
+				: sessionA.timing.created;
+		const timeB = prioritizeActiveSessions
+			? sessionB.timing.lastRequestStarted ?? sessionB.timing.created
+			: sortBy === AgentSessionsSorting.Updated
+				? sessionB.timing.lastRequestEnded ?? sessionB.timing.created
+				: sessionB.timing.created;
 		return timeB - timeA;
 	}
 }

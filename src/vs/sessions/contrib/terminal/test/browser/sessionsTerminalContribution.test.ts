@@ -21,6 +21,9 @@ import { IActiveSessionItem, ISessionsManagementService } from '../../../session
 import { SessionsTerminalContribution } from '../../browser/sessionsTerminalContribution.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 
 const HOME_DIR = URI.file('/home/user');
 
@@ -198,6 +201,13 @@ suite('SessionsTerminalContribution', () => {
 		});
 
 		instantiationService.stub(IPathService, new TestPathService(HOME_DIR));
+
+		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
+
+		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+			override isViewVisible(): boolean { return false; }
+			override onDidChangeViewVisibility = store.add(new Emitter<{ id: string; visible: boolean }>()).event;
+		});
 
 		contribution = store.add(instantiationService.createInstance(SessionsTerminalContribution));
 	});

@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -127,7 +127,7 @@ class CodeReviewToolbarContribution extends Disposable implements IWorkbenchCont
 		super();
 
 		const canRunCodeReviewContext = canRunSessionCodeReviewContextKey.bindTo(contextKeyService);
-		const sessionsChangedSignal = observableFromEvent(this, this._agentSessionsService.model.onDidChangeSessions, () => undefined);
+		const sessionsChangedSignal = observableSignalFromEvent(this, this._agentSessionsService.model.onDidChangeSessions);
 
 		this._register(autorun(reader => {
 			const activeSession = this._sessionManagementService.activeSession.read(reader);

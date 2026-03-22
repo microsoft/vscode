@@ -7,7 +7,7 @@ import { app, Event as ElectronEvent } from 'electron';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { isWindows } from '../../../base/common/platform.js';
+import { INodeProcess, isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ILogService } from '../../log/common/log.js';
@@ -50,8 +50,9 @@ export class ElectronURLListener extends Disposable {
 
 		// Windows: install as protocol handler
 		// Skip in portable mode: the registered command wouldn't preserve
-		// portable mode settings, causing issues with OAuth flows
-		if (isWindows && !environmentMainService.isPortable) {
+		// portable mode settings, causing issues with OAuth flows.
+		// Skip for embedded apps: protocol handler is registered at install time.
+		if (isWindows && !environmentMainService.isPortable && !(process as INodeProcess).isEmbeddedApp) {
 			const windowsParameters = environmentMainService.isBuilt ? [] : [`"${environmentMainService.appRoot}"`];
 			windowsParameters.push('--open-url', '--');
 			app.setAsDefaultProtocolClient(productService.urlProtocol, process.execPath, windowsParameters);

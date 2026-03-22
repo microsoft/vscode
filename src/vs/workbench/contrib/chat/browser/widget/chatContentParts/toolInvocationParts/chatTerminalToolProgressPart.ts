@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h } from '../../../../../../../base/browser/dom.js';
-import { renderLabelWithIcons } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -1625,7 +1624,7 @@ export class ContinueInBackgroundAction extends Action implements IAction {
 	}
 }
 
-class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart {
+export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart {
 	private readonly _terminalContentElement: HTMLElement;
 	private readonly _commandText: string;
 	private readonly _isSandboxWrapped: boolean;
@@ -1641,7 +1640,9 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		const title = isComplete ? `Ran \`${commandText}\`` : `Running \`${commandText}\``;
+		const title = isComplete
+			? localize('chat.terminal.ran.plain', "Ran {0}", commandText)
+			: localize('chat.terminal.running.plain', "Running {0}", commandText);
 		super(title, context, undefined, hoverService, configurationService);
 
 		this._terminalContentElement = contentElement;
@@ -1666,10 +1667,17 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 
 		const labelElement = this._collapseButton.labelElement;
 		labelElement.textContent = '';
+
 		if (this._isSandboxWrapped) {
-			dom.reset(labelElement, ...renderLabelWithIcons(this._isComplete
-				? localize('chat.terminal.ranInSandbox', "$(lock) Ran `{0}` in sandbox", this._commandText)
-				: localize('chat.terminal.runningInSandbox', "$(lock) Running `{0}` in sandbox", this._commandText)));
+			const prefixText = this._isComplete
+				? localize('chat.terminal.ranInSandbox.prefix', "Ran ")
+				: localize('chat.terminal.runningInSandbox.prefix', "Running ");
+			const suffixText = localize('chat.terminal.sandbox.suffix', " in sandbox");
+			labelElement.appendChild(document.createTextNode(prefixText));
+			const codeElement = document.createElement('code');
+			codeElement.textContent = this._commandText;
+			labelElement.appendChild(codeElement);
+			labelElement.appendChild(document.createTextNode(suffixText));
 			return;
 		}
 

@@ -17,6 +17,7 @@ import {
 	getClaudeUserRoots,
 } from '../../common/customizationHarnessService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatAgentService } from '../../common/participants/chatAgents.js';
 
@@ -31,9 +32,10 @@ class CustomizationHarnessService extends CustomizationHarnessServiceBase {
 		@IChatAgentService chatAgentService: IChatAgentService,
 	) {
 		const userHome = pathService.userHome({ preferLocal: true });
-		// Only the Local harness includes extension-contributed customizations.
+		// The Local harness includes extension-contributed and built-in customizations.
+		// Built-in items come from the default chat extension (productService.defaultChatAgent).
 		// CLI and Claude harnesses don't consume extension contributions.
-		const localExtras = [PromptsStorage.extension];
+		const localExtras = [PromptsStorage.extension, BUILTIN_STORAGE];
 		const restrictedExtras: readonly string[] = [];
 		const allHarnesses: readonly IHarnessDescriptor[] = [
 			createVSCodeHarnessDescriptor(localExtras),

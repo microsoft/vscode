@@ -803,7 +803,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		// Wrap with icon like thinking parts do
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
-		const icon = getToolInvocationIcon(toolInvocation.toolId);
+		const icon = getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon);
 		const iconElement = createThinkingIcon(icon);
 		itemWrapper.appendChild(content);
 

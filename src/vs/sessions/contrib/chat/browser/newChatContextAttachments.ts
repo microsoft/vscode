@@ -15,6 +15,9 @@ import { localize } from '../../../../nls.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { registerOpenEditorListeners } from '../../../../platform/editor/browser/editor.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { IChatImageCarouselService } from '../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
+import { coerceImageBuffer } from '../../../../workbench/contrib/chat/common/chatImageExtraction.js';
 
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -83,6 +86,7 @@ export class NewChatContextAttachments extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
+		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
 	) {
 		super();
 		this._resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
@@ -133,8 +137,19 @@ export class NewChatContextAttachments extends Disposable {
 				}
 			}
 
-			// Click to open the resource
-			if (resource) {
+			// Click to open the resource or image
+			const imageData = entry.kind === 'image' ? coerceImageBuffer(entry.value) : undefined;
+			if (imageData) {
+				pill.style.cursor = 'pointer';
+				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
+					if (this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
+						const imageResource = resource ?? URI.from({ scheme: 'data', path: entry.name });
+						await this.chatImageCarouselService.openCarouselAtResource(imageResource, imageData);
+					} else if (resource) {
+						await this.openerService.open(resource, { fromUserGesture: true });
+					}
+				}));
+			} else if (resource) {
 				pill.style.cursor = 'pointer';
 				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
 					await this.openerService.open(resource, { fromUserGesture: true });

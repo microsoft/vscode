@@ -318,6 +318,11 @@
 			flex: 1;
 		}
 
+		.agent-session-section-count {
+			opacity: 0.7;
+			margin-right: 4px;
+		}
+
 		.agent-session-section-toolbar {
 			/* for the absolute positioning of the toolbar below */
 			position: relative;
@@ -330,6 +335,11 @@
 				display: none;
 			}
 		}
+	}
+
+	.monaco-list-row:hover .agent-session-section .agent-session-section-count,
+	.monaco-list-row.focused:not(.selected) .agent-session-section .agent-session-section-count {
+		display: none;
 	}
 
 	.monaco-list-row:hover .agent-session-section .agent-session-section-toolbar,

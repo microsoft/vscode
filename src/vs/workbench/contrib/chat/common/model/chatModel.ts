@@ -862,6 +862,9 @@ export class Response extends AbstractResponse implements IDisposable {
 		);
 
 		if (existingInvocation) {
+			if (progress.toolSpecificData !== undefined) {
+				existingInvocation.toolSpecificData = progress.toolSpecificData;
+			}
 			if (progress.isComplete) {
 				existingInvocation.didExecuteTool({
 					content: [],
@@ -869,9 +872,6 @@ export class Response extends AbstractResponse implements IDisposable {
 					toolResultError: progress.errorMessage,
 					toolResultDetails: progress.resultDetails
 				});
-			}
-			if (progress.toolSpecificData !== undefined) {
-				existingInvocation.toolSpecificData = progress.toolSpecificData;
 			}
 			return;
 		}
@@ -900,15 +900,15 @@ export class Response extends AbstractResponse implements IDisposable {
 
 		if (progress.isComplete) {
 			// Already completed on first push
+			if (progress.toolSpecificData !== undefined) {
+				invocation.toolSpecificData = progress.toolSpecificData;
+			}
 			invocation.didExecuteTool({
 				content: [],
 				toolResultMessage: progress.pastTenseMessage,
 				toolResultError: progress.errorMessage,
 				toolResultDetails: progress.resultDetails
 			});
-			if (progress.toolSpecificData !== undefined) {
-				invocation.toolSpecificData = progress.toolSpecificData;
-			}
 		}
 
 		this._responseParts.push(invocation);

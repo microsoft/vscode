@@ -11,7 +11,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
+import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_URL } from './browserEditor.js';
 import { BrowserViewCommandId } from '../../../../platform/browserView/common/browserView.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
@@ -242,124 +242,6 @@ class OpenBrowserSettingsAction extends Action2 {
 	}
 }
 
-// Find actions
-
-class ShowBrowserFindAction extends Action2 {
-	static readonly ID = BrowserViewCommandId.ShowFind;
-
-	constructor() {
-		super({
-			id: ShowBrowserFindAction.ID,
-			title: localize2('browser.showFindAction', 'Find in Page'),
-			category: BrowserActionCategory,
-			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
-			menu: {
-				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Page,
-				order: 1,
-			},
-			keybinding: {
-				weight: KeybindingWeight.EditorContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KeyF
-			}
-		});
-	}
-
-	run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): void {
-		if (browserEditor instanceof BrowserEditor) {
-			browserEditor.showFind();
-		}
-	}
-}
-
-class HideBrowserFindAction extends Action2 {
-	static readonly ID = BrowserViewCommandId.HideFind;
-
-	constructor() {
-		super({
-			id: HideBrowserFindAction.ID,
-			title: localize2('browser.hideFindAction', 'Close Find Widget'),
-			category: BrowserActionCategory,
-			f1: false,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE),
-			keybinding: {
-				weight: KeybindingWeight.EditorContrib + 5,
-				primary: KeyCode.Escape
-			}
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		const browserEditor = accessor.get(IEditorService).activeEditorPane;
-		if (browserEditor instanceof BrowserEditor) {
-			browserEditor.hideFind();
-		}
-	}
-}
-
-class BrowserFindNextAction extends Action2 {
-	static readonly ID = BrowserViewCommandId.FindNext;
-
-	constructor() {
-		super({
-			id: BrowserFindNextAction.ID,
-			title: localize2('browser.findNextAction', 'Find Next'),
-			category: BrowserActionCategory,
-			f1: false,
-			precondition: BROWSER_EDITOR_ACTIVE,
-			keybinding: [{
-				when: CONTEXT_BROWSER_FIND_WIDGET_FOCUSED,
-				weight: KeybindingWeight.EditorContrib,
-				primary: KeyCode.Enter
-			}, {
-				when: CONTEXT_BROWSER_FIND_WIDGET_VISIBLE,
-				weight: KeybindingWeight.EditorContrib,
-				primary: KeyCode.F3,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyG }
-			}]
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		const browserEditor = accessor.get(IEditorService).activeEditorPane;
-		if (browserEditor instanceof BrowserEditor) {
-			browserEditor.findNext();
-		}
-	}
-}
-
-class BrowserFindPreviousAction extends Action2 {
-	static readonly ID = BrowserViewCommandId.FindPrevious;
-
-	constructor() {
-		super({
-			id: BrowserFindPreviousAction.ID,
-			title: localize2('browser.findPreviousAction', 'Find Previous'),
-			category: BrowserActionCategory,
-			f1: false,
-			precondition: BROWSER_EDITOR_ACTIVE,
-			keybinding: [{
-				when: CONTEXT_BROWSER_FIND_WIDGET_FOCUSED,
-				weight: KeybindingWeight.EditorContrib,
-				primary: KeyMod.Shift | KeyCode.Enter
-			}, {
-				when: CONTEXT_BROWSER_FIND_WIDGET_VISIBLE,
-				weight: KeybindingWeight.EditorContrib,
-				primary: KeyMod.Shift | KeyCode.F3,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG }
-			}]
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		const browserEditor = accessor.get(IEditorService).activeEditorPane;
-		if (browserEditor instanceof BrowserEditor) {
-			browserEditor.findPrevious();
-		}
-	}
-}
-
 // Register actions
 registerAction2(GoBackAction);
 registerAction2(GoForwardAction);
@@ -369,8 +251,3 @@ registerAction2(HardReloadAction);
 registerAction2(FocusUrlInputAction);
 registerAction2(OpenInExternalBrowserAction);
 registerAction2(OpenBrowserSettingsAction);
-
-registerAction2(ShowBrowserFindAction);
-registerAction2(HideBrowserFindAction);
-registerAction2(BrowserFindNextAction);
-registerAction2(BrowserFindPreviousAction);

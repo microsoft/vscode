@@ -190,8 +190,8 @@ export class ExtUri implements IExtUri {
 		return basename(resource) || resource.authority;
 	}
 
-	basename(resource: URI): string {
-		return paths.posix.basename(resource.path);
+	basename(resource: URI, suffix?: string): string {
+		return paths.posix.basename(resource.path, suffix);
 	}
 
 	extname(resource: URI): string {

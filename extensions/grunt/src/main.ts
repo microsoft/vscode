@@ -18,9 +18,9 @@ function exists(file: string): Promise<boolean> {
 	});
 }
 
-function exec(command: string, options: cp.ExecOptions): Promise<{ stdout: string; stderr: string }> {
+function exec(command: string, args: string[], options: cp.ExecFileOptions): Promise<{ stdout: string; stderr: string }> {
 	return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-		cp.exec(command, options, (error, stdout, stderr) => {
+		cp.execFile(command, args, options, (error, stdout, stderr) => {
 			if (error) {
 				reject({ error, stdout, stderr });
 			}
@@ -143,9 +143,9 @@ class FolderDetector {
 			return emptyTasks;
 		}
 
-		const commandLine = `${await this._gruntCommand} --help --no-color`;
+		const gruntCommand = await this._gruntCommand;
 		try {
-			const { stdout, stderr } = await exec(commandLine, { cwd: rootPath });
+			const { stdout, stderr } = await exec(gruntCommand, ['--help', '--no-color'], { cwd: rootPath });
 			if (stderr) {
 				getOutputChannel().appendLine(stderr);
 				showError();

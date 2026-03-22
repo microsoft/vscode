@@ -706,7 +706,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					if (needsUpdate) {
 						this.chatSessionsService.updateSessionOptions(
 							ctx.chatSessionResource,
-							[{ optionId: agentOptionId, value: mode.isBuiltin ? '' : modeName }]
+							new Map([[agentOptionId, mode.isBuiltin ? '' : modeName]])
 						);
 					}
 				}

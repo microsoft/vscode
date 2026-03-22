@@ -5,7 +5,7 @@
 
 import './media/collapsedPanelWidget.css';
 import { $, addDisposableListener, append, EventType } from '../../base/browser/dom.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { IHoverService } from '../../platform/hover/browser/hover.js';
 import { createInstantHoverDelegate } from '../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -44,10 +44,15 @@ export class CollapsedSidebarWidget extends Disposable {
 		super();
 
 		this.element = append(parent, $('.collapsed-panel-widget.collapsed-sidebar-widget'));
-		this.indicatorContainer = append(this.element, $('.collapsed-panel-buttons'));
 
-		// New session button
+		// Sidebar toggle button (leftmost)
+		this._register(this.createSidebarToggleButton());
+
+		// New session button (next to panel toggle)
 		this._register(this.createNewSessionButton());
+
+		// Session status indicators (rightmost)
+		this.indicatorContainer = append(this.element, $('.collapsed-panel-button.collapsed-sidebar-status'));
 
 		// Listen for session changes
 		this._register(this.agentSessionsService.model.onDidChangeSessions(() => this.rebuildIndicators()));
@@ -72,6 +77,35 @@ export class CollapsedSidebarWidget extends Disposable {
 		return store;
 	}
 
+	private createSidebarToggleButton(): DisposableStore {
+		const store = new DisposableStore();
+		const btn = append(this.element, $('.collapsed-panel-button.collapsed-sidebar-panel-toggle'));
+		let iconElement: HTMLElement | undefined;
+
+		const updateIcon = () => {
+			const sidebarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
+			const icon = sidebarVisible ? Codicon.layoutSidebarLeft : Codicon.layoutSidebarLeftOff;
+			iconElement?.remove();
+			iconElement = append(btn, $(ThemeIcon.asCSSSelector(icon)));
+		};
+
+		updateIcon();
+
+		store.add(this.hoverService.setupManagedHover(this.hoverDelegate, btn, localize('toggleSidebar', "Toggle Side Bar")));
+
+		store.add(addDisposableListener(btn, EventType.CLICK, () => {
+			this.commandService.executeCommand('workbench.action.agentToggleSidebarVisibility');
+		}));
+
+		store.add(this.layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.SIDEBAR_PART) {
+				updateIcon();
+			}
+		}));
+
+		return store;
+	}
+
 	private rebuildIndicators(): void {
 		this.indicatorDisposables.clear();
 		this.indicatorContainer.textContent = '';
@@ -79,75 +113,61 @@ export class CollapsedSidebarWidget extends Disposable {
 		const sessions = this.agentSessionsService.model.sessions;
 		const counts = this.countSessionsByStatus(sessions);
 
-		// In-progress indicator
+		const tooltipParts: string[] = [];
+
+		// In-progress (matches agentSessionsViewer: sessionInProgress)
 		if (counts.inProgress > 0) {
-			this.createIndicator(
-				Codicon.loading,
-				`${counts.inProgress}`,
-				localize('sessionsInProgress', "{0} session(s) in progress", counts.inProgress),
-				'collapsed-sidebar-indicator-active'
-			);
+			this.appendStatusSegment(Codicon.sessionInProgress, `${counts.inProgress}`, 'collapsed-sidebar-indicator-active');
+			tooltipParts.push(localize('sessionsInProgress', "{0} session(s) in progress", counts.inProgress));
 		}
 
-		// Needs input indicator
+		// Needs input (matches agentSessionsViewer: circleFilled)
 		if (counts.needsInput > 0) {
-			this.createIndicator(
-				Codicon.bell,
-				`${counts.needsInput}`,
-				localize('sessionsNeedInput', "{0} session(s) need input", counts.needsInput),
-				'collapsed-sidebar-indicator-input'
-			);
+			this.appendStatusSegment(Codicon.circleFilled, `${counts.needsInput}`, 'collapsed-sidebar-indicator-input');
+			tooltipParts.push(localize('sessionsNeedInput', "{0} session(s) need input", counts.needsInput));
 		}
 
-		// Error indicator
+		// Failed (matches agentSessionsViewer: error)
 		if (counts.failed > 0) {
-			this.createIndicator(
-				Codicon.error,
-				`${counts.failed}`,
-				localize('sessionsFailed', "{0} session(s) with errors", counts.failed),
-				'collapsed-sidebar-indicator-error'
-			);
+			this.appendStatusSegment(Codicon.error, `${counts.failed}`, 'collapsed-sidebar-indicator-error');
+			tooltipParts.push(localize('sessionsFailed', "{0} session(s) with errors", counts.failed));
 		}
 
-		// Completed indicator
-		if (counts.completed > 0) {
-			this.createIndicator(
-				Codicon.check,
-				`${counts.completed}`,
-				localize('sessionsCompleted', "{0} session(s) completed", counts.completed),
-				'collapsed-sidebar-indicator-done'
-			);
+		// Unread (matches agentSessionsViewer: circleFilled with textLink-foreground)
+		if (counts.unread > 0) {
+			this.appendStatusSegment(Codicon.circleFilled, `${counts.unread}`, 'collapsed-sidebar-indicator-unread');
+			tooltipParts.push(localize('sessionsUnread', "{0} unread session(s)", counts.unread));
 		}
 
-		// If no sessions at all, show a total count
+		// If no sessions at all
 		if (sessions.length === 0) {
-			this.createIndicator(
-				Codicon.commentDiscussion,
-				'0',
-				localize('noSessions', "No sessions"),
-				'collapsed-sidebar-indicator-empty'
-			);
+			this.appendStatusSegment(Codicon.commentDiscussion, '0', 'collapsed-sidebar-indicator-empty');
+			tooltipParts.push(localize('noSessions', "No sessions"));
+		}
+
+		if (tooltipParts.length > 0) {
+			this.indicatorDisposables.add(this.hoverService.setupManagedHover(
+				this.hoverDelegate, this.indicatorContainer, tooltipParts.join('\n')
+			));
+
+			this.indicatorDisposables.add(addDisposableListener(this.indicatorContainer, EventType.CLICK, () => {
+				this.layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
+			}));
 		}
 	}
 
-	private createIndicator(icon: ThemeIcon, count: string, tooltip: string, className: string): void {
-		const indicator = append(this.indicatorContainer, $(`.collapsed-panel-button.${className}`));
-		append(indicator, $(ThemeIcon.asCSSSelector(icon)));
-		const label = append(indicator, $('span.collapsed-sidebar-count'));
+	private appendStatusSegment(icon: ThemeIcon, count: string, className: string): void {
+		const segment = append(this.indicatorContainer, $(`span.collapsed-sidebar-segment.${className}`));
+		append(segment, $(ThemeIcon.asCSSSelector(icon)));
+		const label = append(segment, $('span.collapsed-sidebar-count'));
 		label.textContent = count;
-
-		this.indicatorDisposables.add(this.hoverService.setupManagedHover(this.hoverDelegate, indicator, tooltip));
-
-		this.indicatorDisposables.add(addDisposableListener(indicator, EventType.CLICK, () => {
-			this.layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
-		}));
 	}
 
-	private countSessionsByStatus(sessions: IAgentSession[]): { inProgress: number; needsInput: number; failed: number; completed: number } {
+	private countSessionsByStatus(sessions: IAgentSession[]): { inProgress: number; needsInput: number; failed: number; unread: number } {
 		let inProgress = 0;
 		let needsInput = 0;
 		let failed = 0;
-		let completed = 0;
+		let unread = 0;
 
 		for (const session of sessions) {
 			if (session.isArchived()) {
@@ -164,12 +184,14 @@ export class CollapsedSidebarWidget extends Disposable {
 					failed++;
 					break;
 				case AgentSessionStatus.Completed:
-					completed++;
+					if (!session.isRead()) {
+						unread++;
+					}
 					break;
 			}
 		}
 
-		return { inProgress, needsInput, failed, completed };
+		return { inProgress, needsInput, failed, unread };
 	}
 
 	show(): void {
@@ -182,13 +204,14 @@ export class CollapsedSidebarWidget extends Disposable {
 }
 
 /**
- * Collapsed widget shown in the bottom-right corner when the auxiliary bar is hidden.
- * Shows file change counts (files, insertions, deletions) from the active session.
+ * Widget shown in the titlebar right area showing file change counts
+ * (files, insertions, deletions) from the active session.
+ * Always visible — acts as a toggle for the auxiliary bar.
  */
 export class CollapsedAuxiliaryBarWidget extends Disposable {
 
 	private readonly element: HTMLElement;
-	private readonly indicatorContainer: HTMLElement;
+	private readonly changesBtn: HTMLElement;
 	private readonly indicatorDisposables = this._register(new DisposableStore());
 	private readonly hoverDelegate = this._register(createInstantHoverDelegate());
 	private activeSessionResource: (() => URI | undefined) | undefined;
@@ -196,6 +219,7 @@ export class CollapsedAuxiliaryBarWidget extends Disposable {
 
 	constructor(
 		parent: HTMLElement,
+		windowControlsContainer: HTMLElement | undefined,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
@@ -203,16 +227,35 @@ export class CollapsedAuxiliaryBarWidget extends Disposable {
 	) {
 		super();
 
-		this.element = append(parent, $('.collapsed-panel-widget.collapsed-auxbar-widget'));
-		this.indicatorContainer = append(this.element, $('.collapsed-panel-buttons'));
+		this.element = $('div.collapsed-panel-widget.collapsed-auxbar-widget');
+
+		// Insert before the window-controls-container so the widget is not
+		// hidden behind the WCO on Windows.
+		if (windowControlsContainer && windowControlsContainer.parentElement === parent) {
+			parent.insertBefore(this.element, windowControlsContainer);
+		} else {
+			append(parent, this.element);
+		}
+
+		this._register(toDisposable(() => this.element.remove()));
+
+		const indicatorContainer = append(this.element, $('.collapsed-panel-buttons'));
+		this.changesBtn = append(indicatorContainer, $('.collapsed-panel-button.collapsed-auxbar-indicator'));
+
+		// Click handler lives on the persistent button
+		this._register(addDisposableListener(this.changesBtn, EventType.CLICK, () => {
+			const isVisible = !this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+			this.layoutService.setPartHidden(!isVisible, Parts.AUXILIARYBAR_PART);
+			if (isVisible) {
+				this.paneCompositeService.openPaneComposite(CHANGES_VIEW_CONTAINER_ID, ViewContainerLocation.AuxiliaryBar);
+			}
+		}));
 
 		// Listen for session changes to update indicators
 		this._register(this.agentSessionsService.model.onDidChangeSessions(() => this.rebuildIndicators()));
 
 		// Initial build
 		this.rebuildIndicators();
-
-		this.hide();
 	}
 
 	/**
@@ -227,51 +270,44 @@ export class CollapsedAuxiliaryBarWidget extends Disposable {
 
 	private rebuildIndicators(): void {
 		this.indicatorDisposables.clear();
-		this.indicatorContainer.textContent = '';
+		this.changesBtn.textContent = '';
 
 		// Get change summary from the active session
 		const resource = this.activeSessionResource?.();
 		const session = resource ? this.agentSessionsService.getSession(resource) : undefined;
 		const summary = session ? getAgentChangesSummary(session.changes) : undefined;
 
-		// Combined changes button: [diff icon] +insertions -deletions fileCount
-		const changesBtn = append(this.indicatorContainer, $('.collapsed-panel-button.collapsed-auxbar-indicator'));
-
-		append(changesBtn, $(ThemeIcon.asCSSSelector(Codicon.diffMultiple)));
+		// Rebuild inner content: [diff icon] +insertions -deletions
+		append(this.changesBtn, $(ThemeIcon.asCSSSelector(Codicon.diffMultiple)));
 
 		if (summary && summary.insertions > 0) {
-			const insLabel = append(changesBtn, $('span.collapsed-auxbar-count.collapsed-auxbar-insertions'));
+			const insLabel = append(this.changesBtn, $('span.collapsed-auxbar-count.collapsed-auxbar-insertions'));
 			insLabel.textContent = `+${summary.insertions}`;
 		}
 
 		if (summary && summary.deletions > 0) {
-			const delLabel = append(changesBtn, $('span.collapsed-auxbar-count.collapsed-auxbar-deletions'));
+			const delLabel = append(this.changesBtn, $('span.collapsed-auxbar-count.collapsed-auxbar-deletions'));
 			delLabel.textContent = `-${summary.deletions}`;
 		}
 
 		if (summary) {
 			this.indicatorDisposables.add(this.hoverService.setupManagedHover(
-				this.hoverDelegate, changesBtn,
+				this.hoverDelegate, this.changesBtn,
 				localize('changesSummary', "{0} file(s) changed, {1} insertion(s), {2} deletion(s)", summary.files, summary.insertions, summary.deletions)
 			));
 		} else {
 			this.indicatorDisposables.add(this.hoverService.setupManagedHover(
-				this.hoverDelegate, changesBtn,
+				this.hoverDelegate, this.changesBtn,
 				localize('showChanges', "Show Changes")
 			));
 		}
-
-		this.indicatorDisposables.add(addDisposableListener(changesBtn, EventType.CLICK, () => {
-			this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-			this.paneCompositeService.openPaneComposite(CHANGES_VIEW_CONTAINER_ID, ViewContainerLocation.AuxiliaryBar);
-		}));
 	}
 
-	show(): void {
-		this.element.classList.remove('collapsed-panel-hidden');
-	}
-
-	hide(): void {
-		this.element.classList.add('collapsed-panel-hidden');
+	/**
+	 * Update the active visual state of the widget based on
+	 * whether the auxiliary bar is currently visible.
+	 */
+	updateActiveState(auxiliaryBarVisible: boolean): void {
+		this.element.classList.toggle('active', auxiliaryBarVisible);
 	}
 }

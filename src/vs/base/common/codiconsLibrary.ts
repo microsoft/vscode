@@ -656,4 +656,5 @@ export const codiconsLibrary = {
 	claude: register('claude', 0xec82),
 	openInWindow: register('open-in-window', 0xec83),
 	newSession: register('new-session', 0xec84),
+	terminalSecure: register('terminal-secure', 0xec85),
 } as const;

@@ -10,9 +10,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
 import { AgenticSessionsViewPane, SessionsViewId } from './sessionsViewPane.js';
 import { SessionsManagementService, ISessionsManagementService } from './sessionsManagementService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -50,8 +48,6 @@ const agentSessionsViewDescriptor: IViewDescriptor = {
 };
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([agentSessionsViewDescriptor], agentSessionsViewContainer);
-
-registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.AfterRestored);
 
 registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);
 

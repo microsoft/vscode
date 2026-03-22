@@ -452,14 +452,8 @@
 	opacity: 0.6;
 }
 
-/* MCP bridged badge — shown inline next to the server name */
-.mcp-server-item .mcp-server-name-row {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-}
-
-.mcp-server-item .mcp-bridged-badge {
+/* Shared inline badge style — used by MCP "Bridged" badge and item badges */
+.inline-badge {
 	flex-shrink: 0;
 	font-size: 10px;
 	padding: 0 4px;
@@ -468,6 +462,13 @@
 	background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
 	white-space: nowrap;
 	line-height: 16px;
+}
+
+/* MCP bridged badge — shown inline next to the server name */
+.mcp-server-item .mcp-server-name-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
 }
 
 .ai-customization-list-item .item-type-icon {
@@ -487,6 +488,13 @@
 	overflow: hidden;
 	flex: 1;
 	min-width: 0;
+}
+
+.ai-customization-list-item .item-name-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	overflow: hidden;
 }
 
 .ai-customization-list-item .item-name {

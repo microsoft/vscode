@@ -21,6 +21,14 @@ export enum AgentSessionProviders {
 	AgentHostCopilot = 'agent-host-copilot',
 }
 
+/**
+ * A session target is either a well-known {@link AgentSessionProviders} enum
+ * value or a dynamic string for dynamically-registered providers (e.g. remote
+ * agent hosts like `remote-{authority}-copilot`).
+ * TODO@roblourens HACK
+ */
+export type AgentSessionTarget = AgentSessionProviders | (string & {});
+
 export function isBuiltInAgentSessionProvider(provider: string): boolean {
 	return provider === AgentSessionProviders.Local ||
 		provider === AgentSessionProviders.Background ||

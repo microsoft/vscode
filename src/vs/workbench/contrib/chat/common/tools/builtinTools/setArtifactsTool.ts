@@ -55,6 +55,8 @@ const inputSchema: IJSONSchema & { properties: IJSONSchemaMap } = {
 
 export const SetArtifactsToolData: IToolData = {
 	id: SetArtifactsToolId,
+	toolReferenceName: 'artifacts',
+	legacyToolReferenceFullNames: ['Set Session Artifacts'],
 	displayName: localize('tool.setArtifacts.displayName', 'Set Session Artifacts'),
 	modelDescription: 'Set the list of artifacts for the current session. Each artifact has a label and either a uri or a toolCallId+dataPartIndex reference, plus an optional type (devServer, screenshot, plan). This overwrites the entire artifact list. Use this to surface important links, screenshots, plans, drafts, or temporary markdown documents to the user. URIs must be fully qualified with a scheme (e.g. https://localhost:3000, file:///tmp/plan.md). To reference a screenshot or image from a previous tool result, use toolCallId and dataPartIndex instead of uri.',
 	canBeReferencedInPrompt: true,

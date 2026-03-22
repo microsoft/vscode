@@ -13,10 +13,11 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { LanguageFeaturesService } from '../../../../../../editor/common/services/languageFeaturesService.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { FileMatch, ISearchComplete, ISearchService, ITextQuery, OneLineRange, TextSearchMatch } from '../../../../../services/search/common/search.js';
-import { UsagesTool, UsagesToolId } from '../../../browser/tools/usagesTool.js';
+import { UsagesTool } from '../../../browser/tools/usagesTool.js';
 import { IToolInvocation, IToolResult, IToolResultTextPart, ToolProgress } from '../../../common/tools/languageModelToolsService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 
@@ -91,8 +92,12 @@ suite('UsagesTool', () => {
 	const noopCountTokens = async () => 0;
 	const noopProgress: ToolProgress = { report() { } };
 
+	function createMockLanguageService(): ILanguageService {
+		return { getLanguageName: (id: string) => id } as unknown as ILanguageService;
+	}
+
 	function createTool(textModelService: ITextModelService, workspaceService: IWorkspaceContextService, options?: { modelService?: IModelService; searchService?: ISearchService }): UsagesTool {
-		return new UsagesTool(langFeatures, options?.modelService ?? createMockModelService(), options?.searchService ?? createMockSearchService(), textModelService, workspaceService);
+		return new UsagesTool(langFeatures, createMockLanguageService(), options?.modelService ?? createMockModelService(), options?.searchService ?? createMockSearchService(), textModelService, workspaceService);
 	}
 
 	setup(() => {
@@ -109,9 +114,7 @@ suite('UsagesTool', () => {
 
 		test('reports no providers when none registered', () => {
 			const tool = disposables.add(createTool(createMockTextModelService(null!), createMockWorkspaceService()));
-			const data = tool.getToolData();
-			assert.strictEqual(data.id, UsagesToolId);
-			assert.ok(data.modelDescription.includes('No languages currently have reference providers'));
+			assert.strictEqual(tool.getToolData(), undefined);
 		});
 
 		test('lists registered language ids', () => {
@@ -119,14 +122,14 @@ suite('UsagesTool', () => {
 			const tool = disposables.add(createTool(createMockTextModelService(model), createMockWorkspaceService()));
 			disposables.add(langFeatures.referenceProvider.register('typescript', { provideReferences: () => [] }));
 			const data = tool.getToolData();
-			assert.ok(data.modelDescription.includes('typescript'));
+			assert.ok(data?.modelDescription.includes('typescript'));
 		});
 
 		test('reports all languages for wildcard', () => {
 			const tool = disposables.add(createTool(createMockTextModelService(null!), createMockWorkspaceService()));
 			disposables.add(langFeatures.referenceProvider.register('*', { provideReferences: () => [] }));
 			const data = tool.getToolData();
-			assert.ok(data.modelDescription.includes('all languages'));
+			assert.ok(data?.modelDescription.includes('all languages'));
 		});
 	});
 

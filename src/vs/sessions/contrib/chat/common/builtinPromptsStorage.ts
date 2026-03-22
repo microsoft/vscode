@@ -4,19 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
-import { PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
+import { AICustomizationPromptsStorage } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
-/**
- * Extended storage type for AI Customization that includes built-in prompts
- * shipped with the application, alongside the core `PromptsStorage` values.
- */
-export type AICustomizationPromptsStorage = PromptsStorage | 'builtin';
-
-/**
- * Storage type discriminator for built-in prompts shipped with the application.
- */
-export const BUILTIN_STORAGE: AICustomizationPromptsStorage = 'builtin';
+// Re-export from common for backward compatibility
+export type { AICustomizationPromptsStorage } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+export { BUILTIN_STORAGE } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 /**
  * Prompt path for built-in prompts bundled with the Sessions app.

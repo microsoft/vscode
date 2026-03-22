@@ -10,6 +10,8 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IMenuService, IMenu, MenuId, MenuItemAction, IMenuItem } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -32,7 +34,7 @@ import { IChatArtifactsService } from '../../../contrib/chat/common/tools/chatAr
 import { ChatEditingSessionState, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatRequestDisablement } from '../../../contrib/chat/common/model/chatModel.js';
 import { IChatTodo, IChatTodoListService } from '../../../contrib/chat/common/tools/chatTodoListService.js';
-import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration } from '../../../contrib/chat/common/constants.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IChatModeService } from '../../../contrib/chat/common/chatModes.js';
 import { IChatService } from '../../../contrib/chat/common/chatService/chatService.js';
@@ -46,6 +48,7 @@ import { IWorkbenchLayoutService } from '../../../services/layout/browser/layout
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IListService, ListService } from '../../../../platform/list/browser/listService.js';
 import { INotebookDocumentService } from '../../../services/notebook/common/notebookDocumentService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
@@ -133,6 +136,7 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 			reg.defineInstance(IActionWidgetService, new class extends mock<IActionWidgetService>() { override show() { } override hide() { } override get isVisible() { return false; } }());
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() { }());
 			reg.defineInstance(IUpdateService, new class extends mock<IUpdateService>() { override onStateChange = Event.None; override get state() { return { type: StateType.Uninitialized as const }; } }());
+			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() { }());
 			reg.defineInstance(IChatArtifactsService, new class extends mock<IChatArtifactsService>() {
 				override readonly onDidUpdateArtifacts = Event.None;
 				override getArtifacts() { return [...artifacts]; }
@@ -148,6 +152,11 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 			}());
 		},
 	});
+
+	if (artifacts.length > 0) {
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configService.setUserConfiguration(ChatConfiguration.ArtifactsEnabled, true);
+	}
 
 	container.style.width = '500px';
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
@@ -262,6 +271,9 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	}),
 	WithTodos: defineComponentFixture({
 		render: context => renderChatInput(context, { todos: sampleTodos })
+	}),
+	WithTodosAndFileChanges: defineComponentFixture({
+		render: context => renderChatInput(context, { todos: sampleTodos, editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/fibon.ts', added: 21, removed: 1 }]) })
 	}),
 	WithArtifactsAndFileChanges: defineComponentFixture({
 		render: context => renderChatInput(context, { artifacts: sampleArtifacts, editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/fibon.ts', added: 21, removed: 1 }]) })

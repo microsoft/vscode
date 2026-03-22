@@ -1,0 +1,118 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---- Chat Session Header (PR-style) ---- */
+
+.agent-sessions-workbench .chat-session-header {
+	position: relative;
+	width: 100%;
+	max-width: 950px;
+	margin: 0 auto;
+	padding: 0px 8px;
+	box-sizing: border-box;
+}
+
+.agent-sessions-workbench .chat-session-header-content {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	cursor: pointer;
+	padding: 2px 8px 6px;
+}
+
+.agent-sessions-workbench .chat-session-header-content:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+	border-radius: 4px;
+}
+
+.agent-sessions-workbench .chat-session-header-title-row {
+	display: flex;
+	flex-direction: row;
+	align-items: flex-start;
+	gap: 6px;
+}
+
+/* Title — large by default, like a PR title */
+.agent-sessions-workbench .chat-session-header-title {
+	align-self: flex-start;
+	font-size: 22px;
+	font-weight: 600;
+	line-height: 1.3;
+	color: var(--vscode-foreground);
+	word-break: break-word;
+	border-radius: 4px 4px 4px 0;
+	padding: 2px 4px;
+	transition: background 150ms ease;
+}
+
+.agent-sessions-workbench .chat-session-header-title:hover,
+.agent-sessions-workbench .chat-session-header-content:has(.chat-session-header-repo-row:hover) .chat-session-header-title {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.agent-sessions-workbench .chat-session-header-repo-row:hover,
+.agent-sessions-workbench .chat-session-header-content:has(.chat-session-header-title:hover) .chat-session-header-repo-row {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Repo row: icon + folder name */
+.agent-sessions-workbench .chat-session-header-repo-row {
+	align-self: flex-start;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+	border-radius: 0 0 4px 4px;
+	padding: 2px 4px;
+	transition: background 150ms ease;
+}
+
+/* Icon */
+.agent-sessions-workbench .chat-session-header-icon {
+	font-size: 14px;
+	opacity: 0.6;
+	flex-shrink: 0;
+}
+
+/* Repo folder — secondary text */
+.agent-sessions-workbench .chat-session-header-repo {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+/* ---- Mark as Done button ---- */
+
+.agent-sessions-workbench .chat-session-header-actions {
+	flex-shrink: 0;
+}
+
+.agent-sessions-workbench .chat-session-header-actions .monaco-button {
+	white-space: nowrap;
+	padding: 4px 6px 4px 0px;
+	margin-top: 6px;
+	background: none !important;
+	border: none !important;
+	color: var(--vscode-textLink-foreground) !important;
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.agent-sessions-workbench .chat-session-header-actions .monaco-button:hover {
+	color: var(--vscode-textLink-activeForeground) !important;
+	text-decoration: underline;
+	outline: 1px solid var(--vscode-focusBorder);
+	border-radius: 4px;
+}
+
+/* ---- Reduced motion ---- */
+
+@media (prefers-reduced-motion: reduce) {
+	.agent-sessions-workbench .chat-session-header-title,
+	.agent-sessions-workbench .chat-session-header-repo-row {
+		transition: none;
+	}
+}

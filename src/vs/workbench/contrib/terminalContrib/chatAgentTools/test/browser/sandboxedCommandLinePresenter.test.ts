@@ -56,6 +56,17 @@ suite('SandboxedCommandLinePresenter', () => {
 		strictEqual(result.languageDisplayName, undefined);
 	});
 
+	test('should use forDisplay over original when both are provided', async () => {
+		const presenter = createPresenter();
+		const result = await presenter.present({
+			commandLine: { original: 'cd /some/path && ls -lh', forDisplay: 'ls -lh' },
+			shell: 'bash',
+			os: OperatingSystem.Linux
+		});
+		ok(result);
+		strictEqual(result.commandLine, 'ls -lh');
+	});
+
 	test('should return undefined when sandboxing is disabled', async () => {
 		const presenter = createPresenter(false);
 		const result = await presenter.present({

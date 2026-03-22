@@ -14,7 +14,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType, isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -37,6 +37,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatViewId } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../common/constants.js';
 
 
 const toolEnumValues: string[] = [];
@@ -323,12 +324,18 @@ export class ConfigureToolSets extends Action2 {
 			category: CHAT_CATEGORY,
 			f1: true,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Tools.toolsCount.greater(0)),
-			menu: {
+			menu: [{
 				id: CHAT_CONFIG_MENU_ID,
 				when: ContextKeyExpr.equals('view', ChatViewId),
 				order: 11,
 				group: '2_level'
 			},
+			{
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId), ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)),
+				order: 11,
+				group: '2_level'
+			}],
 		});
 	}
 

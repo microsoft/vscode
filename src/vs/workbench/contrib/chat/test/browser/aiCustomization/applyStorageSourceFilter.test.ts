@@ -7,9 +7,9 @@ import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
-import { applyStorageSourceFilter, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
+import { applyStorageSourceFilter, BUILTIN_STORAGE, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
 
-function item(path: string, storage: PromptsStorage): { uri: URI; storage: PromptsStorage } {
+function item(path: string, storage: PromptsStorage | string): { uri: URI; storage: string } {
 	return { uri: URI.file(path), storage };
 }
 
@@ -217,6 +217,36 @@ suite('applyStorageSourceFilter', () => {
 				sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin],
 			};
 			assert.strictEqual(applyStorageSourceFilter(items, filter).length, 4);
+		});
+
+		test('core-like filter with builtin: extension items pass when both extension and builtin are in sources', () => {
+			// Items from the chat extension have storage=extension but groupKey=builtin.
+			// The filter operates on storage, so extension items pass through regardless of groupKey.
+			const items = [
+				item('/w/a.md', PromptsStorage.local),
+				item('/e/builtin-agent.md', PromptsStorage.extension),
+				item('/e/third-party.md', PromptsStorage.extension),
+				item('/b/sessions-builtin.md', BUILTIN_STORAGE),
+			];
+			const filter: IStorageSourceFilter = {
+				sources: [PromptsStorage.local, PromptsStorage.extension, BUILTIN_STORAGE],
+			};
+			const result = applyStorageSourceFilter(items, filter);
+			assert.strictEqual(result.length, 4);
+		});
+
+		test('builtin source is respected independently', () => {
+			const items = [
+				item('/e/from-extension.md', PromptsStorage.extension),
+				item('/b/from-sessions.md', BUILTIN_STORAGE),
+			];
+			// Only builtin in sources — extension items excluded
+			const filter: IStorageSourceFilter = {
+				sources: [BUILTIN_STORAGE],
+			};
+			const result = applyStorageSourceFilter(items, filter);
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].storage, BUILTIN_STORAGE);
 		});
 	});
 

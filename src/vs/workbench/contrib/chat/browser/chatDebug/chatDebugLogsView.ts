@@ -7,6 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { BreadcrumbsWidget } from '../../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progressbar.js';
 import { IObjectTreeElement } from '../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -20,7 +21,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
-import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles, defaultProgressBarStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { FilterWidget } from '../../../../browser/parts/views/viewFilter.js';
 import { IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { filterDebugEventsByText } from '../../common/chatDebugEvents.js';
@@ -70,7 +71,7 @@ export class ChatDebugLogsView extends Disposable {
 	private readonly eventListener = this._register(new MutableDisposable());
 	private readonly sessionStateDisposable = this._register(new MutableDisposable());
 	private readonly refreshScheduler: RunOnceScheduler;
-	private shimmerRow!: HTMLElement;
+	private readonly progressBar: ProgressBar;
 
 	constructor(
 		parent: HTMLElement,
@@ -171,6 +172,12 @@ export class ChatDebugLogsView extends Disposable {
 		DOM.append(this.tableHeader, $('span.chat-debug-col-name', undefined, localize('chatDebug.col.name', "Name")));
 		DOM.append(this.tableHeader, $('span.chat-debug-col-details', undefined, localize('chatDebug.col.details', "Details")));
 
+		// Progress bar (shown when session is in progress)
+		this.progressBar = this._register(new ProgressBar(mainColumn, {
+			...defaultProgressBarStyles,
+			ariaLabel: localize('chatDebug.progressAriaLabel', "Chat debug logs loading progress")
+		}));
+
 		// Body container
 		this.bodyContainer = DOM.append(mainColumn, $('.chat-debug-logs-body'));
 
@@ -227,13 +234,6 @@ export class ChatDebugLogsView extends Disposable {
 			[new ChatDebugEventTreeRenderer()],
 			{ identityProvider, accessibilityProvider }
 		));
-
-		// Shimmer row (positioned right below last row to indicate session is running)
-		this.shimmerRow = DOM.append(this.bodyContainer, $('.chat-debug-logs-shimmer-row'));
-		this.shimmerRow.setAttribute('aria-label', localize('chatDebug.loadingMore', "Loading more events…"));
-		this.shimmerRow.setAttribute('aria-busy', 'true');
-		DOM.append(this.shimmerRow, $('span.chat-debug-logs-shimmer-bar'));
-		DOM.hide(this.shimmerRow);
 
 		// Detail panel (sibling of main column so it aligns with table header)
 		this.detailPanel = this._register(this.instantiationService.createInstance(ChatDebugDetailPanel, contentContainer));
@@ -366,11 +366,6 @@ export class ChatDebugLogsView extends Disposable {
 		} else {
 			this.refreshTree(filtered);
 		}
-		this.updateShimmerPosition(filtered.length);
-	}
-
-	private updateShimmerPosition(itemCount: number): void {
-		this.shimmerRow.style.top = `${itemCount * 28}px`;
 	}
 
 	addEvent(event: IChatDebugEvent): void {
@@ -426,14 +421,14 @@ export class ChatDebugLogsView extends Disposable {
 
 	private trackSessionState(): void {
 		if (!this.currentSessionResource) {
-			DOM.hide(this.shimmerRow);
+			this.progressBar.stop();
 			this.sessionStateDisposable.clear();
 			return;
 		}
 
 		const model = this.chatService.getSession(this.currentSessionResource);
 		if (!model) {
-			DOM.hide(this.shimmerRow);
+			this.progressBar.stop();
 			this.sessionStateDisposable.clear();
 			return;
 		}
@@ -441,9 +436,9 @@ export class ChatDebugLogsView extends Disposable {
 		this.sessionStateDisposable.value = autorun(reader => {
 			const inProgress = model.requestInProgress.read(reader);
 			if (inProgress) {
-				DOM.show(this.shimmerRow);
+				this.progressBar.infinite();
 			} else {
-				DOM.hide(this.shimmerRow);
+				this.progressBar.stop();
 			}
 		});
 	}

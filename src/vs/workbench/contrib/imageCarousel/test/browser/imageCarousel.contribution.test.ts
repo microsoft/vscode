@@ -361,7 +361,7 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		assert.strictEqual(infoMessages.length, 0, 'Should not show info notification');
 	});
 
-	test('all image reads failing shows error notification', async () => {
+	test('images with URIs are passed lazily without reading file contents', async () => {
 		const folderUri = URI.file('/workspace/broken');
 
 		const resolveMap = new Map<string, IFileStat>();
@@ -372,8 +372,13 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		]
 		));
 
-		// No file contents → all readFile calls will fail
+		// No file contents — with lazy loading, no readFile should be called at action time
+		let readFileCallCount = 0;
 		stubFileService(resolveMap, new Map());
+		instantiationService.stub(IFileService, 'readFile', async () => {
+			readFileCallCount++;
+			throw new Error('readFile should not be called');
+		});
 		stubExplorerService([]);
 		stubEditorService();
 		stubNotificationService();
@@ -384,7 +389,11 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 
 		await instantiationService.invokeFunction(command.handler, folderUri);
 
-		assert.strictEqual(openedInputs.length, 0, 'Should not open carousel when all reads fail');
-		assert.strictEqual(errorMessages.length, 1, 'Should show error notification for read failures');
+		assert.strictEqual(readFileCallCount, 0, 'readFile should not be called during action');
+		assert.strictEqual(openedInputs.length, 1, 'Should open carousel with lazy image entries');
+		const images = openedInputs[0].input.collection.sections[0].images;
+		assert.strictEqual(images.length, 2, 'Should include 2 lazy image entries');
+		assert.strictEqual(images[0].data, undefined, 'Image data should not be loaded eagerly');
+		assert.ok(images[0].uri, 'Image should have a URI for lazy loading');
 	});
 });

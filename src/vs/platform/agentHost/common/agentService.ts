@@ -32,6 +32,7 @@ export interface IAgentSessionMetadata {
 	readonly startTime: number;
 	readonly modifiedTime: number;
 	readonly summary?: string;
+	readonly workingDirectory?: string;
 }
 
 export type AgentProvider = string;

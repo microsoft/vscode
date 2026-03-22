@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { IChatMessage } from '../languageModels.js';
@@ -39,6 +40,12 @@ export interface IChatSlashData {
 	locations: ChatAgentLocation[];
 	modes?: ChatModeKind[];
 	targets?: Target[];
+
+	/**
+	 * Optional context key expression that controls visibility of this command.
+	 * When set, the command is only shown if the expression evaluates to true.
+	 */
+	when?: ContextKeyExpression;
 }
 
 export interface IChatSlashFragment {

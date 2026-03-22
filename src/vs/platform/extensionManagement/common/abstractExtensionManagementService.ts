@@ -167,10 +167,19 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 			const results = await this.installGalleryExtensions([{ extension, options }]);
 			const result = results.find(({ identifier }) => areSameExtensions(identifier, extension.identifier));
 			if (result?.local) {
-				return result?.local;
+				return result.local;
 			}
 			if (result?.error) {
 				throw result.error;
+			}
+			// Extension might have been redirected due to deprecation (e.g., github.copilot -> github.copilot-chat)
+			// In this case, the result will have the redirected extension's identifier
+			const redirectedResult = results[0];
+			if (redirectedResult?.local) {
+				return redirectedResult.local;
+			}
+			if (redirectedResult?.error) {
+				throw redirectedResult.error;
 			}
 			throw new ExtensionManagementError(`Unknown error while installing extension ${extension.identifier.id}`, ExtensionManagementErrorCode.Unknown);
 		} catch (error) {

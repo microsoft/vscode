@@ -24,6 +24,7 @@ export interface NativeParsedArgs {
 		};
 	};
 	'serve-web'?: INativeCliOptions;
+	'agent-host'?: INativeCliOptions;
 	chat?: {
 		_: string[];
 		'add-file'?: string[];
@@ -109,6 +110,7 @@ export interface NativeParsedArgs {
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'export-policy-data'?: string;
+	'export-default-keybindings'?: string;
 	'install-source'?: string;
 	'add-mcp'?: string[];
 	'disable-updates'?: boolean;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -36,6 +36,8 @@ export class ChatArtifactsWidget extends Disposable {
 	private _isCollapsed = true;
 	private _list: WorkbenchList<IChatArtifact> | undefined;
 	private readonly _listStore = this._register(new DisposableStore());
+	private _expandIcon!: HTMLElement;
+	private _titleElement!: HTMLElement;
 
 	public static readonly ELEMENT_HEIGHT = 22;
 	private static readonly MAX_ITEMS_SHOWN = 6;
@@ -62,18 +64,24 @@ export class ChatArtifactsWidget extends Disposable {
 		dom.clearNode(this.domNode);
 		this._listStore.clear();
 
-		const headerNode = dom.$('.chat-artifacts-header');
-		this.domNode.appendChild(headerNode);
+		const expandoContainer = dom.$('.chat-artifacts-expand');
+		const headerButton = this._listStore.add(new Button(expandoContainer, { supportIcons: true }));
+		headerButton.element.setAttribute('aria-expanded', String(!this._isCollapsed));
 
-		const labelContainer = headerNode.appendChild(dom.$('.chat-artifacts-label'));
-		const headerButton = this._listStore.add(new ButtonWithIcon(labelContainer, {}));
+		const titleSection = dom.$('.chat-artifacts-title-section');
+		this._expandIcon = dom.$('.expand-icon.codicon');
+		this._expandIcon.classList.add(this._isCollapsed ? 'codicon-chevron-right' : 'codicon-chevron-down');
+		this._expandIcon.setAttribute('aria-hidden', 'true');
+		this._titleElement = dom.$('.chat-artifacts-title');
 
-		this._listStore.add(headerButton.onDidClick(() => {
-			this._isCollapsed = !this._isCollapsed;
-			this._updateExpansionState(headerButton);
-		}));
+		titleSection.appendChild(this._expandIcon);
+		titleSection.appendChild(this._titleElement);
+		headerButton.element.appendChild(titleSection);
+
+		this.domNode.appendChild(expandoContainer);
 
 		const listContainer = dom.$('.chat-artifacts-list');
+		listContainer.style.display = this._isCollapsed ? 'none' : 'block';
 		this.domNode.appendChild(listContainer);
 
 		this._list = this._listStore.add(this._instantiationService.createInstance(
@@ -95,7 +103,13 @@ export class ChatArtifactsWidget extends Disposable {
 			}
 		}));
 
-		this._updateExpansionState(headerButton);
+		this._listStore.add(headerButton.onDidClick(() => {
+			this._isCollapsed = !this._isCollapsed;
+			this._expandIcon.classList.toggle('codicon-chevron-down', !this._isCollapsed);
+			this._expandIcon.classList.toggle('codicon-chevron-right', this._isCollapsed);
+			headerButton.element.setAttribute('aria-expanded', String(!this._isCollapsed));
+			listContainer.style.display = this._isCollapsed ? 'none' : 'block';
+		}));
 
 		this._autorunDisposable.value = autorun((reader: IReader) => {
 			const artifacts: readonly IChatArtifact[] = this._currentObs!.read(reader);
@@ -105,14 +119,14 @@ export class ChatArtifactsWidget extends Disposable {
 			}
 			this.domNode.style.display = '';
 
-			headerButton.label = artifacts.length === 1
+			this._titleElement.textContent = artifacts.length === 1
 				? localize('chat.artifacts.one', "1 Artifact")
 				: localize('chat.artifacts.count', "{0} Artifacts", artifacts.length);
 
 			const itemsShown = Math.min(artifacts.length, ChatArtifactsWidget.MAX_ITEMS_SHOWN);
 			const listHeight = itemsShown * ChatArtifactsWidget.ELEMENT_HEIGHT;
 			this._list!.layout(listHeight);
-			listContainer.style.height = listHeight + 4 /* bottom padding */ + 'px';
+			this._list!.getHTMLElement().style.height = `${listHeight}px`;
 			this._list!.splice(0, this._list!.length, [...artifacts]);
 		});
 	}
@@ -142,11 +156,6 @@ export class ChatArtifactsWidget extends Disposable {
 			},
 			startIndex: Math.max(0, startIndex),
 		});
-	}
-
-	private _updateExpansionState(headerButton: ButtonWithIcon): void {
-		headerButton.icon = this._isCollapsed ? Codicon.chevronRight : Codicon.chevronDown;
-		this.domNode.classList.toggle('chat-artifacts-collapsed', this._isCollapsed);
 	}
 
 	hide(): void {

@@ -143,6 +143,7 @@ import '../workbench/contrib/issue/browser/issue.contribution.js';
 import '../workbench/contrib/splash/browser/splash.contribution.js';
 import '../workbench/contrib/remote/browser/remoteStartEntry.contribution.js';
 import '../workbench/contrib/processExplorer/browser/processExplorer.web.contribution.js';
+import '../workbench/contrib/browserView/browser/browserView.contribution.js';
 
 //#endregion
 
@@ -156,6 +157,7 @@ import './contrib/accountMenu/browser/account.contribution.js';
 import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
 import './contrib/applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
 import './contrib/chat/browser/chat.contribution.js';
+import './contrib/chat/browser/chatSessionHeader.js';
 import './contrib/terminal/browser/sessionsTerminalContribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';

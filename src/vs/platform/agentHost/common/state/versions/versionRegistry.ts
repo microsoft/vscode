@@ -54,6 +54,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: numbe
 export const NOTIFICATION_INTRODUCED_IN: { readonly [K in INotification['type']]: number } = {
 	'notify/sessionAdded': 1,
 	'notify/sessionRemoved': 1,
+	'notify/authRequired': 1,
 };
 
 // ---- Runtime filtering helpers ----------------------------------------------

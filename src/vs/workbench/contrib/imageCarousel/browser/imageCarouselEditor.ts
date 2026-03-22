@@ -12,6 +12,7 @@ import { clamp } from '../../../../base/common/numbers.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
@@ -49,6 +50,7 @@ export class ImageCarouselEditor extends EditorPane {
 	private _flatImages: IFlatImageEntry[] = [];
 	private readonly _contentDisposables = this._register(new DisposableStore());
 	private readonly _imageDisposables = this._register(new DisposableStore());
+	private readonly _blobUrlCache = new Map<string, string>();
 
 	private _elements: {
 		root: HTMLElement;
@@ -68,7 +70,8 @@ export class ImageCarouselEditor extends EditorPane {
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IFileService private readonly _fileService: IFileService
 	) {
 		super(ImageCarouselEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -95,6 +98,7 @@ export class ImageCarouselEditor extends EditorPane {
 	override clearInput(): void {
 		this._contentDisposables.clear();
 		this._imageDisposables.clear();
+		this._revokeCachedBlobUrls();
 		this._zoomScale = 'fit';
 		if (this._container) {
 			clearNode(this._container);
@@ -114,6 +118,7 @@ export class ImageCarouselEditor extends EditorPane {
 
 		this._contentDisposables.clear();
 		this._imageDisposables.clear();
+		this._revokeCachedBlobUrls();
 		clearNode(this._container);
 
 		if (this._flatImages.length === 0) {
@@ -263,11 +268,8 @@ export class ImageCarouselEditor extends EditorPane {
 				btn.ariaLabel = localize('imageCarousel.thumbnailLabel', "Image {0} of {1}", currentFlatIndex + 1, this._flatImages.length);
 
 				const img = thumbnail.img as HTMLImageElement;
-				const blob = new Blob([image.data.buffer.slice(0)], { type: image.mimeType });
-				const url = URL.createObjectURL(blob);
-				img.src = url;
+				this._loadBlobUrl(image).then(url => { img.src = url; });
 				img.alt = image.name;
-				this._contentDisposables.add({ dispose: () => URL.revokeObjectURL(url) });
 
 				this._contentDisposables.add(addDisposableListener(btn, 'click', () => {
 					this._currentIndex = currentFlatIndex;
@@ -290,20 +292,42 @@ export class ImageCarouselEditor extends EditorPane {
 	 * Update only the changing parts: main image src, caption, button states, thumbnail selection.
 	 * No DOM teardown/rebuild — eliminates the blank flash.
 	 */
-	private updateCurrentImage(): void {
+	private async updateCurrentImage(): Promise<void> {
 		if (!this._elements) {
 			return;
 		}
 
-		// Swap main image blob URL
-		this._imageDisposables.clear();
-		const entry = this._flatImages[this._currentIndex];
+		// Capture the navigation index before starting async work so that
+		// we can discard stale results if the user navigates while loading/decoding.
+		const navigationIndex = this._currentIndex;
+
+		// Swap main image using cached/lazy-loaded blob URL.
+		// Pre-decode via decode() before assigning to <img> so the browser
+		// decodes on a worker thread, avoiding main-thread stalls during commit.
+		const entry = this._flatImages[navigationIndex];
 		const currentImage = entry.image;
-		const blob = new Blob([currentImage.data.buffer.slice(0)], { type: currentImage.mimeType });
-		const url = URL.createObjectURL(blob);
-		this._elements.mainImage.src = url;
-		this._elements.mainImage.alt = currentImage.name;
-		this._imageDisposables.add({ dispose: () => URL.revokeObjectURL(url) });
+		const url = await this._loadBlobUrl(currentImage);
+
+		// If the user navigated while loading the blob URL, discard this result.
+		if (this._currentIndex !== navigationIndex) {
+			return;
+		}
+
+		const tmp = new Image();
+		tmp.src = url;
+		tmp.decode().then(() => {
+			// Only apply if user hasn't navigated away during decode
+			if (this._currentIndex === navigationIndex && this._elements) {
+				this._elements.mainImage.src = url;
+				this._elements.mainImage.alt = currentImage.name;
+			}
+		}, () => {
+			// Decode failed (invalid image) — still show src for browser fallback
+			if (this._currentIndex === navigationIndex && this._elements) {
+				this._elements.mainImage.src = url;
+				this._elements.mainImage.alt = currentImage.name;
+			}
+		});
 
 		// Reset zoom when switching images
 		this._applyZoom('fit');
@@ -324,31 +348,79 @@ export class ImageCarouselEditor extends EditorPane {
 		this._elements.prevBtn.disabled = this._currentIndex === 0;
 		this._elements.nextBtn.disabled = this._currentIndex === this._flatImages.length - 1;
 
-		// Update thumbnail selection
+		// Update thumbnail selection — only toggle active class and
+		// call getBoundingClientRect on the active thumbnail to avoid
+		// layout thrashing across all thumbnails on every navigation.
 		for (let i = 0; i < this._thumbnailElements.length; i++) {
 			const isActive = i === this._currentIndex;
 			const thumbnail = this._thumbnailElements[i];
 			thumbnail.classList.toggle('active', isActive);
 			if (isActive) {
 				thumbnail.setAttribute('aria-current', 'page');
-				// Scroll only the thumbnail strip, not the entire editor
-				const container = this._elements.sectionsContainer;
-				const containerRect = container.getBoundingClientRect();
-				const thumbRect = thumbnail.getBoundingClientRect();
-				if (thumbRect.left < containerRect.left) {
-					container.scrollLeft += thumbRect.left - containerRect.left;
-				} else if (thumbRect.right > containerRect.right) {
-					container.scrollLeft += thumbRect.right - containerRect.right;
-				}
 			} else {
 				thumbnail.removeAttribute('aria-current');
 			}
+		}
+
+		// Scroll the active thumbnail into view without blocking the main thread.
+		// Using scrollIntoView with 'nearest' avoids forced layout from
+		// getBoundingClientRect + scrollLeft and is handled efficiently by
+		// the browser's scroll machinery.
+		const activeThumbnail = this._thumbnailElements[this._currentIndex];
+		if (activeThumbnail) {
+			activeThumbnail.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 		}
 
 		// Update editor title to reflect current section
 		if (this.input instanceof ImageCarouselEditorInput) {
 			const currentSection = this._sections[entry.sectionIndex];
 			this.input.setName(currentSection.title || this.input.collection.title);
+		}
+
+		// Preload adjacent images for smoother navigation
+		this._preloadAdjacentImages();
+	}
+
+	private async _loadBlobUrl(image: ICarouselImage): Promise<string> {
+		const cached = this._blobUrlCache.get(image.id);
+		if (cached) {
+			return cached;
+		}
+
+		let buffer: Uint8Array;
+		if (image.data) {
+			buffer = image.data.buffer;
+		} else if (image.uri) {
+			const content = await this._fileService.readFile(image.uri);
+			buffer = content.value.buffer;
+		} else {
+			return '';
+		}
+
+		const blob = new Blob([buffer as Uint8Array<ArrayBuffer>], { type: image.mimeType });
+		const url = URL.createObjectURL(blob);
+		this._blobUrlCache.set(image.id, url);
+		return url;
+	}
+
+	private _revokeCachedBlobUrls(): void {
+		for (const url of this._blobUrlCache.values()) {
+			URL.revokeObjectURL(url);
+		}
+		this._blobUrlCache.clear();
+	}
+
+	private _preloadAdjacentImages(): void {
+		for (const idx of [this._currentIndex - 1, this._currentIndex + 1]) {
+			if (idx >= 0 && idx < this._flatImages.length) {
+				this._loadBlobUrl(this._flatImages[idx].image).then(url => {
+					// Pre-decode via decode() so the compositor doesn't block
+					// the main thread decoding this image during commit.
+					const img = new Image();
+					img.src = url;
+					img.decode().catch(() => { /* invalid image */ });
+				});
+			}
 		}
 	}
 
@@ -431,9 +503,14 @@ export class ImageCarouselEditor extends EditorPane {
 			img.classList.add('scale-to-fit');
 			img.classList.remove('pixelated');
 			img.style.zoom = '';
+			// Remove zoomed/overflow before scrollTo to avoid an expensive
+			// synchronous ScrollLayer that blocks the main thread.
+			const wasZoomed = container.classList.contains('zoomed');
 			container.classList.remove('zoomed');
 			container.classList.remove('zoom-out');
-			container.scrollTo(0, 0);
+			if (wasZoomed) {
+				container.scrollTo(0, 0);
+			}
 		} else {
 			const scale = clamp(newScale, MIN_SCALE, MAX_SCALE);
 			this._zoomScale = scale;

@@ -23,15 +23,9 @@ import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../github/common/types.js';
 import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
+import { CICheckGroup, buildFixChecksPrompt, getCheckGroup, getCheckStateLabel, getFailedChecks } from './fixCIChecksAction.js';
 
 const $ = dom.$;
-
-const enum CICheckGroup {
-	Running,
-	Pending,
-	Failed,
-	Successful,
-}
 
 interface ICICheckListItem {
 	readonly check: IGitHubCICheck;
@@ -397,17 +391,6 @@ function compareChecks(a: IGitHubCICheck, b: IGitHubCICheck): number {
 	return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
 }
 
-function getCheckGroup(check: IGitHubCICheck): CICheckGroup {
-	switch (check.status) {
-		case GitHubCheckStatus.InProgress:
-			return CICheckGroup.Running;
-		case GitHubCheckStatus.Queued:
-			return CICheckGroup.Pending;
-		case GitHubCheckStatus.Completed:
-			return isFailedConclusion(check.conclusion) ? CICheckGroup.Failed : CICheckGroup.Successful;
-	}
-}
-
 function getCheckCounts(checks: readonly IGitHubCICheck[]): ICICheckCounts {
 	let running = 0;
 	let pending = 0;
@@ -432,10 +415,6 @@ function getCheckCounts(checks: readonly IGitHubCICheck[]): ICICheckCounts {
 	}
 
 	return { running, pending, failed, successful };
-}
-
-function getFailedChecks(checks: readonly IGitHubCICheck[]): readonly IGitHubCICheck[] {
-	return checks.filter(check => getCheckGroup(check) === CICheckGroup.Failed);
 }
 
 function getChecksSummary(checks: readonly IGitHubCICheck[]): string {
@@ -467,33 +446,6 @@ function getChecksSummary(checks: readonly IGitHubCICheck[]): string {
 	}
 
 	return parts.join(', ');
-}
-
-function buildFixChecksPrompt(failedChecks: ReadonlyArray<{ check: IGitHubCICheck; annotations: string }>): string {
-	const sections = failedChecks.map(({ check, annotations }) => {
-		const parts = [
-			`Check: ${check.name}`,
-			`Status: ${getCheckStateLabel(check)}`,
-			`Conclusion: ${check.conclusion ?? 'unknown'}`,
-		];
-
-		if (check.detailsUrl) {
-			parts.push(`Details: ${check.detailsUrl}`);
-		}
-
-		parts.push('', 'Annotations and output:', annotations || 'No output available for this check run.');
-		return parts.join('\n');
-	});
-
-	return [
-		'Please fix the failed CI checks for this session immediately.',
-		'Use the failed check information below, including annotations and check output, to identify the root causes and make the necessary code changes.',
-		'Focus on resolving these CI failures. Avoid unrelated changes unless they are required to fix the checks.',
-		'',
-		'Failed CI checks:',
-		'',
-		sections.join('\n\n---\n\n'),
-	].join('\n');
 }
 
 function getHeaderIconAndClass(checks: readonly IGitHubCICheck[], overallStatus: GitHubCIOverallStatus): { icon: ThemeIcon; className: string } {
@@ -551,23 +503,4 @@ function getCheckStatusClass(check: IGitHubCICheck): string {
 		case CICheckGroup.Successful:
 			return 'ci-status-success';
 	}
-}
-
-function getCheckStateLabel(check: IGitHubCICheck): string {
-	switch (getCheckGroup(check)) {
-		case CICheckGroup.Running:
-			return localize('ci.runningState', "running");
-		case CICheckGroup.Pending:
-			return localize('ci.pendingState', "pending");
-		case CICheckGroup.Failed:
-			return localize('ci.failedState', "failed");
-		case CICheckGroup.Successful:
-			return localize('ci.successfulState', "successful");
-	}
-}
-
-function isFailedConclusion(conclusion: GitHubCheckConclusion | undefined): boolean {
-	return conclusion === GitHubCheckConclusion.Failure
-		|| conclusion === GitHubCheckConclusion.TimedOut
-		|| conclusion === GitHubCheckConclusion.ActionRequired;
 }

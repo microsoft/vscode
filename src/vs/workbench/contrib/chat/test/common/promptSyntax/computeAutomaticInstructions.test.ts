@@ -1456,6 +1456,86 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.equal(xmlContents(skills[1], 'file')[0], getFilePath(`/home/user/.claude/skills/claude-personal/SKILL.md`));
 			assert.equal(xmlContents(skills[1], 'name')[0], 'claude-personal');
 		});
+
+		test('should include skills with missing name, missing description, or mismatched folder name', async () => {
+			const rootFolderName = 'skills-missing-metadata-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Enable the config for agent skills
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			await mockFiles(fileService, [
+				{
+					// Skill with no name attribute - should use folder name as fallback
+					path: `${rootFolder}/.claude/skills/no-name-skill/SKILL.md`,
+					contents: [
+						'---',
+						'description: \'A skill without a name\'',
+						'---',
+						'Skill content without name',
+					]
+				},
+				{
+					// Skill with no description attribute - should still be included
+					path: `${rootFolder}/.claude/skills/no-desc-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: \'no-desc-skill\'',
+						'---',
+						'Skill content without description',
+					]
+				},
+				{
+					// Skill where name does not match folder name - should still be included
+					path: `${rootFolder}/.claude/skills/actual-folder/SKILL.md`,
+					contents: [
+						'---',
+						'name: \'mismatched-name\'',
+						'description: \'A skill with mismatched name\'',
+						'---',
+						'Skill content with mismatched name',
+					]
+				},
+			]);
+
+			const contextComputer = instaService.createInstance(
+				ComputeAutomaticInstructions,
+				ChatModeKind.Agent,
+				{ 'vscode_readFile': true }, // Enable readFile tool
+				undefined,
+				undefined
+			);
+			const variables = new ChatRequestVariableSet();
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			const textVariables = variables.asArray().filter(v => isPromptTextVariableEntry(v));
+			assert.equal(textVariables.length, 1, 'There should be one text variable for skills list');
+
+			const skillsList = xmlContents(textVariables[0].value, 'skills');
+			assert.equal(skillsList.length, 1, 'There should be one skills list');
+
+			const skills = xmlContents(skillsList[0], 'skill');
+			assert.equal(skills.length, 3, 'All three skills should be included despite missing/mismatched metadata');
+
+			// Skill with missing name should use folder name as fallback
+			assert.equal(xmlContents(skills[0], 'name')[0], 'no-name-skill');
+			assert.equal(xmlContents(skills[0], 'description')[0], 'A skill without a name');
+			assert.equal(xmlContents(skills[0], 'file')[0], getFilePath(`${rootFolder}/.claude/skills/no-name-skill/SKILL.md`));
+
+			// Skill with missing description should still be listed
+			assert.equal(xmlContents(skills[1], 'name')[0], 'no-desc-skill');
+			assert.equal(xmlContents(skills[1], 'description').length, 0, 'Should have no description element');
+			assert.equal(xmlContents(skills[1], 'file')[0], getFilePath(`${rootFolder}/.claude/skills/no-desc-skill/SKILL.md`));
+
+			// Skill with mismatched name should use folder name
+			assert.equal(xmlContents(skills[2], 'name')[0], 'mismatched-name');
+			assert.equal(xmlContents(skills[2], 'description')[0], 'A skill with mismatched name');
+			assert.equal(xmlContents(skills[2], 'file')[0], getFilePath(`${rootFolder}/.claude/skills/actual-folder/SKILL.md`));
+		});
 	});
 
 	suite('edge cases', () => {

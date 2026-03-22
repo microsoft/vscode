@@ -28,7 +28,7 @@ src/vs/workbench/contrib/chat/browser/aiCustomization/
     └── aiCustomizationManagement.css
 
 src/vs/workbench/contrib/chat/common/
-├── aiCustomizationWorkspaceService.ts          # IAICustomizationWorkspaceService + IStorageSourceFilter
+├── aiCustomizationWorkspaceService.ts          # IAICustomizationWorkspaceService + IStorageSourceFilter + BUILTIN_STORAGE
 └── customizationHarnessService.ts              # ICustomizationHarnessService + ISectionOverride + helpers
 ```
 
@@ -76,7 +76,7 @@ Storage answers "where did this come from?"; harness answers "who consumes it?".
 The service is defined in `common/customizationHarnessService.ts` which also provides:
 - **`CustomizationHarnessServiceBase`** — reusable base class handling active-harness state, the observable list, and `getStorageSourceFilter` dispatch.
 - **`ISectionOverride`** — per-section UI customization: `commandId` (command invocation), `rootFile` + `label` (root-file creation), `typeLabel` (custom type name), `fileExtension` (override default), `rootFileShortcuts` (dropdown shortcuts).
-- **Factory functions** — `createVSCodeHarnessDescriptor`, `createCliHarnessDescriptor`, `createClaudeHarnessDescriptor`. The VS Code harness receives `[PromptsStorage.extension]` as extras; CLI and Claude in core receive `[]` (no extension source). Sessions CLI receives `[BUILTIN_STORAGE]`.
+- **Factory functions** — `createVSCodeHarnessDescriptor`, `createCliHarnessDescriptor`, `createClaudeHarnessDescriptor`. The VS Code harness receives `[PromptsStorage.extension, BUILTIN_STORAGE]` as extras; CLI and Claude in core receive `[]` (no extension source). Sessions CLI receives `[BUILTIN_STORAGE]`.
 - **Well-known root helpers** — `getCliUserRoots(userHome)` and `getClaudeUserRoots(userHome)` centralize the `~/.copilot`, `~/.claude`, `~/.agents` path knowledge.
 - **Filter helpers** — `matchesWorkspaceSubpath()` for segment-safe subpath matching; `matchesInstructionFileFilter()` for filename/path-prefix pattern matching.
 
@@ -128,7 +128,7 @@ The shared `applyStorageSourceFilter()` helper applies this filter to any `{uri,
 
 **Core VS Code filter behavior:**
 
-Local harness: all types use `[local, user, extension, plugin]` with no user root filter.
+Local harness: all types use `[local, user, extension, plugin, builtin]` with no user root filter. Items from the default chat extension (`productService.defaultChatAgent.chatExtensionId`) are grouped under "Built-in" via `groupKey` override in the list widget.
 
 CLI harness (core):
 
@@ -151,6 +151,21 @@ Claude additionally applies:
 - `instructionFileFilter: ['CLAUDE.md', 'CLAUDE.local.md', '.claude/rules/', 'copilot-instructions.md']`
 - `workspaceSubpaths: ['.claude']` (instruction files matching `instructionFileFilter` are exempt)
 - `sectionOverrides`: Hooks → `copilot.claude.hooks` command; Instructions → "Add CLAUDE.md" primary, "Rule" type label, `.md` file extension
+
+### Built-in Extension Grouping (Core VS Code)
+
+In core VS Code, customization items contributed by the default chat extension (`productService.defaultChatAgent.chatExtensionId`, typically `GitHub.copilot-chat`) are grouped under the "Built-in" header in the management editor list widget, separate from third-party "Extensions".
+
+This follows the same pattern as the MCP list widget, which determines grouping at the UI layer by inspecting collection sources. The list widget uses `IProductService` to identify the chat extension and sets `groupKey: BUILTIN_STORAGE` on matching items:
+
+- **Agents**: checks `agent.source.extensionId` against the chat extension ID
+- **Skills**: builds a URI→ExtensionIdentifier lookup from `listPromptFiles(PromptsType.skill)`, then checks each skill's URI
+- **Prompts**: checks `command.promptPath.extension?.identifier`
+- **Instructions/Hooks**: checks `item.extension?.identifier` via `IPromptPath`
+
+The underlying `storage` remains `PromptsStorage.extension` — the grouping is a UI-level override via `groupKey` that keeps `applyStorageSourceFilter` working with existing storage types while visually distinguishing chat-extension items from third-party extension items.
+
+`BUILTIN_STORAGE` is defined in `aiCustomizationWorkspaceService.ts` (common layer) and re-exported by both `aiCustomizationManagement.ts` (browser) and `builtinPromptsStorage.ts` (sessions) for backward compatibility.
 
 ### AgenticPromptsService (Sessions)
 
@@ -183,6 +198,10 @@ Prompt files bundled with the Sessions app live in `src/vs/sessions/prompts/`. T
 | Prompts | `getPromptSlashCommands()` | Filters out skill-type commands |
 | Instructions | `listPromptFiles()` + `listAgentInstructions()` | Includes AGENTS.md, CLAUDE.md etc. |
 | Hooks | `listPromptFiles()` | Individual hooks parsed via `parseHooksFromFile()` |
+
+### Item Badges
+
+`IAICustomizationListItem.badge` is an optional string that renders as a small inline tag next to the item name (same visual style as the MCP "Bridged" badge). For context instructions, this badge shows the raw `applyTo` pattern (e.g. a glob like `**/*.ts`), while the tooltip (`badgeTooltip`) explains the behavior. The badge text is also included in search filtering.
 
 ### Debug Panel
 

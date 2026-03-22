@@ -34,7 +34,7 @@ import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/ch
 import { ChatRequestParser } from '../../contrib/chat/common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../contrib/chat/browser/attachments/chatVariables.js';
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService/chatService.js';
-import { IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { ChatSessionOptionsMap, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
 import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
@@ -253,10 +253,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						chatSessionContext = {
 							chatSessionResource,
 							isUntitled,
-							initialSessionOptions: contributedSession.initialSessionOptions?.map(o => ({
-								optionId: o.optionId,
-								value: typeof o.value === 'string' ? o.value : o.value.id,
-							})),
+							initialSessionOptions: ChatSessionOptionsMap.toStrValueArray(contributedSession.initialSessionOptions),
 						};
 					}
 					return await this._proxy.$invokeAgent(handle, request, {

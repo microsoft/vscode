@@ -743,6 +743,7 @@ export class CodeApplication extends Disposable {
 
 		const openables: IWindowOpenable[] = [];
 		const urls: IProtocolUrl[] = [];
+
 		for (const protocolUrl of protocolUrls) {
 			if (!protocolUrl) {
 				continue; // invalid
@@ -750,6 +751,12 @@ export class CodeApplication extends Disposable {
 
 			const windowOpenable = this.getWindowOpenableFromProtocolUrl(protocolUrl.uri);
 			if (windowOpenable) {
+				// Sessions app: skip all window openables (file/folder/workspace)
+				if ((process as INodeProcess).isEmbeddedApp) {
+					this.logService.trace('app#resolveInitialProtocolUrls() sessions app skipping window openable:', protocolUrl.uri.toString(true));
+					continue;
+				}
+
 				if (await this.shouldBlockOpenable(windowOpenable, windowsMainService, dialogMainService)) {
 					this.logService.trace('app#resolveInitialProtocolUrls() protocol url was blocked:', protocolUrl.uri.toString(true));
 
@@ -895,13 +902,24 @@ export class CodeApplication extends Disposable {
 	private async handleProtocolUrl(windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		this.logService.trace('app#handleProtocolUrl():', uri.toString(true), options);
 
-		// Sessions app: "open a sessions window", regardless of other parameters.
+		// Sessions app: ensure the sessions window is open, then let other handlers process the URL.
 		if ((process as INodeProcess).isEmbeddedApp) {
-			this.logService.trace('app#handleProtocolUrl() opening sessions window for bare protocol URL:', uri.toString(true));
+			this.logService.trace('app#handleProtocolUrl() sessions app handling protocol URL:', uri.toString(true));
 
-			await windowsMainService.openSessionsWindow({ context: OpenContext.LINK, contextWindowId: undefined });
+			// Skip window openables (file/folder/workspace) for security
+			const windowOpenable = this.getWindowOpenableFromProtocolUrl(uri);
+			if (windowOpenable) {
+				this.logService.trace('app#handleProtocolUrl() sessions app skipping window openable:', uri.toString(true));
+				return true;
+			}
 
-			return true;
+			// Ensure sessions window is open to receive the URL
+			const windows = await windowsMainService.openSessionsWindow({ context: OpenContext.LINK, contextWindowId: undefined });
+			const window = windows.at(0);
+			await window?.ready();
+
+			// Return false to let subsequent handlers (e.g., URLHandlerChannelClient) forward the URL
+			return false;
 		}
 
 		// Support 'workspace' URLs (https://github.com/microsoft/vscode/issues/124263)

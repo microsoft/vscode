@@ -271,12 +271,17 @@ suite('parsePluginSource', () => {
 
 	test('parses github object source', () => {
 		const result = parsePluginSource({ source: 'github', repo: 'owner/repo' }, undefined, logContext);
-		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: undefined, sha: undefined });
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: undefined, sha: undefined, path: undefined });
 	});
 
 	test('parses github object source with ref and sha', () => {
 		const result = parsePluginSource({ source: 'github', repo: 'owner/repo', ref: 'v2.0.0', sha: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0' }, undefined, logContext);
-		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'v2.0.0', sha: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0' });
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'v2.0.0', sha: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0', path: undefined });
+	});
+
+	test('parses github object source with path', () => {
+		const result = parsePluginSource({ source: 'github', repo: 'owner/repo', path: 'plugins/my-plugin' }, undefined, logContext);
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: undefined, sha: undefined, path: 'plugins/my-plugin' });
 	});
 
 	test('returns undefined for github source missing repo', () => {
@@ -289,6 +294,10 @@ suite('parsePluginSource', () => {
 
 	test('returns undefined for github source with invalid sha', () => {
 		assert.strictEqual(parsePluginSource({ source: 'github', repo: 'owner/repo', sha: 'abc123' }, undefined, logContext), undefined);
+	});
+
+	test('returns undefined for github source with non-string path', () => {
+		assert.strictEqual(parsePluginSource({ source: 'github', repo: 'owner/repo', path: 42 } as never, undefined, logContext), undefined);
 	});
 
 	test('parses url object source', () => {
@@ -362,6 +371,10 @@ suite('getPluginSourceLabel', () => {
 
 	test('formats github source', () => {
 		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.GitHub, repo: 'owner/repo' }), 'owner/repo');
+	});
+
+	test('formats github source with path', () => {
+		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.GitHub, repo: 'owner/repo', path: 'plugins/foo' }), 'owner/repo/plugins/foo');
 	});
 
 	test('formats url source', () => {

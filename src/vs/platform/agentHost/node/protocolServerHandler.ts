@@ -54,7 +54,7 @@ function jsonRpcErrorFrom(id: number, err: unknown): IJsonRpcResponse {
  * Methods handled by the request dispatcher. Excludes `initialize` and
  * `reconnect` which are handled during the handshake phase.
  */
-type RequestMethod = Exclude<keyof ICommandMap, 'initialize' | 'reconnect'>;
+type RequestMethod = Exclude<keyof ICommandMap, 'initialize' | 'reconnect' | 'authenticate'>;
 
 /**
  * Typed handler map: each key is a request method, each value is a handler

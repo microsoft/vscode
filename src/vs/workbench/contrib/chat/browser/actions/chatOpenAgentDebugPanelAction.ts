@@ -23,6 +23,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { ChatDebugEditorInput } from '../chatDebug/chatDebugEditorInput.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IChatDebugEditorOptions } from '../chatDebug/chatDebugTypes.js';
@@ -73,6 +74,11 @@ export function registerChatOpenAgentDebugPanelAction() {
 					group: '2_settings',
 					order: 0,
 					when: ChatContextKeys.inChatEditor.negate()
+				}, {
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId), ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)),
+					order: 0,
+					group: '4_logs'
 				}]
 			});
 		}

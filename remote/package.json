@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
-    "@anthropic-ai/sandbox-runtime": "0.0.23",
+    "@anthropic-ai/sandbox-runtime": "0.0.42",
     "@github/copilot": "^1.0.4-0",
     "@github/copilot-sdk": "^0.1.32",
     "@microsoft/1ds-core-js": "^3.2.13",

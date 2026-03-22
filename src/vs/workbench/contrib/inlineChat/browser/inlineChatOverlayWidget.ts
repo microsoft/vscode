@@ -41,6 +41,7 @@ import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOpt
 import { PlaceholderTextContribution } from '../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 import { IInlineChatSession2 } from './inlineChatSessionService.js';
 import { assertType } from '../../../../base/common/types.js';
+import { IInlineChatHistoryService } from './inlineChatHistoryService.js';
 
 /**
  * Overlay widget that displays a vertical action bar menu.
@@ -62,7 +63,6 @@ export class InlineChatInputWidget extends Disposable {
 	private _anchorLeft: number = 0;
 	private _anchorAbove: boolean = false;
 
-
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -70,6 +70,7 @@ export class InlineChatInputWidget extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IInlineChatHistoryService private readonly _historyService: IInlineChatHistoryService,
 	) {
 		super();
 
@@ -161,9 +162,17 @@ export class InlineChatInputWidget extends Disposable {
 			const totalWidth = contentWidth.read(r) + editorPad + toolbarWidth.read(r);
 			const minWidth = 220;
 			const maxWidth = 600;
-			const clampedWidth = this._input.getOption(EditorOption.wordWrap) === 'on'
-				? maxWidth
-				: Math.max(minWidth, Math.min(totalWidth, maxWidth));
+			const midWidth = Math.round(maxWidth / 1.618);
+			let clampedWidth: number;
+			if (this._input.getOption(EditorOption.wordWrap) === 'on') {
+				clampedWidth = maxWidth;
+			} else if (totalWidth <= minWidth) {
+				clampedWidth = minWidth;
+			} else if (totalWidth <= midWidth) {
+				clampedWidth = midWidth;
+			} else {
+				clampedWidth = maxWidth;
+			}
 
 			const lineHeight = this._input.getOption(EditorOption.lineHeight);
 			const clampedHeight = Math.min(contentHeight.read(r), (3 * lineHeight));
@@ -214,15 +223,28 @@ export class InlineChatInputWidget extends Disposable {
 		this._store.add(this._input.onDidBlurEditorText(() => inputWidgetFocused.set(false)));
 		this._store.add(toDisposable(() => inputWidgetFocused.reset()));
 
-		// Handle key events: ArrowDown to move to actions
+		// Handle key events: ArrowUp/ArrowDown for history navigation and action bar focus
 		this._store.add(this._input.onKeyDown(e => {
-			if (e.keyCode === KeyCode.DownArrow && !actionBar.isEmpty()) {
+			if (e.keyCode === KeyCode.UpArrow) {
+				const position = this._input.getPosition();
+				if (position && position.lineNumber === 1) {
+					this._showPreviousHistoryValue();
+					e.preventDefault();
+					e.stopPropagation();
+				}
+			} else if (e.keyCode === KeyCode.DownArrow) {
 				const model = this._input.getModel();
 				const position = this._input.getPosition();
 				if (position && position.lineNumber === model.getLineCount()) {
-					e.preventDefault();
-					e.stopPropagation();
-					actionBar.focus(0);
+					if (!this._historyService.isAtEnd()) {
+						this._showNextHistoryValue();
+						e.preventDefault();
+						e.stopPropagation();
+					} else if (!actionBar.isEmpty()) {
+						e.preventDefault();
+						e.stopPropagation();
+						actionBar.focus(0);
+					}
 				}
 			}
 		}));
@@ -254,6 +276,30 @@ export class InlineChatInputWidget extends Disposable {
 		return this._input.getModel().getValue().trim();
 	}
 
+	addToHistory(value: string): void {
+		this._historyService.addToHistory(value);
+	}
+
+	private _showPreviousHistoryValue(): void {
+		if (this._historyService.isAtEnd()) {
+			this._historyService.replaceLast(this._input.getModel().getValue());
+		}
+		const value = this._historyService.previousValue();
+		if (value !== undefined) {
+			this._input.getModel().setValue(value);
+		}
+	}
+
+	private _showNextHistoryValue(): void {
+		if (this._historyService.isAtEnd()) {
+			return;
+		}
+		const value = this._historyService.nextValue();
+		if (value !== undefined) {
+			this._input.getModel().setValue(value);
+		}
+	}
+
 	/**
 	 * Show the widget at the specified line.
 	 * @param lineNumber The line number to anchor the widget to
@@ -262,6 +308,9 @@ export class InlineChatInputWidget extends Disposable {
 	 */
 	show(lineNumber: number, left: number, anchorAbove: boolean, placeholder: string, value?: string): void {
 		this._showStore.clear();
+
+		// Reset history cursor to the end (current uncommitted text)
+		this._historyService.resetCursor();
 
 		// Clear input state
 		this._input.updateOptions({ wordWrap: 'off', placeholder });

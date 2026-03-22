@@ -146,7 +146,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 		const nameRow = DOM.append(details, $('.mcp-server-name-row'));
 		const name = DOM.append(nameRow, $('.mcp-server-name'));
 
-		const bridgedBadge = DOM.append(nameRow, $('.mcp-bridged-badge'));
+		const bridgedBadge = DOM.append(nameRow, $('.inline-badge.mcp-bridged-badge'));
 		bridgedBadge.textContent = localize('bridged', "Bridged");
 
 		const description = DOM.append(details, $('.mcp-server-description'));

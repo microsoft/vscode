@@ -21,6 +21,11 @@ export enum AgentSessionsGrouping {
 	Repository = 'repository'
 }
 
+export enum AgentSessionsSorting {
+	Created = 'created',
+	Updated = 'updated'
+}
+
 export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilter> {
 
 	readonly filterMenuId?: MenuId;
@@ -41,6 +46,7 @@ export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilte
 	notifyResults?(count: number): void;
 
 	readonly groupResults?: () => AgentSessionsGrouping | undefined;
+	readonly sortResults?: () => AgentSessionsSorting | undefined;
 
 	overrideExclude?(session: IAgentSession): boolean | undefined;
 }
@@ -61,6 +67,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	readonly limitResults = () => this.options.limitResults?.();
 	readonly groupResults = () => this.options.groupResults?.();
+	readonly sortResults = () => this.options.sortResults?.();
 
 	private excludes = DEFAULT_EXCLUDES;
 	private isStoringExcludes = false;
@@ -279,7 +286,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			constructor() {
 				super({
 					id: `agentSessions.filter.resetExcludes.${menuId.id.toLowerCase()}`,
-					title: localize('agentSessions.filter.reset', "Reset Filter"),
+					title: localize('agentSessions.filter.reset', "Reset"),
 					menu: {
 						id: menuId,
 						group: '4_reset',
