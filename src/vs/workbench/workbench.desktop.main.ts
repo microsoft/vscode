@@ -192,6 +192,9 @@ import './contrib/mcp/electron-browser/mcp.contribution.js';
 // Policy Export
 import './contrib/policyExport/electron-browser/policyExport.contribution.js';
 
+// Keybindings Export
+import './contrib/keybindingsExport/electron-browser/keybindingsExport.contribution.js';
+
 //#endregion
 
 

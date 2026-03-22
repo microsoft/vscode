@@ -15,7 +15,7 @@ import { coalesce } from '../../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { autorun, autorunSelfDisposable, derived } from '../../../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
@@ -394,6 +394,13 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					console.error('Failed to load MarkedKatexSupport extension:', e);
 				});
 		}
+	}
+
+	override dispose(): void {
+		super.dispose();
+
+		dispose(this.allRefs);
+		this.allRefs.length = 0;
 	}
 
 	private renderCodeBlockPill(sessionResource: URI, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined): IDisposableReference<CollapsedCodeBlock> {
