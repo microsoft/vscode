@@ -134,44 +134,59 @@ function _stripCommandEchoAndPromptOnce(output: string, commandLine: string, log
 	const maxTrailingPromptLines = 2;
 	while (endIndex > startIndex) {
 		const line = lines[endIndex - 1].trimEnd();
-		if (
-			line.length === 0 ||
-			(trailingStrippedCount < maxTrailingPromptLines && (
-				// Bash/zsh prompt: user@host:path ending with $ or #
-				// e.g., "user@host:~/src $ " or "root@server:/var/log# "
-				(!knownPrompt || isUnixAt) && /^\s*\w+@[\w.-]+:.*[#$]\s*$/.test(line) ||
-				// Prompt without @: hostname:path user$ or hostname:path user#
-				// e.g., "dsm12-be220-abc:testWorkspace runner$"
-				(!knownPrompt || isUnixHost) && /^\s*[\w.-]+:\S.*\s\w+[#$]\s*$/.test(line) ||
-				// Wrapped prompt fragment ending with $ or # (e.g. "er$", "ts/testWorkspace$")
-				// These appear when a prompt wraps across terminal columns.
-				(!knownPrompt || isUnix) && /^\s*[\w/.-]+[#$]\s*$/.test(line) ||
-				// Bracketed prompt start: [ hostname:/path or [ user@host:/path (wrapped prompt first line)
-				// e.g., "[ alex@MacBook-Pro:/Users/alex/src/vscode4/extensions/vscode-api-test"
-				// e.g., "[W007DV9PF9-1:~/vss/_work/1/s/extensions/vscode-api-tests/testWorkspace] cloudte"
-				(!knownPrompt || isUnix) && /^\[\s*[\w.-]+(@[\w.-]+)?:[~\/]/.test(line) ||
-				// Wrapped prompt continuation: user@host:path or hostname:path (no trailing $)
-				// Only matched after we've already stripped a prompt fragment below.
-				// e.g., "cloudtest@host:/mnt/vss/.../vscode-api-tes" or "dsm12-abc:testWorkspace runn"
-				(!knownPrompt || isUnix) && trailingStrippedCount > 0 && /^\s*[\w][-\w.]*(@[\w.-]+)?:\S/.test(line) ||
-				// Bracketed prompt end: ...] $ or ...] #
-				// e.g., "s/testWorkspace (main**) ] $ "
-				(!knownPrompt || isUnix) && /\]\s*[#$]\s*$/.test(line) ||
-				// PowerShell prompt: PS C:\path>
-				(!knownPrompt || isPowerShell) && /^PS\s+[A-Z]:\\.*>\s*$/.test(line) ||
-				// Windows cmd prompt: C:\path>
-				(!knownPrompt || isCmd) && /^[A-Z]:\\.*>\s*$/.test(line) ||
-				// Starship prompt character
-				// allow-any-unicode-next-line
-				(!knownPrompt || isStarship) && /\u276f\s*$/.test(line) ||
-				// Python REPL prompt
-				(!knownPrompt || isPython) && /^>>>\s*$/.test(line)
-			))
-		) {
+		if (line.length === 0) {
 			endIndex--;
-			if (line.length > 0) {
-				trailingStrippedCount++;
-			}
+			continue;
+		}
+		if (trailingStrippedCount >= maxTrailingPromptLines) {
+			break;
+		}
+
+		// Complete (self-contained) prompt patterns: these have a recognizable
+		// prefix and a trailing marker ($, #, >). After stripping one complete
+		// prompt line, stop — lines above it are command output, not wrapped
+		// prompt continuation lines.
+		const isCompletePrompt =
+			// Bash/zsh: user@host:path ending with $ or #
+			// e.g., "user@host:~/src $ " or "root@server:/var/log# "
+			((!knownPrompt || isUnixAt) && /^\s*\w+@[\w.-]+:.*[#$]\s*$/.test(line)) ||
+			// hostname:path user$ or hostname:path user#
+			// e.g., "dsm12-be220-abc:testWorkspace runner$"
+			((!knownPrompt || isUnixHost) && /^\s*[\w.-]+:\S.*\s\w+[#$]\s*$/.test(line)) ||
+			// PowerShell: PS C:\path>
+			((!knownPrompt || isPowerShell) && /^PS\s+[A-Z]:\\.*>\s*$/.test(line)) ||
+			// Windows cmd: C:\path>
+			((!knownPrompt || isCmd) && /^[A-Z]:\\.*>\s*$/.test(line)) ||
+			// Starship prompt character
+			// allow-any-unicode-next-line
+			((!knownPrompt || isStarship) && /\u276f\s*$/.test(line)) ||
+			// Python REPL
+			((!knownPrompt || isPython) && /^>>>\s*$/.test(line));
+
+		// Fragment/partial prompt patterns: these represent pieces of a prompt
+		// that wraps across multiple terminal lines due to column width.
+		const isPromptFragment =
+			// Wrapped fragment ending with $ or # (e.g. "er$", "ts/testWorkspace$")
+			((!knownPrompt || isUnix) && /^\s*[\w/.-]+[#$]\s*$/.test(line)) ||
+			// Bracketed prompt start: [ hostname:/path or [ user@host:/path
+			// e.g., "[ alex@MacBook-Pro:/Users/alex/src/vscode4/extensions/vscode-api-test"
+			// e.g., "[W007DV9PF9-1:~/vss/_work/1/s/extensions/vscode-api-tests/testWorkspace] cloudte"
+			((!knownPrompt || isUnix) && /^\[\s*[\w.-]+(@[\w.-]+)?:[~\/]/.test(line)) ||
+			// Wrapped continuation: user@host:path or hostname:path (no trailing $)
+			// Only matched after we've already stripped a prompt fragment below.
+			// e.g., "cloudtest@host:/mnt/vss/.../vscode-api-tes" or "dsm12-abc:testWorkspace runn"
+			((!knownPrompt || isUnix) && trailingStrippedCount > 0 && /^\s*[\w][-\w.]*(@[\w.-]+)?:\S/.test(line)) ||
+			// Bracketed prompt end: ...] $ or ...] #
+			// e.g., "s/testWorkspace (main**) ] $ "
+			((!knownPrompt || isUnix) && /\]\s*[#$]\s*$/.test(line));
+
+		if (isCompletePrompt) {
+			endIndex--;
+			trailingStrippedCount++;
+			break; // Complete prompt = nothing above can be prompt wrap
+		} else if (isPromptFragment) {
+			endIndex--;
+			trailingStrippedCount++;
 		} else {
 			break;
 		}

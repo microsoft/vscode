@@ -457,4 +457,108 @@ suite('stripCommandEchoAndPrompt', () => {
 			''
 		);
 	});
+
+	// --- Adversarial tests: output that looks like prompts ---
+	// These verify that realistic output is NOT falsely stripped.
+
+	suite('adversarial: output resembling prompts', () => {
+
+		test('output ending with $ is preserved (not confused with wrapped prompt)', () => {
+			const output = [
+				'user@host:~ $ echo \'test$\'',
+				'test$',
+				'user@host:~ $',
+			].join('\n');
+
+			// 'user@host:~ $' is a complete prompt → stripped and loop stops.
+			// 'test$' is preserved because nothing above a complete prompt is stripped.
+			assert.strictEqual(
+				stripCommandEchoAndPrompt(output, 'echo \'test$\''),
+				'test$'
+			);
+		});
+
+		test('output ending with # is preserved (not confused with wrapped prompt)', () => {
+			const output = [
+				'user@host:~ $ echo \'div#\'',
+				'div#',
+				'user@host:~ $',
+			].join('\n');
+
+			assert.strictEqual(
+				stripCommandEchoAndPrompt(output, 'echo \'div#\''),
+				'div#'
+			);
+		});
+
+		test('bracketed log output [tag:~/path] is preserved', () => {
+			const output = [
+				'user@host:~ $ node build.js',
+				'[build:~/dist] compiled successfully',
+				'user@host:~ $',
+			].join('\n');
+
+			assert.strictEqual(
+				stripCommandEchoAndPrompt(output, 'node build.js'),
+				'[build:~/dist] compiled successfully'
+			);
+		});
+
+		test('output containing user@host:path ending with # is preserved', () => {
+			const output = [
+				'user@host:~ $ cat /etc/motd',
+				'admin@server:~/docs #',
+				'user@host:~ $',
+			].join('\n');
+
+			assert.strictEqual(
+				stripCommandEchoAndPrompt(output, 'cat /etc/motd'),
+				'admin@server:~/docs #'
+			);
+		});
+
+		test('output ending with ] $ is preserved', () => {
+			const output = [
+				'user@host:~ $ echo \'values: [a, b] $\'',
+				'values: [a, b] $',
+				'user@host:~ $',
+			].join('\n');
+
+			assert.strictEqual(
+				stripCommandEchoAndPrompt(output, 'echo \'values: [a, b] $\''),
+				'values: [a, b] $'
+			);
+		});
+
+		test('multiple prompt-like output lines are all preserved', () => {
+			// Complete prompt at the bottom stops stripping immediately,
+			// so all prompt-like output lines above are preserved.
+			const output = [
+				'user@host:~ $ cat prompts.txt',
+				'admin@server:~/docs $',
+				'root@box:/var/log #',
+				'test@dev:~ $',
+				'user@host:~ $',
+			].join('\n');
+
+			assert.strictEqual(
+				stripCommandEchoAndPrompt(output, 'cat prompts.txt'),
+				'admin@server:~/docs $\nroot@box:/var/log #\ntest@dev:~ $'
+			);
+		});
+
+		test('multi-line output where last line has $ after non-word chars is preserved', () => {
+			const output = [
+				'user@host:~ $ ./report.sh',
+				'Revenue: 1000',
+				'Currency: USD$',
+				'user@host:~ $',
+			].join('\n');
+
+			assert.strictEqual(
+				stripCommandEchoAndPrompt(output, './report.sh'),
+				'Revenue: 1000\nCurrency: USD$'
+			);
+		});
+	});
 });
