@@ -75,6 +75,8 @@ Best for build/compile/lint failures where the error is in the step output:
 gh run view <RUN_ID> --job <JOB_ID> --log-failed
 ```
 
+> **Important**: `--log-failed` requires the **entire run** to complete, not just the failed job. If other jobs are still running, this command will block or error. Use **Option C** below to get logs for a completed job while the run is still in progress.
+
 The output can be large. Pipe through `tail` or `grep` to focus:
 ```bash
 # Last 100 lines of failed output
@@ -101,7 +103,36 @@ gh run download <RUN_ID> -n "logs-linux-x64-electron-1" -D /tmp/ci-logs
 gh run download <RUN_ID> -n "crash-dump-linux-x64-electron-1" -D /tmp/ci-crashes
 ```
 
-> **Tip**: Use the test runner name from the failed check (e.g., "Linux / Electron" → `electron`, "Linux / Remote" → `remote`) to construct the artifact name.
+> **Tip**: Use the test runner name from the failed check (e.g., "Linux / Electron" → `electron`, "Linux / Remote" → `remote`) and platform map ("Windows" → `windows-x64`, "Linux" → `linux-x64`, "macOS" → `macos-arm64`) to construct the artifact name.
+
+> **Warning**: Log artifacts may be empty if the test runner crashed before producing output (e.g., Electron download failure). In that case, fall back to **Option C**.
+
+### Option C: Download Per-Job Logs via API (works while run is in progress)
+
+When the run is still in progress but the failed job has completed, use the GitHub API to download that job's step logs directly:
+
+```bash
+# Save the full job log to a temp file (can be very large — 30k+ lines)
+gh api repos/microsoft/vscode/actions/jobs/<JOB_ID>/logs > "$TMPDIR/ci-job-log.txt"
+```
+
+Then search the saved file. **Start with `##[error]`** — this is the GitHub Actions error annotation that marks the exact line where the step failed:
+
+```bash
+# Step 1: Find the error annotation (fastest path to the failure)
+grep -n '##\[error\]' "$TMPDIR/ci-job-log.txt"
+
+# Step 2: Read context around the error (e.g., if error is on line 34371, read 200 lines before it)
+sed -n '34171,34371p' "$TMPDIR/ci-job-log.txt"
+```
+
+If `##[error]` doesn't reveal enough, use broader patterns:
+```bash
+# Find test failures, exceptions, and crash indicators
+grep -n -E 'HTTPError|ECONNRESET|ETIMEDOUT|502|exit code|Process completed|node:internal|triggerUncaughtException' "$TMPDIR/ci-job-log.txt" | head -20
+```
+
+> **Why save to a file?** The API response for a full job log can be 30k+ lines. Tool output gets truncated, so always redirect to a file first, then search.
 
 ### VS Code Log Artifacts Structure
 
@@ -153,17 +184,53 @@ gh run view <RUN_ID> --job <JOB_ID> --log-failed | grep -E "eslint|stylelint|hyg
 
 ## Step 6: Determine if Failures are Related to the PR
 
-Before fixing, determine if the failure is caused by the PR changes or is a pre-existing flake:
+Before fixing, determine if the failure is caused by the PR changes or is a pre-existing/infrastructure issue:
 
 1. **Check if the failing test is in code you changed** — if the test is in a completely unrelated area, it may be a flake
 2. **Check the test name** — does it relate to the feature area you modified?
 3. **Look at the failure output** — does it reference code paths your PR touches?
 4. **Check if the same tests fail on main** — if identical failures exist on recent main commits, it's a pre-existing issue
+5. **Look for infrastructure failures** — network timeouts, npm registry errors, and machine-level issues are not caused by code changes
 
 ```bash
 # Check recent runs on main for the same workflow
 gh run list --branch main --workflow pr-linux-test.yml --limit 5 --json databaseId,conclusion,displayTitle
 ```
+
+### Recognizing Infrastructure / Flaky Failures
+
+Not all CI failures are caused by code changes. Common infrastructure failures:
+
+**Network / Registry issues**:
+- `npm ERR! network`, `ETIMEDOUT`, `ECONNRESET`, `EAI_AGAIN` — npm registry unreachable
+- `error: RPC failed; curl 56`, `fetch-pack: unexpected disconnect` — git network failure
+- `Error: unable to get local issuer certificate` — TLS/certificate issues
+- `rate limit exceeded` — GitHub API rate limiting
+- `HTTPError: Request failed with status code 502` on `electron/electron/releases` — Electron CDN download failure (common in the `node.js integration tests` step, which downloads Electron at runtime)
+
+**Machine / Environment issues**:
+- `No space left on device` — CI disk full
+- `ENOMEM`, `JavaScript heap out of memory` — CI machine ran out of memory
+- `The runner has received a shutdown signal` — CI preemption / timeout
+- `Error: The operation was canceled` — GitHub Actions cancelled the job
+- `Xvfb failed to start` — display server for headless Linux tests failed
+
+**Test flakes** (not infrastructure, but not your fault either):
+- Timeouts on tests that normally pass — slow CI machine
+- Race conditions in async tests
+- Shell integration not reporting exit codes (see terminal.log for `exitCode: undefined`)
+
+**What to do with infrastructure failures**:
+1. **Don't change code** — the failure isn't caused by your PR
+2. **Re-run the failed jobs** via the GitHub UI or:
+   ```bash
+   gh run rerun <RUN_ID> --failed
+   ```
+3. If failures persist across re-runs, check if main is also broken:
+   ```bash
+   gh run list --branch main --limit 10 --json databaseId,conclusion,displayTitle
+   ```
+4. If main is broken too, wait for it to be fixed — your PR is not the cause
 
 ---
 
@@ -194,6 +261,9 @@ gh run list --branch main --workflow pr-linux-test.yml --limit 5 --json database
 | List failed checks only | `gh pr checks --json name,state,link,bucket --jq '.[] \| select(.bucket == "fail")'` |
 | Watch checks until done | `gh pr checks --watch --fail-fast` |
 | Failed jobs in a run | `gh run view <RUN_ID> --json jobs --jq '.jobs[] \| select(.conclusion == "failure") \| {name, id: .databaseId}'` |
-| View failed step logs | `gh run view <RUN_ID> --job <JOB_ID> --log-failed` |
+| View failed step logs | `gh run view <RUN_ID> --job <JOB_ID> --log-failed` (requires full run to complete) |
+| Download job log via API | `gh api repos/microsoft/vscode/actions/jobs/<JOB_ID>/logs > "$TMPDIR/ci-job-log.txt"` (works while run is in progress) |
+| Find error line in log | `grep -n '##\[error\]' "$TMPDIR/ci-job-log.txt"` |
 | Download log artifacts | `gh run download <RUN_ID> -n "<artifact-name>" -D /tmp/ci-logs` |
+| Re-run failed jobs | `gh run rerun <RUN_ID> --failed` |
 | Recent main runs | `gh run list --branch main --workflow <workflow>.yml --limit 5` |
