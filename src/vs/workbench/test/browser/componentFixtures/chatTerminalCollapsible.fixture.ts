@@ -65,31 +65,31 @@ function renderCollapsible(context: ComponentFixtureContext, commandText: string
 }
 
 export default defineThemedFixtureGroup({ path: 'chat/terminalCollapsible/' }, {
-	'Ran: simple command': defineComponentFixture({
+	'Ran - simple command': defineComponentFixture({
 		render: ctx => renderCollapsible(ctx, 'ls -lh', false, true),
 	}),
-	'Running: simple command': defineComponentFixture({
+	'Running - simple command': defineComponentFixture({
 		render: ctx => renderCollapsible(ctx, 'ls -lh', false, false),
 	}),
-	'Ran in sandbox: simple command': defineComponentFixture({
+	'Ran sandbox - simple command': defineComponentFixture({
 		render: ctx => renderCollapsible(ctx, 'ls -lh', true, true),
 	}),
-	'Running in sandbox: simple command': defineComponentFixture({
+	'Running sandbox - simple command': defineComponentFixture({
 		render: ctx => renderCollapsible(ctx, 'ls -lh', true, false),
 	}),
-	'Ran: command with special chars': defineComponentFixture({
-		render: ctx => renderCollapsible(ctx, 'grep -rn "hello*" ./src --include="*.ts"', false, true),
+	'Ran - special chars': defineComponentFixture({
+		render: ctx => renderCollapsible(ctx, 'grep -rn "hello" ./src --include="*.ts"', false, true),
 	}),
-	'Ran in sandbox: command with special chars': defineComponentFixture({
-		render: ctx => renderCollapsible(ctx, 'grep -rn "hello*" ./src --include="*.ts"', true, true),
+	'Ran sandbox - special chars': defineComponentFixture({
+		render: ctx => renderCollapsible(ctx, 'grep -rn "hello" ./src --include="*.ts"', true, true),
 	}),
-	'Ran: command with backticks': defineComponentFixture({
+	'Ran - backticks': defineComponentFixture({
 		render: ctx => renderCollapsible(ctx, 'echo `date` && echo `hostname`', false, true),
 	}),
-	'Ran in sandbox: command with backticks': defineComponentFixture({
+	'Ran sandbox - backticks': defineComponentFixture({
 		render: ctx => renderCollapsible(ctx, 'echo `date` && echo `hostname`', true, true),
 	}),
-	'Ran in sandbox: powershell backtick escapes': defineComponentFixture({
+	'Ran sandbox - powershell backticks': defineComponentFixture({
 		render: ctx => renderCollapsible(ctx, 'Get-Process | Where-Object {$_.Name -eq `"notepad`"}', true, true),
 	}),
 });
