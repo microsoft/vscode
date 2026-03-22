@@ -68,12 +68,6 @@ export interface ISessionsManagementService {
 	readonly activeSession: IObservable<IActiveSessionItem | undefined>;
 
 	/**
-	 * Observable for the current new session being configured (before first send).
-	 * Undefined when viewing an existing session.
-	 */
-	readonly newSession: IObservable<INewSession | undefined>;
-
-	/**
 	 * Returns the currently active session, if any.
 	 */
 	getActiveSession(): IActiveSessionItem | undefined;

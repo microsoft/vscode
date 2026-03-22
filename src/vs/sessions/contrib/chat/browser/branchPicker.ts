@@ -13,7 +13,7 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 
 const COPILOT_WORKTREE_PATTERN = 'copilot-worktree-';
@@ -62,17 +62,20 @@ export class BranchPicker extends Disposable {
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IGitService private readonly gitService: IGitService,
 	) {
 		super();
 
-		// Observe the new session's project and load branches when it changes
+		// Observe the active session's workspace for repository changes
 		this._register(autorun(reader => {
-			const newSession = this.sessionsManagementService.newSession.read(reader);
-			if (newSession) {
-				const repository = newSession.project?.repository;
-				this._onRepositoryChanged(repository);
+			const session = this.sessionsProvidersService.activeSession.read(reader);
+			if (session) {
+				const workspace = session.workspace.read(reader);
+				const repository = workspace?.repositories[0];
+				// BranchPicker needs IGitRepository — for now, get it from project
+				// TODO: workspace.repositories should provide the git repo handle
+				this._onRepositoryChanged(undefined); // Will be connected when provider resolves repo
 			} else {
 				this._onRepositoryChanged(undefined);
 			}

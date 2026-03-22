@@ -18,7 +18,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { autorun } from '../../../../base/common/observable.js';
 
 interface IModePickerItem {
@@ -57,7 +57,7 @@ export class ModePicker extends Disposable {
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ICommandService private readonly commandService: ICommandService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
@@ -68,15 +68,15 @@ export class ModePicker extends Disposable {
 			}
 		}));
 
-		// Observe new session to push mode and manage visibility
+		// Observe active session to manage visibility and push mode
 		this._register(autorun(reader => {
-			const newSession = this.sessionsManagementService.newSession.read(reader);
-			const shouldShow = !!newSession?.pickerVisibility.mode;
+			const session = this.sessionsProvidersService.activeSession.read(reader);
+			const shouldShow = !!session?.pickerVisibility.mode;
 			if (this._slotElement) {
 				this._slotElement.style.display = shouldShow ? '' : 'none';
 			}
-			if (newSession) {
-				newSession.setMode(this._selectedMode);
+			if (session) {
+				this.sessionsProvidersService.setSessionOption(session.sessionId, 'mode', this._selectedMode);
 			}
 		}));
 	}

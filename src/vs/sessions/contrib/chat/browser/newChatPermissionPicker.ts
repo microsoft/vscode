@@ -12,7 +12,7 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -52,14 +52,14 @@ export class NewChatPermissionPicker extends Disposable {
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
-		// Observe new session to manage visibility
+		// Observe active session to manage visibility
 		this._register(autorun(reader => {
-			const newSession = this.sessionsManagementService.newSession.read(reader);
-			const shouldShow = !!newSession?.pickerVisibility.permission;
+			const session = this.sessionsProvidersService.activeSession.read(reader);
+			const shouldShow = !!session?.pickerVisibility.permission;
 			if (this._container) {
 				this._container.style.display = shouldShow ? '' : 'none';
 			}

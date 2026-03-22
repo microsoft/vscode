@@ -13,7 +13,7 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { autorun } from '../../../../base/common/observable.js';
 
 // #region --- Types ---
@@ -185,7 +185,7 @@ export class IsolationPicker extends Disposable {
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 		this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
@@ -202,11 +202,12 @@ export class IsolationPicker extends Disposable {
 			}
 		}));
 
-		// Observe new session to determine git repo availability
+		// Observe active session to determine git repo availability
 		this._register(autorun(reader => {
-			const newSession = this.sessionsManagementService.newSession.read(reader);
-			if (newSession) {
-				const hasRepo = !!newSession.project?.repository;
+			const session = this.sessionsProvidersService.activeSession.read(reader);
+			if (session) {
+				const workspace = session.workspace.read(reader);
+				const hasRepo = !!(workspace?.repositories[0]?.workingDirectory);
 				this._hasGitRepo = hasRepo;
 				if (!hasRepo) {
 					this._setMode('workspace');
