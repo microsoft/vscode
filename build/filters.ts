@@ -193,6 +193,7 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!extensions/terminal-suggest/src/completions/upstream/**',
 	'!extensions/typescript-language-features/node-maintainer/**',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
+	'!extensions/forge-conversational-markdown/**',
 	'!extensions/*/server/bin/*',
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
 ]);

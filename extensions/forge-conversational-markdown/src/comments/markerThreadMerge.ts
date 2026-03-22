@@ -1,8 +1,3 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
 import type { SelectionAnchor } from '../protocol/types';
 import { parseForgeMarkerRanges, threadIdForMarker } from '../markdown/forgeMarkers';
 import type { MutableCommentThreadRecord } from './ThreadModel';

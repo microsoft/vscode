@@ -169,6 +169,7 @@ export default tseslint.config(
 		],
 		rules: {
 			'local/code-no-unexternalized-strings': 'off',
+			'header/header': 'off',
 		},
 	},
 	// vscode TS
