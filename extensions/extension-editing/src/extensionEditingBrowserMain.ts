@@ -5,11 +5,14 @@
 
 import * as vscode from 'vscode';
 import { PackageDocument } from './packageDocumentHelper';
+import { PackageDocumentL10nSupport } from './packageDocumentL10nSupport';
 
 export function activate(context: vscode.ExtensionContext) {
 	//package.json suggestions
 	context.subscriptions.push(registerPackageDocumentCompletions());
 
+	//package.json go to definition for NLS strings
+	context.subscriptions.push(new PackageDocumentL10nSupport());
 }
 
 function registerPackageDocumentCompletions(): vscode.Disposable {
@@ -18,5 +21,4 @@ function registerPackageDocumentCompletions(): vscode.Disposable {
 			return new PackageDocument(document).provideCompletionItems(position, token);
 		}
 	});
-
 }

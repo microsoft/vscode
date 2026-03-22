@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes } from '../git';
+import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
 
@@ -289,7 +289,8 @@ suite('git', () => {
 				authorEmail: 'john.doe@mail.com',
 				commitDate: new Date(1580811031000),
 				refNames: ['main', 'branch'],
-				shortStat: undefined
+				shortStat: undefined,
+				coAuthors: []
 			}]);
 		});
 
@@ -313,7 +314,8 @@ suite('git', () => {
 				authorEmail: 'john.doe@mail.com',
 				commitDate: new Date(1580811031000),
 				refNames: ['main'],
-				shortStat: undefined
+				shortStat: undefined,
+				coAuthors: []
 			}]);
 		});
 
@@ -337,7 +339,8 @@ suite('git', () => {
 				authorEmail: 'john.doe@mail.com',
 				commitDate: new Date(1580811031000),
 				refNames: ['main'],
-				shortStat: undefined
+				shortStat: undefined,
+				coAuthors: []
 			}]);
 		});
 
@@ -366,7 +369,8 @@ suite('git', () => {
 					deletions: 3,
 					files: 1,
 					insertions: 2
-				}
+				},
+				coAuthors: []
 			}]);
 		});
 
@@ -395,7 +399,8 @@ suite('git', () => {
 					deletions: 3,
 					files: 1,
 					insertions: 0
-				}
+				},
+				coAuthors: []
 			}]);
 		});
 
@@ -424,7 +429,8 @@ suite('git', () => {
 					deletions: 0,
 					files: 1,
 					insertions: 2
-				}
+				},
+				coAuthors: []
 			}]);
 		});
 
@@ -458,6 +464,7 @@ suite('git', () => {
 					commitDate: new Date(1580811031000),
 					refNames: ['main', 'branch'],
 					shortStat: undefined,
+					coAuthors: []
 				},
 				{
 					hash: '52c293a05038d865604c2284aa8698bd087915a2',
@@ -469,6 +476,7 @@ suite('git', () => {
 					commitDate: new Date(1580811033000),
 					refNames: ['main', 'branch'],
 					shortStat: undefined,
+					coAuthors: []
 				},
 			]);
 		});
@@ -506,7 +514,8 @@ suite('git', () => {
 					deletions: 13,
 					files: 5,
 					insertions: 12
-				}
+				},
+				coAuthors: []
 			},
 			{
 				hash: '52c293a05038d865604c2284aa8698bd087915a2',
@@ -521,7 +530,8 @@ suite('git', () => {
 					deletions: 23,
 					files: 6,
 					insertions: 22
-				}
+				},
+				coAuthors: []
 			}]);
 		});
 	});
@@ -587,6 +597,50 @@ suite('git', () => {
 				{ mode: '100644', object: 'be859e3f412fa86513cd8bebe8189d1ea1a3e46d', stage: '0', file: 'what.txt' },
 				{ mode: '100644', object: '56ec42c9dc6fcf4534788f0fe34b36e09f37d085', stage: '0', file: 'what.txt2' },
 			]);
+		});
+	});
+
+	suite('parseCoAuthors', () => {
+		test('no co-authors', function () {
+			assert.deepStrictEqual(parseCoAuthors('This is a commit message.'), []);
+		});
+
+		test('single co-author', function () {
+			assert.deepStrictEqual(
+				parseCoAuthors('Fix bug\n\nCo-authored-by: Jane Doe <jane@example.com>'),
+				[{ name: 'Jane Doe', email: 'jane@example.com' }]
+			);
+		});
+
+		test('multiple co-authors', function () {
+			assert.deepStrictEqual(
+				parseCoAuthors('Fix bug\n\nCo-authored-by: Jane Doe <jane@example.com>\nCo-authored-by: Bob Smith <bob@example.com>'),
+				[
+					{ name: 'Jane Doe', email: 'jane@example.com' },
+					{ name: 'Bob Smith', email: 'bob@example.com' }
+				]
+			);
+		});
+
+		test('case insensitive', function () {
+			assert.deepStrictEqual(
+				parseCoAuthors('Fix bug\n\nco-authored-by: Jane Doe <jane@example.com>'),
+				[{ name: 'Jane Doe', email: 'jane@example.com' }]
+			);
+		});
+
+		test('AI co-author (Copilot)', function () {
+			assert.deepStrictEqual(
+				parseCoAuthors('Fix bug\n\nCo-authored-by: Copilot <copilot@github.com>'),
+				[{ name: 'Copilot', email: 'copilot@github.com' }]
+			);
+		});
+
+		test('mixed with other trailers', function () {
+			assert.deepStrictEqual(
+				parseCoAuthors('Fix bug\n\nSigned-off-by: Admin <admin@corp.com>\nCo-authored-by: Jane Doe <jane@example.com>'),
+				[{ name: 'Jane Doe', email: 'jane@example.com' }]
+			);
 		});
 	});
 

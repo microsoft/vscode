@@ -177,6 +177,11 @@ export interface CommitOptions {
 	all?: boolean | 'tracked';
 	amend?: boolean;
 	signoff?: boolean;
+	/**
+	 * true  - sign the commit
+	 * false - do not sign the commit
+	 * undefined - use the repository/global git config
+	 */
 	signCommit?: boolean;
 	empty?: boolean;
 	noVerify?: boolean;
@@ -256,6 +261,7 @@ export interface Repository {
 	clean(paths: string[]): Promise<void>;
 
 	apply(patch: string, reverse?: boolean): Promise<void>;
+	apply(patch: string, options?: { allowEmpty?: boolean; reverse?: boolean; threeWay?: boolean; }): Promise<void>;
 	diff(cached?: boolean): Promise<string>;
 	diffWithHEAD(): Promise<Change[]>;
 	diffWithHEAD(path: string): Promise<string>;
@@ -272,6 +278,7 @@ export interface Repository {
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
 	diffBetweenPatch(ref1: string, ref2: string, path?: string): Promise<string>;
 	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]>;
+	diffBetweenWithStats2(ref: string, path?: string): Promise<DiffChange[]>;
 
 	hashObject(data: string): Promise<string>;
 
@@ -309,6 +316,7 @@ export interface Repository {
 	commit(message: string, opts?: CommitOptions): Promise<void>;
 	merge(ref: string): Promise<void>;
 	mergeAbort(): Promise<void>;
+	rebase(branch: string): Promise<void>;
 
 	createStash(options?: { message?: string; includeUntracked?: boolean; staged?: boolean }): Promise<void>;
 	applyStash(index?: number): Promise<void>;
@@ -319,6 +327,10 @@ export interface Repository {
 	deleteWorktree(path: string, options?: { force?: boolean }): Promise<void>;
 
 	migrateChanges(sourceRepositoryPath: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void>;
+
+	generateRandomBranchName(): Promise<string | undefined>;
+
+	isBranchProtected(branch?: Branch): boolean;
 }
 
 export interface RemoteSource {

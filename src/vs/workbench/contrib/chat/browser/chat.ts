@@ -18,9 +18,10 @@ import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } f
 import { IChatResponseModel, IChatModelInputState } from '../common/model/chatModel.js';
 import { IChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/requestParser/chatParserTypes.js';
+import { IHandOff } from '../common/promptSyntax/promptFileParser.js';
 import { CHAT_PROVIDER_ID } from '../common/participants/chatParticipantContribTypes.js';
-import { IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService/chatService.js';
-import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/model/chatViewModel.js';
+import { ChatRequestQueueKind, IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService/chatService.js';
+import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatPendingDividerViewModel } from '../common/model/chatViewModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
 import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
@@ -122,6 +123,17 @@ export interface IChatWidgetService {
 	readonly onDidBackgroundSession: Event<URI>;
 
 	/**
+	 * Fires when the focused chat widget changes.
+	 */
+	readonly onDidChangeFocusedWidget: Event<IChatWidget | undefined>;
+
+	/**
+	 * Fires when the focused chat session changes, either because the focused widget
+	 * changed or because the focused widget loaded a different session.
+	 */
+	readonly onDidChangeFocusedSession: Event<void>;
+
+	/**
 	 * Reveals the widget, focusing its input unless `preserveFocus` is true.
 	 */
 	reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean>;
@@ -207,7 +219,7 @@ export interface IChatFileTreeInfo {
 	focus(): void;
 }
 
-export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel;
+export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel;
 
 export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'compact' | 'minimal';
@@ -215,6 +227,7 @@ export interface IChatListItemRendererOptions {
 	readonly noFooter?: boolean;
 	readonly renderDetectedCommandsWithRequest?: boolean;
 	readonly restorable?: boolean;
+	readonly supportsFork?: boolean;
 	readonly editable?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
@@ -252,6 +265,7 @@ export interface IChatWidgetViewOptions {
 	enableWorkingSet?: 'explicit' | 'implicit';
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
+	inputEditorMinLines?: number;
 	defaultMode?: IChatMode;
 	/**
 	 * Optional delegate for the session target picker.
@@ -277,6 +291,12 @@ export interface IChatWidgetViewOptions {
 	 * redirect to a different workspace rather than executing locally.
 	 */
 	submitHandler?: (query: string, mode: ChatModeKind) => Promise<boolean>;
+
+	/**
+	 * Whether we are running in the sessions window.
+	 * When true, the secondary toolbar (permissions picker) is hidden.
+	 */
+	isSessionsWindow?: boolean;
 }
 
 export interface IChatViewViewContext {
@@ -306,6 +326,11 @@ export interface IChatAcceptInputOptions {
 	// box's current content is being accepted, or 'false' if a specific input
 	// is being submitted to the widget.
 	storeToHistory?: boolean;
+	/**
+	 * When set, queues this message to be sent after the current request completes.
+	 * If Steering, also sets yieldRequested on any active request to signal it should wrap up.
+	 */
+	queue?: ChatRequestQueueKind;
 }
 
 export interface IChatWidgetViewModelChangeEvent {
@@ -322,6 +347,7 @@ export interface IChatWidget {
 	readonly onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeParsedInput: Event<void>;
+	readonly onDidChangeActiveInputEditor: Event<void>;
 	readonly onDidFocus: Event<void>;
 	readonly location: ChatAgentLocation;
 	readonly viewContext: IChatWidgetViewContext;
@@ -361,6 +387,42 @@ export interface IChatWidget {
 	 */
 	focusResponseItem(lastFocused?: boolean): void;
 	focusInput(): void;
+	/**
+	 * Focuses the Todos view in the chat widget.
+	 * @returns Whether the operation succeeded (i.e., the Todos view was focused).
+	 */
+	focusTodosView(): boolean;
+	/**
+	 * Toggles focus between the Todos view and the previous focus target in the chat widget.
+	 * @returns Whether the operation succeeded (i.e., the focus was toggled).
+	 */
+	toggleTodosViewFocus(): boolean;
+	/**
+	 * Focuses the question carousel in the chat widget.
+	 * @returns Whether the operation succeeded (i.e., the question carousel was focused).
+	 */
+	focusQuestionCarousel(): boolean;
+	/**
+	 * Toggles focus between the question carousel and the chat input.
+	 * @returns Whether the operation succeeded (i.e., the focus was toggled).
+	 */
+	toggleQuestionCarouselFocus(): boolean;
+	/**
+	 * Navigates to the previous question in the question carousel.
+	 * @returns Whether the operation succeeded (i.e., a previous question exists).
+	 */
+	navigateToPreviousQuestion(): boolean;
+	/**
+	 * Navigates to the next question in the question carousel.
+	 * @returns Whether the operation succeeded (i.e., a next question exists).
+	 */
+	navigateToNextQuestion(): boolean;
+	/**
+	 * Toggles focus between the tip widget and the chat input.
+	 * Returns false if no tip is visible.
+	 * @returns Whether the operation succeeded (i.e., the focus was toggled).
+	 */
+	toggleTipFocus(): boolean;
 	hasInputFocus(): boolean;
 	getModeRequestOptions(): Partial<IChatSendRequestOptions>;
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined;
@@ -372,6 +434,7 @@ export interface IChatWidget {
 	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
 	unlockFromCodingAgent(): void;
 	handleDelegationExitIfNeeded(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): Promise<void>;
+	executeHandoff(handoff: IHandOff, agentId?: string): Promise<void>;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
 }

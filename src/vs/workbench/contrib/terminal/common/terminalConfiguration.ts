@@ -288,6 +288,11 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		type: 'boolean',
 		default: false
 	},
+	[TerminalSettingId.TextBlinking]: {
+		description: localize('terminal.integrated.textBlinking', "Controls whether text blinking is enabled in the terminal."),
+		type: 'boolean',
+		default: false
+	},
 	[TerminalSettingId.CursorStyle]: {
 		description: localize('terminal.integrated.cursorStyle', "Controls the style of terminal cursor when the terminal is focused."),
 		enum: ['block', 'line', 'underline'],
@@ -471,7 +476,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.WindowsUseConptyDll]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.23.251008001) shipped with VS Code, instead of the one bundled with Windows."),
+		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.25.260303002) shipped with VS Code, instead of the one bundled with Windows."),
 		type: 'boolean',
 		tags: ['preview'],
 		default: false,
@@ -584,13 +589,10 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.EnableKittyKeyboardProtocol]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.enableKittyKeyboardProtocol', "Whether to enable the kitty keyboard protocol, which provides more detailed keyboard input reporting to the terminal."),
+		markdownDescription: localize('terminal.integrated.enableKittyKeyboardProtocol', "Whether to enable the kitty keyboard protocol, which allows a program in the terminal to request more detailed keyboard input reporting. This can, for example, enable `Shift+Enter` to be handled by the program."),
 		type: 'boolean',
-		default: false,
-		tags: ['experimental', 'advanced'],
-		experiment: {
-			mode: 'auto'
-		}
+		default: true,
+		tags: ['advanced']
 	},
 	[TerminalSettingId.EnableWin32InputMode]: {
 		restricted: true,
@@ -598,6 +600,15 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		type: 'boolean',
 		default: false,
 		tags: ['experimental', 'advanced'],
+		experiment: {
+			mode: 'auto'
+		}
+	},
+	[TerminalSettingId.ExperimentalAiProfileGrouping]: {
+		markdownDescription: localize('terminal.integrated.experimental.aiProfileGrouping', "Whether to elevate AI-contributed terminal profiles (for example Copilot CLI and Claude Agent) in the new terminal dropdown."),
+		type: 'boolean',
+		default: false,
+		tags: ['experimental'],
 		experiment: {
 			mode: 'auto'
 		}
@@ -623,7 +634,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.ShellIntegrationTimeout]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration after launch before declaring it's not there. Set to {0} to wait the minimum time (500ms), the default value {1} means the wait time is variable based on whether shell integration injection is enabled and whether it's a remote window. Consider setting this to a small value if you intentionally disabled shell integration, or a large value if your shell starts very slowly.", '`0`', '`-1`'),
+		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration after launch before declaring it's not there. Set to {0} to skip the wait entirely. The default value {1} uses a variable wait time based on whether shell integration injection is enabled and whether it's a remote window. Values between 1 and 499 are clamped to 500ms. Consider setting this to {0} if you intentionally disabled shell integration, or a large value if your shell starts very slowly.", '`0`', '`-1`'),
 		type: 'integer',
 		minimum: -1,
 		maximum: 60000,
@@ -652,7 +663,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.EnableImages]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.enableImages', "Enables image support in the terminal, this will only work when {0} is enabled. Both sixel and iTerm's inline image protocol are supported on Linux and macOS. This will only work on Windows for versions of ConPTY >= v2 which is shipped with Windows itself, see also {1}. Images will currently not be restored between window reloads/reconnects.", `\`#${TerminalSettingId.GpuAcceleration}#\``, `\`#${TerminalSettingId.WindowsUseConptyDll}#\``),
+		markdownDescription: localize('terminal.integrated.enableImages', "Enables image support in the terminal, this will only work when {0} is enabled. Sixel and iTerm's inline image protocol are supported on Linux and macOS. The kitty graphics protocol is supported on all platforms. On Windows, all image protocols will only work for versions of ConPTY >= v2 which is shipped with Windows itself, see also {1}. Images will currently not be restored between window reloads/reconnects. When enabled, transparency mode is also turned on in the terminal.", `\`#${TerminalSettingId.GpuAcceleration}#\``, `\`#${TerminalSettingId.WindowsUseConptyDll}#\``),
 		type: 'boolean',
 		default: false
 	},

@@ -27,6 +27,8 @@ steps:
 
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
     - script: ./scripts/test.sh --build --tfs "Unit Tests"
+      env:
+        VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run unit tests (Electron)
       timeoutInMinutes: 15
     - script: npm run test-node -- --build
@@ -75,6 +77,7 @@ steps:
         ./scripts/test-integration.sh --build --tfs "Integration Tests"
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
+        VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run integration tests (Electron)
       timeoutInMinutes: 20
 
@@ -95,6 +98,7 @@ steps:
         ./scripts/test-remote-integration.sh
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
+        VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run integration tests (Remote)
       timeoutInMinutes: 20
 

@@ -130,7 +130,16 @@ const _themeIconIds = [
 	'symbol-event', 'symbol-operator', 'symbol-type-parameter'
 ];
 
+const _themeIconColorIds = [
+	'symbolIcon.fileForeground', 'symbolIcon.moduleForeground', 'symbolIcon.namespaceForeground', 'symbolIcon.packageForeground', 'symbolIcon.classForeground', 'symbolIcon.methodForeground',
+	'symbolIcon.propertyForeground', 'symbolIcon.fieldForeground', 'symbolIcon.constructorForeground', 'symbolIcon.enumeratorForeground', 'symbolIcon.interfaceForeground',
+	'symbolIcon.functionForeground', 'symbolIcon.variableForeground', 'symbolIcon.constantForeground', 'symbolIcon.stringForeground', 'symbolIcon.numberForeground', 'symbolIcon.booleanForeground',
+	'symbolIcon.arrayForeground', 'symbolIcon.objectForeground', 'symbolIcon.keyForeground', 'symbolIcon.nullForeground', 'symbolIcon.enumeratorMemberForeground', 'symbolIcon.structForeground',
+	'symbolIcon.eventForeground', 'symbolIcon.operatorForeground', 'symbolIcon.typeParameterForeground'
+];
+
 export function getThemeIcon(kind: vscode.SymbolKind): vscode.ThemeIcon | undefined {
 	const id = _themeIconIds[kind];
-	return id ? new vscode.ThemeIcon(id) : undefined;
+	const color = new vscode.ThemeColor(_themeIconColorIds[kind]);
+	return id ? new vscode.ThemeIcon(id, color) : undefined;
 }

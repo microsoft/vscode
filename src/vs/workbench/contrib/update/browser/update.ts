@@ -26,15 +26,18 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, SyncStatus, UserDataSyncStoreType } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
-import { Promises } from '../../../../base/common/async.js';
+import { Promises, Throttler } from '../../../../base/common/async.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { Event } from '../../../../base/common/event.js';
 import { toAction } from '../../../../base/common/actions.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { getInternalOrg } from '../../../../platform/assignment/common/assignment.js';
+import { IVersion, preprocessError, tryParseVersion } from '../common/updateUtils.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
-export const RELEASE_NOTES_URL = new RawContextKey<string>('releaseNotesUrl', '');
-export const DOWNLOAD_URL = new RawContextKey<string>('downloadUrl', '');
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -71,24 +74,79 @@ async function showReleaseNotes(accessor: ServicesAccessor, version: string) {
 	}
 }
 
-interface IVersion {
-	major: number;
-	minor: number;
-	patch: number;
-}
+/**
+ * Appends update-related menu items to the given menu. This registers menu items
+ * for all update states (idle, checking, downloading, etc.) that show the current
+ * update status. The underlying commands (`update.check`, `update.restart`, etc.)
+ * must be registered separately.
+ */
+export function appendUpdateMenuItems(menuId: MenuId, group: string): void {
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.check',
+			title: nls.localize('checkForUpdates', "Check for Updates...")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
+	});
 
-function parseVersion(version: string): IVersion | undefined {
-	const match = /([0-9]+)\.([0-9]+)\.([0-9]+)/.exec(version);
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.checking',
+			title: nls.localize('checkingForUpdates2', "Checking for Updates..."),
+			precondition: ContextKeyExpr.false()
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates)
+	});
 
-	if (!match) {
-		return undefined;
-	}
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.downloadNow',
+			title: nls.localize('download update_1', "Download Update (1)")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
+	});
 
-	return {
-		major: parseInt(match[1]),
-		minor: parseInt(match[2]),
-		patch: parseInt(match[3])
-	};
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.downloading',
+			title: nls.localize('DownloadingUpdate', "Downloading Update..."),
+			precondition: ContextKeyExpr.false()
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.install',
+			title: nls.localize('installUpdate...', "Install Update... (1)")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.updating',
+			title: nls.localize('installingUpdate', "Installing Update..."),
+			precondition: ContextKeyExpr.false()
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		order: 2,
+		command: {
+			id: 'update.restart',
+			title: nls.localize('restartToUpdate', "Restart to Update (1)")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
+	});
 }
 
 function isMajorMinorUpdate(before: IVersion, after: IVersion): boolean {
@@ -108,17 +166,7 @@ export class ProductContribution implements IWorkbenchContribution {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
 		@IProductService productService: IProductService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		if (productService.releaseNotesUrl) {
-			const releaseNotesUrlKey = RELEASE_NOTES_URL.bindTo(contextKeyService);
-			releaseNotesUrlKey.set(productService.releaseNotesUrl);
-		}
-		if (productService.downloadUrl) {
-			const downloadUrlKey = DOWNLOAD_URL.bindTo(contextKeyService);
-			downloadUrlKey.set(productService.downloadUrl);
-		}
-
 		if (isWeb) {
 			return;
 		}
@@ -128,8 +176,12 @@ export class ProductContribution implements IWorkbenchContribution {
 				return;
 			}
 
-			const lastVersion = parseVersion(storageService.get(ProductContribution.KEY, StorageScope.APPLICATION, ''));
-			const currentVersion = parseVersion(productService.version);
+			if (configurationService.getValue<string>('update.titleBar') !== 'none') {
+				return;
+			}
+
+			const lastVersion = tryParseVersion(storageService.get(ProductContribution.KEY, StorageScope.APPLICATION, ''));
+			const currentVersion = tryParseVersion(productService.version);
 			const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
 			const releaseNotesUrl = productService.releaseNotesUrl;
 
@@ -164,6 +216,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	private overwriteNotificationHandle: INotificationHandle | undefined;
 	private updateStateContextKey: IContextKey<string>;
 	private majorMinorUpdateAvailableContextKey: IContextKey<boolean>;
+	private titleBarEnabled: boolean;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -176,12 +229,14 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		@IProductService private readonly productService: IProductService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super();
 		this.state = updateService.state;
 		this.updateStateContextKey = CONTEXT_UPDATE_STATE.bindTo(this.contextKeyService);
 		this.majorMinorUpdateAvailableContextKey = MAJOR_MINOR_UPDATE_AVAILABLE.bindTo(this.contextKeyService);
+		this.titleBarEnabled = this.isTitleBarEnabled();
 
 		this._register(updateService.onStateChange(this.onUpdateStateChange, this));
 		this.onUpdateStateChange(this.updateService.state);
@@ -203,7 +258,26 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			this.storageService.remove('update/updateNotificationTime', StorageScope.APPLICATION);
 		}
 
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('update.titleBar')) {
+				this.titleBarEnabled = this.isTitleBarEnabled();
+				this.onUpdateStateChange(this.updateService.state);
+			}
+		}));
+
+		this._register(this.layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.TITLEBAR_PART) {
+				this.titleBarEnabled = this.isTitleBarEnabled();
+				this.onUpdateStateChange(this.updateService.state);
+			}
+		}));
+
 		this.registerGlobalActivityActions();
+	}
+
+	private isTitleBarEnabled(): boolean {
+		return this.configurationService.getValue<string>('update.titleBar') !== 'none'
+			&& this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow);
 	}
 
 	private async onUpdateStateChange(state: UpdateState): Promise<void> {
@@ -211,7 +285,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		switch (state.type) {
 			case StateType.Disabled:
-				if (state.reason === DisablementReason.RunningAsAdmin) {
+				if (!this.titleBarEnabled && state.reason === DisablementReason.RunningAsAdmin) {
 					this.notificationService.notify({
 						severity: Severity.Info,
 						message: nls.localize('update service disabled', "Updates are disabled because you are running the user-scope installation of {0} as Administrator.", this.productService.nameLong),
@@ -252,8 +326,8 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			case StateType.Ready: {
 				const productVersion = state.update.productVersion;
 				if (productVersion) {
-					const currentVersion = parseVersion(this.productService.version);
-					const nextVersion = parseVersion(productVersion);
+					const currentVersion = tryParseVersion(this.productService.version);
+					const nextVersion = tryParseVersion(productVersion);
 					this.majorMinorUpdateAvailableContextKey.set(Boolean(currentVersion && nextVersion && isMajorMinorUpdate(currentVersion, nextVersion)));
 				}
 				this.onUpdateReady(state);
@@ -263,14 +337,16 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		let badge: IBadge | undefined = undefined;
 
-		if (state.type === StateType.AvailableForDownload || state.type === StateType.Downloaded || state.type === StateType.Ready) {
-			badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", this.productService.nameShort));
-		} else if (state.type === StateType.CheckingForUpdates) {
-			badge = new ProgressBadge(() => nls.localize('checkingForUpdates', "Checking for {0} updates...", this.productService.nameShort));
-		} else if (state.type === StateType.Downloading || state.type === StateType.Overwriting) {
-			badge = new ProgressBadge(() => nls.localize('downloading', "Downloading {0} update...", this.productService.nameShort));
-		} else if (state.type === StateType.Updating) {
-			badge = new ProgressBadge(() => nls.localize('updating', "Updating {0}...", this.productService.nameShort));
+		if (!this.titleBarEnabled) {
+			if (state.type === StateType.AvailableForDownload || state.type === StateType.Downloaded || state.type === StateType.Ready) {
+				badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", this.productService.nameShort));
+			} else if (state.type === StateType.CheckingForUpdates) {
+				badge = new ProgressBadge(() => nls.localize('checkingForUpdates', "Checking for {0} updates...", this.productService.nameShort));
+			} else if (state.type === StateType.Downloading || state.type === StateType.Overwriting) {
+				badge = new ProgressBadge(() => nls.localize('downloading', "Downloading {0} update...", this.productService.nameShort));
+			} else if (state.type === StateType.Updating) {
+				badge = new ProgressBadge(() => nls.localize('updating', "Updating {0}...", this.productService.nameShort));
+			}
 		}
 
 		this.badgeDisposable.clear();
@@ -283,25 +359,34 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private onError(error: string): void {
-		if (/The request timed out|The network connection was lost/i.test(error)) {
+		if (this.titleBarEnabled) {
 			return;
 		}
 
-		error = error.replace(/See https:\/\/github\.com\/Squirrel\/Squirrel\.Mac\/issues\/182 for more information/, 'This might mean the application was put on quarantine by macOS. See [this link](https://github.com/microsoft/vscode/issues/7426#issuecomment-425093469) for more information');
-
-		this.notificationService.notify({
-			severity: Severity.Error,
-			message: error,
-			source: nls.localize('update service', "Update Service"),
-		});
+		const processedError = preprocessError(error);
+		if (processedError) {
+			this.notificationService.notify({
+				severity: Severity.Error,
+				message: processedError,
+				source: nls.localize('update service', "Update Service"),
+			});
+		}
 	}
 
 	private onUpdateNotAvailable(): void {
+		if (this.titleBarEnabled) {
+			return;
+		}
+
 		this.dialogService.info(nls.localize('noUpdatesAvailable', "There are currently no updates available."));
 	}
 
 	// linux
 	private onUpdateAvailable(update: IUpdate): void {
+		if (this.titleBarEnabled) {
+			return;
+		}
+
 		if (!this.shouldShowNotification()) {
 			return;
 		}
@@ -316,7 +401,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			nls.localize('thereIsUpdateAvailable', "There is an available update."),
 			[{
 				label: nls.localize('download update', "Download Update"),
-				run: () => this.updateService.downloadUpdate()
+				run: () => this.updateService.downloadUpdate(true)
 			}, {
 				label: nls.localize('later', "Later"),
 				run: () => { }
@@ -332,6 +417,10 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 	// windows fast updates
 	private onUpdateDownloaded(update: IUpdate): void {
+		if (this.titleBarEnabled) {
+			return;
+		}
+
 		if (isMacintosh) {
 			return;
 		}
@@ -369,6 +458,12 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 	// windows and mac
 	private onUpdateReady(state: Ready): void {
+		if (this.titleBarEnabled) {
+			this.overwriteNotificationHandle?.progress.done();
+			this.overwriteNotificationHandle = undefined;
+			return;
+		}
+
 		if (state.overwrite && this.overwriteNotificationHandle) {
 			const handle = this.overwriteNotificationHandle;
 			this.overwriteNotificationHandle = undefined;
@@ -385,41 +480,52 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 					})
 				]
 			});
-		} else if ((isWindows && this.productService.target !== 'user') || this.shouldShowNotification()) {
-
-			const actions = [{
-				label: nls.localize('updateNow', "Update Now"),
-				run: () => this.updateService.quitAndInstall()
-			}, {
-				label: nls.localize('later', "Later"),
-				run: () => { }
-			}];
-
-			const productVersion = state.update.productVersion;
-			if (productVersion) {
-				actions.push({
-					label: nls.localize('releaseNotes', "Release Notes"),
-					run: () => {
-						this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
-					}
-				});
+		} else {
+			// Dismiss stale overwrite notification if the overwrite resolved without finding a newer update.
+			if (this.overwriteNotificationHandle) {
+				this.overwriteNotificationHandle.close();
+				this.overwriteNotificationHandle = undefined;
 			}
 
-			// windows user fast updates and mac
-			this.notificationService.prompt(
-				severity.Info,
-				nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", this.productService.nameLong),
-				actions,
-				{
-					sticky: true,
-					priority: NotificationPriority.OPTIONAL
+			if ((isWindows && this.productService.target !== 'user') || this.shouldShowNotification()) {
+				const actions = [{
+					label: nls.localize('updateNow', "Update Now"),
+					run: () => this.updateService.quitAndInstall()
+				}, {
+					label: nls.localize('later', "Later"),
+					run: () => { }
+				}];
+
+				const productVersion = state.update.productVersion;
+				if (productVersion) {
+					actions.push({
+						label: nls.localize('releaseNotes', "Release Notes"),
+						run: () => {
+							this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
+						}
+					});
 				}
-			);
+
+				// windows user fast updates and mac
+				this.notificationService.prompt(
+					severity.Info,
+					nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", this.productService.nameLong),
+					actions,
+					{
+						sticky: true,
+						priority: NotificationPriority.OPTIONAL
+					}
+				);
+			}
 		}
 	}
 
 	// macOS overwrite update - overwriting
 	private onUpdateOverwriting(state: Overwriting): void {
+		if (this.titleBarEnabled) {
+			return;
+		}
+
 		if (!state.explicit) {
 			return;
 		}
@@ -454,67 +560,17 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 	private registerGlobalActivityActions(): void {
 		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(true));
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.check',
-				title: nls.localize('checkForUpdates', "Check for Updates...")
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
-		});
-
 		CommandsRegistry.registerCommand('update.checking', () => { });
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.checking',
-				title: nls.localize('checkingForUpdates2', "Checking for Updates..."),
-				precondition: ContextKeyExpr.false()
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates)
-		});
-
-		CommandsRegistry.registerCommand('update.downloadNow', () => this.updateService.downloadUpdate());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.downloadNow',
-				title: nls.localize('download update_1', "Download Update (1)")
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
-		});
-
+		CommandsRegistry.registerCommand('update.downloadNow', () => this.updateService.downloadUpdate(true));
 		CommandsRegistry.registerCommand('update.downloading', () => { });
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.downloading',
-				title: nls.localize('DownloadingUpdate', "Downloading Update..."),
-				precondition: ContextKeyExpr.false()
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading)
-		});
-
 		CommandsRegistry.registerCommand('update.install', () => this.updateService.applyUpdate());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.install',
-				title: nls.localize('installUpdate...', "Install Update... (1)")
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
+		CommandsRegistry.registerCommand('update.updating', () => { });
+		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
+		CommandsRegistry.registerCommand('_update.state', () => {
+			return this.state;
 		});
 
-		CommandsRegistry.registerCommand('update.updating', () => { });
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.updating',
-				title: nls.localize('installingUpdate', "Installing Update..."),
-				precondition: ContextKeyExpr.false()
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating)
-		});
+		appendUpdateMenuItems(MenuId.GlobalActivity, '7_update');
 
 		if (this.productService.quality === 'stable') {
 			CommandsRegistry.registerCommand('update.showUpdateReleaseNotes', () => {
@@ -538,21 +594,6 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				when: ContextKeyExpr.and(CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready), MAJOR_MINOR_UPDATE_AVAILABLE)
 			});
 		}
-
-		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			order: 2,
-			command: {
-				id: 'update.restart',
-				title: nls.localize('restartToUpdate', "Restart to Update (1)")
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
-		});
-
-		CommandsRegistry.registerCommand('_update.state', () => {
-			return this.state;
-		});
 	}
 }
 
@@ -670,6 +711,60 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 					return result;
 				}
 			}));
+		}
+	}
+}
+
+export class DefaultAccountUpdateContribution extends Disposable implements IWorkbenchContribution {
+
+	private static readonly STORAGE_KEY = 'update/internalOrg';
+	#internalOrg: string | undefined = undefined;
+	private throttler: Throttler = this._register(new Throttler());
+
+	constructor(
+		@IUpdateService private readonly updateService: IUpdateService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IStorageService private readonly storageService: IStorageService
+	) {
+		super();
+
+		if (isWeb) {
+			return; // Electron only
+		}
+
+		this.#internalOrg = this.storageService.get(DefaultAccountUpdateContribution.STORAGE_KEY, StorageScope.APPLICATION, undefined);
+		this.throttler.queue(() => this.updateService.setInternalOrg(this.#internalOrg));
+
+		// Check on startup
+		this.refresh();
+
+		// Listen for account changes
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.refresh()));
+	}
+
+	private refresh(): void {
+		this.throttler.queue(() => this.doRefresh());
+	}
+
+	private async doRefresh(): Promise<void> {
+		try {
+			const defaultAccount = await this.defaultAccountService.getDefaultAccount();
+			const internalOrg = getInternalOrg(defaultAccount?.entitlementsData?.organization_login_list);
+
+			if (internalOrg === this.#internalOrg) {
+				return;
+			}
+
+			this.#internalOrg = internalOrg;
+			await this.updateService.setInternalOrg(this.#internalOrg);
+
+			if (this.#internalOrg) {
+				this.storageService.store(DefaultAccountUpdateContribution.STORAGE_KEY, internalOrg, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			} else {
+				this.storageService.remove(DefaultAccountUpdateContribution.STORAGE_KEY, StorageScope.APPLICATION);
+			}
+		} catch (error) {
+			// Silently ignore errors - if we can't get the account, we don't disable background updates
 		}
 	}
 }

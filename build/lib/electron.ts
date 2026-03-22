@@ -109,6 +109,7 @@ export const config = {
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
 	copyright: 'Copyright (C) 2026 Microsoft. All rights reserved',
+	darwinExecutable: product.nameShort,
 	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
@@ -228,15 +229,9 @@ function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 }
 
 async function main(arch: string = process.arch): Promise<void> {
-	const version = electronVersion;
 	const electronPath = path.join(root, '.build', 'electron');
-	const versionFile = path.join(electronPath, versionedResourcesFolder, 'version');
-	const isUpToDate = fs.existsSync(versionFile) && fs.readFileSync(versionFile, 'utf8') === `${version}`;
-
-	if (!isUpToDate) {
-		await util.rimraf(electronPath)();
-		await util.streamToPromise(getElectron(arch)());
-	}
+	await util.rimraf(electronPath)();
+	await util.streamToPromise(getElectron(arch)());
 }
 
 if (import.meta.main) {

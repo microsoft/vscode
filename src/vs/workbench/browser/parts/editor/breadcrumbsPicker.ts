@@ -17,7 +17,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { FileKind, FileSystemProviderCapabilities, IFileService, IFileStat } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchDataTree, WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
-import { breadcrumbsPickerBackground, widgetBorder, widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
+import { breadcrumbsPickerBackground, widgetBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { isWorkspace, isWorkspaceFolder, IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from '../../labels.js';
 import { BreadcrumbsConfig } from './breadcrumbs.js';
@@ -96,7 +96,7 @@ export abstract class BreadcrumbsPicker<TInput, TElement> {
 		this._treeContainer.style.background = color ? color.toString() : '';
 		this._treeContainer.style.paddingTop = '2px';
 		this._treeContainer.style.borderRadius = '3px';
-		this._treeContainer.style.boxShadow = `0 0 8px 2px ${this._themeService.getColorTheme().getColor(widgetShadow)}`;
+		this._treeContainer.style.boxShadow = 'var(--vscode-shadow-lg)';
 		this._treeContainer.style.border = `1px solid ${this._themeService.getColorTheme().getColor(widgetBorder)}`;
 		this._domNode.appendChild(this._treeContainer);
 

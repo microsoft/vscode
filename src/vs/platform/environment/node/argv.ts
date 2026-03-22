@@ -45,7 +45,7 @@ export type OptionDescriptions<T> = {
 	Subcommand<T[P]>
 };
 
-export const NATIVE_CLI_COMMANDS = ['tunnel', 'serve-web'] as const;
+export const NATIVE_CLI_COMMANDS = ['tunnel', 'serve-web', 'agent-host'] as const;
 
 export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'chat': {
@@ -65,6 +65,15 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'serve-web': {
 		type: 'subcommand',
 		description: 'Run a server that displays the editor UI in browsers.',
+		options: {
+			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
+			'disable-telemetry': { type: 'boolean' },
+			'telemetry-level': { type: 'string' },
+		}
+	},
+	'agent-host': {
+		type: 'subcommand',
+		description: 'Run a server that hosts agents.',
 		options: {
 			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
 			'disable-telemetry': { type: 'boolean' },
@@ -99,6 +108,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'goto': { type: 'boolean', cat: 'o', alias: 'g', args: 'file:line[:character]', description: localize('goto', "Open a file at the path on the specified line and character position.") },
 	'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindow', "Force to open a new window.") },
 	'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindow', "Force to open a file or folder in an already opened window.") },
+	'sessions': { type: 'boolean', cat: 'o', description: localize('sessions', "Opens the sessions window.") },
 	'wait': { type: 'boolean', cat: 'o', alias: 'w', description: localize('wait', "Wait for the files to be closed before returning.") },
 	'waitMarkerFilePath': { type: 'string' },
 	'locale': { type: 'string', cat: 'o', args: 'locale', description: localize('locale', "The locale to use (e.g. en-US or zh-TW).") },
@@ -157,14 +167,18 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'debugRenderer': { type: 'boolean' },
 	'inspect-ptyhost': { type: 'string', allowEmptyValue: true },
 	'inspect-brk-ptyhost': { type: 'string', allowEmptyValue: true },
+	'inspect-agenthost': { type: 'string', allowEmptyValue: true },
+	'inspect-brk-agenthost': { type: 'string', allowEmptyValue: true },
 	'inspect-search': { type: 'string', deprecates: ['debugSearch'], allowEmptyValue: true },
 	'inspect-brk-search': { type: 'string', deprecates: ['debugBrkSearch'], allowEmptyValue: true },
 	'inspect-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'inspect-brk-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'export-default-configuration': { type: 'string' },
 	'export-policy-data': { type: 'string', allowEmptyValue: true },
+	'export-default-keybindings': { type: 'string', allowEmptyValue: true },
 	'install-source': { type: 'string' },
 	'enable-smoke-test-driver': { type: 'boolean' },
+	'skip-sessions-welcome': { type: 'boolean' },
 	'logExtensionHostCommunication': { type: 'boolean' },
 	'skip-release-notes': { type: 'boolean' },
 	'skip-welcome': { type: 'boolean' },

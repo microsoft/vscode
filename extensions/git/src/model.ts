@@ -12,7 +12,7 @@ import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fromGitUri } from './uri';
-import { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher, PostCommitCommandsProvider, BranchProtectionProvider, SourceControlHistoryItemDetailsProvider } from './api/git';
+import type { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher, PostCommitCommandsProvider, BranchProtectionProvider, SourceControlHistoryItemDetailsProvider } from './api/git';
 import { Askpass } from './askpass';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
@@ -290,6 +290,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		this._unsafeRepositoriesManager = new UnsafeRepositoriesManager();
 
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
+		workspace.onDidChangeWorkspaceTrustedFolders(this.onDidChangeWorkspaceTrustedFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
 		window.onDidChangeActiveTextEditor(this.onDidChangeActiveTextEditor, this, this.disposables);
 		workspace.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
@@ -488,6 +489,27 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		}
 	}
 
+	private async onDidChangeWorkspaceTrustedFolders(): Promise<void> {
+		try {
+			const openRepositoriesToDispose: OpenRepository[] = [];
+
+			for (const openRepository of this.openRepositories) {
+				const dotGitPath = openRepository.repository.dotGit.commonPath ?? openRepository.repository.dotGit.path;
+				const isTrusted = await workspace.isResourceTrusted(Uri.file(path.dirname(dotGitPath)));
+
+				if (!isTrusted) {
+					openRepositoriesToDispose.push(openRepository);
+					this.logger.trace(`[Model][onDidChangeWorkspaceTrustedFolders] Repository is no longer trusted: ${openRepository.repository.root}`);
+				}
+			}
+
+			openRepositoriesToDispose.forEach(r => r.dispose());
+		}
+		catch (err) {
+			this.logger.warn(`[Model][onDidChangeWorkspaceTrustedFolders] Error: ${err}`);
+		}
+	}
+
 	private onDidChangeConfiguration(): void {
 		const possibleRepositoryFolders = (workspace.workspaceFolders || [])
 			.filter(folder => workspace.getConfiguration('git', folder.uri).get<boolean>('enabled') === true)
@@ -572,7 +594,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	@sequentialize
-	async openRepository(repoPath: string, openIfClosed = false): Promise<void> {
+	async openRepository(repoPath: string, openIfClosed = false, openIfParent = false): Promise<void> {
 		this.logger.trace(`[Model][openRepository] Repository: ${repoPath}`);
 		const existingRepository = await this.getRepositoryExact(repoPath);
 		if (existingRepository) {
@@ -607,7 +629,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			const parentRepositoryConfig = config.get<'always' | 'never' | 'prompt'>('openRepositoryInParentFolders', 'prompt');
 			if (parentRepositoryConfig !== 'always' && this.globalState.get<boolean>(`parentRepository:${repositoryRoot}`) !== true) {
 				const isRepositoryOutsideWorkspace = await this.isRepositoryOutsideWorkspace(repositoryRoot);
-				if (isRepositoryOutsideWorkspace) {
+				if (!openIfParent && isRepositoryOutsideWorkspace) {
 					this.logger.trace(`[Model][openRepository] Repository in parent folder: ${repositoryRoot}`);
 
 					if (!this._parentRepositoriesManager.hasRepository(repositoryRoot)) {
@@ -646,14 +668,15 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			// Get .git path and real path
 			const [dotGit, repositoryRootRealPath] = await Promise.all([this.git.getRepositoryDotGit(repositoryRoot), this.getRepositoryRootRealPath(repositoryRoot)]);
 
-			// Check that the location of the .git folder is trusted
+			// Check that the folder containing the .git folder is trusted
+			const dotGitPath = dotGit.commonPath ?? dotGit.path;
 			const result = await workspace.requestResourceTrust({
 				message: l10n.t('You are opening a repository from a location that is not trusted. Do you trust the authors of the files in the repository you are opening?'),
-				uri: Uri.file(dotGit.commonPath ?? dotGit.path),
+				uri: Uri.file(path.dirname(dotGitPath)),
 			} satisfies ResourceTrustRequestOptions);
 
 			if (!result) {
-				this.logger.trace(`[Model][openRepository] Repository folder is not trusted: ${repoPath}`);
+				this.logger.trace(`[Model][openRepository] Repository folder is not trusted: ${path.dirname(dotGitPath)}`);
 				return;
 			}
 
@@ -1089,6 +1112,11 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	private async isRepositoryOutsideWorkspace(repositoryPath: string): Promise<boolean> {
 		// Allow opening repositories in the empty workspace
 		if (workspace.workspaceFolders === undefined) {
+			return false;
+		}
+
+		// Allow opening repositories in the agent session workspace
+		if (workspace.isAgentSessionsWorkspace) {
 			return false;
 		}
 

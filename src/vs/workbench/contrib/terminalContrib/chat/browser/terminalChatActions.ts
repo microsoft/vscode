@@ -14,7 +14,6 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/k
 import { ChatViewId, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
-import { LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../chat/common/constants.js';
 
 import { isDetachedTerminalInstance, ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
@@ -336,7 +335,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
 		const groupService = accessor.get(ITerminalGroupService);
 		const editorService = accessor.get(ITerminalEditorService);
@@ -360,6 +359,20 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			}
 		}
 
+		// If there are no hidden terminals, return early
+		if (all.size === 0) {
+			return;
+		}
+
+		// If there's only one hidden terminal, show it directly without the quick pick
+		if (all.size === 1) {
+			const instance = Array.from(all.values())[0];
+			terminalService.setActiveInstance(instance);
+			await terminalService.revealTerminal(instance);
+			await terminalService.focusInstance(instance);
+			return;
+		}
+
 		const items: IQuickPickItem[] = [];
 		interface IItemMeta {
 			label: string;
@@ -378,10 +391,11 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			const lastCommand = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands.at(-1)?.command;
 
 			// Get the chat session title
-			const chatSessionId = terminalChatService.getChatSessionIdForInstance(instance);
+			const chatSessionResource = terminalChatService.getChatSessionResourceForInstance(instance);
 			let chatSessionTitle: string | undefined;
-			if (chatSessionId) {
-				chatSessionTitle = chatService.getSessionTitle(LocalChatSessionUri.forSession(chatSessionId));
+			if (chatSessionResource) {
+				const liveTitle = chatService.getSession(chatSessionResource)?.title;
+				chatSessionTitle = liveTitle ?? chatService.getSessionTitle(chatSessionResource);
 			}
 
 			const description = chatSessionTitle;
@@ -464,7 +478,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: TerminalChatCommandId.FocusMostRecentChatTerminal,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ChatContextKeys.inChatSession,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyT,
 	handler: async (accessor: ServicesAccessor) => {
 		const terminalChatService = accessor.get(ITerminalChatService);
 		const part = terminalChatService.getMostRecentProgressPart();

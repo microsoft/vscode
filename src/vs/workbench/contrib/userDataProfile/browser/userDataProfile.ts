@@ -26,7 +26,7 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/edit
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { UserDataProfilesEditor, UserDataProfilesEditorInput, UserDataProfilesEditorInputSerializer } from './userDataProfilesEditor.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IUserDataProfilesEditor } from '../common/userDataProfile.js';
@@ -35,7 +35,6 @@ import { IBrowserWorkbenchEnvironmentService } from '../../../services/environme
 import { Extensions as DndExtensions, IDragAndDropContributionRegistry, IResourceDropHandler } from '../../../../platform/dnd/browser/dnd.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITextEditorService } from '../../../services/textfile/common/textEditorService.js';
-import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
 
 export const OpenProfileMenu = new MenuId('OpenProfile');
 const ProfilesMenu = new MenuId('Profiles');
@@ -56,7 +55,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IURLService private readonly urlService: IURLService,
@@ -108,7 +107,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	}
 
 	private async openProfilesEditor(): Promise<IUserDataProfilesEditor | undefined> {
-		const editor = await this.editorGroupsService.activeGroup.openEditor(new UserDataProfilesEditorInput(this.instantiationService));
+		const editor = await this.editorService.openEditor(new UserDataProfilesEditorInput(this.instantiationService));
 		return editor as IUserDataProfilesEditor;
 	}
 
@@ -133,14 +132,14 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			async handleDrop(resource: URI, accessor: ServicesAccessor): Promise<boolean> {
 				const uriIdentityService = accessor.get(IUriIdentityService);
 				const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
-				const editorGroupsService = accessor.get(IEditorGroupsService);
+				const editorService = accessor.get(IEditorService);
 				const textEditorService = accessor.get(ITextEditorService);
 				const notificationService = accessor.get(INotificationService);
 				if (uriIdentityService.extUri.extname(resource) === `.${PROFILE_EXTENSION}`) {
 					const template = await userDataProfileImportExportService.resolveProfileTemplate(resource);
 					if (!template) {
 						notificationService.warn(localize('invalid profile', "The dropped profile is invalid."));
-						editorGroupsService.activeGroup.openEditor(textEditorService.createTextEditor({ resource }));
+						editorService.openEditor(textEditorService.createTextEditor({ resource }));
 						return true;
 					}
 					const editor = await that.openProfilesEditor();
@@ -285,10 +284,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const disposables = new DisposableStore();
 
 		const id = `workbench.action.openProfile.${profile.name.replace('/\s+/', '_')}`;
-		let precondition: ContextKeyExpression | undefined = HAS_PROFILES_CONTEXT;
-		if (profile.id === 'agent-sessions') {
-			precondition = ContextKeyExpr.and(precondition, ChatEntitlementContextKeys.Setup.hidden.negate());
-		}
+		const precondition: ContextKeyExpression | undefined = HAS_PROFILES_CONTEXT;
 
 		disposables.add(registerAction2(class NewWindowAction extends Action2 {
 
@@ -390,9 +386,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				const editorGroupsService = accessor.get(IEditorGroupsService);
+				const editorService = accessor.get(IEditorService);
 				const instantiationService = accessor.get(IInstantiationService);
-				return editorGroupsService.activeGroup.openEditor(new UserDataProfilesEditorInput(instantiationService));
+				return editorService.openEditor(new UserDataProfilesEditorInput(instantiationService));
 			}
 		}));
 		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {

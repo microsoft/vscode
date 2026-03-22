@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import type * as vscode from 'vscode';
 import { asArray } from '../../../base/common/arrays.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -14,7 +12,7 @@ import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { Mimes } from '../../../base/common/mime.js';
 import { nextCharLength } from '../../../base/common/strings.js';
 import { isNumber, isObject, isString, isStringArray } from '../../../base/common/types.js';
-import { URI } from '../../../base/common/uri.js';
+import { isUriComponents, URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { TextEditorSelectionSource } from '../../../platform/editor/common/editor.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
@@ -32,6 +30,7 @@ import { SnippetString } from './extHostTypes/snippetString.js';
 import { SymbolKind, SymbolTag } from './extHostTypes/symbolInformation.js';
 import { TextEdit } from './extHostTypes/textEdit.js';
 import { WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
+import { HookTypeValue } from '../../contrib/chat/common/promptSyntax/hookTypes.js';
 
 export { CodeActionKind } from './extHostTypes/codeActionKind.js';
 export {
@@ -1274,6 +1273,12 @@ export enum ShellQuoting {
 export enum TaskScope {
 	Global = 1,
 	Workspace = 2
+}
+
+export enum TaskRunOn {
+	Default = 1,
+	FolderOpen = 2,
+	WorktreeCreated = 3,
 }
 
 export class CustomExecution implements vscode.CustomExecution {
@@ -3175,6 +3180,19 @@ export class McpToolInvocationContentData {
 	}
 }
 
+export class ChatSubagentToolInvocationData {
+	description?: string;
+	agentName?: string;
+	prompt?: string;
+	result?: string;
+	constructor(description?: string, agentName?: string, prompt?: string, result?: string) {
+		this.description = description;
+		this.agentName = agentName;
+		this.prompt = prompt;
+		this.result = result;
+	}
+}
+
 export class ChatResponseExternalEditPart {
 	applied: Thenable<string>;
 	didGetApplied!: (value: string) => void;
@@ -3227,6 +3245,19 @@ export class ChatResponseThinkingProgressPart {
 	constructor(value: string | string[], id?: string, metadata?: { readonly [key: string]: any }) {
 		this.value = value;
 		this.id = id;
+		this.metadata = metadata;
+	}
+}
+
+export class ChatResponseHookPart {
+	hookType: HookTypeValue;
+	stopReason?: string;
+	systemMessage?: string;
+	metadata?: { readonly [key: string]: unknown };
+	constructor(hookType: HookTypeValue, stopReason?: string, systemMessage?: string, metadata?: { readonly [key: string]: unknown }) {
+		this.hookType = hookType;
+		this.stopReason = stopReason;
+		this.systemMessage = systemMessage;
 		this.metadata = metadata;
 	}
 }
@@ -3298,13 +3329,26 @@ export class ChatResponseExtensionsPart {
 }
 
 export class ChatResponsePullRequestPart {
+	public readonly uri?: vscode.Uri;
+	public readonly command: vscode.Command;
+
 	constructor(
-		public readonly uri: vscode.Uri,
+		uriOrCommand: vscode.Uri | vscode.Command,
 		public readonly title: string,
 		public readonly description: string,
 		public readonly author: string,
 		public readonly linkTag: string
 	) {
+		if (isUriComponents(uriOrCommand)) {
+			this.uri = uriOrCommand as vscode.Uri;
+			this.command = {
+				title: 'Open Pull Request',
+				command: 'vscode.open',
+				arguments: [uriOrCommand]
+			};
+		} else {
+			this.command = uriOrCommand;
+		}
 	}
 
 	toJSON() {
@@ -3441,10 +3485,22 @@ export interface ChatTerminalToolInvocationData2 {
 	language: string;
 }
 
+export enum ChatTodoStatus {
+	NotStarted = 1,
+	InProgress = 2,
+	Completed = 3
+}
+
+export enum ChatDebugSubagentStatus {
+	Running = 0,
+	Completed = 1,
+	Failed = 2
+}
+
 export class ChatToolInvocationPart {
 	toolName: string;
 	toolCallId: string;
-	isError?: boolean;
+	errorMessage?: string;
 	invocationMessage?: string | vscode.MarkdownString;
 	originMessage?: string | vscode.MarkdownString;
 	pastTenseMessage?: string | vscode.MarkdownString;
@@ -3457,10 +3513,10 @@ export class ChatToolInvocationPart {
 
 	constructor(toolName: string,
 		toolCallId: string,
-		isError?: boolean) {
+		errorMessage?: string) {
 		this.toolName = toolName;
 		this.toolCallId = toolCallId;
-		this.isError = isError;
+		this.errorMessage = errorMessage;
 	}
 }
 
@@ -3472,7 +3528,8 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 		readonly participant: string,
 		readonly toolReferences: vscode.ChatLanguageModelToolReference[],
 		readonly editedFileEvents?: vscode.ChatRequestEditedFileEvent[],
-		readonly id?: string
+		readonly id?: string,
+		readonly modelId?: string,
 	) { }
 }
 
@@ -3506,7 +3563,219 @@ export enum ChatLocation {
 export enum ChatSessionStatus {
 	Failed = 0,
 	Completed = 1,
-	InProgress = 2
+	InProgress = 2,
+	NeedsInput = 3
+}
+
+export enum ChatDebugLogLevel {
+	Trace = 0,
+	Info = 1,
+	Warning = 2,
+	Error = 3
+}
+
+export enum ChatDebugToolCallResult {
+	Success = 0,
+	Error = 1
+}
+
+export enum ChatDebugHookResult {
+	Success = 0,
+	Error = 1,
+	NonBlockingError = 2
+}
+
+export class ChatDebugToolCallEvent {
+	readonly _kind = 'toolCall';
+	id?: string;
+	sessionResource?: vscode.Uri;
+	created: Date;
+	parentEventId?: string;
+	toolName: string;
+	toolCallId?: string;
+	input?: string;
+	output?: string;
+	result?: ChatDebugToolCallResult;
+	durationInMillis?: number;
+
+	constructor(toolName: string, created: Date) {
+		this.toolName = toolName;
+		this.created = created;
+	}
+}
+
+export class ChatDebugModelTurnEvent {
+	readonly _kind = 'modelTurn';
+	id?: string;
+	sessionResource?: vscode.Uri;
+	created: Date;
+	parentEventId?: string;
+	model?: string;
+	inputTokens?: number;
+	outputTokens?: number;
+	totalTokens?: number;
+	cost?: number;
+	durationInMillis?: number;
+
+	constructor(created: Date) {
+		this.created = created;
+	}
+}
+
+export class ChatDebugGenericEvent {
+	readonly _kind = 'generic';
+	id?: string;
+	sessionResource?: vscode.Uri;
+	created: Date;
+	parentEventId?: string;
+	name: string;
+	details?: string;
+	level: ChatDebugLogLevel;
+	category?: string;
+
+	constructor(name: string, level: ChatDebugLogLevel, created: Date) {
+		this.name = name;
+		this.level = level;
+		this.created = created;
+	}
+}
+
+export class ChatDebugSubagentInvocationEvent {
+	readonly _kind = 'subagentInvocation';
+	id?: string;
+	sessionResource?: vscode.Uri;
+	created: Date;
+	parentEventId?: string;
+	agentName: string;
+	description?: string;
+	status?: ChatDebugSubagentStatus;
+	durationInMillis?: number;
+	toolCallCount?: number;
+	modelTurnCount?: number;
+
+	constructor(agentName: string, created: Date) {
+		this.agentName = agentName;
+		this.created = created;
+	}
+}
+
+export class ChatDebugMessageSection {
+	name: string;
+	content: string;
+
+	constructor(name: string, content: string) {
+		this.name = name;
+		this.content = content;
+	}
+}
+
+export class ChatDebugUserMessageEvent {
+	readonly _kind = 'userMessage';
+	id?: string;
+	sessionResource?: vscode.Uri;
+	created: Date;
+	parentEventId?: string;
+	message: string;
+	sections: ChatDebugMessageSection[];
+
+	constructor(message: string, created: Date) {
+		this.message = message;
+		this.created = created;
+		this.sections = [];
+	}
+}
+
+export class ChatDebugAgentResponseEvent {
+	readonly _kind = 'agentResponse';
+	id?: string;
+	sessionResource?: vscode.Uri;
+	created: Date;
+	parentEventId?: string;
+	message: string;
+	sections: ChatDebugMessageSection[];
+
+	constructor(message: string, created: Date) {
+		this.message = message;
+		this.created = created;
+		this.sections = [];
+	}
+}
+
+export class ChatDebugEventTextContent {
+	readonly _kind = 'text';
+	value: string;
+
+	constructor(value: string) {
+		this.value = value;
+	}
+}
+
+export enum ChatDebugMessageContentType {
+	User = 0,
+	Agent = 1
+}
+
+export class ChatDebugEventMessageContent {
+	readonly _kind = 'messageContent';
+	type: ChatDebugMessageContentType;
+	message: string;
+	sections: ChatDebugMessageSection[];
+
+	constructor(type: ChatDebugMessageContentType, message: string, sections: ChatDebugMessageSection[]) {
+		this.type = type;
+		this.message = message;
+		this.sections = sections;
+	}
+}
+
+export class ChatDebugEventToolCallContent {
+	readonly _kind = 'toolCallContent';
+	toolName: string;
+	result?: ChatDebugToolCallResult;
+	durationInMillis?: number;
+	input?: string;
+	output?: string;
+
+	constructor(toolName: string) {
+		this.toolName = toolName;
+	}
+}
+
+export class ChatDebugEventModelTurnContent {
+	readonly _kind = 'modelTurnContent';
+	requestName: string;
+	model?: string;
+	status?: string;
+	durationInMillis?: number;
+	timeToFirstTokenInMillis?: number;
+	maxInputTokens?: number;
+	maxOutputTokens?: number;
+	inputTokens?: number;
+	outputTokens?: number;
+	cachedTokens?: number;
+	totalTokens?: number;
+	errorMessage?: string;
+	sections?: ChatDebugMessageSection[];
+
+	constructor(requestName: string) {
+		this.requestName = requestName;
+	}
+}
+
+export class ChatDebugEventHookContent {
+	readonly _kind = 'hookContent';
+	hookType: string;
+	command?: string;
+	result?: ChatDebugHookResult;
+	durationInMillis?: number;
+	input?: string;
+	output?: string;
+	exitCode?: number;
+	errorMessage?: string;
+
+	constructor(hookType: string) {
+		this.hookType = hookType;
+	}
 }
 
 export class ChatSessionChangedFile {

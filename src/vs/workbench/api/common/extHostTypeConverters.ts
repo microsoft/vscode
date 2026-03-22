@@ -6,6 +6,7 @@
 import type * as vscode from 'vscode';
 import { asArray, coalesce, isNonEmptyArray } from '../../../base/common/arrays.js';
 import { VSBuffer, encodeBase64 } from '../../../base/common/buffer.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
 import { IDataTransferFile, IDataTransferItem, UriList } from '../../../base/common/dataTransfer.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import * as htmlContent from '../../../base/common/htmlContent.js';
@@ -16,6 +17,7 @@ import { parse, revive } from '../../../base/common/marshalling.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { Mimes } from '../../../base/common/mime.js';
 import { cloneAndChange } from '../../../base/common/objects.js';
+import { OS } from '../../../base/common/platform.js';
 import { IPrefixTreeNode, WellDefinedPrefixTree } from '../../../base/common/prefixTree.js';
 import { basename } from '../../../base/common/resources.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
@@ -41,10 +43,12 @@ import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IChatRequestModeInstructions } from '../../contrib/chat/common/model/chatModel.js';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTerminalToolInvocationData, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService/chatService.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatExternalToolInvocationUpdate, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTerminalToolInvocationData, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
+import { ChatSessionStatus, IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
+import { ChatRequestHooks, IHookCommand, resolveEffectiveCommand } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
 import { IToolInvocationContext, IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
@@ -2668,7 +2672,7 @@ export namespace ChatResponseQuestionCarouselPart {
 				type: questionTypeToString(q.type),
 				title: q.title,
 				message: q.message ? MarkdownString.from(q.message) : undefined,
-				options: q.options,
+				options: q.options?.map(opt => ({ id: opt.id, label: opt.label, value: String(opt.value) })),
 				defaultValue: q.defaultValue,
 				allowFreeformInput: q.allowFreeformInput
 			})),
@@ -2820,6 +2824,21 @@ export namespace ChatResponseThinkingProgressPart {
 	}
 }
 
+export namespace ChatResponseHookPart {
+	export function from(part: vscode.ChatResponseHookPart): Dto<IChatHookPart> {
+		return {
+			kind: 'hook',
+			hookType: part.hookType,
+			stopReason: part.stopReason,
+			systemMessage: part.systemMessage,
+			metadata: part.metadata
+		};
+	}
+	export function to(part: Dto<IChatHookPart>): vscode.ChatResponseHookPart {
+		return new types.ChatResponseHookPart(part.hookType, part.stopReason, part.systemMessage, part.metadata);
+	}
+}
+
 export namespace ChatResponseWarningPart {
 	export function from(part: vscode.ChatResponseWarningPart): Dto<IChatWarningMessage> {
 		return {
@@ -2842,14 +2861,29 @@ export namespace ChatResponseExtensionsPart {
 }
 
 export namespace ChatResponsePullRequestPart {
-	export function from(part: vscode.ChatResponsePullRequestPart): Dto<IChatPullRequestContent> {
+	export function from(part: Omit<vscode.ChatResponsePullRequestPart, 'command'> & { command?: vscode.Command }, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): Dto<IChatPullRequestContent> {
+		// If the command isn't in the converter, then this session may have been restored, and the command args don't exist anymore
+		let command: extHostProtocol.ICommandDto;
+		if (!part.command) {
+			if (!part.uri) {
+				throw new Error('Pull request part must have a command if URI is provided');
+			}
+			command = {
+				title: 'Open Pull Request',
+				id: 'vscode.open',
+				arguments: [part.uri]
+			};
+		} else {
+			command = commandsConverter.toInternal(part.command, commandDisposables);
+		}
 		return {
 			kind: 'pullRequest',
 			author: part.author,
 			title: part.title,
 			description: part.description,
 			uri: part.uri,
-			linkTag: part.linkTag
+			linkTag: part.linkTag,
+			command
 		};
 	}
 }
@@ -2868,7 +2902,7 @@ export namespace ChatResponseMovePart {
 }
 
 export namespace ChatToolInvocationPart {
-	export function from(part: vscode.ChatToolInvocationPart): IChatToolInvocationSerialized {
+	export function from(part: vscode.ChatToolInvocationPart): IChatToolInvocationSerialized | IChatExternalToolInvocationUpdate {
 		// Check if toolSpecificData is ChatMcpToolInvocationData (has input and output)
 		// If so, convert to resultDetails for rendering via ChatInputOutputMarkdownProgressPart
 		let resultDetails: IToolResultInputOutputDetails | undefined;
@@ -2882,7 +2916,30 @@ export namespace ChatToolInvocationPart {
 			toolSpecificData = part.toolSpecificData ? convertToolSpecificData(part.toolSpecificData) : undefined;
 		}
 
-		// Convert extension API ChatToolInvocationPart to internal serialized format
+		const presentation = part.presentation === 'hidden'
+			? ToolInvocationPresentation.Hidden
+			: part.presentation === 'hiddenAfterComplete'
+				? ToolInvocationPresentation.HiddenAfterComplete
+				: undefined;
+
+		// When isComplete is explicitly set (not undefined), use the update DTO to enable
+		// live tool invocation updates. Extensions can push with isComplete: false to start
+		// an in-progress invocation, then push again with isComplete: true to complete it.
+		if (part.enablePartialUpdate) {
+			return {
+				kind: 'externalToolInvocationUpdate',
+				toolCallId: part.toolCallId,
+				toolName: part.toolName,
+				isComplete: !!part.isComplete,
+				invocationMessage: part.invocationMessage ? MarkdownString.from(part.invocationMessage) : undefined,
+				pastTenseMessage: part.pastTenseMessage ? MarkdownString.from(part.pastTenseMessage) : undefined,
+				toolSpecificData,
+				subagentInvocationId: part.subAgentInvocationId,
+				resultDetails
+			};
+		}
+
+		// Convert extension API ChatToolInvocationPart to internal serialized format (legacy path)
 		return {
 			kind: 'toolInvocationSerialized',
 			toolCallId: part.toolCallId,
@@ -2891,16 +2948,12 @@ export namespace ChatToolInvocationPart {
 			originMessage: part.originMessage ? MarkdownString.from(part.originMessage) : undefined,
 			pastTenseMessage: part.pastTenseMessage ? MarkdownString.from(part.pastTenseMessage) : undefined,
 			isConfirmed: part.isConfirmed,
-			isComplete: part.isComplete ?? true,
+			isComplete: true,
 			source: ToolDataSource.External,
 			// isError: part.isError ?? false,
 			toolSpecificData,
 			resultDetails,
-			presentation: part.presentation === 'hidden'
-				? ToolInvocationPresentation.Hidden
-				: part.presentation === 'hiddenAfterComplete'
-					? ToolInvocationPresentation.HiddenAfterComplete
-					: undefined,
+			presentation,
 			subAgentInvocationId: part.subAgentInvocationId
 		};
 	}
@@ -2936,8 +2989,13 @@ export namespace ChatToolInvocationPart {
 				language: data.language
 			};
 		} else if ('commandLine' in data && 'language' in data) {
+			const presentationOverrides = data.presentationOverrides && typeof data.presentationOverrides.commandLine === 'string' ? {
+				commandLine: data.presentationOverrides.commandLine,
+				language: data.presentationOverrides.language
+			} : undefined;
 			const result: IChatTerminalToolInvocationData = {
 				kind: 'terminal',
+				presentationOverrides,
 				commandLine: data.commandLine,
 				language: data.language,
 				terminalCommandOutput: typeof data.output?.text === 'string' ? {
@@ -2950,15 +3008,80 @@ export namespace ChatToolInvocationPart {
 			};
 
 			return result;
+		} else if ('todoList' in data && Array.isArray(data.todoList)) {
+			// Convert extension API todo tool data to internal format
+			return {
+				kind: 'todoList',
+				todoList: data.todoList.map((todo: any) => ({
+					id: String(todo.id),
+					title: todo.title,
+					status: todoStatusEnumToString(todo.status)
+				}))
+			};
+		} else if ('input' in data && 'output' in data && !Array.isArray(data.output)) {
+			// Convert extension API simple tool invocation data to internal format
+			return {
+				kind: 'simpleToolInvocation',
+				input: typeof data.input === 'string' ? data.input : '',
+				output: typeof data.output === 'string' ? data.output : ''
+			};
+		} else if (data && 'values' in data && Array.isArray(data.values)) {
+			// Convert extension API resources tool data to internal format
+			return {
+				kind: 'resources',
+				values: data.values.map((v: any) => {
+					if (v instanceof types.Location) {
+						return Location.from(v);
+					} else {
+						return URI.revive(v);
+					}
+				})
+			};
+		} else if (data instanceof types.ChatSubagentToolInvocationData) {
+			// Convert extension API subagent tool data to internal format
+			return {
+				kind: 'subagent',
+				description: data.description,
+				agentName: data.agentName,
+				prompt: data.prompt,
+				result: data.result,
+			};
 		}
 		return data;
+	}
+
+	function todoStatusEnumToString(status: types.ChatTodoStatus | string): string {
+		// Handle enum values
+		switch (status) {
+			case types.ChatTodoStatus.NotStarted:
+				return 'not-started';
+			case types.ChatTodoStatus.InProgress:
+				return 'in-progress';
+			case types.ChatTodoStatus.Completed:
+				return 'completed';
+			default:
+				return 'not-started';
+		}
+	}
+
+	function todoStatusStringToEnum(status: string): types.ChatTodoStatus {
+		switch (status) {
+			case 'not-started':
+				return types.ChatTodoStatus.NotStarted;
+			case 'in-progress':
+				return types.ChatTodoStatus.InProgress;
+			case 'completed':
+				return types.ChatTodoStatus.Completed;
+			default:
+				return types.ChatTodoStatus.NotStarted;
+		}
 	}
 
 	export function to(part: any): vscode.ChatToolInvocationPart {
 		const toolInvocation = new types.ChatToolInvocationPart(
 			part.toolId || part.toolName,
 			part.toolCallId,
-			part.isError
+			part.errorMessage
 		);
 
 		if (part.invocationMessage) {
@@ -3024,6 +3147,19 @@ export namespace ChatToolInvocationPart {
 			return {
 				commandLine: data.commandLine,
 				language: data.language
+			};
+		} else if (data.kind === 'todoList') {
+			// Convert internal todo tool data to extension API format
+			return {
+				todoList: data.todoList.map((todo: any, index: number) => {
+					const parsed = Number(todo.id);
+					const id = Number.isFinite(parsed) ? parsed : index;
+					return {
+						id,
+						title: todo.title,
+						status: todoStatusStringToEnum(todo.status)
+					};
+				})
 			};
 		}
 		return data;
@@ -3199,6 +3335,8 @@ export namespace ChatResponsePart {
 			return ChatResponseProgressPart.from(part);
 		} else if (part instanceof types.ChatResponseThinkingProgressPart) {
 			return ChatResponseThinkingProgressPart.from(part);
+		} else if (part instanceof types.ChatResponseHookPart) {
+			return ChatResponseHookPart.from(part);
 		} else if (part instanceof types.ChatResponseFileTreePart) {
 			return ChatResponseFilesPart.from(part);
 		} else if (part instanceof types.ChatResponseMultiDiffPart) {
@@ -3226,7 +3364,7 @@ export namespace ChatResponsePart {
 		} else if (part instanceof types.ChatResponseExtensionsPart) {
 			return ChatResponseExtensionsPart.from(part);
 		} else if (part instanceof types.ChatResponsePullRequestPart) {
-			return ChatResponsePullRequestPart.from(part);
+			return ChatResponsePullRequestPart.from(part, commandsConverter, commandDisposables);
 		} else if (part instanceof types.ChatToolInvocationPart) {
 			return ChatToolInvocationPart.from(part);
 		} else if (part instanceof types.ChatResponseWorkspaceEditPart) {
@@ -3266,7 +3404,7 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: Map<vscode.LanguageModelToolInformation, boolean>, extension: IRelaxedExtensionDescription, logService: ILogService): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, modelConfiguration: IStringDictionary<unknown> | undefined, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: Map<vscode.LanguageModelToolInformation, boolean>, extension: IRelaxedExtensionDescription, logService: ILogService): vscode.ChatRequest {
 
 		const toolReferences: IChatRequestVariableEntry[] = [];
 		const variableReferences: IChatRequestVariableEntry[] = [];
@@ -3298,14 +3436,19 @@ export namespace ChatAgentRequest {
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
 			location2,
-			toolInvocationToken: Object.freeze<IToolInvocationContext>({ sessionId, sessionResource: request.sessionResource }) as never,
+			toolInvocationToken: Object.freeze<IToolInvocationContext>({ sessionResource: request.sessionResource }) as never,
 			tools,
 			model,
+			modelConfiguration,
 			editedFileEvents: request.editedFileEvents,
 			modeInstructions: request.modeInstructions?.content,
 			modeInstructions2: ChatRequestModeInstructions.to(request.modeInstructions),
+			permissionLevel: request.permissionLevel,
 			subAgentInvocationId: request.subAgentInvocationId,
 			subAgentName: request.subAgentName,
+			parentRequestId: request.parentRequestId,
+			hasHooksEnabled: request.hasHooksEnabled ?? false,
+			hooks: request.hooks ? ChatRequestHooksConverter.to(request.hooks) : undefined,
 		};
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
@@ -3329,6 +3472,12 @@ export namespace ChatAgentRequest {
 			delete (requestWithAllProps as any).subAgentInvocationId;
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).subAgentName;
+			// eslint-disable-next-line local/code-no-any-casts
+			delete (requestWithAllProps as any).parentRequestId;
+			// eslint-disable-next-line local/code-no-any-casts
+			delete (requestWithAllProps as any).hasHooksEnabled;
+			// eslint-disable-next-line local/code-no-any-casts
+			delete (requestWithAllProps as any).hooks;
 		}
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantAdditions')) {
@@ -3461,10 +3610,12 @@ export namespace ChatRequestModeInstructions {
 	export function to(mode: IChatRequestModeInstructions | undefined): vscode.ChatRequestModeInstructions | undefined {
 		if (mode) {
 			return {
+				uri: URI.revive(mode.uri),
 				name: mode.name,
 				content: mode.content,
 				toolReferences: ChatLanguageModelToolReferences.to(mode.toolReferences),
-				metadata: mode.metadata
+				metadata: mode.metadata,
+				isBuiltin: mode.isBuiltin,
 			};
 		}
 		return undefined;
@@ -3494,7 +3645,6 @@ export namespace ChatAgentResult {
 			metadata: reviveMetadata(result.metadata),
 			nextQuestion: result.nextQuestion,
 			details: result.details,
-			usage: result.usage,
 		};
 	}
 	export function from(result: vscode.ChatResult): Dto<IChatAgentResult> {
@@ -3503,7 +3653,6 @@ export namespace ChatAgentResult {
 			metadata: result.metadata,
 			nextQuestion: result.nextQuestion,
 			details: result.details,
-			usage: result.usage,
 		};
 	}
 
@@ -3517,6 +3666,8 @@ export namespace ChatAgentResult {
 				return new types.LanguageModelThinkingPart(value.value, value.id, value.metadata);
 			} else if (value.$mid === MarshalledId.LanguageModelPromptTsxPart) {
 				return new types.LanguageModelPromptTsxPart(value.value);
+			} else if (value.$mid === MarshalledId.LanguageModelDataPart) {
+				return new types.LanguageModelDataPart(value.data, value.mimeType, value.audience);
 			}
 
 			return undefined;
@@ -3717,8 +3868,8 @@ export namespace LanguageModelToolSource {
 }
 
 export namespace LanguageModelToolResult {
-	export function to(result: IToolResult): vscode.LanguageModelToolResult {
-		return new types.LanguageModelToolResult(result.content.map(item => {
+	export function to(result: IToolResult): vscode.ExtendedLanguageModelToolResult {
+		const toolResult = new types.LanguageModelToolResult(result.content.map(item => {
 			if (item.kind === 'text') {
 				return new types.LanguageModelTextPart(item.value, item.audience);
 			} else if (item.kind === 'data') {
@@ -3726,7 +3877,14 @@ export namespace LanguageModelToolResult {
 			} else {
 				return new types.LanguageModelPromptTsxPart(item.value);
 			}
-		}));
+		})) as vscode.ExtendedLanguageModelToolResult;
+		if (result.toolMetadata !== undefined) {
+			toolResult.toolMetadata = result.toolMetadata;
+		}
+		if (result.toolResultError) {
+			toolResult.hasError = !!result.toolResultError;
+		}
+		return toolResult;
 	}
 
 	export function from(result: vscode.ExtendedLanguageModelToolResult2, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {
@@ -3791,6 +3949,7 @@ export namespace LanguageModelToolResult {
 			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
 			toolResultDetails: detailsDto,
 			toolMetadata: result.toolMetadata,
+			toolResultError: result.hasError,
 		};
 
 		return hasBuffers ? new SerializableObjectWithBuffers(dto) : dto;
@@ -3900,6 +4059,7 @@ export namespace McpServerDefinition {
 					command: item.command,
 					env: item.env,
 					envFile: undefined,
+					sandbox: undefined
 				}
 		);
 	}
@@ -3942,5 +4102,89 @@ export namespace SourceControlInputBoxValidationType {
 			default:
 				throw new Error('Unknown SourceControlInputBoxValidationType');
 		}
+	}
+}
+
+export namespace ChatRequestHooksConverter {
+	export function to(hooks: ChatRequestHooks): vscode.ChatRequestHooks {
+		const result: Record<string, vscode.ChatHookCommand[]> = {};
+		for (const [hookType, commands] of Object.entries(hooks)) {
+			if (!commands || commands.length === 0) {
+				continue;
+			}
+			const converted: vscode.ChatHookCommand[] = [];
+			for (const cmd of commands) {
+				const resolved = ChatHookCommand.to(cmd);
+				if (resolved) {
+					converted.push(resolved);
+				}
+			}
+			if (converted.length > 0) {
+				result[hookType] = converted;
+			}
+		}
+		return result;
+	}
+}
+
+export namespace ChatHookCommand {
+	export function to(hook: IHookCommand): vscode.ChatHookCommand | undefined {
+		const command = resolveEffectiveCommand(hook, OS);
+		if (!command) {
+			return undefined;
+		}
+		return {
+			command,
+			cwd: hook.cwd,
+			env: hook.env,
+			timeout: hook.timeout,
+		};
+	}
+}
+
+export namespace ChatSessionItem {
+
+	function convertStatus(status: vscode.ChatSessionStatus | undefined): ChatSessionStatus | undefined {
+		if (status === undefined) {
+			return undefined;
+		}
+
+		switch (status) {
+			case 0: // vscode.ChatSessionStatus.Failed
+				return ChatSessionStatus.Failed;
+			case 1: // vscode.ChatSessionStatus.Completed
+				return ChatSessionStatus.Completed;
+			case 2: // vscode.ChatSessionStatus.InProgress
+				return ChatSessionStatus.InProgress;
+			case 3: // vscode.ChatSessionStatus.NeedsInput
+				return ChatSessionStatus.NeedsInput;
+			default:
+				return undefined;
+		}
+	}
+
+	export function from(sessionContent: vscode.ChatSessionItem): Dto<IChatSessionItem> {
+		// Support both new (created, lastRequestStarted, lastRequestEnded) and old (startTime, endTime) timing properties
+		const timing = sessionContent.timing;
+		const created = timing?.created ?? timing?.startTime ?? 0;
+		const lastRequestStarted = timing?.lastRequestStarted ?? timing?.startTime;
+		const lastRequestEnded = timing?.lastRequestEnded ?? timing?.endTime;
+
+		return {
+			resource: sessionContent.resource,
+			label: sessionContent.label,
+			description: sessionContent.description ? MarkdownString.from(sessionContent.description) : undefined,
+			badge: sessionContent.badge ? MarkdownString.from(sessionContent.badge) : undefined,
+			status: convertStatus(sessionContent.status),
+			archived: sessionContent.archived,
+			tooltip: MarkdownString.fromStrict(sessionContent.tooltip),
+			timing: {
+				created,
+				lastRequestStarted,
+				lastRequestEnded,
+			},
+			changes: sessionContent.changes instanceof Array ? sessionContent.changes : undefined,
+			metadata: sessionContent.metadata,
+		};
 	}
 }

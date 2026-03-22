@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { API as GitAPI, RefType, Repository } from './typings/git.js';
+import { RefType } from './typings/git.constants.js';
+import type { API as GitAPI, Repository } from './typings/git.d.ts';
 import { getRepositoryFromUrl, repositoryHasGitHubRemote } from './util.js';
 
 export function isFileInRepo(repository: Repository, file: vscode.Uri): boolean {

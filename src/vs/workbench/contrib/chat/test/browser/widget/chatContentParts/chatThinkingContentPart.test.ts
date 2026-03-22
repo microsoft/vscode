@@ -14,8 +14,8 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatThinkingContentPart } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
-import { IChatMarkdownContent, IChatThinkingPart } from '../../../../common/chatService/chatService.js';
-import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
+import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -25,8 +25,8 @@ import { ThinkingDisplayMode } from '../../../../common/constants.js';
 import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
-import { ChatTreeItem } from '../../../../browser/chat.js';
 import { ILanguageModelsService } from '../../../../common/languageModels.js';
+import { ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 
 suite('ChatThinkingContentPart', () => {
@@ -49,7 +49,8 @@ suite('ChatThinkingContentPart', () => {
 		};
 
 		return {
-			element: mockElement as ChatTreeItem,
+			element: mockElement as IChatResponseViewModel,
+			inlineTextModels: {} as InlineTextModelCollection,
 			elementIndex: 0,
 			container: mainWindow.document.createElement('div'),
 			content: [],
@@ -248,7 +249,7 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		test('should start expanded when streaming (not complete)', () => {
-			const content = createThinkingPart('**Analyzing**');
+			const content = createThinkingPart('**Analyzing**\nSome detailed reasoning about the code structure');
 			const context = createMockRenderContext(false);
 
 			const part = store.add(instantiationService.createInstance(
@@ -496,7 +497,7 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		test('appendItem should render immediately when expanded', () => {
-			const content = createThinkingPart('**Working**');
+			const content = createThinkingPart('**Working**\nSome detailed analysis of the problem');
 			const context = createMockRenderContext(false);
 
 			const part = store.add(instantiationService.createInstance(
@@ -984,8 +985,27 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(part.getIsActive(), false, 'Should be inactive after markAsInactive');
 		});
 
+		test('dispose should set isActive to false', () => {
+			const content = createThinkingPart('**Active thinking**');
+			const context = createMockRenderContext(false);
+
+			const part = instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			);
+
+			assert.strictEqual(part.getIsActive(), true, 'Should start as active');
+
+			part.dispose();
+
+			assert.strictEqual(part.getIsActive(), false, 'Should be inactive after dispose');
+		});
+
 		test('collapseContent should collapse the part', () => {
-			const content = createThinkingPart('**Content**');
+			const content = createThinkingPart('**Content**\nSome detailed reasoning that differs from the title');
 			const context = createMockRenderContext(false);
 
 			// Use CollapsedPreview to start expanded
@@ -1131,7 +1151,7 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		test('should have proper aria-expanded attribute', () => {
-			const content = createThinkingPart('**Content**');
+			const content = createThinkingPart('**Content**\nSome detailed reasoning that differs from the title');
 			const context = createMockRenderContext(false);
 
 			const part = store.add(instantiationService.createInstance(
@@ -1170,9 +1190,242 @@ suite('ChatThinkingContentPart', () => {
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
-			// Should have loading spinner icon
-			const loadingIcon = part.domNode.querySelector('.codicon-loading');
-			assert.ok(loadingIcon, 'Should have loading spinner while streaming');
+			// Should have circle-filled icon (not loading spinner) while streaming
+			const circleIcon = part.domNode.querySelector('.codicon-circle-filled');
+			assert.ok(circleIcon, 'Should have circle-filled icon while streaming');
+		});
+
+		function createMockStreamingToolInvocation(toolId: string, invocationMessage: string, toolCallId: string): IChatToolInvocation {
+			return {
+				kind: 'toolInvocation',
+				toolId,
+				toolCallId,
+				invocationMessage,
+				originMessage: undefined,
+				pastTenseMessage: undefined,
+				presentation: undefined,
+				source: ToolDataSource.Internal,
+				isAttachedToThinking: false,
+				generatedTitle: undefined,
+				state: observableValue('state', {
+					type: IChatToolInvocation.StateKind.Streaming,
+					partialInput: observableValue('partialInput', undefined),
+					streamingMessage: observableValue('streamingMessage', undefined),
+				}),
+				toJSON: () => ({} as IChatToolInvocationSerialized),
+			} as IChatToolInvocation;
+		}
+
+		function createMockExecutingToolInvocation(toolId: string, invocationMessage: string, toolCallId: string): IChatToolInvocation {
+			return {
+				kind: 'toolInvocation',
+				toolId,
+				toolCallId,
+				invocationMessage,
+				originMessage: undefined,
+				pastTenseMessage: undefined,
+				presentation: undefined,
+				source: ToolDataSource.Internal,
+				isAttachedToThinking: false,
+				generatedTitle: undefined,
+				state: observableValue('state', {
+					type: IChatToolInvocation.StateKind.Executing,
+					confirmed: { type: 0 },
+					progress: observableValue('progress', { progress: 0 }),
+					parameters: {},
+					confirmationMessages: undefined,
+				}),
+				toJSON: () => ({} as IChatToolInvocationSerialized),
+			} as IChatToolInvocation;
+		}
+
+		function createMockSerializedImageToolInvocation(toolId: string, invocationMessage: string, toolCallId: string): IChatToolInvocationSerialized {
+			return {
+				kind: 'toolInvocationSerialized',
+				toolId,
+				toolCallId,
+				invocationMessage,
+				originMessage: undefined,
+				pastTenseMessage: undefined,
+				presentation: undefined,
+				resultDetails: {
+					output: {
+						type: 'data',
+						mimeType: 'image/png',
+						base64Data: 'AQID'
+					}
+				},
+				isConfirmed: { type: 0 },
+				isComplete: true,
+				source: ToolDataSource.Internal,
+				generatedTitle: undefined,
+				isAttachedToThinking: false,
+			};
+		}
+
+		test('should show "Editing files" for streaming edit tools instead of generic display name', () => {
+			const content = createThinkingPart('**Working**');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const streamingReplaceTool = createMockStreamingToolInvocation(
+				'copilot_replaceString', 'Replace String in File', 'call-1'
+			);
+
+			part.appendItem(() => {
+				const div = $('div.test-item');
+				div.textContent = 'Replace tool';
+				return { domNode: div };
+			}, streamingReplaceTool.toolId, streamingReplaceTool);
+
+			// The title should show "Editing files" instead of "Replace String in File"
+			const button = part.domNode.querySelector('.chat-used-context-label .monaco-button');
+			assert.ok(button, 'Should have collapse button');
+			const labelText = button.querySelector('.icon-label')?.textContent ?? button.textContent ?? '';
+			assert.ok(labelText.includes('Editing files'), `Title should contain "Editing files" but got "${labelText}"`);
+		});
+
+		test('should show original message for non-edit streaming tools', () => {
+			const content = createThinkingPart('**Working**');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const streamingReadTool = createMockStreamingToolInvocation(
+				'copilot_readFile', 'Reading file.ts', 'call-2'
+			);
+
+			part.appendItem(() => {
+				const div = $('div.test-item');
+				div.textContent = 'Read tool';
+				return { domNode: div };
+			}, streamingReadTool.toolId, streamingReadTool);
+
+			const button = part.domNode.querySelector('.chat-used-context-label .monaco-button');
+			assert.ok(button, 'Should have collapse button');
+			const labelText = button.querySelector('.icon-label')?.textContent ?? button.textContent ?? '';
+			assert.ok(labelText.includes('Reading file.ts'), `Title should contain "Reading file.ts" but got "${labelText}"`);
+		});
+
+		test('should show original message for non-streaming edit tools', () => {
+			const content = createThinkingPart('**Working**');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			// Non-streaming (executing) edit tool should show its invocation message
+			const executingReplaceTool = createMockExecutingToolInvocation(
+				'copilot_replaceString', 'Replacing 5 lines in file.ts', 'call-3'
+			);
+
+			part.appendItem(() => {
+				const div = $('div.test-item');
+				div.textContent = 'Replace tool';
+				return { domNode: div };
+			}, executingReplaceTool.toolId, executingReplaceTool);
+
+			const button = part.domNode.querySelector('.chat-used-context-label .monaco-button');
+			assert.ok(button, 'Should have collapse button');
+			const labelText = button.querySelector('.icon-label')?.textContent ?? button.textContent ?? '';
+			assert.ok(labelText.includes('Replacing 5 lines in file.ts'), `Title should contain "Replacing 5 lines in file.ts" but got "${labelText}"`);
+		});
+
+		test('should keep original message for create_file tool even when streaming', () => {
+			const content = createThinkingPart('**Working**');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const streamingCreateTool = createMockStreamingToolInvocation(
+				'copilot_createFile', 'Creating newFile.ts', 'call-4'
+			);
+
+			part.appendItem(() => {
+				const div = $('div.test-item');
+				div.textContent = 'Create tool';
+				return { domNode: div };
+			}, streamingCreateTool.toolId, streamingCreateTool);
+
+			const button = part.domNode.querySelector('.chat-used-context-label .monaco-button');
+			assert.ok(button, 'Should have collapse button');
+			const labelText = button.querySelector('.icon-label')?.textContent ?? button.textContent ?? '';
+			assert.ok(labelText.includes('Creating newFile.ts'), `Title should contain "Creating newFile.ts" but got "${labelText}"`);
+		});
+
+		test('should show external resources for serialized image tools when initially collapsed and hide them when expanded', () => {
+			const content = createThinkingPart('**Working**');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const serializedImageTool = createMockSerializedImageToolInvocation(
+				'chat_screenshot', 'Captured screenshot', 'image-call-1'
+			);
+
+			part.appendItem(() => {
+				const div = $('div.test-item');
+				div.textContent = 'Image tool';
+				return { domNode: div };
+			}, serializedImageTool.toolId, serializedImageTool);
+
+			const externalResources = part.domNode.querySelector('.chat-thinking-external-resources') as HTMLElement;
+			assert.ok(externalResources, 'Should render external resources container');
+			assert.notStrictEqual(externalResources.style.display, 'none', 'Should show external resources while initially collapsed');
+
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			assert.ok(button, 'Should have expand button');
+			button.click();
+
+			assert.strictEqual(externalResources.style.display, 'none', 'Should hide external resources when expanded');
+
+			button.click();
+			assert.notStrictEqual(externalResources.style.display, 'none', 'Should show external resources again after collapsing');
 		});
 	});
 });

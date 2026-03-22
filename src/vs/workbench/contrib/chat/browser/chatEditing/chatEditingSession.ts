@@ -30,6 +30,7 @@ import { EditorActivation } from '../../../../../platform/editor/common/editor.j
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -47,7 +48,7 @@ import { ChatEditingDeletedFileEntry } from './chatEditingDeletedFileEntry.js';
 import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
-import { FileOperation, FileOperationType } from './chatEditingOperations.js';
+import { FileOperation, FileOperationType, getKeyForChatSessionResource } from './chatEditingOperations.js';
 import { IChatEditingExplanationModelManager, IExplanationDiffInfo, IExplanationGenerationHandle } from './chatEditingExplanationModelManager.js';
 import { ChatEditingSessionStorage, IChatEditingSessionStop, StoredSessionState } from './chatEditingSessionStorage.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
@@ -58,6 +59,25 @@ const enum NotExistBehavior {
 	Create,
 	Abort,
 }
+
+type ChatEditingSessionInfoEvent = {
+	editSessionId: string;
+	entryCount: number;
+	modifiedCount: number;
+	acceptedCount: number;
+	rejectedCount: number;
+};
+
+type ChatEditingSessionInfoClassification = {
+	owner: 'jrieken';
+	comment: 'Tracks the number and state of chat editing entries when a session is stored.';
+	editSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hashed identifier of the chat session for correlation.' };
+	entryCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of entries stored with the session.' };
+	modifiedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of entries in Modified state when storing.' };
+	acceptedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of entries in Accepted state when storing.' };
+	rejectedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of entries in Rejected state when storing.' };
+};
+
 
 class ThrottledSequencer extends Sequencer {
 
@@ -199,6 +219,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@IChatEditingExplanationModelManager private readonly _explanationModelManager: IChatEditingExplanationModelManager,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._timeline = this._instantiationService.createInstance(
@@ -308,7 +329,12 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	public storeState(): Promise<void> {
 		const storage = this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionResource);
-		return storage.storeState(this._getStoredState());
+		const storedState = this._getStoredState();
+		this._telemetryService.publicLog2<ChatEditingSessionInfoEvent, ChatEditingSessionInfoClassification>('chatEditing/sessionStore', {
+			editSessionId: getKeyForChatSessionResource(this.chatSessionResource),
+			...this._countEntryStates(this._entriesObs.get()),
+		});
+		return storage.storeState(storedState);
 	}
 
 	private _getStoredState(sessionResource = this.chatSessionResource): StoredSessionState {
@@ -442,7 +468,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			if (this._editorPane.isVisible()) {
 				return;
 			} else if (this._editorPane.input) {
-				await this._editorGroupsService.activeGroup.openEditor(this._editorPane.input, { pinned: true, activation: EditorActivation.ACTIVATE });
+				await this._editorService.openEditor(this._editorPane.input, { pinned: true, activation: EditorActivation.ACTIVATE });
 				return;
 			}
 		}
@@ -451,7 +477,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			label: localize('multiDiffEditorInput.name', "Suggested Edits")
 		}, this._instantiationService);
 
-		this._editorPane = await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
+		this._editorPane = await this._editorService.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
 	}
 
 	private _stopPromise: Promise<void> | undefined;
@@ -945,6 +971,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 
 		this._entriesObs.set(entriesArr, undefined);
+		this._telemetryService.publicLog2<ChatEditingSessionInfoEvent, ChatEditingSessionInfoClassification>('chatEditing/sessionRestore', {
+			editSessionId: getKeyForChatSessionResource(this.chatSessionResource),
+			...this._countEntryStates(entriesArr),
+		});
 	}
 
 	private async _acceptEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
@@ -979,6 +1009,28 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				return undefined;
 			}
 		};
+	}
+
+	private _countEntryStates(entries: readonly AbstractChatEditingModifiedFileEntry[]): { entryCount: number; modifiedCount: number; acceptedCount: number; rejectedCount: number } {
+		let entryCount = 0;
+		let modifiedCount = 0;
+		let acceptedCount = 0;
+		let rejectedCount = 0;
+		for (const entry of entries) {
+			entryCount += 1;
+			switch (entry.state.get()) {
+				case ModifiedFileEntryState.Modified:
+					modifiedCount += 1;
+					break;
+				case ModifiedFileEntryState.Accepted:
+					acceptedCount += 1;
+					break;
+				case ModifiedFileEntryState.Rejected:
+					rejectedCount += 1;
+					break;
+			}
+		}
+		return { entryCount, modifiedCount, acceptedCount, rejectedCount };
 	}
 
 	private async _resolve(requestId: string, undoStop: string | undefined, resource: URI): Promise<void> {

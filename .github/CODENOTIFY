@@ -26,6 +26,7 @@ src/vs/base/browser/ui/tree/** @joaomoreno @benibenj
 # Platform
 src/vs/platform/auxiliaryWindow/** @bpasero
 src/vs/platform/backup/** @bpasero
+src/vs/platform/browserView/** @kycutler @jruales
 src/vs/platform/dialogs/** @bpasero
 src/vs/platform/editor/** @bpasero
 src/vs/platform/environment/** @bpasero
@@ -65,7 +66,7 @@ src/vs/code/** @bpasero @deepak1556
 src/vs/workbench/services/activity/** @bpasero
 src/vs/workbench/services/authentication/** @TylerLeonhardt
 src/vs/workbench/services/auxiliaryWindow/** @bpasero
-src/vs/workbench/services/chat/** @bpasero
+src/vs/workbench/services/browserView/** @kycutler @jruales
 src/vs/workbench/services/contextmenu/** @bpasero
 src/vs/workbench/services/dialogs/** @alexr00 @bpasero
 src/vs/workbench/services/editor/** @bpasero
@@ -98,17 +99,9 @@ src/vs/workbench/electron-browser/** @bpasero
 
 # Workbench Contributions
 src/vs/workbench/contrib/authentication/** @TylerLeonhardt
+src/vs/workbench/contrib/browserView/** @kycutler @jruales
 src/vs/workbench/contrib/files/** @bpasero
 src/vs/workbench/contrib/chat/browser/chatListRenderer.ts @roblourens
-src/vs/workbench/contrib/chat/browser/chatSetup/** @bpasero
-src/vs/workbench/contrib/chat/browser/chatStatus/** @bpasero
-src/vs/workbench/contrib/chat/browser/chatViewPane.ts @bpasero
-src/vs/workbench/contrib/chat/browser/media/chatViewPane.css @bpasero
-src/vs/workbench/contrib/chat/browser/chatViewTitleControl.ts @bpasero
-src/vs/workbench/contrib/chat/browser/media/chatViewTitleControl.css @bpasero
-src/vs/workbench/contrib/chat/browser/chatManagement/chatUsageWidget.ts @bpasero
-src/vs/workbench/contrib/chat/browser/chatManagement/media/chatUsageWidget.css @bpasero
-src/vs/workbench/contrib/chat/browser/agentSessions/** @bpasero
 src/vs/workbench/contrib/localization/** @TylerLeonhardt
 src/vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts @TylerLeonhardt
 src/vs/workbench/contrib/scm/** @lszomoru
@@ -117,6 +110,7 @@ src/vs/workbench/contrib/preferences/** @rzhao271
 
 # Build
 build/azure-pipelines/** @lszomoru
+build/azure-pipelines/common/sanity-tests.yml @dmitrivMS
 build/lib/i18n.ts @TylerLeonhardt
 resources/linux/debian/** @rzhao271
 resources/linux/rpm/** @rzhao271
@@ -144,3 +138,6 @@ extensions/github/** @lszomoru
 # Chat Editing, Inline Chat
 src/vs/workbench/contrib/chat/browser/chatEditing/** @jrieken
 src/vs/workbench/contrib/inlineChat/** @jrieken
+
+# Testing
+test/sanity/** @dmitrivMS

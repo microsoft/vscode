@@ -23,10 +23,11 @@ import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptValidator } from '../../../../common/promptSyntax/languageProviders/promptValidator.js';
-import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
+import { PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { PromptFileParser } from '../../../../common/promptSyntax/promptFileParser.js';
-import { PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
+import { MockPromptsService } from '../../../common/promptSyntax/service/mockPromptsService.js';
 
 suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -41,6 +42,7 @@ suite('PromptValidator', () => {
 
 		testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
+		testConfigService.setUserConfiguration('chat.useCustomAgentHooks', true);
 		instaService = workbenchInstantiationService({
 			contextKeyService: () => disposables.add(new ContextKeyService(testConfigService)),
 			configurationService: () => testConfigService
@@ -110,6 +112,11 @@ suite('PromptValidator', () => {
 		disposables.add(toolService.registerToolData(conflictTool2));
 		disposables.add(conflictToolSet2.addTool(conflictTool2));
 
+		// Tool in the vscode toolset with a legacy name — for testing namespaced deprecated name resolution
+		const toolInVscodeSet = { id: 'browserTool', toolReferenceName: 'openIntegratedBrowser', legacyToolReferenceFullNames: ['openSimpleBrowser'], displayName: 'Open Integrated Browser', canBeReferencedInPrompt: true, modelDescription: 'Open browser', source: ToolDataSource.Internal, inputSchema: {} } satisfies IToolData;
+		disposables.add(toolService.registerToolData(toolInVscodeSet));
+		disposables.add(toolService.vscodeToolSet.addTool(toolInVscodeSet));
+
 		instaService.set(ILanguageModelToolsService, toolService);
 
 		const testModels: ILanguageModelChatMetadata[] = [
@@ -123,7 +130,7 @@ suite('PromptValidator', () => {
 			lookupLanguageModelByQualifiedName(qualifiedName: string) {
 				for (const metadata of testModels) {
 					if (ILanguageModelChatMetadata.matchesQualifiedName(qualifiedName, metadata)) {
-						return metadata;
+						return { metadata, identifier: metadata.id };
 					}
 				}
 				return undefined;
@@ -134,7 +141,9 @@ suite('PromptValidator', () => {
 			uri: URI.parse('myFs://test/test/chatmode.md'),
 			name: 'BeastMode',
 			agentInstructions: { content: 'Beast mode instructions', toolReferences: [] },
-			source: { storage: PromptsStorage.local }
+			source: { storage: PromptsStorage.local },
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }
 		});
 		instaService.stub(IChatModeService, new MockChatModeService({ builtin: [ChatMode.Agent, ChatMode.Ask, ChatMode.Edit], custom: [customChatMode] }));
 
@@ -145,6 +154,19 @@ suite('PromptValidator', () => {
 				return Promise.resolve(existingFiles.has(uri));
 			}
 		});
+		const promptsService = new MockPromptsService();
+		const customMode: ICustomAgent = {
+			uri: URI.parse('file:///test/custom-mode.md'),
+			name: 'Plan',
+			description: 'A test custom mode',
+			tools: ['tool1', 'tool2'],
+			agentInstructions: { content: 'Custom mode body', toolReferences: [] },
+			source: { storage: PromptsStorage.local },
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }
+		};
+		promptsService.setCustomModes([customMode]);
+		instaService.stub(IPromptsService, promptsService);
 	});
 
 	async function validate(code: string, promptType: PromptsType, uri?: URI): Promise<IMarkerData[]> {
@@ -193,7 +215,7 @@ suite('PromptValidator', () => {
 			);
 		});
 
-		test('tools must be array', async () => {
+		test('tools must be array or string', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
@@ -201,8 +223,7 @@ suite('PromptValidator', () => {
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
-			assert.strictEqual(markers.length, 1);
-			assert.deepStrictEqual(markers.map(m => m.message), [`The 'tools' attribute must be an array.`]);
+			assert.strictEqual(markers.length, 0);
 		});
 
 		test('model as string array - valid', async () => {
@@ -259,7 +280,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Test with invalid model array"',
-				`model: ['MAE 4 (olama)', 123]`,
+				`model: ['MAE 4 (olama)', []]`,
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
@@ -285,7 +306,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Test with invalid model type"',
-				`model: 123`,
+				`model: {}`,
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
@@ -298,7 +319,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				`tools: ['tool1', 2]`,
+				`tools: ['tool1', {}]`,
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
@@ -486,6 +507,41 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].message, expectedMessage);
 		});
 
+		test('namespaced deprecated tool name in tools header shows rename hint', async () => {
+			// When a tool is in a toolset (e.g. vscode/openIntegratedBrowser) and has a legacy name,
+			// using the namespaced old name (vscode/openSimpleBrowser) should show the rename hint
+			const content = [
+				'---',
+				'description: "Test"',
+				`tools: ['vscode/openSimpleBrowser']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Info, message: `Tool or toolset 'vscode/openSimpleBrowser' has been renamed, use 'vscode/openIntegratedBrowser' instead.` },
+				]
+			);
+		});
+
+		test('bare deprecated tool name in tools header also shows rename hint', async () => {
+			// The bare (non-namespaced) legacy name should also resolve
+			const content = [
+				'---',
+				'description: "Test"',
+				`tools: ['openSimpleBrowser']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Info, message: `Tool or toolset 'openSimpleBrowser' has been renamed, use 'vscode/openIntegratedBrowser' instead.` },
+				]
+			);
+		});
+
 		test('unknown attribute in agent file', async () => {
 			const content = [
 				'---',
@@ -497,7 +553,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
-					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, handoffs, infer, model, name, target, tools.` },
+					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, name, target, tools, user-invocable.` },
 				]
 			);
 		});
@@ -576,6 +632,60 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers, [], 'Expected no validation issues for handoffs attribute');
 		});
 
+		test('duplicate handoff labels are reported', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`handoffs:`,
+				'  - label: Start Implementation',
+				'    agent: agent',
+				'    prompt: Go implement',
+				'  - label: Start Implementation',
+				'    agent: agent',
+				'    prompt: Go implement again',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers.map(m => m.message), [
+				'Duplicate handoff label \'Start Implementation\'. Each handoff must have a unique label.',
+			]);
+		});
+
+		test('duplicate handoff labels are case-insensitive', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`handoffs:`,
+				'  - label: Start Implementation',
+				'    agent: agent',
+				'    prompt: Go implement',
+				'  - label: start implementation',
+				'    agent: edit',
+				'    prompt: Different prompt',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers.map(m => m.message), [
+				'Duplicate handoff label \'start implementation\'. Each handoff must have a unique label.',
+			]);
+		});
+
+		test('handoff label must contain alphanumeric character', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`handoffs:`,
+				'  - label: "!!!"',
+				'    agent: agent',
+				'    prompt: Go',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers.map(m => m.message), [
+				'The \'label\' property in a handoff must contain at least one alphanumeric character.',
+			]);
+		});
+
 		test('github-copilot agent with supported attributes', async () => {
 			const content = [
 				'---',
@@ -609,8 +719,8 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			const messages = markers.map(m => m.message);
 			assert.deepStrictEqual(messages, [
-				'Attribute \'model\' is not supported in custom GitHub Copilot agent files. Supported: description, infer, mcp-servers, name, target, tools.',
-				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: description, infer, mcp-servers, name, target, tools.',
+				'Attribute \'model\' is not supported in custom GitHub Copilot agent files. Supported: description, github, infer, mcp-servers, name, target, tools.',
+				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: description, github, infer, mcp-servers, name, target, tools.',
 			], 'Model and handoffs are not validated for github-copilot target');
 		});
 
@@ -644,6 +754,159 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
 			assert.ok(markers[0].message.includes(`Attribute 'argument-hint' is not supported`), 'Expected warning about unsupported attribute');
+		});
+
+		test('github-copilot agent with valid permissions', async () => {
+			const content = [
+				'---',
+				'name: "IssueTriage"',
+				'description: "Triages issues"',
+				'target: github-copilot',
+				`tools: ['read']`,
+				'github:',
+				'  permissions:',
+				'    issues: write',
+				'    contents: read',
+				'    metadata: read',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('github-copilot agent with invalid permission scope', async () => {
+			const content = [
+				'---',
+				'name: "TestAgent"',
+				'description: "Test"',
+				'target: github-copilot',
+				`tools: ['read']`,
+				'github:',
+				'  permissions:',
+				'    unknown-scope: read',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.ok(markers[0].message.includes('Unknown permission scope \'unknown-scope\''));
+		});
+
+		test('github-copilot agent with invalid permission value', async () => {
+			const content = [
+				'---',
+				'name: "TestAgent"',
+				'description: "Test"',
+				'target: github-copilot',
+				`tools: ['read']`,
+				'github:',
+				'  permissions:',
+				'    metadata: write',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.ok(markers[0].message.includes('Invalid permission value \'write\' for scope \'metadata\''));
+		});
+
+		test('github-copilot agent with non-map github attribute', async () => {
+			const content = [
+				'---',
+				'name: "TestAgent"',
+				'description: "Test"',
+				'target: github-copilot',
+				`tools: ['read']`,
+				'github: invalid',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, 'The \'github\' attribute must be an object.');
+		});
+
+		test('github-copilot agent with unknown github sub-property', async () => {
+			const content = [
+				'---',
+				'name: "TestAgent"',
+				'description: "Test"',
+				'target: github-copilot',
+				`tools: ['read']`,
+				'github:',
+				'  unknown: value',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.ok(markers[0].message.includes('Unknown property \'unknown\''));
+		});
+
+		test('undefined target agent with valid github permissions', async () => {
+			const content = [
+				'---',
+				'description: "Agent without target"',
+				'github:',
+				'  permissions:',
+				'    issues: write',
+				'    contents: read',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('undefined target agent with invalid github permission scope', async () => {
+			const content = [
+				'---',
+				'description: "Agent without target"',
+				'github:',
+				'  permissions:',
+				'    unknown-scope: read',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.ok(markers[0].message.includes('Unknown permission scope \'unknown-scope\''));
+		});
+
+		test('undefined target agent with invalid github permission value', async () => {
+			const content = [
+				'---',
+				'description: "Agent without target"',
+				'github:',
+				'  permissions:',
+				'    metadata: write',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.ok(markers[0].message.includes('Invalid permission value \'write\' for scope \'metadata\''));
+		});
+
+		test('undefined target agent with non-map github attribute', async () => {
+			const content = [
+				'---',
+				'description: "Agent without target"',
+				'github: invalid',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, 'The \'github\' attribute must be an object.');
 		});
 
 		test('vscode target agent validates normally', async () => {
@@ -759,7 +1022,7 @@ suite('PromptValidator', () => {
 			{
 				const content = [
 					'---',
-					'name: 123',
+					'name: []',
 					'description: "Test agent"',
 					'target: vscode',
 					'---',
@@ -832,7 +1095,9 @@ suite('PromptValidator', () => {
 		});
 
 		test('infer attribute validation', async () => {
-			// Valid infer: true (maps to 'all') - requires config enabled
+			const deprecationMessage = `The 'infer' attribute is deprecated in favour of 'user-invocable' and 'disable-model-invocation'.`;
+
+			// Valid infer: true (maps to 'all') - shows deprecation warning
 			{
 				testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 				const content = [
@@ -844,10 +1109,12 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.deepStrictEqual(markers, [], 'Valid infer: true should not produce errors when config is enabled');
+				assert.strictEqual(markers.length, 1, 'infer: true should produce deprecation warning');
+				assert.strictEqual(markers[0].message, deprecationMessage);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 			}
 
-			// Valid infer: false (maps to 'user')
+			// Valid infer: false (maps to 'user') - shows deprecation warning
 			{
 				const content = [
 					'---',
@@ -858,10 +1125,12 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.deepStrictEqual(markers, [], 'Valid infer: false should not produce errors');
+				assert.strictEqual(markers.length, 1, 'infer: false should produce deprecation warning');
+				assert.strictEqual(markers[0].message, deprecationMessage);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 			}
 
-			// Valid infer: 'all'
+			// Valid infer: 'all' - shows deprecation warning
 			{
 				const content = [
 					'---',
@@ -872,10 +1141,12 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.deepStrictEqual(markers, [], 'Valid infer: all should not produce errors');
+				assert.strictEqual(markers.length, 1, 'infer: all should produce deprecation warning');
+				assert.strictEqual(markers[0].message, deprecationMessage);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 			}
 
-			// Valid infer: 'user'
+			// Valid infer: 'user' - shows deprecation warning
 			{
 				const content = [
 					'---',
@@ -886,10 +1157,12 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.deepStrictEqual(markers, [], 'Valid infer: user should not produce errors');
+				assert.strictEqual(markers.length, 1, 'infer: user should produce deprecation warning');
+				assert.strictEqual(markers[0].message, deprecationMessage);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 			}
 
-			// Valid infer: 'agent' - requires config enabled
+			// Valid infer: 'agent' - shows deprecation warning
 			{
 				testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 				const content = [
@@ -901,10 +1174,12 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.deepStrictEqual(markers, [], 'Valid infer: agent should not produce errors when config is enabled');
+				assert.strictEqual(markers.length, 1, 'infer: agent should produce deprecation warning');
+				assert.strictEqual(markers[0].message, deprecationMessage);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 			}
 
-			// Valid infer: 'hidden'
+			// Valid infer: 'hidden' - shows deprecation warning
 			{
 				const content = [
 					'---',
@@ -915,10 +1190,12 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.deepStrictEqual(markers, [], 'Valid infer: hidden should not produce errors');
+				assert.strictEqual(markers.length, 1, 'infer: hidden should produce deprecation warning');
+				assert.strictEqual(markers[0].message, deprecationMessage);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 			}
 
-			// Invalid infer: unknown string value
+			// Invalid infer: unknown string value - shows deprecation warning (validation removed for deprecated attribute)
 			{
 				const content = [
 					'---',
@@ -929,12 +1206,12 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers.length, 1, 'infer: "yes" should produce deprecation warning');
+				assert.strictEqual(markers[0].message, deprecationMessage);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'infer' attribute must be one of: all, user, agent, hidden.`);
 			}
 
-			// Invalid infer: number value
+			// Invalid infer: number value - shows deprecation warning (validation removed for deprecated attribute)
 			{
 				const content = [
 					'---',
@@ -945,9 +1222,9 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers.length, 1, 'infer: 1 should produce deprecation warning');
+				assert.strictEqual(markers[0].message, deprecationMessage);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'infer' attribute must be 'all', 'user', 'agent', 'hidden', or a boolean.`);
 			}
 
 			// Missing infer attribute (should be optional)
@@ -1073,7 +1350,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				`agents: ['valid', 123]`,
+				`agents: ['agent', {}]`,
 				`tools: ['agent']`,
 				'---',
 			].join('\n');
@@ -1081,12 +1358,26 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers.map(m => m.message), [`Each agent name in the 'agents' attribute must be a string.`]);
 		});
 
+		test('unknown agent in agents attribute shows warning', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`agents: ['UnknownAgent']`,
+				`tools: ['agent']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, `Unknown agent 'UnknownAgent'. Available agents: Plan, agent.`);
+		});
+
 		test('agents attribute with non-empty value requires agent tool 1', async () => {
 			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
-				`agents: ['Planning', 'Research']`,
+				`agents: ['agent', 'Plan']`,
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
@@ -1098,7 +1389,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				`agents: ['Planning', 'Research']`,
+				`agents: ['agent', 'Plan']`,
 				`tools: ['shell']`,
 				'---',
 			].join('\n');
@@ -1111,7 +1402,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				`agents: ['Planning', 'Research']`,
+				`agents: ['agent', 'Plan']`,
 				`tools: ['agent']`,
 				'---',
 			].join('\n');
@@ -1144,17 +1435,495 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers, [], 'Empty array should not require agent tool');
 		});
 
-		test('agents attribute warns when customAgentInSubagent.enabled is disabled', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, false);
+		test('user-invocable attribute validation', async () => {
+			// Valid user-invocable: true
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'user-invocable: true',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid user-invocable: true should not produce errors');
+			}
+
+			// Valid user-invocable: false
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'user-invocable: false',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid user-invocable: false should not produce errors');
+			}
+
+			// Invalid user-invocable: string value
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'user-invocable: "yes"',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'user-invocable' attribute must be 'true' or 'false'.`);
+			}
+
+			// Invalid user-invocable: number value
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'user-invocable: 1',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'user-invocable' attribute must be 'true' or 'false'.`);
+			}
+		});
+
+		test('deprecated user-invokable attribute shows warning', async () => {
+			const content = [
+				'---',
+				'name: "TestAgent"',
+				'description: "Test agent"',
+				'user-invokable: true',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, `The 'user-invokable' attribute is deprecated. Use 'user-invocable' instead.`);
+		});
+
+		test('disable-model-invocation attribute validation', async () => {
+			// Valid disable-model-invocation: true
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'disable-model-invocation: true',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid disable-model-invocation: true should not produce errors');
+			}
+
+			// Valid disable-model-invocation: false
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'disable-model-invocation: false',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid disable-model-invocation: false should not produce errors');
+			}
+
+			// Invalid disable-model-invocation: string value
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'disable-model-invocation: "yes"',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'disable-model-invocation' attribute must be 'true' or 'false'.`);
+			}
+
+			// Invalid disable-model-invocation: number value
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'disable-model-invocation: 0',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'disable-model-invocation' attribute must be 'true' or 'false'.`);
+			}
+		});
+
+		test('hooks - valid hook commands', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				`agents: ['Planning', 'Research']`,
-				`tools: ['agent']`,
+				'hooks:',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: echo hello',
+				'  PreToolUse:',
+				'    - type: command',
+				'      command: ./validate.sh',
+				'      cwd: scripts',
+				'      timeout: 30',
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
-			assert.deepStrictEqual(markers.map(m => m.message), [`For agents to be used as subagent you also need to enable the 'chat.customAgentInSubagent.enabled' setting.`]);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('hooks - must be a map', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks: invalid',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `The 'hooks' attribute must be a map of hook event types to command arrays.` },
+				]
+			);
+		});
+
+		test('hooks - unknown hook event type', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  UnknownEvent:',
+				'    - type: command',
+				'      command: echo hello',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: `Unknown hook event type 'UnknownEvent'. Supported: SessionStart, SessionEnd, UserPromptSubmit, PreToolUse, PostToolUse, PreCompact, SubagentStart, SubagentStop, Stop, ErrorOccurred.` },
+				]
+			);
+		});
+
+		test('hooks - hook value must be array', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionStart: invalid',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `Hook event 'SessionStart' must have an array of command objects as its value.` },
+				]
+			);
+		});
+
+		test('hooks - command item must be object', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionStart:',
+				'    - just a string',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `Each hook command must be an object.` },
+				]
+			);
+		});
+
+		test('hooks - missing type property', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionStart:',
+				'    - command: echo hello',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `Hook command is missing required property 'type'.` },
+				]
+			);
+		});
+
+		test('hooks - type must be command', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionStart:',
+				'    - type: script',
+				'      command: echo hello',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `The 'type' property in a hook command must be 'command'.` },
+				]
+			);
+		});
+
+		test('hooks - missing command field', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionStart:',
+				'    - type: command',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `Hook command must specify at least one of 'command', 'windows', 'linux', or 'osx'.` },
+				]
+			);
+		});
+
+		test('hooks - empty command string', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: ""',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `The 'command' property in a hook command must be a non-empty string.` },
+				]
+			);
+		});
+
+		test('hooks - platform-specific commands are valid', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionStart:',
+				'    - type: command',
+				'      windows: echo hello',
+				'      linux: echo hello',
+				'      osx: echo hello',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('hooks - env must be a map with string values', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: echo hello',
+				'      env: invalid',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `The 'env' property in a hook command must be a map of string values.` },
+				]
+			);
+		});
+
+		test('hooks - valid env map', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: echo hello',
+				'      env:',
+				'        NODE_ENV: production',
+				'        DEBUG: "true"',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('hooks - unknown property warns', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: echo hello',
+				'      unknownProp: value',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: `Unknown property 'unknownProp' in hook command.` },
+				]
+			);
+		});
+
+		test('hooks - timeout must be number', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: echo hello',
+				'      timeout: not-a-number',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `The 'timeout' property in a hook command must be a number.` },
+				]
+			);
+		});
+
+		test('hooks - cwd must be string', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: echo hello',
+				'      cwd:',
+				'        - array',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `The 'cwd' property in a hook command must be a string.` },
+				]
+			);
+		});
+
+		test('hooks - multiple errors in one command', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionStart:',
+				'    - type: script',
+				'      unknownProp: value',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `The 'type' property in a hook command must be 'command'.` },
+					{ severity: MarkerSeverity.Warning, message: `Unknown property 'unknownProp' in hook command.` },
+					{ severity: MarkerSeverity.Error, message: `Hook command must specify at least one of 'command', 'windows', 'linux', or 'osx'.` },
+				]
+			);
+		});
+
+		test('hooks - nested matcher format is valid', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  UserPromptSubmit:',
+				'    - hooks:',
+				'        - type: command',
+				'          command: "echo foo"',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('hooks - nested matcher validates inner commands', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  PreToolUse:',
+				'    - matcher: Bash',
+				'      hooks:',
+				'        - type: script',
+				'          command: "echo foo"',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `The 'type' property in a hook command must be 'command'.` },
+				]
+			);
+		});
+
+		test('hooks - nested hooks must be array', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  PreToolUse:',
+				'    - hooks: invalid',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `The 'hooks' property in a matcher must be an array of command objects.` },
+				]
+			);
 		});
 	});
 
@@ -1175,7 +1944,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Instr"',
-				'applyTo: 5',
+				'applyTo: []',
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.instructions);
@@ -1464,7 +2233,7 @@ suite('PromptValidator', () => {
 			assert.deepEqual(actual, [
 				{ message: `Unknown tool or toolset 'ms-azuretools.vscode-azure-github-copilot/azure_recommend_custom_modes'.`, startColumn: 7, endColumn: 77 },
 				{ message: `Tool or toolset 'github.vscode-pull-request-github/suggest-fix' also needs to be enabled in the header.`, startColumn: 7, endColumn: 52 },
-				{ message: `Unknown tool or toolset 'openSimpleBrowser'.`, startColumn: 7, endColumn: 24 },
+				{ message: `Tool or toolset 'openSimpleBrowser' has been renamed, use 'vscode/openIntegratedBrowser' instead.`, startColumn: 7, endColumn: 24 },
 			]);
 		});
 
@@ -1498,7 +2267,7 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].message, `The skill name 'different-name' should match the folder name 'my-skill'.`);
 		});
 
-		test('skill without name attribute does not error', async () => {
+		test('skill without name attribute should error', async () => {
 			const content = [
 				'---',
 				'description: Test Skill',
@@ -1506,7 +2275,144 @@ suite('PromptValidator', () => {
 				'This is a skill without a name.'
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
-			assert.deepStrictEqual(markers, [], 'Expected no validation issues when name is missing');
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `Skill must provide a name.`);
+		});
+
+		test('skill with empty name should error', async () => {
+			const content = [
+				'---',
+				'name: ""',
+				'description: Test Skill',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'name' attribute must not be empty.`);
+		});
+
+		test('skill without description attribute should error', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'---',
+				'This is a skill without a description.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `Skill must provide a description.`);
+		});
+
+		test('skill with empty description should error', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: ""',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'description' attribute should not be empty.`);
+		});
+
+
+		test('skill name with invalid characters should error', async () => {
+			const content = [
+				'---',
+				'name: My Skill',
+				'description: Test Skill',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.ok(markers.some(m => m.severity === MarkerSeverity.Error && m.message === 'Skill name may only contain lowercase letters, numbers, and hyphens.'));
+		});
+
+		test('skill name with whitespace trimmed matches folder name', async () => {
+			const content = [
+				'---',
+				'name: "  my-skill  "',
+				'description: Test Skill',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, [], 'Expected no validation issues when trimmed name matches folder');
+		});
+
+		test('skill name validation with different folder depths', async () => {
+			// Test with deeper path structure
+			{
+				const content = [
+					'---',
+					'name: advanced-skill',
+					'description: Test Skill',
+					'---',
+					'This is a skill.'
+				].join('\n');
+				const markers = await validate(content, PromptsType.skill, URI.parse('file:///home/user/.github/skills/advanced-skill/SKILL.md'));
+				assert.deepStrictEqual(markers, [], 'Expected no issues for deeper path when name matches');
+			}
+
+			// Test with mismatch in deeper path
+			{
+				const content = [
+					'---',
+					'name: wrong-name',
+					'description: Test Skill',
+					'---',
+					'This is a skill.'
+				].join('\n');
+				const markers = await validate(content, PromptsType.skill, URI.parse('file:///home/user/.github/skills/correct-folder/SKILL.md'));
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].message, `The skill name 'wrong-name' should match the folder name 'correct-folder'.`);
+			}
+		});
+
+		test('skill name validation with special characters in folder', async () => {
+			const content = [
+				'---',
+				'name: my_special-skill.v2',
+				'description: Test Skill',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my_special-skill.v2/SKILL.md'));
+			assert.ok(markers.some(m => m.severity === MarkerSeverity.Error && m.message === 'Skill name may only contain lowercase letters, numbers, and hyphens.'), 'Expected error for invalid characters in skill name');
+		});
+
+		test('skill with non-string name type does not validate folder match', async () => {
+			const content = [
+				'---',
+				'name: []',
+				'description: Test Skill',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			// Should get error for non-string name type, but no folder mismatch warning
+			assert.ok(markers.some(m => m.message.includes('must be a string')), 'Expected error for non-string name');
+			assert.ok(!markers.some(m => m.message.includes('should match the folder name')), 'Should not warn about folder mismatch for non-string name');
+		});
+
+		test('skill folder name validation only for skill type', async () => {
+			// Verify that folder name validation doesn't run for non-skill prompt types
+			const content = [
+				'---',
+				'name: different-name',
+				'description: Test Agent',
+				'---',
+				'This is an agent.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, URI.parse('file:///.github/agents/my-agent/AGENT.md'));
+			// Should not get folder name mismatch warning for agents
+			assert.ok(!markers.some(m => m.message.includes('should match the folder name')), 'Should not validate folder names for agents');
 		});
 
 		test('skill with unknown attributes shows warning', async () => {
@@ -1527,6 +2433,521 @@ suite('PromptValidator', () => {
 			assert.ok(markers.every(m => m.message.includes('Supported: ')));
 		});
 
+		test('skill with user-invocable: false is valid', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: Background knowledge skill',
+				'user-invocable: false',
+				'---',
+				'This skill provides background context.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, [], 'user-invocable: false should be valid for skills');
+		});
+
+		test('skill with user-invocable: true is valid', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: User-accessible skill',
+				'user-invocable: true',
+				'---',
+				'This skill can be invoked by users.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, [], 'user-invocable: true should be valid for skills');
+		});
+
+		test('skill with invalid user-invocable value shows error', async () => {
+			// String value instead of boolean
+			{
+				const content = [
+					'---',
+					'name: my-skill',
+					'description: Test Skill',
+					'user-invocable: "false"',
+					'---',
+					'Body'
+				].join('\n');
+				const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'user-invocable' attribute must be 'true' or 'false'.`);
+			}
+
+			// Number value instead of boolean
+			{
+				const content = [
+					'---',
+					'name: my-skill',
+					'description: Test Skill',
+					'user-invocable: 0',
+					'---',
+					'Body'
+				].join('\n');
+				const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'user-invocable' attribute must be 'true' or 'false'.`);
+			}
+		});
+
+		test('skill with disable-model-invocation: true is valid', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: Manual-only skill',
+				'disable-model-invocation: true',
+				'---',
+				'This skill must be triggered manually with /name.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, [], 'disable-model-invocation: true should be valid for skills');
+		});
+
+		test('skill with disable-model-invocation: false is valid', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: Auto-loadable skill',
+				'disable-model-invocation: false',
+				'---',
+				'This skill can be loaded automatically by the agent.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, [], 'disable-model-invocation: false should be valid for skills');
+		});
+
+		test('skill with invalid disable-model-invocation value shows error', async () => {
+			// String value instead of boolean
+			{
+				const content = [
+					'---',
+					'name: my-skill',
+					'description: Test Skill',
+					'disable-model-invocation: "true"',
+					'---',
+					'Body'
+				].join('\n');
+				const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'disable-model-invocation' attribute must be 'true' or 'false'.`);
+			}
+
+			// Number value instead of boolean
+			{
+				const content = [
+					'---',
+					'name: my-skill',
+					'description: Test Skill',
+					'disable-model-invocation: 1',
+					'---',
+					'Body'
+				].join('\n');
+				const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'disable-model-invocation' attribute must be 'true' or 'false'.`);
+			}
+		});
+
+		test('skill with argument-hint is valid', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: Skill with argument hint',
+				'argument-hint: "[issue-number]"',
+				'---',
+				'This skill expects an issue number.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, [], 'argument-hint should be valid for skills');
+		});
+
+		test('skill with empty argument-hint shows error', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: Test Skill',
+				'argument-hint: ""',
+				'---',
+				'Body'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'argument-hint' attribute should not be empty.`);
+		});
+
+		test('skill with non-string argument-hint shows error', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: Test Skill',
+				'argument-hint: []',
+				'---',
+				'Body'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'argument-hint' attribute must be a string.`);
+		});
+
+		test('skill with all visibility attributes combined is valid', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: Complex visibility skill',
+				'user-invocable: false',
+				'disable-model-invocation: true',
+				'argument-hint: "[optional-arg]"',
+				'---',
+				'This skill has complex visibility settings.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, [], 'All visibility attributes combined should be valid');
+		});
+
+	});
+
+	suite('claude rules', () => {
+
+		// Helper URI for Claude rules — file must be under .claude/rules/ for target detection
+		const claudeRulesUri = URI.parse('myFs://test/.claude/rules/my-rule.md');
+
+		test('valid claude rules with paths attribute', async () => {
+			const content = [
+				'---',
+				'description: "TypeScript rules"',
+				`paths: ['**/*.ts', '**/*.tsx']`,
+				'---',
+				'Always use strict mode.',
+			].join('\n');
+			const markers = await validate(content, PromptsType.instructions, claudeRulesUri);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('valid claude rules without paths attribute', async () => {
+			const content = [
+				'---',
+				'description: "General rules"',
+				'---',
+				'Follow coding guidelines.',
+			].join('\n');
+			const markers = await validate(content, PromptsType.instructions, claudeRulesUri);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('claude rules paths must be an array', async () => {
+			const content = [
+				'---',
+				'description: "Rules"',
+				'paths: "**/*.ts"',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.instructions, claudeRulesUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'paths' attribute must be an array of glob patterns.`);
+		});
+
+		test('claude rules with unknown attribute shows warning', async () => {
+			const content = [
+				'---',
+				'description: "Rules"',
+				'applyTo: "**/*.ts"',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.instructions, claudeRulesUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.ok(markers[0].message.includes(`Attribute 'applyTo' is not supported in rules files.`));
+		});
+
+		test('claude rules with multiple validation errors', async () => {
+			const content = [
+				'---',
+				'description: ""',
+				`paths: ['', 123]`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.instructions, claudeRulesUri);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `The 'description' attribute should not be empty.` },
+					{ severity: MarkerSeverity.Error, message: `Path entries must be non-empty glob patterns.` },
+				]
+			);
+		});
+
+		test('claude rules in subdirectory', async () => {
+			const subDirUri = URI.parse('myFs://test/.claude/rules/sub/deep-rule.md');
+			const content = [
+				'---',
+				'description: "Nested rules"',
+				`paths: ['src/**/*.ts']`,
+				'---',
+				'Nested rule content.',
+			].join('\n');
+			const markers = await validate(content, PromptsType.instructions, subDirUri);
+			assert.deepStrictEqual(markers, []);
+		});
+	});
+
+	suite('claude agents', () => {
+
+		// Helper URI for Claude agents — file must be under .claude/agents/ for target detection
+		const claudeAgentUri = URI.parse('myFs://test/.claude/agents/test.agent.md');
+
+		test('valid Claude agent with all common attributes', async () => {
+			const content = [
+				'---',
+				'name: security-reviewer',
+				'description: Reviews code for security vulnerabilities',
+				`tools: ['Edit', 'Grep', 'AskUserQuestion', 'WebFetch']`,
+				'model: opus',
+				'permissionMode: delegate',
+				'---',
+				'You are a senior security engineer.',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('valid Claude agent with minimal attributes', async () => {
+			const content = [
+				'---',
+				'name: helper',
+				'description: A simple helper agent',
+				'---',
+				'You help with tasks.',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('Claude agent with valid model values', async () => {
+			// Each known Claude model should be valid
+			for (const modelName of ['sonnet', 'opus', 'haiku', 'inherit']) {
+				const content = [
+					'---',
+					'name: test-agent',
+					'description: Test',
+					`model: ${modelName}`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+				assert.deepStrictEqual(markers, [], `Model '${modelName}' should be valid`);
+			}
+		});
+
+		test('Claude agent with unknown model value', async () => {
+			const content = [
+				'---',
+				'name: test-agent',
+				'description: Test',
+				'model: gpt-4',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, `Unknown value 'gpt-4', valid: sonnet, opus, haiku, inherit.`);
+		});
+
+		test('Claude agent with non-string model value', async () => {
+			const content = [
+				'---',
+				'name: test-agent',
+				'description: Test',
+				'model: []',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'model' attribute must be a string.`);
+		});
+
+		test('Claude agent with valid permissionMode values', async () => {
+			for (const mode of ['default', 'acceptEdits', 'plan', 'delegate', 'dontAsk', 'bypassPermissions']) {
+				const content = [
+					'---',
+					'name: test-agent',
+					'description: Test',
+					`permissionMode: ${mode}`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+				assert.deepStrictEqual(markers, [], `permissionMode '${mode}' should be valid`);
+			}
+		});
+
+		test('Claude agent with unknown permissionMode value', async () => {
+			const content = [
+				'---',
+				'name: test-agent',
+				'description: Test',
+				'model: sonnet',
+				'permissionMode: allowAll',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, `Unknown value 'allowAll', valid: default, acceptEdits, plan, delegate, dontAsk, bypassPermissions.`);
+		});
+
+		test('Claude agent with valid memory values', async () => {
+			for (const mem of ['user', 'project', 'local']) {
+				const content = [
+					'---',
+					'name: test-agent',
+					'description: Test',
+					`memory: ${mem}`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+				assert.deepStrictEqual(markers, [], `memory '${mem}' should be valid`);
+			}
+		});
+
+		test('Claude agent with unknown memory value', async () => {
+			const content = [
+				'---',
+				'name: test-agent',
+				'description: Test',
+				'model: sonnet',
+				'permissionMode: default',
+				'memory: global',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, `Unknown value 'global', valid: user, project, local.`);
+		});
+
+		test('Claude agent with empty name shows error', async () => {
+			const content = [
+				'---',
+				'name: ""',
+				'description: Test',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'name' attribute must not be empty.`);
+		});
+
+		test('Claude agent with empty description shows error', async () => {
+			const content = [
+				'---',
+				'name: test-agent',
+				'description: ""',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'description' attribute should not be empty.`);
+		});
+
+		test('Claude agent with unknown attributes does not warn', async () => {
+			// Claude target ignores unknown attributes since we don't have a full list
+			const content = [
+				'---',
+				'name: test-agent',
+				'description: Test',
+				'customAttribute: someValue',
+				'anotherCustom: 123',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(markers, [], 'Unknown attributes should be silently ignored for Claude agents');
+		});
+
+		test('Claude agent tools are not validated against VS Code tool registry', async () => {
+			// Claude tool names (Edit, Grep, etc.) don't exist in VS Code's tool registry
+			// but should not produce warnings for Claude target
+			const content = [
+				'---',
+				'name: test-agent',
+				'description: Test',
+				`tools: ['Edit', 'Grep', 'UnknownClaudeTool', 'WebFetch']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(markers, [], 'Claude tools should not be validated against VS Code registry');
+		});
+
+		test('Claude agent with comma-separated tools string', async () => {
+			const content = [
+				'---',
+				'name: security-reviewer',
+				'description: Reviews code',
+				'tools: Edit, Grep, AskUserQuestion, WebFetch',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(markers, [], 'Comma-separated tools string should be valid for Claude');
+		});
+
+		test('Claude agent does not validate handoffs or agents attributes', async () => {
+			// handoffs and agents are VS Code-specific; they shouldn't be validated for Claude
+			const content = [
+				'---',
+				'name: test-agent',
+				'description: Test',
+				'model: opus',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('Claude agent full realistic example', async () => {
+			const content = [
+				'---',
+				'name: security-reviewer',
+				'description: Reviews code for security vulnerabilities',
+				`tools: ['Edit', 'Grep', 'AskUserQuestion', 'WebFetch']`,
+				'model: opus',
+				'permissionMode: delegate',
+				'memory: project',
+				'---',
+				'You are a senior security engineer.',
+				'Review the code for common vulnerabilities.',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('Claude agent with multiple validation errors', async () => {
+			const content = [
+				'---',
+				'name: ""',
+				'description: ""',
+				'model: unknown-model',
+				'permissionMode: invalid-mode',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `The 'name' attribute must not be empty.` },
+					{ severity: MarkerSeverity.Error, message: `The 'description' attribute should not be empty.` },
+					{ severity: MarkerSeverity.Warning, message: `Unknown value 'unknown-model', valid: sonnet, opus, haiku, inherit.` },
+					{ severity: MarkerSeverity.Warning, message: `Unknown value 'invalid-mode', valid: default, acceptEdits, plan, delegate, dontAsk, bypassPermissions.` },
+				]
+			);
+		});
 	});
 
 });

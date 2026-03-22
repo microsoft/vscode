@@ -11,12 +11,14 @@ import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '.
 import { autorun, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import * as nls from '../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { IWorkbenchMcpGatewayService } from '../../contrib/mcp/common/mcpGatewayService.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
@@ -44,6 +46,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		servers: ISettableObservable<readonly McpServerDefinition[]>;
 		dispose(): void;
 	}>());
+	private readonly _gateways = this._register(new DisposableMap<string, DisposableStore>());
 
 	constructor(
 		private readonly _extHostContext: IExtHostContext,
@@ -57,6 +60,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IWorkbenchMcpGatewayService private readonly _mcpGatewayService: IWorkbenchMcpGatewayService,
 	) {
 		super();
 		this._register(_authenticationService.onDidChangeSessions(e => this._onDidChangeAuthSessions(e.providerId, e.label)));
@@ -395,6 +399,35 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			serverMetadataSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How authorization server metadata was discovered (resourceMetadata, wellKnown, or default)' };
 		};
 		this._telemetryService.publicLog2<IAuthMetadataSource, McpAuthSetupClassification>('mcp/authSetup', data);
+	}
+
+	async $startMcpGateway(): Promise<{ servers: { label: string; address: URI }[]; gatewayId: string } | undefined> {
+		const result = await this._mcpGatewayService.createGateway(this._extHostContext.extensionHostKind === ExtensionHostKind.Remote);
+		if (!result) {
+			return undefined;
+		}
+
+		if (this._store.isDisposed) {
+			result.dispose();
+			return undefined;
+		}
+
+		const gatewayId = generateUuid();
+		const store = new DisposableStore();
+		store.add(result);
+		store.add(result.onDidChangeServers(servers => {
+			this._proxy.$onDidChangeGatewayServers(gatewayId, servers.map(s => ({ label: s.label, address: s.address })));
+		}));
+		this._gateways.set(gatewayId, store);
+
+		return {
+			servers: result.servers.map(s => ({ label: s.label, address: s.address })),
+			gatewayId,
+		};
+	}
+
+	$disposeMcpGateway(gatewayId: string): void {
+		this._gateways.deleteAndDispose(gatewayId);
 	}
 
 	private async loginPrompt(mcpLabel: string, providerLabel: string, recreatingSession: boolean): Promise<boolean> {

@@ -29,6 +29,10 @@ export interface IModelPickerDelegate {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
+	useGroupedModelPicker(): boolean;
+	showManageModelsAction(): boolean;
+	showUnavailableFeatured(): boolean;
+	showFeatured(): boolean;
 }
 
 type ChatModelChangeClassification = {
@@ -44,7 +48,7 @@ type ChatModelChangeEvent = {
 };
 
 
-function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, telemetryService: ITelemetryService): IActionWidgetDropdownActionProvider {
+function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, telemetryService: ITelemetryService, pickerOptions: IChatInputPickerOptions): IActionWidgetDropdownActionProvider {
 	return {
 		getActions: () => {
 			const models = delegate.getModels();
@@ -56,10 +60,9 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					checked: true,
 					category: DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
-					description: localize('chat.modelPicker.auto.detail', "Best for your request based on capacity and performance."),
 					tooltip: localize('chat.modelPicker.auto', "Auto"),
 					label: localize('chat.modelPicker.auto', "Auto"),
-					hover: { content: localize('chat.modelPicker.auto.description', "Automatically selects the best model for your task based on context and complexity.") },
+					hover: { content: localize('chat.modelPicker.auto.description', "Automatically selects the best model for your task based on capacity."), position: pickerOptions.hoverPosition },
 					run: () => { }
 				} satisfies IActionWidgetDropdownAction];
 			}
@@ -74,7 +77,7 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					class: undefined,
 					description: model.metadata.multiplier ?? model.metadata.detail,
 					tooltip: hoverContent ? '' : model.metadata.name,
-					hover: hoverContent ? { content: hoverContent } : undefined,
+					hover: hoverContent ? { content: hoverContent, position: pickerOptions.hoverPosition } : undefined,
 					label: model.metadata.name,
 					run: () => {
 						const previousModel = delegate.currentModel.get();
@@ -166,10 +169,11 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 			run: () => { }
 		};
 
+		const baseActionBarActionProvider = getModelPickerActionBarActionProvider(commandService, chatEntitlementService, productService);
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
-			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService),
-			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService, productService),
-			reporter: { name: 'ChatModelPicker', includeOptions: true },
+			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService, pickerOptions),
+			actionBarActionProvider: { getActions: () => baseActionBarActionProvider.getActions() },
+			reporter: { id: 'ChatModelPicker', name: 'ChatModelPicker', includeOptions: true },
 		};
 
 		super(actionWithLabel, widgetOptions ?? modelPickerActionWidgetOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);

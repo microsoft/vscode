@@ -79,6 +79,7 @@ export interface IProductConfiguration {
 	readonly win32VersionedUpdate?: boolean;
 	readonly applicationName: string;
 	readonly embedderIdentifier?: string;
+	readonly telemetryAppName?: string;
 
 	readonly urlProtocol: string;
 	readonly dataFolderName: string; // location for extensions (e.g. ~/.vscode-insiders)
@@ -205,6 +206,7 @@ export interface IProductConfiguration {
 		readonly hasPrereleaseVersion?: boolean;
 		readonly excludeVersionRange?: string;
 	}>;
+	readonly extensionsForceVersionByQuality?: readonly string[];
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
@@ -339,6 +341,7 @@ export interface IDefaultChatAgent {
 	readonly chatExtensionId: string;
 
 	readonly chatExtensionOutputId: string;
+	readonly chatExtensionOutputExtensionStateCommand: string;
 
 	readonly documentationUrl: string;
 	readonly skusDocumentationUrl: string;
@@ -358,6 +361,7 @@ export interface IDefaultChatAgent {
 		apple: { id: string; name: string };
 	};
 
+	readonly providerExtensionId: string;
 	readonly providerUriSetting: string;
 	readonly providerScopes: string[][];
 

@@ -6,7 +6,7 @@
 import { IActionWidgetService } from './actionWidget.js';
 import { IAction } from '../../../base/common/actions.js';
 import { BaseDropdown, IActionProvider, IBaseDropdownOptions } from '../../../base/browser/ui/dropdown/dropdown.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemHover } from './actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemHover, IActionListOptions } from './actionList.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { getActiveElement, isHTMLElement } from '../../../base/browser/dom.js';
@@ -47,10 +47,16 @@ export interface IActionWidgetDropdownOptions extends IBaseDropdownOptions {
 	getAnchor?: () => HTMLElement;
 
 	/**
-	 * Name used for telemetry tracking when the dropdown closes.
-	 * If not provided, no telemetry will be sent.
+	 * Telemetry reporter configuration used when the dropdown closes. The `id` field is required
+	 * and is used as the telemetry identifier; `name` is optional additional context. If not
+	 * provided, no telemetry will be sent.
 	 */
-	readonly reporter?: { name: string; includeOptions?: boolean };
+	readonly reporter?: { id: string; name?: string; includeOptions?: boolean };
+
+	/**
+	 * Options for the underlying ActionList (filter, collapsible sections).
+	 */
+	readonly listOptions?: IActionListOptions;
 }
 
 /**
@@ -76,7 +82,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			return;
 		}
 
-		let actionBarActions = this._options.actionBarActions ?? this._options.actionBarActionProvider?.getActions() ?? [];
+		const actionBarActions = this._options.actionBarActions ?? this._options.actionBarActionProvider?.getActions() ?? [];
 		const actions = this._options.actions ?? this._options.actionProvider?.getActions() ?? [];
 
 		// Track the currently selected option before opening
@@ -153,13 +159,18 @@ export class ActionWidgetDropdown extends BaseDropdown {
 		const previouslyFocusedElement = getActiveElement();
 
 
+		const auxiliaryActionIds = new Set(actionBarActions.map(action => action.id));
+
 		const actionWidgetDelegate: IActionListDelegate<IActionWidgetDropdownAction> = {
 			onSelect: (action, preview) => {
-				selectedOption = action;
+				if (!auxiliaryActionIds.has(action.id)) {
+					selectedOption = action;
+				}
 				this.actionWidgetService.hide();
 				action.run();
 			},
 			onHide: () => {
+				this.hide();
 				if (isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}
@@ -167,13 +178,30 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			}
 		};
 
-		actionBarActions = actionBarActions.map(action => ({
-			...action,
-			run: async (...args: unknown[]) => {
-				this.actionWidgetService.hide();
-				return action.run(...args);
+		if (actionBarActions.length) {
+			if (actionWidgetItems.length) {
+				actionWidgetItems.push({
+					label: '',
+					kind: ActionListItemKind.Separator,
+					canPreview: false,
+					disabled: false,
+					hideIcon: false,
+				});
 			}
-		}));
+
+			for (const action of actionBarActions) {
+				actionWidgetItems.push({
+					item: action,
+					tooltip: action.tooltip,
+					kind: ActionListItemKind.Action,
+					canPreview: false,
+					group: { title: '', icon: ThemeIcon.fromId(Codicon.blank.id) },
+					disabled: !action.enabled,
+					hideIcon: false,
+					label: action.label,
+				});
+			}
+		}
 
 		const accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IActionWidgetDropdownAction>>> = {
 			isChecked(element) {
@@ -182,7 +210,9 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			getRole: (e) => {
 				switch (e.kind) {
 					case ActionListItemKind.Action:
-						return 'menuitemcheckbox';
+						// Auxiliary actions are not checkable options, so use 'menuitem' to
+						// avoid screen readers announcing them as unchecked checkboxes.
+						return e.item && auxiliaryActionIds.has(e.item.id) ? 'menuitem' : 'menuitemcheckbox';
 					case ActionListItemKind.Separator:
 						return 'separator';
 					default:
@@ -192,6 +222,8 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			getWidgetRole: () => 'menu',
 		};
 
+		super.show();
+
 		this.actionWidgetService.show<IActionWidgetDropdownAction>(
 			this._options.label ?? '',
 			false,
@@ -199,8 +231,9 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			actionWidgetDelegate,
 			this._options.getAnchor?.() ?? this.element,
 			undefined,
-			actionBarActions,
-			accessibilityProvider
+			[],
+			accessibilityProvider,
+			this._options.listOptions
 		);
 	}
 
@@ -216,6 +249,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			this.telemetryService.publicLog2<ActionWidgetDropdownClosedEvent, ActionWidgetDropdownClosedClassification>(
 				'actionWidgetDropdownClosed',
 				{
+					id: this._options.reporter.id,
 					name: this._options.reporter.name,
 					selectionChanged: optionBefore?.id !== optionAfter?.id,
 					optionIdBefore: this._options.reporter.includeOptions ? optionBefore?.id : undefined,
@@ -229,7 +263,8 @@ export class ActionWidgetDropdown extends BaseDropdown {
 }
 
 type ActionWidgetDropdownClosedEvent = {
-	name: string;
+	id: string;
+	name: string | undefined;
 	selectionChanged: boolean;
 	optionIdBefore: string | undefined;
 	optionIdAfter: string | undefined;
@@ -238,6 +273,7 @@ type ActionWidgetDropdownClosedEvent = {
 };
 
 type ActionWidgetDropdownClosedClassification = {
+	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The telemetry id of the dropdown picker.' };
 	name: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The telemetry name of the dropdown picker.' };
 	selectionChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user changed the selected option.' };
 	optionIdBefore: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The option configured before opening the dropdown.' };

@@ -51,10 +51,7 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 		const entitlement = this.chatEntitlementService.entitlement;
 		const isAnonymous = this.chatEntitlementService.anonymous;
 
-		// Free tier is always enabled, anonymous is controlled by experiment via chat.statusWidget.sku
-		const enabledSku = this.configurationService.getValue<string | null>('chat.statusWidget.sku');
-
-		if (isAnonymous && enabledSku === 'anonymous') {
+		if (isAnonymous && this.configurationService.getValue<boolean>('chat.statusWidget.anonymous')) {
 			this.createWidgetContent('anonymous');
 		} else if (entitlement === ChatEntitlement.Free) {
 			this.createWidgetContent('free');
@@ -82,7 +79,7 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 		this.actionButton.element.classList.add('chat-status-button');
 
 		if (enabledSku === 'anonymous') {
-			const message = localize('chat.anonymousRateLimited.message', "You've reached the limit for chat messages. Try Copilot Pro for free.");
+			const message = localize('chat.anonymousRateLimited.message', "You've reached the limit for chat messages. Sign in to use Copilot Free.");
 			const buttonLabel = localize('chat.anonymousRateLimited.signIn', "Sign In");
 			this.messageElement.textContent = message;
 			this.actionButton.label = buttonLabel;

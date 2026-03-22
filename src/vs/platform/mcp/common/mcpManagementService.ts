@@ -22,7 +22,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IGalleryMcpServerConfiguration, InstallMcpServerEvent, InstallMcpServerResult, RegistryType, UninstallMcpServerEvent, InstallOptions, UninstallOptions, IInstallableMcpServer, IAllowedMcpServersService, IMcpServerArgument, IMcpServerKeyValueInput, McpServerConfigurationParseResult } from './mcpManagement.js';
-import { IMcpServerVariable, McpServerVariableType, IMcpServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
+import { IMcpSandboxConfiguration, IMcpServerVariable, McpServerVariableType, IMcpServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
 import { IMcpResourceScannerService, McpResourceTarget } from './mcpResourceScannerService.js';
 
 export interface ILocalMcpServerInfo {
@@ -73,7 +73,9 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 
 		// remote
 		if (packageType === RegistryType.REMOTE && manifest.remotes?.length) {
-			const { inputs, variables } = this.processKeyValueInputs(manifest.remotes[0].headers ?? []);
+			const url = manifest.remotes[0].url;
+			const headers = manifest.remotes[0].headers ?? [];
+			const { inputs, variables } = this.processKeyValueInputs(url.startsWith('https://api.githubcopilot.com/mcp') ? headers.filter(h => h.name.toLowerCase() !== 'authorization') : headers);
 			return {
 				mcpServerConfiguration: {
 					config: {
@@ -149,7 +151,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 				args.push(serverPackage.version ? `${serverPackage.identifier}@${serverPackage.version}` : serverPackage.identifier);
 				args.push('--yes'); // installation is confirmed by the UI, so --yes is appropriate here
 				if (serverPackage.registryBaseUrl) {
-					args.push('--add-source', serverPackage.registryBaseUrl);
+					args.push('--source', serverPackage.registryBaseUrl);
 				}
 				if (serverPackage.packageArguments?.length) {
 					args.push('--');
@@ -356,7 +358,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 			const scannedMcpServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target);
 			if (scannedMcpServers.servers) {
 				await Promise.allSettled(Object.entries(scannedMcpServers.servers).map(async ([name, scannedServer]) => {
-					const server = await this.scanLocalServer(name, scannedServer);
+					const server = await this.scanLocalServer(name, scannedServer, scannedMcpServers.sandbox);
 					local.set(name, server);
 				}));
 			}
@@ -424,7 +426,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 		return Array.from(this.local.values());
 	}
 
-	protected async scanLocalServer(name: string, config: IMcpServerConfiguration): Promise<ILocalMcpServer> {
+	protected async scanLocalServer(name: string, config: IMcpServerConfiguration, rootSandbox?: IMcpSandboxConfiguration): Promise<ILocalMcpServer> {
 		let mcpServerInfo = await this.getLocalServerInfo(name, config);
 		if (!mcpServerInfo) {
 			mcpServerInfo = { name, version: config.version, galleryUrl: isString(config.gallery) ? config.gallery : undefined };
@@ -433,6 +435,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 		return {
 			name,
 			config,
+			rootSandbox,
 			mcpResource: this.mcpResource,
 			version: mcpServerInfo.version,
 			location: mcpServerInfo.location,

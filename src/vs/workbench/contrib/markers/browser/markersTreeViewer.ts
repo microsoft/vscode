@@ -711,7 +711,7 @@ export class MarkersViewModel extends Disposable {
 	private bulkUpdate: boolean = false;
 
 	private hoveredMarker: Marker | null = null;
-	private hoverDelayer: Delayer<void> = new Delayer<void>(300);
+	private hoverDelayer: Delayer<void> = this._register(new Delayer<void>(300));
 	private viewModeContextKey: IContextKey<MarkersViewMode>;
 
 	constructor(

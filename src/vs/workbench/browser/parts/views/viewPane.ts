@@ -161,7 +161,7 @@ class ViewWelcomeController {
 
 		this.container.classList.add('welcome');
 		const viewWelcomeContainer = append(this.container, $('.welcome-view'));
-		this.element = $('.welcome-view-content', { tabIndex: 0 });
+		this.element = $('.welcome-view-content', { tabIndex: 0, role: 'region', 'aria-label': nls.localize('welcomeViewAriaLabel', "Welcome") });
 		if (this._wide) {
 			this.element.classList.add('wide');
 		}

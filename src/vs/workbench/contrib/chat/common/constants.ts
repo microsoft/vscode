@@ -9,18 +9,24 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export enum ChatConfiguration {
+	AIDisabled = 'chat.disableAIFeatures',
+	PluginsEnabled = 'chat.plugins.enabled',
+	PluginLocations = 'chat.pluginLocations',
+	PluginMarketplaces = 'chat.plugins.marketplaces',
 	AgentEnabled = 'chat.agent.enabled',
+	PlanAgentDefaultModel = 'chat.planAgent.defaultModel',
+	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
+	RequestQueueingDefaultAction = 'chat.requestQueuing.defaultAction',
 	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	EditorAssociations = 'chat.editorAssociations',
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	EditModeHidden = 'chat.editMode.hidden',
-	AlternativeToolAction = 'chat.alternativeToolAction.enabled',
-	Edits2Enabled = 'chat.edits2.enabled',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
 	InlineReferencesStyle = 'chat.inlineReferences.style',
+	AutoReply = 'chat.autoReply',
 	GlobalAutoApprove = 'chat.tools.global.autoApprove',
 	AutoApproveEdits = 'chat.tools.edits.autoApprove',
 	AutoApprovedUrls = 'chat.tools.urls.autoApprove',
@@ -30,19 +36,30 @@ export enum ChatConfiguration {
 	ThinkingStyle = 'chat.agent.thinkingStyle',
 	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',
 	TerminalToolsInThinking = 'chat.agent.thinking.terminalTools',
+	SimpleTerminalCollapsible = 'chat.tools.terminal.simpleCollapsible',
+	ThinkingPhrases = 'chat.agent.thinking.phrases',
 	AutoExpandToolFailures = 'chat.tools.autoExpandFailures',
 	TodosShowWidget = 'chat.tools.todos.showWidget',
+	NotifyWindowOnConfirmation = 'chat.notifyWindowOnConfirmation',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
 	ChatViewSessionsEnabled = 'chat.viewSessions.enabled',
 	ChatViewSessionsGrouping = 'chat.viewSessions.grouping',
 	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
-	ChatViewTitleEnabled = 'chat.viewTitle.enabled',
+	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
+	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
+	SubagentsMaxDepth = 'chat.subagents.maxDepth',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
 	ExitAfterDelegation = 'chat.exitAfterDelegation',
-	AgentsControlClickBehavior = 'chat.agentsControl.clickBehavior',
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
+	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
+	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
+	ChatCustomizationMenuEnabled = 'chat.customizationsMenu.enabled',
+	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
+	AutopilotEnabled = 'chat.autopilot.enabled',
+	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
+	ArtifactsEnabled = 'chat.artifacts.enabled',
 }
 
 /**
@@ -65,6 +82,26 @@ export function validateChatMode(mode: unknown): ChatModeKind | undefined {
 	}
 }
 
+/**
+ * The permission level controlling tool auto-approval behavior.
+ */
+export enum ChatPermissionLevel {
+	/** Use existing auto-approve settings */
+	Default = 'default',
+	/** Auto-approve all tool calls, auto-retry on error */
+	AutoApprove = 'autoApprove',
+	/** Everything AutoApprove does plus an internal stop hook that continues until the task is done */
+	Autopilot = 'autopilot'
+}
+
+/**
+ * Returns true if the permission level enables auto-approval of all tool calls.
+ * Both {@link ChatPermissionLevel.AutoApprove} and {@link ChatPermissionLevel.Autopilot} enable auto-approval.
+ */
+export function isAutoApproveLevel(level: ChatPermissionLevel | undefined): boolean {
+	return level === ChatPermissionLevel.AutoApprove || level === ChatPermissionLevel.Autopilot;
+}
+
 export function isChatMode(mode: unknown): mode is ChatModeKind {
 	return !!validateChatMode(mode);
 }
@@ -82,10 +119,10 @@ export enum CollapsedToolsDisplayMode {
 	Always = 'always',
 }
 
-export enum AgentsControlClickBehavior {
-	Default = 'default',
-	TriStateToggle = 'triStateToggle',
-	Focus = 'focus',
+export enum ChatNotificationMode {
+	Off = 'off',
+	WindowNotFocused = 'windowNotFocused',
+	Always = 'always',
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';

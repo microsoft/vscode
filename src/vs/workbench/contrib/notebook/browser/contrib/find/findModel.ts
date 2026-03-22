@@ -82,7 +82,7 @@ export class FindModel extends Disposable {
 	) {
 		super();
 
-		this._throttledDelayer = new Delayer(20);
+		this._throttledDelayer = this._register(new Delayer(20));
 		this._computePromise = null;
 
 		this._register(_state.onFindReplaceStateChange(e => {
