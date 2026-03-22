@@ -13,8 +13,6 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { INewSession, RemoteNewSession } from './newSession.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
-import { autorun } from '../../../../base/common/observable.js';
 
 const FILTER_THRESHOLD = 10;
 
@@ -49,22 +47,8 @@ export class CloudModelPicker extends Disposable {
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
-
-		// Observe active session to bind and manage visibility
-		this._register(autorun(reader => {
-			const session = this.sessionsProvidersService.activeSession.read(reader);
-			const shouldShow = !!session?.pickerVisibility.cloudModel;
-			if (this._slotElement) {
-				this._slotElement.style.display = shouldShow ? '' : 'none';
-			}
-			if (shouldShow && session && session.sessionType) {
-				// Cloud model picker binding is handled via setSession
-				// which requires RemoteNewSession — this is still provider-internal
-			}
-		}));
 	}
 
 	/**

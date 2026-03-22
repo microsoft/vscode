@@ -18,9 +18,6 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
-import { autorun } from '../../../../base/common/observable.js';
-
 interface IModePickerItem {
 	readonly kind: 'mode';
 	readonly mode: IChatMode;
@@ -57,7 +54,6 @@ export class ModePicker extends Disposable {
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ICommandService private readonly commandService: ICommandService,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
@@ -65,18 +61,6 @@ export class ModePicker extends Disposable {
 			// Refresh the trigger label when available chat modes change
 			if (this._triggerElement) {
 				this._updateTriggerLabel();
-			}
-		}));
-
-		// Observe active session to manage visibility and push mode
-		this._register(autorun(reader => {
-			const session = this.sessionsProvidersService.activeSession.read(reader);
-			const shouldShow = !!session?.pickerVisibility.mode;
-			if (this._slotElement) {
-				this._slotElement.style.display = shouldShow ? '' : 'none';
-			}
-			if (session) {
-				this.sessionsProvidersService.setSessionOption(session.sessionId, 'mode', this._selectedMode);
 			}
 		}));
 	}

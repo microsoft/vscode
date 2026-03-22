@@ -7,13 +7,11 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 
 const COPILOT_WORKTREE_PATTERN = 'copilot-worktree-';
@@ -62,24 +60,9 @@ export class BranchPicker extends Disposable {
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IGitService private readonly gitService: IGitService,
 	) {
 		super();
-
-		// Observe the active session's workspace for repository changes
-		this._register(autorun(reader => {
-			const session = this.sessionsProvidersService.activeSession.read(reader);
-			if (session) {
-				const workspace = session.workspace.read(reader);
-				const repository = workspace?.repositories[0];
-				// BranchPicker needs IGitRepository — for now, get it from project
-				// TODO: workspace.repositories should provide the git repo handle
-				this._onRepositoryChanged(undefined); // Will be connected when provider resolves repo
-			} else {
-				this._onRepositoryChanged(undefined);
-			}
-		}));
 	}
 
 	private async _onRepositoryChanged(repository: IGitRepository | undefined): Promise<void> {
@@ -94,7 +77,6 @@ export class BranchPicker extends Disposable {
 			this._onDidChange.fire(undefined);
 			this._setLoading(false);
 			this._updateTriggerLabel();
-			this._updateVisibility();
 			return;
 		}
 
@@ -127,7 +109,6 @@ export class BranchPicker extends Disposable {
 			if (!cts.token.isCancellationRequested) {
 				this._setLoading(false);
 				this._updateTriggerLabel();
-				this._updateVisibility();
 			}
 		}
 	}
@@ -144,7 +125,6 @@ export class BranchPicker extends Disposable {
 		trigger.role = 'button';
 		this._triggerElement = trigger;
 		this._updateTriggerLabel();
-		this._updateVisibility();
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
 			dom.EventHelper.stop(e, true);
@@ -206,13 +186,6 @@ export class BranchPicker extends Disposable {
 			this._selectedBranch = branch;
 			this._onDidChange.fire(branch);
 			this._updateTriggerLabel();
-		}
-	}
-
-	private _updateVisibility(): void {
-		if (this._slotElement) {
-			const shouldShow = !!this._repository && this._branches.length > 0;
-			this._slotElement.style.display = shouldShow ? '' : 'none';
 		}
 	}
 

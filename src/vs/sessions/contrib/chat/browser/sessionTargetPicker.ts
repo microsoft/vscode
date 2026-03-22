@@ -13,8 +13,6 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
-import { autorun } from '../../../../base/common/observable.js';
 
 // #region --- Types ---
 
@@ -185,7 +183,6 @@ export class IsolationPicker extends Disposable {
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 		this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
@@ -194,27 +191,8 @@ export class IsolationPicker extends Disposable {
 			if (e.affectsConfiguration('github.copilot.chat.cli.isolationOption.enabled')) {
 				this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
 				if (!this._isolationOptionEnabled) {
-					// Reset to worktree when isolation option is disabled
 					this._setMode('worktree');
 				}
-				this._updateVisibility();
-				this._updateTriggerLabel();
-			}
-		}));
-
-		// Observe active session to determine git repo availability
-		this._register(autorun(reader => {
-			const session = this.sessionsProvidersService.activeSession.read(reader);
-			if (session) {
-				const workspace = session.workspace.read(reader);
-				const hasRepo = !!(workspace?.repositories[0]?.workingDirectory);
-				this._hasGitRepo = hasRepo;
-				if (!hasRepo) {
-					this._setMode('workspace');
-				} else if (this._isolationMode === 'workspace' && hasRepo) {
-					this._setMode('worktree');
-				}
-				this._updateVisibility();
 				this._updateTriggerLabel();
 			}
 		}));
@@ -231,7 +209,6 @@ export class IsolationPicker extends Disposable {
 		} else {
 			this._setMode('worktree');
 		}
-		this._updateVisibility();
 		this._updateTriggerLabel();
 	}
 
@@ -247,7 +224,6 @@ export class IsolationPicker extends Disposable {
 		trigger.role = 'button';
 		this._triggerElement = trigger;
 		this._updateTriggerLabel();
-		this._updateVisibility();
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
 			dom.EventHelper.stop(e, true);
@@ -316,14 +292,6 @@ export class IsolationPicker extends Disposable {
 			this._updateTriggerLabel();
 			this._onDidChange.fire(mode);
 		}
-	}
-
-	private _updateVisibility(): void {
-		if (!this._slotElement) {
-			return;
-		}
-		const shouldShow = this._hasGitRepo && this._isolationOptionEnabled;
-		this._slotElement.style.display = shouldShow ? '' : 'none';
 	}
 
 	private _updateTriggerLabel(): void {
