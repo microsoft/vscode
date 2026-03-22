@@ -8,7 +8,7 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorsVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -23,8 +23,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { AgentSessionsControl } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsControl.js';
-import { AgentSessionsFilter, AgentSessionsGrouping } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsFilter.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { AgentSessionsFilter, AgentSessionsGrouping, AgentSessionsSorting } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsFilter.js';
+import { AgentSessionProviders, isAgentHostTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from './sessionsManagementService.js';
 import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -41,16 +41,21 @@ import { IHostService } from '../../../../workbench/services/host/browser/host.j
 const $ = DOM.$;
 export const SessionsViewId = 'agentic.workbench.view.sessionsView';
 const SessionsViewFilterSubMenu = new MenuId('AgentSessionsViewFilterSubMenu');
-const IsGroupedByRepositoryContext = new RawContextKey<boolean>('sessionsView.isGroupedByRepository', false);
+const SessionsViewFilterOptionsSubMenu = new MenuId('AgentSessionsViewFilterOptionsSubMenu');
+const SessionsViewGroupingContext = new RawContextKey<string>('sessionsView.grouping', AgentSessionsGrouping.Repository);
+const SessionsViewSortingContext = new RawContextKey<string>('sessionsView.sorting', AgentSessionsSorting.Created);
 const GROUPING_STORAGE_KEY = 'agentSessions.grouping';
+const SORTING_STORAGE_KEY = 'agentSessions.sorting';
 
 export class AgenticSessionsViewPane extends ViewPane {
 
 	private viewPaneContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	sessionsControl: AgentSessionsControl | undefined;
-	private currentGrouping: AgentSessionsGrouping = AgentSessionsGrouping.Date;
-	private isGroupedByRepoKey: ReturnType<typeof IsGroupedByRepositoryContext.bindTo> | undefined;
+	private currentGrouping: AgentSessionsGrouping = AgentSessionsGrouping.Repository;
+	private currentSorting: AgentSessionsSorting = AgentSessionsSorting.Created;
+	private groupingContextKey: IContextKey | undefined;
+	private sortingContextKey: IContextKey | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -71,10 +76,22 @@ export class AgenticSessionsViewPane extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		// Restore persisted grouping
-		const stored = this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE);
-		if (stored && Object.values(AgentSessionsGrouping).includes(stored as AgentSessionsGrouping)) {
-			this.currentGrouping = stored as AgentSessionsGrouping;
+		const storedGrouping = this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE);
+		if (storedGrouping && Object.values(AgentSessionsGrouping).includes(storedGrouping as AgentSessionsGrouping)) {
+			this.currentGrouping = storedGrouping as AgentSessionsGrouping;
 		}
+
+		// Restore persisted sorting
+		const storedSorting = this.storageService.get(SORTING_STORAGE_KEY, StorageScope.PROFILE);
+		if (storedSorting && Object.values(AgentSessionsSorting).includes(storedSorting as AgentSessionsSorting)) {
+			this.currentSorting = storedSorting as AgentSessionsSorting;
+		}
+
+		// Ensure context keys reflect restored state immediately
+		this.groupingContextKey = SessionsViewGroupingContext.bindTo(contextKeyService);
+		this.groupingContextKey.set(this.currentGrouping);
+		this.sortingContextKey = SessionsViewSortingContext.bindTo(contextKeyService);
+		this.sortingContextKey.set(this.currentSorting);
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -101,15 +118,13 @@ export class AgenticSessionsViewPane extends ViewPane {
 	private createControls(parent: HTMLElement): void {
 		const sessionsContainer = DOM.append(parent, $('.agent-sessions-container'));
 
-		// Track grouping state via context key for the toggle button
-		const isGroupedByRepoKey = this.isGroupedByRepoKey = IsGroupedByRepositoryContext.bindTo(this.contextKeyService);
-		isGroupedByRepoKey.set(this.currentGrouping === AgentSessionsGrouping.Repository);
-
-		// Sessions Filter (actions go to view title bar via menu registration)
+		// Sessions Filter (actions go to the nested filter submenu)
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
-			filterMenuId: SessionsViewFilterSubMenu,
+			filterMenuId: SessionsViewFilterOptionsSubMenu,
 			groupResults: () => this.currentGrouping,
+			sortResults: () => this.currentSorting,
 			allowedProviders: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
+			overrideExclude: session => isAgentHostTarget(session.providerType) ? false : undefined,
 			providerLabelOverrides: new Map([
 				[AgentSessionProviders.Background, localize('chat.session.providerLabel.background', "Copilot CLI")],
 			]),
@@ -229,15 +244,26 @@ export class AgenticSessionsViewPane extends ViewPane {
 		this.sessionsControl?.openFind();
 	}
 
-	toggleGroupByRepository(): void {
-		if (this.currentGrouping === AgentSessionsGrouping.Repository) {
-			this.currentGrouping = AgentSessionsGrouping.Date;
-		} else {
-			this.currentGrouping = AgentSessionsGrouping.Repository;
+	setGrouping(grouping: AgentSessionsGrouping): void {
+		if (this.currentGrouping === grouping) {
+			return;
 		}
 
+		this.currentGrouping = grouping;
 		this.storageService.store(GROUPING_STORAGE_KEY, this.currentGrouping, StorageScope.PROFILE, StorageTarget.USER);
-		this.isGroupedByRepoKey?.set(this.currentGrouping === AgentSessionsGrouping.Repository);
+		this.groupingContextKey?.set(this.currentGrouping);
+		this.sessionsControl?.resetSectionCollapseState();
+		this.sessionsControl?.update();
+	}
+
+	setSorting(sorting: AgentSessionsSorting): void {
+		if (this.currentSorting === sorting) {
+			return;
+		}
+
+		this.currentSorting = sorting;
+		this.storageService.store(SORTING_STORAGE_KEY, this.currentSorting, StorageScope.PROFILE, StorageTarget.USER);
+		this.sortingContextKey?.set(this.currentSorting);
 		this.sessionsControl?.update();
 	}
 }
@@ -281,22 +307,30 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	title: localize2('filterAgentSessions', "Filter Sessions"),
 	group: 'navigation',
 	order: 3,
-	icon: Codicon.filter,
+	icon: Codicon.settings,
 	when: ContextKeyExpr.equals('view', SessionsViewId)
 } satisfies ISubmenuItem);
 
-registerAction2(class GroupByRepositoryAction extends Action2 {
+// Nest the filter toggles (providers, statuses, properties, reset) inside a "Filter" submenu
+MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {
+	submenu: SessionsViewFilterOptionsSubMenu,
+	title: localize2('filter', "Filter"),
+	group: '1_filter',
+	order: 0,
+} satisfies ISubmenuItem);
+
+// Sort By: Created Date (radio)
+registerAction2(class SortByCreatedAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsView.groupByRepository',
-			title: localize2('groupByRepository', "Group by Repository"),
-			icon: Codicon.repo,
+			id: 'sessionsView.sortByCreated',
+			title: localize2('sortByCreated', "Sort by Created"),
 			category: SessionsCategories.Sessions,
+			toggled: ContextKeyExpr.equals(SessionsViewSortingContext.key, AgentSessionsSorting.Created),
 			menu: [{
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				order: 1,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SessionsViewId), IsGroupedByRepositoryContext.negate()),
+				id: SessionsViewFilterSubMenu,
+				group: '2_sort',
+				order: 0,
 			}]
 		});
 	}
@@ -304,22 +338,22 @@ registerAction2(class GroupByRepositoryAction extends Action2 {
 	override run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getViewWithId<AgenticSessionsViewPane>(SessionsViewId);
-		view?.toggleGroupByRepository();
+		view?.setSorting(AgentSessionsSorting.Created);
 	}
 });
 
-registerAction2(class GroupByDateAction extends Action2 {
+// Sort By: Updated Date (radio)
+registerAction2(class SortByUpdatedAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsView.groupByDate',
-			title: localize2('groupByDate', "Group by Date"),
-			icon: Codicon.history,
+			id: 'sessionsView.sortByUpdated',
+			title: localize2('sortByUpdated', "Sort by Updated"),
 			category: SessionsCategories.Sessions,
+			toggled: ContextKeyExpr.equals(SessionsViewSortingContext.key, AgentSessionsSorting.Updated),
 			menu: [{
-				id: MenuId.ViewTitle,
-				group: 'navigation',
+				id: SessionsViewFilterSubMenu,
+				group: '2_sort',
 				order: 1,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SessionsViewId), IsGroupedByRepositoryContext),
 			}]
 		});
 	}
@@ -327,7 +361,53 @@ registerAction2(class GroupByDateAction extends Action2 {
 	override run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getViewWithId<AgenticSessionsViewPane>(SessionsViewId);
-		view?.toggleGroupByRepository();
+		view?.setSorting(AgentSessionsSorting.Updated);
+	}
+});
+
+// Group By: Project (radio)
+registerAction2(class GroupByProjectAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsView.groupByProject',
+			title: localize2('groupByProject', "Group by Project"),
+			category: SessionsCategories.Sessions,
+			toggled: ContextKeyExpr.equals(SessionsViewGroupingContext.key, AgentSessionsGrouping.Repository),
+			menu: [{
+				id: SessionsViewFilterSubMenu,
+				group: '3_group',
+				order: 0,
+			}]
+		});
+	}
+
+	override run(accessor: ServicesAccessor) {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<AgenticSessionsViewPane>(SessionsViewId);
+		view?.setGrouping(AgentSessionsGrouping.Repository);
+	}
+});
+
+// Group By: Time (radio)
+registerAction2(class GroupByTimeAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsView.groupByTime',
+			title: localize2('groupByTime', "Group by Time"),
+			category: SessionsCategories.Sessions,
+			toggled: ContextKeyExpr.equals(SessionsViewGroupingContext.key, AgentSessionsGrouping.Date),
+			menu: [{
+				id: SessionsViewFilterSubMenu,
+				group: '3_group',
+				order: 1,
+			}]
+		});
+	}
+
+	override run(accessor: ServicesAccessor) {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<AgenticSessionsViewPane>(SessionsViewId);
+		view?.setGrouping(AgentSessionsGrouping.Date);
 	}
 });
 

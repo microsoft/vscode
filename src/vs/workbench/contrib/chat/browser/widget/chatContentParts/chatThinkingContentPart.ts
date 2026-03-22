@@ -34,6 +34,9 @@ import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
 import './media/chatThinkingContent.css';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { extractImagesFromToolInvocationOutputDetails } from '../../../common/chatImageExtraction.js';
+import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js';
+import { ChatThinkingExternalResourceWidget } from './chatThinkingExternalResourcesWidget.js';
 
 
 function extractTextFromPart(content: IChatThinkingPart): string {
@@ -66,7 +69,11 @@ function isGenericEditToolId(toolId: string): boolean {
 		lowerToolId.includes('editfile');
 }
 
-export function getToolInvocationIcon(toolId: string): ThemeIcon {
+export function getToolInvocationIcon(toolId: string, registeredIcon?: ThemeIcon): ThemeIcon {
+	if (registeredIcon) {
+		return registeredIcon;
+	}
+
 	const lowerToolId = toolId.toLowerCase();
 
 	if (
@@ -233,6 +240,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private lastKnownScrollTop: number = 0;
 	private titleShimmerSpan: HTMLElement | undefined;
 	private titleDetailContainer: HTMLElement | undefined;
+	private readonly _externalResourceWidget: ChatThinkingExternalResourceWidget;
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
 
 	private getRandomWorkingMessage(category: WorkingMessageCategory = WorkingMessageCategory.Tool): string {
@@ -313,6 +321,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		const node = this.domNode;
 		node.classList.add('chat-thinking-box');
 
+		this._externalResourceWidget = this._register(this.instantiationService.createInstance(ChatThinkingExternalResourceWidget));
+		this._register(this._externalResourceWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		node.appendChild(this._externalResourceWidget.domNode);
+
 		if (!this.streamingCompleted && !this.element.isComplete) {
 			if (!this.fixedScrollingMode) {
 				node.classList.add('chat-thinking-active');
@@ -373,6 +385,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				this.setExpanded(false);
 				return;
 			}
+
+			this._externalResourceWidget.setCollapsed(!isExpanded);
 
 			// Fire when expanded/collapsed
 			this._onDidChangeHeight.fire();
@@ -1232,6 +1246,8 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 		this.toolLabelsByCallId.delete(toolCallId);
 
+		this._externalResourceWidget.removeToolInvocation(toolCallId);
+
 		this.updateDropdownClickability();
 		this._onDidChangeHeight.fire();
 	}
@@ -1263,6 +1279,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			// Use the tracked displayed label (which may differ from invocationMessage
 			// for streaming edit tools that show "Editing files")
 			const toolCallId = removedItem.toolInvocationOrMarkdown.toolCallId;
+			this._externalResourceWidget.removeToolInvocation(toolCallId);
 			const label = this.toolLabelsByCallId.get(toolCallId);
 			if (label) {
 				const titleIndex = this.extractedTitles.indexOf(label);
@@ -1356,6 +1373,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.extractedTitles.splice(titleIndex, 1);
 		}
 		this.toolLabelsByCallId.delete(toolCallId);
+		this._externalResourceWidget.removeToolInvocation(toolCallId);
 		this.updateDropdownClickability();
 		this._onDidChangeHeight.fire();
 	}
@@ -1401,6 +1419,11 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			// Track the displayed label for consistent cleanup
 			const toolCallId = toolInvocationOrMarkdown.toolCallId;
 			this.toolLabelsByCallId.set(toolCallId, toolCallLabel);
+
+			// Render external image pills for serialized (already-completed) tool invocations
+			if (toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') {
+				this.updateExternalResourceParts(toolInvocationOrMarkdown);
+			}
 
 			// track state for live/still streaming tools, excluding serialized tools
 			if (toolInvocationOrMarkdown.kind === 'toolInvocation') {
@@ -1462,6 +1485,12 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 							this.pendingRemovals.push({ toolCallId: toolInvocationOrMarkdown.toolCallId, toolLabel: currentToolLabel });
 							this.schedulePendingRemovalsFlush();
 						}
+
+						// Render image pills outside the collapsible area for completed tools
+						if (currentState.type === IChatToolInvocation.StateKind.Completed) {
+							this.updateExternalResourceParts(toolInvocationOrMarkdown);
+						}
+
 						isComplete = true;
 						return;
 					}
@@ -1526,6 +1555,22 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 	}
 
+	private updateExternalResourceParts(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): void {
+		const extractedImages = extractImagesFromToolInvocationOutputDetails(toolInvocation, this.element.sessionResource);
+		if (extractedImages.length === 0) {
+			return;
+		}
+
+		const parts: IChatCollapsibleIODataPart[] = extractedImages.map(image => ({
+			kind: 'data',
+			value: image.data.buffer,
+			mimeType: image.mimeType,
+			uri: image.uri,
+		}));
+
+		this._externalResourceWidget.setToolInvocationParts(toolInvocation.toolCallId, parts);
+	}
+
 	private appendItemToDOM(
 		content: HTMLElement,
 		toolInvocationId?: string,
@@ -1552,20 +1597,28 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
 		const isMarkdownEdit = toolInvocationOrMarkdown?.kind === 'markdownContent';
 		const isTerminalTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'terminal';
+		const toolInvocationIcon = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? toolInvocationOrMarkdown.icon : undefined;
 
 		let icon: ThemeIcon;
 		if (isMarkdownEdit) {
 			icon = Codicon.pencil;
 		} else if (isTerminalTool) {
-			const terminalData = (toolInvocationOrMarkdown as IChatToolInvocation | IChatToolInvocationSerialized).toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode?: number } };
+			const terminalData = (toolInvocationOrMarkdown as IChatToolInvocation | IChatToolInvocationSerialized).toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode?: number }; commandLine?: { isSandboxWrapped?: boolean } };
 			const exitCode = terminalData?.terminalCommandState?.exitCode;
-			icon = exitCode !== undefined && exitCode !== 0 ? Codicon.error : Codicon.terminal;
+			const isSandboxWrapped = terminalData?.commandLine?.isSandboxWrapped;
+			if (exitCode !== undefined && exitCode !== 0) {
+				icon = Codicon.error;
+			} else if (isSandboxWrapped) {
+				icon = Codicon.terminalSecure;
+			} else {
+				icon = toolInvocationIcon ?? Codicon.terminal;
+			}
 		} else if (content.classList.contains('chat-hook-outcome-blocked')) {
 			icon = Codicon.error;
 		} else if (content.classList.contains('chat-hook-outcome-warning')) {
 			icon = Codicon.warning;
 		} else {
-			icon = toolInvocationId ? getToolInvocationIcon(toolInvocationId) : Codicon.tools;
+			icon = toolInvocationId ? getToolInvocationIcon(toolInvocationId, toolInvocationIcon) : Codicon.tools;
 		}
 
 		const iconElement = createThinkingIcon(icon);
