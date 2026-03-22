@@ -225,9 +225,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._focusEditor();
 		}));
 
-		// When mode changes, update the session
-		this._register(this._modePicker.onDidChange((mode) => {
-			this._newSession.value?.setMode(mode);
+		// When mode changes, focus the editor
+		this._register(this._modePicker.onDidChange((_mode) => {
 			this._focusEditor();
 		}));
 
@@ -369,9 +368,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			session.setModelId(currentModel.identifier);
 		}
 
-		// Set the current mode on the session
-		session.setMode(this._modePicker.selectedMode);
-
 		// Listen for session changes
 		const listeners = new DisposableStore();
 		listeners.add(session.onDidChange((changeType) => {
@@ -403,10 +399,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._localModelPickerContainer.style.display = vis.localModel ? '' : 'none';
 		}
 		this._cloudModelPicker.setVisible(!!vis.cloudModel);
-
-		// Mode & permission pickers
-		this._modePicker.setVisible(!!vis.mode);
-		this._permissionPicker.setVisible(!!vis.permission);
 
 		// Cloud model picker session binding
 		if (vis.cloudModel && session.getModelOptionGroup) {
@@ -631,7 +623,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Mode picker (before model pickers)
 		this._modePicker.render(toolbar);
-		this._modePicker.setVisible(false);
 
 		// Local model picker (EnhancedModelPickerActionItem)
 		this._localModelPickerContainer = dom.append(toolbar, dom.$('.sessions-chat-model-picker'));

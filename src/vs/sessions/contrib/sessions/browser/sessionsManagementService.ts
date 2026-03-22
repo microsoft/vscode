@@ -68,6 +68,12 @@ export interface ISessionsManagementService {
 	readonly activeSession: IObservable<IActiveSessionItem | undefined>;
 
 	/**
+	 * Observable for the current new session being configured (before first send).
+	 * Undefined when viewing an existing session.
+	 */
+	readonly newSession: IObservable<INewSession | undefined>;
+
+	/**
 	 * Returns the currently active session, if any.
 	 */
 	getActiveSession(): IActiveSessionItem | undefined;
@@ -136,6 +142,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _newActiveSessionDisposables = this._register(new DisposableStore());
 
 	private readonly _newSession = this._register(new MutableDisposable<INewSession>());
+	private readonly _newSessionObservable = observableValue<INewSession | undefined>(this, undefined);
+	readonly newSession: IObservable<INewSession | undefined> = this._newSessionObservable;
 	private lastSelectedSession: URI | undefined;
 	private readonly isNewChatSessionContext: IContextKey<boolean>;
 	private readonly _isBackgroundProvider: IContextKey<boolean>;
@@ -283,6 +291,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const newSession = provider.createNewSession(sessionType, sessionResource);
 
 		this._newSession.value = newSession;
+		this._newSessionObservable.set(newSession, undefined);
 		this.setActiveSession(newSession);
 		return newSession;
 	}
@@ -340,6 +349,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		// Clean up the session after sending (setter disposes the previous value)
 		this._newSession.value = undefined;
+		this._newSessionObservable.set(undefined, undefined);
 	}
 
 	private async doSendRequestForNewSession(session: INewSession, query: string, sendOptions: IChatSendRequestOptions, selectedOptions?: ReadonlyMap<string, IChatSessionProviderOptionItem>): Promise<void> {

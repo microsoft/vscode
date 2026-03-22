@@ -67,13 +67,11 @@ export class BranchPicker extends Disposable {
 	) {
 		super();
 
-		// Observe the active session's project and load branches when it changes
+		// Observe the new session's project and load branches when it changes
 		this._register(autorun(reader => {
-			const activeSession = this.sessionsManagementService.activeSession.read(reader);
-			if (activeSession?.isUntitled) {
-				// For new sessions, get the project from the new session object
-				const project = (this.sessionsManagementService as any)._newSession?.value?.project;
-				const repository = project?.repository;
+			const newSession = this.sessionsManagementService.newSession.read(reader);
+			if (newSession) {
+				const repository = newSession.project?.repository;
 				this._onRepositoryChanged(repository);
 			} else {
 				this._onRepositoryChanged(undefined);

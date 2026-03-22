@@ -202,11 +202,11 @@ export class IsolationPicker extends Disposable {
 			}
 		}));
 
-		// Observe active session to determine git repo availability
+		// Observe new session to determine git repo availability
 		this._register(autorun(reader => {
-			const activeSession = this.sessionsManagementService.activeSession.read(reader);
-			if (activeSession) {
-				const hasRepo = !!activeSession.repository;
+			const newSession = this.sessionsManagementService.newSession.read(reader);
+			if (newSession) {
+				const hasRepo = !!newSession.project?.repository;
 				this._hasGitRepo = hasRepo;
 				if (!hasRepo) {
 					this._setMode('workspace');
