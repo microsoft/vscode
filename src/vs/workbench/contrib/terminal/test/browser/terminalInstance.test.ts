@@ -164,6 +164,44 @@ suite('Workbench - TerminalInstance', () => {
 			throw new Error('Timed out waiting for shell launch config env');
 		}
 
+		async function captureWritesWithBracketedPasteMode(instance: TerminalInstance, callback: () => Promise<void>): Promise<string[]> {
+			const writes: string[] = [];
+			const processManager = (instance as unknown as { _processManager: { write(data: string): Promise<void> } })._processManager;
+			const originalWrite = processManager.write;
+			const originalXterm = instance.xterm!;
+			const testRaw = Object.create(originalXterm.raw) as typeof originalXterm.raw;
+			Object.defineProperty(testRaw, 'modes', {
+				value: {
+					...originalXterm.raw.modes,
+					bracketedPasteMode: true
+				},
+				configurable: true
+			});
+			const testXterm = Object.create(originalXterm) as typeof originalXterm;
+			Object.defineProperty(testXterm, 'raw', {
+				value: testRaw,
+				configurable: true
+			});
+			Object.defineProperty(testXterm, 'scrollToBottom', {
+				value: () => { },
+				configurable: true
+			});
+
+			processManager.write = async (data: string) => {
+				writes.push(data);
+			};
+			instance.xterm = testXterm;
+
+			try {
+				await callback();
+			} finally {
+				processManager.write = originalWrite;
+				instance.xterm = originalXterm;
+			}
+
+			return writes;
+		}
+
 		test('should create an instance of TerminalInstance with env from default profile', async () => {
 			terminalInstance = await createTerminalInstance();
 			await waitForShellLaunchConfigEnv(terminalInstance);
@@ -213,42 +251,22 @@ suite('Workbench - TerminalInstance', () => {
 
 		test('should use bracketed paste mode for multiline executed text when available', async () => {
 			const instance = await createTerminalInstance();
-			const writes: string[] = [];
-			const processManager = (instance as unknown as { _processManager: { write(data: string): Promise<void> } })._processManager;
-			const originalWrite = processManager.write;
-			const originalXterm = instance.xterm!;
-			const testRaw = Object.create(originalXterm.raw) as typeof originalXterm.raw;
-			Object.defineProperty(testRaw, 'modes', {
-				value: {
-					...originalXterm.raw.modes,
-					bracketedPasteMode: true
-				},
-				configurable: true
-			});
-			const testXterm = Object.create(originalXterm) as typeof originalXterm;
-			Object.defineProperty(testXterm, 'raw', {
-				value: testRaw,
-				configurable: true
-			});
-			Object.defineProperty(testXterm, 'scrollToBottom', {
-				value: () => { },
-				configurable: true
-			});
-
-			processManager.write = async (data: string) => {
-				writes.push(data);
-			};
-			instance.xterm = testXterm;
-
-			try {
+			const writes = await captureWritesWithBracketedPasteMode(instance, async () => {
 				await instance.sendText('echo hello\nworld', true);
-			} finally {
-				processManager.write = originalWrite;
-				instance.xterm = originalXterm;
-			}
+			});
 
 			strictEqual(writes.length, 1);
 			strictEqual(writes[0].replace(/\x1b/g, '\\x1b').replace(/\r/g, '\\r'), '\\x1b[200~echo hello\\rworld\\x1b[201~\\r');
+		});
+
+		test('should not use bracketed paste mode for non-executed carriage return input', async () => {
+			const instance = await createTerminalInstance();
+			const writes = await captureWritesWithBracketedPasteMode(instance, async () => {
+				await instance.sendText('\r', false);
+			});
+
+			strictEqual(writes.length, 1);
+			strictEqual(writes[0].replace(/\x1b/g, '\\x1b').replace(/\r/g, '\\r'), '\\r');
 		});
 	});
 	suite('parseExitResult', () => {
