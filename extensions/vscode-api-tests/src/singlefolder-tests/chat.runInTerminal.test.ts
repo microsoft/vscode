@@ -134,8 +134,18 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		return extractTextContent(result);
 	}
 
-	test('tool should be registered with expected schema', () => {
-		const tool = vscode.lm.tools.find(t => t.name === 'run_in_terminal');
+	test('tool should be registered with expected schema', async function () {
+		this.timeout(15000);
+		// The run_in_terminal tool is registered asynchronously (it needs to
+		// resolve terminal profiles), so poll until it appears.
+		let tool: vscode.LanguageModelToolInformation | undefined;
+		for (let i = 0; i < 50; i++) {
+			tool = vscode.lm.tools.find(t => t.name === 'run_in_terminal');
+			if (tool) {
+				break;
+			}
+			await new Promise(r => setTimeout(r, 200));
+		}
 		assert.ok(tool, 'run_in_terminal tool should be registered');
 		assert.ok(tool.inputSchema, 'Tool should have an input schema');
 
