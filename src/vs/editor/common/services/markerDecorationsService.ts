@@ -107,7 +107,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 		if (model.uri.scheme === Schemas.inMemory
 			|| model.uri.scheme === Schemas.internal
 			|| model.uri.scheme === Schemas.vscode) {
-			this._markerService?.read({ resource: model.uri }).map(marker => marker.owner).forEach(owner => this._markerService.remove(owner, [model.uri]));
+			this._markerService?.read({ resource: model.uri }).map(marker => marker.owner).forEach(owner => this._markerService.removeOriginForOwnerResources(undefined, owner, [model.uri]));
 		}
 	}
 
