@@ -53,3 +53,14 @@ steps:
       mv .build/microsoft-vscode-distro-$DistroVersion .build/distro
     condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
     displayName: Download distro (non-Windows)
+
+  - pwsh: |
+      git submodule update --init --depth=1
+    condition: and(succeeded(), contains(variables['Agent.OS'], 'windows'))
+    displayName: Initialize submodules (Windows)
+
+  - script: |
+      set -e
+      git submodule update --init --depth=1
+    condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
+    displayName: Initialize submodules (non-Windows)

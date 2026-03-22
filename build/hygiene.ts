@@ -238,6 +238,9 @@ function createGitIndexVinyls(paths: string[]): Promise<VinylFile[]> {
 					return c(null);
 				} else if (err) {
 					return e(err);
+				} else if (stat.isDirectory()) {
+					// ignore submodules in pre-commit hygiene (git diff --cached reports them as paths)
+					return c(null);
 				}
 
 				cp.exec(
