@@ -7,7 +7,6 @@ import './media/chatWidget.css';
 import './media/chatWelcomePart.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { toAction } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -41,9 +40,6 @@ import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browse
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
-import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessionPickerActionItem.js';
-import { SearchableOptionPickerActionItem } from '../../../../workbench/contrib/chat/browser/chatSessions/searchableOptionPickerActionItem.js';
-import { IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IModelPickerDelegate } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
 import { EnhancedModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem2.js';
@@ -56,7 +52,8 @@ import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { SessionTypePicker, IsolationPicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
-import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
+import { INewSession } from './newSession.js';
+import { ExtensionToolbarPickers } from './extensionToolbarPickers.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { WorkspacePicker } from './workspacePicker.js';
 import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
@@ -139,10 +136,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private readonly _permissionPicker: NewChatPermissionPicker;
 	private readonly _cloudModelPicker: CloudModelPicker;
 	private readonly _modePicker: ModePicker;
-	private readonly _toolbarPickerWidgets = new Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem>();
-	private readonly _toolbarPickerDisposables = this._register(new DisposableStore());
-	private readonly _optionEmitters = new Map<string, Emitter<IChatSessionProviderOptionItem>>();
-	private readonly _optionContextKeys = new Map<string, IContextKey<string>>();
+	private readonly _extensionToolbarPickers: ExtensionToolbarPickers;
 
 	// Attached context
 	private readonly _contextAttachments: NewChatContextAttachments;
@@ -189,6 +183,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._sessionTypePicker = this._register(this.instantiationService.createInstance(SessionTypePicker));
 		this._branchPicker = this._register(this.instantiationService.createInstance(BranchPicker));
 		this._isolationPicker = this._register(this.instantiationService.createInstance(IsolationPicker));
+		this._extensionToolbarPickers = this._register(this.instantiationService.createInstance(ExtensionToolbarPickers));
 		this._options = options;
 
 		// When a project is selected, infer the target and create a new session
@@ -373,30 +368,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		this._sessionTypePicker.setProject(session.project);
 
-		// Render pickers based on session's declared visibility
-		this._renderSessionPickers(session, listeners);
-
 		this._newSessionListener.value = listeners;
 		this._updateSendButtonState();
-	}
-
-	/**
-	 * Renders pickers based on the session's declared {@link INewSessionPickerVisibility}.
-	 * Replaces the previous instanceof-based rendering logic.
-	 */
-	private _renderSessionPickers(session: INewSession, listeners: DisposableStore): void {
-		this._clearAllPickers();
-
-		// Extension-driven toolbar option groups
-		const vis = session.pickerVisibility;
-		if (vis.hasToolbarOptionGroups && session.getOtherOptionGroups) {
-			this._renderToolbarPickers(session as RemoteNewSession, true);
-			if (session.onDidChangeOptionGroups) {
-				listeners.add(session.onDidChangeOptionGroups(() => {
-					this._renderToolbarPickers(session as RemoteNewSession);
-				}));
-			}
-		}
 	}
 
 	private _updateInputLoadingState(): void {
@@ -578,8 +551,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			}
 		}));
 
-		// Extension toolbar pickers (agent picker for remote sessions)
+		// Extension toolbar pickers (self-managing — observes active session)
 		this._toolbarPickersContainer = dom.append(toolbar, dom.$('.sessions-chat-toolbar-pickers'));
+		this._extensionToolbarPickers.setContainer(this._toolbarPickersContainer);
 
 		// Remote model picker (action list dropdown — self-managing visibility)
 		this._cloudModelPicker.render(toolbar);
@@ -655,125 +629,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			return;
 		}
 
-		this._clearAllPickers();
 		dom.clearNode(this._pickersContainer);
 
 		const pickersRow = dom.append(this._pickersContainer, dom.$('.chat-full-welcome-pickers'));
 
 		// Project picker (unified folder + repo picker)
 		this._workspacePicker.render(pickersRow);
-	}
-
-	// --- Agent Host session pickers ---
-
-	/**
-	 * Agent Host sessions use the standard model picker and mode picker
-	 * but don't need repo, folder, isolation, branch, or cloud option pickers.
-	 */
-	private _renderToolbarPickers(session: RemoteNewSession, force?: boolean): void {
-		if (!this._toolbarPickersContainer) {
-			return;
-		}
-
-		const toolbarOptions = session.getOtherOptionGroups();
-
-		// Filter by item availability (when-clause filtering is done by the session)
-		const visibleGroups = toolbarOptions.filter(option => {
-			const group = option.group;
-			return group.items.length > 0 || (group.commands || []).length > 0 || !!group.searchable;
-		});
-
-		if (visibleGroups.length === 0) {
-			this._clearToolbarPickers();
-			return;
-		}
-
-		if (!force) {
-			const allMatch = visibleGroups.length === this._toolbarPickerWidgets.size && visibleGroups.every(o => this._toolbarPickerWidgets.has(o.group.id));
-			if (allMatch) {
-				return;
-			}
-		}
-
-		this._clearToolbarPickers();
-
-		for (const option of visibleGroups) {
-			this._renderToolbarPickerWidget(option, session);
-		}
-	}
-
-	private _renderToolbarPickerWidget(option: ISessionOptionGroup, session: RemoteNewSession): void {
-		const { group: optionGroup, value: initialItem } = option;
-
-		if (initialItem) {
-			this._updateOptionContextKey(optionGroup.id, initialItem.id);
-		}
-
-		const initialState = { group: optionGroup, item: initialItem };
-		const emitter = this._getOrCreateOptionEmitter(optionGroup.id);
-		const itemDelegate: IChatSessionPickerDelegate = {
-			getCurrentOption: () => session.getOptionValue(optionGroup.id) ?? initialItem,
-			onDidChangeOption: emitter.event,
-			setOption: (item: IChatSessionProviderOptionItem) => {
-				this._updateOptionContextKey(optionGroup.id, item.id);
-				emitter.fire(item);
-				session.setOptionValue(optionGroup.id, item);
-				this._focusEditor();
-			},
-			getOptionGroup: () => {
-				const modelOpt = session.getModelOptionGroup();
-				if (modelOpt?.group.id === optionGroup.id) {
-					return modelOpt.group;
-				}
-				return session.getOtherOptionGroups().find(o => o.group.id === optionGroup.id)?.group;
-			},
-			getSessionResource: () => session.resource,
-		};
-
-		const action = toAction({ id: optionGroup.id, label: optionGroup.name, run: () => { } });
-		const widget = this.instantiationService.createInstance(
-			optionGroup.searchable ? SearchableOptionPickerActionItem : ChatSessionPickerActionItem,
-			action, initialState, itemDelegate, undefined
-		);
-
-		this._toolbarPickerDisposables.add(widget);
-		this._toolbarPickerWidgets.set(optionGroup.id, widget);
-
-		const slot = dom.append(this._toolbarPickersContainer!, dom.$('.sessions-chat-picker-slot'));
-		widget.render(slot);
-	}
-
-	private _updateOptionContextKey(optionGroupId: string, optionItemId: string): void {
-		let contextKey = this._optionContextKeys.get(optionGroupId);
-		if (!contextKey) {
-			const rawKey = new RawContextKey<string>(`chatSessionOption.${optionGroupId}`, '');
-			contextKey = rawKey.bindTo(this.contextKeyService);
-			this._optionContextKeys.set(optionGroupId, contextKey);
-		}
-		contextKey.set(optionItemId.trim());
-	}
-
-	private _getOrCreateOptionEmitter(optionGroupId: string): Emitter<IChatSessionProviderOptionItem> {
-		let emitter = this._optionEmitters.get(optionGroupId);
-		if (!emitter) {
-			emitter = new Emitter<IChatSessionProviderOptionItem>();
-			this._optionEmitters.set(optionGroupId, emitter);
-			this._toolbarPickerDisposables.add(emitter);
-		}
-		return emitter;
-	}
-
-	private _clearToolbarPickers(): void {
-		this._toolbarPickerDisposables.clear();
-		this._toolbarPickerWidgets.clear();
-		this._optionEmitters.clear();
-		if (this._toolbarPickersContainer) {
-			dom.clearNode(this._toolbarPickersContainer);
-		}
-	}
-
-	private _clearAllPickers(): void {
-		this._clearToolbarPickers();
 	}
 
 	// --- Input History (IHistoryNavigationWidget) ---
