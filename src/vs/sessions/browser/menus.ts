@@ -27,7 +27,6 @@ export const Menus = {
 
 	// New session picker menus — providers contribute actions into these
 	// scoped by context keys (sessionsProviderId, sessionType, etc.)
-	NewSessionWorkspace: new MenuId('NewSessions.WorkspaceMenu'),
 	NewSessionRepositoryConfig: new MenuId('NewSessions.RepositoryConfigMenu'),
 	NewSessionConfig: new MenuId('NewSessions.SessionConfigMenu'),
 	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),

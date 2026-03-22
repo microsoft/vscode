@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ISessionData } from '../common/sessionData.js';
@@ -49,7 +48,7 @@ export interface ISessionsChangeEvent {
 
 /**
  * A sessions provider encapsulates a compute environment.
- * It owns workspace discovery, session creation, session listing, and menu contributions.
+ * It owns workspace discovery, session creation, session listing, and picker contributions.
  *
  * One provider can serve multiple session types. Multiple provider instances can
  * serve the same session type (e.g., one per remote agent host).
@@ -70,8 +69,6 @@ export interface ISessionsProvider {
 	getWorkspaces(): SessionWorkspace[];
 	/** Browse actions shown in the workspace picker. */
 	readonly browseActions: readonly ISessionsBrowseAction[];
-	/** Whether this provider can create sessions for the given workspace. */
-	canHandle(workspace: SessionWorkspace): boolean;
 
 	// ── Sessions (existing) ──
 
@@ -82,7 +79,7 @@ export interface ISessionsProvider {
 
 	// ── Session Lifecycle ──
 
-	/** Create a new session configuration for the given type and workspace. Returns ISessionData. */
+	/** Create a new session for the given type and workspace. */
 	createNewSession(type: ISessionType, resource: URI, workspace?: SessionWorkspace): ISessionData;
 
 	// ── Session Actions ──
@@ -93,14 +90,4 @@ export interface ISessionsProvider {
 	deleteSession(sessionId: string): Promise<void>;
 	/** Rename a session. */
 	renameSession(sessionId: string, title: string): Promise<void>;
-
-	// ── Session Configuration ──
-
-	/** Set a configuration option on a session (e.g., 'branch', 'modelId', 'isolationMode', 'mode'). */
-	setSessionOption(sessionId: string, key: string, value: unknown): void;
-
-	// ── Menu Contributions ──
-
-	/** Register picker contributions into the NewSessions.* menus. */
-	registerMenuContributions(): IDisposable;
 }

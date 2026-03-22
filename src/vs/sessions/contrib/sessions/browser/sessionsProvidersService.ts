@@ -29,10 +29,13 @@ export interface ISessionsProvidersService {
 	registerProvider(provider: ISessionsProvider): IDisposable;
 	/** Get all registered providers. */
 	getProviders(): ISessionsProvider[];
-	/** Get providers that can handle the given workspace. */
-	getProvidersForWorkspace(workspace: SessionWorkspace): ISessionsProvider[];
 	/** Fires when providers are added or removed. */
 	readonly onDidChangeProviders: Event<void>;
+
+	// ── Session Types ──
+
+	/** Get available session types for a workspace, aggregated across all providers that offer it. */
+	getSessionTypesForWorkspace(workspace: SessionWorkspace): { provider: ISessionsProvider; type: ISessionType }[];
 
 	// ── Aggregated Sessions ──
 
@@ -58,11 +61,6 @@ export interface ISessionsProvidersService {
 	deleteSession(sessionId: string): Promise<void>;
 	/** Rename a session. */
 	renameSession(sessionId: string, title: string): Promise<void>;
-
-	// ── Session Configuration ──
-
-	/** Set a configuration option on a session (routes to the correct provider). */
-	setSessionOption(sessionId: string, key: string, value: unknown): void;
 
 	// ── New Session ──
 
@@ -103,9 +101,6 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 			this._onDidChangeSessions.fire(e);
 		}));
 
-		// Register menu contributions
-		disposables.add(provider.registerMenuContributions());
-
 		this._providers.set(provider.id, { provider, disposables });
 		this._onDidChangeProviders.fire();
 
@@ -123,8 +118,18 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		return Array.from(this._providers.values(), e => e.provider);
 	}
 
-	getProvidersForWorkspace(workspace: SessionWorkspace): ISessionsProvider[] {
-		return this.getProviders().filter(p => p.canHandle(workspace));
+	// ── Session Types ──
+
+	getSessionTypesForWorkspace(workspace: SessionWorkspace): { provider: ISessionsProvider; type: ISessionType }[] {
+		const results: { provider: ISessionsProvider; type: ISessionType }[] = [];
+		for (const { provider } of this._providers.values()) {
+			// A provider's workspaces tell us which workspaces it supports
+			// Check if this workspace came from this provider's browse actions or known workspaces
+			for (const sessionType of provider.sessionTypes) {
+				results.push({ provider, type: sessionType });
+			}
+		}
+		return results;
 	}
 
 	// ── Aggregated Sessions ──
@@ -177,15 +182,6 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		const { provider } = this._resolveProvider(sessionId);
 		if (provider) {
 			await provider.renameSession(sessionId, title);
-		}
-	}
-
-	// ── Session Configuration ──
-
-	setSessionOption(sessionId: string, key: string, value: unknown): void {
-		const { provider } = this._resolveProvider(sessionId);
-		if (provider) {
-			provider.setSessionOption(sessionId, key, value);
 		}
 	}
 
