@@ -9,7 +9,6 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ISessionData } from '../common/sessionData.js';
 import { SessionWorkspace } from '../common/sessionWorkspace.js';
-import { INewSession } from '../../chat/browser/newSession.js';
 
 /**
  * A platform-level session type identifying an agent backend.
@@ -83,8 +82,8 @@ export interface ISessionsProvider {
 
 	// ── Session Lifecycle ──
 
-	/** Create a new session configuration for the given type and workspace. */
-	createNewSession(type: ISessionType, resource: URI, workspace?: SessionWorkspace): INewSession;
+	/** Create a new session configuration for the given type and workspace. Returns ISessionData. */
+	createNewSession(type: ISessionType, resource: URI, workspace?: SessionWorkspace): ISessionData;
 
 	// ── Session Actions ──
 
@@ -94,6 +93,11 @@ export interface ISessionsProvider {
 	deleteSession(sessionId: string): Promise<void>;
 	/** Rename a session. */
 	renameSession(sessionId: string, title: string): Promise<void>;
+
+	// ── Session Configuration ──
+
+	/** Set a configuration option on a session (e.g., 'branch', 'modelId', 'isolationMode', 'mode'). */
+	setSessionOption(sessionId: string, key: string, value: unknown): void;
 
 	// ── Menu Contributions ──
 

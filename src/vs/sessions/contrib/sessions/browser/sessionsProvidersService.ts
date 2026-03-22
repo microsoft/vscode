@@ -12,7 +12,6 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ISessionData } from '../common/sessionData.js';
 import { ISessionsChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
 import { SessionWorkspace } from '../common/sessionWorkspace.js';
-import { INewSession } from '../../chat/browser/newSession.js';
 
 export const ISessionsProvidersService = createDecorator<ISessionsProvidersService>('sessionsProvidersService');
 
@@ -60,10 +59,15 @@ export interface ISessionsProvidersService {
 	/** Rename a session. */
 	renameSession(sessionId: string, title: string): Promise<void>;
 
+	// ── Session Configuration ──
+
+	/** Set a configuration option on a session (routes to the correct provider). */
+	setSessionOption(sessionId: string, key: string, value: unknown): void;
+
 	// ── New Session ──
 
 	/** Create a new session via the specified provider. */
-	createNewSession(providerId: string, type: ISessionType, resource: URI, workspace?: SessionWorkspace): INewSession;
+	createNewSession(providerId: string, type: ISessionType, resource: URI, workspace?: SessionWorkspace): ISessionData;
 }
 
 /**
@@ -176,9 +180,18 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		}
 	}
 
+	// ── Session Configuration ──
+
+	setSessionOption(sessionId: string, key: string, value: unknown): void {
+		const { provider } = this._resolveProvider(sessionId);
+		if (provider) {
+			provider.setSessionOption(sessionId, key, value);
+		}
+	}
+
 	// ── New Session ──
 
-	createNewSession(providerId: string, type: ISessionType, resource: URI, workspace?: SessionWorkspace): INewSession {
+	createNewSession(providerId: string, type: ISessionType, resource: URI, workspace?: SessionWorkspace): ISessionData {
 		const entry = this._providers.get(providerId);
 		if (!entry) {
 			throw new Error(`Sessions provider '${providerId}' not found.`);

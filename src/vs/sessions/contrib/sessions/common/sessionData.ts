@@ -12,9 +12,28 @@ import { IChatSessionFileChange } from '../../../../workbench/contrib/chat/commo
  * Status of an agent session as reported by the sessions provider.
  */
 export const enum SessionStatus {
-	Active = 0,
-	Completed = 1,
-	Error = 2,
+	/** Session is being configured (before first message is sent). */
+	Configuring = 0,
+	/** Session is actively running. */
+	Active = 1,
+	/** Session has completed successfully. */
+	Completed = 2,
+	/** Session encountered an error. */
+	Error = 3,
+}
+
+/**
+ * Describes which pickers should be visible for a session.
+ * Used during the configuration phase to drive UI.
+ */
+export interface ISessionPickerVisibility {
+	readonly localModel?: boolean;
+	readonly cloudModel?: boolean;
+	readonly mode?: boolean;
+	readonly permission?: boolean;
+	readonly isolation?: boolean;
+	readonly branch?: boolean;
+	readonly hasToolbarOptionGroups?: boolean;
 }
 
 /**
@@ -62,7 +81,9 @@ export interface ISessionData {
 	/** When the session was created. */
 	readonly createdAt: Date;
 	/** Workspace this session operates on. */
-	readonly workspace: ISessionWorkspace | undefined;
+	readonly workspace: IObservable<ISessionWorkspace | undefined>;
+	/** Which pickers to show during session configuration. */
+	readonly pickerVisibility: ISessionPickerVisibility;
 
 	// ── Reactive properties ──
 
