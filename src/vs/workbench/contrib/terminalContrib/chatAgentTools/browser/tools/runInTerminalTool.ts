@@ -432,9 +432,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return true;
 	}
 	/**
-	 * Controls whether this tool wires up sandbox-specific command rewriting.
-	 * This is separate from ITerminalSandboxService.isEnabled(), which reports
-	 * whether terminal sandboxing is currently enabled for the running window.
+	 * Controls whether this tool wires up sandbox-specific command-line
+	 * behavior, including both the {@link CommandLineSandboxRewriter} and the
+	 * {@link CommandLineSandboxAnalyzer}. This is separate from
+	 * ITerminalSandboxService.isEnabled(), which reports whether terminal
+	 * sandboxing is currently enabled for the running window.
 	 */
 	protected get _enableCommandLineSandboxRewriting() {
 		return true;
@@ -478,8 +480,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._commandLineAnalyzers = [
 			this._register(this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineFileWriteAnalyzer: ${message}`, args))),
 			this._register(this._instantiationService.createInstance(CommandLineAutoApproveAnalyzer, this._treeSitterCommandParser, this._telemetry, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args))),
-			this._register(this._instantiationService.createInstance(CommandLineSandboxAnalyzer)),
 		];
+		if (this._enableCommandLineSandboxRewriting) {
+			this._commandLineAnalyzers.push(this._register(this._instantiationService.createInstance(CommandLineSandboxAnalyzer)));
+		}
 		this._commandLinePresenters = [
 			this._instantiationService.createInstance(SandboxedCommandLinePresenter),
 			new NodeCommandLinePresenter(),
