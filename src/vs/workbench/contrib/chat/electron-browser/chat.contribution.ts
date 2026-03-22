@@ -44,6 +44,16 @@ import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
 import { OpenSessionsWindowAction } from './agentSessions/agentSessionsActions.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IPluginGitCommandService } from '../common/plugins/pluginGitCommandService.js';
+import { NativePluginGitCommandService } from './pluginGitCommandService.js';
+import { registerSharedProcessRemoteService } from '../../../../platform/ipc/electron-browser/services.js';
+import { ILocalGitService } from '../../../../platform/git/common/localGitService.js';
+
+// Override the browser PluginGitCommandService with the native one that supports
+// routing git operations to the local machine when connected to a remote.
+registerSingleton(IPluginGitCommandService, NativePluginGitCommandService, InstantiationType.Delayed);
+registerSharedProcessRemoteService(ILocalGitService, 'localGit');
 
 class ChatCommandLineHandler extends Disposable {
 

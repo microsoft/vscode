@@ -22,6 +22,7 @@ import type { Dto } from '../../../services/extensions/common/proxyIdentifier.js
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions, IPullRepositoryOptions } from '../common/plugins/agentPluginRepositoryService.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
 import { IPluginSource } from '../common/plugins/pluginSource.js';
+import { IPluginGitCommandService } from '../common/plugins/pluginGitCommandService.js';
 import { GitHubPluginSource, GitUrlPluginSource, NpmPluginSource, PipPluginSource, RelativePathPluginSource } from './pluginSources.js';
 
 const MARKETPLACE_INDEX_STORAGE_KEY = 'chat.plugins.marketplaces.index.v1';
@@ -48,6 +49,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IPluginGitCommandService private readonly _pluginGit: IPluginGitCommandService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
@@ -123,7 +125,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 
 		try {
 			const doPull = async () => {
-				return !!(await this._commandService.executeCommand<boolean>('_git.pull', repoDir.fsPath));
+				return await this._pluginGit.pull(repoDir);
 			};
 
 			if (options?.silent) {
@@ -222,7 +224,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 				},
 				async () => {
 					await this._fileService.createFolder(dirname(repoDir));
-					await this._commandService.executeCommand('_git.cloneRepository', cloneUrl, repoDir.fsPath, ref);
+					await this._pluginGit.cloneRepository(cloneUrl, repoDir, ref);
 				}
 			);
 		} catch (err) {
@@ -277,8 +279,8 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		}
 
 		try {
-			await this._commandService.executeCommand('_git.fetchRepository', repoDir.fsPath);
-			const behindCount = await this._commandService.executeCommand<number>('_git.revListCount', repoDir.fsPath, 'HEAD', '@{u}') ?? 0;
+			await this._pluginGit.fetchRepository(repoDir);
+			const behindCount = await this._pluginGit.revListCount(repoDir, 'HEAD', '@{u}');
 			return behindCount > 0;
 		} catch (err) {
 			this._logService.debug(`[AgentPluginRepositoryService] Silent fetch failed for ${marketplace.displayLabel}:`, err);
