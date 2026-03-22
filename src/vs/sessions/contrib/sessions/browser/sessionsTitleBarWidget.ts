@@ -27,6 +27,7 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { URI } from '../../../../base/common/uri.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ISessionsManagementService } from './sessionsManagementService.js';
+import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { FocusAgentSessionsAction } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsPicker } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsPicker.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -76,13 +77,26 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super(undefined, action, options);
 
-		// Re-render when the active session changes
+		// Re-render when the active session changes (from either service)
 		this._register(autorun(reader => {
 			const activeSession = this.activeSessionService.activeSession.read(reader);
 			this._trackModelTitleChanges(activeSession?.resource);
+			this._lastRenderState = undefined;
+			this._render();
+		}));
+
+		// Re-render when the provider-level active session changes
+		this._register(autorun(reader => {
+			const sessionData = this.sessionsProvidersService.activeSession.read(reader);
+			if (sessionData) {
+				// Read reactive properties to trigger re-render on changes
+				sessionData.title.read(reader);
+				sessionData.status.read(reader);
+			}
 			this._lastRenderState = undefined;
 			this._render();
 		}));
@@ -242,16 +256,26 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 * Get the label of the active chat session.
 	 */
 	private _getActiveSessionLabel(): string {
+		// Prefer ISessionData from the providers service
+		const sessionData = this.sessionsProvidersService.activeSession.get();
+		if (sessionData) {
+			const title = sessionData.title.get();
+			if (title) {
+				return title;
+			}
+		}
+
+		// Fallback to legacy path
 		const activeSession = this.activeSessionService.getActiveSession();
 		const label = activeSession?.label;
 		if (label) {
-			return label; // prefer session label to support renamed sessions
+			return label;
 		}
 
 		if (activeSession) {
 			const activeModel = this.chatService.getSession(activeSession.resource);
 			if (activeModel?.title) {
-				return activeModel.title; // fall back to chat model title if available
+				return activeModel.title;
 			}
 		}
 
@@ -262,24 +286,27 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 * Get the icon for the active session's kind/provider.
 	 */
 	private _getActiveSessionIcon(): ThemeIcon | undefined {
+		// Prefer ISessionData from the providers service
+		const sessionData = this.sessionsProvidersService.activeSession.get();
+		if (sessionData) {
+			return sessionData.icon;
+		}
+
+		// Fallback to legacy path
 		const activeSession = this.activeSessionService.getActiveSession();
 		if (!activeSession) {
 			return undefined;
 		}
 
-		// Try to get icon from the agent session model (has provider-resolved icon)
 		const agentSession = this.agentSessionsService.getSession(activeSession.resource);
 		if (agentSession) {
-			// For background sessions, distinguish worktree vs folder based on metadata
 			if (agentSession.providerType === AgentSessionProviders.Background) {
 				const hasWorktree = typeof agentSession.metadata?.worktreePath === 'string';
 				return hasWorktree ? Codicon.worktree : Codicon.folder;
 			}
-
 			return agentSession.icon;
 		}
 
-		// Fall back to provider icon from the resource
 		const provider = getAgentSessionProvider(activeSession.resource);
 		if (provider !== undefined) {
 			return getAgentSessionProviderIcon(provider);
@@ -292,6 +319,16 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 * Get the repository label for the active session.
 	 */
 	private _getRepositoryLabel(): string | undefined {
+		// Prefer ISessionData from the providers service
+		const sessionData = this.sessionsProvidersService.activeSession.get();
+		if (sessionData) {
+			const workspace = sessionData.workspace.get();
+			if (workspace) {
+				return workspace.label;
+			}
+		}
+
+		// Fallback to legacy path
 		const activeSession = this.activeSessionService.getActiveSession();
 		if (!activeSession) {
 			return undefined;

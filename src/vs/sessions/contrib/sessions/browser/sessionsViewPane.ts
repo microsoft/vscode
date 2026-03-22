@@ -24,8 +24,8 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { AgentSessionsControl } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsControl.js';
 import { AgentSessionsFilter, AgentSessionsGrouping, AgentSessionsSorting } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsFilter.js';
-import { AgentSessionProviders, isAgentHostTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from './sessionsManagementService.js';
+import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -70,6 +70,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IHostService private readonly hostService: IHostService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
@@ -118,16 +119,14 @@ export class AgenticSessionsViewPane extends ViewPane {
 	private createControls(parent: HTMLElement): void {
 		const sessionsContainer = DOM.append(parent, $('.agent-sessions-container'));
 
-		// Sessions Filter (actions go to the nested filter submenu)
+		// Sessions Filter — allowed providers derived from registered sessions providers
+		const allowedProviders = this.sessionsProvidersService.getProviders()
+			.flatMap(p => p.sessionTypes.map(t => t.id));
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: SessionsViewFilterOptionsSubMenu,
 			groupResults: () => this.currentGrouping,
 			sortResults: () => this.currentSorting,
-			allowedProviders: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
-			overrideExclude: session => isAgentHostTarget(session.providerType) ? false : undefined,
-			providerLabelOverrides: new Map([
-				[AgentSessionProviders.Background, localize('chat.session.providerLabel.background', "Copilot CLI")],
-			]),
+			allowedProviders,
 		}));
 
 		// Sessions section (top, fills available space)
