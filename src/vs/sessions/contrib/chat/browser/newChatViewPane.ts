@@ -214,15 +214,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._focusEditor();
 		}));
 
-		this._register(this._sessionTypePicker.onDidChange((target) => {
-			if (target === 'cloud') {
-				this._isolationPicker.setVisible(false);
-				this._branchPicker.setVisible(false);
-			} else {
-				this._newSession.value?.setIsolationMode(this._isolationPicker.isolationMode);
-				this._isolationPicker.setVisible(true);
-				this._branchPicker.setVisible(this._isolationPicker.isWorktree);
-			}
+		this._register(this._sessionTypePicker.onDidChange((_target) => {
 			this._updateDraftState();
 			this._focusEditor();
 		}));
@@ -417,10 +409,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._modePicker.setVisible(!!vis.mode);
 		this._permissionPicker.setVisible(!!vis.permission);
 
-		// Repository config pickers (isolation, branch)
-		if (!vis.isolation) {
-			this._isolationPicker.setVisible(false);
-		}
+		// Repository config pickers — isolation is self-managing via session observation
 		if (!vis.branch) {
 			this._branchPicker.setVisible(false);
 		}
@@ -468,7 +457,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			}
 
 			this._sessionTypePicker.setProject(session?.project);
-			this._isolationPicker.setHasGitRepo(!!repository);
 			this._branchPicker.setRepository(repository);
 			this._branchPicker.setVisible(!!repository && this._sessionTypePicker.isCli && this._isolationPicker.isWorktree);
 			this._modePicker.reset();
@@ -480,7 +468,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._repositoryLoading = false;
 			this._updateInputLoadingState();
 			this._sessionTypePicker.setProject(undefined);
-			this._isolationPicker.setHasGitRepo(false);
 			this._branchPicker.setRepository(undefined);
 			this._branchPicker.setVisible(false);
 			this._modePicker.reset();
