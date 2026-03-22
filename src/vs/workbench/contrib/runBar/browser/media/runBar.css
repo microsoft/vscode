@@ -1,0 +1,109 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.run-bar {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	height: 100%;
+	padding: 0 6px;
+	flex-shrink: 0;
+	position: relative;
+	z-index: 2500;
+	-webkit-app-region: no-drag;
+}
+
+.run-bar.hidden {
+	display: none;
+}
+
+/* Profile select dropdown */
+.run-bar .run-bar-profile {
+	height: 22px;
+	padding: 0 6px;
+	background-color: var(--vscode-dropdown-background);
+	color: var(--vscode-titleBar-activeForeground);
+	border: 1px solid var(--vscode-dropdown-border);
+	border-radius: 4px;
+	font-size: 12px;
+	font-family: inherit;
+	cursor: pointer;
+	outline: none;
+	max-width: 180px;
+}
+
+.run-bar .run-bar-profile:focus {
+	border-color: var(--vscode-focusBorder);
+}
+
+/* Divider */
+.run-bar .run-bar-divider {
+	width: 1px;
+	height: 14px;
+	background-color: var(--vscode-titleBar-activeForeground);
+	opacity: 0.2;
+	margin: 0 4px;
+	flex-shrink: 0;
+}
+
+/* Shared button styles */
+.run-bar .run-bar-btn {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	height: 22px;
+	padding: 0 8px;
+	border: none;
+	border-radius: 4px;
+	font-size: 12px;
+	font-family: inherit;
+	cursor: pointer;
+	background-color: transparent;
+	color: var(--vscode-titleBar-activeForeground);
+	white-space: nowrap;
+}
+
+.run-bar .run-bar-btn .codicon {
+	font-size: 14px;
+	line-height: 1;
+}
+
+.run-bar .run-bar-btn:hover:not(:disabled) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.run-bar .run-bar-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+/* Run button icon color */
+.run-bar .run-bar-run-btn .codicon {
+	color: #4ec94e;
+}
+
+/* Debug button icon color */
+.run-bar .run-bar-debug-btn .codicon {
+	color: var(--vscode-debugIcon-startForeground, #4ec94e);
+}
+
+/* Stop button icon color */
+.run-bar .run-bar-stop-btn .codicon {
+	color: var(--vscode-debugIcon-stopForeground, #f14c4c);
+}
+
+.run-bar .run-bar-stop-btn.hidden {
+	display: none;
+}
+
+/* Pulse buttons while session is initializing */
+.run-bar.run-bar-initializing .run-bar-btn:disabled {
+	animation: run-bar-pulse 1s ease-in-out infinite;
+}
+
+@keyframes run-bar-pulse {
+	0%, 100% { opacity: 0.5; }
+	50% { opacity: 0.25; }
+}

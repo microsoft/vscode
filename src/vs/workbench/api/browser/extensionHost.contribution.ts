@@ -47,6 +47,7 @@ import './mainThreadLanguageFeatures.js';
 import './mainThreadLanguages.js';
 import './mainThreadLogService.js';
 import './mainThreadMessageService.js';
+import './mainThreadModal.js';
 import './mainThreadManagedSockets.js';
 import './mainThreadOutputService.js';
 import './mainThreadProgress.js';

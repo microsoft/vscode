@@ -226,6 +226,12 @@ import './contrib/logs/common/logs.contribution.js';
 // Quickaccess
 import './contrib/quickaccess/browser/quickAccess.contribution.js';
 
+// Search Modal
+import './contrib/searchModal/browser/searchModal.contribution.js';
+
+// Run Bar
+import './contrib/runBar/browser/runBar.contribution.js';
+
 // Explorer
 import './contrib/files/browser/explorerViewlet.js';
 import './contrib/files/browser/fileActions.contribution.js';

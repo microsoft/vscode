@@ -2189,6 +2189,52 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Options to configure a {@link ModalPanel}.
+	 */
+	export interface ModalPanelOptions {
+		/**
+		 * The title of the modal panel, shown in the header bar.
+		 */
+		title: string;
+
+		/**
+		 * The width of the modal panel in pixels. Defaults to 600.
+		 */
+		width?: number;
+
+		/**
+		 * The height of the modal panel in pixels. Defaults to 400.
+		 */
+		height?: number;
+	}
+
+	/**
+	 * A modal panel that renders custom HTML content as an in-app overlay.
+	 * The HTML is rendered inside a sandboxed iframe and blocks interaction with
+	 * the rest of the editor while it is visible.
+	 *
+	 * Created via {@link window.createModalPanel}.
+	 */
+	export interface ModalPanel {
+		/**
+		 * The HTML content rendered in the modal panel's iframe.
+		 * Setting this value updates the displayed content immediately.
+		 */
+		html: string;
+
+		/**
+		 * An event that fires when the panel has been permanently disposed.
+		 */
+		readonly onDidDispose: Event<void>;
+
+		/**
+		 * Disposes of the modal panel, removing it from the screen and releasing
+		 * all associated resources.
+		 */
+		dispose(): void;
+	}
+
+	/**
 	 * Severity levels for input box validation messages.
 	 */
 	export enum InputBoxValidationSeverity {
@@ -11486,6 +11532,15 @@ declare module 'vscode' {
 		 * @returns A thenable that resolves to a string the user provided or to `undefined` in case of dismissal.
 		 */
 		export function showInputBox(options?: InputBoxOptions, token?: CancellationToken): Thenable<string | undefined>;
+
+		/**
+		 * Creates a new {@link ModalPanel} that is shown as a modal overlay on top of the editor.
+		 * The panel renders custom HTML content in a sandboxed iframe.
+		 *
+		 * @param options Options configuring the modal panel.
+		 * @returns A new {@link ModalPanel}.
+		 */
+		export function createModalPanel(options: ModalPanelOptions): ModalPanel;
 
 		/**
 		 * Creates a {@link QuickPick} to let the user pick an item from a list of items of type `T`.
