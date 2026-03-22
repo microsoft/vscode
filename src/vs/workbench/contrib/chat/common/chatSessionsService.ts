@@ -147,6 +147,8 @@ export type IChatSessionHistoryItem = {
 	command?: string;
 	variableData?: IChatRequestVariableData;
 	modelId?: string;
+	modeId?: string;
+	permissionLevel?: string;
 } | {
 	type: 'response';
 	parts: IChatProgress[];
