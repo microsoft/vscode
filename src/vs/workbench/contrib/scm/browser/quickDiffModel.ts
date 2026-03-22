@@ -339,7 +339,11 @@ export class QuickDiffModel extends Disposable {
 			computeMoves: false, ignoreTrimWhitespace, maxComputationTimeMs
 		}, this.options.algorithm);
 
-		return { changes: result ? toLineChanges(DiffState.fromDiffResult(result)) : null, changes2: result?.changes ?? null };
+		if (!result || result.quitEarly) {
+			return { changes: null, changes2: null };
+		}
+
+		return { changes: toLineChanges(DiffState.fromDiffResult(result)), changes2: result.changes };
 	}
 
 	private getQuickDiffsPromise(): Promise<QuickDiff[]> {
