@@ -4,9 +4,11 @@
 		"rootDir": "./src",
 		"outDir": "./out",
 		"lib": [
-			"webworker"
+			"webworker",
+			"es2019"
 		],
 		"module": "Node16",
+		"types": ["node"],
 		"typeRoots": [
 			"../node_modules/@types"
 		]

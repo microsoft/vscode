@@ -3,6 +3,7 @@
 	"compilerOptions": {
 		"rootDir": "./src",
 		"outDir": "./out",
+		"types": ["mocha", "node"],
 		"noFallthroughCasesInSwitch": true,
 		"noUnusedLocals": false,
 		"skipLibCheck": true

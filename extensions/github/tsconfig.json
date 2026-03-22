@@ -5,6 +5,7 @@
 		"outDir": "./out",
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
+		"types": ["node"],
 		"skipLibCheck": true,
 		"typeRoots": [
 			"./node_modules/@types"

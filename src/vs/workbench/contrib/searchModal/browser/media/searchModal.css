@@ -1,0 +1,471 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.search-modal-widget {
+	position: absolute;
+	z-index: 1000;
+	background-color: var(--vscode-quickInput-background);
+	border: 1px solid var(--vscode-widget-border, var(--vscode-quickInputList-focusBackground));
+	box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+	border-radius: 10px;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+}
+
+.search-modal-widget .search-modal-header {
+	padding: 16px 20px 12px 20px;
+	border-bottom: 1px solid var(--vscode-quickInputList-focusBackground);
+	background-color: var(--vscode-quickInput-background);
+}
+
+.search-modal-widget .search-modal-input {
+	width: 100%;
+	box-sizing: border-box;
+	margin-bottom: 12px;
+}
+
+.search-modal-widget .search-modal-tabs {
+	display: flex;
+	gap: 4px;
+	padding: 0;
+	margin: 0;
+	list-style: none;
+}
+
+.search-modal-widget .search-tab {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 5px 14px;
+	cursor: pointer;
+	border-radius: 5px;
+	font-size: 12px;
+	color: var(--vscode-quickInput-foreground);
+	background-color: transparent;
+	border: none;
+	outline: none;
+	font-family: inherit;
+	transition: background-color 0.1s;
+}
+
+.search-modal-widget .search-tab .codicon {
+	font-size: 13px;
+	opacity: 0.8;
+}
+
+.search-modal-widget .search-tab .tab-label {
+	font-weight: 500;
+}
+
+.search-modal-widget .search-tab:hover {
+	background-color: var(--vscode-quickInputList-focusBackground);
+}
+
+.search-modal-widget .search-tab.active {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.search-modal-widget .search-tab.active .codicon {
+	opacity: 1;
+}
+
+
+.search-modal-widget .search-modal-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 6px 16px;
+	border-bottom: 1px solid var(--vscode-quickInputList-focusBackground);
+	background-color: var(--vscode-quickInput-background);
+}
+
+.search-modal-widget .toolbar-group {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.search-modal-widget .toolbar-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	border-radius: 4px;
+	font-size: 14px;
+	cursor: pointer;
+	border: 1px solid transparent;
+	background-color: transparent;
+	color: var(--vscode-quickInput-foreground);
+	transition: background-color 0.1s;
+}
+
+.search-modal-widget .toolbar-button:hover {
+	background-color: var(--vscode-quickInputList-focusBackground);
+}
+
+.search-modal-widget .toolbar-button.active {
+	background-color: var(--vscode-inputOption-activeBackground);
+	border-color: var(--vscode-inputOption-activeBorder, transparent);
+	color: var(--vscode-inputOption-activeForeground, var(--vscode-quickInput-foreground));
+}
+
+.search-modal-widget .toolbar-hints {
+	display: flex;
+	align-items: center;
+}
+
+.search-modal-widget .toolbar-hint {
+	font-size: 11px;
+	opacity: 0.55;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+
+.search-modal-widget .search-modal-status {
+	padding: 3px 20px;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	background-color: var(--vscode-quickInput-background);
+	border-bottom: 1px solid var(--vscode-quickInputList-focusBackground);
+	min-height: 20px;
+	display: flex;
+	align-items: center;
+	opacity: 0.8;
+}
+
+
+.search-modal-widget .search-modal-body {
+	display: flex;
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.search-modal-widget .search-modal-results {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	border-right: 1px solid var(--vscode-quickInputList-focusBackground);
+	min-width: 380px;
+	max-width: 520px;
+	background-color: var(--vscode-quickInput-background);
+}
+
+.search-modal-widget .search-modal-preview {
+	flex: 1.5;
+	min-height: 0;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	background-color: var(--vscode-editor-background);
+}
+
+
+.search-modal-widget .result-item {
+	padding: 8px 14px;
+	cursor: pointer;
+	border-bottom: 1px solid rgba(128, 128, 128, 0.08);
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+}
+
+.search-modal-widget .result-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.search-modal-widget .result-item.selected {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.search-modal-widget .result-item.selected .result-item-description,
+.search-modal-widget .result-item.selected .result-item-detail {
+	color: inherit;
+	opacity: 0.85;
+}
+
+.search-modal-widget .result-icon {
+	flex-shrink: 0;
+	margin-top: 2px;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 16px;
+	background-size: 16px;
+	background-repeat: no-repeat;
+	background-position: center;
+}
+
+.search-modal-widget .result-content {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.search-modal-widget .result-item-label {
+	font-weight: 500;
+	font-size: 13px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.search-modal-widget .label-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.search-modal-widget .result-item-label .match-highlight {
+	font-weight: 700;
+	color: var(--vscode-list-highlightForeground);
+}
+
+.search-modal-widget .result-item.selected .match-highlight {
+	color: inherit;
+	text-decoration: underline;
+}
+
+.search-modal-widget .result-item-description {
+	font-size: 11px;
+	opacity: 0.7;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	color: var(--vscode-descriptionForeground);
+}
+
+.search-modal-widget .result-item-detail {
+	font-size: 11px;
+	opacity: 0.6;
+	font-family: var(--monaco-monospace-font);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+}
+
+
+.search-modal-widget .result-badge {
+	padding: 1px 5px;
+	border-radius: 3px;
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.4px;
+	flex-shrink: 0;
+}
+
+.search-modal-widget .result-badge-text {
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.search-modal-widget .result-badge-symbol {
+	background-color: var(--vscode-symbolIcon-classForeground, #ee9d28);
+	color: #fff;
+}
+
+.search-modal-widget .result-badge-action {
+	background-color: var(--vscode-symbolIcon-keywordForeground, #c586c0);
+	color: #fff;
+}
+
+.search-modal-widget .result-group-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 14px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--vscode-descriptionForeground);
+	background-color: rgba(128, 128, 128, 0.05);
+	border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+	position: sticky;
+	top: 0;
+	z-index: 1;
+}
+
+.search-modal-widget .result-group-header .codicon {
+	font-size: 12px;
+	opacity: 0.8;
+}
+
+.search-modal-widget .load-more-container {
+	padding: 10px 14px;
+	display: flex;
+	justify-content: center;
+}
+
+.search-modal-widget .load-more-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 5px 14px;
+	border-radius: 5px;
+	border: 1px solid var(--vscode-button-border, rgba(128, 128, 128, 0.3));
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	cursor: pointer;
+	font-size: 12px;
+	font-family: inherit;
+	transition: background-color 0.12s;
+}
+
+.search-modal-widget .load-more-button:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.search-modal-widget .preview-header {
+	padding: 10px 16px;
+	border-bottom: 1px solid var(--vscode-quickInputList-focusBackground);
+	background-color: var(--vscode-editorWidget-background);
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-weight: 500;
+	flex-shrink: 0;
+}
+
+.search-modal-widget .preview-header .codicon {
+	flex-shrink: 0;
+	opacity: 0.7;
+}
+
+.search-modal-widget .preview-header-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.search-modal-widget .preview-body {
+	flex: 1;
+	min-height: 0;
+	position: relative;
+	overflow: hidden;
+}
+
+.search-modal-widget .preview-body .monaco-editor {
+	width: 100% !important;
+	height: 100% !important;
+}
+
+.search-modal-widget .preview-image-wrap {
+	position: absolute;
+	inset: 0;
+	align-items: center;
+	justify-content: center;
+	background-color: var(--vscode-editor-background);
+	z-index: 2;
+	padding: 16px;
+	box-sizing: border-box;
+}
+
+.search-modal-widget .image-preview {
+	max-width: 100%;
+	max-height: 100%;
+	object-fit: contain;
+	border-radius: 4px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.search-modal-widget .no-results {
+	padding: 56px 32px;
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+}
+
+.search-modal-widget .no-results-icon {
+	font-size: 44px;
+	opacity: 0.25;
+	margin-bottom: 14px;
+}
+
+.search-modal-widget .no-results-text {
+	font-size: 14px;
+	font-weight: 500;
+	margin-bottom: 8px;
+}
+
+.search-modal-widget .no-results-hint {
+	font-size: 12px;
+	opacity: 0.65;
+}
+
+
+.search-modal-widget .loading {
+	padding: 56px 32px;
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+}
+
+.search-modal-widget .loading-spinner {
+	width: 28px;
+	height: 28px;
+	margin: 0 auto 14px;
+	border: 3px solid rgba(128, 128, 128, 0.2);
+	border-top-color: var(--vscode-progressBar-background);
+	border-radius: 50%;
+	animation: search-modal-spin 0.75s linear infinite;
+}
+
+@keyframes search-modal-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+
+.search-modal-backdrop {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(0, 0, 0, 0.45);
+	z-index: 999;
+}
+
+
+.search-modal-widget .search-modal-results::-webkit-scrollbar,
+.search-modal-widget .preview-content::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+.search-modal-widget .search-modal-results::-webkit-scrollbar-track,
+.search-modal-widget .preview-content::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.search-modal-widget .search-modal-results::-webkit-scrollbar-thumb,
+.search-modal-widget .preview-content::-webkit-scrollbar-thumb {
+	background-color: rgba(128, 128, 128, 0.25);
+	border-radius: 4px;
+}
+
+.search-modal-widget .search-modal-results::-webkit-scrollbar-thumb:hover,
+.search-modal-widget .preview-content::-webkit-scrollbar-thumb:hover {
+	background-color: rgba(128, 128, 128, 0.45);
+}

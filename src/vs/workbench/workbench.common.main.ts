@@ -189,9 +189,6 @@ registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, Instantia
 // Default Account
 import './services/accounts/browser/defaultAccount.js';
 
-// Telemetry
-import './contrib/telemetry/browser/telemetry.contribution.js';
-
 // Preferences
 import './contrib/preferences/browser/preferences.contribution.js';
 import './contrib/preferences/browser/keybindingsEditorContribution.js';
@@ -228,6 +225,12 @@ import './contrib/logs/common/logs.contribution.js';
 
 // Quickaccess
 import './contrib/quickaccess/browser/quickAccess.contribution.js';
+
+// Search Modal
+import './contrib/searchModal/browser/searchModal.contribution.js';
+
+// Run Bar
+import './contrib/runBar/browser/runBar.contribution.js';
 
 // Explorer
 import './contrib/files/browser/explorerViewlet.js';

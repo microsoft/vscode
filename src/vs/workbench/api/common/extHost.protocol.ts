@@ -599,6 +599,16 @@ export interface MainThreadMessageServiceShape extends IDisposable {
 	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number }[]): Promise<number | undefined>;
 }
 
+export interface MainThreadModalShape extends IDisposable {
+	$createModalPanel(handle: number, options: { title: string; width: number; height: number }): void;
+	$setModalPanelHtml(handle: number, html: string): void;
+	$disposeModalPanel(handle: number): void;
+}
+
+export interface ExtHostModalShape {
+	$onModalPanelDisposed(handle: number): void;
+}
+
 export interface MainThreadOutputServiceShape extends IDisposable {
 	$register(label: string, file: UriComponents, languageId: string | undefined, extensionId: string): Promise<string>;
 	$update(channelId: string, mode: OutputChannelUpdateMode, till?: number): Promise<void>;
@@ -3759,6 +3769,7 @@ export const MainContext = {
 	MainThreadLanguages: createProxyIdentifier<MainThreadLanguagesShape>('MainThreadLanguages'),
 	MainThreadLogger: createProxyIdentifier<MainThreadLoggerShape>('MainThreadLogger'),
 	MainThreadMessageService: createProxyIdentifier<MainThreadMessageServiceShape>('MainThreadMessageService'),
+	MainThreadModal: createProxyIdentifier<MainThreadModalShape>('MainThreadModal'),
 	MainThreadOutputService: createProxyIdentifier<MainThreadOutputServiceShape>('MainThreadOutputService'),
 	MainThreadProgress: createProxyIdentifier<MainThreadProgressShape>('MainThreadProgress'),
 	MainThreadQuickDiff: createProxyIdentifier<MainThreadQuickDiffShape>('MainThreadQuickDiff'),
@@ -3845,6 +3856,7 @@ export const ExtHostContext = {
 	ExtHostTask: createProxyIdentifier<ExtHostTaskShape>('ExtHostTask'),
 	ExtHostWorkspace: createProxyIdentifier<ExtHostWorkspaceShape>('ExtHostWorkspace'),
 	ExtHostWindow: createProxyIdentifier<ExtHostWindowShape>('ExtHostWindow'),
+	ExtHostModal: createProxyIdentifier<ExtHostModalShape>('ExtHostModal'),
 	ExtHostPower: createProxyIdentifier<ExtHostPowerShape>('ExtHostPower'),
 	ExtHostWebviews: createProxyIdentifier<ExtHostWebviewsShape>('ExtHostWebviews'),
 	ExtHostWebviewPanels: createProxyIdentifier<ExtHostWebviewPanelsShape>('ExtHostWebviewPanels'),
