@@ -1,6 +1,6 @@
 /** @jsxImportSource preact */
 
-import type { FromWebviewMessage, RenderableBlock, ThreadForBlock } from '../../src/protocol/types';
+import type { ClaudeThreadPhase, FromWebviewMessage, RenderableBlock, ThreadForBlock } from '../../src/protocol/types';
 import { ThreadView } from './ThreadView';
 
 interface VsApi {
@@ -11,10 +11,11 @@ export interface CommentThreadRowProps {
 	readonly tfb: ThreadForBlock;
 	readonly blocks: readonly RenderableBlock[];
 	readonly vscode: VsApi;
+	readonly claudePhase?: ClaudeThreadPhase;
 }
 
 export function CommentThreadRow(props: CommentThreadRowProps): preact.JSX.Element {
-	const { tfb, blocks, vscode } = props;
+	const { tfb, blocks, vscode, claudePhase } = props;
 	const block =
 		tfb.blockIndex !== null ? blocks.find(b => b.blockIndex === tfb.blockIndex) : undefined;
 
@@ -25,7 +26,7 @@ export function CommentThreadRow(props: CommentThreadRowProps): preact.JSX.Eleme
 					Lines {block.startLine + 1}-{block.endLine}, {block.blockType}
 				</div>
 			) : null}
-			<ThreadView thread={tfb.thread} vscode={vscode} />
+			<ThreadView thread={tfb.thread} vscode={vscode} claudePhase={claudePhase} />
 		</div>
 	);
 }

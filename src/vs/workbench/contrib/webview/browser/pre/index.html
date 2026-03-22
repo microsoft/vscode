@@ -1053,7 +1053,8 @@
 				}
 				newFrame.setAttribute('sandbox', Array.from(sandboxRules).join(' '));
 
-				const allowRules = ['cross-origin-isolated;', 'autoplay;', 'local-network-access;'];
+				// Omit local-network-access until embedded Chromium supports the token (avoids DevTools noise).
+				const allowRules = ['cross-origin-isolated;', 'autoplay;'];
 				if (!isFirefox && options.allowScripts) {
 					allowRules.push('clipboard-read;', 'clipboard-write;');
 				}

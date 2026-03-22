@@ -18,6 +18,7 @@ body {
 .forge-cmd-root {
 	display: flex;
 	flex-direction: column;
+	flex: 1;
 	height: 100%;
 	min-height: 100%;
 	box-sizing: border-box;
@@ -550,6 +551,19 @@ body {
 	margin-left: auto;
 }
 
+/* Fenced ```mermaid: rendered to SVG by mermaid (see MarkdownPreviewPanel) */
+.forge-md-document .forge-md-mermaid {
+	margin: 1em 0;
+	overflow-x: auto;
+	max-width: 100%;
+}
+
+.forge-md-document .forge-md-mermaid svg {
+	max-width: 100%;
+	height: auto;
+	display: block;
+}
+
 .forge-md-document pre {
 	background: color-mix(in srgb, var(--vscode-textCodeBlock-background) 88%, var(--vscode-editor-background));
 	padding: 14px 16px;
@@ -821,6 +835,53 @@ body {
 .forge-cmd-thread-menu-icon {
 	display: block;
 	opacity: 0.88;
+}
+
+.forge-cmd-thread-menu-spinner {
+	display: block;
+	width: 14px;
+	height: 14px;
+	box-sizing: border-box;
+	border: 2px solid color-mix(in srgb, var(--vscode-widget-border) 55%, transparent);
+	border-top-color: color-mix(in srgb, var(--vscode-textLink-foreground) 75%, var(--vscode-widget-border));
+	border-radius: 50%;
+	animation: forge-cmd-spin 0.65s linear infinite;
+}
+
+@keyframes forge-cmd-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.forge-cmd-thread.forge-cmd-thread-claude-success {
+	pointer-events: none;
+	animation: forge-cmd-thread-success-fade 0.9s ease forwards;
+}
+
+@keyframes forge-cmd-thread-success-fade {
+	0% {
+		opacity: 1;
+		border-color: color-mix(in srgb, var(--vscode-widget-border) 45%, transparent);
+		background: var(--vscode-editor-background);
+		box-shadow:
+			0 1px 0 color-mix(in srgb, var(--vscode-widget-border) 38%, transparent),
+			0 10px 32px -18px color-mix(in srgb, var(--vscode-foreground) 9%, transparent);
+	}
+	28% {
+		opacity: 1;
+		border-color: color-mix(in srgb, #2ea043 72%, var(--vscode-widget-border));
+		background: color-mix(in srgb, #2ea043 14%, var(--vscode-editor-background));
+		box-shadow:
+			0 0 0 1px color-mix(in srgb, #2ea043 35%, transparent),
+			0 10px 28px -14px color-mix(in srgb, #2ea043 22%, transparent);
+	}
+	100% {
+		opacity: 0;
+		transform: scale(0.97);
+		border-color: color-mix(in srgb, #2ea043 40%, transparent);
+		background: color-mix(in srgb, #2ea043 8%, var(--vscode-editor-background));
+	}
 }
 
 .forge-cmd-thread-menu {

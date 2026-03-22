@@ -1,7 +1,8 @@
 /** @jsxImportSource preact */
 
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { useLayoutEffect } from 'preact/hooks';
 import type { FromWebviewMessage, RenderableBlock } from '../../src/protocol/types';
+import { SelectionCommentPlus } from './SelectionCommentPlus';
 
 interface VsApi {
 	postMessage(message: FromWebviewMessage): void;
@@ -12,170 +13,73 @@ export interface MarkdownPreviewPanelProps {
 	readonly vscode: VsApi;
 }
 
-interface PendingSelection {
-	readonly text: string;
-	readonly startBlockIndex: number;
-	readonly endBlockIndex: number;
-}
+let mermaidInitialized = false;
 
-function closestBlockIndex(node: Node | null): number | null {
-	const el = (node?.nodeType === Node.TEXT_NODE ? node.parentElement : (node as HTMLElement | null)) as
-		| HTMLElement
-		| null;
-	const frag = el?.closest?.('[data-block-index]');
-	const raw = frag?.getAttribute('data-block-index');
-	if (raw === null || raw === '') {
-		return null;
+function vscodeThemeIsDark(): boolean {
+	if (typeof document === 'undefined') {
+		return false;
 	}
-	const n = Number.parseInt(raw || '0', 10);
-	return Number.isFinite(n) ? n : null;
+	return (
+		document.body.classList.contains('vscode-dark') ||
+		document.body.classList.contains('vscode-high-contrast') ||
+		document.documentElement.classList.contains('vscode-dark')
+	);
 }
 
-const PLUS_SIZE = 30;
-
-function plusPositionForRange(range: Range): { top: number; left: number } {
-	const rects = range.getClientRects();
-	const r = rects.length > 0 ? rects[rects.length - 1]! : range.getBoundingClientRect();
-	const pad = 6;
-	let top = r.bottom + pad;
-	let left = r.right + pad;
-	const vw = window.innerWidth;
-	const vh = window.innerHeight;
-	top = Math.min(Math.max(4, top), vh - PLUS_SIZE - 4);
-	left = Math.min(Math.max(4, left), vw - PLUS_SIZE - 4);
-	return { top, left };
+/**
+ * Markdown-it renders ```mermaid as `<pre><code class="language-mermaid">`. Mermaid expects
+ * `<div class="mermaid">` (or `<pre class="mermaid">`). Convert, then run the bundled renderer.
+ */
+function useMermaidAfterBlocks(blocks: readonly RenderableBlock[]): void {
+	useLayoutEffect(() => {
+		let cancelled = false;
+		void (async () => {
+			const mermaid = (await import('mermaid')).default;
+			if (cancelled) {
+				return;
+			}
+			if (!mermaidInitialized) {
+				mermaid.initialize({
+					startOnLoad: false,
+					securityLevel: 'loose',
+					theme: vscodeThemeIsDark() ? 'dark' : 'default',
+				});
+				mermaidInitialized = true;
+			}
+			const root = document.querySelector('.forge-md-document');
+			if (!root) {
+				return;
+			}
+			const candidates = root.querySelectorAll('pre > code');
+			for (const code of candidates) {
+				const cls = code.className || '';
+				if (!/\blanguage-mermaid\b/i.test(cls)) {
+					continue;
+				}
+				const text = code.textContent?.trim() ?? '';
+				if (!text) {
+					continue;
+				}
+				const pre = code.parentElement;
+				if (!pre || pre.tagName !== 'PRE') {
+					continue;
+				}
+				const div = document.createElement('div');
+				div.className = 'mermaid forge-md-mermaid';
+				div.textContent = text;
+				pre.replaceWith(div);
+			}
+			await mermaid.run({ querySelector: '.forge-md-document .forge-md-mermaid', suppressErrors: true });
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [blocks]);
 }
 
 export function MarkdownPreviewPanel(props: MarkdownPreviewPanelProps): preact.JSX.Element {
 	const { blocks, vscode } = props;
-	const debounceRef = useRef<number | undefined>(undefined);
-	const pendingRef = useRef<PendingSelection | null>(null);
-	const [plusPos, setPlusPos] = useState<{ top: number; left: number } | null>(null);
-
-	const syncSelectionUi = useCallback(() => {
-		const sel = window.getSelection();
-		if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
-			pendingRef.current = null;
-			setPlusPos(null);
-			return;
-		}
-		const range = sel.getRangeAt(0);
-		const previewRoot = document.querySelector('.forge-cmd-preview-scroll');
-		if (!previewRoot || !previewRoot.contains(range.commonAncestorContainer)) {
-			pendingRef.current = null;
-			setPlusPos(null);
-			return;
-		}
-		const common = range.commonAncestorContainer;
-		const commonEl =
-			common.nodeType === Node.TEXT_NODE ? (common.parentElement as Element | null) : (common as Element);
-		if (commonEl?.closest('.forge-cmd-comments-panel')) {
-			pendingRef.current = null;
-			setPlusPos(null);
-			return;
-		}
-		const text = sel.toString();
-		if (!text.trim()) {
-			pendingRef.current = null;
-			setPlusPos(null);
-			return;
-		}
-		const startIdx = closestBlockIndex(range.startContainer);
-		const endIdx = closestBlockIndex(range.endContainer);
-		if (startIdx === null || endIdx === null) {
-			pendingRef.current = null;
-			setPlusPos(null);
-			return;
-		}
-		pendingRef.current = { text, startBlockIndex: startIdx, endBlockIndex: endIdx };
-		setPlusPos(plusPositionForRange(range));
-	}, []);
-
-	useEffect(() => {
-		let cancelled = false;
-
-		const cancelScheduledSync = () => {
-			if (debounceRef.current !== undefined) {
-				clearTimeout(debounceRef.current);
-				debounceRef.current = undefined;
-			}
-		};
-
-		const onSelectionChange = () => {
-			const sel = window.getSelection();
-			if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
-				cancelScheduledSync();
-				if (!cancelled) {
-					syncSelectionUi();
-				}
-				return;
-			}
-
-			const range = sel.getRangeAt(0);
-			const previewRoot = document.querySelector('.forge-cmd-preview-scroll');
-			if (!previewRoot?.contains(range.commonAncestorContainer)) {
-				cancelScheduledSync();
-				if (!cancelled) {
-					syncSelectionUi();
-				}
-				return;
-			}
-
-			cancelScheduledSync();
-			debounceRef.current = window.setTimeout(() => {
-				debounceRef.current = undefined;
-				if (cancelled) {
-					return;
-				}
-				syncSelectionUi();
-			}, 80);
-		};
-
-		document.addEventListener('selectionchange', onSelectionChange);
-		return () => {
-			cancelled = true;
-			cancelScheduledSync();
-			document.removeEventListener('selectionchange', onSelectionChange);
-		};
-	}, [syncSelectionUi]);
-
-	useEffect(() => {
-		const scrollRoot = document.querySelector('.forge-cmd-preview-scroll');
-		if (!scrollRoot) {
-			return;
-		}
-		const onScroll = () => {
-			const sel = window.getSelection();
-			if (!sel || sel.isCollapsed || !pendingRef.current) {
-				return;
-			}
-			const range = sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
-			if (!range || !scrollRoot.contains(range.commonAncestorContainer)) {
-				return;
-			}
-			setPlusPos(plusPositionForRange(range));
-		};
-		scrollRoot.addEventListener('scroll', onScroll, { passive: true });
-		return () => scrollRoot.removeEventListener('scroll', onScroll);
-	}, [blocks]);
-
-	const onAddCommentMouseDown = (e: MouseEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		const p = pendingRef.current;
-		if (!p) {
-			return;
-		}
-		vscode.postMessage({
-			type: 'selectionComment',
-			text: p.text,
-			startBlockIndex: p.startBlockIndex,
-			endBlockIndex: p.endBlockIndex,
-		});
-		pendingRef.current = null;
-		setPlusPos(null);
-		window.getSelection()?.removeAllRanges();
-	};
+	useMermaidAfterBlocks(blocks);
 
 	return (
 		<div class="forge-cmd-preview-panel">
@@ -193,20 +97,7 @@ export function MarkdownPreviewPanel(props: MarkdownPreviewPanelProps): preact.J
 					</article>
 				</div>
 			</div>
-			{plusPos ? (
-				<button
-					type="button"
-					class="forge-cmd-selection-plus"
-					style={{ top: `${plusPos.top}px`, left: `${plusPos.left}px`, width: `${PLUS_SIZE}px`, height: `${PLUS_SIZE}px` }}
-					aria-label="Add comment on selection"
-					title="Add comment"
-					onMouseDown={onAddCommentMouseDown}
-				>
-					<span class="forge-cmd-selection-plus-icon" aria-hidden="true">
-						+
-					</span>
-				</button>
-			) : null}
+			<SelectionCommentPlus vscode={vscode} blocks={blocks} />
 		</div>
 	);
 }

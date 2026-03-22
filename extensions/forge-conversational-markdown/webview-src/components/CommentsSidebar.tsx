@@ -1,6 +1,6 @@
 /** @jsxImportSource preact */
 
-import type { FromWebviewMessage, RenderableBlock, ThreadForBlock } from '../../src/protocol/types';
+import type { ClaudeThreadPhase, FromWebviewMessage, RenderableBlock, ThreadForBlock } from '../../src/protocol/types';
 import { CommentThreadRow } from './CommentThreadRow';
 import { OutdatedThreads } from './OutdatedThreads';
 
@@ -13,6 +13,7 @@ export interface CommentsSidebarProps {
 	readonly threads: readonly ThreadForBlock[];
 	readonly outdated: readonly ThreadForBlock[];
 	readonly vscode: VsApi;
+	readonly claudeByThread: Readonly<Partial<Record<string, ClaudeThreadPhase>>>;
 }
 
 function sortAnchoredThreads(list: readonly ThreadForBlock[]): ThreadForBlock[] {
@@ -27,7 +28,7 @@ function sortAnchoredThreads(list: readonly ThreadForBlock[]): ThreadForBlock[] 
 }
 
 export function CommentsSidebar(props: CommentsSidebarProps): preact.JSX.Element {
-	const { blocks, threads, outdated, vscode } = props;
+	const { blocks, threads, outdated, vscode, claudeByThread } = props;
 
 	const anchored = sortAnchoredThreads(threads);
 
@@ -46,10 +47,18 @@ export function CommentsSidebar(props: CommentsSidebarProps): preact.JSX.Element
 					) : null}
 					<div class="forge-cmd-thread-list">
 						{anchored.map(tfb => (
-							<CommentThreadRow key={tfb.thread.id} tfb={tfb} blocks={blocks} vscode={vscode} />
+							<CommentThreadRow
+								key={tfb.thread.id}
+								tfb={tfb}
+								blocks={blocks}
+								vscode={vscode}
+								claudePhase={claudeByThread[tfb.thread.id]}
+							/>
 						))}
 					</div>
-					{outdated.length > 0 ? <OutdatedThreads threads={outdated} vscode={vscode} /> : null}
+					{outdated.length > 0 ? (
+						<OutdatedThreads threads={outdated} vscode={vscode} claudeByThread={claudeByThread} />
+					) : null}
 				</div>
 			</div>
 		</div>

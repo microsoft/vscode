@@ -1,4 +1,4 @@
-import type { FromWebviewMessage, ThreadForBlock } from '../../src/protocol/types';
+import type { ClaudeThreadPhase, FromWebviewMessage, ThreadForBlock } from '../../src/protocol/types';
 import { ThreadView } from './ThreadView';
 
 interface VsApi {
@@ -8,6 +8,7 @@ interface VsApi {
 export interface OutdatedThreadsProps {
 	readonly threads: readonly ThreadForBlock[];
 	readonly vscode: VsApi;
+	readonly claudeByThread: Readonly<Partial<Record<string, ClaudeThreadPhase>>>;
 }
 
 export function OutdatedThreads(props: OutdatedThreadsProps): preact.JSX.Element {
@@ -17,7 +18,12 @@ export function OutdatedThreads(props: OutdatedThreadsProps): preact.JSX.Element
 			<h2 class="forge-cmd-outdated-title">Unanchored threads</h2>
 			<p class="forge-cmd-outdated-desc">These threads could not be matched to the current document structure.</p>
 			{threads.map(t => (
-				<ThreadView key={t.thread.id} thread={t.thread} vscode={vscode} variant="outdated" />
+				<ThreadView
+					key={t.thread.id}
+					thread={t.thread}
+					vscode={vscode}
+					variant="outdated"
+				/>
 			))}
 		</section>
 	);

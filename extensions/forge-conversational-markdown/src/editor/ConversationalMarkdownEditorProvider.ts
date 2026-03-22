@@ -1,13 +1,10 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { ClaudeCodeAgentService } from '../agents/impl/claude-code-agent-service';
 import { applyResolvedAnchors, resolveThreadsToBlocks } from '../comments/AnchorResolver';
-import { loadCommentStore, saveCommentStore, sidecarUri } from '../comments/CommentStore';
-import { mergeDocumentMarkersIntoThreads } from '../comments/markerThreadMerge';
-import { insertSelectionCommentMarkers } from '../comments/selectionCommentEdit';
 import { newCommentId, newThreadId, nowIso, type MutableCommentThreadRecord } from '../comments/ThreadModel';
 import { parseMarkdownToBlocks } from '../markdown/BlockParser';
-import { stripForgeMarkerPairByMarkerId, threadIdForMarker } from '../markdown/forgeMarkers';
-import type { BlockAnchor, FromWebviewMessage, RenderableBlock, ThreadForBlock, ToWebviewMessage } from '../protocol/types';
+import type { BlockAnchor, CommentThreadRecord, FromWebviewMessage, RenderableBlock, ThreadForBlock, ToWebviewMessage } from '../protocol/types';
 import { registerForgeMdSession, type ForgeMdSession } from './sessionRegistry';
 
 const viewType = 'forge.conversationalMarkdown';
@@ -32,6 +29,18 @@ function anchorFromBlock(block: RenderableBlock): BlockAnchor {
 		textFingerprint: block.textFingerprint,
 		previewText: block.previewText.slice(0, 200),
 	};
+}
+
+/** Replace the open text buffer with the file on disk (e.g. after Claude writes the file externally). */
+async function syncOpenDocumentFromDisk(uri: vscode.Uri): Promise<void> {
+	const bytes = await vscode.workspace.fs.readFile(uri);
+	const text = new TextDecoder('utf-8').decode(bytes);
+	const doc = await vscode.workspace.openTextDocument(uri);
+	const full = doc.getText();
+	const end = doc.positionAt(full.length);
+	const edit = new vscode.WorkspaceEdit();
+	edit.replace(uri, new vscode.Range(new vscode.Position(0, 0), end), text);
+	await vscode.workspace.applyEdit(edit);
 }
 
 export class ConversationalMarkdownEditorProvider implements vscode.CustomTextEditorProvider {
@@ -68,51 +77,11 @@ export class ConversationalMarkdownEditorProvider implements vscode.CustomTextEd
 </body>
 </html>`;
 
-		let threads: MutableCommentThreadRecord[] = [];
-		let saveTimer: ReturnType<typeof setTimeout> | undefined;
-		let lastSerialized = '';
-
-		const loadThreads = async () => {
-			const store = await loadCommentStore(document.uri);
-			threads = store.threads.map(t => ({
-				id: t.id,
-				status: t.status,
-				anchor:
-					t.anchor.kind === 'selection'
-						? { ...t.anchor }
-						: { ...t.anchor, headingPath: [...t.anchor.headingPath] },
-				comments: t.comments.map(c => ({ ...c })),
-				createdAt: t.createdAt,
-				updatedAt: t.updatedAt,
-			}));
-		};
-
-		const scheduleSave = () => {
-			if (saveTimer) {
-				clearTimeout(saveTimer);
-			}
-			saveTimer = setTimeout(async () => {
-				saveTimer = undefined;
-				const next = JSON.stringify(threads);
-				if (next === lastSerialized) {
-					return;
-				}
-				lastSerialized = next;
-				try {
-					await saveCommentStore(document.uri, threads);
-				} catch (e) {
-					void vscode.window.showErrorMessage(`Could not save comment file: ${e}`);
-				}
-			}, 400);
-		};
+		/** Session-only comment threads (not persisted to disk or embedded in the `.md` file). */
+		const threads: MutableCommentThreadRecord[] = [];
 
 		const pushUpdate = () => {
 			const text = document.getText();
-			const threadCountBeforeMerge = threads.length;
-			mergeDocumentMarkersIntoThreads(text, threads, nowIso);
-			if (threads.length > threadCountBeforeMerge) {
-				scheduleSave();
-			}
 			const blocks = parseMarkdownToBlocks(text);
 			const resolved = resolveThreadsToBlocks(threads, blocks, text);
 			applyResolvedAnchors(threads, resolved);
@@ -147,6 +116,18 @@ export class ConversationalMarkdownEditorProvider implements vscode.CustomTextEd
 		};
 
 		const reg = registerForgeMdSession(session);
+		const claudeAgent = new ClaudeCodeAgentService();
+
+		const postClaudeStatus = (threadId: string, phase: 'loading' | 'success' | 'error') => {
+			const msg: ToWebviewMessage = { type: 'claudeThreadStatus', threadId, phase };
+			void webviewPanel.webview.postMessage(msg);
+		};
+
+		const threadRecordForAgent = (t: (typeof threads)[number]): CommentThreadRecord => ({
+			...t,
+			comments: [...t.comments],
+			anchor: t.anchor.kind === 'block' ? { ...t.anchor, headingPath: [...t.anchor.headingPath] } : { ...t.anchor },
+		});
 
 		const sub = webviewPanel.webview.onDidReceiveMessage(async (raw: FromWebviewMessage) => {
 			switch (raw.type) {
@@ -186,7 +167,6 @@ export class ConversationalMarkdownEditorProvider implements vscode.CustomTextEd
 						updatedAt: t,
 					};
 					threads.push(thread);
-					scheduleSave();
 					pushUpdate();
 					break;
 				}
@@ -214,8 +194,33 @@ export class ConversationalMarkdownEditorProvider implements vscode.CustomTextEd
 						thread.comments = [{ ...first, bodyMd: body }];
 					}
 					thread.updatedAt = t;
-					scheduleSave();
 					pushUpdate();
+					break;
+				}
+				case 'fixWithClaude': {
+					const thread = threads.find(x => x.id === raw.threadId);
+					if (!thread) {
+						return;
+					}
+					const ws = vscode.workspace.getWorkspaceFolder(document.uri);
+					const fileDir = path.dirname(document.uri.fsPath);
+					const cwd = ws?.uri.fsPath ?? (fileDir.length > 0 ? fileDir : process.cwd());
+					postClaudeStatus(raw.threadId, 'loading');
+					try {
+						await claudeAgent.sendThreadToClaude(
+							threadRecordForAgent(thread),
+							document.uri.toString(),
+							document.uri.fsPath,
+							cwd,
+						);
+						await syncOpenDocumentFromDisk(document.uri);
+						pushUpdate();
+						postClaudeStatus(raw.threadId, 'success');
+					} catch (e) {
+						postClaudeStatus(raw.threadId, 'error');
+						const msg = e instanceof Error ? e.message : String(e);
+						void vscode.window.showErrorMessage(`Claude: ${msg}`);
+					}
 					break;
 				}
 				case 'deleteThread': {
@@ -223,36 +228,20 @@ export class ConversationalMarkdownEditorProvider implements vscode.CustomTextEd
 					if (!thread) {
 						return;
 					}
-					const confirm = await vscode.window.showWarningMessage(
-						'Delete this comment thread? For selection comments, forge markers are removed from the Markdown file.',
-						{ modal: true },
-						'Delete',
-					);
-					if (confirm !== 'Delete') {
-						return;
-					}
-					if (thread.anchor.kind === 'selection') {
-						const full = document.getText();
-						const stripped = stripForgeMarkerPairByMarkerId(full, thread.anchor.markerId);
-						if (stripped !== null) {
-							const edit = new vscode.WorkspaceEdit();
-							const docEnd = document.positionAt(full.length);
-							edit.replace(document.uri, new vscode.Range(new vscode.Position(0, 0), docEnd), stripped);
-							const applied = await vscode.workspace.applyEdit(edit);
-							if (!applied) {
-								void vscode.window.showErrorMessage(
-									'Could not update the Markdown file; the thread was kept.',
-								);
-								return;
-							}
-						} else {
-							void vscode.window.showWarningMessage(
-								'Comment markers were not found in the Markdown file. The thread was removed from the comment list only.',
-							);
+					if (!raw.silent) {
+						const confirm = await vscode.window.showWarningMessage(
+							'Delete this comment thread?',
+							{ modal: true },
+							'Delete',
+						);
+						if (confirm !== 'Delete') {
+							return;
 						}
 					}
-					threads = threads.filter(t => t.id !== raw.threadId);
-					scheduleSave();
+					const idx = threads.findIndex(t => t.id === raw.threadId);
+					if (idx >= 0) {
+						threads.splice(idx, 1);
+					}
 					pushUpdate();
 					break;
 				}
@@ -265,34 +254,23 @@ export class ConversationalMarkdownEditorProvider implements vscode.CustomTextEd
 						void vscode.window.showWarningMessage('Could not map the selection to document sections.');
 						return;
 					}
-					const ins = await insertSelectionCommentMarkers(
-						document,
-						raw.text,
-						sb.startLine,
-						eb.endLine,
-					);
-					if (!ins.ok) {
-						void vscode.window.showWarningMessage(ins.reason);
-						return;
-					}
-					const tid = threadIdForMarker(ins.markerId);
-					if (!threads.some(x => x.id === tid)) {
-						const t = nowIso();
-						threads.push({
-							id: tid,
-							status: 'open',
-							anchor: {
-								kind: 'selection',
-								markerId: ins.markerId,
-								quotedText: raw.text,
-								anchorLine: 0,
-							},
-							comments: [],
-							createdAt: t,
-							updatedAt: t,
-						});
-					}
-					scheduleSave();
+					const startLine = Math.min(sb.startLine, eb.startLine);
+					const endLine = Math.max(sb.endLine, eb.endLine);
+					const tid = newThreadId();
+					const t = nowIso();
+					threads.push({
+						id: tid,
+						status: 'open',
+						anchor: {
+							kind: 'selection',
+							startLine,
+							endLine,
+							quotedText: raw.text,
+						},
+						comments: [],
+						createdAt: t,
+						updatedAt: t,
+					});
 					pushUpdate();
 					const focusMsg: ToWebviewMessage = { type: 'focusThread', threadId: tid };
 					void webviewPanel.webview.postMessage(focusMsg);
@@ -309,26 +287,12 @@ export class ConversationalMarkdownEditorProvider implements vscode.CustomTextEd
 			}
 		});
 
-		const sidecar = sidecarUri(document.uri);
-		const sidecarDir = vscode.Uri.file(path.dirname(document.uri.fsPath));
-		const sidecarName = path.basename(sidecar.fsPath);
-		const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(sidecarDir, sidecarName));
-		watcher.onDidChange(() => {
-			void loadThreads().then(() => pushUpdate());
-		});
-
 		webviewPanel.onDidDispose(() => {
 			reg.dispose();
 			sub.dispose();
 			docSub.dispose();
-			watcher.dispose();
-			if (saveTimer) {
-				clearTimeout(saveTimer);
-			}
 		});
 
-		await loadThreads();
-		lastSerialized = JSON.stringify(threads);
 		pushUpdate();
 	}
 

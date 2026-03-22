@@ -1,7 +1,7 @@
 /** @jsxImportSource preact */
 
 import { useCallback, useEffect, useState } from 'preact/hooks';
-import type { FromWebviewMessage, RenderableBlock, ThreadForBlock, ToWebviewMessage } from '../src/protocol/types';
+import type { ClaudeThreadPhase, FromWebviewMessage, RenderableBlock, ThreadForBlock, ToWebviewMessage } from '../src/protocol/types';
 import { AppToolbar } from './components/AppToolbar';
 import { CommentsSidebar } from './components/CommentsSidebar';
 import { MarkdownPreviewPanel } from './components/MarkdownPreviewPanel';
@@ -29,11 +29,27 @@ export function App(props: AppProps): preact.JSX.Element {
 	const [blocks, setBlocks] = useState<readonly RenderableBlock[]>([]);
 	const [threads, setThreads] = useState<readonly ThreadForBlock[]>([]);
 	const [commentsPanelOpen, setCommentsPanelOpen] = useState(false);
+	const [claudeByThread, setClaudeByThread] = useState<Partial<Record<string, ClaudeThreadPhase>>>({});
 
 	const applyUpdate = useCallback((msg: Extract<ToWebviewMessage, { type: 'update' }>) => {
 		setBlocks(msg.blocks);
 		setThreads(msg.threads);
 	}, []);
+
+	useEffect(() => {
+		const ids = new Set(threads.map(t => t.thread.id));
+		setClaudeByThread(prev => {
+			let changed = false;
+			const next = { ...prev };
+			for (const k of Object.keys(next)) {
+				if (!ids.has(k)) {
+					delete next[k];
+					changed = true;
+				}
+			}
+			return changed ? next : prev;
+		});
+	}, [threads]);
 
 	const outdated = threads.filter(t => t.blockIndex === null);
 	const anchoredThreads = threads.filter(t => t.blockIndex !== null);
@@ -87,6 +103,18 @@ export function App(props: AppProps): preact.JSX.Element {
 			if (msg.type === 'focusThread') {
 				setCommentsPanelOpen(true);
 				scrollThreadIntoView(msg.threadId);
+				return;
+			}
+			if (msg.type === 'claudeThreadStatus') {
+				if (msg.phase === 'error') {
+					setClaudeByThread(prev => {
+						const n = { ...prev };
+						delete n[msg.threadId];
+						return n;
+					});
+					return;
+				}
+				setClaudeByThread(prev => ({ ...prev, [msg.threadId]: msg.phase }));
 			}
 		};
 		window.addEventListener('message', onMessage);
@@ -102,7 +130,13 @@ export function App(props: AppProps): preact.JSX.Element {
 			<div class={showCommentsColumn ? 'forge-cmd-split' : 'forge-cmd-split forge-cmd-split-collapsed'}>
 				<MarkdownPreviewPanel blocks={blocks} vscode={vscode} />
 				{showCommentsColumn ? (
-					<CommentsSidebar blocks={blocks} threads={anchoredThreads} outdated={outdated} vscode={vscode} />
+					<CommentsSidebar
+						blocks={blocks}
+						threads={anchoredThreads}
+						outdated={outdated}
+						vscode={vscode}
+						claudeByThread={claudeByThread}
+					/>
 				) : null}
 			</div>
 		</div>

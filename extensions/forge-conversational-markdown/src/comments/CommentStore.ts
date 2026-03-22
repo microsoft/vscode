@@ -70,12 +70,14 @@ function normalizeThreadLoose(t: unknown): CommentThreadRecord {
 
 function normalizeAnchor(a: unknown): ThreadAnchor {
 	if (a && typeof a === 'object' && (a as { kind?: string }).kind === 'selection') {
-		const s = a as Partial<SelectionAnchor>;
+		const s = a as Partial<SelectionAnchor> & { markerId?: string };
+		const startLine = Number.isFinite(s.startLine) ? Number(s.startLine) : 0;
+		const endLine = Number.isFinite(s.endLine) ? Number(s.endLine) : startLine + 1;
 		return {
 			kind: 'selection',
-			markerId: String(s.markerId ?? '').toLowerCase(),
+			startLine,
+			endLine: Math.max(endLine, startLine + 1),
 			quotedText: String(s.quotedText ?? ''),
-			anchorLine: Number.isFinite(s.anchorLine) ? Number(s.anchorLine) : 0,
 		};
 	}
 	const b = a as Partial<BlockAnchor>;

@@ -9,13 +9,15 @@ export interface BlockAnchor {
 	readonly previewText?: string;
 }
 
-/** Anchored by HTML comment markers in the `.md` source (`<!-- forge-cmt:… -->`). */
+/** Selection comment: kept in memory only (not written into the Markdown file). */
 export interface SelectionAnchor {
 	readonly kind: 'selection';
-	readonly markerId: string;
+	/** 0-based inclusive start line in the Markdown source. */
+	readonly startLine: number;
+	/** 0-based exclusive end line (same convention as `RenderableBlock`). */
+	readonly endLine: number;
+	/** Highlighted / quoted text from the preview selection. */
 	readonly quotedText: string;
-	/** 0-based source line of the opening marker (for display / debugging). */
-	readonly anchorLine: number;
 }
 
 export type ThreadAnchor = BlockAnchor | SelectionAnchor;
@@ -61,6 +63,8 @@ export interface ThreadForBlock {
 	readonly blockIndex: number | null;
 }
 
+export type ClaudeThreadPhase = 'loading' | 'success' | 'error';
+
 export type ToWebviewMessage =
 	| {
 		readonly type: 'update';
@@ -75,6 +79,11 @@ export type ToWebviewMessage =
 	| {
 		readonly type: 'focusThread';
 		readonly threadId: string;
+	}
+	| {
+		readonly type: 'claudeThreadStatus';
+		readonly threadId: string;
+		readonly phase: ClaudeThreadPhase;
 	};
 
 export type FromWebviewMessage =
@@ -84,7 +93,8 @@ export type FromWebviewMessage =
 	| { readonly type: 'refresh' }
 	| { readonly type: 'addThread'; readonly blockIndex: number; readonly body: string }
 	| { readonly type: 'reply'; readonly threadId: string; readonly body: string }
-	| { readonly type: 'deleteThread'; readonly threadId: string }
+	| { readonly type: 'deleteThread'; readonly threadId: string; readonly silent?: boolean }
+	| { readonly type: 'fixWithClaude'; readonly threadId: string }
 	| {
 		readonly type: 'selectionComment';
 		readonly text: string;

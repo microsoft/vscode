@@ -66,6 +66,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!src/vs/base/browser/dompurify/**',
 	'!src/vs/workbench/services/keybinding/browser/keyboardLayouts/**',
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
+	'!extensions/forge-conversational-markdown/media/*.js',
 ]);
 
 export const indentationFilter = Object.freeze<string[]>([

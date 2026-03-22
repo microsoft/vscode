@@ -1,4 +1,3 @@
-import { parseForgeMarkerRanges } from '../markdown/forgeMarkers';
 import type {
 	BlockAnchor,
 	CommentThreadRecord,
@@ -50,13 +49,11 @@ export function resolveThreadsToBlocks(
 function resolveSelectionThread(
 	thread: CommentThreadRecord,
 	blocks: readonly RenderableBlock[],
-	source: string,
+	_source: string,
 ): ResolvedThread {
 	const anchor = thread.anchor as SelectionAnchor;
-	const ranges = parseForgeMarkerRanges(source);
-	const mid = anchor.markerId.toLowerCase();
-	const hit = ranges.find(r => r.markerId === mid);
-	if (!hit) {
+	const blockIndex = findBlockIndexForLine(blocks, anchor.startLine);
+	if (blockIndex === null) {
 		const updatedStatus: ThreadStatus = thread.status === 'resolved' ? 'resolved' : 'outdated';
 		return {
 			thread,
@@ -65,22 +62,19 @@ function resolveSelectionThread(
 			updatedAnchor: anchor,
 		};
 	}
-	let blockIdx: number | null = null;
+	const updatedStatus: ThreadStatus = thread.status === 'resolved' ? 'resolved' : 'open';
+	return { thread, blockIndex, updatedStatus, updatedAnchor: anchor };
+}
+
+/** `RenderableBlock.blockIndex` for the block containing `line`, or null. */
+function findBlockIndexForLine(blocks: readonly RenderableBlock[], line: number): number | null {
 	for (let i = 0; i < blocks.length; i++) {
 		const b = blocks[i]!;
-		if (hit.startMarkerLine >= b.startLine && hit.startMarkerLine < b.endLine) {
-			blockIdx = b.blockIndex;
-			break;
+		if (line >= b.startLine && line < b.endLine) {
+			return b.blockIndex;
 		}
 	}
-	const updatedAnchor: SelectionAnchor = {
-		kind: 'selection',
-		markerId: mid,
-		quotedText: hit.quotedText,
-		anchorLine: hit.startMarkerLine,
-	};
-	const updatedStatus: ThreadStatus = thread.status === 'resolved' ? 'resolved' : 'open';
-	return { thread, blockIndex: blockIdx, updatedStatus, updatedAnchor };
+	return null;
 }
 
 function resolveBlockThread(thread: CommentThreadRecord, blocks: readonly RenderableBlock[]): ResolvedThread {

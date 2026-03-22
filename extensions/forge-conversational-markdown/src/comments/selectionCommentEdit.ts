@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { newMarkerHexId } from '../markdown/forgeMarkers';
-import { findSelectionSpanInRegion } from './selectionMatch';
+import { findSelectionSpanInDocumentIfUnique, findSelectionSpanInRegion } from './selectionMatch';
 
 /**
  * Locate selected text in the document within the given line range (0-based, end line exclusive)
@@ -25,16 +25,23 @@ export async function insertSelectionCommentMarkers(
 		: document.offsetAt(new vscode.Position(lineEndEx, 0));
 	const region = full.slice(regionStart, regionEnd);
 
-	const span = findSelectionSpanInRegion(region, selectedText);
-	if (!span) {
-		return {
-			ok: false,
-			reason: 'Could not find this text in the Markdown source. The preview can differ from the file (headings, lists, links, emphasis). Try a shorter phrase or edit in the text editor.',
-		};
+	const spanInRegion = findSelectionSpanInRegion(region, selectedText);
+	let absStart: number;
+	let absEnd: number;
+	if (spanInRegion) {
+		absStart = regionStart + spanInRegion.start;
+		absEnd = regionStart + spanInRegion.end;
+	} else {
+		const unique = findSelectionSpanInDocumentIfUnique(full, selectedText);
+		if (!unique) {
+			return {
+				ok: false,
+				reason: 'Could not find this text in the Markdown source. The preview can differ from the file (headings, lists, links, emphasis). Try a shorter phrase or edit in the text editor.',
+			};
+		}
+		absStart = unique.start;
+		absEnd = unique.end;
 	}
-
-	const absStart = regionStart + span.start;
-	const absEnd = regionStart + span.end;
 	const markerId = newMarkerHexId();
 	const startTag = `<!-- forge-cmt:${markerId}:start -->`;
 	const endTag = `<!-- forge-cmt:${markerId}:end -->`;

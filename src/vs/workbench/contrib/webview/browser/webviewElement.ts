@@ -404,7 +404,8 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		element.className = `webview ${options.customClasses || ''}`;
 		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads');
 
-		const allowRules = ['cross-origin-isolated', 'autoplay', 'local-network-access'];
+		// Omit `local-network-access` until the embedded Chromium supports it (avoids DevTools noise).
+		const allowRules = ['cross-origin-isolated', 'autoplay'];
 		if (!isFirefox) {
 			allowRules.push('clipboard-read', 'clipboard-write');
 		}
