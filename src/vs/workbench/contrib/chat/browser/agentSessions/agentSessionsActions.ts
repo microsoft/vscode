@@ -962,7 +962,20 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		}
 
 		const newOrientation = this.getOrientation();
-		const lastWidthForOrientation = chatView?.getLastDimensions(newOrientation)?.width;
+
+		// Get part and current size BEFORE orientation change so we can save
+		// the current part width for the current orientation. This ensures we
+		// record the actual workbench part width (not just the view pane body
+		// width which may differ slightly due to borders/padding).
+		const part = canResizeView ? paneCompositeService.getPartId(chatLocation) : undefined;
+		let currentSize = part ? layoutService.getSize(part) : undefined;
+
+		if (canResizeView && part && currentSize) {
+			const currentOrientation = chatView.getSessionsViewerOrientation();
+			chatView.saveLastPartWidth(currentOrientation, currentSize.width);
+		}
+
+		const lastWidthForOrientation = chatView.getLastPartWidth(newOrientation) ?? chatView?.getLastDimensions(newOrientation)?.width;
 
 		if ((!canResizeView || validatedConfiguredOrientation === 'sideBySide') && newOrientation === AgentSessionsViewerOrientation.Stacked) {
 			chatView.updateConfiguredSessionsViewerOrientation('stacked');
@@ -970,12 +983,13 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 			chatView.updateConfiguredSessionsViewerOrientation('sideBySide');
 		}
 
-		if (!canResizeView) {
+		if (!canResizeView || !part) {
 			return; // location does not allow for resize (panel top or bottom)
 		}
 
-		const part = paneCompositeService.getPartId(chatLocation);
-		let currentSize = layoutService.getSize(part);
+		if (!currentSize) {
+			currentSize = layoutService.getSize(part);
+		}
 
 		const chatViewDefaultWidth = 300;
 		const sessionsViewDefaultWidth = chatViewDefaultWidth;

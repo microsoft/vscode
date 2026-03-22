@@ -94,6 +94,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private lastDimensions: { height: number; width: number } | undefined;
 	private readonly lastDimensionsPerOrientation: Map<AgentSessionsViewerOrientation, { height: number; width: number }> = new Map();
+	private readonly lastPartWidthPerOrientation: Map<AgentSessionsViewerOrientation, number> = new Map();
 
 	private welcomeController: ChatViewWelcomeController | undefined;
 
@@ -1031,6 +1032,23 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	getLastDimensions(orientation: AgentSessionsViewerOrientation): { height: number; width: number } | undefined {
 		return this.lastDimensionsPerOrientation.get(orientation);
+	}
+
+	/**
+	 * Saves the part-level width for the given orientation. This is called from
+	 * the toggle action to record the actual workbench part width (as opposed to
+	 * the view pane body width tracked by `lastDimensionsPerOrientation`).
+	 */
+	saveLastPartWidth(orientation: AgentSessionsViewerOrientation, width: number): void {
+		this.lastPartWidthPerOrientation.set(orientation, width);
+	}
+
+	/**
+	 * Returns the last saved part-level width for the given orientation, or
+	 * `undefined` if no part width has been saved yet for that orientation.
+	 */
+	getLastPartWidth(orientation: AgentSessionsViewerOrientation): number | undefined {
+		return this.lastPartWidthPerOrientation.get(orientation);
 	}
 
 	private createSessionsViewerSash(container: HTMLElement, height: number, width: number): void {
