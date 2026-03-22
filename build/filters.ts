@@ -150,6 +150,7 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!extensions/ipynb/notebook-out/**',
 	'!extensions/notebook-renderers/renderer-out/*.js',
 	'!extensions/simple-browser/media/*.js',
+	'!extensions/forge-conversational-markdown/media/*.js',
 ]);
 
 export const copyrightFilter = Object.freeze<string[]>([

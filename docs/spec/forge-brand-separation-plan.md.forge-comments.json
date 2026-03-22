@@ -1,0 +1,26 @@
+{
+	"version": 1,
+	"documentPath": "/home/workstation/Documents/projects/forge-1/docs/spec/forge-brand-separation-plan.md",
+	"threads": [
+		{
+			"id": "sc-0a705463",
+			"status": "open",
+			"anchor": {
+				"kind": "selection",
+				"markerId": "0a705463",
+				"quotedText": "otices intact for inherited code.\n- Avoid changing opaque compatibility contracts unless required.\n- Tackle one area at a time and validate after each pass.",
+				"anchorLine": 10
+			},
+			"comments": [
+				{
+					"id": "cm-1774045945434-esipvzq",
+					"authorName": "You",
+					"bodyMd": "dasfsdfsd sdfdasf",
+					"createdAt": "2026-03-20T22:32:25.434Z"
+				}
+			],
+			"createdAt": "2026-03-20T22:27:27.214Z",
+			"updatedAt": "2026-03-20T22:32:29.576Z"
+		}
+	]
+}

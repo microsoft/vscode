@@ -160,6 +160,17 @@ export default tseslint.config(
 			'local/code-no-static-self-ref': 'warn'
 		}
 	},
+	// forge-conversational-markdown: inlined webview / extension UI strings
+	{
+		files: [
+			'extensions/forge-conversational-markdown/**/*.ts',
+			'extensions/forge-conversational-markdown/**/*.tsx',
+			'extensions/forge-conversational-markdown/**/*.mts',
+		],
+		rules: {
+			'local/code-no-unexternalized-strings': 'off',
+		},
+	},
 	// vscode TS
 	{
 		files: [

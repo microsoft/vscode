@@ -8,9 +8,9 @@ Remove remaining Microsoft-branded assets, names, service references, and distri
 
 - Change readable and shipped branding first.
 - Replace Microsoft-owned assets instead of just renaming file references.
-- Keep upstream MIT notices intact for inherited code.
+- Keep upstream MIT n<!-- forge-cmt:0a705463:start -->otices intact for inherited code.
 - Avoid changing opaque compatibility contracts unless required.
-- Tackle one area at a time and validate after each pass.
+- Tackle one area at a time and validate after each pass.<!-- forge-cmt:0a705463:end -->
 
 ## Phase 1: Product Identity And Distribution Metadata
 

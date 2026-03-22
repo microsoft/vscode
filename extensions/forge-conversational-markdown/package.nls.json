@@ -1,0 +1,10 @@
+{
+	"displayName": "Forge Conversational Markdown",
+	"description": "Block-level comment threads on Markdown with a conversational reading view.",
+	"customEditor.displayName": "Conversational Markdown",
+	"command.openConversationalPreview": "Open Conversational Preview",
+	"command.showSource": "Show Markdown Source",
+	"command.refreshPreview": "Refresh Conversational Preview",
+	"command.speEngineer": "Spe Engineer",
+	"command.revealNextOpenThread": "Reveal Next Open Thread"
+}

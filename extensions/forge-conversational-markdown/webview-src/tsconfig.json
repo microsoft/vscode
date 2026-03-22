@@ -1,0 +1,20 @@
+{
+	"compilerOptions": {
+		"target": "ES2024",
+		"lib": ["ES2024", "DOM", "DOM.Iterable"],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"strict": true,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"jsx": "react-jsx",
+		"jsxImportSource": "preact",
+		"noUnusedLocals": true,
+		"noUnusedParameters": true
+	},
+	"include": [
+		"./**/*.ts",
+		"./**/*.tsx",
+		"../src/protocol/types.ts"
+	]
+}

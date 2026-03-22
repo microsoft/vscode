@@ -1,0 +1,998 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+html, body {
+	height: 100%;
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size);
+	color: var(--vscode-foreground);
+	background: var(--vscode-editor-background);
+}
+
+#root {
+	min-height: 100%;
+}
+
+.forge-cmd-root {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 100%;
+	box-sizing: border-box;
+}
+
+.forge-cmd-toolbar {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 12px;
+	width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+	padding: 8px 12px;
+	overflow-x: auto;
+}
+
+.forge-cmd-toolbar-actions {
+	display: flex;
+	flex-wrap: nowrap;
+	align-items: stretch;
+	justify-content: flex-end;
+	gap: 8px;
+	flex-shrink: 0;
+}
+
+.forge-cmd-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.forge-cmd-split-build {
+	display: inline-flex;
+	align-items: stretch;
+	border-radius: 6px;
+	overflow: hidden;
+	border: 1px solid color-mix(in srgb, #6b4420 28%, var(--vscode-widget-border));
+	box-shadow:
+		inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent),
+		0 1px 2px color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	background: linear-gradient(180deg, #e9c9a4 0%, #d9a06f 48%, #cf944f 100%);
+	color: #1c1410;
+}
+
+/* Spe Engineer: cool blue gradient (pairs with warm Build) */
+.forge-cmd-split-build-spe {
+	border-color: color-mix(in srgb, #1e3a5f 32%, var(--vscode-widget-border));
+	box-shadow:
+		inset 0 1px 0 color-mix(in srgb, #fff 28%, transparent),
+		0 1px 2px color-mix(in srgb, #1e3a5f 12%, transparent);
+	background: linear-gradient(180deg, #d8e6f7 0%, #9dbfe3 48%, #6f9fd0 100%);
+	color: #0f1b2e;
+}
+
+.forge-cmd-split-build-spe .forge-cmd-split-build-main:hover {
+	background: color-mix(in srgb, #fff 18%, transparent);
+}
+
+.forge-cmd-split-build-spe .forge-cmd-split-build-kbd {
+	color: color-mix(in srgb, #0f1b2e 62%, #3d5a80);
+	background: color-mix(in srgb, #0f1b2e 7%, transparent);
+	border-color: color-mix(in srgb, #1e3a5f 18%, transparent);
+}
+
+.forge-cmd-split-build-standalone .forge-cmd-split-build-main {
+	padding-right: 14px;
+	border-radius: 6px;
+}
+
+.forge-cmd-split-build-main {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 5px 12px 5px 14px;
+	margin: 0;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font-family: inherit;
+	font-size: calc(var(--vscode-font-size) * 0.98);
+	font-weight: 600;
+	cursor: pointer;
+	line-height: 1.2;
+}
+
+.forge-cmd-split-build-main:hover {
+	background: color-mix(in srgb, #fff 14%, transparent);
+}
+
+.forge-cmd-split-build-label {
+	letter-spacing: -0.02em;
+}
+
+.forge-cmd-split-build-kbd {
+	display: inline-block;
+	padding: 2px 5px;
+	border-radius: 4px;
+	font-family: var(--vscode-editor-font-family);
+	font-size: calc(var(--vscode-font-size) * 0.82);
+	font-weight: 500;
+	color: color-mix(in srgb, #1c1410 58%, #5c4a38);
+	background: color-mix(in srgb, #1c1410 8%, transparent);
+	border: 1px solid color-mix(in srgb, #1c1410 12%, transparent);
+}
+
+/* Toolbar: equal-height row (stretch); Build matches .forge-cmd-btn padding + type */
+.forge-cmd-toolbar-actions .forge-cmd-btn {
+	box-sizing: border-box;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	line-height: 1.35;
+}
+
+.forge-cmd-toolbar-actions .forge-cmd-split-build {
+	box-sizing: border-box;
+	display: inline-flex;
+	align-items: stretch;
+}
+
+.forge-cmd-toolbar-actions .forge-cmd-split-build-main {
+	box-sizing: border-box;
+	flex: 1;
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 12px 4px 14px;
+	font-size: var(--vscode-font-size);
+	font-weight: 600;
+	line-height: 1.35;
+}
+
+.forge-cmd-toolbar-actions .forge-cmd-split-build-kbd {
+	padding: 0 5px;
+	font-size: calc(var(--vscode-font-size) * 0.75);
+	line-height: 1.25;
+}
+
+.forge-cmd-toolbar-actions .forge-cmd-split-build-spe .forge-cmd-split-build-kbd {
+	color: color-mix(in srgb, #0f1b2e 58%, #2d4a6f);
+	background: color-mix(in srgb, #0f1b2e 6%, transparent);
+	border: 1px solid color-mix(in srgb, #1e3a5f 14%, transparent);
+}
+
+/* Two-column: rendered preview | comments */
+.forge-cmd-split {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(280px, 36%);
+	flex: 1;
+	min-height: 0;
+	border-top: 1px solid var(--vscode-widget-border);
+}
+
+.forge-cmd-split-collapsed {
+	grid-template-columns: 1fr;
+}
+
+.forge-cmd-preview-panel {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 0;
+	border-right: 1px solid var(--vscode-widget-border);
+	background: color-mix(in srgb, var(--vscode-editor-background) 92%, var(--vscode-sideBar-background) 8%);
+}
+
+.forge-cmd-selection-plus {
+	position: fixed;
+	z-index: 20;
+	box-sizing: border-box;
+	padding: 0;
+	margin: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	border: 2px solid var(--vscode-focusBorder, var(--vscode-button-background));
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	cursor: pointer;
+	box-shadow: 0 1px 5px rgba(0, 0, 0, 0.22);
+	font-size: 17px;
+	line-height: 1;
+	font-weight: 600;
+}
+
+.forge-cmd-selection-plus:hover {
+	filter: brightness(1.07);
+}
+
+.forge-cmd-selection-plus-icon {
+	pointer-events: none;
+	user-select: none;
+}
+
+.forge-cmd-comments-head {
+	flex-shrink: 0;
+	padding: 10px 16px 12px;
+	font-size: calc(var(--vscode-font-size) * 0.8125);
+	font-weight: 500;
+	letter-spacing: 0.02em;
+	opacity: 0.95;
+	border-bottom: 1px solid color-mix(in srgb, var(--vscode-widget-border) 55%, transparent);
+	background: linear-gradient(
+		180deg,
+		color-mix(in srgb, var(--vscode-editor-background) 22%, var(--vscode-sideBar-background)) 0%,
+		transparent 100%
+	);
+}
+
+.forge-cmd-comments-head-label {
+	display: inline-block;
+	padding-bottom: 2px;
+	border-bottom: 1px solid color-mix(in srgb, var(--vscode-foreground) 18%, transparent);
+	opacity: 0.88;
+}
+
+.forge-cmd-comments-hint {
+	margin: 0 0 22px;
+	padding: 14px 16px;
+	line-height: 1.65;
+	font-size: calc(var(--vscode-font-size) * 0.98);
+	color: color-mix(in srgb, var(--vscode-foreground) 90%, transparent);
+	background: var(--vscode-editor-background);
+	border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 45%, transparent);
+	border-radius: 12px;
+	box-shadow:
+		0 1px 0 color-mix(in srgb, var(--vscode-widget-border) 35%, transparent),
+		0 8px 28px -14px color-mix(in srgb, var(--vscode-foreground) 7%, transparent);
+	-webkit-font-smoothing: antialiased;
+}
+
+.forge-cmd-inline-plus {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.4em;
+	height: 1.4em;
+	border-radius: 50%;
+	border: 1px solid color-mix(in srgb, var(--vscode-textLink-foreground) 35%, var(--vscode-widget-border));
+	font-weight: 700;
+	font-size: 0.85em;
+	vertical-align: -0.12em;
+	color: var(--vscode-textLink-foreground);
+	background: color-mix(in srgb, var(--vscode-textLink-foreground) 8%, transparent);
+}
+
+.forge-cmd-thread-list {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+}
+
+.forge-cmd-thread-row {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.forge-cmd-thread-context {
+	font-size: calc(var(--vscode-font-size) * 0.76);
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	opacity: 0.5;
+	margin: 0;
+}
+
+.forge-cmd-preview-scroll {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: 20px clamp(16px, 4vw, 40px) 48px;
+	box-sizing: border-box;
+}
+
+/* Centered reading column (modern blog / editorial layout) */
+.forge-cmd-preview-reading {
+	max-width: min(46rem, 100%);
+	margin-inline: auto;
+	padding: clamp(20px, 3vw, 36px) clamp(18px, 3vw, 32px) 28px;
+	border-radius: 12px;
+	background: var(--vscode-editor-background);
+	box-shadow:
+		0 1px 0 color-mix(in srgb, var(--vscode-widget-border) 40%, transparent),
+		0 12px 40px -16px color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 45%, transparent);
+	box-sizing: border-box;
+}
+
+/* Single continuous preview: one article, seamless block fragments */
+.forge-md-document {
+	margin: 0;
+	max-width: 100%;
+	line-height: 1.55;
+	color: var(--vscode-editor-foreground);
+}
+
+/* Editorial typography inside preview */
+.forge-md-prose {
+	--forge-prose-body: var(--vscode-editor-foreground);
+	--forge-prose-muted: color-mix(in srgb, var(--vscode-editor-foreground) 72%, var(--vscode-editor-background));
+	--forge-prose-accent: var(--vscode-textLink-foreground);
+	font-family: var(--vscode-font-family);
+	font-size: calc(var(--vscode-font-size) * 1.045);
+	line-height: 1.72;
+	letter-spacing: -0.01em;
+	color: var(--forge-prose-body);
+	font-feature-settings: "kern" 1, "liga" 1;
+	-webkit-font-smoothing: antialiased;
+}
+
+.forge-md-prose > .forge-md-frag:first-child > :first-child {
+	margin-top: 0;
+}
+
+.forge-md-prose > .forge-md-frag:last-child > :last-child {
+	margin-bottom: 0;
+}
+
+.forge-md-prose h1,
+.forge-md-prose h2,
+.forge-md-prose h3,
+.forge-md-prose h4 {
+	font-weight: 650;
+	letter-spacing: -0.03em;
+	line-height: 1.22;
+	color: var(--forge-prose-body);
+	margin-top: 1.65em;
+	margin-bottom: 0.55em;
+}
+
+.forge-md-prose h1 {
+	font-size: 1.85em;
+	margin-top: 1.65em;
+	padding-bottom: 0.35em;
+	border-bottom: 1px solid color-mix(in srgb, var(--vscode-widget-border) 55%, transparent);
+}
+
+.forge-md-prose > .forge-md-frag:first-child > h1:first-child {
+	margin-top: 0;
+}
+
+.forge-md-prose h2 {
+	font-size: 1.42em;
+	margin-top: 1.55em;
+}
+
+.forge-md-prose h3 {
+	font-size: 1.18em;
+	opacity: 0.96;
+}
+
+.forge-md-prose h4 {
+	font-size: 1.05em;
+	opacity: 0.92;
+}
+
+.forge-md-prose p {
+	margin: 0.85em 0;
+}
+
+.forge-md-prose ul,
+.forge-md-prose ol {
+	margin: 0.85em 0;
+	padding-left: 1.35em;
+}
+
+.forge-md-prose li {
+	margin: 0.35em 0;
+	padding-left: 0.25em;
+}
+
+.forge-md-prose li::marker {
+	color: var(--forge-prose-muted);
+}
+
+.forge-md-prose blockquote {
+	margin: 1.1em 0;
+	padding: 0.65em 0 0.65em 1.1em;
+	border-left: 3px solid color-mix(in srgb, var(--forge-prose-accent) 65%, var(--vscode-widget-border));
+	background: color-mix(in srgb, var(--vscode-editor-inactiveSelectionBackground) 55%, transparent);
+	border-radius: 0 8px 8px 0;
+	color: var(--forge-prose-muted);
+	font-style: italic;
+}
+
+.forge-md-prose blockquote p {
+	margin: 0.45em 0;
+}
+
+.forge-md-prose a {
+	color: var(--forge-prose-accent);
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.2em;
+	text-decoration-color: color-mix(in srgb, var(--forge-prose-accent) 45%, transparent);
+}
+
+.forge-md-prose a:hover {
+	text-decoration-color: var(--forge-prose-accent);
+}
+
+.forge-md-prose hr {
+	margin: 2.25em 0;
+	border: none;
+	height: 1px;
+	background: linear-gradient(
+		90deg,
+		transparent,
+		color-mix(in srgb, var(--vscode-widget-border) 70%, transparent) 15%,
+		color-mix(in srgb, var(--vscode-widget-border) 70%, transparent) 85%,
+		transparent
+	);
+}
+
+.forge-md-prose img,
+.forge-md-prose video {
+	max-width: 100%;
+	height: auto;
+	border-radius: 8px;
+	margin: 1em 0;
+	box-shadow: 0 2px 12px color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
+}
+
+.forge-md-prose strong {
+	font-weight: 650;
+}
+
+.forge-md-frag {
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: 0;
+	background: transparent;
+}
+
+.forge-cmd-comments-empty {
+	padding: 24px 12px;
+	text-align: center;
+	opacity: 0.85;
+}
+
+.forge-cmd-comments-empty-title {
+	margin: 0 0 8px;
+	font-weight: 600;
+	font-size: var(--vscode-font-size);
+}
+
+.forge-cmd-comments-empty-hint {
+	margin: 0;
+	font-size: calc(var(--vscode-font-size) * 0.95);
+	line-height: 1.45;
+}
+
+.forge-cmd-hide-panel {
+	margin-top: 16px;
+}
+
+.forge-cmd-comments-empty-start {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 12px;
+	padding: 8px 0 16px;
+}
+
+.forge-cmd-section-picker {
+	margin-bottom: 8px;
+}
+
+.forge-cmd-picker-back {
+	margin-bottom: 8px;
+}
+
+.forge-cmd-block-list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-bottom: 8px;
+}
+
+.forge-cmd-block-list-empty {
+	margin: 0;
+	opacity: 0.85;
+	font-size: calc(var(--vscode-font-size) * 0.95);
+}
+
+.forge-cmd-block-list-item {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 4px;
+	width: 100%;
+	box-sizing: border-box;
+	padding: 8px 10px;
+	text-align: left;
+	font-family: inherit;
+	font-size: calc(var(--vscode-font-size) * 0.95);
+	color: var(--vscode-foreground);
+	background: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.forge-cmd-block-list-item:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.forge-cmd-block-list-meta {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	font-size: calc(var(--vscode-font-size) * 0.88);
+	opacity: 0.9;
+}
+
+.forge-cmd-block-list-preview {
+	line-height: 1.4;
+	word-break: break-word;
+}
+
+.forge-cmd-close-selection {
+	margin-left: auto;
+}
+
+.forge-md-document pre {
+	background: color-mix(in srgb, var(--vscode-textCodeBlock-background) 88%, var(--vscode-editor-background));
+	padding: 14px 16px;
+	border-radius: 10px;
+	overflow-x: auto;
+	border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 50%, transparent);
+	box-shadow: inset 0 1px 0 color-mix(in srgb, var(--vscode-foreground) 4%, transparent);
+}
+
+.forge-md-document code {
+	font-family: var(--vscode-editor-font-family);
+	font-size: calc(var(--vscode-font-size) * 0.95);
+}
+
+.forge-md-prose :not(pre) > code {
+	padding: 0.15em 0.45em;
+	border-radius: 6px;
+	font-size: 0.9em;
+	background: color-mix(in srgb, var(--vscode-textCodeBlock-background) 75%, var(--vscode-editor-background));
+	border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 35%, transparent);
+}
+
+.forge-md-document table {
+	border-collapse: collapse;
+	width: 100%;
+	margin: 1.15em 0;
+	font-size: calc(var(--vscode-font-size) * 0.98);
+	border-radius: 8px;
+	overflow: hidden;
+	border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 55%, transparent);
+}
+
+.forge-md-document th,
+.forge-md-document td {
+	border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 45%, transparent);
+	padding: 10px 12px;
+}
+
+.forge-md-document thead th {
+	background: color-mix(in srgb, var(--vscode-editor-inactiveSelectionBackground) 40%, transparent);
+	font-weight: 600;
+	text-align: left;
+}
+
+.forge-cmd-comments-panel {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 0;
+	background: color-mix(in srgb, var(--vscode-sideBar-background) 90%, var(--vscode-editor-background) 10%);
+}
+
+.forge-cmd-comments-scroll {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	padding: 18px clamp(12px, 2vw, 20px) 44px;
+	box-sizing: border-box;
+}
+
+.forge-cmd-comments-inner {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.forge-cmd-sidebar-block {
+	margin-bottom: 16px;
+	padding-bottom: 12px;
+	border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.forge-cmd-sidebar-block:last-of-type {
+	border-bottom: none;
+}
+
+.forge-cmd-sidebar-block-head {
+	margin-bottom: 8px;
+}
+
+.forge-cmd-sidebar-block-title {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	margin-bottom: 4px;
+	width: 100%;
+}
+
+.forge-cmd-sidebar-block-meta {
+	font-size: calc(var(--vscode-font-size) * 0.88);
+	opacity: 0.85;
+}
+
+.forge-cmd-sidebar-block-preview {
+	margin: 0 0 8px;
+	font-size: calc(var(--vscode-font-size) * 0.95);
+	line-height: 1.45;
+	opacity: 0.92;
+	word-break: break-word;
+}
+
+.forge-cmd-comments-scroll .forge-cmd-outdated {
+	margin-top: 12px;
+	padding-top: 26px;
+}
+
+.forge-cmd-count {
+	display: inline-flex;
+	min-width: 18px;
+	height: 18px;
+	padding: 0 5px;
+	align-items: center;
+	justify-content: center;
+	border-radius: 9px;
+	font-size: 11px;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.forge-cmd-btn {
+	font-family: inherit;
+	font-size: var(--vscode-font-size);
+	padding: 4px 10px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-button-secondaryBorder, var(--vscode-widget-border));
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	cursor: pointer;
+}
+
+.forge-cmd-btn:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.forge-cmd-btn:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+
+.forge-cmd-btn-primary {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: var(--vscode-button-border, transparent);
+}
+
+.forge-cmd-btn-primary:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.forge-cmd-btn-small {
+	font-size: calc(var(--vscode-font-size) * 0.92);
+	padding: 2px 8px;
+}
+
+.forge-cmd-btn-danger {
+	margin-left: auto;
+	color: var(--vscode-errorForeground, var(--vscode-foreground));
+	border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+}
+
+.forge-cmd-btn-danger:hover {
+	background: var(--vscode-inputValidation-errorBackground, rgba(220, 50, 50, 0.12));
+}
+
+.forge-cmd-composer,
+.forge-cmd-reply {
+	margin-top: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.forge-cmd-input {
+	width: 100%;
+	box-sizing: border-box;
+	font-family: inherit;
+	font-size: var(--vscode-font-size);
+	padding: 8px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-input-border);
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	resize: vertical;
+}
+
+.forge-cmd-comments-panel .forge-cmd-input {
+	border-radius: 10px;
+	padding: 10px 12px;
+	border: 1px solid color-mix(in srgb, var(--vscode-input-border) 85%, transparent);
+}
+
+.forge-cmd-threads {
+	margin-top: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.forge-cmd-thread {
+	border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 45%, transparent);
+	border-radius: 12px;
+	padding: 14px 16px 16px;
+	background: var(--vscode-editor-background);
+	box-shadow:
+		0 1px 0 color-mix(in srgb, var(--vscode-widget-border) 38%, transparent),
+		0 10px 32px -18px color-mix(in srgb, var(--vscode-foreground) 9%, transparent);
+}
+
+.forge-cmd-thread-outdated {
+	border-style: dashed;
+	background: color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-sideBar-background));
+}
+
+.forge-cmd-thread-meta {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 8px;
+	flex-wrap: nowrap;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.forge-cmd-thread-meta-lead {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 8px;
+	font-size: calc(var(--vscode-font-size) * 0.92);
+}
+
+.forge-cmd-thread-meta .forge-cmd-thread-empty {
+	margin: 0;
+}
+
+.forge-cmd-thread-menu-wrap {
+	position: relative;
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
+.forge-cmd-thread-menu-trigger {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	margin: 0;
+	border-radius: 8px;
+	border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 50%, transparent);
+	background: color-mix(in srgb, var(--vscode-sideBar-background) 30%, transparent);
+	color: var(--vscode-foreground);
+	cursor: pointer;
+}
+
+.forge-cmd-thread-menu-trigger:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.forge-cmd-thread-menu-trigger[aria-expanded='true'] {
+	background: color-mix(in srgb, var(--vscode-list-hoverBackground) 80%, var(--vscode-widget-border));
+	border-color: color-mix(in srgb, var(--vscode-focusBorder, var(--vscode-textLink-foreground)) 55%, var(--vscode-widget-border));
+}
+
+.forge-cmd-thread-menu-icon {
+	display: block;
+	opacity: 0.88;
+}
+
+.forge-cmd-thread-menu {
+	position: absolute;
+	top: calc(100% + 4px);
+	right: 0;
+	min-width: 9.5rem;
+	padding: 4px;
+	border-radius: 10px;
+	border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 50%, transparent);
+	background: var(--vscode-editor-background);
+	box-shadow:
+		0 4px 16px color-mix(in srgb, var(--vscode-foreground) 12%, transparent),
+		0 0 0 1px color-mix(in srgb, var(--vscode-widget-border) 25%, transparent);
+	z-index: 30;
+}
+
+.forge-cmd-thread-menu-item {
+	display: block;
+	width: 100%;
+	box-sizing: border-box;
+	margin: 0;
+	padding: 8px 10px;
+	text-align: left;
+	font-family: inherit;
+	font-size: calc(var(--vscode-font-size) * 0.96);
+	line-height: 1.35;
+	color: var(--vscode-foreground);
+	background: transparent;
+	border: none;
+	border-radius: 6px;
+	cursor: pointer;
+}
+
+.forge-cmd-thread-menu-item:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.forge-cmd-thread-menu-item-danger {
+	color: var(--vscode-errorForeground, var(--vscode-foreground));
+}
+
+.forge-cmd-thread-menu-item-danger:hover {
+	background: var(--vscode-inputValidation-errorBackground, color-mix(in srgb, var(--vscode-errorForeground) 12%, transparent));
+}
+
+.forge-cmd-badge-muted {
+	opacity: 0.75;
+	font-weight: normal;
+	text-transform: none;
+	letter-spacing: normal;
+}
+
+.forge-cmd-selection-ref {
+	margin: 0 0 12px;
+	padding: 10px 12px 10px 14px;
+	border-left: 3px solid color-mix(in srgb, var(--vscode-textLink-foreground) 72%, var(--vscode-widget-border));
+	background: color-mix(in srgb, var(--vscode-editor-inactiveSelectionBackground) 52%, transparent);
+	font-size: calc(var(--vscode-font-size) * 0.925);
+	line-height: 1.55;
+	border-radius: 0 10px 10px 0;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.forge-cmd-thread-empty {
+	margin: 0 0 8px;
+	font-size: calc(var(--vscode-font-size) * 0.9);
+	opacity: 0.8;
+}
+
+.forge-cmd-badge {
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	padding: 4px 9px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--vscode-editor-inactiveSelectionBackground) 88%, transparent);
+	border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 38%, transparent);
+}
+
+.forge-cmd-hint {
+	font-size: calc(var(--vscode-font-size) * 0.9);
+	opacity: 0.85;
+}
+
+.forge-cmd-comments {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.forge-cmd-comment {
+	margin-bottom: 0;
+	padding-bottom: 12px;
+	margin-top: 0;
+	border-bottom: 1px solid color-mix(in srgb, var(--vscode-widget-border) 32%, transparent);
+}
+
+.forge-cmd-comment:last-child {
+	border-bottom: none;
+	padding-bottom: 0;
+}
+
+.forge-cmd-comment-head {
+	display: flex;
+	gap: 8px;
+	align-items: baseline;
+	font-size: calc(var(--vscode-font-size) * 0.92);
+	margin-bottom: 4px;
+}
+
+.forge-cmd-single-reply-meta {
+	margin: 0 0 10px;
+}
+
+.forge-cmd-time {
+	opacity: 0.65;
+	font-size: 0.9em;
+}
+
+.forge-cmd-comment-body {
+	white-space: pre-wrap;
+	word-break: break-word;
+	line-height: 1.58;
+	font-size: calc(var(--vscode-font-size) * 0.98);
+	-webkit-font-smoothing: antialiased;
+}
+
+.forge-cmd-comments-panel .forge-cmd-btn {
+	border-radius: 8px;
+}
+
+.forge-cmd-outdated {
+	position: relative;
+	margin-top: 28px;
+	padding-top: 28px;
+}
+
+.forge-cmd-outdated::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 1px;
+	background: linear-gradient(
+		90deg,
+		transparent,
+		color-mix(in srgb, var(--vscode-widget-border) 65%, transparent) 12%,
+		color-mix(in srgb, var(--vscode-widget-border) 65%, transparent) 88%,
+		transparent
+	);
+}
+
+.forge-cmd-outdated-title {
+	font-size: 1.02em;
+	font-weight: 650;
+	letter-spacing: -0.02em;
+	margin: 0 0 8px;
+	color: var(--vscode-foreground);
+}
+
+.forge-cmd-outdated-desc {
+	margin: 0 0 18px;
+	opacity: 0.82;
+	line-height: 1.55;
+	font-size: calc(var(--vscode-font-size) * 0.96);
+}
