@@ -390,22 +390,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	 * Replaces the previous instanceof-based rendering logic.
 	 */
 	private _renderSessionPickers(session: INewSession, listeners: DisposableStore): void {
-		const vis = session.pickerVisibility;
-
 		this._clearAllPickers();
 
-		// Model pickers
-		if (this._localModelPickerContainer) {
-			this._localModelPickerContainer.style.display = vis.localModel ? '' : 'none';
-		}
-		this._cloudModelPicker.setVisible(!!vis.cloudModel);
-
-		// Cloud model picker session binding
-		if (vis.cloudModel && session.getModelOptionGroup) {
-			this._cloudModelPicker.setSession(session as RemoteNewSession);
-		}
-
 		// Extension-driven toolbar option groups
+		const vis = session.pickerVisibility;
 		if (vis.hasToolbarOptionGroups && session.getOtherOptionGroups) {
 			this._renderToolbarPickers(session as RemoteNewSession, true);
 			if (session.onDidChangeOptionGroups) {
@@ -624,16 +612,21 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Mode picker (before model pickers)
 		this._modePicker.render(toolbar);
 
-		// Local model picker (EnhancedModelPickerActionItem)
+		// Local model picker (EnhancedModelPickerActionItem) — self-managing visibility
 		this._localModelPickerContainer = dom.append(toolbar, dom.$('.sessions-chat-model-picker'));
 		this._createLocalModelPicker(this._localModelPickerContainer);
+		this._register(autorun(reader => {
+			const newSession = this.sessionsManagementService.newSession.read(reader);
+			if (this._localModelPickerContainer) {
+				this._localModelPickerContainer.style.display = newSession?.pickerVisibility.localModel ? '' : 'none';
+			}
+		}));
 
 		// Extension toolbar pickers (agent picker for remote sessions)
 		this._toolbarPickersContainer = dom.append(toolbar, dom.$('.sessions-chat-toolbar-pickers'));
 
-		// Remote model picker (action list dropdown)
+		// Remote model picker (action list dropdown — self-managing visibility)
 		this._cloudModelPicker.render(toolbar);
-		this._cloudModelPicker.setVisible(false);
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
 
