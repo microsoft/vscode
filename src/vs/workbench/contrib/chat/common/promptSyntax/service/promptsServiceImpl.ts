@@ -39,7 +39,7 @@ import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../p
 import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, IPromptDiscoveryLogEntry } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { ChatRequestHooks, IHookCommand, parseSubagentHooksFromYaml } from '../hookSchema.js';
+import { ChatRequestHooks, IHookCommand, deduplicateHooks, parseSubagentHooksFromYaml } from '../hookSchema.js';
 import { HookType } from '../hookTypes.js';
 import { HookSourceFormat, getHookSourceFormat, parseHooksFromFile } from '../hookCompatibility.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -1365,6 +1365,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (collectedHooks.size === 0) {
 			this.logger.trace('[PromptsService] No valid hooks collected.');
 			return undefined;
+		}
+
+		// Deduplicate hooks that appear in multiple discovery paths
+		// (e.g., same hook in both .github/hooks/ and .claude/settings.json)
+		for (const [hookType, commands] of collectedHooks) {
+			const deduped = deduplicateHooks(commands);
+			if (deduped.length < commands.length) {
+				this.logger.trace(`[PromptsService] Deduplicated ${hookType} hooks: ${commands.length} → ${deduped.length}`);
+			}
+			collectedHooks.set(hookType, deduped);
 		}
 
 		// Build the result

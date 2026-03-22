@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { resolveHookCommand, resolveEffectiveCommand, formatHookCommandLabel, IHookCommand, parseSubagentHooksFromYaml } from '../../../common/promptSyntax/hookSchema.js';
+import { resolveHookCommand, resolveEffectiveCommand, formatHookCommandLabel, IHookCommand, deduplicateHooks, parseSubagentHooksFromYaml } from '../../../common/promptSyntax/hookSchema.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { HookType } from '../../../common/promptSyntax/hookTypes.js';
@@ -643,6 +643,121 @@ suite('HookSchema', () => {
 			const result = parseSubagentHooksFromYaml(hooksMap, workspaceRoot, userHome);
 
 			assert.strictEqual(result[HookType.PreToolUse], undefined);
+		});
+	});
+
+	suite('deduplicateHooks', () => {
+		test('returns empty array unchanged', () => {
+			const result = deduplicateHooks([]);
+			assert.strictEqual(result.length, 0);
+		});
+
+		test('returns single hook unchanged', () => {
+			const hooks: IHookCommand[] = [{ type: 'command', command: 'echo test' }];
+			const result = deduplicateHooks(hooks);
+			assert.strictEqual(result.length, 1);
+			assert.deepStrictEqual(result[0], hooks[0]);
+		});
+
+		test('removes identical duplicate commands', () => {
+			const hooks: IHookCommand[] = [
+				{ type: 'command', command: 'echo hello' },
+				{ type: 'command', command: 'echo hello' },
+			];
+			const result = deduplicateHooks(hooks);
+			assert.strictEqual(result.length, 1);
+			assert.deepStrictEqual(result[0], hooks[0]);
+		});
+
+		test('preserves order of first occurrence', () => {
+			const hooks: IHookCommand[] = [
+				{ type: 'command', command: 'first' },
+				{ type: 'command', command: 'second' },
+				{ type: 'command', command: 'first' },
+			];
+			const result = deduplicateHooks(hooks);
+			assert.strictEqual(result.length, 2);
+			assert.strictEqual(result[0].command, 'first');
+			assert.strictEqual(result[1].command, 'second');
+		});
+
+		test('keeps hooks with different commands', () => {
+			const hooks: IHookCommand[] = [
+				{ type: 'command', command: 'echo a' },
+				{ type: 'command', command: 'echo b' },
+			];
+			const result = deduplicateHooks(hooks);
+			assert.strictEqual(result.length, 2);
+		});
+
+		test('keeps hooks with different cwd', () => {
+			const hooks: IHookCommand[] = [
+				{ type: 'command', command: 'npm test', cwd: URI.file('/workspace') },
+				{ type: 'command', command: 'npm test', cwd: URI.file('/workspace/src') },
+			];
+			const result = deduplicateHooks(hooks);
+			assert.strictEqual(result.length, 2);
+		});
+
+		test('keeps hooks with different timeout', () => {
+			const hooks: IHookCommand[] = [
+				{ type: 'command', command: 'validate', timeout: 30 },
+				{ type: 'command', command: 'validate', timeout: 60 },
+			];
+			const result = deduplicateHooks(hooks);
+			assert.strictEqual(result.length, 2);
+		});
+
+		test('keeps hooks with different env', () => {
+			const hooks: IHookCommand[] = [
+				{ type: 'command', command: 'npm test', env: { DEBUG: '1' } },
+				{ type: 'command', command: 'npm test' },
+			];
+			const result = deduplicateHooks(hooks);
+			assert.strictEqual(result.length, 2);
+		});
+
+		test('deduplicates hooks with identical env (order independent)', () => {
+			const hooks: IHookCommand[] = [
+				{ type: 'command', command: 'test', env: { A: '1', B: '2' } },
+				{ type: 'command', command: 'test', env: { B: '2', A: '1' } },
+			];
+			const result = deduplicateHooks(hooks);
+			assert.strictEqual(result.length, 1);
+		});
+
+		test('keeps hooks with different platform overrides', () => {
+			const hooks: IHookCommand[] = [
+				{ type: 'command', command: 'validate' },
+				{ type: 'command', command: 'validate', windows: 'validate.bat' },
+			];
+			const result = deduplicateHooks(hooks);
+			assert.strictEqual(result.length, 2);
+		});
+
+		test('deduplicates cross-path hooks with identical fields', () => {
+			// Simulates same hook defined in .github/hooks/ and .claude/settings.json
+			const hooks: IHookCommand[] = [
+				{ type: 'command', command: 'echo "AI disclosure reminder"', timeout: 5 },
+				{ type: 'command', command: 'echo "AI disclosure reminder"', timeout: 5 },
+			];
+			const result = deduplicateHooks(hooks);
+			assert.strictEqual(result.length, 1);
+		});
+
+		test('deduplicates multiple duplicates across many entries', () => {
+			const hooks: IHookCommand[] = [
+				{ type: 'command', command: 'hook-a' },
+				{ type: 'command', command: 'hook-b' },
+				{ type: 'command', command: 'hook-a' },
+				{ type: 'command', command: 'hook-c' },
+				{ type: 'command', command: 'hook-b' },
+			];
+			const result = deduplicateHooks(hooks);
+			assert.strictEqual(result.length, 3);
+			assert.strictEqual(result[0].command, 'hook-a');
+			assert.strictEqual(result[1].command, 'hook-b');
+			assert.strictEqual(result[2].command, 'hook-c');
 		});
 	});
 });
