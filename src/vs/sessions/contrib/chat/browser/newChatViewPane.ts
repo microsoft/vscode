@@ -54,7 +54,6 @@ import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
-import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { SessionTypePicker, IsolationPicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
 import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
@@ -62,7 +61,6 @@ import { CloudModelPicker } from './modelPicker.js';
 import { WorkspacePicker } from './workspacePicker.js';
 import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
 import { ModePicker } from './modePicker.js';
-import { getErrorMessage } from '../../../../base/common/errors.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -127,10 +125,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private _sendButton: Button | undefined;
 	private _sending = false;
 
-	// Repository loading
-	private readonly _openRepositoryCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	// Loading state
 	private readonly _projectSelectionCts = this._register(new MutableDisposable<CancellationTokenSource>());
-	private _repositoryLoading = false;
 	private _branchLoading = false;
 	private _loadingSpinner: HTMLElement | undefined;
 	private readonly _loadingDelayDisposable = this._register(new MutableDisposable());
@@ -180,7 +176,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		@IHoverService private readonly hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
-		@IGitService private readonly gitService: IGitService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
@@ -402,54 +397,15 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 				}));
 			}
 		}
-
-		// Open git repo for local sessions
-		if (vis.localModel && session.project) {
-			this._openRepository(session.project.uri);
-		}
-	}
-
-	private _openRepository(folderUri: URI): void {
-		this._openRepositoryCts.value?.cancel();
-		const cts = this._openRepositoryCts.value = new CancellationTokenSource();
-
-		this._repositoryLoading = true;
-		this._updateInputLoadingState();
-		this._modePicker.reset();
-
-		this.gitService.openRepository(folderUri).then(repository => {
-			if (cts.token.isCancellationRequested) {
-				return;
-			}
-			this._repositoryLoading = false;
-			this._updateInputLoadingState();
-
-			const session = this._newSession.value;
-			if (session?.project) {
-				session.setProject(session.project.withRepository(repository));
-			}
-
-			this._sessionTypePicker.setProject(session?.project);
-			this._modePicker.reset();
-		}).catch(e => {
-			if (cts.token.isCancellationRequested) {
-				return;
-			}
-			this.logService.warn(`Failed to open repository at ${folderUri.toString()}`, getErrorMessage(e));
-			this._repositoryLoading = false;
-			this._updateInputLoadingState();
-			this._sessionTypePicker.setProject(undefined);
-			this._modePicker.reset();
-		});
 	}
 
 	private _updateInputLoadingState(): void {
-		const loading = this._repositoryLoading || this._branchLoading || this._sending;
+		const loading = this._branchLoading || this._sending;
 		if (loading) {
 			if (!this._loadingDelayDisposable.value) {
 				const timer = setTimeout(() => {
 					this._loadingDelayDisposable.clear();
-					if (this._repositoryLoading || this._branchLoading || this._sending) {
+					if (this._branchLoading || this._sending) {
 						this._loadingSpinner?.classList.add('visible');
 					}
 				}, 500);

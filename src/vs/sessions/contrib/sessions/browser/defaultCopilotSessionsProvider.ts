@@ -25,6 +25,7 @@ import { ISessionData, ISessionRepository, ISessionWorkspace, SessionStatus } fr
 import { SessionWorkspace, GITHUB_REMOTE_FILE_SCHEME, AGENT_HOST_SCHEME } from '../common/sessionWorkspace.js';
 import { ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
 import { INewSession, CopilotCLISession, RemoteNewSession } from '../../chat/browser/newSession.js';
+import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { Menus } from '../../../browser/menus.js';
 import { IsActiveSessionBackgroundProviderContext } from './sessionsManagementService.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -246,6 +247,7 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 		@ICommandService private readonly commandService: ICommandService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
+		@IGitService private readonly gitService: IGitService,
 	) {
 		super();
 
@@ -291,10 +293,31 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 	// ── Session Lifecycle ──
 
 	createNewSession(type: ISessionType, resource: URI, workspace?: SessionWorkspace): INewSession {
-		if (type.id === AgentSessionProviders.Background) {
-			return this.instantiationService.createInstance(CopilotCLISession, resource, workspace?.uri);
+		const session = type.id === AgentSessionProviders.Background
+			? this.instantiationService.createInstance(CopilotCLISession, resource, workspace?.uri)
+			: this.instantiationService.createInstance(RemoteNewSession, resource, type.id);
+
+		// For local sessions, resolve git repository and attach to project
+		if (type.id === AgentSessionProviders.Background && workspace?.isFolder) {
+			this._resolveGitRepository(session, workspace);
 		}
-		return this.instantiationService.createInstance(RemoteNewSession, resource, type.id);
+
+		return session;
+	}
+
+	/**
+	 * Opens the git repository for a workspace folder and attaches it to the session's project.
+	 * Pickers (branch, isolation) observe the session and react automatically.
+	 */
+	private async _resolveGitRepository(session: INewSession, workspace: SessionWorkspace): Promise<void> {
+		try {
+			const repository = await this.gitService.openRepository(workspace.uri);
+			if (session.project) {
+				session.setProject(session.project.withRepository(repository));
+			}
+		} catch {
+			// No git repo at this path — pickers will handle the undefined case
+		}
 	}
 
 	// ── Session Actions ──
