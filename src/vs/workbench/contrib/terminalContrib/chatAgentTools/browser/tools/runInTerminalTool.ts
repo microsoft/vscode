@@ -996,7 +996,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.None) {
 				toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
 			}
-			this._logService.debug(`RunInTerminalTool: Using \`${execution.strategy.type}\` execute strategy for command \`${command}\``);
+			this._logService.info(`RunInTerminalTool: Using \`${execution.strategy.type}\` execute strategy for command \`${command}\``);
 			store.add(execution);
 			RunInTerminalTool._activeExecutions.set(termId, execution);
 
@@ -1150,7 +1150,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							toolSpecificData.terminalCommandState = state;
 						}
 
-						this._logService.debug(`RunInTerminalTool: Finished \`${execution.strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
+						this._logService.info(`RunInTerminalTool: Finished \`${execution.strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
 						outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
 						exitCode = executeResult.exitCode;
 						error = executeResult.error;
