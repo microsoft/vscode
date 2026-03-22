@@ -21,7 +21,7 @@ import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browse
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionFileChange } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionData, ISessionRepository, ISessionWorkspace, SessionStatus } from '../common/sessionData.js';
+import { ISessionData, ISessionPickerVisibility, ISessionRepository, ISessionWorkspace, SessionStatus } from '../common/sessionData.js';
 import { SessionWorkspace, GITHUB_REMOTE_FILE_SCHEME, AGENT_HOST_SCHEME } from '../common/sessionWorkspace.js';
 import { ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
 import { INewSession, CopilotCLISession, RemoteNewSession } from '../../chat/browser/newSession.js';
@@ -74,6 +74,85 @@ class PickerActionViewItem extends BaseActionViewItem {
 }
 
 /**
+ * Adapts an {@link INewSession} (pre-send configuration) into the {@link ISessionData} facade.
+ * The provider holds the `INewSession` internally and routes `setSessionOption()` to it.
+ */
+class NewSessionDataAdapter implements ISessionData {
+
+	readonly sessionId: string;
+	readonly resource: URI;
+	readonly providerId: string;
+	readonly sessionType: string;
+	readonly icon: ThemeIcon;
+	readonly createdAt: Date;
+	readonly pickerVisibility: ISessionPickerVisibility;
+
+	private readonly _title: ReturnType<typeof observableValue<string>>;
+	readonly title: IObservable<string>;
+
+	private readonly _updatedAt: ReturnType<typeof observableValue<Date>>;
+	readonly updatedAt: IObservable<Date>;
+
+	private readonly _status: ReturnType<typeof observableValue<SessionStatus>>;
+	readonly status: IObservable<SessionStatus>;
+
+	private readonly _workspace: ReturnType<typeof observableValue<ISessionWorkspace | undefined>>;
+	readonly workspace: IObservable<ISessionWorkspace | undefined>;
+
+	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
+
+	/** The underlying new session object — internal to the provider. */
+	readonly _newSession: INewSession;
+
+	constructor(
+		newSession: INewSession,
+		providerId: string,
+	) {
+		this._newSession = newSession;
+		this.sessionId = `${providerId}:${newSession.resource.toString()}`;
+		this.resource = newSession.resource;
+		this.providerId = providerId;
+		this.sessionType = newSession.target;
+		this.icon = Codicon.copilot;
+		this.createdAt = new Date();
+		this.pickerVisibility = newSession.pickerVisibility;
+
+		this._title = observableValue(this, '');
+		this.title = this._title;
+		this._updatedAt = observableValue(this, new Date());
+		this.updatedAt = this._updatedAt;
+		this._status = observableValue(this, SessionStatus.Configuring);
+		this.status = this._status;
+		this._workspace = observableValue<ISessionWorkspace | undefined>(this, undefined);
+		this.workspace = this._workspace;
+		this.changes = observableValue<readonly IChatSessionFileChange[]>(this, []);
+	}
+
+	/**
+	 * Routes a configuration option to the underlying {@link INewSession}.
+	 */
+	setOption(key: string, value: unknown): void {
+		switch (key) {
+			case 'branch':
+				this._newSession.setBranch(value as string | undefined);
+				break;
+			case 'modelId':
+				this._newSession.setModelId(value as string | undefined);
+				break;
+			case 'mode':
+				this._newSession.setMode(value as any);
+				break;
+			case 'isolationMode':
+				this._newSession.setIsolationMode(value as any);
+				break;
+			case 'project':
+				this._newSession.setProject(value as SessionWorkspace);
+				break;
+		}
+	}
+}
+
+/**
  * Maps the existing {@link ChatSessionStatus} to the new {@link SessionStatus}.
  */
 function toSessionStatus(status: ChatSessionStatus): SessionStatus {
@@ -99,7 +178,10 @@ class AgentSessionAdapter implements ISessionData {
 	readonly sessionType: string;
 	readonly icon: ThemeIcon;
 	readonly createdAt: Date;
-	readonly workspace: ISessionWorkspace | undefined;
+	readonly pickerVisibility: ISessionPickerVisibility = {};
+
+	private readonly _workspace: ReturnType<typeof observableValue<ISessionWorkspace | undefined>>;
+	readonly workspace: IObservable<ISessionWorkspace | undefined>;
 
 	private readonly _title: ReturnType<typeof observableValue<string>>;
 	readonly title: IObservable<string>;
@@ -123,7 +205,8 @@ class AgentSessionAdapter implements ISessionData {
 		this.sessionType = session.providerType;
 		this.icon = session.icon;
 		this.createdAt = new Date(session.timing.created);
-		this.workspace = this._buildWorkspace(session);
+		this._workspace = observableValue(this, this._buildWorkspace(session));
+		this.workspace = this._workspace;
 
 		this._title = observableValue(this, session.label);
 		this.title = this._title;
@@ -292,17 +375,31 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 
 	// ── Session Lifecycle ──
 
-	createNewSession(type: ISessionType, resource: URI, workspace?: SessionWorkspace): INewSession {
-		const session = type.id === AgentSessionProviders.Background
+	private _currentNewSession: NewSessionDataAdapter | undefined;
+
+	createNewSession(type: ISessionType, resource: URI, workspace?: SessionWorkspace): ISessionData {
+		const newSession = type.id === AgentSessionProviders.Background
 			? this.instantiationService.createInstance(CopilotCLISession, resource, workspace?.uri)
 			: this.instantiationService.createInstance(RemoteNewSession, resource, type.id);
 
+		const adapter = new NewSessionDataAdapter(newSession, this.id);
+		this._currentNewSession = adapter;
+
 		// For local sessions, resolve git repository and attach to project
 		if (type.id === AgentSessionProviders.Background && workspace?.isFolder) {
-			this._resolveGitRepository(session, workspace);
+			this._resolveGitRepository(newSession, workspace);
 		}
 
-		return session;
+		return adapter;
+	}
+
+	// ── Session Configuration ──
+
+	setSessionOption(sessionId: string, key: string, value: unknown): void {
+		// Route to the current new session if it matches
+		if (this._currentNewSession?.sessionId === sessionId) {
+			this._currentNewSession.setOption(key, value);
+		}
 	}
 
 	/**
