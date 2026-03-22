@@ -1758,7 +1758,7 @@ suite('RunInTerminalTool', () => {
 	});
 
 	suite('ConfirmTerminalCommandTool', () => {
-		test('should require confirmation when sandbox is enabled', async () => {
+		test('should require confirmation when sandbox is enabled but sandbox rewriting is disabled', async () => {
 			sandboxEnabled = true;
 
 			const { ConfirmTerminalCommandTool } = await import('../../browser/tools/runInTerminalConfirmationTool.js');
