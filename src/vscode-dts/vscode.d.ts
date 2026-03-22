@@ -16598,6 +16598,11 @@ declare module 'vscode' {
 		readonly inputBox: SourceControlInputBox;
 
 		/**
+		 * The name of the current branch.
+		 */
+		branchName?: string;
+
+		/**
 		 * The UI-visible count of {@link SourceControlResourceState resource states} of
 		 * this source control.
 		 *
