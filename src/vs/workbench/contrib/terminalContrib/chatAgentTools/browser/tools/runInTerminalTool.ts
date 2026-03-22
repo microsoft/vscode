@@ -1402,7 +1402,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	private _registerInputListener(toolTerminal: IToolTerminal): void {
-		const disposable = toolTerminal.instance.onData(data => {
+		// Use onDidInputData instead of onData to only track actual input (user or programmatic),
+		// not terminal output which incorrectly triggers the "received user input" flag.
+		const disposable = toolTerminal.instance.onDidInputData(data => {
 			if (!telemetryIgnoredSequences.includes(data)) {
 				toolTerminal.receivedUserInput = data.length > 0;
 			}
