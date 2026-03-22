@@ -11,6 +11,10 @@ import { ChatEditorOptions } from '../chatOptions.js';
 import { CodeBlockPart, CodeCompareBlockPart } from './codeBlockPart.js';
 import { ResourcePool, IDisposableReference } from './chatCollections.js';
 
+// Keep enough idle editors for viewport reuse without retaining every historical code block.
+const maxIdleCodeBlockEditors = 32;
+const maxIdleDiffEditors = 8;
+
 export class EditorPool extends Disposable {
 
 	private readonly _pool: ResourcePool<CodeBlockPart>;
@@ -29,7 +33,7 @@ export class EditorPool extends Disposable {
 		super();
 		this._pool = this._register(new ResourcePool(() => {
 			return instantiationService.createInstance(CodeBlockPart, options, MenuId.ChatCodeBlock, delegate, overflowWidgetsDomNode, this.isSimpleWidget);
-		}));
+		}, maxIdleCodeBlockEditors));
 	}
 
 	get(): IDisposableReference<CodeBlockPart> {
@@ -69,7 +73,7 @@ export class DiffEditorPool extends Disposable {
 		super();
 		this._pool = this._register(new ResourcePool(() => {
 			return instantiationService.createInstance(CodeCompareBlockPart, options, MenuId.ChatCompareBlock, delegate, overflowWidgetsDomNode, this.isSimpleWidget);
-		}));
+		}, maxIdleDiffEditors));
 	}
 
 	get(): IDisposableReference<CodeCompareBlockPart> {

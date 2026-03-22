@@ -15,6 +15,7 @@ export class ResourcePool<T extends IDisposable> implements IDisposable {
 
 	constructor(
 		private readonly _itemFactory: () => T,
+		private readonly _maxUnusedItems: number = Number.POSITIVE_INFINITY,
 	) { }
 
 	get(): T {
@@ -31,6 +32,10 @@ export class ResourcePool<T extends IDisposable> implements IDisposable {
 
 	release(item: T): void {
 		this._inUse.delete(item);
+		if (this.pool.length >= this._maxUnusedItems) {
+			item.dispose();
+			return;
+		}
 		this.pool.push(item);
 	}
 
