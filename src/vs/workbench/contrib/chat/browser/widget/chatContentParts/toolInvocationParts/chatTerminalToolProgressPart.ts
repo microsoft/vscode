@@ -1640,7 +1640,9 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		const title = isComplete ? `Ran \`${commandText}\`` : `Running \`${commandText}\``;
+		const title = isComplete
+			? localize('chat.terminal.ran.plain', "Ran {0}", commandText)
+			: localize('chat.terminal.running.plain', "Running {0}", commandText);
 		super(title, context, undefined, hoverService, configurationService);
 
 		this._terminalContentElement = contentElement;
@@ -1663,15 +1665,21 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 			return;
 		}
 
-		if (this._isSandboxWrapped) {
-			this._collapseButton.label = new MarkdownString(this._isComplete
-				? localize('chat.terminal.ranInSandbox', "Ran `{0}` in sandbox", this._commandText)
-				: localize('chat.terminal.runningInSandbox', "Running `{0}` in sandbox", this._commandText));
-			return;
-		}
-
 		const labelElement = this._collapseButton.labelElement;
 		labelElement.textContent = '';
+
+		if (this._isSandboxWrapped) {
+			const prefixText = this._isComplete
+				? localize('chat.terminal.ranInSandbox.prefix', "Ran ")
+				: localize('chat.terminal.runningInSandbox.prefix', "Running ");
+			const suffixText = localize('chat.terminal.sandbox.suffix', " in sandbox");
+			labelElement.appendChild(document.createTextNode(prefixText));
+			const codeElement = document.createElement('code');
+			codeElement.textContent = this._commandText;
+			labelElement.appendChild(codeElement);
+			labelElement.appendChild(document.createTextNode(suffixText));
+			return;
+		}
 
 		const prefixText = this._isComplete
 			? localize('chat.terminal.ran.prefix', "Ran ")

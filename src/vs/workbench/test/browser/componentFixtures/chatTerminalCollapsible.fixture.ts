@@ -83,4 +83,13 @@ export default defineThemedFixtureGroup({ path: 'chat/terminalCollapsible/' }, {
 	'Ran in sandbox: command with special chars': defineComponentFixture({
 		render: ctx => renderCollapsible(ctx, 'grep -rn "hello*" ./src --include="*.ts"', true, true),
 	}),
+	'Ran: command with backticks': defineComponentFixture({
+		render: ctx => renderCollapsible(ctx, 'echo `date` && echo `hostname`', false, true),
+	}),
+	'Ran in sandbox: command with backticks': defineComponentFixture({
+		render: ctx => renderCollapsible(ctx, 'echo `date` && echo `hostname`', true, true),
+	}),
+	'Ran in sandbox: powershell backtick escapes': defineComponentFixture({
+		render: ctx => renderCollapsible(ctx, 'Get-Process | Where-Object {$_.Name -eq `"notepad`"}', true, true),
+	}),
 });
