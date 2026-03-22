@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { addJSONProviders } from './features/jsonContributions';
 import { runSelectedScript, selectAndRunScriptFromFolder } from './commands';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { getScriptRunner, getPackageManager, invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
+import { getScriptRunner, getPackageManager, invalidateTasksCache, NpmTaskProvider, hasPackageJson, initializePackageJsonCache } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
 import { NpmScriptLensProvider } from './npmScriptLens';
 import which from 'which';
@@ -24,6 +24,9 @@ function invalidateScriptCaches() {
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+	// Initialize package.json cache with workspace storage
+	initializePackageJsonCache(context);
+	
 	configureHttpRequest();
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
 		if (e.affectsConfiguration('http.proxy') || e.affectsConfiguration('http.proxyStrictSSL')) {
