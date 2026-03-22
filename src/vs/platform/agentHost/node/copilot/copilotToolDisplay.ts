@@ -71,6 +71,28 @@ interface ICopilotGlobToolArgs {
 	path?: string;
 }
 
+/** Set of tool names that perform file edits. */
+const EDIT_TOOL_NAMES: ReadonlySet<string> = new Set([
+	CopilotToolName.Edit,
+	CopilotToolName.Write,
+	CopilotToolName.Patch,
+]);
+
+/**
+ * Returns true if the tool modifies files on disk.
+ */
+export function isEditTool(toolName: string): boolean {
+	return EDIT_TOOL_NAMES.has(toolName);
+}
+
+/**
+ * Extracts the target file path from an edit tool's parameters, if available.
+ */
+export function getEditFilePath(parameters: Record<string, unknown> | undefined): string | undefined {
+	const args = parameters as ICopilotFileToolArgs | undefined;
+	return args?.file_path;
+}
+
 /** Set of tool names that execute shell commands (bash or powershell). */
 const SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.Bash,

@@ -92,6 +92,9 @@ class MockSideEffectHandler implements IProtocolSideEffectHandler {
 	getDefaultDirectory(): string {
 		return URI.file('/home/testuser').toString();
 	}
+	async handleFetchContent(_uri: string): Promise<{ data: string; encoding: 'utf-8'; contentType?: string }> {
+		throw new Error('Not implemented');
+	}
 }
 
 // ---- Helpers ----------------------------------------------------------------

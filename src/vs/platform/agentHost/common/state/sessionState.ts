@@ -54,6 +54,7 @@ export {
 	type IToolDefinition,
 	type IToolResultBinaryContent,
 	type IToolResultContent,
+	type IToolResultFileEditContent,
 	type IToolResultTextContent,
 	type ITurn,
 	type IUsageInfo,

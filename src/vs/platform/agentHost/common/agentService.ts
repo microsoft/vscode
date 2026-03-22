@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IActionEnvelope, INotification, ISessionAction } from './state/sessionActions.js';
 import type { IBrowseDirectoryResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { AttachmentType, PermissionKind, type PolicyState } from './state/sessionState.js';
+import { AttachmentType, PermissionKind, type IToolCallResult, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -189,20 +189,9 @@ export interface IAgentToolStartEvent extends IAgentProgressEventBase {
 export interface IAgentToolCompleteEvent extends IAgentProgressEventBase {
 	readonly type: 'tool_complete';
 	readonly toolCallId: string;
-	readonly success: boolean;
-	/** Message describing the completed tool invocation (e.g., "Ran `echo hello`"). */
-	readonly pastTenseMessage: string;
-	/** Tool output content for display in the UI. */
-	readonly toolOutput?: string;
+	/** Tool execution result, matching the protocol {@link IToolCallResult} shape. */
+	readonly result: IToolCallResult;
 	readonly isUserRequested?: boolean;
-	readonly result?: {
-		readonly content: string;
-		readonly detailedContent?: string;
-	};
-	readonly error?: {
-		readonly message: string;
-		readonly code?: string;
-	};
 	/** Serialized JSON of tool-specific telemetry data. */
 	readonly toolTelemetry?: string;
 	readonly parentToolCallId?: string;

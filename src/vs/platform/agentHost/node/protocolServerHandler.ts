@@ -19,6 +19,7 @@ import {
 	type IAhpServerNotification,
 	type IBrowseDirectoryResult,
 	type ICreateSessionParams,
+	type IFetchContentResult,
 	type IInitializeParams,
 	type IJsonRpcResponse,
 	type IReconnectParams,
@@ -325,8 +326,8 @@ export class ProtocolServerHandler extends Disposable {
 		browseDirectory: async (_client, params) => {
 			return this._sideEffectHandler.handleBrowseDirectory(params.uri);
 		},
-		fetchContent: async () => {
-			throw new Error('fetchContent not implemented');
+		fetchContent: async (_client, params) => {
+			return this._sideEffectHandler.handleFetchContent(params.uri);
 		},
 	};
 
@@ -435,6 +436,7 @@ export interface IProtocolSideEffectHandler {
 	handleGetResourceMetadata(): IResourceMetadata;
 	handleAuthenticate(params: IAuthenticateParams): Promise<IAuthenticateResult>;
 	handleBrowseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
+	handleFetchContent(uri: string): Promise<IFetchContentResult>;
 	/** Returns the server's default browsing directory, if available. */
 	getDefaultDirectory?(): URI;
 	/** Refresh models from all providers (VS Code extension method). */

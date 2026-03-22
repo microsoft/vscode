@@ -14,6 +14,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
 import { PermissionKind, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
@@ -69,6 +70,13 @@ suite('AgentSideEffects', () => {
 		sideEffects = disposables.add(new AgentSideEffects(stateManager, {
 			getAgent: () => agent,
 			agents: agentList,
+			sessionDataService: {
+				_serviceBrand: undefined,
+				getSessionDataDir: () => URI.from({ scheme: Schemas.inMemory, path: '/session-data' }),
+				getSessionDataDirById: () => URI.from({ scheme: Schemas.inMemory, path: '/session-data' }),
+				deleteSessionData: async () => { },
+				cleanupOrphanedData: async () => { },
+			} satisfies ISessionDataService,
 		}, new NullLogService(), fileService));
 	});
 

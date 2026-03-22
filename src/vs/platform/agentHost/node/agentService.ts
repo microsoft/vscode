@@ -10,8 +10,9 @@ import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentDescriptor, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
+import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
-import type { IBrowseDirectoryResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
+import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionSummary } from '../common/state/sessionState.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { SessionStateManager } from './sessionStateManager.js';
@@ -54,6 +55,7 @@ export class AgentService extends Disposable implements IAgentService {
 	constructor(
 		private readonly _logService: ILogService,
 		private readonly _fileService: IFileService,
+		private readonly _sessionDataService: ISessionDataService,
 	) {
 		super();
 		this._logService.info('AgentService initialized');
@@ -168,6 +170,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._sessionToProvider.delete(session.toString());
 		}
 		this._stateManager.removeSession(session.toString());
+		this._sessionDataService.deleteSessionData(session);
 	}
 
 	// ---- Protocol methods ---------------------------------------------------
@@ -199,6 +202,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async browseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
 		return this._sideEffects.handleBrowseDirectory(uri.toString());
+	}
+
+	async fetchContent(uri: string): Promise<IFetchContentResult> {
+		return this._sideEffects.handleFetchContent(uri);
 	}
 
 	async shutdown(): Promise<void> {
