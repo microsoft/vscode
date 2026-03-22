@@ -1307,6 +1307,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: relative;
 }
 
+.interactive-session .interactive-input-and-side-toolbar .chat-input-toolbars {
+	margin-top: 0;
+}
+
 .interactive-session .chat-input-container.focused {
 	border-color: var(--vscode-focusBorder);
 }
