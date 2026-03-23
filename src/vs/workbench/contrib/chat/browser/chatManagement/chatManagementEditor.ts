@@ -400,7 +400,7 @@ export class ChatManagementEditor extends EditorPane {
 	}
 
 	private getCurrentPlanName(): string {
-		return getChatPlanName(this.chatEntitlementService.entitlement);
+		return getChatPlanName(this.chatEntitlementService.entitlement, this.chatEntitlementService.sku);
 	}
 
 	private shouldShowUpgradeButton(): boolean {

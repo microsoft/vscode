@@ -435,7 +435,7 @@ export class ChatStatusDashboard extends DomWidget {
 	}
 
 	private getUsageTitle(): string {
-		const planName = getChatPlanName(this.chatEntitlementService.entitlement);
+		const planName = getChatPlanName(this.chatEntitlementService.entitlement, this.chatEntitlementService.sku);
 		return localize('usageTitleWithPlan', "{0} Usage", planName);
 	}
 

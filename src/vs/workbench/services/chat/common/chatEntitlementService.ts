@@ -186,9 +186,13 @@ export function isProUser(chatEntitlement: ChatEntitlement): boolean {
 /**
  * Gets the full plan name for the given chat entitlement
  * @param chatEntitlement The chat entitlement to get the plan name for
- * @returns The localized full plan name (e.g., "Copilot Pro", "Copilot Free")
+ * @param sku Optional SKU string to distinguish specific plans (e.g., educational)
+ * @returns The localized full plan name (e.g., "Copilot Pro", "Copilot Free", "Copilot Student")
  */
-export function getChatPlanName(chatEntitlement: ChatEntitlement): string {
+export function getChatPlanName(chatEntitlement: ChatEntitlement, sku?: string): string {
+	if (sku === 'free_educational_quota') {
+		return localize('plan.studentName', 'Copilot Student');
+	}
 	switch (chatEntitlement) {
 		case ChatEntitlement.Pro:
 			return localize('plan.proName', 'Copilot Pro');
