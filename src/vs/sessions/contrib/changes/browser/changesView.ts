@@ -541,22 +541,6 @@ export class ChangesViewPane extends ViewPane {
 			return model?.metadata?.lastCheckpointRef as string | undefined;
 		});
 
-		const beforeLastCheckpointRefObs = derived(reader => {
-			const lastCheckpointRef = lastCheckpointRefObs.read(reader);
-			if (!lastCheckpointRef) {
-				return undefined;
-			}
-
-			const checkpointSegments = lastCheckpointRef.split('/');
-			const turnCount = parseInt(checkpointSegments.pop() ?? '-1', 10);
-			if (!Number.isFinite(turnCount) || turnCount <= 0) {
-				return undefined;
-			}
-
-			checkpointSegments.push(`${turnCount - 1}`);
-			return checkpointSegments.join('/');
-		});
-
 		const lastTurnChangesObs = derived(reader => {
 			const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
 			const headCommit = headCommitObs.read(reader);
@@ -566,10 +550,9 @@ export class ChangesViewPane extends ViewPane {
 			}
 
 			const lastCheckpointRef = lastCheckpointRefObs.read(reader);
-			const beforeLastCheckpointRef = beforeLastCheckpointRefObs.read(reader);
 
-			return lastCheckpointRef && beforeLastCheckpointRef
-				? new ObservablePromise(repository.diffBetweenWithStats2(`${beforeLastCheckpointRef}..${lastCheckpointRef}`)).resolvedValue
+			return lastCheckpointRef
+				? new ObservablePromise(repository.diffBetweenWithStats(`${lastCheckpointRef}^`, lastCheckpointRef)).resolvedValue
 				: new ObservablePromise(repository.diffBetweenWithStats(`${headCommit}^`, headCommit)).resolvedValue;
 		});
 
@@ -584,14 +567,13 @@ export class ChangesViewPane extends ViewPane {
 			if (versionMode === ChangesVersionMode.LastTurn) {
 				const diffChanges = lastTurnDiffChanges ?? [];
 				const lastCheckpointRef = lastCheckpointRefObs.read(undefined);
-				const beforeLastCheckpointRef = beforeLastCheckpointRefObs.read(undefined);
 
 				const ref = lastCheckpointRef
 					? lastCheckpointRef
 					: headCommit;
 
-				const parentRef = beforeLastCheckpointRef
-					? beforeLastCheckpointRef
+				const parentRef = lastCheckpointRef
+					? `${lastCheckpointRef}^`
 					: headCommit ? `${headCommit}^` : undefined;
 
 				sourceEntries = diffChanges.map(change => {
