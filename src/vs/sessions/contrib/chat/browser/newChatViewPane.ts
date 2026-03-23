@@ -564,6 +564,18 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Remote model picker
 		this._cloudModelPicker.render(toolbar);
 
+		// Model picker visibility: local and cloud are mutually exclusive
+		// based on the active session's pickerVisibility
+		this._register(autorun(reader => {
+			const session = this.sessionsManagementService.activeSessionData.read(reader);
+			const newSession = this._newSession.value;
+			const vis = newSession?.pickerVisibility;
+			if (this._localModelPickerContainer) {
+				this._localModelPickerContainer.style.display = vis?.localModel ? '' : 'none';
+			}
+			this._cloudModelPicker.setVisible(!!vis?.cloudModel);
+		}));
+
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
 
 		this._loadingSpinner = dom.append(toolbar, dom.$('.sessions-chat-loading-spinner'));

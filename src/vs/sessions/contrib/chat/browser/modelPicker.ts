@@ -103,6 +103,15 @@ export class CloudModelPicker extends Disposable {
 		return slot;
 	}
 
+	/**
+	 * Shows or hides the picker.
+	 */
+	setVisible(visible: boolean): void {
+		if (this._slotElement) {
+			this._slotElement.style.display = visible ? '' : 'none';
+		}
+	}
+
 	private _loadModels(session: RemoteNewSession): void {
 		const modelOption = session.getModelOptionGroup();
 		if (modelOption?.group.items.length) {
