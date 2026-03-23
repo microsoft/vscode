@@ -91,7 +91,7 @@ div.chat-welcome-view {
 		color: var(--vscode-foreground);
 		margin-top: 5px;
 		text-align: center;
-		line-height: normal;
+		line-height: 1.4;
 		padding: 0 8px;
 	}
 
