@@ -974,7 +974,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 	}
 
-	async runCommand(commandLine: string, shouldExecute: boolean, commandId?: string): Promise<void> {
+	async runCommand(commandLine: string, shouldExecute: boolean, commandId?: string, bracketedPasteMode?: boolean): Promise<void> {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 		const siInjectionEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) === true;
 		const timeoutMs = getShellIntegrationTimeout(
@@ -1021,7 +1021,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			await timeout(100);
 		}
 		// Use bracketed paste mode only when not running the command
-		await this.sendText(commandLine, shouldExecute, !shouldExecute);
+		await this.sendText(commandLine, shouldExecute, !shouldExecute || bracketedPasteMode);
 	}
 
 	detachFromElement(): void {
