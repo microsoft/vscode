@@ -52,3 +52,8 @@ After the fix is validated (compilation clean, tests pass):
    - **Re-run tests** after addressing review comments to confirm nothing regressed.
    - After each push, repeat the wait-and-check cycle. Continue until **two consecutive checks return zero new comments**.
 6. **Verify CI**: After the monitoring loop is done, check that CI checks are passing using `gh pr checks <number>`. If any required checks fail, investigate and fix. Do NOT complete the task with failing CI.
+7. **Assign a reviewer**: Identify the owner of the changed files by examining git history:
+   - Run `git log --format="%an" --no-merges -- <file>` for each touched file and find the top contributor.
+   - Verify the candidate is a VS Code team member by checking their GitHub profile org membership or by looking for `@microsoft.com` in their git email (`git log --format="%an <%ae>" --no-merges -- <file>`). Also you can reference `https://github.com/microsoft/vscode-internalbacklog/blob/main/assignments/working-areas.md` for VS Code team member working areas.
+   - If issue was introd or the feature was implemented by a member outside of the VS Code team, prefer the next contributor (most context) which are part of the team but mention the original author in the PR description.
+   - Request their review using `gh pr edit <number> --add-reviewer <github-username>`.
