@@ -39,19 +39,6 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
  * Not part of the public {@link ISessionData} contract but present on
  * concrete session implementations (CopilotCLISession, RemoteNewSession, AgentHostNewSession).
  */
-interface INewSessionConfig extends IDisposable {
-	readonly resource: URI;
-	readonly target: AgentSessionTarget;
-	readonly project: SessionWorkspace | undefined;
-	readonly query: string | undefined;
-	readonly modelId: string | undefined;
-	readonly mode: IChatMode | undefined;
-	readonly attachedContext: IChatRequestVariableEntry[] | undefined;
-	readonly selectedOptions: ReadonlyMap<string, IChatSessionProviderOptionItem>;
-	readonly disabled: boolean;
-	readonly onDidChange: Event<NewSessionChangeType>;
-	setQuery(query: string): void;
-}
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 
@@ -132,7 +119,7 @@ export interface ISessionsManagementService {
 	 * Open a new session, apply options, and send the initial request.
 	 * Looks up the session by resource URI and builds send options from it.
 	 */
-	sendRequestForNewSession(sessionResource: URI, options?: { permissionLevel?: ChatPermissionLevel }): Promise<void>;
+	sendRequestForNewSession(sessionResource: URI): Promise<void>;
 
 	/**
 	 * Commit files in a worktree and refresh the agent sessions model
@@ -170,7 +157,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	readonly activeSessionData: IObservable<ISessionData | undefined> = this._activeSessionData;
 	private readonly _newActiveSessionDisposables = this._register(new DisposableStore());
 
-	private readonly _newSession = this._register(new MutableDisposable<INewSessionConfig>());
+	private readonly _newSession = this._register(new MutableDisposable<ISessionData>());
 	private readonly _newSessionObservable = observableValue<ISessionData | undefined>(this, undefined);
 	readonly newSession: IObservable<ISessionData | undefined> = this._newSessionObservable;
 	private lastSelectedSession: URI | undefined;
@@ -320,8 +307,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const sessionData = provider.createNewSession(sessionType, sessionResource);
 
 		// The provider returns ISessionData. Concrete implementations (CopilotCLISession,
-		// RemoteNewSession) also satisfy INewSessionConfig for the pre-send flow.
-		const newSession = sessionData as unknown as INewSessionConfig;
+		// RemoteNewSession) also satisfy ISessionData for the pre-send flow.
+		const newSession = sessionData as unknown as ISessionData;
 		if (newSession && typeof newSession.setQuery === 'function') {
 			this._newSession.value = newSession;
 			this._newSessionObservable.set(sessionData, undefined);
@@ -331,177 +318,26 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return sessionData;
 	}
 
-	async sendRequestForNewSession(sessionResource: URI, options?: { permissionLevel?: ChatPermissionLevel }): Promise<void> {
-		const session = this._newSession.value;
-		if (!session) {
-			this.logService.error(`[SessionsManagementService] No new session found for resource: ${sessionResource.toString()}`);
+	async sendRequestForNewSession(sessionResource: URI): Promise<void> {
+		const sessionData = this._activeSessionData.get();
+		if (!sessionData) {
+			this.logService.error(`[SessionsManagementService] No active session data for resource: ${sessionResource.toString()}`);
 			return;
 		}
 
-		if (!this.uriIdentityService.extUri.isEqual(sessionResource, session.resource)) {
-			this.logService.error(`[SessionsManagementService] Session resource mismatch. Expected: ${session.resource.toString()}, received: ${sessionResource.toString()}`);
-			return;
+		this.isNewChatSessionContext.set(false);
+
+		// Delegate to the provider
+		const result = await this.sessionsProvidersService.sendRequest(sessionData.sessionId);
+
+		// Set the new agent session as active
+		if (result) {
+			this._activeSessionData.set(result, undefined);
 		}
 
-		const query = session.query;
-		if (!query) {
-			this.logService.error('[SessionsManagementService] No query set on session');
-			return;
-		}
-
-		const contribution = this.chatSessionsService.getChatSessionContribution(session.target);
-
-		// Resolve mode from session's modeId (falls back to Agent)
-		const modeKind = session.mode?.kind ?? ChatModeKind.Agent;
-		const modeIsBuiltin = session.mode ? isBuiltinChatMode(session.mode) : true;
-		const modeId: 'ask' | 'agent' | 'edit' | 'custom' | undefined = modeIsBuiltin ? modeKind : 'custom';
-
-		const rawModeInstructions = session.mode?.modeInstructions?.get();
-		const modeInstructions = rawModeInstructions ? {
-			name: session.mode!.name.get(),
-			content: rawModeInstructions.content,
-			toolReferences: this.toolsService.toToolReferences(rawModeInstructions.toolReferences),
-			metadata: rawModeInstructions.metadata,
-		} : undefined;
-
-		const sendOptions: IChatSendRequestOptions = {
-			location: ChatAgentLocation.Chat,
-			userSelectedModelId: session.modelId,
-			modeInfo: {
-				kind: modeKind,
-				isBuiltin: modeIsBuiltin,
-				modeInstructions,
-				modeId,
-				applyCodeBlockSuggestionId: undefined,
-				permissionLevel: (this._activeSessionData.get() as any)?.permissionLevel?.get() ?? options?.permissionLevel ?? ChatPermissionLevel.Default,
-			},
-			agentIdSilent: contribution?.type,
-			attachedContext: session.attachedContext,
-		};
-
-		await this.chatSessionsService.getOrCreateChatSession(session.resource, CancellationToken.None);
-		await this.doSendRequestForNewSession(session, query, sendOptions, session.selectedOptions);
-
-		// Clean up the session after sending (setter disposes the previous value)
+		// Clean up
 		this._newSession.value = undefined;
 		this._newSessionObservable.set(undefined, undefined);
-	}
-
-	private async doSendRequestForNewSession(session: INewSessionConfig, query: string, sendOptions: IChatSendRequestOptions, selectedOptions?: ReadonlyMap<string, IChatSessionProviderOptionItem>): Promise<void> {
-		// 1. Open the session - loads the model and shows the ChatViewPane
-		const chatWidget = await this.openNewSession(session);
-		const permissionLevel = sendOptions.modeInfo?.permissionLevel;
-		if (permissionLevel) {
-			chatWidget.input.setPermissionLevel(permissionLevel);
-		}
-
-		// 2. Load the session to apply selected options and have it ready when the view opens
-		await this.loadNewSession(session, selectedOptions);
-
-		//3. Send the initial request to kick off the session creation on the extension side
-		const existingResources = new ResourceSet(this.agentSessionsService.model.sessions.map(s => s.resource));
-		const result = await this.chatService.sendRequest(session.resource, query, sendOptions);
-		if (result.kind === 'rejected') {
-			this.logService.error(`[ActiveSessionService] sendRequest rejected: ${result.reason}`);
-			return;
-		}
-
-		// 4. This is just a heuristic to wait for the extension to create the session before trying to find the session associated with the chat widget, which is what we want to set as active.
-		// This allows to set the active session to the new session immediately instead of waiting for the chat widget to open, which results in a smoother user experience
-		const probableNewSession = await this.loadProbableNewAgentSession(session, existingResources);
-		this.setActiveSession(probableNewSession);
-
-		// 5. Wait for the real new session to appear in the chat widget
-		const newSession = await this.loadNewAgentSession(chatWidget, session);
-		this.setActiveSession(newSession);
-	}
-
-	private async openNewSession(session: INewSessionConfig): Promise<IChatWidget> {
-		this.isNewChatSessionContext.set(false);
-		const sessionResource = session.resource;
-		const chatWidget = await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
-		if (!chatWidget) {
-			throw new Error(`Failed to open chat session for resource ${sessionResource.toString()}`);
-		}
-		return chatWidget;
-	}
-
-	private async loadNewSession(session: INewSessionConfig, selectedOptions?: ReadonlyMap<string, IChatSessionProviderOptionItem>): Promise<void> {
-		const modelRef = await this.chatService.acquireOrLoadSession(session.resource, ChatAgentLocation.Chat, CancellationToken.None);
-		if (modelRef) {
-			const model = modelRef.object;
-
-			// Set the selected model on the input model so the model picker reflects it
-			if (session.modelId) {
-				const languageModel = this.languageModelsService.lookupLanguageModel(session.modelId);
-				if (languageModel) {
-					model.inputModel.setState({
-						selectedModel: { identifier: session.modelId, metadata: languageModel }
-					});
-				}
-			}
-
-			// Set the selected mode on the input model so the mode picker reflects it
-			if (session.mode) {
-				model.inputModel.setState({
-					mode: { id: session.mode.id, kind: session.mode.kind }
-				});
-			}
-
-			// Apply selected options (repository, branch, etc.) to the contributed session
-			if (selectedOptions && selectedOptions.size > 0) {
-				const contributedSession = model.contributedChatSession;
-				if (contributedSession) {
-					model.setContributedChatSession({
-						...contributedSession,
-						initialSessionOptions: selectedOptions,
-					});
-				}
-			}
-			modelRef.dispose();
-		}
-	}
-
-	private async loadProbableNewAgentSession(session: INewSessionConfig, existingSessions: ResourceSet): Promise<IAgentSession> {
-		const probableNewSession = this.agentSessionsService.model.sessions.find(s => s.providerType === session.target && !existingSessions.has(s.resource));
-		if (probableNewSession) {
-			return probableNewSession;
-		}
-		let listener: IDisposable | undefined;
-		try {
-			return await new Promise<IAgentSession>(resolve => {
-				listener = this.agentSessionsService.model.onDidChangeSessions(() => {
-					const s = this.agentSessionsService.model.sessions.find(s => s.providerType === session.target && !existingSessions.has(s.resource));
-					if (s) {
-						listener?.dispose();
-						resolve(s);
-					}
-				});
-			});
-		} finally {
-			listener?.dispose();
-		}
-	}
-
-	private async loadNewAgentSession(chatWidget: IChatWidget, session: INewSessionConfig): Promise<IAgentSession> {
-		const newSession = this.agentSessionsService.model.sessions.find(s => s.providerType === session.target && this.uriIdentityService.extUri.isEqual(s.resource, chatWidget.viewModel?.sessionResource));
-		if (newSession) {
-			return newSession;
-		}
-		let listener: IDisposable | undefined;
-		try {
-			return await new Promise<IAgentSession>(resolve => {
-				listener = chatWidget.onDidChangeViewModel(() => {
-					const s = this.agentSessionsService.model.sessions.find(s => s.providerType === session.target && this.uriIdentityService.extUri.isEqual(s.resource, chatWidget.viewModel?.sessionResource));
-					if (s) {
-						listener?.dispose();
-						resolve(s);
-					}
-				});
-			});
-		} finally {
-			listener?.dispose();
-		}
 	}
 
 	openNewSessionView(): void {
@@ -518,7 +354,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return repositoryUri;
 	}
 
-	private setActiveSession(session: IAgentSession | INewSessionConfig | undefined): void {
+	private setActiveSession(session: IAgentSession | ISessionData | undefined): void {
 		let activeSessionItem: IActiveSessionItem | undefined;
 		if (session) {
 			if (isAgentSession(session)) {

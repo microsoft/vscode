@@ -115,6 +115,11 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		// Agent host sessions don't support renaming
 	}
 
+	async sendRequest(_sessionId: string): Promise<ISessionData | undefined> {
+		// Agent host session send is handled separately
+		return undefined;
+	}
+
 	// ── Private ──
 
 	private async _browseForFolder(): Promise<SessionWorkspace | undefined> {

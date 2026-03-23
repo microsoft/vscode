@@ -20,14 +20,20 @@ import { IStorageService, StorageScope } from '../../../../platform/storage/comm
 import { IAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionFileChange, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionData, ISessionRepository, ISessionWorkspace, SessionStatus } from '../common/sessionData.js';
-import { ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { SessionWorkspace, GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionWorkspace.js';
 import { ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
 import { INewSessionPickerVisibility, ISessionOptionGroup, NewSessionChangeType } from '../../chat/browser/newSession.js';
 import { IsolationMode, IsolationPicker } from '../../chat/browser/sessionTargetPicker.js';
+import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { isBuiltinChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { CloudModelPicker } from '../../chat/browser/modelPicker.js';
 import { NewChatPermissionPicker } from '../../chat/browser/newChatPermissionPicker.js';
 import { ModePicker } from '../../chat/browser/modePicker.js';
@@ -864,12 +870,16 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 	constructor(
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -1041,6 +1051,122 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 		if (agentSession) {
 			this.chatService.setChatSessionTitle(agentSession.resource, title);
 		}
+	}
+
+	// ── Send ──
+
+	async sendRequest(sessionId: string): Promise<ISessionData | undefined> {
+		const session = this._currentNewSession;
+		if (!session || session.sessionId !== sessionId) {
+			return undefined;
+		}
+
+		const query = session.query;
+		if (!query) {
+			this.logService.error('[DefaultCopilotProvider] No query set on session');
+			return undefined;
+		}
+
+		const contribution = this.chatSessionsService.getChatSessionContribution(session.target);
+
+		// Resolve mode
+		const modeKind = session.mode?.kind ?? ChatModeKind.Agent;
+		const modeIsBuiltin = session.mode ? isBuiltinChatMode(session.mode) : true;
+		const modeId: 'ask' | 'agent' | 'edit' | 'custom' | undefined = modeIsBuiltin ? modeKind : 'custom';
+
+		const rawModeInstructions = session.mode?.modeInstructions?.get();
+		const modeInstructions = rawModeInstructions ? {
+			name: session.mode!.name.get(),
+			content: rawModeInstructions.content,
+			toolReferences: this.toolsService.toToolReferences(rawModeInstructions.toolReferences),
+			metadata: rawModeInstructions.metadata,
+		} : undefined;
+
+		const permissionLevel = (session as any)._permissionLevel?.get() ?? ChatPermissionLevel.Default;
+
+		const sendOptions: IChatSendRequestOptions = {
+			location: ChatAgentLocation.Chat,
+			userSelectedModelId: session.modelId,
+			modeInfo: {
+				kind: modeKind,
+				isBuiltin: modeIsBuiltin,
+				modeInstructions,
+				modeId,
+				applyCodeBlockSuggestionId: undefined,
+				permissionLevel,
+			},
+			agentIdSilent: contribution?.type,
+			attachedContext: session.attachedContext,
+		};
+
+		// Open chat widget and set permission level
+		await this.chatSessionsService.getOrCreateChatSession(session.resource, CancellationToken.None);
+		const chatWidget = await this.chatWidgetService.openSession(session.resource, ChatViewPaneTarget);
+		if (!chatWidget) {
+			this.logService.error('[DefaultCopilotProvider] Failed to open chat widget');
+			return undefined;
+		}
+
+		if (permissionLevel) {
+			chatWidget.input.setPermissionLevel(permissionLevel);
+		}
+
+		// Load session model with selected options
+		const modelRef = await this.chatService.acquireOrLoadSession(session.resource, ChatAgentLocation.Chat, CancellationToken.None);
+		if (modelRef) {
+			const model = modelRef.object;
+			if (session.modelId) {
+				const languageModel = this.languageModelsService.lookupLanguageModel(session.modelId);
+				if (languageModel) {
+					model.inputModel.setState({ selectedModel: { identifier: session.modelId, metadata: languageModel } });
+				}
+			}
+			if (session.mode) {
+				model.inputModel.setState({ mode: { id: session.mode.id, kind: session.mode.kind } });
+			}
+			if (session.selectedOptions.size > 0) {
+				const contributedSession = model.contributedChatSession;
+				if (contributedSession) {
+					model.setContributedChatSession({ ...contributedSession, initialSessionOptions: session.selectedOptions });
+				}
+			}
+			modelRef.dispose();
+		}
+
+		// Send request
+		const existingResources = new ResourceSet(this.agentSessionsService.model.sessions.map(s => s.resource));
+		const result = await this.chatService.sendRequest(session.resource, query, sendOptions);
+		if (result.kind === 'rejected') {
+			this.logService.error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
+			return undefined;
+		}
+
+		// Wait for the agent session to appear
+		const newAgentSession = await this._waitForNewAgentSession(session.target, existingResources);
+		this._currentNewSession = undefined;
+		return newAgentSession ? this._wrapAgentSession(newAgentSession) : undefined;
+	}
+
+	private async _waitForNewAgentSession(target: AgentSessionTarget, existingSessions: ResourceSet): Promise<IAgentSession | undefined> {
+		const found = this.agentSessionsService.model.sessions.find(s => s.providerType === target && !existingSessions.has(s.resource));
+		if (found) {
+			return found;
+		}
+		return new Promise<IAgentSession | undefined>(resolve => {
+			const listener = this.agentSessionsService.model.onDidChangeSessions(() => {
+				const s = this.agentSessionsService.model.sessions.find(s => s.providerType === target && !existingSessions.has(s.resource));
+				if (s) {
+					listener.dispose();
+					resolve(s);
+				}
+			});
+		});
+	}
+
+	private _wrapAgentSession(agentSession: IAgentSession): ISessionData {
+		const adapter = new AgentSessionAdapter(agentSession, this.id);
+		this._sessionCache.set(agentSession.resource.toString(), adapter);
+		return adapter;
 	}
 
 	// ── Private ──

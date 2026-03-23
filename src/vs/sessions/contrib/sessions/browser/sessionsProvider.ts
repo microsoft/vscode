@@ -91,4 +91,9 @@ export interface ISessionsProvider {
 	/** Rename a session. */
 	renameSession(sessionId: string, title: string): Promise<void>;
 
+	// ── Send ──
+
+	/** Send the initial request for a new session. Returns the created session data. */
+	sendRequest(sessionId: string): Promise<ISessionData | undefined>;
+
 }

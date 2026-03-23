@@ -54,6 +54,11 @@ export interface ISessionsProvidersService {
 	/** Rename a session. */
 	renameSession(sessionId: string, title: string): Promise<void>;
 
+	// ── Send ──
+
+	/** Send the initial request for a new session. Routes to the correct provider. */
+	sendRequest(sessionId: string): Promise<ISessionData | undefined>;
+
 	// ── New Session ──
 
 	/** Create a new session via the specified provider. */
@@ -160,6 +165,16 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		if (provider) {
 			await provider.renameSession(sessionId, title);
 		}
+	}
+
+	// ── Send ──
+
+	async sendRequest(sessionId: string): Promise<ISessionData | undefined> {
+		const { provider } = this._resolveProvider(sessionId);
+		if (provider) {
+			return provider.sendRequest(sessionId);
+		}
+		return undefined;
 	}
 
 	// ── New Session ──
