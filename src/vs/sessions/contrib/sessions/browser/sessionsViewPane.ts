@@ -279,8 +279,8 @@ export class AgenticSessionsViewPane extends ViewPane {
 		this.sessionsControl?.update();
 	}
 
-	toggleRepositoryGroupCapped(): void {
-		this.sessionsFilter?.setRepositoryGroupCapped(!this.sessionsFilter.getExcludes().repositoryGroupCapped);
+	setRepositoryGroupCapped(capped: boolean): void {
+		this.sessionsFilter?.setRepositoryGroupCapped(capped);
 	}
 }
 
@@ -427,18 +427,18 @@ registerAction2(class GroupByTimeAction extends Action2 {
 	}
 });
 
-// Toggle between showing top 5 or all sessions per repo group
+// Show top N or all sessions per repo group (radio pattern)
 registerAction2(class ShowTopSessionsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.showTopSessions',
 			title: localize2('showTopSessions', "Show Top {0} Sessions", AgentSessionsDataSource.REPOSITORY_GROUP_LIMIT),
 			category: SessionsCategories.Sessions,
+			toggled: IsRepositoryGroupCappedContext,
 			menu: [{
 				id: SessionsViewFilterSubMenu,
 				group: '4_cap',
 				order: 0,
-				when: IsRepositoryGroupCappedContext.negate(),
 			}]
 		});
 	}
@@ -446,7 +446,7 @@ registerAction2(class ShowTopSessionsAction extends Action2 {
 	override run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getViewWithId<AgenticSessionsViewPane>(SessionsViewId);
-		view?.toggleRepositoryGroupCapped();
+		view?.setRepositoryGroupCapped(true);
 	}
 });
 
@@ -456,11 +456,11 @@ registerAction2(class ShowAllSessionsAction extends Action2 {
 			id: 'sessionsView.showAllSessions',
 			title: localize2('showAllSessions', "Show All Sessions"),
 			category: SessionsCategories.Sessions,
+			toggled: IsRepositoryGroupCappedContext.negate(),
 			menu: [{
 				id: SessionsViewFilterSubMenu,
 				group: '4_cap',
-				order: 0,
-				when: IsRepositoryGroupCappedContext,
+				order: 1,
 			}]
 		});
 	}
@@ -468,7 +468,7 @@ registerAction2(class ShowAllSessionsAction extends Action2 {
 	override run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getViewWithId<AgenticSessionsViewPane>(SessionsViewId);
-		view?.toggleRepositoryGroupCapped();
+		view?.setRepositoryGroupCapped(false);
 	}
 });
 
