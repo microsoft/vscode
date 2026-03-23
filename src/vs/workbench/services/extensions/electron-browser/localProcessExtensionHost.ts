@@ -191,11 +191,13 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 			}
 		}
 
-		// For the restart case (not reload/close), signal the main process
-		// to start the grace timer (fire-and-forget). After the timeout the
-		// extension host will be forcefully killed if it hasn't exited on
-		// its own. For reload/close the main process already handles this
-		// via WindowUtilityProcess.registerWindowListeners.
+		// For the restart case where the main process does not handle the
+		// extension host shutdown, signal the main process to start the grace
+		// timer (fire-and-forget). After the timeout the extension host will
+		// be forcefully killed if it hasn't exited on its own. For all
+		// window-lifecycle shutdown reasons (close/quit/reload/load), the
+		// main process already handles this via
+		// WindowUtilityProcess.registerWindowListeners.
 		if (this._extensionHostProcess && !this._mainProcessHandlesExtHostShutdown) {
 			this._extensionHostProcess.waitForExit(extensionHostGraceTimeMs).catch(() => { /* best-effort */ });
 		}
