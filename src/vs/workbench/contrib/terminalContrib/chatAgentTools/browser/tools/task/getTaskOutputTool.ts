@@ -95,6 +95,15 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		if (!terminals || terminals.length === 0) {
 			return { content: [{ kind: 'text', value: `Terminal not found for task ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.terminalNotFound', 'Terminal not found for task \`{0}\`', taskLabel)) };
 		}
+		const startMarkersByTerminalInstanceId = task.configurationProperties.isBackground
+			? new Map<number, ReturnType<typeof terminals[number]['registerMarker']>>()
+			: undefined;
+		if (startMarkersByTerminalInstanceId) {
+			// Background/watch tasks should read their current buffer when queried after start.
+			for (const terminal of terminals) {
+				startMarkersByTerminalInstanceId.set(terminal.instanceId, undefined);
+			}
+		}
 		const store = new DisposableStore();
 		const terminalResults = await collectTerminalResults(
 			terminals,
@@ -106,7 +115,8 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 			store,
 			(terminalTask) => this._isTaskActive(terminalTask),
 			dependencyTasks,
-			this._tasksService
+			this._tasksService,
+			startMarkersByTerminalInstanceId
 		);
 		store.dispose();
 		for (const r of terminalResults) {
