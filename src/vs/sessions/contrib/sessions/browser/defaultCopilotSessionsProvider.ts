@@ -74,11 +74,11 @@ registerAction2(class extends Action2 {
 			f1: false,
 			menu: [{
 				id: Menus.NewSessionRepositoryConfig,
-				group: 'isolation',
+				group: 'navigation',
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsActiveSessionBackgroundProviderContext,
-					ContextKeyExpr.has('config.github.copilot.chat.cli.isolationOption.enabled'),
+					ContextKeyExpr.equals('config.github.copilot.chat.cli.isolationOption.enabled', true),
 				),
 			}],
 		});
@@ -94,7 +94,7 @@ registerAction2(class extends Action2 {
 			f1: false,
 			menu: [{
 				id: Menus.NewSessionRepositoryConfig,
-				group: 'branch',
+				group: 'navigation',
 				order: 2,
 				when: IsActiveSessionBackgroundProviderContext,
 			}],
