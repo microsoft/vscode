@@ -100,7 +100,7 @@ export async function collectCarouselSections(
 		if (dedupedImages.length > 0) {
 			sections.push({
 				title: request?.messageText ?? extractedTitle,
-				images: dedupedImages.map(({ id, name, mimeType, data, caption }) => ({ id, name, mimeType, data: data.buffer, caption }))
+				images: dedupedImages.map(({ uri, name, mimeType, data, caption }) => ({ id: uri.toString(), name, mimeType, data: data.buffer, caption }))
 			});
 		}
 	}
@@ -118,7 +118,7 @@ export async function collectCarouselSections(
 		if (dedupedImages.length > 0) {
 			sections.push({
 				title: item.messageText,
-				images: dedupedImages.map(({ id, name, mimeType, data, caption }) => ({ id, name, mimeType, data: data.buffer, caption }))
+				images: dedupedImages.map(({ uri, name, mimeType, data, caption }) => ({ id: uri.toString(), name, mimeType, data: data.buffer, caption }))
 			});
 		}
 	}
@@ -151,7 +151,20 @@ export function findClickedImageIndex(
 	let globalOffset = 0;
 
 	for (const section of sections) {
-		const localIndex = findImageInList(section.images, resource, data);
+		const localIndex = findImageInListByUri(section.images, resource);
+		if (localIndex >= 0) {
+			return globalOffset + localIndex;
+		}
+		globalOffset += section.images.length;
+	}
+
+	if (!data) {
+		return -1;
+	}
+
+	globalOffset = 0;
+	for (const section of sections) {
+		const localIndex = findImageInListByData(section.images, data);
 		if (localIndex >= 0) {
 			return globalOffset + localIndex;
 		}
@@ -161,10 +174,9 @@ export function findClickedImageIndex(
 	return -1;
 }
 
-function findImageInList(
+function findImageInListByUri(
 	images: ICarouselImage[],
 	resource: URI,
-	data?: Uint8Array,
 ): number {
 	// Try matching by URI string (for inline references and tool images with URIs)
 	const uriStr = resource.toString();
@@ -185,13 +197,12 @@ function findImageInList(
 		return byParsedUri;
 	}
 
-	// Fall back to matching by data buffer equality
-	if (data) {
-		const wrapped = VSBuffer.wrap(data);
-		return images.findIndex(img => VSBuffer.wrap(img.data).equals(wrapped));
-	}
-
 	return -1;
+}
+
+function findImageInListByData(images: ICarouselImage[], data: Uint8Array): number {
+	const wrapped = VSBuffer.wrap(data);
+	return images.findIndex(img => VSBuffer.wrap(img.data).equals(wrapped));
 }
 
 /**

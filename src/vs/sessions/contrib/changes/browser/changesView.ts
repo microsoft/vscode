@@ -541,22 +541,6 @@ export class ChangesViewPane extends ViewPane {
 			return model?.metadata?.lastCheckpointRef as string | undefined;
 		});
 
-		const beforeLastCheckpointRefObs = derived(reader => {
-			const lastCheckpointRef = lastCheckpointRefObs.read(reader);
-			if (!lastCheckpointRef) {
-				return undefined;
-			}
-
-			const checkpointSegments = lastCheckpointRef.split('/');
-			const turnCount = parseInt(checkpointSegments.pop() ?? '-1', 10);
-			if (!Number.isFinite(turnCount) || turnCount <= 0) {
-				return undefined;
-			}
-
-			checkpointSegments.push(`${turnCount - 1}`);
-			return checkpointSegments.join('/');
-		});
-
 		const lastTurnChangesObs = derived(reader => {
 			const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
 			const headCommit = headCommitObs.read(reader);
@@ -566,10 +550,9 @@ export class ChangesViewPane extends ViewPane {
 			}
 
 			const lastCheckpointRef = lastCheckpointRefObs.read(reader);
-			const beforeLastCheckpointRef = beforeLastCheckpointRefObs.read(reader);
 
-			return lastCheckpointRef && beforeLastCheckpointRef
-				? new ObservablePromise(repository.diffBetweenWithStats2(`${beforeLastCheckpointRef}..${lastCheckpointRef}`)).resolvedValue
+			return lastCheckpointRef
+				? new ObservablePromise(repository.diffBetweenWithStats(`${lastCheckpointRef}^`, lastCheckpointRef)).resolvedValue
 				: new ObservablePromise(repository.diffBetweenWithStats(`${headCommit}^`, headCommit)).resolvedValue;
 		});
 
@@ -584,14 +567,13 @@ export class ChangesViewPane extends ViewPane {
 			if (versionMode === ChangesVersionMode.LastTurn) {
 				const diffChanges = lastTurnDiffChanges ?? [];
 				const lastCheckpointRef = lastCheckpointRefObs.read(undefined);
-				const beforeLastCheckpointRef = beforeLastCheckpointRefObs.read(undefined);
 
 				const ref = lastCheckpointRef
 					? lastCheckpointRef
 					: headCommit;
 
-				const parentRef = beforeLastCheckpointRef
-					? beforeLastCheckpointRef
+				const parentRef = lastCheckpointRef
+					? `${lastCheckpointRef}^`
 					: headCommit ? `${headCommit}^` : undefined;
 
 				sourceEntries = diffChanges.map(change => {
@@ -921,6 +903,7 @@ export class ChangesViewPane extends ViewPane {
 		// Bind CI status widget to active session's PR CI model
 		if (this.ciStatusWidget) {
 			const activeSessionResourceObs = derived(this, reader => this.sessionManagementService.activeSession.read(reader)?.resource);
+
 			const ciModelObs = derived(this, reader => {
 				const session = this.sessionManagementService.activeSession.read(reader);
 				if (!session) {
@@ -930,16 +913,18 @@ export class ChangesViewPane extends ViewPane {
 				if (!context || context.prNumber === undefined) {
 					return undefined;
 				}
-				// Use the PR's headRef from the PR model to get CI checks
 				const prModel = this.gitHubService.getPullRequest(context.owner, context.repo, context.prNumber);
 				const pr = prModel.pullRequest.read(reader);
 				if (!pr) {
-					// Trigger a refresh if PR data isn't loaded yet
-					prModel.refresh();
 					return undefined;
 				}
-				const ciModel = this.gitHubService.getPullRequestCI(context.owner, context.repo, pr.headRef);
+				// Use the PR's headSha (commit SHA) rather than the branch
+				// name so CI checks can still be fetched after branch deletion
+				// (e.g. after the PR is merged).
+				const ciModel = this.gitHubService.getPullRequestCI(context.owner, context.repo, pr.headSha);
 				ciModel.refresh();
+				ciModel.startPolling();
+				reader.store.add({ dispose: () => ciModel.stopPolling() });
 				return ciModel;
 			});
 			this.renderDisposables.add(this.ciStatusWidget.bind(ciModelObs, activeSessionResourceObs));

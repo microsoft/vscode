@@ -24,7 +24,7 @@ interface IGitHubPRResponse {
 	readonly state: 'open' | 'closed';
 	readonly draft: boolean;
 	readonly user: { readonly login: string; readonly avatar_url: string };
-	readonly head: { readonly ref: string };
+	readonly head: { readonly ref: string; readonly sha: string };
 	readonly base: { readonly ref: string };
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -312,6 +312,7 @@ function mapPullRequest(data: IGitHubPRResponse): IGitHubPullRequest {
 		state,
 		author: mapUser(data.user),
 		headRef: data.head.ref,
+		headSha: data.head.sha,
 		baseRef: data.base.ref,
 		isDraft: data.draft,
 		createdAt: data.created_at,

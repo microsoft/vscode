@@ -5,7 +5,7 @@
 
 import { h } from '../../../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
-import { escapeMarkdownSyntaxTokens, isMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { isMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
@@ -1624,7 +1624,7 @@ export class ContinueInBackgroundAction extends Action implements IAction {
 	}
 }
 
-class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart {
+export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart {
 	private readonly _terminalContentElement: HTMLElement;
 	private readonly _commandText: string;
 	private readonly _isSandboxWrapped: boolean;
@@ -1640,11 +1640,13 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		const title = isComplete ? `Ran \`${escapeMarkdownSyntaxTokens(commandText)}\`` : `Running \`${escapeMarkdownSyntaxTokens(commandText)}\``;
+		const title = isComplete
+			? localize('chat.terminal.ran.plain', "Ran {0}", commandText)
+			: localize('chat.terminal.running.plain', "Running {0}", commandText);
 		super(title, context, undefined, hoverService, configurationService);
 
 		this._terminalContentElement = contentElement;
-		this._commandText = escapeMarkdownSyntaxTokens(commandText);
+		this._commandText = commandText;
 		this._isSandboxWrapped = isSandboxWrapped;
 		this._isComplete = isComplete;
 
@@ -1663,15 +1665,21 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 			return;
 		}
 
-		if (this._isSandboxWrapped) {
-			this._collapseButton.label = new MarkdownString(this._isComplete
-				? localize('chat.terminal.ranInSandbox', "Ran `{0}` in sandbox", this._commandText)
-				: localize('chat.terminal.runningInSandbox', "Running `{0}` in sandbox", this._commandText));
-			return;
-		}
-
 		const labelElement = this._collapseButton.labelElement;
 		labelElement.textContent = '';
+
+		if (this._isSandboxWrapped) {
+			const prefixText = this._isComplete
+				? localize('chat.terminal.ranInSandbox.prefix', "Ran ")
+				: localize('chat.terminal.runningInSandbox.prefix', "Running ");
+			const suffixText = localize('chat.terminal.sandbox.suffix', " in sandbox");
+			labelElement.appendChild(document.createTextNode(prefixText));
+			const codeElement = document.createElement('code');
+			codeElement.textContent = this._commandText;
+			labelElement.appendChild(codeElement);
+			labelElement.appendChild(document.createTextNode(suffixText));
+			return;
+		}
 
 		const prefixText = this._isComplete
 			? localize('chat.terminal.ran.prefix', "Ran ")
