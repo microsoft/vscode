@@ -57,4 +57,21 @@ suite('CommandLineAutoApproveAnalyzer', () => {
 		strictEqual(result.isAutoApproved, undefined);
 		strictEqual(result.disclaimers?.length ?? 0, 0);
 	});
+
+	test('should auto approve empty command strings when sub-command parsing returns an empty list', async () => {
+		const options: ICommandLineAnalyzerOptions = {
+			commandLine: '   ',
+			cwd: undefined,
+			shell: 'pwsh',
+			os: OperatingSystem.Windows,
+			treeSitterLanguage: TreeSitterCommandParserLanguage.PowerShell,
+			terminalToolSessionId: 'test',
+			chatSessionResource: undefined,
+		};
+
+		const result = await analyzer.analyze(options);
+		strictEqual(result.isAutoApproveAllowed, true);
+		strictEqual(result.isAutoApproved, true);
+		strictEqual(result.disclaimers?.length ?? 0, 0);
+	});
 });

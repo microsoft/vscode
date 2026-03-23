@@ -84,6 +84,15 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		let customActions: ToolConfirmationAction[] | undefined;
 
 		if (!subCommands?.length) {
+			if (trimmedCommandLine.length === 0) {
+				this._log('Command line is empty, auto approving');
+				return {
+					isAutoApproved: true,
+					isAutoApproveAllowed: true,
+					disclaimers: [],
+				};
+			}
+
 			this._log('No sub-commands were parsed, auto approval is not allowed');
 			return {
 				isAutoApproveAllowed: false,
