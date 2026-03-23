@@ -103,14 +103,7 @@ export interface LanguageConfiguration {
 	__electricCharacterSupport?: {
 		docComment?: IDocComment;
 	};
-
-	/**
-	* The text direction of the source code.
-	*/
-	textDirection?: TextDirection;
 }
-
-export type TextDirection = 'rtl' | 'ltr';
 
 /**
  * @internal
