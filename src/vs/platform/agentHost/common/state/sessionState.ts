@@ -11,17 +11,19 @@
 // helpers and re-exports.
 
 import { hasKey } from '../../../../base/common/types.js';
-import type {
-	IActiveTurn,
-	IRootState,
-	ISessionState,
-	ISessionSummary,
-	IToolCallCancelledState,
-	IToolCallCompletedState,
-	IToolCallResult,
-	IToolCallState,
-	IToolResultTextContent,
-	IUserMessage,
+import {
+	SessionLifecycle,
+	ToolResultContentType,
+	type IActiveTurn,
+	type IRootState,
+	type ISessionState,
+	type ISessionSummary,
+	type IToolCallCancelledState,
+	type IToolCallCompletedState,
+	type IToolCallResult,
+	type IToolCallState,
+	type IToolResultTextContent,
+	type IUserMessage,
 } from './protocol/state.js';
 
 // Re-export everything from the protocol state module
@@ -58,7 +60,9 @@ export {
 	type IUserMessage,
 	type StringOrMarkdown,
 	type URI,
+	AttachmentType,
 	PolicyState,
+	PermissionKind,
 	ResponsePartKind,
 	SessionLifecycle,
 	SessionStatus,
@@ -100,7 +104,7 @@ export function getToolOutputText(result: IToolCallResult): string | undefined {
 	}
 	const textParts: IToolResultTextContent[] = [];
 	for (const c of result.content) {
-		if (hasKey(c, { type: true }) && c.type === 'text') {
+		if (hasKey(c, { type: true }) && c.type === ToolResultContentType.Text) {
 			textParts.push(c);
 		}
 	}
@@ -122,7 +126,7 @@ export function createRootState(): IRootState {
 export function createSessionState(summary: ISessionSummary): ISessionState {
 	return {
 		summary,
-		lifecycle: 'creating',
+		lifecycle: SessionLifecycle.Creating,
 		turns: [],
 		activeTurn: undefined,
 	};

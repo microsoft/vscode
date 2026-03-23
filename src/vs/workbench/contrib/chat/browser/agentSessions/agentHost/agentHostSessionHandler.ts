@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../../nls.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -16,10 +17,11 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentAttachment, AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
 import { getToolKind, getToolLanguage } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
-import { TurnState, type IMessageAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AttachmentType, ToolCallStatus, TurnState, type IMessageAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -96,6 +98,12 @@ export interface IAgentHostSessionHandlerConfig {
 	 * If not provided, falls back to the first workspace folder.
 	 */
 	readonly resolveWorkingDirectory?: (resourceKey: string) => string | undefined;
+	/**
+	 * Optional callback invoked when the server rejects an operation because
+	 * authentication is required. Should trigger interactive authentication
+	 * and return true if the user authenticated successfully.
+	 */
+	readonly resolveAuthentication?: () => Promise<boolean>;
 }
 
 export class AgentHostSessionHandler extends Disposable implements IChatSessionContentProvider {
@@ -120,7 +128,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._config = config;
 
 		// Create shared client state manager for this handler instance
-		this._clientState = this._register(new SessionClientState(config.connection.clientId));
+		this._clientState = this._register(new SessionClientState(config.connection.clientId, this._logService));
 
 		// Forward action envelopes from IPC to client state
 		this._register(config.connection.onDidAction(envelope => {
@@ -265,7 +273,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const currentModel = this._clientState.getSessionState(session.toString())?.summary.model;
 			if (currentModel !== rawModelId) {
 				const modelAction = {
-					type: 'session/modelChanged' as const,
+					type: ActionType.SessionModelChanged as const,
 					session: session.toString(),
 					model: rawModelId,
 				};
@@ -277,7 +285,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Dispatch session/turnStarted — the server will call sendMessage on
 		// the provider as a side effect.
 		const turnAction = {
-			type: 'session/turnStarted' as const,
+			type: ActionType.SessionTurnStarted as const,
 			session: session.toString(),
 			turnId,
 			userMessage: {
@@ -355,15 +363,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			for (const [toolCallId, tc] of Object.entries(activeTurn.toolCalls)) {
 				const existing = activeToolInvocations.get(toolCallId);
 				if (!existing) {
-					if (tc.status === 'running' || tc.status === 'streaming' || tc.status === 'pending-confirmation') {
+					if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Streaming || tc.status === ToolCallStatus.PendingConfirmation) {
 						const invocation = toolCallStateToInvocation(tc);
 						activeToolInvocations.set(toolCallId, invocation);
 						progress([invocation]);
 					}
-				} else if (tc.status === 'completed' || tc.status === 'cancelled') {
+				} else if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
 					activeToolInvocations.delete(toolCallId);
 					finalizeToolInvocation(existing, tc);
-				} else if (tc.status === 'running' || tc.status === 'pending-confirmation') {
+				} else if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.PendingConfirmation) {
 					// Tool transitioned from streaming to ready — update the invocation
 					// with the now-available invocationMessage and toolSpecificData.
 					existing.invocationMessage = typeof tc.invocationMessage === 'string'
@@ -392,7 +400,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					const approved = reason.type !== ToolConfirmKind.Denied && reason.type !== ToolConfirmKind.Skipped;
 					this._logService.info(`[AgentHost] Permission response: requestId=${requestId}, approved=${approved}`);
 					const resolveAction = {
-						type: 'session/permissionResolved' as const,
+						type: ActionType.SessionPermissionResolved as const,
 						session: session.toString(),
 						turnId,
 						requestId,
@@ -414,7 +422,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		turnDisposables.add(cancellationToken.onCancellationRequested(() => {
 			this._logService.info(`[AgentHost] Cancellation requested for ${session.toString()}, dispatching turnCancelled`);
 			const cancelAction = {
-				type: 'session/turnCancelled' as const,
+				type: ActionType.SessionTurnCancelled as const,
 				session: session.toString(),
 				turnId,
 			};
@@ -442,11 +450,33 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri.fsPath;
 
 		this._logService.trace(`[AgentHost] Creating new session, model=${rawModelId ?? '(default)'}, provider=${this._config.provider}`);
-		const session = await this._config.connection.createSession({
-			model: rawModelId,
-			provider: this._config.provider,
-			workingDirectory,
-		});
+
+		let session: URI;
+		try {
+			session = await this._config.connection.createSession({
+				model: rawModelId,
+				provider: this._config.provider,
+				workingDirectory,
+			});
+		} catch (err) {
+			// If authentication is required, try to resolve it and retry once
+			if (this._isAuthRequiredError(err) && this._config.resolveAuthentication) {
+				this._logService.info('[AgentHost] Authentication required, prompting user...');
+				const authenticated = await this._config.resolveAuthentication();
+				if (authenticated) {
+					session = await this._config.connection.createSession({
+						model: rawModelId,
+						provider: this._config.provider,
+						workingDirectory,
+					});
+				} else {
+					throw new Error(localize('agentHost.authRequired', "Authentication is required to start a session. Please sign in and try again."));
+				}
+			} else {
+				throw err;
+			}
+		}
+
 		this._logService.trace(`[AgentHost] Created session: ${session.toString()}`);
 
 		// Subscribe to the new session's state
@@ -458,6 +488,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		return session;
+	}
+
+	/**
+	 * Check if an error is an "authentication required" error.
+	 * Checks for the AHP_AUTH_REQUIRED error code when available,
+	 * with a message-based fallback for transports that don't preserve
+	 * structured error codes (e.g. ProxyChannel).
+	 */
+	private _isAuthRequiredError(err: unknown): boolean {
+		if (err instanceof ProtocolError && err.code === AHP_AUTH_REQUIRED) {
+			return true;
+		}
+		if (err instanceof Error && err.message.includes('Authentication required')) {
+			return true;
+		}
+		return false;
 	}
 
 	/**
@@ -481,17 +527,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (v.kind === 'file') {
 				const uri = v.value instanceof URI ? v.value : undefined;
 				if (uri?.scheme === 'file') {
-					attachments.push({ type: 'file', path: uri.fsPath, displayName: v.name });
+					attachments.push({ type: AttachmentType.File, path: uri.fsPath, displayName: v.name });
 				}
 			} else if (v.kind === 'directory') {
 				const uri = v.value instanceof URI ? v.value : undefined;
 				if (uri?.scheme === 'file') {
-					attachments.push({ type: 'directory', path: uri.fsPath, displayName: v.name });
+					attachments.push({ type: AttachmentType.Directory, path: uri.fsPath, displayName: v.name });
 				}
 			} else if (v.kind === 'implicit' && v.isSelection) {
 				const uri = v.uri;
 				if (uri?.scheme === 'file') {
-					attachments.push({ type: 'selection', path: uri.fsPath, displayName: v.name });
+					attachments.push({ type: AttachmentType.Selection, path: uri.fsPath, displayName: v.name });
 				}
 			}
 		}

@@ -307,7 +307,7 @@ function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: 
 	try {
 		discoverBreaks(range, spans, charOffsets, 0, null, lineContent.length - 1, null, breakOffsets);
 	} catch (err) {
-		console.log(err);
+		console.error(err);
 		return null;
 	}
 

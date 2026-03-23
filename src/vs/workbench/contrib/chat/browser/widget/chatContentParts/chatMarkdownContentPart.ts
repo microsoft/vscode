@@ -15,7 +15,7 @@ import { coalesce } from '../../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { autorun, autorunSelfDisposable, derived } from '../../../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
@@ -396,6 +396,13 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		}
 	}
 
+	override dispose(): void {
+		super.dispose();
+
+		dispose(this.allRefs);
+		this.allRefs.length = 0;
+	}
+
 	private renderCodeBlockPill(sessionResource: URI, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined): IDisposableReference<CollapsedCodeBlock> {
 		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock, sessionResource, requestId, inUndoStop);
 		if (codemapperUri) {
@@ -525,15 +532,6 @@ export class CollapsedCodeBlock extends Disposable {
 
 		this.element.appendChild(this.statusIndicatorContainer);
 		this.element.appendChild(this.pillElement);
-
-		// Toggle show-checkmarks class for the accessibility setting
-		const updateCheckmarks = () => this.element.classList.toggle('show-checkmarks', !!this.configurationService.getValue<boolean>(AccessibilityWorkbenchSettingId.ShowChatCheckmarks));
-		updateCheckmarks();
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AccessibilityWorkbenchSettingId.ShowChatCheckmarks)) {
-				updateCheckmarks();
-			}
-		}));
 
 		this.registerListeners();
 	}

@@ -20,13 +20,13 @@ import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../.
 import { IAgentSession, isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/browser/newSession.js';
+import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { INewSession, CopilotCLISession, RemoteNewSession, AgentHostNewSession } from '../../chat/browser/newSession.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { isBuiltinChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionProject.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionWorkspace.js';
 import { IGitHubSessionContext } from '../../github/common/types.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 
@@ -84,10 +84,15 @@ export interface ISessionsManagementService {
 	openNewSessionView(): void;
 
 	/**
+	 * Returns the repository URI for the given session, if available.
+	 */
+	getSessionRepositoryUri(session: IAgentSession): URI | undefined;
+
+	/**
 	 * Create a pending session object for the given target type.
 	 * Local sessions collect options locally; remote sessions notify the extension.
 	 */
-	createNewSessionForTarget(target: AgentSessionProviders, sessionResource: URI, defaultRepoUri?: URI): Promise<INewSession>;
+	createNewSessionForTarget(target: AgentSessionTarget, sessionResource: URI, options?: { defaultRepoUri?: URI; agentHost?: boolean }): Promise<INewSession>;
 
 	/**
 	 * Open a new session, apply options, and send the initial request.
@@ -260,14 +265,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await this.instantiationService.invokeFunction(openSessionDefault, existingSession, openOptions);
 	}
 
-	async createNewSessionForTarget(target: AgentSessionProviders, sessionResource: URI, defaultRepoUri?: URI): Promise<INewSession> {
+	async createNewSessionForTarget(target: AgentSessionTarget, sessionResource: URI, options?: { defaultRepoUri?: URI; agentHost?: boolean }): Promise<INewSession> {
 		if (!this.isNewChatSessionContext.get()) {
 			this.isNewChatSessionContext.set(true);
 		}
 
 		let newSession: INewSession;
 		if (target === AgentSessionProviders.Background) {
-			newSession = this.instantiationService.createInstance(LocalNewSession, sessionResource, defaultRepoUri);
+			newSession = this.instantiationService.createInstance(CopilotCLISession, sessionResource, options?.defaultRepoUri);
+		} else if (options?.agentHost) {
+			newSession = new AgentHostNewSession(sessionResource, target);
 		} else {
 			newSession = this.instantiationService.createInstance(RemoteNewSession, sessionResource, target);
 		}
@@ -396,12 +403,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (selectedOptions && selectedOptions.size > 0) {
 				const contributedSession = model.contributedChatSession;
 				if (contributedSession) {
-					const initialSessionOptions = [...selectedOptions.entries()].map(
-						([optionId, value]) => ({ optionId, value })
-					);
 					model.setContributedChatSession({
 						...contributedSession,
-						initialSessionOptions,
+						initialSessionOptions: selectedOptions,
 					});
 				}
 			}
@@ -458,6 +462,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		this.setActiveSession(undefined);
 		this.isNewChatSessionContext.set(true);
+	}
+
+	getSessionRepositoryUri(session: IAgentSession): URI | undefined {
+		const [repositoryUri] = this.getRepositoryFromMetadata(session);
+		return repositoryUri;
 	}
 
 	private setActiveSession(session: IAgentSession | INewSession | undefined): void {

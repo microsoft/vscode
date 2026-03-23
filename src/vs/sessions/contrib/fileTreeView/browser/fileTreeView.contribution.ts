@@ -8,7 +8,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { GitHubFileSystemProvider } from './githubFileSystemProvider.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionProject.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionWorkspace.js';
 
 // --- View registration is currently disabled in favor of the "Add Context" picker.
 // The Files view will be re-enabled once we finalize the sessions auxiliary bar layout.

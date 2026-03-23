@@ -137,6 +137,7 @@ suite('debugConfigurationManager', () => {
 					pid: 1,
 					connectionToken: 'token',
 					appRoot: URI.file('/remote/app'),
+					execPath: '/remote/app/node',
 					tmpDir: URI.file('/remote/tmp'),
 					settingsPath: URI.file('/remote/settings.json'),
 					mcpResource: URI.file('/remote/mcp.json'),

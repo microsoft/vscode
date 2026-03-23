@@ -19,7 +19,7 @@ import { BufferedEmitter } from '../../../../base/parts/ipc/common/ipc.net.js';
 import { acquirePort } from '../../../../base/parts/ipc/electron-browser/ipc.mp.js';
 import * as nls from '../../../../nls.js';
 import { IExtensionHostDebugService } from '../../../../platform/debug/common/extensionHostDebug.js';
-import { IExtensionHostProcessOptions, IExtensionHostStarter } from '../../../../platform/extensions/common/extensionHostStarter.js';
+import { extensionHostGraceTimeMs, IExtensionHostProcessOptions, IExtensionHostStarter } from '../../../../platform/extensions/common/extensionHostStarter.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService, ILoggerService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
@@ -32,7 +32,7 @@ import { IWorkspaceContextService, WorkbenchState, isUntitledWorkspace } from '.
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-browser/environmentService.js';
 import { IShellEnvironmentService } from '../../environment/electron-browser/shellEnvironmentService.js';
 import { MessagePortExtHostConnection, writeExtHostConnection } from '../common/extensionHostEnv.js';
-import { IExtensionHostInitData, MessageType, NativeLogMarkers, UIKind, isMessageOfType } from '../common/extensionHostProtocol.js';
+import { createMessageOfType, IExtensionHostInitData, MessageType, NativeLogMarkers, UIKind, isMessageOfType } from '../common/extensionHostProtocol.js';
 import { LocalProcessRunningLocation } from '../common/extensionRunningLocation.js';
 import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IExtensionInspectInfo } from '../common/extensions.js';
 import { IHostService } from '../../host/browser/host.js';
@@ -81,6 +81,10 @@ export class ExtensionHostProcess {
 
 	public enableInspectPort(): Promise<boolean> {
 		return this._extensionHostStarter.enableInspectPort(this._id);
+	}
+
+	public waitForExit(maxWaitTimeMs: number): Promise<void> {
+		return this._extensionHostStarter.waitForExit(this._id, maxWaitTimeMs);
 	}
 
 	public kill(): Promise<void> {
@@ -161,11 +165,36 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 	}
 
 	public override dispose(): void {
-		if (this._terminating) {
-			return;
+		if (!this._terminating) {
+			this._terminating = true;
 		}
-		this._terminating = true;
 		super.dispose();
+		this._messageProtocol = null;
+	}
+
+	public async disconnect(): Promise<void> {
+		this._terminating = true;
+
+		if (this._messageProtocol) {
+			try {
+				const protocol = await Promise.race([
+					this._messageProtocol.then(protocol => protocol, () => undefined),
+					timeout(1000).then(() => undefined)
+				]);
+				protocol?.send(createMessageOfType(MessageType.Terminate));
+			} catch {
+				// ignore - extension host may have already exited
+			}
+		}
+
+		if (this._extensionHostProcess) {
+			try {
+				await this._extensionHostProcess.waitForExit(extensionHostGraceTimeMs);
+			} catch {
+				// best-effort: waitForExit may reject with canceled() if the main side is already shutting down
+			}
+		}
+
 		this._messageProtocol = null;
 	}
 
