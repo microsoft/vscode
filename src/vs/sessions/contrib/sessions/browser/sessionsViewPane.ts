@@ -26,7 +26,11 @@ import { AgentSessionsControl } from '../../../../workbench/contrib/chat/browser
 import { AgentSessionsFilter, AgentSessionsGrouping, AgentSessionsSorting } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsFilter.js';
 import { AgentSessionProviders, isAgentHostTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from './sessionsManagementService.js';
-import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -101,6 +105,15 @@ export class AgenticSessionsViewPane extends ViewPane {
 		this.viewPaneContainer.classList.add('agent-sessions-viewpane');
 
 		this.createControls(parent);
+	}
+
+	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
+		if (action instanceof SubmenuItemAction) {
+			// Don't render submenu dropdowns as children of the sidebar;
+			// the sidebar's overflow:hidden clips them.
+			return createActionViewItem(this.instantiationService, action, { ...options, menuAsChild: false });
+		}
+		return super.createActionViewItem(action, options);
 	}
 
 	protected override getLocationBasedColors(): IViewPaneLocationColors {
