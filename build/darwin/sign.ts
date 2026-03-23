@@ -117,6 +117,13 @@ async function main(buildDir?: string): Promise<void> {
 			'An application in Visual Studio Code wants to use the Camera.',
 			`${infoPlistPath}`
 		]);
+		await spawn('plutil', [
+			'-replace',
+			'NSAudioCaptureUsageDescription',
+			'-string',
+			'An application in Visual Studio Code wants to use Audio Capture.',
+			`${infoPlistPath}`
+		]);
 	}
 
 	await retrySignOnKeychainError(() => sign(appOpts));

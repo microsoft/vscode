@@ -11,11 +11,13 @@ import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rang
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { localize, localize2 } from '../../../../../nls.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
 import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IListService } from '../../../../../platform/list/browser/listService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, TEXT_DIFF_EDITOR_ID } from '../../../../common/editor.js';
@@ -210,6 +212,7 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 	override async runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration): Promise<void> {
 
 		const instaService = accessor.get(IInstantiationService);
+		const configService = accessor.get(IConfigurationService);
 
 		if (this._keep) {
 			session.accept(entry.modifiedURI);
@@ -217,7 +220,9 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 			session.reject(entry.modifiedURI);
 		}
 
-		await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true);
+		if (configService.getValue<boolean>(ChatConfiguration.RevealNextChangeOnResolve)) {
+			await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true);
+		}
 	}
 }
 
@@ -269,6 +274,7 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 	override async runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> {
 
 		const instaService = accessor.get(IInstantiationService);
+		const configService = accessor.get(IConfigurationService);
 
 		if (this._accept) {
 			await ctrl.acceptNearestChange(args[0] as IModifiedFileEntryChangeHunk | undefined);
@@ -276,7 +282,7 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 			await ctrl.rejectNearestChange(args[0] as IModifiedFileEntryChangeHunk | undefined);
 		}
 
-		if (entry.changesCount.get() === 0) {
+		if (configService.getValue<boolean>(ChatConfiguration.RevealNextChangeOnResolve) && entry.changesCount.get() === 0) {
 			// no more changes, move to next file
 			await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true);
 		}
@@ -348,7 +354,7 @@ class ToggleAccessibleDiffViewAction extends ChatEditingEditorAction {
 			f1: true,
 			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
 			keybinding: {
-				when: EditorContextKeys.focus,
+				when: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyCode.F7,
 			}

@@ -911,17 +911,28 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}
 	}
 
+	private _safeCreateSnapshot(model: NotebookTextModel): string {
+		try {
+			return createSnapshot(model, this.transientOptions, this.configurationService);
+		} catch (e) {
+			this.loggingService.error('Notebook Chat', `Error creating snapshot: ${e instanceof Error ? e.message : e}`);
+			return this.initialContent;
+		}
+	}
+
 	public getCurrentSnapshot() {
-		return createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
+		return this._safeCreateSnapshot(this.modifiedModel);
 	}
 
 	override createSnapshot(chatSessionResource: URI, requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
+		const original = this._safeCreateSnapshot(this.originalModel);
+		const current = this.getCurrentSnapshot();
 		return {
 			resource: this.modifiedURI,
 			languageId: SnapshotLanguageId,
 			snapshotUri: getNotebookSnapshotFileURI(chatSessionResource, requestId, undoStop, this.modifiedURI.path, this.modifiedModel.viewType),
-			original: createSnapshot(this.originalModel, this.transientOptions, this.configurationService),
-			current: createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService),
+			original,
+			current,
 			state: this.state.get(),
 			telemetryInfo: this.telemetryInfo,
 		};

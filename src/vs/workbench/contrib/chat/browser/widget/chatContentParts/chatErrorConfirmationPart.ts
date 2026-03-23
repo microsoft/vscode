@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatErrorLevel, IChatResponseErrorDetailsConfirmationButton, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { assertIsResponseVM, IChatErrorDetailsPart, IChatRendererContent } from '../../../common/model/chatViewModel.js';
-import { IChatWidgetService } from '../../chat.js';
+import { IChatAccessibilityService, IChatWidgetService } from '../../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatErrorWidget } from './chatErrorContentPart.js';
 
@@ -31,6 +31,7 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IChatService chatService: IChatService,
+		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
 	) {
 		super();
 
@@ -58,6 +59,7 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 				const widget = chatWidgetService.getWidgetBySessionResource(element.sessionResource);
 				options.userSelectedModelId = widget?.input.currentLanguageModel;
 				Object.assign(options, widget?.getModeRequestOptions());
+				this.chatAccessibilityService.acceptRequest(element.sessionResource);
 				await chatService.sendRequest(element.sessionResource, prompt, options);
 			}));
 		});

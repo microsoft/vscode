@@ -7,38 +7,42 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IChatAgentRequest, IChatAgentService } from '../../participants/chatAgents.js';
-import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
-import { IChatProgress, IChatService } from '../../chatService/chatService.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js';
+import { IChatProgress, IChatService } from '../../chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../constants.js';
 import { ILanguageModelsService } from '../../languageModels.js';
+import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
+import { IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../participants/chatAgents.js';
+import { ComputeAutomaticInstructions } from '../../promptSyntax/computeAutomaticInstructions.js';
+import { ChatRequestHooks, mergeHooks } from '../../promptSyntax/hookSchema.js';
+import { HookType } from '../../promptSyntax/hookTypes.js';
+import { ICustomAgent, IPromptsService } from '../../promptSyntax/service/promptsService.js';
+import { isBuiltinAgent } from '../../promptSyntax/utils/promptsServiceUtils.js';
 import {
 	CountTokensCallback,
 	ILanguageModelToolsService,
 	IPreparedToolInvocation,
+	isToolSet,
 	IToolData,
 	IToolImpl,
 	IToolInvocation,
 	IToolInvocationPreparationContext,
 	IToolResult,
-	isToolSet,
 	ToolDataSource,
 	ToolProgress,
 	VSCodeToolReference,
 } from '../languageModelToolsService.js';
-import { ComputeAutomaticInstructions } from '../../promptSyntax/computeAutomaticInstructions.js';
 import { ManageTodoListToolToolId } from './manageTodoListTool.js';
 import { createToolSimpleTextResult } from './toolHelpers.js';
-import { ICustomAgent, IPromptsService } from '../../promptSyntax/service/promptsService.js';
 
 const BaseModelDescription = `Launch a new agent to handle complex, multi-step tasks autonomously. This tool is good at researching complex questions, searching for code, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries, use this agent to perform the search for you.
 
@@ -60,6 +64,12 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 	readonly onDidUpdateToolData: Event<IConfigurationChangeEvent>;
 
+	/** Hack to port data between prepare/invoke */
+	private readonly _resolvedModels = new Map<string, { modeModelId: string | undefined; resolvedModelName: string | undefined }>();
+
+	/** Tracks the current subagent nesting depth per session to detect and limit recursion. */
+	private readonly _sessionDepth = new Map<string, number>();
+
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatService private readonly chatService: IChatService,
@@ -70,9 +80,12 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
-		this.onDidUpdateToolData = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.SubagentToolCustomAgents));
+		this.onDidUpdateToolData = Event.filter(this.configurationService.onDidChangeConfiguration, e =>
+			e.affectsConfiguration(ChatConfiguration.SubagentToolCustomAgents)
+		);
 	}
 
 	getToolData(): IToolData {
@@ -143,32 +156,30 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			let modeTools = invocation.userSelectedTools;
 			let modeInstructions: IChatRequestModeInstructions | undefined;
 			let subagent: ICustomAgent | undefined;
+			let resolvedModelName: string | undefined;
 
 			const subAgentName = args.agentName;
 			if (subAgentName) {
 				subagent = await this.getSubAgentByName(subAgentName);
 				if (subagent) {
-					// Use mode-specific model if available
-					const modeModelQualifiedNames = subagent.model;
-					if (modeModelQualifiedNames) {
-						// Find the actual model identifier from the qualified name(s)
-						outer: for (const qualifiedName of modeModelQualifiedNames) {
-							const lmByQualifiedName = this.languageModelsService.lookupLanguageModelByQualifiedName(qualifiedName);
-							for (const fullId of this.languageModelsService.getLanguageModelIds()) {
-								const lmById = this.languageModelsService.lookupLanguageModel(fullId);
-								if (lmById && lmById?.id === lmByQualifiedName?.id) {
-									modeModelId = fullId;
-									break outer;
-								}
-							}
-						}
+					// Check the pre-resolved model cache from prepareToolInvocation
+					const cached = this._resolvedModels.get(invocation.callId);
+					if (cached) {
+						this._resolvedModels.delete(invocation.callId);
+						modeModelId = cached.modeModelId;
+						resolvedModelName = cached.resolvedModelName;
+					} else {
+						// Fallback: resolve the model here if prepare didn't cache it
+						const resolved = this.resolveSubagentModel(subagent, invocation.modelId);
+						modeModelId = resolved.modeModelId;
+						resolvedModelName = resolved.resolvedModelName;
 					}
 
 					// Use mode-specific tools if available
 					const modeCustomTools = subagent.tools;
 					if (modeCustomTools) {
 						// Convert the mode's custom tools (array of qualified names) to UserSelectedTools format
-						const enablementMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(modeCustomTools, subagent.target, undefined);
+						const enablementMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(modeCustomTools, undefined);
 						// Convert enablement map to UserSelectedTools (Record<string, boolean>)
 						modeTools = {};
 						for (const [tool, enabled] of enablementMap) {
@@ -184,17 +195,30 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 						content: instructions.content,
 						toolReferences: this.toolsService.toToolReferences(instructions.toolReferences),
 						metadata: instructions.metadata,
+						isBuiltin: isBuiltinAgent(subagent.source, subagent.uri, this.productService),
 					};
 				} else {
 					throw new Error(`Requested agent '${subAgentName}' not found. Try again with the correct agent name, or omit the agentName to use the current agent.`);
+				}
+			} else {
+				// No subagent name - clean up any cached entry and resolve model name from main model
+				const cached = this._resolvedModels.get(invocation.callId);
+				if (cached) {
+					this._resolvedModels.delete(invocation.callId);
+					resolvedModelName = cached.resolvedModelName;
+				} else {
+					const resolvedModelMetadata = modeModelId ? this.languageModelsService.lookupLanguageModel(modeModelId) : undefined;
+					resolvedModelName = resolvedModelMetadata?.name;
 				}
 			}
 
 			// Track whether we should collect markdown (after the last tool invocation)
 			const markdownParts: string[] = [];
 
-			// Generate a stable subAgentInvocationId for routing edits to this subagent's content part
-			const subAgentInvocationId = invocation.callId ?? `subagent-${generateUuid()}`;
+			// Generate a stable subAgentInvocationId for routing edits to this subagent's content part.
+			// Use chatStreamToolCallId when available because that is what ChatToolInvocation.toolCallId
+			// uses in the renderer (see PR #302863), and the subagent grouping matches on toolCallId.
+			const subAgentInvocationId = invocation.chatStreamToolCallId ?? invocation.callId ?? `subagent-${generateUuid()}`;
 
 			let inEdit = false;
 			const progressCallback = (parts: IChatProgress[]) => {
@@ -211,6 +235,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 						} else {
 							model.acceptResponseProgress(request, part);
 						}
+					} else if (part.kind === 'hook') {
+						model.acceptResponseProgress(request, { ...part, subAgentInvocationId });
 					} else if (part.kind === 'markdownContent') {
 						if (inEdit) {
 							model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n```\n\n') });
@@ -223,15 +249,56 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				}
 			};
 
-			if (modeTools) {
-				modeTools[RunSubagentTool.Id] = false;
-				modeTools[ManageTodoListToolToolId] = false;
-				modeTools['copilot_askQuestions'] = false;
+			// Determine whether the subagent should be allowed to spawn its own subagents.
+			const maxDepth = this.configurationService.getValue<number>(ChatConfiguration.SubagentsMaxDepth) ?? 0;
+			const sessionKey = invocation.context.sessionResource.toString();
+			const currentDepth = this._sessionDepth.get(sessionKey) ?? 0;
+			const depthAllowed = currentDepth + 1 <= maxDepth;
+
+			if (!modeTools) {
+				// Initialize modeTools so that we can still enforce the max depth restriction
+				modeTools = {};
+			}
+
+			// Only further-restrict RunSubagentTool: do not re-enable it if it was explicitly disabled.
+			const existingRunSubagentEnablement = modeTools[RunSubagentTool.Id];
+			if (existingRunSubagentEnablement !== false) {
+				modeTools[RunSubagentTool.Id] = depthAllowed; // only enable the Run Subagent tool if we are under the max depth limit
+			}
+
+			modeTools[ManageTodoListToolToolId] = false;
+			modeTools['copilot_askQuestions'] = false;
+
+			if (maxDepth > 0) {
+				this.logService.debug(`RunSubagentTool: Nested subagents enabling ${modeTools[RunSubagentTool.Id]}: session ${sessionKey}, currentDepth: ${currentDepth}, maxDepth: ${maxDepth}`);
 			}
 
 			const variableSet = new ChatRequestVariableSet();
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, modeTools, undefined); // agents can not call subagents
+			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, modeTools, undefined, invocation.context.sessionResource);
 			await computer.collect(variableSet, token);
+
+			// Collect hooks from hook .json files
+			let collectedHooks: ChatRequestHooks | undefined;
+			try {
+				const info = await this.promptsService.getHooks(token, invocation.context.sessionResource);
+				collectedHooks = info?.hooks;
+			} catch (error) {
+				this.logService.warn('[ChatService] Failed to collect hooks:', error);
+			}
+
+			// Merge subagent-level hooks (from the agent's frontmatter) with global hooks.
+			// Remap Stop hooks to SubagentStop since the agent is running as a subagent.
+			if (subagent?.hooks) {
+				const remapped: ChatRequestHooks = { ...subagent.hooks };
+				if (remapped[HookType.Stop]) {
+					const stopHooks = remapped[HookType.Stop];
+					(remapped as Record<string, unknown>)[HookType.SubagentStop] = remapped[HookType.SubagentStop]
+						? [...remapped[HookType.SubagentStop], ...stopHooks]
+						: stopHooks;
+					(remapped as Record<string, unknown>)[HookType.Stop] = undefined;
+				}
+				collectedHooks = mergeHooks(collectedHooks, remapped);
+			}
 
 			// Build the agent request
 			const agentRequest: IChatAgentRequest = {
@@ -241,12 +308,15 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				message: args.prompt,
 				variables: { variables: variableSet.asArray() },
 				location: ChatAgentLocation.Chat,
-				subAgentInvocationId: invocation.callId,
+				subAgentInvocationId: subAgentInvocationId,
 				subAgentName: subAgentName,
 				userSelectedModelId: modeModelId,
+				modelConfiguration: modeModelId ? this.languageModelsService.getModelConfiguration(modeModelId) : undefined,
 				userSelectedTools: modeTools,
 				modeInstructions,
 				parentRequestId: invocation.chatRequestId,
+				hooks: collectedHooks,
+				hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
 			};
 
 			// Subscribe to tool invocations to clear markdown parts when a tool is invoked
@@ -256,17 +326,28 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				}
 			}));
 
-			// Invoke the agent
-			const result = await this.chatAgentService.invokeAgent(
-				defaultAgent.id,
-				agentRequest,
-				progressCallback,
-				[],
-				token
-			);
+			// Invoke the agent, tracking nesting depth for recursion detection
+			this._sessionDepth.set(sessionKey, currentDepth + 1);
+			let result: IChatAgentResult | undefined;
+			try {
+				result = await this.chatAgentService.invokeAgent(
+					defaultAgent.id,
+					agentRequest,
+					progressCallback,
+					[],
+					token
+				);
+			} finally {
+				const newDepth = (this._sessionDepth.get(sessionKey) ?? 1) - 1;
+				if (newDepth <= 0) {
+					this._sessionDepth.delete(sessionKey);
+				} else {
+					this._sessionDepth.set(sessionKey, newDepth);
+				}
+			}
 
 			// Check for errors
-			if (result.errorDetails) {
+			if (result?.errorDetails) {
 				return createToolSimpleTextResult(`Agent error: ${result.errorDetails.message}`);
 			}
 
@@ -277,6 +358,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			// Store result in toolSpecificData for serialization
 			if (invocation.toolSpecificData?.kind === 'subagent') {
 				invocation.toolSpecificData.result = resultText;
+				invocation.toolSpecificData.modelName = resolvedModelName;
 			}
 
 			// Return result with toolMetadata containing subAgentInvocationId for trajectory tracking
@@ -289,6 +371,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					subAgentInvocationId,
 					description: args.description,
 					agentName: agentRequest.subAgentName,
+					modelName: resolvedModelName,
 				}
 			};
 
@@ -306,10 +389,52 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		return agents.find(agent => agent.name === name);
 	}
 
+	/**
+	 * Resolves the model to be used by a subagent, applying multiplier-based
+	 * fallback to avoid using a more expensive model than the main agent.
+	 */
+	private resolveSubagentModel(subagent: ICustomAgent | undefined, mainModelId: string | undefined): { modeModelId: string | undefined; resolvedModelName: string | undefined } {
+		let modeModelId = mainModelId;
+
+		if (subagent) {
+			const modeModelQualifiedNames = subagent.model;
+			if (modeModelQualifiedNames) {
+				// Find the actual model identifier from the qualified name(s)
+				outer: for (const qualifiedName of modeModelQualifiedNames) {
+					const lmByQualifiedName = this.languageModelsService.lookupLanguageModelByQualifiedName(qualifiedName);
+					if (lmByQualifiedName?.identifier) {
+						modeModelId = lmByQualifiedName.identifier;
+						break outer;
+					}
+				}
+			}
+
+			// If the subagent's model has a larger multiplier than the main agent's model,
+			// fall back to the main agent's model to avoid using a more expensive model.
+			if (modeModelId && modeModelId !== mainModelId) {
+				const mainModelMetadata = mainModelId ? this.languageModelsService.lookupLanguageModel(mainModelId) : undefined;
+				const subagentModelMetadata = this.languageModelsService.lookupLanguageModel(modeModelId);
+				const mainMultiplier = mainModelMetadata?.multiplierNumeric;
+				const subagentMultiplier = subagentModelMetadata?.multiplierNumeric;
+				if (mainMultiplier !== undefined && subagentMultiplier !== undefined && subagentMultiplier > mainMultiplier) {
+					this.logService.warn(`[RunSubagentTool] Subagent '${subagent.name}' requested model '${subagentModelMetadata?.name}' (multiplier: ${subagentMultiplier}) which has a larger multiplier than the main agent model '${mainModelMetadata?.name}' (multiplier: ${mainMultiplier}). Falling back to the main agent model.`);
+					modeModelId = mainModelId;
+				}
+			}
+		}
+
+		const resolvedModelMetadata = modeModelId ? this.languageModelsService.lookupLanguageModel(modeModelId) : undefined;
+		return { modeModelId, resolvedModelName: resolvedModelMetadata?.name };
+	}
+
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunSubagentToolInputParams;
 
 		const subagent = args.agentName ? await this.getSubAgentByName(args.agentName) : undefined;
+
+		// Resolve the model early and cache it for invoke()
+		const resolved = this.resolveSubagentModel(subagent, context.modelId);
+		this._resolvedModels.set(context.toolCallId, resolved);
 
 		return {
 			invocationMessage: args.description,
@@ -318,6 +443,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				description: args.description,
 				agentName: subagent?.name,
 				prompt: args.prompt,
+				modelName: resolved.resolvedModelName,
 			},
 		};
 	}

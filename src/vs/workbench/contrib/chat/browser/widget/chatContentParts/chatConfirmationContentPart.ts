@@ -7,7 +7,7 @@ import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
-import { IChatConfirmation, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
+import { ChatSendResult, IChatConfirmation, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatWidgetService } from '../../chat.js';
 import { SimpleChatConfirmationWidget } from './chatConfirmationWidget.js';
@@ -54,7 +54,8 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 				options.location = widget?.location;
 				Object.assign(options, widget?.getModeRequestOptions());
 
-				if (await this.chatService.sendRequest(element.sessionResource, prompt, options)) {
+				const result = await this.chatService.sendRequest(element.sessionResource, prompt, options);
+				if (ChatSendResult.isSent(result)) {
 					confirmation.isUsed = true;
 					confirmationWidget.setShowButtons(false);
 				}

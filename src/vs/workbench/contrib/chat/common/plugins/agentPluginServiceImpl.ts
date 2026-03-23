@@ -1,0 +1,1374 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
+import { parse as parseJSONC } from '../../../../../base/common/json.js';
+import { untildify } from '../../../../../base/common/labels.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { cloneAndChange, equals } from '../../../../../base/common/objects.js';
+import { autorun, derived, derivedOpts, IObservable, ObservablePromise, observableSignal, observableValue } from '../../../../../base/common/observable.js';
+import {
+	posix,
+	win32
+} from '../../../../../base/common/path.js';
+import {
+	basename,
+	extname, isEqualOrParent, joinPath, normalizePath
+} from '../../../../../base/common/resources.js';
+import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
+import { hasKey, Mutable } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { localize } from '../../../../../nls.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { ExtensionIdentifier, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../../services/extensionManagement/common/extensionFeatures.js';
+import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
+import { ChatConfiguration } from '../constants.js';
+import { EnablementModel, IEnablementModel } from '../enablement.js';
+import { parseClaudeHooks } from '../promptSyntax/hookClaudeCompat.js';
+import { parseCopilotHooks } from '../promptSyntax/hookCompatibility.js';
+import { IHookCommand } from '../promptSyntax/hookSchema.js';
+import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
+import { agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from './agentPluginService.js';
+import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
+
+const COMMAND_FILE_SUFFIX = '.md';
+
+/** File suffixes accepted for rule/instruction files (longest first for correct name stripping). */
+const RULE_FILE_SUFFIXES = ['.instructions.md', '.mdc', '.md'];
+
+const enum AgentPluginFormat {
+	Copilot,
+	Claude,
+	OpenPlugin,
+}
+
+interface IAgentPluginFormatAdapter {
+	readonly format: AgentPluginFormat;
+	readonly manifestPath: string;
+	readonly hookConfigPath: string;
+	readonly pluginRootToken: string | undefined;
+	readonly pluginRootEnvVar: string | undefined;
+	parseHooks(hookURI: URI, json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[];
+}
+
+function mapParsedHooks(uri: URI, parsed: Map<IAgentPluginHook['type'], { hooks: IAgentPluginHook['hooks']; originalId: string }>): IAgentPluginHook[] {
+	return [...parsed.entries()].map(([type, { hooks, originalId }]) => ({ type, uri, hooks, originalId }));
+}
+
+/**
+ * Resolves the workspace folder that contains the plugin URI for cwd resolution,
+ * falling back to the first workspace folder for plugins outside the workspace.
+ */
+function resolveWorkspaceRoot(pluginUri: URI, workspaceContextService: IWorkspaceContextService): URI | undefined {
+	const defaultFolder = workspaceContextService.getWorkspace().folders[0];
+	const folder = workspaceContextService.getWorkspaceFolder(pluginUri) ?? defaultFolder;
+	return folder?.uri;
+}
+
+class CopilotPluginFormatAdapter implements IAgentPluginFormatAdapter {
+	readonly format = AgentPluginFormat.Copilot;
+	readonly manifestPath = 'plugin.json';
+	readonly hookConfigPath = 'hooks.json';
+	readonly pluginRootToken = undefined;
+	readonly pluginRootEnvVar = undefined;
+
+	constructor(
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+	) { }
+
+	parseHooks(hookURI: URI, json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
+		const workspaceRoot = resolveWorkspaceRoot(pluginUri, this._workspaceContextService);
+		return mapParsedHooks(hookURI, parseCopilotHooks(json, workspaceRoot, userHome));
+	}
+}
+
+/**
+ * Characters in a file path that require shell quoting to prevent
+ * word splitting or interpretation by common shells (bash, zsh, cmd, PowerShell).
+ */
+const shellUnsafeChars = /[\s&|<>()^;!`"']/;
+
+/**
+ * Replaces `${CLAUDE_PLUGIN_ROOT}` in a shell command string with the
+ * given fsPath. If the path contains characters that would break shell
+ * parsing (e.g. spaces), occurrences are wrapped in double-quotes.
+ *
+ * The token may be followed by additional path segments like
+ * `${CLAUDE_PLUGIN_ROOT}/scripts/run.sh`; the entire resulting path
+ * (including suffix) is quoted as one unit.
+ *
+ */
+export function shellQuotePluginRootInCommand(command: string, fsPath: string, token: string) {
+	if (!command.includes(token)) {
+		return command;
+	}
+
+	if (!shellUnsafeChars.test(fsPath)) {
+		// Path is shell-safe; plain replacement is fine.
+		return command.replaceAll(token, fsPath);
+	}
+
+	// Replace each token occurrence (plus any trailing path chars that form
+	// a single filesystem argument) with a properly double-quoted expansion.
+	const escapedToken = escapeRegExpCharacters(token);
+	const pattern = new RegExp(
+		// Capture an optional leading quote so we know if it's already quoted
+		`(["']?)` + escapedToken + `([\\w./\\\\~:-]*)`,
+		'g',
+	);
+
+	return command.replace(pattern, (_match, leadingQuote: string, suffix: string) => {
+		const fullPath = fsPath + suffix;
+		if (leadingQuote) {
+			// Already inside quotes — don't add more, just expand.
+			return leadingQuote + fullPath;
+		}
+		// Wrap in double quotes, escaping any embedded double-quote chars.
+		return '"' + fullPath.replace(/"/g, '\\"') + '"';
+	});
+}
+
+/**
+ * Extracts the MCP server map from a raw JSON value. Accepts both the
+ * wrapped format `{ mcpServers: { … } }` (Claude `.mcp.json`) and the
+ * flat format where server entries are at the top level.
+ * Returns `undefined` when the input is not a usable object.
+ */
+export function resolveMcpServersMap(raw: unknown): Record<string, unknown> | undefined {
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+		return undefined;
+	}
+	const obj = raw as Record<string, unknown>;
+	return Object.hasOwn(obj, 'mcpServers')
+		? (obj.mcpServers as Record<string, unknown>)
+		: obj;
+}
+
+/**
+ * Replaces `${token}` references in MCP server definition string fields
+ * (command, args, cwd, env values, url, envFile, headers) with the plugin
+ * root filesystem path. No shell quoting is needed because args are already
+ * a string array.
+ */
+function interpolateMcpPluginRoot(
+	def: IAgentPluginMcpServerDefinition,
+	fsPath: string,
+	token: string,
+	envVar: string,
+): IAgentPluginMcpServerDefinition {
+	const replace = (s: string) => s.replaceAll(token, fsPath);
+
+	const config = def.configuration;
+	let interpolated: IMcpServerConfiguration;
+
+	if (config.type === McpServerType.LOCAL) {
+		const local: Mutable<IMcpStdioServerConfiguration> = { ...config };
+		local.command = replace(local.command);
+		if (local.args) {
+			local.args = local.args.map(replace);
+		}
+		if (local.cwd) {
+			local.cwd = replace(local.cwd);
+		}
+		local.env = { ...local.env };
+		for (const [k, v] of Object.entries(local.env)) {
+			if (typeof v === 'string') {
+				local.env[k] = replace(v);
+			}
+		}
+		local.env[envVar] = fsPath;
+		if (local.envFile) {
+			local.envFile = replace(local.envFile);
+		}
+		interpolated = local;
+	} else {
+		const remote: Mutable<IMcpRemoteServerConfiguration> = { ...config };
+		remote.url = replace(remote.url);
+		if (remote.headers) {
+			remote.headers = Object.fromEntries(
+				Object.entries(remote.headers).map(([k, v]) => [k, replace(v)])
+			);
+		}
+		interpolated = remote;
+	}
+
+	return { name: def.name, configuration: interpolated, uri: def.uri };
+}
+
+/**
+ * Regular expression matching bare `${VAR_NAME}` references that are NOT
+ * already using VS Code's `${env:VAR}` colon-delimited syntax. Only matches
+ * uppercase letters, digits, and underscores — the characters valid in POSIX
+ * environment variable names.
+ *
+ * Negative lookbehind ensures we skip tokens that already carry a namespace
+ * prefix (e.g. `${env:HOME}`, `${config:editor.fontSize}`).
+ */
+const BARE_ENV_VAR_RE = /\$\{(?![A-Za-z]+:)([A-Z_][A-Z0-9_]*)\}/g;
+
+/**
+ * Converts bare `${VAR}` environment-variable references found in MCP server
+ * definition strings to the VS Code `${env:VAR}` syntax so that the
+ * `configurationResolverService` can resolve them later in the pipeline.
+ *
+ * The MCP ecosystem (Claude Desktop, Copilot CLI) uses bare `${VAR}` to
+ * reference environment variables, while VS Code's resolver expects the
+ * `${env:VAR}` form. This function bridges that gap for all plugin-provided
+ * MCP server definitions.
+ *
+ * Only references whose name consists of uppercase letters, digits, and
+ * underscores are converted — this avoids transforming VS Code's own variable
+ * tokens (e.g. `${workspaceFolder}`) which use lowercase/camelCase names.
+ */
+export function convertBareEnvVarsToVsCodeSyntax(
+	def: IAgentPluginMcpServerDefinition,
+): IAgentPluginMcpServerDefinition {
+	return cloneAndChange(def, (value) => {
+		if (URI.isUri(value)) {
+			return value;
+		}
+		if (typeof value === 'string') {
+			const replaced = value.replace(BARE_ENV_VAR_RE, '${env:$1}');
+			return replaced !== value ? replaced : undefined;
+		}
+		return undefined;
+	});
+}
+
+/**
+ * Shared hook-parsing logic for plugin formats that use the Claude/open-plugin
+ * hook schema. Replaces `${token}` references in hook commands with the plugin
+ * root path (shell-quoted when necessary), injects an environment variable, and
+ * delegates to {@link parseClaudeHooks} for the actual hook resolution.
+ */
+function parsePluginRootHooks(
+	hookURI: URI,
+	json: unknown,
+	pluginUri: URI,
+	userHome: string,
+	workspaceContextService: IWorkspaceContextService,
+	token: string,
+	envVar: string,
+): IAgentPluginHook[] {
+	const fsPath = pluginUri.fsPath;
+	const typedJson = json as { hooks?: Record<string, unknown[]> };
+
+	const mutateHookCommand = (hook: Mutable<IHookCommand>): void => {
+		for (const field of ['command', 'windows', 'linux', 'osx'] as const) {
+			if (typeof hook[field] === 'string') {
+				hook[field] = shellQuotePluginRootInCommand(hook[field], fsPath, token);
+			}
+		}
+
+		hook.env ??= {};
+		hook.env[envVar] = fsPath;
+	};
+
+	for (const lifecycle of Object.values(typedJson.hooks ?? {})) {
+		if (!Array.isArray(lifecycle)) {
+			continue;
+		}
+
+		for (const lifecycleEntry of lifecycle) {
+			if (!lifecycleEntry || typeof lifecycleEntry !== 'object') {
+				continue;
+			}
+
+			const entry = lifecycleEntry as { hooks?: Mutable<IHookCommand>[] } & Mutable<IHookCommand>;
+			if (Array.isArray(entry.hooks)) {
+				for (const hook of entry.hooks) {
+					mutateHookCommand(hook);
+				}
+			} else {
+				mutateHookCommand(entry);
+			}
+		}
+	}
+
+	const replacer = (v: unknown): unknown => {
+		return typeof v === 'string'
+			? v.replaceAll(token, pluginUri.fsPath)
+			: undefined;
+	};
+
+	const workspaceRoot = resolveWorkspaceRoot(pluginUri, workspaceContextService);
+	const { hooks, disabledAllHooks } = parseClaudeHooks(cloneAndChange(json, replacer), workspaceRoot, userHome);
+	if (disabledAllHooks) {
+		return [];
+	}
+
+	return mapParsedHooks(hookURI, hooks);
+}
+
+class ClaudePluginFormatAdapter implements IAgentPluginFormatAdapter {
+	readonly format = AgentPluginFormat.Claude;
+	readonly manifestPath = '.claude-plugin/plugin.json';
+	readonly hookConfigPath = 'hooks/hooks.json';
+	readonly pluginRootToken = '${CLAUDE_PLUGIN_ROOT}';
+	readonly pluginRootEnvVar = 'CLAUDE_PLUGIN_ROOT';
+
+	constructor(
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+	) { }
+
+	parseHooks(hookURI: URI, json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
+		return parsePluginRootHooks(hookURI, json, pluginUri, userHome, this._workspaceContextService, '${CLAUDE_PLUGIN_ROOT}', 'CLAUDE_PLUGIN_ROOT');
+	}
+}
+
+class OpenPluginFormatAdapter implements IAgentPluginFormatAdapter {
+	readonly format = AgentPluginFormat.OpenPlugin;
+	readonly manifestPath = '.plugin/plugin.json';
+	readonly hookConfigPath = 'hooks/hooks.json';
+	readonly pluginRootToken = '${PLUGIN_ROOT}';
+	readonly pluginRootEnvVar = 'PLUGIN_ROOT';
+
+	constructor(
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+	) { }
+
+	parseHooks(hookURI: URI, json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
+		return parsePluginRootHooks(hookURI, json, pluginUri, userHome, this._workspaceContextService, '${PLUGIN_ROOT}', 'PLUGIN_ROOT');
+	}
+}
+
+interface IComponentPathConfig {
+	readonly paths: readonly string[];
+	readonly exclusive: boolean;
+}
+
+const emptyComponentPathConfig: IComponentPathConfig = { paths: [], exclusive: false };
+
+/**
+ * Parses a manifest component path field (e.g. `commands`, `skills`, `agents`)
+ * into a normalized config. Supports:
+ * - `undefined` → empty supplemental config
+ * - `string` → single supplemental path
+ * - `string[]` → multiple supplemental paths
+ * - `{ paths: string[], exclusive?: boolean }` → as-is
+ *
+ * Paths that resolve outside the plugin root are silently dropped
+ * in {@link resolveComponentDirs}.
+ */
+function parseComponentPathConfig(raw: unknown): IComponentPathConfig {
+	if (raw === undefined || raw === null) {
+		return emptyComponentPathConfig;
+	}
+
+	if (typeof raw === 'string') {
+		const trimmed = raw.trim();
+		return trimmed ? { paths: [trimmed], exclusive: false } : emptyComponentPathConfig;
+	}
+
+	if (Array.isArray(raw)) {
+		const paths = raw
+			.filter(v => typeof v === 'string')
+			.map(v => v.trim())
+			.filter(v => v.length > 0);
+		return { paths, exclusive: false };
+	}
+
+	if (typeof raw === 'object') {
+		const obj = raw as Record<string, unknown>;
+		if (Array.isArray(obj['paths'])) {
+			const paths = (obj['paths'] as unknown[])
+				.filter(v => typeof v === 'string')
+				.map(v => v.trim())
+				.filter(v => v.length > 0);
+			const exclusive = obj['exclusive'] === true;
+			return { paths, exclusive };
+		}
+	}
+
+	return emptyComponentPathConfig;
+}
+
+/**
+ * Resolves the directories to scan for a given component type, combining
+ * the default directory with any custom paths from the manifest config.
+ * Paths that resolve outside the plugin root are silently ignored.
+ */
+function resolveComponentDirs(pluginUri: URI, defaultDir: string, config: IComponentPathConfig): readonly URI[] {
+	const dirs: URI[] = [];
+	if (!config.exclusive) {
+		dirs.push(joinPath(pluginUri, defaultDir));
+	}
+	for (const p of config.paths) {
+		const resolved = normalizePath(joinPath(pluginUri, p));
+		if (isEqualOrParent(resolved, pluginUri)) {
+			dirs.push(resolved);
+		}
+	}
+	return dirs;
+}
+
+export class AgentPluginService extends Disposable implements IAgentPluginService {
+
+	declare readonly _serviceBrand: undefined;
+
+	public readonly plugins: IObservable<readonly IAgentPlugin[]>;
+	public readonly enablementModel: IEnablementModel;
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
+	) {
+		super();
+
+		this.enablementModel = this._register(new EnablementModel('agentPlugins.enablement', storageService));
+
+		const pluginsEnabled = observableConfigValue(ChatConfiguration.PluginsEnabled, true, configurationService);
+
+		const discoveries: IAgentPluginDiscovery[] = [];
+		for (const descriptor of agentPluginDiscoveryRegistry.getAll()) {
+			const discovery = instantiationService.createInstance(descriptor);
+			this._register(discovery);
+			discoveries.push(discovery);
+			discovery.start(this.enablementModel);
+		}
+
+
+		this.plugins = derived(read => {
+			if (!pluginsEnabled.read(read)) {
+				return [];
+			}
+			return this._dedupeAndSort(discoveries.flatMap(d => d.plugins.read(read)));
+		});
+	}
+
+	private _dedupeAndSort(plugins: readonly IAgentPlugin[]): readonly IAgentPlugin[] {
+		const unique: IAgentPlugin[] = [];
+		const seen = new ResourceSet();
+
+		for (const plugin of plugins) {
+			if (seen.has(plugin.uri)) {
+				continue;
+			}
+
+			seen.add(plugin.uri);
+			unique.push(plugin);
+		}
+
+		unique.sort((a, b) => a.uri.toString().localeCompare(b.uri.toString()));
+		return unique;
+	}
+}
+
+type PluginEntry = IAgentPlugin;
+
+/**
+ * Describes a single discovered plugin source, before the shared
+ * infrastructure builds the full {@link IAgentPlugin} from it.
+ */
+interface IPluginSource {
+	readonly uri: URI;
+	readonly fromMarketplace: IMarketplacePlugin | undefined;
+	/** Called when remove is invoked on the plugin */
+	remove(): void;
+}
+
+/**
+ * Shared base class for plugin discovery implementations. Contains the common
+ * logic for reading plugin contents (commands, skills, agents, hooks, MCP server
+ * definitions) from the filesystem and watching for live updates.
+ *
+ * Subclasses implement {@link _discoverPluginSources} to determine *which*
+ * plugins exist, while this class handles the rest.
+ */
+export abstract class AbstractAgentPluginDiscovery extends Disposable implements IAgentPluginDiscovery {
+
+	private readonly _pluginEntries = new Map<string, { plugin: PluginEntry; store: DisposableStore; adapter: IAgentPluginFormatAdapter }>();
+
+	private readonly _plugins = observableValue<readonly IAgentPlugin[]>('discoveredAgentPlugins', []);
+	public readonly plugins: IObservable<readonly IAgentPlugin[]> = this._plugins;
+
+	private _discoverVersion = 0;
+	protected _enablementModel!: IEnablementModel;
+
+	constructor(
+		protected readonly _fileService: IFileService,
+		protected readonly _pathService: IPathService,
+		protected readonly _logService: ILogService,
+		protected readonly _instantiationService: IInstantiationService,
+	) {
+		super();
+	}
+
+	public abstract start(enablementModel: IEnablementModel): void;
+
+	protected async _refreshPlugins(): Promise<void> {
+		const version = ++this._discoverVersion;
+		const plugins = await this._discoverAndBuildPlugins();
+		if (version !== this._discoverVersion || this._store.isDisposed) {
+			return;
+		}
+
+		this._plugins.set(plugins, undefined);
+	}
+
+	/** Subclasses return plugin sources to discover. */
+	protected abstract _discoverPluginSources(): Promise<readonly IPluginSource[]>;
+
+	private async _discoverAndBuildPlugins(): Promise<readonly IAgentPlugin[]> {
+		const sources = await this._discoverPluginSources();
+		const plugins: IAgentPlugin[] = [];
+		const seenPluginUris = new Set<string>();
+
+		for (const source of sources) {
+			const key = source.uri.toString();
+			if (!seenPluginUris.has(key)) {
+				seenPluginUris.add(key);
+				const adapter = await this._detectPluginFormatAdapter(source.uri);
+				plugins.push(this._toPlugin(source.uri, adapter, source.fromMarketplace, () => source.remove()));
+			}
+		}
+
+		this._disposePluginEntriesExcept(seenPluginUris);
+
+		plugins.sort((a, b) => a.uri.toString().localeCompare(b.uri.toString()));
+		return plugins;
+	}
+
+	private async _detectPluginFormatAdapter(pluginUri: URI): Promise<IAgentPluginFormatAdapter> {
+		if (await this._pathExists(joinPath(pluginUri, '.plugin', 'plugin.json'))) {
+			return this._instantiationService.createInstance(OpenPluginFormatAdapter);
+		}
+
+		const isInClaudeDirectory = pluginUri.path.split('/').includes('.claude');
+		if (isInClaudeDirectory || await this._pathExists(joinPath(pluginUri, '.claude-plugin', 'plugin.json'))) {
+			return this._instantiationService.createInstance(ClaudePluginFormatAdapter);
+		}
+
+		return this._instantiationService.createInstance(CopilotPluginFormatAdapter);
+	}
+
+	protected async _pathExists(resource: URI): Promise<boolean> {
+		try {
+			await this._fileService.resolve(resource);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	private _toPlugin(uri: URI, adapter: IAgentPluginFormatAdapter, fromMarketplace: IMarketplacePlugin | undefined, removeCallback: () => void): IAgentPlugin {
+		const key = uri.toString();
+		const existing = this._pluginEntries.get(key);
+		if (existing) {
+			if (existing.adapter.format !== adapter.format) {
+				existing.store.dispose();
+				this._pluginEntries.delete(key);
+			} else {
+				return existing.plugin;
+			}
+		}
+
+		const store = new DisposableStore();
+		const enablement = derived(r => this._enablementModel.readEnabled(key, r));
+
+		// Track current component directories for the file watcher. These are
+		// updated whenever the manifest is read (inside each component reader).
+		const manifest = observableValue<Record<string, unknown> | undefined>('agentPluginManifest', undefined);
+
+		const observeComponent = <T>(
+			prop: string,
+			doRead: (uris: readonly URI[]) => Promise<readonly T[]>,
+			tryReadEmbedded?: (section: unknown) => Promise<T[] | undefined>,
+			defaultPath = prop,
+		): IObservable<readonly T[]> => {
+			const secondObs = derivedOpts({ equalsFn: equals }, reader => manifest.read(reader)?.[prop]);
+
+			const wrapped = derived(reader => {
+				const section = secondObs.read(reader);
+				if (tryReadEmbedded) {
+					if (section && typeof section === 'object' && !Array.isArray(section) && !(hasKey(section, { paths: true }))) {
+						return { kind: 'const', data: new ObservablePromise(tryReadEmbedded(section)) } as const;
+					}
+				}
+
+				const paths = parseComponentPathConfig(section);
+				const dirs = resolveComponentDirs(uri, defaultPath, paths);
+				for (const d of dirs) {
+					const watcher = this._fileService.createWatcher(d, { recursive: false, excludes: [] });
+					reader.store.add(watcher);
+					reader.store.add(watcher.onDidChange(() => changeTrigger.trigger(undefined)));
+				}
+
+				return { kind: 'dirs', dirs: dirs } as const;
+			});
+
+			const changeTrigger = observableSignal('fileChange');
+
+			const promised = derived(reader => {
+				const w = wrapped.read(reader);
+				if (w.kind === 'const') {
+					return w.data.promiseResult;
+				} else {
+					changeTrigger.read(reader); // re-run when a relevant file change occurs
+					const promise = new ObservablePromise(doRead(w.dirs));
+					return promise.promiseResult;
+				}
+			});
+
+			const result = promised.map((w, r) => w.read(r)?.data ?? Iterable.empty());
+
+			return result.recomputeInitiallyAndOnChange(store);
+		};
+
+		const manifestUri = joinPath(uri, adapter.manifestPath);
+		const commands = observeComponent('commands', d => this._readMarkdownComponents(d));
+		const skills = observeComponent('skills', d => this._readSkills(uri, d));
+		const agents = observeComponent('agents', d => this._readMarkdownComponents(d));
+		const instructions = observeComponent('rules', d => this._readRules(d));
+		const hooks = observeComponent(
+			'hooks',
+			paths => this._readHooksFromPaths(uri, paths, adapter),
+			async section => {
+				const userHome = (await this._pathService.userHome()).fsPath;
+				return adapter.parseHooks(manifestUri, section, uri, userHome);
+			},
+			adapter.hookConfigPath,
+		);
+
+		const mcpServerDefinitions = observeComponent(
+			'mcpServers',
+			paths => this._readMcpDefinitionsFromPaths(paths, uri.fsPath, adapter),
+			async section => this._parseMcpServerDefinitionMap(manifestUri, { mcpServers: section }, uri.fsPath, adapter),
+			'.mcp.json',
+		);
+
+		// Read the manifest initially and re-read whenever manifest files change.
+		const readManifest = async () => {
+			manifest.set(await this._readManifest(uri, adapter), undefined);
+		};
+
+		const manifestWatcher = this._fileService.createWatcher(
+			manifestUri,
+			{ recursive: false, excludes: [] },
+		);
+		store.add(manifestWatcher);
+		store.add(manifestWatcher.onDidChange(() => readManifest()));
+
+		readManifest();
+
+		const plugin: PluginEntry = {
+			uri,
+			label: fromMarketplace?.name ?? basename(uri),
+			enablement,
+			remove: removeCallback,
+			hooks,
+			commands,
+			skills,
+			agents,
+			instructions,
+			mcpServerDefinitions,
+			fromMarketplace,
+		};
+
+		this._pluginEntries.set(key, { store, plugin, adapter });
+
+		return plugin;
+	}
+
+	private async _readManifest(pluginUri: URI, adapter: IAgentPluginFormatAdapter): Promise<Record<string, unknown> | undefined> {
+		const json = await this._readJsonFile(joinPath(pluginUri, adapter.manifestPath));
+		if (json && typeof json === 'object') {
+			return json as Record<string, unknown>;
+		}
+		return undefined;
+	}
+
+	/**
+	 * Reads hook definitions from a list of resolved paths (JSON files).
+	 * Each path is tried in order; the first one that contains valid hook
+	 * JSON is used.
+	 */
+	private async _readHooksFromPaths(pluginUri: URI, paths: readonly URI[], adapter: IAgentPluginFormatAdapter): Promise<readonly IAgentPluginHook[]> {
+		const userHome = (await this._pathService.userHome()).fsPath;
+		for (const hookPath of paths) {
+			const json = await this._readJsonFile(hookPath);
+			if (json) {
+				try {
+					return adapter.parseHooks(hookPath, json, pluginUri, userHome);
+				} catch (e) {
+					this._logService.info(`[AgentPluginDiscovery] Failed to parse hooks from ${hookPath.toString()}:`, e);
+				}
+			}
+		}
+		return [];
+	}
+
+	/**
+	 * Reads MCP server definitions from a list of resolved paths (JSON files).
+	 * Definitions from all files are merged; the first definition for a given
+	 * server name wins.
+	 */
+	private async _readMcpDefinitionsFromPaths(paths: readonly URI[], pluginFsPath: string, adapter: IAgentPluginFormatAdapter): Promise<readonly IAgentPluginMcpServerDefinition[]> {
+		const merged = new Map<string, IAgentPluginMcpServerDefinition>();
+		for (const mcpPath of paths) {
+			const json = await this._readJsonFile(mcpPath);
+			for (const def of this._parseMcpServerDefinitionMap(mcpPath, json, pluginFsPath, adapter)) {
+				if (!merged.has(def.name)) {
+					merged.set(def.name, def);
+				}
+			}
+		}
+		return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	private _parseMcpServerDefinitionMap(definitionURI: URI, raw: unknown, pluginFsPath: string, adapter: IAgentPluginFormatAdapter): IAgentPluginMcpServerDefinition[] {
+		const mcpServers = resolveMcpServersMap(raw);
+		if (!mcpServers) {
+			return [];
+		}
+
+		const definitions: IAgentPluginMcpServerDefinition[] = [];
+		for (const [name, configValue] of Object.entries(mcpServers)) {
+			const configuration = this._normalizeMcpServerConfiguration(configValue);
+			if (!configuration) {
+				continue;
+			}
+
+			let def: IAgentPluginMcpServerDefinition = { name, configuration, uri: definitionURI };
+			if (adapter.pluginRootToken && adapter.pluginRootEnvVar) {
+				def = interpolateMcpPluginRoot(def, pluginFsPath, adapter.pluginRootToken, adapter.pluginRootEnvVar);
+			}
+			def = convertBareEnvVarsToVsCodeSyntax(def);
+			definitions.push(def);
+		}
+
+		return definitions;
+	}
+
+	private _normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerConfiguration | undefined {
+		if (!rawConfig || typeof rawConfig !== 'object') {
+			return undefined;
+		}
+
+		const candidate = rawConfig as Record<string, unknown>;
+		const type = typeof candidate['type'] === 'string' ? candidate['type'] : undefined;
+
+		const command = typeof candidate['command'] === 'string' ? candidate['command'] : undefined;
+		const url = typeof candidate['url'] === 'string' ? candidate['url'] : undefined;
+		const args = Array.isArray(candidate['args']) ? candidate['args'].filter((value): value is string => typeof value === 'string') : undefined;
+		const env = candidate['env'] && typeof candidate['env'] === 'object'
+			? Object.fromEntries(Object.entries(candidate['env'] as Record<string, unknown>)
+				.filter(([, value]) => typeof value === 'string' || typeof value === 'number' || value === null)
+				.map(([key, value]) => [key, value as string | number | null]))
+			: undefined;
+		const envFile = typeof candidate['envFile'] === 'string' ? candidate['envFile'] : undefined;
+		const cwd = typeof candidate['cwd'] === 'string' ? candidate['cwd'] : undefined;
+		const headers = candidate['headers'] && typeof candidate['headers'] === 'object'
+			? Object.fromEntries(Object.entries(candidate['headers'] as Record<string, unknown>)
+				.filter(([, value]) => typeof value === 'string')
+				.map(([key, value]) => [key, value as string]))
+			: undefined;
+		const dev = candidate['dev'] && typeof candidate['dev'] === 'object' ? candidate['dev'] as IMcpStdioServerConfiguration['dev'] : undefined;
+
+		if (type === 'ws') {
+			return undefined;
+		}
+
+		if (type === McpServerType.LOCAL || (!type && command)) {
+			if (!command) {
+				return undefined;
+			}
+
+			return {
+				type: McpServerType.LOCAL,
+				command,
+				args,
+				env,
+				envFile,
+				cwd,
+				dev,
+			};
+		}
+
+		if (type === McpServerType.REMOTE || type === 'sse' || (!type && url)) {
+			if (!url) {
+				return undefined;
+			}
+
+			return {
+				type: McpServerType.REMOTE,
+				url,
+				headers,
+				dev,
+			};
+		}
+
+		return undefined;
+	}
+
+	private async _readJsonFile(uri: URI): Promise<unknown | undefined> {
+		try {
+			const fileContents = await this._fileService.readFile(uri);
+			return parseJSONC(fileContents.value.toString());
+		} catch {
+			return undefined;
+		}
+	}
+
+	private async _readSkills(pluginRoot: URI, dirs: readonly URI[]): Promise<readonly IAgentPluginSkill[]> {
+		const seen = new Set<string>();
+		const skills: IAgentPluginSkill[] = [];
+
+		const addSkill = (name: string, skillMd: URI) => {
+			if (!seen.has(name)) {
+				seen.add(name);
+				skills.push({ uri: skillMd, name });
+			}
+		};
+
+		for (const dir of dirs) {
+			// If the path points directly to a skill directory (contains SKILL.md),
+			// add it as a single skill instead of scanning its children.
+			const skillMd = URI.joinPath(dir, 'SKILL.md');
+			if (await this._pathExists(skillMd)) {
+				addSkill(basename(dir), skillMd);
+				continue;
+			}
+
+			let stat;
+			try {
+				stat = await this._fileService.resolve(dir);
+			} catch {
+				continue;
+			}
+
+			if (!stat.isDirectory || !stat.children) {
+				continue;
+			}
+
+			for (const child of stat.children) {
+				const childSkillMd = URI.joinPath(child.resource, 'SKILL.md');
+				if (await this._pathExists(childSkillMd)) {
+					addSkill(basename(child.resource), childSkillMd);
+				}
+			}
+		}
+
+		// Fallback: support single-skill plugins with SKILL.md at the plugin root
+		if (skills.length === 0) {
+			const rootSkillMd = URI.joinPath(pluginRoot, 'SKILL.md');
+			if (await this._pathExists(rootSkillMd)) {
+				addSkill(basename(pluginRoot), rootSkillMd);
+			}
+		}
+
+		skills.sort((a, b) => a.name.localeCompare(b.name));
+		return skills;
+	}
+
+	/**
+	 * Scans directories for rule/instruction files (`.mdc`, `.md`,
+	 * `.instructions.md`), returning `{ uri, name }` entries where name is
+	 * derived from the filename minus the matched suffix.
+	 */
+	private async _readRules(dirs: readonly URI[]): Promise<readonly IAgentPluginInstruction[]> {
+		const seen = new Set<string>();
+		const items: IAgentPluginInstruction[] = [];
+
+		const matchSuffix = (filename: string): string | undefined => {
+			const lower = filename.toLowerCase();
+			return RULE_FILE_SUFFIXES.find(s => lower.endsWith(s));
+		};
+
+		const addItem = (name: string, uri: URI) => {
+			if (!seen.has(name)) {
+				seen.add(name);
+				items.push({ uri, name });
+			}
+		};
+
+		for (const dir of dirs) {
+			let stat;
+			try {
+				stat = await this._fileService.resolve(dir);
+			} catch {
+				continue;
+			}
+
+			if (stat.isFile) {
+				const suffix = matchSuffix(basename(dir));
+				if (suffix) {
+					addItem(basename(dir).slice(0, -suffix.length), dir);
+				}
+				continue;
+			}
+
+			if (!stat.isDirectory || !stat.children) {
+				continue;
+			}
+
+			for (const child of stat.children) {
+				if (!child.isFile) {
+					continue;
+				}
+				const suffix = matchSuffix(child.name);
+				if (suffix) {
+					addItem(child.name.slice(0, -suffix.length), child.resource);
+				}
+			}
+		}
+
+		items.sort((a, b) => a.name.localeCompare(b.name));
+		return items;
+	}
+
+	/**
+	 * Scans directories for `.md` files, returning `{ uri, name }` entries
+	 * where name is derived from the filename (minus the `.md` extension).
+	 * If a path points to a specific `.md` file, it is included directly.
+	 * Used for both commands and agents.
+	 */
+	private async _readMarkdownComponents(dirs: readonly URI[]): Promise<readonly { uri: URI; name: string }[]> {
+		const seen = new Set<string>();
+		const items: { uri: URI; name: string }[] = [];
+
+		const addItem = (name: string, uri: URI) => {
+			if (!seen.has(name)) {
+				seen.add(name);
+				items.push({ uri, name });
+			}
+		};
+
+		for (const dir of dirs) {
+			let stat;
+			try {
+				stat = await this._fileService.resolve(dir);
+			} catch {
+				continue;
+			}
+
+
+			// If the path points to a specific .md file, include it directly.
+			if (stat.isFile && extname(dir).toLowerCase() === COMMAND_FILE_SUFFIX) {
+				addItem(basename(dir).slice(0, -COMMAND_FILE_SUFFIX.length), dir);
+				continue;
+			}
+
+
+			if (!stat.isDirectory || !stat.children) {
+				continue;
+			}
+
+			for (const child of stat.children) {
+				if (!child.isFile || extname(child.resource).toLowerCase() !== COMMAND_FILE_SUFFIX) {
+					continue;
+				}
+				addItem(basename(child.resource).slice(0, -COMMAND_FILE_SUFFIX.length), child.resource);
+			}
+		}
+
+		items.sort((a, b) => a.name.localeCompare(b.name));
+		return items;
+	}
+
+	private _disposePluginEntriesExcept(keep: Set<string>): void {
+		for (const [key, entry] of this._pluginEntries) {
+			if (!keep.has(key)) {
+				entry.store.dispose();
+				this._pluginEntries.delete(key);
+			}
+		}
+	}
+
+	public override dispose(): void {
+		this._disposePluginEntriesExcept(new Set<string>());
+		super.dispose();
+	}
+}
+
+export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
+
+	private readonly _pluginLocationsConfig: IObservable<Record<string, boolean>>;
+
+	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IFileService fileService: IFileService,
+		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IPathService pathService: IPathService,
+		@ILogService logService: ILogService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super(fileService, pathService, logService, instantiationService);
+		this._pluginLocationsConfig = observableConfigValue<Record<string, boolean>>(ChatConfiguration.PluginLocations, {}, _configurationService);
+	}
+
+	public override start(enablementModel: IEnablementModel): void {
+		this._enablementModel = enablementModel;
+		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
+		this._register(autorun(reader => {
+			this._pluginLocationsConfig.read(reader);
+			scheduler.schedule();
+		}));
+		scheduler.schedule();
+	}
+
+	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
+		const sources: IPluginSource[] = [];
+		const config = this._pluginLocationsConfig.get();
+		const userHome = await this._getUserHome();
+
+		for (const [path, enabled] of Object.entries(config)) {
+			if (!path.trim() || enabled === false) {
+				continue;
+			}
+
+			const resources = this._resolvePluginPath(path.trim(), userHome);
+			for (const resource of resources) {
+				let stat;
+				try {
+					stat = await this._fileService.resolve(resource);
+				} catch {
+					this._logService.debug(`[ConfiguredAgentPluginDiscovery] Could not resolve plugin path: ${resource.toString()}`);
+					continue;
+				}
+
+				if (!stat.isDirectory) {
+					this._logService.debug(`[ConfiguredAgentPluginDiscovery] Plugin path is not a directory: ${resource.toString()}`);
+					continue;
+				}
+
+				const fromMarketplace = this._pluginMarketplaceService.getMarketplacePluginMetadata(stat.resource);
+				const configKey = path;
+				sources.push({
+					uri: stat.resource,
+					fromMarketplace,
+					remove: () => this._removePluginPath(configKey),
+				});
+			}
+		}
+
+		return sources;
+	}
+
+	private async _getUserHome(): Promise<string> {
+		const userHome = await this._pathService.userHome();
+		return userHome.scheme === 'file' ? userHome.fsPath : userHome.path;
+	}
+
+	/**
+	 * Resolves a plugin path to one or more resource URIs. Supports:
+	 * - Absolute paths (used directly)
+	 * - Tilde paths (expanded to user home directory)
+	 * - Relative paths (resolved against each workspace folder)
+	 */
+	private _resolvePluginPath(path: string, userHome: string): URI[] {
+		if (path.startsWith('~')) {
+			path = untildify(path, userHome);
+		}
+
+		// Handle absolute paths
+		if (win32.isAbsolute(path) || posix.isAbsolute(path)) {
+			return [URI.file(path)];
+		}
+
+		return this._workspaceContextService.getWorkspace().folders.map(
+			folder => joinPath(folder.uri, path)
+		);
+	}
+
+	/**
+	 * Removes a plugin path from `chat.pluginLocations` in the most specific
+	 * config target where the key is defined.
+	 */
+	private _removePluginPath(configKey: string): void {
+		const inspected = this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.PluginLocations);
+
+		const targets = [
+			ConfigurationTarget.WORKSPACE_FOLDER,
+			ConfigurationTarget.WORKSPACE,
+			ConfigurationTarget.USER_LOCAL,
+			ConfigurationTarget.USER_REMOTE,
+			ConfigurationTarget.USER,
+			ConfigurationTarget.APPLICATION,
+		];
+
+		for (const target of targets) {
+			const mapping = getConfigValueInTarget(inspected, target);
+			if (mapping && Object.prototype.hasOwnProperty.call(mapping, configKey)) {
+				const updated = { ...mapping };
+				delete updated[configKey];
+				this._configurationService.updateValue(
+					ChatConfiguration.PluginLocations,
+					updated,
+					target,
+				);
+				return;
+			}
+		}
+	}
+}
+
+export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
+
+	constructor(
+		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
+		@IAgentPluginRepositoryService private readonly _pluginRepositoryService: IAgentPluginRepositoryService,
+		@IFileService fileService: IFileService,
+		@IPathService pathService: IPathService,
+		@ILogService logService: ILogService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super(fileService, pathService, logService, instantiationService);
+	}
+
+	public override start(enablementModel: IEnablementModel): void {
+		this._enablementModel = enablementModel;
+		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
+		this._register(autorun(reader => {
+			this._pluginMarketplaceService.installedPlugins.read(reader);
+			scheduler.schedule();
+		}));
+		scheduler.schedule();
+	}
+
+	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
+		const installed = this._pluginMarketplaceService.installedPlugins.get();
+		const sources: IPluginSource[] = [];
+
+		for (const entry of installed) {
+			let stat;
+			try {
+				stat = await this._fileService.resolve(entry.pluginUri);
+			} catch {
+				this._logService.debug(`[MarketplaceAgentPluginDiscovery] Could not resolve installed plugin: ${entry.pluginUri.toString()}`);
+				continue;
+			}
+
+			if (!stat.isDirectory) {
+				this._logService.debug(`[MarketplaceAgentPluginDiscovery] Installed plugin path is not a directory: ${entry.pluginUri.toString()}`);
+				continue;
+			}
+
+			sources.push({
+				uri: stat.resource,
+				fromMarketplace: entry.plugin,
+				remove: () => {
+					this._enablementModel.remove(stat.resource.toString());
+					this._pluginMarketplaceService.removeInstalledPlugin(entry.pluginUri);
+
+					// Pass remaining installed descriptors so the repository service
+					// can skip deletion when other plugins share the same cache dir.
+					const remaining = this._pluginMarketplaceService.installedPlugins.get();
+					this._pluginRepositoryService.cleanupPluginSource(
+						entry.plugin,
+						remaining.map(e => e.plugin.sourceDescriptor),
+					).catch(error => {
+						this._logService.error('[MarketplaceAgentPluginDiscovery] Failed to clean up plugin source', error);
+					});
+				},
+			});
+		}
+
+		return sources;
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Extension-contributed plugin discovery
+// ---------------------------------------------------------------------------
+
+interface IRawChatPluginContribution {
+	readonly path: string;
+	readonly when?: string;
+}
+
+const epPlugins = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatPluginContribution[]>({
+	extensionPoint: 'chatPlugins',
+	jsonSchema: {
+		description: localize('chatPlugins.schema.description', 'Contributes agent plugins for chat.'),
+		type: 'array',
+		items: {
+			additionalProperties: false,
+			type: 'object',
+			defaultSnippets: [{
+				body: {
+					path: './relative/path/to/plugin/',
+				}
+			}],
+			required: ['path'],
+			properties: {
+				path: {
+					description: localize('chatPlugins.property.path', 'Path to the agent plugin root directory relative to the extension root.'),
+					type: 'string'
+				},
+				when: {
+					description: localize('chatPlugins.property.when', '(Optional) A condition which must be true to enable this plugin.'),
+					type: 'string'
+				}
+			}
+		}
+	}
+});
+
+export class ExtensionAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
+
+	private readonly _extensionPlugins = new Map<string, { uri: URI; when: ContextKeyExpression | undefined; extensionId: string }>();
+	private readonly _whenKeys = new Set<string>();
+
+	constructor(
+		@ICommandService private readonly _commandService: ICommandService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IFileService fileService: IFileService,
+		@IPathService pathService: IPathService,
+		@ILogService logService: ILogService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super(fileService, pathService, logService, instantiationService);
+	}
+
+	public override start(enablementModel: IEnablementModel): void {
+		this._enablementModel = enablementModel;
+		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
+		this._register(this._contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(this._whenKeys)) {
+				scheduler.schedule();
+			}
+		}));
+		epPlugins.setHandler((_extensions, delta) => {
+			for (const ext of delta.added) {
+				for (const raw of ext.value) {
+					if (!raw.path) {
+						ext.collector.error(localize('extension.plugin.missing.path', "Extension '{0}' cannot register a chatPlugins entry without a path.", ext.description.identifier.value));
+						continue;
+					}
+					const pluginUri = joinPath(ext.description.extensionLocation, raw.path);
+					if (!isEqualOrParent(pluginUri, ext.description.extensionLocation)) {
+						ext.collector.error(localize('extension.plugin.invalid.path', "Extension '{0}' chatPlugins entry '{1}' resolves outside the extension.", ext.description.identifier.value, raw.path));
+						continue;
+					}
+					let whenExpr: ContextKeyExpression | undefined;
+					if (raw.when) {
+						whenExpr = ContextKeyExpr.deserialize(raw.when);
+						if (!whenExpr) {
+							ext.collector.error(localize('extension.plugin.invalid.when', "Extension '{0}' chatPlugins entry '{1}' has an invalid when clause: '{2}'.", ext.description.identifier.value, raw.path, raw.when));
+							continue;
+						}
+					}
+					this._extensionPlugins.set(extensionPluginKey(ext.description.identifier, raw.path), { uri: pluginUri, when: whenExpr, extensionId: ext.description.identifier.value });
+				}
+			}
+			for (const ext of delta.removed) {
+				for (const raw of ext.value) {
+					this._extensionPlugins.delete(extensionPluginKey(ext.description.identifier, raw.path));
+				}
+			}
+			this._rebuildWhenKeys();
+			scheduler.schedule();
+		});
+	}
+
+	private _rebuildWhenKeys(): void {
+		this._whenKeys.clear();
+		for (const { when } of this._extensionPlugins.values()) {
+			if (when) {
+				for (const key of when.keys()) {
+					this._whenKeys.add(key);
+				}
+			}
+		}
+	}
+
+	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
+		const sources: IPluginSource[] = [];
+		for (const [, entry] of this._extensionPlugins) {
+			if (entry.when && !this._contextKeyService.contextMatchesRules(entry.when)) {
+				continue;
+			}
+			let stat;
+			try {
+				stat = await this._fileService.resolve(entry.uri);
+			} catch {
+				this._logService.debug(`[ExtensionAgentPluginDiscovery] Could not resolve extension plugin path: ${entry.uri.toString()}`);
+				continue;
+			}
+			if (!stat.isDirectory) {
+				this._logService.debug(`[ExtensionAgentPluginDiscovery] Extension plugin path is not a directory: ${entry.uri.toString()}`);
+				continue;
+			}
+			sources.push({
+				uri: stat.resource,
+				fromMarketplace: undefined,
+				remove: () => this._promptUninstallExtension(entry.extensionId),
+			});
+		}
+		return sources;
+	}
+
+	private async _promptUninstallExtension(extensionId: string): Promise<void> {
+		const { confirmed } = await this._dialogService.confirm({
+			message: localize('uninstallExtensionForPlugin', "This plugin is provided by the extension '{0}'. Do you want to uninstall the extension?", extensionId),
+		});
+		if (confirmed) {
+			await this._commandService.executeCommand('workbench.extensions.uninstallExtension', extensionId);
+		}
+	}
+}
+
+function extensionPluginKey(extensionId: ExtensionIdentifier, path: string): string {
+	return `${extensionId.value}/${path}`;
+}
+
+class ChatPluginsDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+	readonly type = 'table' as const;
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.chatPlugins?.length;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const contributions = manifest.contributes?.chatPlugins ?? [];
+		if (!contributions.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			localize('chatPluginsPath', "Path"),
+			localize('chatPluginsWhen', "When"),
+		];
+
+		const rows: IRowData[][] = contributions.map(d => [
+			d.path,
+			d.when ?? '-',
+		]);
+
+		return {
+			data: { headers, rows },
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'chatPlugins',
+	label: localize('chatPlugins', "Chat Plugins"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ChatPluginsDataRenderer),
+});

@@ -6478,6 +6478,21 @@ declare module 'vscode' {
 	export type CharacterPair = [string, string];
 
 	/**
+	 * Configuration for line comments.
+	 */
+	export interface LineCommentRule {
+		/**
+		 * The line comment token, like `//`
+		 */
+		comment: string;
+		/**
+		 * Whether the comment token should not be indented and placed at the first column.
+		 * Defaults to false.
+		 */
+		noIndent?: boolean;
+	}
+
+	/**
 	 * Describes how comments for a language work.
 	 */
 	export interface CommentRule {
@@ -6485,7 +6500,7 @@ declare module 'vscode' {
 		/**
 		 * The line comment token, like `// this is a comment`
 		 */
-		lineComment?: string;
+		lineComment?: string | LineCommentRule;
 
 		/**
 		 * The block comment character pair, like `/* block comment *&#47;`
@@ -10775,6 +10790,16 @@ declare module 'vscode' {
 		 * `true` if within the first day of installation otherwise `false`.
 		 */
 		export const isNewAppInstall: boolean;
+
+		/**
+		 * Indicates whether the application is running in portable mode.
+		 *
+		 * Portable mode is enabled when the application is run from a folder that contains
+		 * a `data` directory, allowing for self-contained installations.
+		 *
+		 * Learn more about [Portable Mode](https://code.visualstudio.com/docs/editor/portable).
+		 */
+		export const isAppPortable: boolean;
 
 		/**
 		 * Indicates whether the users has telemetry enabled.

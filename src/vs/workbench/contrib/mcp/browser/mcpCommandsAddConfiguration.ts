@@ -383,10 +383,10 @@ export class McpAddConfigurationCommand {
 		});
 
 		const loadingAction = await new Promise<{ id: LoadAction; helpUri?: URI } | undefined>(resolve => {
-			loadingQuickPick.onDidAccept(() => resolve(loadingQuickPick.selectedItems[0]));
-			loadingQuickPick.onDidHide(() => resolve(undefined));
+			loadingQuickPickStore.add(loadingQuickPick.onDidAccept(() => resolve(loadingQuickPick.selectedItems[0])));
+			loadingQuickPickStore.add(loadingQuickPick.onDidHide(() => resolve(undefined)));
 			loadingQuickPick.show();
-		}).finally(() => loadingQuickPick.dispose());
+		}).finally(() => loadingQuickPickStore.dispose());
 
 		switch (loadingAction?.id) {
 			case LoadAction.Retry:
