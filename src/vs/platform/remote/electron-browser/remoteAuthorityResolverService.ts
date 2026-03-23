@@ -50,7 +50,12 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		}
 
 		const result = new DeferredPromise<URI>();
-		this._canonicalURIProvider?.(uri).then((uri) => result.complete(uri), (err) => result.error(err));
+		if (this._canonicalURIProvider) {
+			this._canonicalURIProvider(uri).then(
+				(uri) => { result.complete(uri); this._canonicalURIRequests.delete(key); },
+				(err) => { result.error(err); this._canonicalURIRequests.delete(key); }
+			);
+		}
 		this._canonicalURIRequests.set(key, { input: uri, result });
 		return result.p;
 	}
@@ -109,8 +114,19 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 
 	_setCanonicalURIProvider(provider: (uri: URI) => Promise<URI>): void {
 		this._canonicalURIProvider = provider;
-		this._canonicalURIRequests.forEach(({ result, input }) => {
-			this._canonicalURIProvider!(input).then((uri) => result.complete(uri), (err) => result.error(err));
+		this._canonicalURIRequests.forEach(({ result, input }, key) => {
+			this._canonicalURIProvider!(input).then(
+				(uri) => { result.complete(uri); this._canonicalURIRequests.delete(key); },
+				(err) => { result.error(err); this._canonicalURIRequests.delete(key); }
+			);
 		});
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this._resolveAuthorityRequests.clear();
+		this._connectionTokens.clear();
+		this._canonicalURIRequests.clear();
+		this._canonicalURIProvider = null;
 	}
 }

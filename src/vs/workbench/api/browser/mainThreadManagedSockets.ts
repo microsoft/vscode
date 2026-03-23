@@ -13,6 +13,12 @@ import { IRemoteSocketFactoryService, ISocketFactory } from '../../../platform/r
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostManagedSocketsShape, MainContext, MainThreadManagedSocketsShape } from '../common/extHost.protocol.js';
 
+function disposeSocketHalf(half: RemoteSocketHalf): void {
+	half.onData.dispose();
+	half.onClose.dispose();
+	half.onEnd.dispose();
+}
+
 @extHostNamedCustomer(MainContext.MainThreadManagedSockets)
 export class MainThreadManagedSockets extends Disposable implements MainThreadManagedSocketsShape {
 
@@ -26,6 +32,15 @@ export class MainThreadManagedSockets extends Disposable implements MainThreadMa
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostManagedSockets);
+	}
+
+	override dispose(): void {
+		// Dispose all remaining socket half emitters to prevent leaks
+		for (const half of this._remoteSockets.values()) {
+			disposeSocketHalf(half);
+		}
+		this._remoteSockets.clear();
+		super.dispose();
 	}
 
 	async $registerSocketFactory(socketFactoryId: number): Promise<void> {
@@ -55,11 +70,16 @@ export class MainThreadManagedSockets extends Disposable implements MainThreadMa
 						MainThreadManagedSocket.connect(socketId, that._proxy, path, query, debugLabel, half)
 							.then(
 								socket => {
-									store.add(Event.once(socket.onDidDispose)(() => that._remoteSockets.delete(socketId)));
+									store.add(Event.once(socket.onDidDispose)(() => {
+										that._remoteSockets.delete(socketId);
+										// Note: the ManagedSocket base class registers and disposes half emitters,
+										// so we don't need to dispose them here on successful connection.
+									}));
 									resolve(socket);
 								},
 								err => {
 									that._remoteSockets.delete(socketId);
+									disposeSocketHalf(half);
 									reject(err);
 								});
 					}).catch(reject);
@@ -80,12 +100,15 @@ export class MainThreadManagedSockets extends Disposable implements MainThreadMa
 	}
 
 	$onDidManagedSocketClose(socketId: number, error: string | undefined): void {
-		this._remoteSockets.get(socketId)?.onClose.fire({
-			type: SocketCloseEventType.NodeSocketCloseEvent,
-			error: error ? new Error(error) : undefined,
-			hadError: !!error
-		});
-		this._remoteSockets.delete(socketId);
+		const half = this._remoteSockets.get(socketId);
+		if (half) {
+			half.onClose.fire({
+				type: SocketCloseEventType.NodeSocketCloseEvent,
+				error: error ? new Error(error) : undefined,
+				hadError: !!error
+			});
+			this._remoteSockets.delete(socketId);
+		}
 	}
 
 	$onDidManagedSocketEnd(socketId: number): void {

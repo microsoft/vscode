@@ -440,7 +440,7 @@ export class TunnelModel extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
-		this.configPortsAttributes = new PortsAttributes(configurationService);
+		this.configPortsAttributes = this._register(new PortsAttributes(configurationService));
 		this.tunnelRestoreValue = this.getTunnelRestoreValue();
 		this._register(this.configPortsAttributes.onDidChangeAttributes(this.updateAttributes, this));
 		this.forwarded = new Map();
@@ -543,6 +543,7 @@ export class TunnelModel extends Disposable {
 	private async onTunnelClosed(address: { host: string; port: number }, reason: TunnelCloseReason) {
 		const key = makeAddress(address.host, address.port);
 		if (this.forwarded.delete(key)) {
+			this.remoteTunnels.delete(key);
 			await this.storeForwarded();
 			this._onClosePort.fire(address);
 		}
@@ -829,6 +830,13 @@ export class TunnelModel extends Disposable {
 		const key = makeAddress(host, port);
 		const oldTunnel = this.forwarded.get(key)!;
 		if ((reason === TunnelCloseReason.AutoForwardEnd) && oldTunnel && (oldTunnel.source.source === TunnelSource.Auto)) {
+			// Limit the cached properties to avoid unbounded memory growth
+			if (this.sessionCachedProperties.size >= 1000) {
+				const firstKey = this.sessionCachedProperties.keys().next().value;
+				if (firstKey !== undefined) {
+					this.sessionCachedProperties.delete(firstKey);
+				}
+			}
 			this.sessionCachedProperties.set(key, {
 				local: oldTunnel.localPort,
 				name: oldTunnel.name,
@@ -1038,5 +1046,16 @@ export class TunnelModel extends Disposable {
 
 	addAttributesProvider(provider: PortAttributesProvider) {
 		this.portAttributesProviders.push(provider);
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this.forwarded.clear();
+		this.detected.clear();
+		this.remoteTunnels.clear();
+		this.inProgress.clear();
+		this.sessionCachedProperties.clear();
+		this.unrestoredExtensionTunnels.clear();
+		this.portAttributesProviders.length = 0;
 	}
 }
