@@ -54,11 +54,6 @@ steps:
       }
     displayName: Build integration tests
 
-  - powershell: npm --prefix extensions/copilot run compile
-    displayName: Build copilot extension (tests)
-    env:
-      NODE_OPTIONS: --max-old-space-size=4096
-
   - powershell: .\build\azure-pipelines\win32\listprocesses.bat
     displayName: Diagnostics before integration test runs
     continueOnError: true
