@@ -1361,6 +1361,12 @@ export const enum ChatRequestQueueKind {
 	Steering = 'steering'
 }
 
+export interface IChatSessionGrouping {
+	readonly id: string;
+	readonly order: number;
+	readonly kind?: string;
+}
+
 export interface IChatSendRequestOptions {
 	modeInfo?: IChatRequestModeInfo;
 	userSelectedModelId?: string;
@@ -1385,7 +1391,7 @@ export interface IChatSendRequestOptions {
 
 	/**
 	 * The label of the confirmation action that was selected.
-	 */
+	*/
 	confirmation?: string;
 
 	/**
@@ -1397,9 +1403,11 @@ export interface IChatSendRequestOptions {
 	/**
 	 * When true, the queued request will not be processed immediately even if no request is active.
 	 * The request stays in the queue until `processPendingRequests` is called explicitly.
-	 */
+	*/
 	pauseQueue?: boolean;
 
+	/** Optional metadata for grouping related requests together in the UI, e.g. for sub-agent interactions */
+	sessionGrouping?: IChatSessionGrouping;
 }
 
 export type IChatModelReference = IReference<IChatModel>;
