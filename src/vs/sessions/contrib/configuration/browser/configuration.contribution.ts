@@ -10,18 +10,18 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 	overrides: {
 		'breadcrumbs.enabled': false,
 
+		'chat.agent.maxRequests': 1000,
+		'chat.customizationsMenu.userStoragePath': '~/.copilot',
 		'chat.experimentalSessionsWindowOverride': true,
 		'chat.hookFilesLocations': {
 			'.claude/settings.local.json': false,
 			'.claude/settings.json': false,
 			'~/.claude/settings.json': false,
 		},
-		'chat.agent.maxRequests': 1000,
-		'chat.customizationsMenu.userStoragePath': '~/.copilot',
-		'chat.viewSessions.enabled': false,
 		'chat.implicitContext.suggestedContext': false,
 		'chat.implicitContext.enabled': { 'panel': 'never' },
 		'chat.tools.terminal.enableAutoApprove': true,
+		'chat.viewSessions.enabled': false,
 
 		'diffEditor.hideUnchangedRegions.enabled': true,
 
@@ -62,16 +62,16 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 
 		'workbench.editor.doubleClickTabToToggleEditorGroupSizes': 'maximize',
 		'workbench.editor.restoreEditors': false,
+		'workbench.editor.modalMinWidth': 600,
+		'workbench.editor.useModal': 'all',
+		'workbench.layoutControl.type': 'toggles',
+		'workbench.panel.showLabels': false,
 		'workbench.startupEditor': 'none',
 		'workbench.tips.enabled': false,
-		'workbench.layoutControl.type': 'toggles',
-		'workbench.editor.useModal': 'all',
-		'workbench.editor.modalMinWidth': 600,
-		'workbench.panel.showLabels': false,
-		'workbench.colorTheme': 'VS Code Dark',
 
-		'window.menuStyle': 'custom',
+		'window.autoDetectColorScheme': true,
 		'window.dialogStyle': 'custom',
+		'window.menuStyle': 'custom',
 	},
 	donotCache: true,
 	preventExperimentOverride: true,
