@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
@@ -136,6 +137,7 @@ suite('Workbench - TerminalInstance', () => {
 							fastScrollSensitivity: 2,
 							mouseWheelScrollSensitivity: 1,
 							unicodeVersion: '6',
+							commandsToSkipShell: [],
 							shellIntegration: {
 								enabled: true
 							}
@@ -249,6 +251,35 @@ suite('Workbench - TerminalInstance', () => {
 
 			strictEqual(writes.length, 1);
 			strictEqual(writes[0].replace(/\x1b/g, '\\x1b').replace(/\r/g, '\\r'), '\\x1b[200~echo hello\\rworld\\x1b[201~\\r');
+		});
+
+		test('custom key event handler should intercept Meta-modified keys that resolve to a command when sendKeybindingsToShell is disabled', async () => {
+			const instance = await createTerminalInstance();
+			const keybindingService = instance['_keybindingService'];
+			const originalSoftDispatch = keybindingService.softDispatch;
+			// Simulate Cmd+= resolving to zoomIn. This command is deliberately NOT in
+			// DEFAULT_COMMANDS_TO_SKIP_SHELL, so only the event.metaKey check can intercept it.
+			keybindingService.softDispatch = () => ({ kind: ResultKind.KbFound, commandId: 'workbench.action.zoomIn', commandArgs: undefined, isBubble: false });
+
+			// Capture the inline handler by intercepting its registration on xterm.raw,
+			// then attach + show the terminal so the handler gets registered.
+			let capturedHandler: ((e: KeyboardEvent) => boolean) | undefined;
+			instance.xterm!.raw.attachCustomKeyEventHandler = handler => { capturedHandler = handler; };
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			instance.attachToElement(container);
+			instance.setVisible(true);
+
+			const event = new KeyboardEvent('keydown', { key: '=', metaKey: true, cancelable: true });
+			try {
+				deepStrictEqual(
+					{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
+					{ result: false, defaultPrevented: true }
+				);
+			} finally {
+				keybindingService.softDispatch = originalSoftDispatch;
+				container.remove();
+			}
 		});
 	});
 	suite('parseExitResult', () => {

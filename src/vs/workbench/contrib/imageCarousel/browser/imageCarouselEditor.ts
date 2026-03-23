@@ -389,7 +389,8 @@ export class ImageCarouselEditor extends EditorPane {
 
 		let buffer: Uint8Array;
 		if (image.data) {
-			buffer = image.data.buffer;
+			// Handle both VSBuffer (has .buffer property) and raw Uint8Array from chat attachments
+			buffer = image.data instanceof Uint8Array ? image.data : image.data.buffer;
 		} else if (image.uri) {
 			const content = await this._fileService.readFile(image.uri);
 			buffer = content.value.buffer;

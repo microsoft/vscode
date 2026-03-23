@@ -464,7 +464,7 @@ class AddFocusedElementToChatAction extends Action2 {
 			precondition: CONTEXT_BROWSER_FOCUSED,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 50,
-				primary: KeyCode.Enter,
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 				when: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE
 			}
 		});
