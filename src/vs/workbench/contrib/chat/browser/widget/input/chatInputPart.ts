@@ -114,6 +114,7 @@ import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../chatC
 import { IChatContentPartRenderContext } from '../chatContentParts/chatContentParts.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from '../chatContentParts/chatReferencesContentPart.js';
 import { ChatTodoListWidget } from '../chatContentParts/chatTodoListWidget.js';
+import { ChatArtifactsWidget } from '../chatArtifactsWidget.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { ChatInputPartWidgetController } from './chatInputPartWidgets.js';
@@ -128,6 +129,7 @@ import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
 import { ChatContextUsageWidget } from '../../widgetHosts/viewPane/chatContextUsageWidget.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { EnhancedModelPickerActionItem } from './modelPickerActionItem2.js';
+import { ConfigureToolsAction } from '../../actions/chatToolActions.js';
 
 const $ = dom.$;
 
@@ -218,6 +220,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _workingSetCollapsed = observableValue('chatInputPart.workingSetCollapsed', true);
 	private _stableInputPartWidth = observableValue('chatInputPart.stableInputPartWidth', 0);
 	private readonly _chatInputTodoListWidget = this._register(new MutableDisposable<ChatTodoListWidget>());
+	private readonly _chatArtifactsWidget = this._register(new MutableDisposable<ChatArtifactsWidget>());
 	private readonly _chatQuestionCarouselWidgets = this._register(new DisposableMap<string, ChatQuestionCarouselPart>());
 	private readonly _questionCarouselResponseIds = new Map<string, string>();
 	private readonly _questionCarouselSessionResources = new Map<string, URI>();
@@ -308,6 +311,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private chatEditingSessionWidgetContainer!: HTMLElement;
 	private chatInputTodoListWidgetContainer!: HTMLElement;
+	private chatArtifactsWidgetContainer!: HTMLElement;
 	private chatGettingStartedTipContainer!: HTMLElement;
 	private chatQuestionCarouselContainer!: HTMLElement;
 	private chatInputWidgetsContainer!: HTMLElement;
@@ -372,6 +376,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatSessionHasOptions: IContextKey<boolean>;
 	private chatSessionOptionsValid: IContextKey<boolean>;
 	private agentSessionTypeKey: IContextKey<string>;
+	private chatSessionSupportsDelegationKey: IContextKey<boolean>;
 	private chatSessionHasCustomAgentTarget: IContextKey<boolean>;
 	private chatSessionHasTargetedModels: IContextKey<boolean>;
 	private modelWidget: EnhancedModelPickerActionItem | undefined;
@@ -559,7 +564,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// React to chat session option changes for the active session
 		this._register(this.chatSessionsService.onDidChangeSessionOptions(e => {
 			const sessionResource = this._widget?.viewModel?.model.sessionResource;
-			if (sessionResource && isEqual(sessionResource, e)) {
+			if (sessionResource && isEqual(sessionResource, e.sessionResource)) {
 				// Options changed for our current session - refresh pickers
 				this.refreshChatSessionPickers();
 			}
@@ -581,6 +586,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._register(this.options.sessionTypePickerDelegate.onDidChangeActiveSessionProvider(async (newSessionType) => {
 				this.computeVisibleOptionGroups();
 				this.agentSessionTypeKey.set(newSessionType);
+				this.chatSessionSupportsDelegationKey.set(this.chatSessionsService.supportsDelegationForSessionType(newSessionType));
 				this.updateWidgetLockStateFromSessionType(newSessionType);
 				this.refreshChatSessionPickers();
 			}));
@@ -608,12 +614,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatSessionHasOptions = ChatContextKeys.chatSessionHasModels.bindTo(contextKeyService);
 		this.chatSessionOptionsValid = ChatContextKeys.chatSessionOptionsValid.bindTo(contextKeyService);
 		this.agentSessionTypeKey = ChatContextKeys.agentSessionType.bindTo(contextKeyService);
+		this.chatSessionSupportsDelegationKey = ChatContextKeys.chatSessionSupportsDelegation.bindTo(contextKeyService);
 
 		// Initialize agentSessionType from delegate if available
 		if (this.options.sessionTypePickerDelegate?.getActiveSessionProvider) {
 			const initialSessionType = this.options.sessionTypePickerDelegate.getActiveSessionProvider();
 			if (initialSessionType) {
 				this.agentSessionTypeKey.set(initialSessionType);
+				this.chatSessionSupportsDelegationKey.set(this.chatSessionsService.supportsDelegationForSessionType(initialSessionType));
 			}
 		}
 		this.chatSessionHasCustomAgentTarget = ChatContextKeys.chatSessionHasCustomAgentTarget.bindTo(contextKeyService);
@@ -697,10 +705,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							: mode.label.read(undefined) !== agentId; // Extensions use Label (name) as identifier for custom agents.
 					}
 					if (needsUpdate) {
-						this.chatSessionsService.notifySessionOptionsChange(
+						this.chatSessionsService.updateSessionOptions(
 							ctx.chatSessionResource,
-							[{ optionId: agentOptionId, value: mode.isBuiltin ? '' : modeName }]
-						).catch(err => this.logService.error('Failed to notify extension of agent change:', err));
+							new Map([[agentOptionId, mode.isBuiltin ? '' : modeName]])
+						);
 					}
 				}
 			}
@@ -875,10 +883,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const sessionResource = this._widget?.viewModel?.model.sessionResource;
 					const currentCtx = sessionResource ? this.chatService.getChatSessionFromInternalUri(sessionResource) : undefined;
 					if (currentCtx) {
-						this.chatSessionsService.notifySessionOptionsChange(
-							currentCtx.chatSessionResource,
-							[{ optionId: optionGroup.id, value: option }]
-						).catch(err => this.logService.error(`Failed to notify extension of ${optionGroup.id} change:`, err));
+						this.chatSessionsService.setSessionOption(currentCtx.chatSessionResource, optionGroup.id, option);
 					}
 
 					// Refresh pickers to re-evaluate visibility of other option groups
@@ -1040,6 +1045,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		this._inputModel?.setState(state);
 		this._isSyncingToOrFromInputModel = false;
+
+		// Some picker label changed size; re-evaluate toolbar overflow
+		queueMicrotask(() => this.inputActionsToolbar?.relayout());
 	}
 
 	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
@@ -1834,6 +1842,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const sessionType = delegateSessionType || (sessionResource ? getChatSessionType(sessionResource) : '');
 
 		this.agentSessionTypeKey.set(sessionType);
+		this.chatSessionSupportsDelegationKey.set(this.chatSessionsService.supportsDelegationForSessionType(sessionType));
 	}
 
 	/**
@@ -1968,6 +1977,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
 					dom.h('.chat-input-widgets-container@chatInputWidgetsContainer'),
 					dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
+					dom.h('.chat-artifacts-widget-container@chatArtifactsWidgetContainer'),
 					dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
 					dom.h('.chat-getting-started-tip-container@chatGettingStartedTipContainer'),
 					dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
@@ -1991,6 +2001,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				dom.h('.interactive-input-followups@followupsContainer'),
 				dom.h('.chat-input-widgets-container@chatInputWidgetsContainer'),
 				dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
+				dom.h('.chat-artifacts-widget-container@chatArtifactsWidgetContainer'),
 				dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
 				dom.h('.chat-getting-started-tip-container@chatGettingStartedTipContainer'),
 				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
@@ -2031,6 +2042,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
+		this.chatArtifactsWidgetContainer = elements.chatArtifactsWidgetContainer;
 		this.chatGettingStartedTipContainer = elements.chatGettingStartedTipContainer;
 		this.chatGettingStartedTipContainer.style.display = 'none';
 		this.chatQuestionCarouselContainer = elements.chatQuestionCarouselContainer;
@@ -2200,6 +2212,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._register(dom.addStandardDisposableListener(toolbarsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
 		this._register(dom.addStandardDisposableListener(this.attachmentsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
+		const shorterChatInputActionIds = new Set<string>([
+			OpenModePickerAction.ID,
+			ConfigureToolsAction.ID,
+		]);
 		this.inputActionsToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.options.renderInputToolbarBelowInput ? this.attachmentsContainer : toolbarsContainer, MenuId.ChatInput, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
@@ -2209,7 +2225,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				enabled: true,
 				kind: 'last',
 				minItems: 1,
-				actionMinWidth: 22
+				actionMinWidth: 48,
+				getActionMinWidth: action => shorterChatInputActionIds.has(action.id) ? 22 : undefined,
 			},
 			actionViewItemProvider: (action, options) => {
 				if (action.id === OpenModelPickerAction.ID && action instanceof MenuItemAction) {
@@ -2307,6 +2324,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (this.cachedWidth && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
 				this._toolbarRelayoutScheduler.schedule();
 			}
+		}));
+		// When hideChevrons changes, picker items change their rendered size
+		// but the toolbar's ResizeObserver won't fire (the toolbar element size
+		// didn't change, only its children did). Force a relayout so the
+		// responsive overflow logic re-evaluates with the correct item widths.
+		// The relayout is deferred by a microtask so the picker action view
+		// items' own autoruns have a chance to re-render their labels first.
+		this._register(autorun(reader => {
+			pickerOptions.hideChevrons.read(reader);
+			queueMicrotask(() => this.inputActionsToolbar.relayout());
 		}));
 		this.executeToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, this.options.menus.executeToolbar, {
 			telemetrySource: this.options.menus.telemetrySource,
@@ -2679,6 +2706,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	clearTodoListWidget(sessionResource: URI | undefined, force: boolean): void {
 		this._chatInputTodoListWidget.value?.clear(sessionResource, force);
+	}
+
+	renderArtifactsWidget(chatSessionResource: URI): void {
+		if (!this.configurationService.getValue<boolean>(ChatConfiguration.ArtifactsEnabled)) {
+			return;
+		}
+
+		if (!this._chatArtifactsWidget.value) {
+			const widget = this._register(this.instantiationService.createInstance(ChatArtifactsWidget));
+			this._chatArtifactsWidget.value = widget;
+			dom.clearNode(this.chatArtifactsWidgetContainer);
+			dom.append(this.chatArtifactsWidgetContainer, widget.domNode);
+		}
+		this._chatArtifactsWidget.value.render(chatSessionResource);
+	}
+
+	clearArtifactsWidget(): void {
+		this._chatArtifactsWidget.value?.hide();
 	}
 
 	renderQuestionCarousel(carousel: IChatQuestionCarousel, context: IChatContentPartRenderContext, options: IChatQuestionCarouselOptions): ChatQuestionCarouselPart {

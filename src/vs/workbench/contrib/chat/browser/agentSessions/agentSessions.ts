@@ -21,6 +21,14 @@ export enum AgentSessionProviders {
 	AgentHostCopilot = 'agent-host-copilot',
 }
 
+/**
+ * A session target is either a well-known {@link AgentSessionProviders} enum
+ * value or a dynamic string for dynamically-registered providers (e.g. remote
+ * agent hosts like `remote-{authority}-copilot`).
+ * TODO@roblourens HACK
+ */
+export type AgentSessionTarget = AgentSessionProviders | (string & {});
+
 export function isBuiltInAgentSessionProvider(provider: string): boolean {
 	return provider === AgentSessionProviders.Local ||
 		provider === AgentSessionProviders.Background ||
@@ -102,6 +110,21 @@ export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders
 	}
 }
 
+/**
+ * Returns whether the given session type is an agent host target.
+ * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
+ *
+ * Note: The `remote-` prefix convention is established by
+ * {@link RemoteAgentHostContribution} which generates session types as
+ * `remote-{sanitizedAddress}-{provider}`. If future remote providers that
+ * are NOT agent hosts need a different prefix, this function must be updated.
+ */
+export function isAgentHostTarget(target: string): boolean {
+	return target === AgentSessionProviders.AgentHostCopilot ||
+		target.startsWith('agent-host-') ||
+		target.startsWith('remote-');
+}
+
 export function getAgentCanContinueIn(provider: AgentSessionProviders): boolean {
 	switch (provider) {
 		case AgentSessionProviders.Local:
@@ -156,6 +179,9 @@ export interface IAgentSessionsControl {
 
 	clearFocus(): void;
 	hasFocusOrSelection(): boolean;
+
+	resetSectionCollapseState(): void;
+	collapseAllSections(): void;
 }
 
 export const agentSessionReadIndicatorForeground = registerColor(

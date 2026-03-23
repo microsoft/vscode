@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { ISessionAction } from '../../common/state/sessionActions.js';
-import { isJsonRpcNotification, isJsonRpcResponse, type ICreateSessionParams, type IProtocolMessage, type IProtocolNotification, type IServerHelloParams, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { ActionType, type ISessionAction } from '../../common/state/sessionActions.js';
+import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type ICreateSessionParams, type IInitializeResult, type IProtocolMessage, type IAhpNotification, type IReconnectResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -22,6 +22,8 @@ import { SessionStateManager } from '../../node/sessionStateManager.js';
 class MockProtocolTransport implements IProtocolTransport {
 	private readonly _onMessage = new Emitter<IProtocolMessage>();
 	readonly onMessage = this._onMessage.event;
+	private readonly _onDidSend = new Emitter<IProtocolMessage>();
+	readonly onDidSend = this._onDidSend.event;
 	private readonly _onClose = new Emitter<void>();
 	readonly onClose = this._onClose.event;
 
@@ -29,6 +31,7 @@ class MockProtocolTransport implements IProtocolTransport {
 
 	send(message: IProtocolMessage): void {
 		this.sent.push(message);
+		this._onDidSend.fire(message);
 	}
 
 	simulateMessage(msg: IProtocolMessage): void {
@@ -41,6 +44,7 @@ class MockProtocolTransport implements IProtocolTransport {
 
 	dispose(): void {
 		this._onMessage.dispose();
+		this._onDidSend.dispose();
 		this._onClose.dispose();
 	}
 }
@@ -61,12 +65,33 @@ class MockProtocolServer implements IProtocolServer {
 
 class MockSideEffectHandler implements IProtocolSideEffectHandler {
 	readonly handledActions: ISessionAction[] = [];
+	readonly browsedUris: URI[] = [];
+	readonly browseErrors = new Map<string, Error>();
+
 	handleAction(action: ISessionAction): void {
 		this.handledActions.push(action);
 	}
-	async handleCreateSession(_command: ICreateSessionParams): Promise<void> { }
-	handleDisposeSession(_session: URI): void { }
+	async handleCreateSession(_command: ICreateSessionParams): Promise<void> { /* session created via state manager */ }
+	handleDisposeSession(_session: string): void { }
 	async handleListSessions(): Promise<ISessionSummary[]> { return []; }
+	handleGetResourceMetadata() { return { resources: [] }; }
+	async handleAuthenticate(_params: { resource: string; token: string }) { return { authenticated: true }; }
+	async handleBrowseDirectory(uri: string): Promise<{ entries: { name: string; type: 'file' | 'directory' }[] }> {
+		this.browsedUris.push(URI.parse(uri));
+		const error = this.browseErrors.get(uri);
+		if (error) {
+			throw error;
+		}
+		return {
+			entries: [
+				{ name: 'src', type: 'directory' },
+				{ name: 'README.md', type: 'file' },
+			],
+		};
+	}
+	getDefaultDirectory(): string {
+		return URI.file('/home/testuser').toString();
+	}
 }
 
 // ---- Helpers ----------------------------------------------------------------
@@ -79,16 +104,16 @@ function request(id: number, method: string, params?: unknown): IProtocolMessage
 	return { jsonrpc: '2.0', id, method, params } as IProtocolMessage;
 }
 
-function findNotification(sent: IProtocolMessage[], method: string): IProtocolNotification | undefined {
-	return sent.find(isJsonRpcNotification) as IProtocolNotification | undefined;
-}
-
-function findNotifications(sent: IProtocolMessage[], method: string): IProtocolNotification[] {
-	return sent.filter(isJsonRpcNotification) as IProtocolNotification[];
+function findNotifications(sent: IProtocolMessage[], method: string): IAhpNotification[] {
+	return sent.filter(isJsonRpcNotification) as IAhpNotification[];
 }
 
 function findResponse(sent: IProtocolMessage[], id: number): IProtocolMessage | undefined {
 	return sent.find(isJsonRpcResponse) as IProtocolMessage | undefined;
+}
+
+function waitForResponse(transport: MockProtocolTransport, id: number): Promise<IProtocolMessage> {
+	return Event.toPromise(Event.filter(transport.onDidSend, message => isJsonRpcResponse(message) && message.id === id));
 }
 
 // ---- Tests ------------------------------------------------------------------
@@ -100,9 +125,9 @@ suite('ProtocolServerHandler', () => {
 	let server: MockProtocolServer;
 	let sideEffects: MockSideEffectHandler;
 
-	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' });
+	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 
-	function makeSessionSummary(resource?: URI): ISessionSummary {
+	function makeSessionSummary(resource?: string): ISessionSummary {
 		return {
 			resource: resource ?? sessionUri,
 			provider: 'copilot',
@@ -113,10 +138,10 @@ suite('ProtocolServerHandler', () => {
 		};
 	}
 
-	function connectClient(clientId: string, initialSubscriptions?: readonly URI[]): MockProtocolTransport {
+	function connectClient(clientId: string, initialSubscriptions?: readonly string[]): MockProtocolTransport {
 		const transport = new MockProtocolTransport();
 		server.simulateConnection(transport);
-		transport.simulateMessage(notification('initialize', {
+		transport.simulateMessage(request(1, 'initialize', {
 			protocolVersion: PROTOCOL_VERSION,
 			clientId,
 			initialSubscriptions,
@@ -143,14 +168,14 @@ suite('ProtocolServerHandler', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('handshake sends serverHello notification', () => {
+	test('handshake returns initialize response', () => {
 		const transport = connectClient('client-1');
 
-		const hello = findNotification(transport.sent, 'serverHello');
-		assert.ok(hello, 'should have sent serverHello');
-		const params = hello.params as IServerHelloParams;
-		assert.strictEqual(params.protocolVersion, PROTOCOL_VERSION);
-		assert.strictEqual(params.serverSeq, stateManager.serverSeq);
+		const resp = findResponse(transport.sent, 1);
+		assert.ok(resp, 'should have sent initialize response');
+		const result = (resp as { result: IInitializeResult }).result;
+		assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
+		assert.strictEqual(result.serverSeq, stateManager.serverSeq);
 	});
 
 	test('handshake with initialSubscriptions returns snapshots', () => {
@@ -158,11 +183,11 @@ suite('ProtocolServerHandler', () => {
 
 		const transport = connectClient('client-1', [sessionUri]);
 
-		const hello = findNotification(transport.sent, 'serverHello');
-		assert.ok(hello);
-		const params = hello.params as IServerHelloParams;
-		assert.strictEqual(params.snapshots.length, 1);
-		assert.strictEqual(params.snapshots[0].resource.toString(), sessionUri.toString());
+		const resp = findResponse(transport.sent, 1);
+		assert.ok(resp);
+		const result = (resp as { result: IInitializeResult }).result;
+		assert.strictEqual(result.snapshots.length, 1);
+		assert.strictEqual(result.snapshots[0].resource.toString(), sessionUri.toString());
 	});
 
 	test('subscribe request returns snapshot', async () => {
@@ -170,21 +195,19 @@ suite('ProtocolServerHandler', () => {
 
 		const transport = connectClient('client-1');
 		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 1);
 
 		transport.simulateMessage(request(1, 'subscribe', { resource: sessionUri }));
+		const resp = await responsePromise;
 
-		// Wait for async response
-		await new Promise(resolve => setTimeout(resolve, 10));
-
-		const resp = findResponse(transport.sent, 1);
 		assert.ok(resp, 'should have sent response');
-		const snapshot = (resp as { result: IStateSnapshot }).result;
-		assert.strictEqual(snapshot.resource.toString(), sessionUri.toString());
+		const result = (resp as unknown as { result: { snapshot: IStateSnapshot } }).result;
+		assert.strictEqual(result.snapshot.resource.toString(), sessionUri.toString());
 	});
 
 	test('client action is dispatched and echoed', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
 
 		const transport = connectClient('client-1', [sessionUri]);
 		transport.sent.length = 0;
@@ -192,7 +215,7 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateMessage(notification('dispatchAction', {
 			clientSeq: 1,
 			action: {
-				type: 'session/turnStarted',
+				type: ActionType.SessionTurnStarted,
 				session: sessionUri,
 				turnId: 'turn-1',
 				userMessage: { text: 'hello' },
@@ -201,18 +224,18 @@ suite('ProtocolServerHandler', () => {
 
 		const actionMsgs = findNotifications(transport.sent, 'action');
 		const turnStarted = actionMsgs.find(m => {
-			const params = m.params as { envelope: { action: { type: string } } };
-			return params.envelope.action.type === 'session/turnStarted';
+			const envelope = m.params as unknown as { action: { type: string } };
+			return envelope.action.type === ActionType.SessionTurnStarted;
 		});
 		assert.ok(turnStarted, 'should have echoed turnStarted');
-		const envelope = (turnStarted!.params as { envelope: { origin: { clientId: string; clientSeq: number } } }).envelope;
+		const envelope = turnStarted!.params as unknown as { origin: { clientId: string; clientSeq: number } };
 		assert.strictEqual(envelope.origin.clientId, 'client-1');
 		assert.strictEqual(envelope.origin.clientSeq, 1);
 	});
 
 	test('actions are scoped to subscribed sessions', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
 
 		const transportA = connectClient('client-a', [sessionUri]);
 		const transportB = connectClient('client-b');
@@ -221,7 +244,7 @@ suite('ProtocolServerHandler', () => {
 		transportB.sent.length = 0;
 
 		stateManager.dispatchServerAction({
-			type: 'session/titleChanged',
+			type: ActionType.SessionTitleChanged,
 			session: sessionUri,
 			title: 'New Title',
 		});
@@ -245,64 +268,163 @@ suite('ProtocolServerHandler', () => {
 
 	test('reconnect replays missed actions', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
 
 		const transport1 = connectClient('client-r', [sessionUri]);
-		const hello = findNotification(transport1.sent, 'serverHello');
-		const helloSeq = (hello!.params as IServerHelloParams).serverSeq;
+		const resp = findResponse(transport1.sent, 1);
+		const initSeq = (resp as { result: IInitializeResult }).result.serverSeq;
 		transport1.simulateClose();
 
-		stateManager.dispatchServerAction({ type: 'session/titleChanged', session: sessionUri, title: 'Title A' });
-		stateManager.dispatchServerAction({ type: 'session/titleChanged', session: sessionUri, title: 'Title B' });
+		stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'Title A' });
+		stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'Title B' });
 
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
-		transport2.simulateMessage(notification('reconnect', {
+		transport2.simulateMessage(request(1, 'reconnect', {
 			clientId: 'client-r',
-			lastSeenServerSeq: helloSeq,
+			lastSeenServerSeq: initSeq,
 			subscriptions: [sessionUri],
 		}));
 
-		const replayed = findNotifications(transport2.sent, 'action');
-		assert.strictEqual(replayed.length, 2);
+		const reconnectResp = findResponse(transport2.sent, 1);
+		assert.ok(reconnectResp, 'should have sent reconnect response');
+		const result = (reconnectResp as { result: IReconnectResult }).result;
+		assert.strictEqual(result.type, 'replay');
+		if (result.type === 'replay') {
+			assert.strictEqual(result.actions.length, 2);
+		}
 	});
 
 	test('reconnect sends fresh snapshots when gap too large', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
 
 		const transport1 = connectClient('client-g', [sessionUri]);
 		transport1.simulateClose();
 
 		for (let i = 0; i < 1100; i++) {
-			stateManager.dispatchServerAction({ type: 'session/titleChanged', session: sessionUri, title: `Title ${i}` });
+			stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: `Title ${i}` });
 		}
 
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
-		transport2.simulateMessage(notification('reconnect', {
+		transport2.simulateMessage(request(1, 'reconnect', {
 			clientId: 'client-g',
 			lastSeenServerSeq: 0,
 			subscriptions: [sessionUri],
 		}));
 
-		const reconnectResp = findNotification(transport2.sent, 'reconnectResponse');
-		assert.ok(reconnectResp, 'should receive a reconnectResponse');
-		const params = reconnectResp!.params as { snapshots: IStateSnapshot[] };
-		assert.ok(params.snapshots.length > 0, 'should contain snapshots');
+		const reconnectResp = findResponse(transport2.sent, 1);
+		assert.ok(reconnectResp, 'should have sent reconnect response');
+		const result = (reconnectResp as { result: IReconnectResult }).result;
+		assert.strictEqual(result.type, 'snapshot');
+		if (result.type === 'snapshot') {
+			assert.ok(result.snapshots.length > 0, 'should contain snapshots');
+		}
 	});
 
 	test('client disconnect cleans up', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
 
 		const transport = connectClient('client-d', [sessionUri]);
 		transport.sent.length = 0;
 
 		transport.simulateClose();
 
-		stateManager.dispatchServerAction({ type: 'session/titleChanged', session: sessionUri, title: 'After Disconnect' });
+		stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'After Disconnect' });
 
 		assert.strictEqual(transport.sent.length, 0);
+	});
+
+	test('handshake includes defaultDirectory from side effects', () => {
+		const transport = connectClient('client-home');
+
+		const resp = findResponse(transport.sent, 1);
+		assert.ok(resp);
+		const result = (resp as { result: IInitializeResult }).result;
+		assert.strictEqual(URI.parse(result.defaultDirectory!).path, '/home/testuser');
+	});
+
+	test('browseDirectory routes to side effect handler', async () => {
+		const transport = connectClient('client-browse');
+		transport.sent.length = 0;
+
+		const dirUri = URI.file('/home/user/project').toString();
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'browseDirectory', { uri: dirUri }));
+		const resp = await responsePromise;
+
+		assert.strictEqual(sideEffects.browsedUris.length, 1);
+		assert.strictEqual(sideEffects.browsedUris[0].path, '/home/user/project');
+
+		assert.ok(resp);
+		const result = (resp as unknown as { result: { entries: { name: string; uri: unknown; type: string }[] } }).result;
+		assert.strictEqual(result.entries.length, 2);
+		assert.strictEqual(result.entries[0].name, 'src');
+		assert.strictEqual(result.entries[0].type, 'directory');
+		assert.strictEqual(result.entries[1].name, 'README.md');
+		assert.strictEqual(result.entries[1].type, 'file');
+	});
+
+	test('browseDirectory returns a JSON-RPC error when the target is invalid', async () => {
+		const transport = connectClient('client-browse-error');
+		transport.sent.length = 0;
+
+		const dirUri = URI.file('/missing').toString();
+		sideEffects.browseErrors.set(dirUri, new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Directory not found: ${dirUri}`));
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'browseDirectory', { uri: dirUri }));
+		const resp = await responsePromise as { error?: { code: number; message: string } };
+
+		assert.ok(resp?.error);
+		assert.strictEqual(resp.error!.code, JSON_RPC_INTERNAL_ERROR);
+		assert.match(resp.error!.message, /Directory not found/);
+	});
+
+	// ---- Extension methods: auth ----------------------------------------
+
+	test('getResourceMetadata returns resource metadata via extension request', async () => {
+		const transport = connectClient('client-metadata');
+		transport.sent.length = 0;
+
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'getResourceMetadata'));
+		const resp = await responsePromise as { result?: { resources: unknown[] } };
+
+		assert.ok(resp?.result);
+		assert.ok(Array.isArray(resp.result!.resources));
+	});
+
+	test('authenticate returns result via extension request', async () => {
+		const transport = connectClient('client-auth');
+		transport.sent.length = 0;
+
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'authenticate', { resource: 'https://api.github.com', token: 'test-token' }));
+		const resp = await responsePromise as { result?: { authenticated: boolean } };
+
+		assert.ok(resp?.result);
+		assert.strictEqual(resp.result!.authenticated, true);
+	});
+
+	test('extension request preserves ProtocolError code and data', async () => {
+		// Override handleAuthenticate to throw a ProtocolError with data
+		const origHandler = sideEffects.handleAuthenticate;
+		sideEffects.handleAuthenticate = async () => { throw new ProtocolError(-32007, 'Auth required', { hint: 'sign in' }); };
+
+		const transport = connectClient('client-auth-error');
+		transport.sent.length = 0;
+
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'authenticate', { resource: 'test', token: 'bad' }));
+		const resp = await responsePromise as { error?: { code: number; message: string; data?: unknown } };
+
+		assert.ok(resp?.error);
+		assert.strictEqual(resp.error!.code, -32007);
+		assert.strictEqual(resp.error!.message, 'Auth required');
+		assert.deepStrictEqual(resp.error!.data, { hint: 'sign in' });
+
+		sideEffects.handleAuthenticate = origHandler;
 	});
 });

@@ -27,6 +27,7 @@ import { renderCustomizationDiscoveryContent, fileListToPlainText } from './chat
 import { renderUserMessageContent, renderAgentResponseContent, messageEventToPlainText, renderResolvedMessageContent, resolvedMessageToPlainText } from './chatDebugMessageContentRenderer.js';
 import { renderToolCallContent, toolCallContentToPlainText } from './chatDebugToolCallContentRenderer.js';
 import { renderModelTurnContent, modelTurnContentToPlainText } from './chatDebugModelTurnContentRenderer.js';
+import { renderHookContent, hookContentToPlainText } from './chatDebugHookContentRenderer.js';
 
 const $ = DOM.$;
 
@@ -172,13 +173,13 @@ export class ChatDebugDetailPanel extends Disposable {
 		if (resolved && resolved.kind === 'fileList') {
 			this.currentDetailText = fileListToPlainText(resolved);
 			const { element: contentEl, disposables: contentDisposables } = this.instantiationService.invokeFunction(accessor =>
-				renderCustomizationDiscoveryContent(resolved, this.openerService, accessor.get(IModelService), this.languageService, this.hoverService, accessor.get(ILabelService))
+				renderCustomizationDiscoveryContent(resolved, this.openerService, accessor.get(IModelService), this.languageService, this.hoverService, accessor.get(ILabelService), this.scrollable)
 			);
 			this.detailDisposables.add(contentDisposables);
 			this.contentContainer.appendChild(contentEl);
 		} else if (resolved && resolved.kind === 'toolCall') {
 			this.currentDetailText = toolCallContentToPlainText(resolved);
-			const { element: contentEl, disposables: contentDisposables } = await renderToolCallContent(resolved, this.languageService, this.clipboardService);
+			const { element: contentEl, disposables: contentDisposables } = await renderToolCallContent(resolved, this.languageService, this.clipboardService, this.scrollable);
 			if (this.currentDetailEventId !== event.id) {
 				// Another event was selected while we were rendering
 				contentDisposables.dispose();
@@ -188,7 +189,7 @@ export class ChatDebugDetailPanel extends Disposable {
 			this.contentContainer.appendChild(contentEl);
 		} else if (resolved && resolved.kind === 'message') {
 			this.currentDetailText = resolvedMessageToPlainText(resolved);
-			const { element: contentEl, disposables: contentDisposables } = await renderResolvedMessageContent(resolved, this.languageService, this.clipboardService);
+			const { element: contentEl, disposables: contentDisposables } = await renderResolvedMessageContent(resolved, this.languageService, this.clipboardService, this.scrollable);
 			if (this.currentDetailEventId !== event.id) {
 				contentDisposables.dispose();
 				return;
@@ -197,7 +198,17 @@ export class ChatDebugDetailPanel extends Disposable {
 			this.contentContainer.appendChild(contentEl);
 		} else if (resolved && resolved.kind === 'modelTurn') {
 			this.currentDetailText = modelTurnContentToPlainText(resolved);
-			const { element: contentEl, disposables: contentDisposables } = await renderModelTurnContent(resolved, this.languageService, this.clipboardService);
+			const { element: contentEl, disposables: contentDisposables } = await renderModelTurnContent(resolved, this.languageService, this.clipboardService, this.scrollable);
+			if (this.currentDetailEventId !== event.id) {
+				// Another event was selected while we were rendering
+				contentDisposables.dispose();
+				return;
+			}
+			this.detailDisposables.add(contentDisposables);
+			this.contentContainer.appendChild(contentEl);
+		} else if (resolved && resolved.kind === 'hook') {
+			this.currentDetailText = hookContentToPlainText(resolved);
+			const { element: contentEl, disposables: contentDisposables } = await renderHookContent(resolved, this.languageService, this.clipboardService, this.scrollable);
 			if (this.currentDetailEventId !== event.id) {
 				// Another event was selected while we were rendering
 				contentDisposables.dispose();
@@ -207,7 +218,7 @@ export class ChatDebugDetailPanel extends Disposable {
 			this.contentContainer.appendChild(contentEl);
 		} else if (event.kind === 'userMessage') {
 			this.currentDetailText = messageEventToPlainText(event);
-			const { element: contentEl, disposables: contentDisposables } = await renderUserMessageContent(event, this.languageService, this.clipboardService);
+			const { element: contentEl, disposables: contentDisposables } = await renderUserMessageContent(event, this.languageService, this.clipboardService, this.scrollable);
 			if (this.currentDetailEventId !== event.id) {
 				contentDisposables.dispose();
 				return;
@@ -216,7 +227,7 @@ export class ChatDebugDetailPanel extends Disposable {
 			this.contentContainer.appendChild(contentEl);
 		} else if (event.kind === 'agentResponse') {
 			this.currentDetailText = messageEventToPlainText(event);
-			const { element: contentEl, disposables: contentDisposables } = await renderAgentResponseContent(event, this.languageService, this.clipboardService);
+			const { element: contentEl, disposables: contentDisposables } = await renderAgentResponseContent(event, this.languageService, this.clipboardService, this.scrollable);
 			if (this.currentDetailEventId !== event.id) {
 				contentDisposables.dispose();
 				return;

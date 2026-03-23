@@ -44,6 +44,7 @@ import { IChatService } from '../common/chatService/chatService.js';
 import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
+import { ChatArtifactsService, IChatArtifactsService } from '../common/tools/chatArtifactsService.js';
 import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatTodoListService.js';
 import { ChatTransferService, IChatTransferService } from '../common/model/chatTransferService.js';
 import { IChatVariablesService } from '../common/attachments/chatVariables.js';
@@ -98,7 +99,6 @@ import { ChatTransferContribution } from './actions/chatTransfer.js';
 import { registerChatOpenAgentDebugPanelAction } from './actions/chatOpenAgentDebugPanelAction.js';
 import { IChatDebugService } from '../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../common/chatDebugServiceImpl.js';
-import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
 import { ChatDebugEditor } from './chatDebug/chatDebugEditor.js';
 import { PromptsDebugContribution } from './promptsDebugContribution.js';
 import { ChatDebugEditorInput, ChatDebugEditorInputSerializer } from './chatDebug/chatDebugEditorInput.js';
@@ -128,6 +128,7 @@ import { ChatLayoutService } from './widget/chatLayoutService.js';
 import { ChatLanguageModelsDataContribution, LanguageModelsConfigurationService } from './languageModelsConfigurationService.js';
 import './chatManagement/chatManagement.contribution.js';
 import './aiCustomization/aiCustomizationWorkspaceService.js';
+import './aiCustomization/customizationHarnessService.js';
 import './aiCustomization/aiCustomizationManagement.contribution.js';
 
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
@@ -162,6 +163,7 @@ import { PluginInstallService } from './pluginInstallService.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
 import { ChatSlashCommandsContribution } from './chatSlashCommands.js';
+import { PluginUrlHandler } from './pluginUrlHandler.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
@@ -174,6 +176,7 @@ import { ChatTipService, IChatTipService } from './chatTipService.js';
 import { ChatQueuePickerRendering } from './widget/input/chatQueuePickerActionItem.js';
 import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
 import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
+import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
 
 const toolReferenceNameEnumValues: string[] = [];
 const toolReferenceNameEnumDescriptions: string[] = [];
@@ -234,9 +237,15 @@ configurationRegistry.registerConfiguration({
 			default: 0
 		},
 		[ChatConfiguration.AgentStatusEnabled]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the 'Agent Status' indicator is shown in the title bar command center. Enabling this setting will automatically enable {0}. The unread/in-progress session indicators require {1} to be enabled.", '`#window.commandCenter#`', '`#chat.viewSessions.enabled#`'),
-			default: true,
+			type: 'string',
+			enum: ['hidden', 'badge', 'compact'],
+			enumDescriptions: [
+				nls.localize('chat.agentsControl.hidden', "The agent status indicator is hidden from the title bar."),
+				nls.localize('chat.agentsControl.badge', "Shows the agent status as a badge next to the command center."),
+				nls.localize('chat.agentsControl.compact', "Replaces the command center search box with a compact agent status indicator and unified chat widget."),
+			],
+			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls how the 'Agent Status' indicator appears in the title bar command center. When set to `hidden`, the indicator is not shown. Other values show the indicator and automatically enable {0}. The unread and in-progress session indicators require {1} to be enabled.", '`#window.commandCenter#`', '`#chat.viewSessions.enabled#`'),
+			default: 'compact',
 			tags: ['experimental']
 		},
 		[ChatConfiguration.UnifiedAgentsBar]: {
@@ -304,6 +313,11 @@ configurationRegistry.registerConfiguration({
 			experiment: {
 				mode: 'auto'
 			}
+		},
+		[ChatConfiguration.RevealNextChangeOnResolve]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.editing.revealNextChangeOnResolve', "Controls whether the editor automatically reveals the next change after keeping or undoing a chat edit."),
+			default: true,
 		},
 		'chat.tips.enabled': {
 			type: 'boolean',
@@ -484,9 +498,9 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['experimental']
 		},
-		[ChatConfiguration.ImageCarouselEnabled]: {
+		[ChatConfiguration.ArtifactsEnabled]: {
 			default: false,
-			description: nls.localize('chat.imageCarousel.enabled', "Controls whether clicking an image attachment in chat opens the image carousel viewer."),
+			description: nls.localize('chat.artifacts.enabled', "Controls whether the artifacts view is available in chat."),
 			type: 'boolean',
 			tags: ['experimental']
 		},
@@ -713,7 +727,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process."),
 			default: false,
-			tags: ['experimental'],
+			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
 		[ChatConfiguration.PlanAgentDefaultModel]: {
@@ -1229,11 +1243,11 @@ configurationRegistry.registerConfiguration({
 					type: 'array',
 					items: { type: 'string' },
 					default: [],
-					description: nls.localize('chat.agent.thinking.phrases.phrases', "Custom loading messages to show during thinking, terminal, and tool operations.")
+					description: nls.localize('chat.agent.thinking.phrases.phrases', "Custom loading messages to show during thinking, working progress, terminal, and tool operations.")
 				}
 			},
 			additionalProperties: false,
-			markdownDescription: nls.localize('chat.agent.thinking.phrases', "Customize the loading messages shown during agent operations. Use `\"mode\": \"replace\"` to use only your phrases, or `\"mode\": \"append\"` to add them to the defaults."),
+			markdownDescription: nls.localize('chat.agent.thinking.phrases', "Customize the loading messages shown during agent thinking and progress indicators. Use `\"mode\": \"replace\"` to use only your phrases, or `\"mode\": \"append\"` to add them to the defaults."),
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.AutoExpandToolFailures]: {
@@ -1293,10 +1307,26 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		[ChatConfiguration.SubagentsMaxDepth]: {
+			type: 'number',
+			description: nls.localize('chat.subagents.maxDepth', "Maximum nesting depth for subagents. Set to 0 to disable nested subagents. A subagent at this depth will not be able to launch further subagents."),
+			default: 0,
+			minimum: 0,
+			maximum: 20,
+			experiment: {
+				mode: 'auto'
+			}
+		},
 		[ChatConfiguration.ChatCustomizationMenuEnabled]: {
 			type: 'boolean',
 			tags: ['preview'],
-			description: nls.localize('chat.aiCustomizationMenu.enabled', "Controls whether the Chat Customizations editor is available in the Command Palette. When disabled, the Chat Customizations editor and related commands are hidden."),
+			description: nls.localize('chat.aiCustomizationMenu.enabled', "Controls whether the Chat Customizations editor is enabled. When enabled, the gear icon in the Chat view opens the Customizations editor directly and additional actions are moved to the overflow menu. When disabled, the gear icon shows the legacy configuration dropdown."),
+			default: true,
+		},
+		[ChatConfiguration.ChatCustomizationHarnessSelectorEnabled]: {
+			type: 'boolean',
+			tags: ['preview'],
+			description: nls.localize('chat.customizations.harnessSelector.enabled', "Controls whether the harness selector (Local, Copilot CLI, Claude) is shown in the Chat Customizations editor sidebar. When disabled, the editor always shows all customizations without filtering."),
 			default: true,
 		},
 	}
@@ -1797,6 +1827,7 @@ registerWorkbenchContribution2(ChatEditingEditorContextKeys.ID, ChatEditingEdito
 registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContributions, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(PluginUrlHandler.ID, PluginUrlHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatResponseResourceWorkbenchContribution.ID, ChatResponseResourceWorkbenchContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContributions, WorkbenchPhase.Eventually);
@@ -1868,6 +1899,7 @@ registerSingleton(IChatModeService, ChatModeService, InstantiationType.Delayed);
 registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, InstantiationType.Delayed);
 registerSingleton(IChatAttachmentWidgetRegistry, ChatAttachmentWidgetRegistry, InstantiationType.Delayed);
 registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.Delayed);
+registerSingleton(IChatArtifactsService, ChatArtifactsService, InstantiationType.Delayed);
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
 registerSingleton(IChatTipService, ChatTipService, InstantiationType.Delayed);

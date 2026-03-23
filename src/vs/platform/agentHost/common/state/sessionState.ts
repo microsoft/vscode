@@ -6,254 +6,112 @@
 // Immutable state types for the sessions process protocol.
 // See protocol.md for the full design rationale.
 //
-// These types represent the server-authoritative state tree. Both the server
-// and clients use the same types — clients hold a local copy that they keep
-// in sync via actions from the server.
+// Most types are imported from the auto-generated protocol layer
+// (synced from the agent-host-protocol repo). This file adds VS Code-specific
+// helpers and re-exports.
 
-import { URI } from '../../../../base/common/uri.js';
-import type { AgentProvider } from '../agentService.js';
+import { hasKey } from '../../../../base/common/types.js';
+import {
+	SessionLifecycle,
+	ToolResultContentType,
+	type IActiveTurn,
+	type IRootState,
+	type ISessionState,
+	type ISessionSummary,
+	type IToolCallCancelledState,
+	type IToolCallCompletedState,
+	type IToolCallResult,
+	type IToolCallState,
+	type IToolResultTextContent,
+	type IUserMessage,
+} from './protocol/state.js';
+
+// Re-export everything from the protocol state module
+export {
+	type IActiveTurn,
+	type IAgentInfo,
+	type IContentRef,
+	type IErrorInfo,
+	type IMarkdownResponsePart,
+	type IMessageAttachment,
+	type IPermissionRequest,
+	type IResponsePart,
+	type IRootState,
+	type ISessionActiveClient,
+	type ISessionModelInfo,
+	type ISessionState,
+	type ISessionSummary,
+	type ISnapshot,
+	type IToolAnnotations,
+	type IToolCallCancelledState,
+	type IToolCallCompletedState,
+	type IToolCallPendingConfirmationState,
+	type IToolCallPendingResultConfirmationState,
+	type IToolCallResult,
+	type IToolCallRunningState,
+	type IToolCallState,
+	type IToolCallStreamingState,
+	type IToolDefinition,
+	type IToolResultBinaryContent,
+	type IToolResultContent,
+	type IToolResultTextContent,
+	type ITurn,
+	type IUsageInfo,
+	type IUserMessage,
+	type StringOrMarkdown,
+	type URI,
+	AttachmentType,
+	PolicyState,
+	PermissionKind,
+	ResponsePartKind,
+	SessionLifecycle,
+	SessionStatus,
+	ToolCallConfirmationReason,
+	ToolCallCancellationReason,
+	ToolCallStatus,
+	ToolResultContentType,
+	TurnState,
+} from './protocol/state.js';
 
 // ---- Well-known URIs --------------------------------------------------------
 
 /** URI for the root state subscription. */
-export const ROOT_STATE_URI = URI.from({ scheme: 'agenthost', path: '/root' });
+export const ROOT_STATE_URI = 'agenthost:/root';
 
-// ---- Lightweight session metadata -------------------------------------------
-
-export const enum SessionStatus {
-	Idle = 'idle',
-	InProgress = 'in-progress',
-	Error = 'error',
-}
+// ---- VS Code-specific derived types -----------------------------------------
 
 /**
- * Lightweight session summary used in the session list and as embedded
- * metadata within a subscribed session. Identified by a URI.
+ * A tool call in a terminal state, stored in completed turns.
  */
-export interface ISessionSummary {
-	readonly resource: URI;
-	readonly provider: AgentProvider;
-	readonly title: string;
-	readonly status: SessionStatus;
-	readonly createdAt: number;
-	readonly modifiedAt: number;
-	readonly model?: string;
-}
-
-// ---- Model info -------------------------------------------------------------
-
-export interface ISessionModelInfo {
-	readonly id: string;
-	readonly provider: AgentProvider;
-	readonly name: string;
-	readonly maxContextWindow?: number;
-	readonly supportsVision?: boolean;
-	readonly policyState?: 'enabled' | 'disabled' | 'unconfigured';
-}
-
-// ---- Root state (subscribable at ROOT_STATE_URI) ----------------------------
+export type ICompletedToolCall = IToolCallCompletedState | IToolCallCancelledState;
 
 /**
- * Global state shared with every client subscribed to {@link ROOT_STATE_URI}.
- * Does **not** contain the session list — that is fetched imperatively via
- * `listSessions()` RPC. See protocol.md -> Session list.
+ * Derived status type for the tool call lifecycle.
  */
-export interface IRootState {
-	readonly agents: readonly IAgentInfo[];
-}
+export type ToolCallStatusString = IToolCallState['status'];
 
-export interface IAgentInfo {
-	readonly provider: AgentProvider;
-	readonly displayName: string;
-	readonly description: string;
-	readonly models: readonly ISessionModelInfo[];
-}
-
-// ---- Session lifecycle ------------------------------------------------------
-
-export const enum SessionLifecycle {
-	/** The server is asynchronously initializing the agent backend. */
-	Creating = 'creating',
-	/** The session is ready for use. */
-	Ready = 'ready',
-	/** Backend initialization failed. See {@link ISessionState.creationError}. */
-	CreationFailed = 'creationFailed',
-}
-
-// ---- Per-session state (subscribable at session URI) ------------------------
+// ---- Tool output helper -----------------------------------------------------
 
 /**
- * Full state for a single session, loaded when a client subscribes to
- * the session's URI.
+ * Extracts a plain-text tool output string from a tool call result's `content`
+ * array. Joins all text-type content parts into a single string.
+ *
+ * Returns `undefined` if there are no text content parts.
  */
-export interface ISessionState {
-	readonly summary: ISessionSummary;
-	readonly lifecycle: SessionLifecycle;
-	readonly creationError?: IErrorInfo;
-	readonly turns: readonly ITurn[];
-	readonly activeTurn: IActiveTurn | undefined;
-}
-
-// ---- Turn types -------------------------------------------------------------
-
-export interface IUserMessage {
-	readonly text: string;
-	readonly attachments?: readonly IMessageAttachment[];
-}
-
-export interface IMessageAttachment {
-	readonly type: 'file' | 'directory' | 'selection';
-	readonly path: string;
-	readonly displayName?: string;
-}
-
-/**
- * A completed request/response cycle.
- */
-export interface ITurn {
-	readonly id: string;
-	readonly userMessage: IUserMessage;
-	/** The final assistant response text (captured from streamingText on turn completion). */
-	readonly responseText: string;
-	readonly responseParts: readonly IResponsePart[];
-	readonly toolCalls: readonly ICompletedToolCall[];
-	readonly usage: IUsageInfo | undefined;
-	readonly state: TurnState;
-	/** Error info if the turn ended with {@link TurnState.Error}. */
-	readonly error?: IErrorInfo;
-}
-
-export const enum TurnState {
-	Complete = 'complete',
-	Cancelled = 'cancelled',
-	Error = 'error',
-}
-
-/**
- * An in-progress turn — the assistant is actively streaming a response.
- */
-export interface IActiveTurn {
-	readonly id: string;
-	readonly userMessage: IUserMessage;
-	readonly streamingText: string;
-	readonly responseParts: readonly IResponsePart[];
-	readonly toolCalls: ReadonlyMap<string, IToolCallState>;
-	readonly pendingPermissions: ReadonlyMap<string, IPermissionRequest>;
-	readonly reasoning: string;
-	readonly usage: IUsageInfo | undefined;
-}
-
-// ---- Response parts ---------------------------------------------------------
-
-export const enum ResponsePartKind {
-	Markdown = 'markdown',
-	ContentRef = 'contentRef',
-}
-
-export interface IMarkdownResponsePart {
-	readonly kind: ResponsePartKind.Markdown;
-	readonly content: string;
-}
-
-/**
- * A reference to large content stored outside the state tree.
- * The client fetches the content separately via fetchContent().
- */
-export interface IContentRef {
-	readonly kind: ResponsePartKind.ContentRef;
-	readonly uri: string;
-	readonly sizeHint?: number;
-	readonly mimeType?: string;
-}
-
-export type IResponsePart = IMarkdownResponsePart | IContentRef;
-
-// ---- Tool calls -------------------------------------------------------------
-
-export const enum ToolCallStatus {
-	/** Tool is actively executing. */
-	Running = 'running',
-	/** Waiting for user to approve before execution. */
-	PendingPermission = 'pending-permission',
-	/** Tool finished successfully. */
-	Completed = 'completed',
-	/** Tool failed with an error. */
-	Failed = 'failed',
-	/** Tool was denied or skipped by the user. */
-	Cancelled = 'cancelled',
-}
-
-/**
- * Represents the full lifecycle state of a tool invocation within an active turn.
- * Modeled after {@link IChatToolInvocation.State} to enable direct mapping to the chat UI.
- */
-export interface IToolCallState {
-	readonly toolCallId: string;
-	readonly toolName: string;
-	readonly displayName: string;
-	readonly invocationMessage: string;
-	readonly toolInput?: string;
-	readonly toolKind?: 'terminal';
-	readonly language?: string;
-	readonly toolArguments?: string;
-	readonly status: ToolCallStatus;
-	/** Parsed tool parameters (from toolArguments). */
-	readonly parameters?: unknown;
-	/** How the tool was confirmed before execution (set after PendingPermission → Running). */
-	readonly confirmed?: 'not-needed' | 'user-action' | 'setting' | 'denied' | 'skipped';
-	/** Set when status transitions to Completed or Failed. */
-	readonly pastTenseMessage?: string;
-	/** Set when status transitions to Completed or Failed. */
-	readonly toolOutput?: string;
-	/** Set when status transitions to Failed. */
-	readonly error?: { readonly message: string; readonly code?: string };
-	/** Why the tool was cancelled (set when status is Cancelled). */
-	readonly cancellationReason?: 'denied' | 'skipped';
-}
-
-export interface ICompletedToolCall {
-	readonly toolCallId: string;
-	readonly toolName: string;
-	readonly displayName: string;
-	readonly invocationMessage: string;
-	readonly success: boolean;
-	readonly pastTenseMessage: string;
-	readonly toolInput?: string;
-	readonly toolKind?: 'terminal';
-	readonly language?: string;
-	readonly toolOutput?: string;
-	readonly error?: { readonly message: string; readonly code?: string };
-}
-
-// ---- Permission requests ----------------------------------------------------
-
-export interface IPermissionRequest {
-	readonly requestId: string;
-	readonly permissionKind: 'shell' | 'write' | 'mcp' | 'read' | 'url';
-	readonly toolCallId?: string;
-	readonly path?: string;
-	readonly fullCommandText?: string;
-	readonly intention?: string;
-	readonly serverName?: string;
-	readonly toolName?: string;
-	readonly rawRequest?: string;
-}
-
-// ---- Usage info -------------------------------------------------------------
-
-export interface IUsageInfo {
-	readonly inputTokens?: number;
-	readonly outputTokens?: number;
-	readonly model?: string;
-	readonly cacheReadTokens?: number;
-}
-
-// ---- Error info -------------------------------------------------------------
-
-export interface IErrorInfo {
-	readonly errorType: string;
-	readonly message: string;
-	readonly stack?: string;
+export function getToolOutputText(result: IToolCallResult): string | undefined {
+	if (!result.content || result.content.length === 0) {
+		return undefined;
+	}
+	const textParts: IToolResultTextContent[] = [];
+	for (const c of result.content) {
+		if (hasKey(c, { type: true }) && c.type === ToolResultContentType.Text) {
+			textParts.push(c);
+		}
+	}
+	if (textParts.length === 0) {
+		return undefined;
+	}
+	return textParts.map(p => p.text).join('\n');
 }
 
 // ---- Factory helpers --------------------------------------------------------
@@ -261,6 +119,7 @@ export interface IErrorInfo {
 export function createRootState(): IRootState {
 	return {
 		agents: [],
+		activeSessions: 0,
 	};
 }
 
@@ -279,8 +138,8 @@ export function createActiveTurn(id: string, userMessage: IUserMessage): IActive
 		userMessage,
 		streamingText: '',
 		responseParts: [],
-		toolCalls: new Map(),
-		pendingPermissions: new Map(),
+		toolCalls: {},
+		pendingPermissions: {},
 		reasoning: '',
 		usage: undefined,
 	};

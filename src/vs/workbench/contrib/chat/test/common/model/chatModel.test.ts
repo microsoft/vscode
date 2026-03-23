@@ -25,9 +25,9 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { ChatRequestQueueKind, IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatService, IChatTerminalToolInvocationData, IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
 
@@ -553,6 +553,65 @@ suite('Response', () => {
 		assert.strictEqual(textEditGroups.length, 0, 'Should not have textEditGroup for cell edits');
 		assert.strictEqual(notebookEditGroups.length, 1, 'Should have notebookEditGroup for cell edits');
 	});
+
+	test('external terminal tool updates preserve toolSpecificData when completing an existing invocation', () => {
+		const response = store.add(new Response([]));
+		const toolSpecificData: IChatTerminalToolInvocationData = {
+			kind: 'terminal',
+			language: 'bash',
+			commandLine: { original: 'npm test' },
+			terminalCommandOutput: { text: 'all green' },
+			terminalCommandState: { exitCode: 0 },
+		};
+
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-call-1',
+			toolName: 'run_in_terminal',
+			isComplete: false,
+			invocationMessage: 'Running npm test',
+		});
+
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-call-1',
+			toolName: 'run_in_terminal',
+			isComplete: true,
+			pastTenseMessage: 'Ran npm test',
+			toolSpecificData,
+		});
+
+		assert.strictEqual(response.value.length, 1);
+		assert.strictEqual(response.value[0].kind, 'toolInvocation');
+		assert.deepStrictEqual(response.value[0].toolSpecificData, toolSpecificData);
+		assert.strictEqual(IChatToolInvocation.isComplete(response.value[0]), true);
+	});
+
+	test('external terminal tool updates preserve toolSpecificData when first pushed as complete', () => {
+		const response = store.add(new Response([]));
+		const toolSpecificData: IChatTerminalToolInvocationData = {
+			kind: 'terminal',
+			language: 'bash',
+			commandLine: { original: 'npm test' },
+			terminalCommandOutput: { text: 'all green' },
+			terminalCommandState: { exitCode: 0 },
+		};
+
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-call-2',
+			toolName: 'run_in_terminal',
+			isComplete: true,
+			invocationMessage: 'Running npm test',
+			pastTenseMessage: 'Ran npm test',
+			toolSpecificData,
+		});
+
+		assert.strictEqual(response.value.length, 1);
+		assert.strictEqual(response.value[0].kind, 'toolInvocation');
+		assert.deepStrictEqual(response.value[0].toolSpecificData, toolSpecificData);
+		assert.strictEqual(IChatToolInvocation.isComplete(response.value[0]), true);
+	});
 });
 
 suite('normalizeSerializableChatData', () => {
@@ -1040,11 +1099,61 @@ suite('ChatModel - Pending Requests', () => {
 	test('pending requests preserve send options', () => {
 		const model = createModel();
 		const request = addRequestToModel(model, 'test');
-		const sendOptions = { agentId: 'test-agent', attempt: 3 };
+		const sendOptions = { agentId: 'test-agent', attempt: 3, sessionGrouping: { id: 'group-123', order: 1, kind: 'subagent' } };
 
 		const pending = model.addPendingRequest(request, ChatRequestQueueKind.Queued, sendOptions);
 
 		assert.strictEqual(pending.sendOptions.agentId, 'test-agent');
 		assert.strictEqual(pending.sendOptions.attempt, 3);
+		assert.deepStrictEqual(pending.sendOptions.sessionGrouping, { id: 'group-123', order: 1, kind: 'subagent' });
+	});
+});
+
+suite('ChatResponseResource', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('createUri roundtrips through parseUri without basename', () => {
+		const sessionResource = URI.parse('vscode-chat-session://local/session1');
+		const uri = ChatResponseResource.createUri(sessionResource, 'call-123', 2);
+		const parsed = ChatResponseResource.parseUri(uri);
+
+		assert.ok(parsed);
+		assert.strictEqual(parsed.sessionResource.toString(), sessionResource.toString());
+		assert.strictEqual(parsed.toolCallId, 'call-123');
+		assert.strictEqual(parsed.index, 2);
+	});
+
+	test('createUri roundtrips through parseUri with basename', () => {
+		const sessionResource = URI.parse('vscode-chat-session://local/session1');
+		const uri = ChatResponseResource.createUri(sessionResource, 'call-456', 0, 'file.txt');
+		const parsed = ChatResponseResource.parseUri(uri);
+
+		assert.ok(parsed);
+		assert.strictEqual(parsed.sessionResource.toString(), sessionResource.toString());
+		assert.strictEqual(parsed.toolCallId, 'call-456');
+		assert.strictEqual(parsed.index, 0);
+	});
+
+	test('parseUri rejects paths with fewer than 4 segments', () => {
+		// path "/tool/callId/0" splits into ['', 'tool', 'callId', '0'] = 4 parts => valid
+		// path "/tool/callId" splits into ['', 'tool', 'callId'] = 3 parts => invalid
+		const base = URI.from({ scheme: ChatResponseResource.scheme, authority: 'abc', path: '/tool/callId' });
+		assert.strictEqual(ChatResponseResource.parseUri(base), undefined);
+
+		const tooShort = URI.from({ scheme: ChatResponseResource.scheme, authority: 'abc', path: '/tool' });
+		assert.strictEqual(ChatResponseResource.parseUri(tooShort), undefined);
+
+		const empty = URI.from({ scheme: ChatResponseResource.scheme, authority: 'abc', path: '/' });
+		assert.strictEqual(ChatResponseResource.parseUri(empty), undefined);
+	});
+
+	test('parseUri rejects wrong scheme', () => {
+		const uri = URI.from({ scheme: 'file', path: '/tool/callId/0' });
+		assert.strictEqual(ChatResponseResource.parseUri(uri), undefined);
+	});
+
+	test('parseUri rejects wrong kind', () => {
+		const uri = URI.from({ scheme: ChatResponseResource.scheme, authority: 'abc', path: '/notTool/callId/0' });
+		assert.strictEqual(ChatResponseResource.parseUri(uri), undefined);
 	});
 });

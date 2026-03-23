@@ -11,7 +11,7 @@
 	flex-wrap: nowrap;
 	align-items: center;
 	justify-content: flex-start;
-	padding: 0 10px;
+	padding: 0 16px;
 	height: 22px;
 	border-radius: 4px;
 	-webkit-app-region: no-drag;
@@ -77,18 +77,4 @@
 	flex-shrink: 0;
 }
 
-/* Changes summary */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-changes {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-	gap: 3px;
-}
 
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-changes-added {
-	color: var(--vscode-gitDecoration-addedResourceForeground);
-}
-
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-changes-removed {
-	color: var(--vscode-gitDecoration-deletedResourceForeground);
-}

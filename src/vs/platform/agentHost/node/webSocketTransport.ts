@@ -6,37 +6,29 @@
 // WebSocket transport for the sessions process protocol.
 // Uses JSON serialization with URI revival for cross-process communication.
 
-import { WebSocketServer, WebSocket } from 'ws';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { URI } from '../../../base/common/uri.js';
+import { connectionTokenQueryName } from '../../../base/common/network.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IProtocolMessage } from '../common/state/sessionProtocol.js';
+import { JSON_RPC_PARSE_ERROR, type IAhpServerNotification, type IJsonRpcResponse, type IProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 
-// ---- JSON serialization helpers ---------------------------------------------
-
-function uriReplacer(_key: string, value: unknown): unknown {
-	if (value instanceof URI) {
-		return value.toJSON();
-	}
-	if (value instanceof Map) {
-		return { $type: 'Map', entries: [...value.entries()] };
-	}
-	return value;
-}
-
-function uriReviver(_key: string, value: unknown): unknown {
-	if (value && typeof value === 'object') {
-		const obj = value as Record<string, unknown>;
-		if (obj.$mid === 1) {
-			return URI.revive(value as URI);
-		}
-		if (obj.$type === 'Map' && Array.isArray(obj.entries)) {
-			return new Map(obj.entries as [unknown, unknown][]);
-		}
-	}
-	return value;
+/**
+ * Options for creating a {@link WebSocketProtocolServer}.
+ * Provide either `port`+`host` or `socketPath`, not both.
+ */
+export interface IWebSocketServerOptions {
+	/** TCP port to listen on. Ignored when {@link socketPath} is set. */
+	readonly port?: number;
+	/** Host/IP to bind to. Defaults to `'127.0.0.1'`. */
+	readonly host?: string;
+	/** Unix domain socket / Windows named pipe path. Takes precedence over port. */
+	readonly socketPath?: string;
+	/**
+	 * Optional token validator. When provided, WebSocket upgrade requests
+	 * must include a valid token in the `tkn` query parameter.
+	 */
+	readonly connectionTokenValidate?: (token: unknown) => boolean;
 }
 
 // ---- Per-connection transport -----------------------------------------------
@@ -53,16 +45,19 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
 
-	constructor(private readonly _ws: WebSocket) {
+	constructor(
+		private readonly _ws: import('ws').WebSocket,
+		private readonly _WebSocket: typeof import('ws').WebSocket,
+	) {
 		super();
 
 		this._ws.on('message', (data: Buffer | string) => {
 			try {
 				const text = typeof data === 'string' ? data : data.toString('utf-8');
-				const message = JSON.parse(text, uriReviver) as IProtocolMessage;
+				const message = JSON.parse(text) as IProtocolMessage;
 				this._onMessage.fire(message);
 			} catch {
-				// Malformed message — drop. No logger available at transport level.
+				this.send({ jsonrpc: '2.0', id: null!, error: { code: JSON_RPC_PARSE_ERROR, message: 'Parse error' } });
 			}
 		});
 
@@ -76,9 +71,9 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 		});
 	}
 
-	send(message: IProtocolMessage): void {
-		if (this._ws.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify(message, uriReplacer));
+	send(message: IProtocolMessage | IAhpServerNotification | IJsonRpcResponse): void {
+		if (this._ws.readyState === this._WebSocket.OPEN) {
+			this._ws.send(JSON.stringify(message));
 		}
 	}
 
@@ -93,10 +88,15 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 /**
  * WebSocket server that accepts client connections and wraps each one
  * as an {@link IProtocolTransport}.
+ *
+ * Use the static {@link create} method to construct — it dynamically imports
+ * `ws` and `http`/`url` so the modules are only loaded when needed.
  */
 export class WebSocketProtocolServer extends Disposable implements IProtocolServer {
 
-	private readonly _wss: WebSocketServer;
+	private readonly _wss: import('ws').WebSocketServer;
+	private readonly _httpServer: import('http').Server | undefined;
+	private readonly _WebSocket: typeof import('ws').WebSocket;
 
 	private readonly _onConnection = this._register(new Emitter<IProtocolTransport>());
 	readonly onConnection = this._onConnection.event;
@@ -109,17 +109,66 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 		return `${addr.address}:${addr.port}`;
 	}
 
-	constructor(
-		private readonly _port: number,
-		@ILogService private readonly _logService: ILogService,
+	/**
+	 * Creates a new WebSocket protocol server. Dynamically imports `ws`,
+	 * `http`, and `url` so callers don't pay the cost when unused.
+	 */
+	static async create(
+		options: IWebSocketServerOptions | number,
+		logService: ILogService,
+	): Promise<WebSocketProtocolServer> {
+		const [ws, http, url] = await Promise.all([
+			import('ws'),
+			import('http'),
+			import('url'),
+		]);
+		return new WebSocketProtocolServer(options, logService, ws, http, url);
+	}
+
+	private constructor(
+		options: IWebSocketServerOptions | number,
+		private readonly _logService: ILogService,
+		ws: typeof import('ws'),
+		http: typeof import('http'),
+		url: typeof import('url'),
 	) {
 		super();
-		this._wss = new WebSocketServer({ port: this._port, host: '127.0.0.1' });
-		this._logService.info(`[WebSocketProtocol] Server listening on 127.0.0.1:${this._port}`);
 
-		this._wss.on('connection', (ws) => {
+		this._WebSocket = ws.WebSocket;
+
+		// Backwards compat: accept a plain port number
+		const opts: IWebSocketServerOptions = typeof options === 'number' ? { port: options } : options;
+		const host = opts.host ?? '127.0.0.1';
+
+		const verifyClient = opts.connectionTokenValidate
+			? (info: { req: import('http').IncomingMessage }, cb: (res: boolean, code?: number, message?: string) => void) => {
+				const parsedUrl = url.parse(info.req.url ?? '', true);
+				const token = parsedUrl.query[connectionTokenQueryName];
+				if (!opts.connectionTokenValidate!(token)) {
+					this._logService.warn('[WebSocketProtocol] Connection rejected: invalid connection token');
+					cb(false, 403, 'Forbidden');
+					return;
+				}
+				cb(true);
+			}
+			: undefined;
+
+		if (opts.socketPath) {
+			// For socket paths, create an HTTP server listening on the path
+			// and attach the WebSocket server to it.
+			this._httpServer = http.createServer();
+			this._wss = new ws.WebSocketServer({ server: this._httpServer, verifyClient });
+			this._httpServer.listen(opts.socketPath, () => {
+				this._logService.info(`[WebSocketProtocol] Server listening on socket ${opts.socketPath}`);
+			});
+		} else {
+			this._wss = new ws.WebSocketServer({ port: opts.port, host, verifyClient });
+			this._logService.info(`[WebSocketProtocol] Server listening on ${host}:${opts.port}`);
+		}
+
+		this._wss.on('connection', (wsConn) => {
 			this._logService.trace('[WebSocketProtocol] New client connection');
-			const transport = new WebSocketProtocolTransport(ws);
+			const transport = new WebSocketProtocolTransport(wsConn, this._WebSocket);
 			this._onConnection.fire(transport);
 		});
 
@@ -130,6 +179,7 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 
 	override dispose(): void {
 		this._wss.close();
+		this._httpServer?.close();
 		super.dispose();
 	}
 }

@@ -21,6 +21,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IActionEnvelope, INotification, ISessionAction, isRootAction, isSessionAction, IStateAction } from './sessionActions.js';
 import { rootReducer, sessionReducer } from './sessionReducers.js';
 import { IRootState, ISessionState, ROOT_STATE_URI } from './sessionState.js';
+import { ILogService } from '../../../log/common/log.js';
 
 // ---- Pending action tracking ------------------------------------------------
 
@@ -49,6 +50,7 @@ interface IPendingAction {
 export class SessionClientState extends Disposable {
 
 	private readonly _clientId: string;
+	private readonly _log: (msg: string) => void;
 	private _nextClientSeq = 1;
 	private _lastSeenServerSeq = 0;
 
@@ -66,15 +68,16 @@ export class SessionClientState extends Disposable {
 	private readonly _onDidChangeRootState = this._register(new Emitter<IRootState>());
 	readonly onDidChangeRootState: Event<IRootState> = this._onDidChangeRootState.event;
 
-	private readonly _onDidChangeSessionState = this._register(new Emitter<{ session: URI; state: ISessionState }>());
-	readonly onDidChangeSessionState: Event<{ session: URI; state: ISessionState }> = this._onDidChangeSessionState.event;
+	private readonly _onDidChangeSessionState = this._register(new Emitter<{ session: string; state: ISessionState }>());
+	readonly onDidChangeSessionState: Event<{ session: string; state: ISessionState }> = this._onDidChangeSessionState.event;
 
 	private readonly _onDidReceiveNotification = this._register(new Emitter<INotification>());
 	readonly onDidReceiveNotification: Event<INotification> = this._onDidReceiveNotification.event;
 
-	constructor(clientId: string) {
+	constructor(clientId: string, logService: ILogService) {
 		super();
 		this._clientId = clientId;
+		this._log = msg => logService.warn(`[SessionClientState] ${msg}`);
 	}
 
 	get clientId(): string {
@@ -91,8 +94,8 @@ export class SessionClientState extends Disposable {
 	}
 
 	/** Current optimistic session state, or undefined if not subscribed. */
-	getSessionState(session: URI): ISessionState | undefined {
-		return this._optimisticSessionStates.get(session.toString());
+	getSessionState(session: string): ISessionState | undefined {
+		return this._optimisticSessionStates.get(session);
 	}
 
 	/** URIs of sessions the client is currently subscribed to. */
@@ -106,24 +109,23 @@ export class SessionClientState extends Disposable {
 	 * Apply a state snapshot received from the server (from handshake,
 	 * subscribe response, or reconnection).
 	 */
-	handleSnapshot(resource: URI, state: IRootState | ISessionState, fromSeq: number): void {
+	handleSnapshot(resource: string, state: IRootState | ISessionState, fromSeq: number): void {
 		this._lastSeenServerSeq = Math.max(this._lastSeenServerSeq, fromSeq);
 
-		if (resource.toString() === ROOT_STATE_URI.toString()) {
+		if (resource === ROOT_STATE_URI) {
 			const rootState = state as IRootState;
 			this._confirmedRootState = rootState;
 			this._optimisticRootState = rootState;
 			this._onDidChangeRootState.fire(rootState);
 		} else {
-			const key = resource.toString();
 			const sessionState = state as ISessionState;
-			this._confirmedSessionStates.set(key, sessionState);
-			this._optimisticSessionStates.set(key, sessionState);
+			this._confirmedSessionStates.set(resource, sessionState);
+			this._optimisticSessionStates.set(resource, sessionState);
 			// Re-apply any pending session actions for this session
 			this._recomputeOptimisticSession(resource);
 			this._onDidChangeSessionState.fire({
 				session: resource,
-				state: this._optimisticSessionStates.get(key)!,
+				state: this._optimisticSessionStates.get(resource)!,
 			});
 		}
 	}
@@ -131,18 +133,17 @@ export class SessionClientState extends Disposable {
 	/**
 	 * Unsubscribe from a resource, dropping its local state.
 	 */
-	unsubscribe(resource: URI): void {
-		const key = resource.toString();
-		if (key === ROOT_STATE_URI.toString()) {
+	unsubscribe(resource: string): void {
+		if (resource === ROOT_STATE_URI) {
 			this._confirmedRootState = undefined;
 			this._optimisticRootState = undefined;
 		} else {
-			this._confirmedSessionStates.delete(key);
-			this._optimisticSessionStates.delete(key);
+			this._confirmedSessionStates.delete(resource);
+			this._optimisticSessionStates.delete(resource);
 			// Remove pending actions for this session
 			for (let i = this._pendingActions.length - 1; i >= 0; i--) {
 				const action = this._pendingActions[i].action;
-				if (isSessionAction(action) && action.session.toString() === key) {
+				if (isSessionAction(action) && action.session === resource) {
 					this._pendingActions.splice(i, 1);
 				}
 			}
@@ -181,7 +182,7 @@ export class SessionClientState extends Disposable {
 			const headIdx = this._pendingActions.findIndex(p => p.clientSeq === origin.clientSeq);
 
 			if (headIdx !== -1) {
-				if (envelope.rejected) {
+				if (envelope.rejectionReason) {
 					this._pendingActions.splice(headIdx, 1);
 				} else {
 					this._applyToConfirmed(envelope.action);
@@ -210,13 +211,13 @@ export class SessionClientState extends Disposable {
 
 	private _applyToConfirmed(action: IStateAction): void {
 		if (isRootAction(action) && this._confirmedRootState) {
-			this._confirmedRootState = rootReducer(this._confirmedRootState, action);
+			this._confirmedRootState = rootReducer(this._confirmedRootState, action, this._log);
 		}
 		if (isSessionAction(action)) {
 			const key = action.session.toString();
 			const state = this._confirmedSessionStates.get(key);
 			if (state) {
-				this._confirmedSessionStates.set(key, sessionReducer(state, action));
+				this._confirmedSessionStates.set(key, sessionReducer(state, action, this._log));
 			}
 		}
 	}
@@ -225,7 +226,7 @@ export class SessionClientState extends Disposable {
 		const key = action.session.toString();
 		const state = this._optimisticSessionStates.get(key);
 		if (state) {
-			const newState = sessionReducer(state, action);
+			const newState = sessionReducer(state, action, this._log);
 			this._optimisticSessionStates.set(key, newState);
 			this._onDidChangeSessionState.fire({ session: action.session, state: newState });
 		}
@@ -255,26 +256,24 @@ export class SessionClientState extends Disposable {
 			}
 		}
 		for (const key of affectedKeys) {
-			const uri = URI.parse(key);
-			this._recomputeOptimisticSession(uri);
+			this._recomputeOptimisticSession(key);
 		}
 	}
 
-	private _recomputeOptimisticSession(session: URI): void {
-		const key = session.toString();
-		const confirmed = this._confirmedSessionStates.get(key);
+	private _recomputeOptimisticSession(session: string): void {
+		const confirmed = this._confirmedSessionStates.get(session);
 		if (!confirmed) {
 			return;
 		}
 
 		let state = confirmed;
 		for (const pending of this._pendingActions) {
-			if (isSessionAction(pending.action) && pending.action.session.toString() === key) {
-				state = sessionReducer(state, pending.action);
+			if (isSessionAction(pending.action) && pending.action.session === session) {
+				state = sessionReducer(state, pending.action, this._log);
 			}
 		}
 
-		this._optimisticSessionStates.set(key, state);
+		this._optimisticSessionStates.set(session, state);
 		this._onDidChangeSessionState.fire({ session, state });
 	}
 }

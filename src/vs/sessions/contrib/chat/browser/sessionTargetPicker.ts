@@ -5,142 +5,162 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Radio } from '../../../../base/browser/ui/radio/radio.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
 
-// #region --- Session Target Picker ---
+// #region --- Types ---
+
+export type SessionTargetType = 'copilot-cli' | 'cloud';
+export type IsolationMode = 'worktree' | 'workspace';
+
+// #endregion
+
+// #region --- Target Picker ---
 
 /**
- * A self-contained widget for selecting the session target (Local vs Cloud).
- * Encapsulates state, events, and rendering. Can be placed anywhere in the view.
+ * A self-contained widget for selecting the session target type.
+ *
+ * Options:
+ * - **Copilot CLI** (`cli`) — local agent session
+ * - **Cloud** (`cloud`) — remote/cloud agent session
+ *
+ * The target is determined by the project type (folder → CLI, repo → Cloud).
+ * Emits `onDidChange` with the selected `SessionTargetType` when the target changes.
  */
-export class SessionTargetPicker extends Disposable {
+export class SessionTypePicker extends Disposable {
 
-	private _selectedTarget: AgentSessionProviders;
-	private _allowedTargets: AgentSessionProviders[];
+	private _sessionTarget: SessionTargetType = 'copilot-cli';
+	private _project: SessionWorkspace | undefined;
 
-	private readonly _onDidChangeTarget = this._register(new Emitter<AgentSessionProviders>());
-	readonly onDidChangeTarget: Event<AgentSessionProviders> = this._onDidChangeTarget.event;
+	private readonly _onDidChange = this._register(new Emitter<SessionTargetType>());
+	readonly onDidChange: Event<SessionTargetType> = this._onDidChange.event;
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
-	private _container: HTMLElement | undefined;
+	private _slotElement: HTMLElement | undefined;
+	private _triggerElement: HTMLElement | undefined;
 
-	get selectedTarget(): AgentSessionProviders {
-		return this._selectedTarget;
+	get sessionTarget(): SessionTargetType {
+		return this._sessionTarget;
+	}
+
+	get isCli(): boolean {
+		return this._sessionTarget === 'copilot-cli';
+	}
+
+	get isCloud(): boolean {
+		return this._sessionTarget === 'cloud';
 	}
 
 	constructor(
-		allowedTargets: AgentSessionProviders[],
-		defaultTarget: AgentSessionProviders,
 	) {
 		super();
-		this._allowedTargets = allowedTargets;
-		this._selectedTarget = allowedTargets.includes(defaultTarget)
-			? defaultTarget
-			: allowedTargets[0];
 	}
 
 	/**
-	 * Renders the target radio (Local / Cloud) into the given container.
+	 * Sets the current project context. Determines the target type:
+	 * - Repo project → cloud
+	 * - Folder project → cli
+	 * - No project → retains current target
 	 */
+	setProject(project: SessionWorkspace | undefined): void {
+		this._project = project;
+		this._updateTarget();
+		this._updateTriggerLabel();
+	}
+
+	private _updateTarget(): void {
+		if (this._project?.isRepo) {
+			this._setTarget('cloud');
+			return;
+		}
+
+		if (this._project?.isFolder) {
+			this._setTarget('copilot-cli');
+			return;
+		}
+	}
+
 	render(container: HTMLElement): void {
-		this._container = container;
-		this._renderRadio();
-	}
-
-	updateAllowedTargets(targets: AgentSessionProviders[]): void {
-		if (targets.length === 0) {
-			return;
-		}
-		this._allowedTargets = targets;
-		if (!targets.includes(this._selectedTarget)) {
-			this._selectedTarget = targets[0];
-			this._onDidChangeTarget.fire(this._selectedTarget);
-		}
-		if (this._container) {
-			this._renderRadio();
-		}
-	}
-
-	private _renderRadio(): void {
-		if (!this._container) {
-			return;
-		}
-
 		this._renderDisposables.clear();
-		dom.clearNode(this._container);
 
-		if (this._allowedTargets.length === 0) {
+		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
+		this._slotElement = slot;
+		this._renderDisposables.add({ dispose: () => slot.remove() });
+
+		const trigger = dom.append(slot, dom.$('a.action-label'));
+		trigger.tabIndex = -1;
+		trigger.role = 'button';
+		trigger.setAttribute('aria-disabled', 'true');
+		this._triggerElement = trigger;
+		this._updateTriggerLabel();
+	}
+
+	private _setTarget(target: SessionTargetType): void {
+		if (this._sessionTarget !== target) {
+			this._sessionTarget = target;
+			this._updateTriggerLabel();
+			this._onDidChange.fire(target);
+		}
+	}
+
+	private _updateTriggerLabel(): void {
+		if (!this._triggerElement) {
 			return;
 		}
 
-		const targets = [AgentSessionProviders.Background, AgentSessionProviders.Cloud].filter(t => this._allowedTargets.includes(t));
-		const activeIndex = targets.indexOf(this._selectedTarget);
+		dom.clearNode(this._triggerElement);
 
-		const radio = new Radio({
-			items: targets.map(target => ({
-				text: getTargetLabel(target),
-				isActive: target === this._selectedTarget,
-			})),
-		});
-		this._renderDisposables.add(radio);
-		this._container.appendChild(radio.domNode);
+		let modeIcon;
+		let modeLabel: string;
 
-		if (activeIndex >= 0) {
-			radio.setActiveItem(activeIndex);
+		switch (this._sessionTarget) {
+			case 'cloud':
+				modeIcon = Codicon.cloud;
+				modeLabel = localize('sessionTarget.cloud', "Cloud");
+				break;
+			case 'copilot-cli':
+			default:
+				modeIcon = Codicon.worktree;
+				modeLabel = localize('sessionTarget.cli', "Copilot CLI");
+				break;
 		}
 
-		this._renderDisposables.add(radio.onDidSelect(index => {
-			const target = targets[index];
-			if (this._selectedTarget !== target) {
-				this._selectedTarget = target;
-				this._onDidChangeTarget.fire(target);
-			}
-		}));
-	}
-}
+		dom.append(this._triggerElement, renderIcon(modeIcon));
+		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
+		labelSpan.textContent = modeLabel;
 
-function getTargetLabel(provider: AgentSessionProviders): string {
-	switch (provider) {
-		case AgentSessionProviders.Local:
-		case AgentSessionProviders.Background:
-			return localize('chat.session.providerLabel.local', "Local");
-		case AgentSessionProviders.Cloud:
-			return localize('chat.session.providerLabel.cloud', "Cloud");
-		case AgentSessionProviders.Claude:
-			return 'Claude';
-		case AgentSessionProviders.Codex:
-			return 'Codex';
-		case AgentSessionProviders.Growth:
-			return 'Growth';
-		case AgentSessionProviders.AgentHostCopilot:
-			return 'Agent Host - Copilot';
+		this._slotElement?.classList.toggle('disabled', true);
 	}
 }
 
 // #endregion
 
-// #region --- Isolation Mode Picker ---
-
-export type IsolationMode = 'worktree' | 'workspace';
+// #region --- Isolation Picker ---
 
 /**
- * A self-contained widget for selecting the isolation mode (Worktree vs Folder).
- * Encapsulates state, events, and rendering. Can be placed anywhere in the view.
+ * A self-contained widget for selecting the isolation mode.
+ *
+ * Options:
+ * - **Worktree** (`worktree`) — run in a git worktree
+ * - **Folder** (`workspace`) — run directly in the folder
+ *
+ * Only visible when isolation option is enabled, project has a git repo,
+ * and the target is CLI.
+ *
+ * Emits `onDidChange` with the selected `IsolationMode` when the user picks an option.
  */
-export class IsolationModePicker extends Disposable {
+export class IsolationPicker extends Disposable {
 
 	private _isolationMode: IsolationMode = 'worktree';
-	private _preferredIsolationMode: IsolationMode | undefined;
-	private _repository: IGitRepository | undefined;
-	private _enabled: boolean = true;
+	private _hasGitRepo = false;
+	private _visible = true;
+	private _isolationOptionEnabled: boolean;
 
 	private readonly _onDidChange = this._register(new Emitter<IsolationMode>());
 	readonly onDidChange: Event<IsolationMode> = this._onDidChange.event;
@@ -153,32 +173,57 @@ export class IsolationModePicker extends Disposable {
 		return this._isolationMode;
 	}
 
+	get isWorktree(): boolean {
+		return this._isolationMode === 'worktree';
+	}
+
+	get isFolder(): boolean {
+		return this._isolationMode === 'workspace';
+	}
+
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
+		this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('github.copilot.chat.cli.isolationOption.enabled')) {
+				this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
+				if (!this._isolationOptionEnabled) {
+					// Reset to worktree when isolation option is disabled
+					this._setMode('worktree');
+				}
+				this._updateVisibility();
+				this._updateTriggerLabel();
+			}
+		}));
 	}
 
 	/**
-	 * Sets the git repository. When undefined, worktree option is hidden
-	 * and isolation mode falls back to 'workspace'.
+	 * Sets whether the project has a git repository.
+	 * Resets isolation mode to the appropriate default.
 	 */
-	setRepository(repository: IGitRepository | undefined): void {
-		this._repository = repository;
-		if (repository) {
-			const preferred = this._preferredIsolationMode;
-			this._preferredIsolationMode = undefined;
-			this._setMode(preferred ?? this._isolationMode);
-		} else if (this._isolationMode === 'worktree') {
-			this._preferredIsolationMode ??= this._isolationMode;
+	setHasGitRepo(hasRepo: boolean): void {
+		this._hasGitRepo = hasRepo;
+		if (!hasRepo) {
 			this._setMode('workspace');
+		} else {
+			this._setMode('worktree');
 		}
+		this._updateVisibility();
 		this._updateTriggerLabel();
 	}
 
 	/**
-	 * Renders the isolation mode picker into the given container.
+	 * Sets external visibility (e.g. hidden when target is Cloud).
 	 */
+	setVisible(visible: boolean): void {
+		this._visible = visible;
+		this._updateVisibility();
+	}
+
 	render(container: HTMLElement): void {
 		this._renderDisposables.clear();
 
@@ -191,6 +236,7 @@ export class IsolationModePicker extends Disposable {
 		trigger.role = 'button';
 		this._triggerElement = trigger;
 		this._updateTriggerLabel();
+		this._updateVisibility();
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
 			dom.EventHelper.stop(e, true);
@@ -205,40 +251,12 @@ export class IsolationModePicker extends Disposable {
 		}));
 	}
 
-	/**
-	 * Sets a preferred isolation mode to apply when a repository is set.
-	 */
-	setPreferredIsolationMode(mode: IsolationMode): void {
-		this._preferredIsolationMode = mode;
-	}
-
-	/**
-	 * Programmatically set the isolation mode.
-	 */
-	setIsolationMode(mode: IsolationMode): void {
-		this._setMode(mode);
-	}
-
-	/**
-	 * Shows or hides the picker.
-	 */
-	setVisible(visible: boolean): void {
-		if (this._slotElement) {
-			this._slotElement.style.display = visible ? '' : 'none';
-		}
-	}
-
-	/**
-	 * Enables or disables the picker. When disabled, the picker is shown
-	 * but cannot be interacted with.
-	 */
-	setEnabled(enabled: boolean): void {
-		this._enabled = enabled;
-		this._updateTriggerLabel();
-	}
-
 	private _showPicker(): void {
-		if (!this._triggerElement || this.actionWidgetService.isVisible || !this._repository || !this._enabled) {
+		if (!this._triggerElement || this.actionWidgetService.isVisible) {
+			return;
+		}
+
+		if (!this._hasGitRepo || !this._isolationOptionEnabled) {
 			return;
 		}
 
@@ -267,7 +285,7 @@ export class IsolationModePicker extends Disposable {
 		};
 
 		this.actionWidgetService.show<IsolationMode>(
-			'isolationModePicker',
+			'isolationPicker',
 			false,
 			items,
 			delegate,
@@ -276,7 +294,7 @@ export class IsolationModePicker extends Disposable {
 			[],
 			{
 				getAriaLabel: (item) => item.label ?? '',
-				getWidgetAriaLabel: () => localize('isolationModePicker.ariaLabel', "Isolation Mode"),
+				getWidgetAriaLabel: () => localize('isolationPicker.ariaLabel', "Isolation Mode"),
 			},
 		);
 	}
@@ -284,9 +302,17 @@ export class IsolationModePicker extends Disposable {
 	private _setMode(mode: IsolationMode): void {
 		if (this._isolationMode !== mode) {
 			this._isolationMode = mode;
-			this._onDidChange.fire(mode);
 			this._updateTriggerLabel();
+			this._onDidChange.fire(mode);
 		}
+	}
+
+	private _updateVisibility(): void {
+		if (!this._slotElement) {
+			return;
+		}
+		const shouldShow = this._visible && this._hasGitRepo && this._isolationOptionEnabled;
+		this._slotElement.style.display = shouldShow ? '' : 'none';
 	}
 
 	private _updateTriggerLabel(): void {
@@ -295,22 +321,26 @@ export class IsolationModePicker extends Disposable {
 		}
 
 		dom.clearNode(this._triggerElement);
-		const isDisabled = !this._repository;
-		const modeIcon = this._isolationMode === 'worktree' ? Codicon.worktree : Codicon.folder;
-		const modeLabel = this._isolationMode === 'worktree'
-			? localize('isolationMode.worktree', "Worktree")
-			: localize('isolationMode.folder', "Folder");
+
+		let modeIcon;
+		let modeLabel: string;
+
+		switch (this._isolationMode) {
+			case 'workspace':
+				modeIcon = Codicon.folder;
+				modeLabel = localize('isolationMode.folder', "Folder");
+				break;
+			case 'worktree':
+			default:
+				modeIcon = Codicon.worktree;
+				modeLabel = localize('isolationMode.worktree', "Worktree");
+				break;
+		}
 
 		dom.append(this._triggerElement, renderIcon(modeIcon));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = modeLabel;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
-
-		this._slotElement?.classList.toggle('disabled', isDisabled || !this._enabled);
-		if (this._triggerElement) {
-			this._triggerElement.tabIndex = (!isDisabled && this._enabled) ? 0 : -1;
-			this._triggerElement.setAttribute('aria-disabled', String(isDisabled || !this._enabled));
-		}
 	}
 }
 

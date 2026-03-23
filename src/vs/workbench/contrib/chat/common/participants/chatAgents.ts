@@ -5,6 +5,7 @@
 
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
@@ -23,7 +24,7 @@ import { ChatContextKeys } from '../actions/chatContextKeys.js';
 import { IChatAgentEditedFileEvent, IChatProgressHistoryResponseContent, IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatAgentData } from '../model/chatModel.js';
 import { ChatRequestHooks } from '../promptSyntax/hookSchema.js';
 import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
-import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from '../chatService/chatService.js';
+import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatSessionGrouping, IChatTaskDto } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ILanguageModelsService } from '../languageModels.js';
 
@@ -146,6 +147,7 @@ export interface IChatAgentRequest {
 	acceptedConfirmationData?: unknown[];
 	rejectedConfirmationData?: unknown[];
 	userSelectedModelId?: string;
+	modelConfiguration?: IStringDictionary<unknown>;
 	userSelectedTools?: UserSelectedTools;
 	modeInstructions?: IChatRequestModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
@@ -176,6 +178,10 @@ export interface IChatAgentRequest {
 	 * The request ID of the parent request that invoked this subagent.
 	 */
 	parentRequestId?: string;
+	/**
+	 * Optional metadata used to group related requests together in the UI.
+	 */
+	sessionGrouping?: IChatSessionGrouping;
 
 }
 

@@ -425,6 +425,8 @@ export function getShellIntegrationTimeout(
 
 	if (!isNumber(timeoutValue) || timeoutValue < 0) {
 		timeoutMs = siInjectionEnabled ? 5000 : (isRemote ? 3000 : 2000);
+	} else if (timeoutValue === 0) {
+		timeoutMs = 0;
 	} else {
 		timeoutMs = Math.max(timeoutValue, 500);
 	}

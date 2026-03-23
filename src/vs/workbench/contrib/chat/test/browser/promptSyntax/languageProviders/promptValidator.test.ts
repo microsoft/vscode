@@ -631,6 +631,60 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers, [], 'Expected no validation issues for handoffs attribute');
 		});
 
+		test('duplicate handoff labels are reported', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`handoffs:`,
+				'  - label: Start Implementation',
+				'    agent: agent',
+				'    prompt: Go implement',
+				'  - label: Start Implementation',
+				'    agent: agent',
+				'    prompt: Go implement again',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers.map(m => m.message), [
+				'Duplicate handoff label \'Start Implementation\'. Each handoff must have a unique label.',
+			]);
+		});
+
+		test('duplicate handoff labels are case-insensitive', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`handoffs:`,
+				'  - label: Start Implementation',
+				'    agent: agent',
+				'    prompt: Go implement',
+				'  - label: start implementation',
+				'    agent: edit',
+				'    prompt: Different prompt',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers.map(m => m.message), [
+				'Duplicate handoff label \'start implementation\'. Each handoff must have a unique label.',
+			]);
+		});
+
+		test('handoff label must contain alphanumeric character', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`handoffs:`,
+				'  - label: "!!!"',
+				'    agent: agent',
+				'    prompt: Go',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers.map(m => m.message), [
+				'The \'label\' property in a handoff must contain at least one alphanumeric character.',
+			]);
+		});
+
 		test('github-copilot agent with supported attributes', async () => {
 			const content = [
 				'---',
@@ -2111,7 +2165,7 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].message, `The skill name 'different-name' should match the folder name 'my-skill'.`);
 		});
 
-		test('skill without name attribute does not error', async () => {
+		test('skill without name attribute should error', async () => {
 			const content = [
 				'---',
 				'description: Test Skill',
@@ -2119,10 +2173,12 @@ suite('PromptValidator', () => {
 				'This is a skill without a name.'
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
-			assert.deepStrictEqual(markers, [], 'Expected no validation issues when name is missing');
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `Skill must provide a name.`);
 		});
 
-		test('skill with empty name does not validate folder match', async () => {
+		test('skill with empty name should error', async () => {
 			const content = [
 				'---',
 				'name: ""',
@@ -2131,9 +2187,49 @@ suite('PromptValidator', () => {
 				'This is a skill.'
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
-			// Should get error for empty name, but no folder mismatch warning since name is empty
-			assert.ok(markers.some(m => m.message.includes('must not be empty')), 'Expected error for empty name');
-			assert.ok(!markers.some(m => m.message.includes('should match the folder name')), 'Should not warn about folder mismatch for empty name');
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'name' attribute must not be empty.`);
+		});
+
+		test('skill without description attribute should error', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'---',
+				'This is a skill without a description.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `Skill must provide a description.`);
+		});
+
+		test('skill with empty description should error', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: ""',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'description' attribute should not be empty.`);
+		});
+
+
+		test('skill name with invalid characters should error', async () => {
+			const content = [
+				'---',
+				'name: My Skill',
+				'description: Test Skill',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.ok(markers.some(m => m.severity === MarkerSeverity.Error && m.message === 'Skill name may only contain lowercase letters, numbers, and hyphens.'));
 		});
 
 		test('skill name with whitespace trimmed matches folder name', async () => {
@@ -2186,7 +2282,7 @@ suite('PromptValidator', () => {
 				'This is a skill.'
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my_special-skill.v2/SKILL.md'));
-			assert.deepStrictEqual(markers, [], 'Expected no issues when name with special chars matches folder');
+			assert.ok(markers.some(m => m.severity === MarkerSeverity.Error && m.message === 'Skill name may only contain lowercase letters, numbers, and hyphens.'), 'Expected error for invalid characters in skill name');
 		});
 
 		test('skill with non-string name type does not validate folder match', async () => {

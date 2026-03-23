@@ -6,6 +6,7 @@
 import type * as vscode from 'vscode';
 import { asArray, coalesce, isNonEmptyArray } from '../../../base/common/arrays.js';
 import { VSBuffer, encodeBase64 } from '../../../base/common/buffer.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
 import { IDataTransferFile, IDataTransferItem, UriList } from '../../../base/common/dataTransfer.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import * as htmlContent from '../../../base/common/htmlContent.js';
@@ -3403,7 +3404,7 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: Map<vscode.LanguageModelToolInformation, boolean>, extension: IRelaxedExtensionDescription, logService: ILogService): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, modelConfiguration: IStringDictionary<unknown> | undefined, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: Map<vscode.LanguageModelToolInformation, boolean>, extension: IRelaxedExtensionDescription, logService: ILogService): vscode.ChatRequest {
 
 		const toolReferences: IChatRequestVariableEntry[] = [];
 		const variableReferences: IChatRequestVariableEntry[] = [];
@@ -3438,6 +3439,7 @@ export namespace ChatAgentRequest {
 			toolInvocationToken: Object.freeze<IToolInvocationContext>({ sessionResource: request.sessionResource }) as never,
 			tools,
 			model,
+			modelConfiguration,
 			editedFileEvents: request.editedFileEvents,
 			modeInstructions: request.modeInstructions?.content,
 			modeInstructions2: ChatRequestModeInstructions.to(request.modeInstructions),
@@ -3445,6 +3447,7 @@ export namespace ChatAgentRequest {
 			subAgentInvocationId: request.subAgentInvocationId,
 			subAgentName: request.subAgentName,
 			parentRequestId: request.parentRequestId,
+			sessionGrouping: request.sessionGrouping,
 			hasHooksEnabled: request.hasHooksEnabled ?? false,
 			hooks: request.hooks ? ChatRequestHooksConverter.to(request.hooks) : undefined,
 		};
@@ -3472,6 +3475,8 @@ export namespace ChatAgentRequest {
 			delete (requestWithAllProps as any).subAgentName;
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).parentRequestId;
+			// eslint-disable-next-line local/code-no-any-casts
+			delete (requestWithAllProps as any).sessionGrouping;
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).hasHooksEnabled;
 			// eslint-disable-next-line local/code-no-any-casts

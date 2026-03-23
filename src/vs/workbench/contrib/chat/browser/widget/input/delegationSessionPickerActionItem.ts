@@ -5,6 +5,7 @@
 
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Iterable } from '../../../../../../base/common/iterator.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -22,6 +23,7 @@ import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, 
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypeItem, SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
+import { IGitService } from '../../../../git/common/gitService.js';
 
 /**
  * Action view item for delegating to a remote session (Background or Cloud).
@@ -43,6 +45,7 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IGitService private readonly gitService: IGitService,
 	) {
 		super(action, chatSessionPosition, delegate, pickerOptions, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService);
 		this._isSessionsWindow = IsSessionsWindowContext.getValue(contextKeyService) === true;
@@ -79,11 +82,20 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 			return false;
 		}
 
+		// In the sessions window, cloud delegation requires a git repository
+		if (this._isSessionsWindow && type === AgentSessionProviders.Cloud && !this._hasGitRepository()) {
+			return false;
+		}
+
 		if (contribution && !contribution.canDelegate && activeProvider !== type /* Allow switching back to active type */) {
 			return false;
 		}
 
 		return this._getSelectedSessionType() !== type; // Always allow switching back to active session
+	}
+
+	private _hasGitRepository(): boolean {
+		return !Iterable.isEmpty(this.gitService.repositories);
 	}
 
 	protected override _isVisible(type: AgentSessionProviders): boolean {
@@ -104,6 +116,13 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 			return { label: localize('continueIn', "Continue In"), order: 1, showHeader: true };
 		}
 		return { label: localize('continueInThirdParty', "Continue In (Third Party)"), order: 2, showHeader: false };
+	}
+
+	protected override _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
+		if (this._isSessionsWindow && sessionTypeItem.type === AgentSessionProviders.Cloud && !this._hasGitRepository()) {
+			return localize('chat.cloudRequiresGit', "Requires a Git repository");
+		}
+		return undefined;
 	}
 
 	protected override _getLearnMore(): IAction {

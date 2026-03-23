@@ -4,13 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
-import { IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
-import { SessionStatus } from '../../common/state/sessionState.js';
+import { ActionType, IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
+import { PermissionKind, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { SessionStateManager } from '../../node/sessionStateManager.js';
 import { MockAgent } from './mockAgent.js';
@@ -20,6 +25,7 @@ import { MockAgent } from './mockAgent.js';
 suite('AgentSideEffects', () => {
 
 	const disposables = new DisposableStore();
+	let fileService: FileService;
 	let stateManager: SessionStateManager;
 	let agent: MockAgent;
 	let sideEffects: AgentSideEffects;
@@ -29,24 +35,33 @@ suite('AgentSideEffects', () => {
 
 	function setupSession(): void {
 		stateManager.createSession({
-			resource: sessionUri,
+			resource: sessionUri.toString(),
 			provider: 'mock',
 			title: 'Test',
 			status: SessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
 		});
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri.toString() });
 	}
 
 	function startTurn(turnId: string): void {
 		stateManager.dispatchClientAction(
-			{ type: 'session/turnStarted', session: sessionUri, turnId, userMessage: { text: 'hello' } },
+			{ type: ActionType.SessionTurnStarted, session: sessionUri.toString(), turnId, userMessage: { text: 'hello' } },
 			{ clientId: 'test', clientSeq: 1 },
 		);
 	}
 
-	setup(() => {
+	setup(async () => {
+		fileService = disposables.add(new FileService(new NullLogService()));
+		const memFs = disposables.add(new InMemoryFileSystemProvider());
+		disposables.add(fileService.registerProvider(Schemas.inMemory, memFs));
+
+		// Seed a file so the handleBrowseDirectory tests can distinguish files from dirs
+		const testDir = URI.from({ scheme: Schemas.inMemory, path: '/testDir' });
+		await fileService.createFolder(testDir);
+		await fileService.writeFile(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' }), VSBuffer.fromString('hello'));
+
 		agent = new MockAgent();
 		disposables.add(toDisposable(() => agent.dispose()));
 		stateManager = disposables.add(new SessionStateManager(new NullLogService()));
@@ -54,10 +69,12 @@ suite('AgentSideEffects', () => {
 		sideEffects = disposables.add(new AgentSideEffects(stateManager, {
 			getAgent: () => agent,
 			agents: agentList,
-		}, new NullLogService()));
+		}, new NullLogService(), fileService));
 	});
 
-	teardown(() => disposables.clear());
+	teardown(() => {
+		disposables.clear();
+	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// ---- handleAction: session/turnStarted ------------------------------
@@ -67,8 +84,8 @@ suite('AgentSideEffects', () => {
 		test('calls sendMessage on the agent', async () => {
 			setupSession();
 			const action: ISessionAction = {
-				type: 'session/turnStarted',
-				session: sessionUri,
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri.toString(),
 				turnId: 'turn-1',
 				userMessage: { text: 'hello world' },
 			};
@@ -77,7 +94,7 @@ suite('AgentSideEffects', () => {
 			// sendMessage is async but fire-and-forget; wait a tick
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: sessionUri, prompt: 'hello world' }]);
+			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello world' }]);
 		});
 
 		test('dispatches session/error when no agent is found', async () => {
@@ -86,19 +103,19 @@ suite('AgentSideEffects', () => {
 			const noAgentSideEffects = disposables.add(new AgentSideEffects(stateManager, {
 				getAgent: () => undefined,
 				agents: emptyAgents,
-			}, new NullLogService()));
+			}, new NullLogService(), fileService));
 
 			const envelopes: IActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			noAgentSideEffects.handleAction({
-				type: 'session/turnStarted',
-				session: sessionUri,
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri.toString(),
 				turnId: 'turn-1',
 				userMessage: { text: 'hello' },
 			});
 
-			const errorAction = envelopes.find(e => e.action.type === 'session/error');
+			const errorAction = envelopes.find(e => e.action.type === ActionType.SessionError);
 			assert.ok(errorAction, 'should dispatch session/error');
 		});
 	});
@@ -110,14 +127,14 @@ suite('AgentSideEffects', () => {
 		test('calls abortSession on the agent', async () => {
 			setupSession();
 			sideEffects.handleAction({
-				type: 'session/turnCancelled',
-				session: sessionUri,
+				type: ActionType.SessionTurnCancelled,
+				session: sessionUri.toString(),
 				turnId: 'turn-1',
 			});
 
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.abortSessionCalls, [sessionUri]);
+			assert.deepStrictEqual(agent.abortSessionCalls, [URI.parse(sessionUri.toString())]);
 		});
 	});
 
@@ -135,15 +152,15 @@ suite('AgentSideEffects', () => {
 				session: sessionUri,
 				type: 'permission_request',
 				requestId: 'perm-1',
-				permissionKind: 'write',
+				permissionKind: PermissionKind.Write,
 				path: 'file.ts',
 				rawRequest: '{}',
 			});
 
 			// Now resolve it
 			sideEffects.handleAction({
-				type: 'session/permissionResolved',
-				session: sessionUri,
+				type: ActionType.SessionPermissionResolved,
+				session: sessionUri.toString(),
 				turnId: 'turn-1',
 				requestId: 'perm-1',
 				approved: true,
@@ -160,14 +177,14 @@ suite('AgentSideEffects', () => {
 		test('calls changeModel on the agent', async () => {
 			setupSession();
 			sideEffects.handleAction({
-				type: 'session/modelChanged',
-				session: sessionUri,
+				type: ActionType.SessionModelChanged,
+				session: sessionUri.toString(),
 				model: 'gpt-5',
 			});
 
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.changeModelCalls, [{ session: sessionUri, model: 'gpt-5' }]);
+			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: 'gpt-5' }]);
 		});
 	});
 
@@ -185,7 +202,7 @@ suite('AgentSideEffects', () => {
 
 			agent.fireProgress({ session: sessionUri, type: 'delta', messageId: 'msg-1', content: 'hi' });
 
-			assert.ok(envelopes.some(e => e.action.type === 'session/delta'));
+			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionDelta));
 		});
 
 		test('returns a disposable that stops listening', () => {
@@ -197,11 +214,11 @@ suite('AgentSideEffects', () => {
 			const listener = sideEffects.registerProgressListener(agent);
 
 			agent.fireProgress({ session: sessionUri, type: 'delta', messageId: 'msg-1', content: 'before' });
-			assert.strictEqual(envelopes.filter(e => e.action.type === 'session/delta').length, 1);
+			assert.strictEqual(envelopes.filter(e => e.action.type === ActionType.SessionDelta).length, 1);
 
 			listener.dispose();
 			agent.fireProgress({ session: sessionUri, type: 'delta', messageId: 'msg-2', content: 'after' });
-			assert.strictEqual(envelopes.filter(e => e.action.type === 'session/delta').length, 1);
+			assert.strictEqual(envelopes.filter(e => e.action.type === ActionType.SessionDelta).length, 1);
 		});
 	});
 
@@ -213,15 +230,15 @@ suite('AgentSideEffects', () => {
 			const envelopes: IActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
-			await sideEffects.handleCreateSession({ session: sessionUri, provider: 'mock' });
+			await sideEffects.handleCreateSession({ session: sessionUri.toString(), provider: 'mock' });
 
-			const ready = envelopes.find(e => e.action.type === 'session/ready');
+			const ready = envelopes.find(e => e.action.type === ActionType.SessionReady);
 			assert.ok(ready, 'should dispatch session/ready');
 		});
 
 		test('throws when no provider is specified', async () => {
 			await assert.rejects(
-				() => sideEffects.handleCreateSession({ session: sessionUri }),
+				() => sideEffects.handleCreateSession({ session: sessionUri.toString() }),
 				/No provider specified/,
 			);
 		});
@@ -231,10 +248,10 @@ suite('AgentSideEffects', () => {
 			const noAgentSideEffects = disposables.add(new AgentSideEffects(stateManager, {
 				getAgent: () => undefined,
 				agents: emptyAgents,
-			}, new NullLogService()));
+			}, new NullLogService(), fileService));
 
 			await assert.rejects(
-				() => noAgentSideEffects.handleCreateSession({ session: sessionUri, provider: 'nonexistent' }),
+				() => noAgentSideEffects.handleCreateSession({ session: sessionUri.toString(), provider: 'nonexistent' }),
 				/No agent registered/,
 			);
 		});
@@ -247,12 +264,12 @@ suite('AgentSideEffects', () => {
 		test('disposes the session on the agent and removes state', async () => {
 			setupSession();
 
-			sideEffects.handleDisposeSession(sessionUri);
+			sideEffects.handleDisposeSession(sessionUri.toString());
 
 			await new Promise(r => setTimeout(r, 10));
 
 			assert.strictEqual(agent.disposeSessionCalls.length, 1);
-			assert.strictEqual(stateManager.getSessionState(sessionUri), undefined);
+			assert.strictEqual(stateManager.getSessionState(sessionUri.toString()), undefined);
 		});
 	});
 
@@ -269,6 +286,25 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
+	// ---- handleBrowseDirectory ------------------------------------------
+
+	suite('handleBrowseDirectory', () => {
+
+		test('throws when the directory does not exist', async () => {
+			await assert.rejects(
+				() => sideEffects.handleBrowseDirectory(URI.from({ scheme: Schemas.inMemory, path: '/nonexistent' }).toString()),
+				/Directory not found/,
+			);
+		});
+
+		test('throws when the target is not a directory', async () => {
+			await assert.rejects(
+				() => sideEffects.handleBrowseDirectory(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' }).toString()),
+				/Not a directory/,
+			);
+		});
+	});
+
 	// ---- agents observable --------------------------------------------------
 
 	suite('agents observable', () => {
@@ -282,8 +318,47 @@ suite('AgentSideEffects', () => {
 			// Model fetch is async — wait for it
 			await new Promise(r => setTimeout(r, 50));
 
-			const action = envelopes.find(e => e.action.type === 'root/agentsChanged');
+			const action = envelopes.find(e => e.action.type === ActionType.RootAgentsChanged);
 			assert.ok(action, 'should dispatch root/agentsChanged');
+		});
+	});
+
+	// ---- handleGetResourceMetadata / handleAuthenticate -----------------
+
+	suite('auth', () => {
+
+		test('handleGetResourceMetadata aggregates resources from agents', () => {
+			agentList.set([agent], undefined);
+
+			const metadata = sideEffects.handleGetResourceMetadata();
+			assert.strictEqual(metadata.resources.length, 0, 'mock agent has no protected resources');
+		});
+
+		test('handleGetResourceMetadata returns resources when agent declares them', () => {
+			const copilotAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => copilotAgent.dispose()));
+			agentList.set([copilotAgent], undefined);
+
+			const metadata = sideEffects.handleGetResourceMetadata();
+			assert.strictEqual(metadata.resources.length, 1);
+			assert.strictEqual(metadata.resources[0].resource, 'https://api.github.com');
+		});
+
+		test('handleAuthenticate returns authenticated for matching resource', async () => {
+			const copilotAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => copilotAgent.dispose()));
+			agentList.set([copilotAgent], undefined);
+
+			const result = await sideEffects.handleAuthenticate({ resource: 'https://api.github.com', token: 'test-token' });
+			assert.deepStrictEqual(result, { authenticated: true });
+			assert.deepStrictEqual(copilotAgent.authenticateCalls, [{ resource: 'https://api.github.com', token: 'test-token' }]);
+		});
+
+		test('handleAuthenticate returns not authenticated for non-matching resource', async () => {
+			agentList.set([agent], undefined);
+
+			const result = await sideEffects.handleAuthenticate({ resource: 'https://unknown.example.com', token: 'test-token' });
+			assert.deepStrictEqual(result, { authenticated: false });
 		});
 	});
 });

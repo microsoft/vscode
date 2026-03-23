@@ -8,8 +8,9 @@ import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { FileService } from '../../../files/common/fileService.js';
 import { AgentSession } from '../../common/agentService.js';
-import { IActionEnvelope } from '../../common/state/sessionActions.js';
+import { ActionType, IActionEnvelope } from '../../common/state/sessionActions.js';
 import { AgentService } from '../../node/agentService.js';
 import { MockAgent } from './mockAgent.js';
 
@@ -20,7 +21,7 @@ suite('AgentService (node dispatcher)', () => {
 	let copilotAgent: MockAgent;
 
 	setup(() => {
-		service = disposables.add(new AgentService(new NullLogService()));
+		service = disposables.add(new AgentService(new NullLogService(), disposables.add(new FileService(new NullLogService()))));
 		copilotAgent = new MockAgent('copilot');
 		disposables.add(toDisposable(() => copilotAgent.dispose()));
 	});
@@ -50,7 +51,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Start a turn so there's an active turn to map events to
 			service.dispatchAction(
-				{ type: 'session/turnStarted', session, turnId: 'turn-1', userMessage: { text: 'hello' } },
+				{ type: ActionType.SessionTurnStarted, session: session.toString(), turnId: 'turn-1', userMessage: { text: 'hello' } },
 				'test-client', 1,
 			);
 
@@ -58,7 +59,7 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(service.onDidAction(e => envelopes.push(e)));
 
 			copilotAgent.fireProgress({ session, type: 'delta', messageId: 'msg-1', content: 'hello' });
-			assert.ok(envelopes.some(e => e.action.type === 'session/delta'));
+			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionDelta));
 		});
 	});
 
@@ -125,20 +126,6 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	// ---- setAuthToken ---------------------------------------------------
-
-	suite('setAuthToken', () => {
-
-		test('broadcasts token to all registered providers', async () => {
-			service.registerProvider(copilotAgent);
-
-			await service.setAuthToken('my-token');
-
-			assert.strictEqual(copilotAgent.setAuthTokenCalls.length, 1);
-			assert.strictEqual(copilotAgent.setAuthTokenCalls[0], 'my-token');
-		});
-	});
-
 	// ---- listSessions / listModels --------------------------------------
 
 	suite('aggregation', () => {
@@ -163,8 +150,56 @@ suite('AgentService (node dispatcher)', () => {
 			// Model fetch is async inside AgentSideEffects — wait for it
 			await new Promise(r => setTimeout(r, 50));
 
-			const agentsChanged = envelopes.find(e => e.action.type === 'root/agentsChanged');
+			const agentsChanged = envelopes.find(e => e.action.type === ActionType.RootAgentsChanged);
 			assert.ok(agentsChanged);
+		});
+	});
+
+	// ---- getResourceMetadata --------------------------------------------
+
+	suite('getResourceMetadata', () => {
+
+		test('aggregates protected resources from all providers', async () => {
+			service.registerProvider(copilotAgent);
+
+			const mockAgent = new MockAgent('other');
+			disposables.add(toDisposable(() => mockAgent.dispose()));
+			service.registerProvider(mockAgent);
+
+			const metadata = await service.getResourceMetadata();
+			// copilot agent returns one resource (https://api.github.com),
+			// generic MockAgent('other') returns empty
+			assert.deepStrictEqual(metadata, {
+				resources: [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'] }],
+			});
+		});
+
+		test('returns empty resources when no providers registered', async () => {
+			const metadata = await service.getResourceMetadata();
+			assert.deepStrictEqual(metadata, { resources: [] });
+		});
+	});
+
+	// ---- authenticate ---------------------------------------------------
+
+	suite('authenticate', () => {
+
+		test('routes token to provider matching the resource', async () => {
+			service.registerProvider(copilotAgent);
+
+			const result = await service.authenticate({ resource: 'https://api.github.com', token: 'ghp_test123' });
+
+			assert.deepStrictEqual(result, { authenticated: true });
+			assert.deepStrictEqual(copilotAgent.authenticateCalls, [{ resource: 'https://api.github.com', token: 'ghp_test123' }]);
+		});
+
+		test('returns not authenticated for unknown resource', async () => {
+			service.registerProvider(copilotAgent);
+
+			const result = await service.authenticate({ resource: 'https://unknown.example.com', token: 'tok' });
+
+			assert.deepStrictEqual(result, { authenticated: false });
+			assert.strictEqual(copilotAgent.authenticateCalls.length, 0);
 		});
 	});
 

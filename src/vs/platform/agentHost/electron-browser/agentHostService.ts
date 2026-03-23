@@ -13,9 +13,9 @@ import { acquirePort } from '../../../base/parts/ipc/electron-browser/ipc.mp.js'
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentDescriptor, IAgentHostService, IAgentService, IAgentSessionMetadata } from '../common/agentService.js';
+import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentDescriptor, IAgentHostService, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
-import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
+import type { IBrowseDirectoryResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI } from '../../../base/common/uri.js';
 
@@ -83,8 +83,11 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 
 	// ---- IAgentService forwarding (no await needed, delayed channel handles queuing) ----
 
-	setAuthToken(token: string): Promise<void> {
-		return this._proxy.setAuthToken(token);
+	getResourceMetadata(): Promise<IResourceMetadata> {
+		return this._proxy.getResourceMetadata();
+	}
+	authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult> {
+		return this._proxy.authenticate(params);
 	}
 	listAgents(): Promise<IAgentDescriptor[]> {
 		return this._proxy.listAgents();
@@ -112,6 +115,9 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	}
 	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
 		this._proxy.dispatchAction(action, clientId, clientSeq);
+	}
+	browseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
+		return this._proxy.browseDirectory(uri);
 	}
 	async restartAgentHost(): Promise<void> {
 		// Restart is handled by the main process side
