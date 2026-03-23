@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { IContextMenuProvider } from '../../../../browser/contextmenu.js';
+import { ActionBar } from '../../../../browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem } from '../../../../browser/ui/actionbar/actionViewItems.js';
 import { ToggleMenuAction, ToolBar } from '../../../../browser/ui/toolbar/toolbar.js';
 import { Action, IAction } from '../../../../common/actions.js';
@@ -23,6 +24,12 @@ class FixedWidthActionViewItem extends BaseActionViewItem {
 		container.style.overflow = 'hidden';
 		container.style.whiteSpace = 'nowrap';
 		container.textContent = this.action.label;
+	}
+}
+
+class TestToolBar extends ToolBar {
+	get actionBarForTest(): Pick<ActionBar, 'getWidth' | 'getAction'> {
+		return this.actionBar;
 	}
 }
 
@@ -54,7 +61,7 @@ suite('ToolBar', () => {
 			[ToggleMenuAction.ID, 22],
 		]);
 
-		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
+		const toolbar = store.add(new TestToolBar(container, contextMenuProvider, {
 			responsiveBehavior: {
 				enabled: true,
 				kind: 'last',
@@ -66,6 +73,28 @@ suite('ToolBar', () => {
 				return typeof width === 'number' ? new FixedWidthActionViewItem(action, width) : undefined;
 			}
 		}));
+		const actionBar = toolbar.actionBarForTest;
+		const originalGetWidth = actionBar.getWidth.bind(actionBar);
+		actionBar.getWidth = (index: number) => {
+			const action = actionBar.getAction(index);
+			return action ? (widths.get(action.id) ?? originalGetWidth(index)) : originalGetWidth(index);
+		};
+
+		const originalGetBoundingClientRect = toolbar.getElement().getBoundingClientRect.bind(toolbar.getElement());
+		(toolbar.getElement() as HTMLElement & { getBoundingClientRect(): DOMRect }).getBoundingClientRect = () => ({
+			...originalGetBoundingClientRect(),
+			width: 273,
+			right: 273,
+			left: 0,
+			x: 0,
+			y: 0,
+			top: 0,
+			bottom: 0,
+			height: 0,
+			toJSON() {
+				return {};
+			}
+		});
 
 		const actions = [
 			store.add(new Action('workbench.action.chat.attachContext', 'Add Context...')),
