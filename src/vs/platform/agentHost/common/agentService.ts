@@ -20,6 +20,8 @@ export const enum AgentHostIpcChannels {
 	AgentHost = 'agentHost',
 	/** Channel for log forwarding from the agent host process */
 	Logger = 'agentHostLogger',
+	/** Channel for WebSocket client connection count (server process management only) */
+	ConnectionTracker = 'agentHostConnectionTracker',
 }
 
 /** Configuration key that controls whether the agent host process is spawned. */
