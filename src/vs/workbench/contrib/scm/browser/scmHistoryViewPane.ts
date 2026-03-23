@@ -1706,7 +1706,7 @@ export class SCMHistoryViewPane extends ViewPane {
 						compact: true,
 						showPointer: true
 					},
-					content: new MarkdownString(localize('scmGraphViewOutdated', "Please refresh the graph using the refresh action ($(refresh))."), { supportThemeIcons: true }),
+					content: new MarkdownString(localize('scmGraphViewOutdated', "Please refresh the graph using the refresh action ({0}).", '$(refresh)'), { supportThemeIcons: true }),
 					position: {
 						hoverPosition: HoverPosition.BELOW
 					}

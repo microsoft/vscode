@@ -13,8 +13,8 @@ import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection } from './agentSessionsModel.js';
-import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionsSorter, IAgentSessionsFilter } from './agentSessionsViewer.js';
-import { AgentSessionsGrouping } from './agentSessionsFilter.js';
+import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionSectionLabels, AgentSessionsSorter, getRepositoryName, IAgentSessionsFilter } from './agentSessionsViewer.js';
+import { AgentSessionsGrouping, AgentSessionsSorting } from './agentSessionsFilter.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -79,8 +79,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	private emptyFilterMessage: HTMLElement | undefined;
 
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore> | undefined;
+	private static readonly RECENT_SESSIONS_FOR_EXPAND = 5;
+
 	private sessionsListFindIsOpen = false;
 	private _isProgrammaticCollapseChange = false;
+	private readonly _recentRepositoryLabels = new Set<string>();
 
 	private readonly updateSessionsListThrottler = this._register(new Throttler());
 
@@ -213,6 +216,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.storageService.store(AgentSessionsControl.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
 	}
 
+	resetSectionCollapseState(): void {
+		this.storageService.remove(AgentSessionsControl.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+	}
+
 	private createList(container: HTMLElement): void {
 		const collapseByDefault = (element: unknown) => {
 			if (isAgentSessionSection(element)) {
@@ -236,18 +243,22 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 					if (element.section === AgentSessionSection.Yesterday && this.hasTodaySessions()) {
 						return true; // Also collapse Yesterday when there are sessions from Today
 					}
+					if (element.section === AgentSessionSection.Repository && !this._recentRepositoryLabels.has(element.label)) {
+						return true; // Collapse repository sections that don't contain recent sessions
+					}
 				}
 			}
 
 			return false;
 		};
 
-		const sorter = new AgentSessionsSorter();
+		const sorter = new AgentSessionsSorter(() => this.options.filter.sortResults?.() ?? AgentSessionsSorting.Created);
 		const approvalModel = this.options.enableApprovalRow ? this._register(this.instantiationService.createInstance(AgentSessionApprovalModel)) : undefined;
 		const activeSessionResource = observableValue<URI | undefined>(this, undefined);
 		const sessionRenderer = this._register(this.instantiationService.createInstance(AgentSessionRenderer, {
 			...this.options,
 			isGroupedByRepository: () => this.options.filter.groupResults?.() === AgentSessionsGrouping.Repository,
+			isSortedByUpdated: () => this.options.filter.sortResults?.() === AgentSessionsSorting.Updated,
 		}, approvalModel, activeSessionResource));
 		const sessionFilter = this._register(new AgentSessionsDataSource(this.options.filter, sorter));
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
@@ -303,6 +314,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			}
 		}));
 
+		this.computeRecentRepositoryLabels();
 		list.setInput(model);
 
 		this._register(list.onDidOpen(e => this.openAgentSession(e)));
@@ -372,6 +384,20 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			!session.isArchived() &&
 			session.timing.created >= startOfToday
 		);
+	}
+
+	private computeRecentRepositoryLabels(): void {
+		this._recentRepositoryLabels.clear();
+
+		const sessions = this.agentSessionsService.model.sessions
+			.filter(s => !s.isArchived() && !s.isPinned())
+			.sort((a, b) => b.timing.created - a.timing.created)
+			.slice(0, AgentSessionsControl.RECENT_SESSIONS_FOR_EXPAND);
+
+		for (const session of sessions) {
+			const name = getRepositoryName(session);
+			this._recentRepositoryLabels.add(name ?? AgentSessionSectionLabels[AgentSessionSection.Repository]);
+		}
 	}
 
 	private async openAgentSession(e: IOpenEvent<AgentSessionListItem | undefined>): Promise<void> {
@@ -522,6 +548,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 	async update(): Promise<void> {
 		return this.updateSessionsListThrottler.queue(async () => {
+			this.computeRecentRepositoryLabels();
 			await this.sessionsList?.updateChildren();
 
 			this._onDidUpdate.fire();

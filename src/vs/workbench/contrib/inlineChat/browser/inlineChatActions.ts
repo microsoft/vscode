@@ -254,6 +254,12 @@ export class FixDiagnosticsAction extends AbstractInlineChatAction {
 				group: '2_chat',
 				order: 1,
 				when: ContextKeyExpr.and(CTX_FIX_DIAGNOSTICS_ENABLED, EditorContextKeys.selectionHasDiagnostics, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.negate()),
+			}, {
+				id: MenuId.MarkerHoverStatusBar,
+				group: '1_fix',
+				order: 1,
+				when: ContextKeyExpr.and(CTX_FIX_DIAGNOSTICS_ENABLED, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.negate()),
+				precondition: null,
 			}]
 		});
 	}
@@ -471,6 +477,7 @@ export class SubmitInlineChatInputAction extends AbstractInlineChatAction {
 	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: unknown[]): void {
 		const value = ctrl.inputWidget.value;
 		if (value) {
+			ctrl.inputWidget.addToHistory(value);
 			ctrl.inputWidget.hide();
 			ctrl.run({ message: value, autoSend: true });
 		}
@@ -591,6 +598,9 @@ export class QueueInChatAction extends AbstractInlineChatAction {
 		}
 
 		const value = ctrl.inputWidget.value;
+		if (value) {
+			ctrl.inputWidget.addToHistory(value);
+		}
 		ctrl.inputWidget.hide();
 		if (!value) {
 			return;

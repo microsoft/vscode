@@ -60,41 +60,24 @@ const enum NotExistBehavior {
 	Abort,
 }
 
-type ChatEditingSessionStoreEvent = {
-	sessionId: string;
+type ChatEditingSessionInfoEvent = {
+	editSessionId: string;
 	entryCount: number;
 	modifiedCount: number;
 	acceptedCount: number;
 	rejectedCount: number;
 };
 
-type ChatEditingSessionStoreClassification = {
+type ChatEditingSessionInfoClassification = {
 	owner: 'jrieken';
 	comment: 'Tracks the number and state of chat editing entries when a session is stored.';
-	sessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hashed identifier of the chat session for correlation.' };
+	editSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hashed identifier of the chat session for correlation.' };
 	entryCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of entries stored with the session.' };
 	modifiedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of entries in Modified state when storing.' };
 	acceptedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of entries in Accepted state when storing.' };
 	rejectedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of entries in Rejected state when storing.' };
 };
 
-type ChatEditingSessionRestoreEvent = {
-	sessionId: string;
-	entryCount: number;
-	modifiedCount: number;
-	acceptedCount: number;
-	rejectedCount: number;
-};
-
-type ChatEditingSessionRestoreClassification = {
-	owner: 'jrieken';
-	comment: 'Tracks the number and state of chat editing entries when a session is restored.';
-	sessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hashed identifier of the chat session for correlation.' };
-	entryCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of entries restored with the session.' };
-	modifiedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of entries in Modified state when restoring.' };
-	acceptedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of entries in Accepted state when restoring.' };
-	rejectedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of entries in Rejected state when restoring.' };
-};
 
 class ThrottledSequencer extends Sequencer {
 
@@ -347,8 +330,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	public storeState(): Promise<void> {
 		const storage = this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionResource);
 		const storedState = this._getStoredState();
-		this._telemetryService.publicLog2<ChatEditingSessionStoreEvent, ChatEditingSessionStoreClassification>('chatEditing/sessionStore', {
-			sessionId: getKeyForChatSessionResource(this.chatSessionResource),
+		this._telemetryService.publicLog2<ChatEditingSessionInfoEvent, ChatEditingSessionInfoClassification>('chatEditing/sessionStore', {
+			editSessionId: getKeyForChatSessionResource(this.chatSessionResource),
 			...this._countEntryStates(this._entriesObs.get()),
 		});
 		return storage.storeState(storedState);
@@ -988,8 +971,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 
 		this._entriesObs.set(entriesArr, undefined);
-		this._telemetryService.publicLog2<ChatEditingSessionRestoreEvent, ChatEditingSessionRestoreClassification>('chatEditing/sessionRestore', {
-			sessionId: getKeyForChatSessionResource(this.chatSessionResource),
+		this._telemetryService.publicLog2<ChatEditingSessionInfoEvent, ChatEditingSessionInfoClassification>('chatEditing/sessionRestore', {
+			editSessionId: getKeyForChatSessionResource(this.chatSessionResource),
 			...this._countEntryStates(entriesArr),
 		});
 	}
