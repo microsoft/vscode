@@ -595,6 +595,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		this._activeSessions.clear();
 		this._sessionToBackend.clear();
+		// Finish any active turns so their done-promises resolve and
+		// turnDisposables are cleaned up. finish() is idempotent.
+		for (const [, turnInfo] of this._activeTurns) {
+			turnInfo.finish();
+		}
 		this._activeTurns.clear();
 		super.dispose();
 	}
