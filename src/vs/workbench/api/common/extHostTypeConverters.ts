@@ -3447,6 +3447,7 @@ export namespace ChatAgentRequest {
 			subAgentInvocationId: request.subAgentInvocationId,
 			subAgentName: request.subAgentName,
 			parentRequestId: request.parentRequestId,
+			sessionGrouping: request.sessionGrouping,
 			hasHooksEnabled: request.hasHooksEnabled ?? false,
 			hooks: request.hooks ? ChatRequestHooksConverter.to(request.hooks) : undefined,
 		};
@@ -3474,6 +3475,8 @@ export namespace ChatAgentRequest {
 			delete (requestWithAllProps as any).subAgentName;
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).parentRequestId;
+			// eslint-disable-next-line local/code-no-any-casts
+			delete (requestWithAllProps as any).sessionGrouping;
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).hasHooksEnabled;
 			// eslint-disable-next-line local/code-no-any-casts
