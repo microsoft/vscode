@@ -1275,12 +1275,13 @@ export class ActionListWidget<T> extends Disposable {
 		const spaceLeft = parentRect.left;
 		const submenuWidth = maxWidth + 10; // account for border/padding
 
+		const gap = 4;
 		if (spaceRight >= submenuWidth || spaceRight >= spaceLeft) {
-			// Show on the right
-			this._submenuContainer.style.left = `${anchorRect.right - parentRect.left}px`;
+			// Show on the right, offset past the parent's right edge
+			this._submenuContainer.style.left = `${parentRect.right - parentRect.left + gap}px`;
 		} else {
 			// Show on the left
-			this._submenuContainer.style.left = `${-submenuWidth}px`;
+			this._submenuContainer.style.left = `${-submenuWidth - gap}px`;
 		}
 		this._submenuContainer.style.top = `${anchorRect.top - parentRect.top - 4}px`;
 
