@@ -289,6 +289,22 @@ async function main() {
 	fs.writeFileSync(stateFile, JSON.stringify(_state));
 	fs.writeFileSync(stateContentsFile, JSON.stringify(computeContents()));
 
+	// Symlink .claude/ files to their canonical locations to test Claude agent harness
+	const claudeDir = path.join(root, '.claude');
+	fs.mkdirSync(claudeDir, { recursive: true });
+
+	const claudeMdLink = path.join(claudeDir, 'CLAUDE.md');
+	if (!fs.existsSync(claudeMdLink)) {
+		fs.symlinkSync(path.join('..', '.github', 'copilot-instructions.md'), claudeMdLink);
+		log('.', 'Symlinked .claude/CLAUDE.md -> .github/copilot-instructions.md');
+	}
+
+	const claudeSkillsLink = path.join(claudeDir, 'skills');
+	if (!fs.existsSync(claudeSkillsLink)) {
+		fs.symlinkSync(path.join('..', '.agents', 'skills'), claudeSkillsLink);
+		log('.', 'Symlinked .claude/skills -> .agents/skills');
+	}
+
 	// Temporary: patch @github/copilot-sdk session.js to fix ESM import
 	// (missing .js extension on vscode-jsonrpc/node). Fixed upstream in v0.1.32.
 	// TODO: Remove once @github/copilot-sdk is updated to >=0.1.32
