@@ -115,6 +115,16 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		// Agent host sessions don't support renaming
 	}
 
+	// ── Active Session ──
+
+	setActiveSession(_session: ISessionData): void {
+		// Remote agent host sets its own context keys here if needed
+	}
+
+	clearActiveSession(): void {
+		// No-op
+	}
+
 	// ── Private ──
 
 	private async _browseForFolder(): Promise<SessionWorkspace | undefined> {

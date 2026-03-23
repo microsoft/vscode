@@ -5,8 +5,8 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IObservable, autorun, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { localize2 } from '../../../../nls.js';
@@ -667,6 +667,24 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 		if (agentSession) {
 			this.chatService.setChatSessionTitle(agentSession.resource, title);
 		}
+	}
+
+	// ── Active Session ──
+
+	private readonly _hasRepositoryKey = SessionWorkspaceHasRepositoryContext.bindTo(this.contextKeyService);
+	private readonly _activeSessionDisposables = this._register(new DisposableStore());
+
+	setActiveSession(session: ISessionData): void {
+		this._activeSessionDisposables.clear();
+		this._activeSessionDisposables.add(autorun(reader => {
+			const workspace = session.workspace.read(reader);
+			this._hasRepositoryKey.set(!!(workspace?.repositories.length));
+		}));
+	}
+
+	clearActiveSession(): void {
+		this._activeSessionDisposables.clear();
+		this._hasRepositoryKey.set(false);
 	}
 
 	// ── Private ──

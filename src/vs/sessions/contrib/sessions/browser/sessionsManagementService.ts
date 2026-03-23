@@ -155,7 +155,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private lastSelectedSession: URI | undefined;
 	private readonly isNewChatSessionContext: IContextKey<boolean>;
 	private readonly _isBackgroundProvider: IContextKey<boolean>;
-	private readonly _hasRepository: IContextKey<boolean>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -178,16 +177,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// isNewSession is false when there are any established sessions in the model.
 		this.isNewChatSessionContext = IsNewChatSessionContext.bindTo(contextKeyService);
 		this._isBackgroundProvider = IsActiveSessionBackgroundProviderContext.bindTo(contextKeyService);
-		this._hasRepository = SessionWorkspaceHasRepositoryContext.bindTo(contextKeyService);
 
-		// Track workspace repository state via activeSessionData
+		// Propagate active session to the owning provider
 		this._register(autorun(reader => {
 			const session = this._activeSessionData.read(reader);
 			if (session) {
-				const workspace = session.workspace.read(reader);
-				this._hasRepository.set(!!(workspace?.repositories.length));
+				this.sessionsProvidersService.setActiveSession(session);
 			} else {
-				this._hasRepository.set(false);
+				this.sessionsProvidersService.clearActiveSession();
 			}
 		}));
 
