@@ -49,7 +49,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 	/** Visual margin values for the card-like appearance */
 	static readonly MARGIN_TOP = 16;
-	static readonly MARGIN_BOTTOM = 18;
+	static readonly MARGIN_BOTTOM = 2;
 	static readonly MARGIN_RIGHT = 16;
 
 	// Action ID for run script - defined here to avoid layering issues
@@ -83,7 +83,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			return undefined;
 		}
 
-		return Math.max(width, 340);
+		return Math.max(width, 380);
 	}
 
 	readonly priority = LayoutPriority.Low;

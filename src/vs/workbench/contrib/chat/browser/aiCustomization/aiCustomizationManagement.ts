@@ -5,23 +5,13 @@
 
 import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
-import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
 // Re-export for convenience — consumers import from this file
 export { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
-
-/**
- * Extended storage type for AI Customization that includes built-in prompts
- * shipped with the application, alongside the core `PromptsStorage` values.
- */
-export type AICustomizationPromptsStorage = PromptsStorage | 'builtin';
-
-/**
- * Storage type discriminator for built-in prompts shipped with the application.
- */
-export const BUILTIN_STORAGE: AICustomizationPromptsStorage = 'builtin';
+export type { AICustomizationPromptsStorage } from '../../common/aiCustomizationWorkspaceService.js';
+export { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js';
 
 /**
  * Editor pane ID for the AI Customizations Management Editor.

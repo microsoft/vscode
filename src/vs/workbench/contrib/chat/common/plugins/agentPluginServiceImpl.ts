@@ -1120,7 +1120,14 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 				remove: () => {
 					this._enablementModel.remove(stat.resource.toString());
 					this._pluginMarketplaceService.removeInstalledPlugin(entry.pluginUri);
-					this._pluginRepositoryService.cleanupPluginSource(entry.plugin).catch(error => {
+
+					// Pass remaining installed descriptors so the repository service
+					// can skip deletion when other plugins share the same cache dir.
+					const remaining = this._pluginMarketplaceService.installedPlugins.get();
+					this._pluginRepositoryService.cleanupPluginSource(
+						entry.plugin,
+						remaining.map(e => e.plugin.sourceDescriptor),
+					).catch(error => {
 						this._logService.error('[MarketplaceAgentPluginDiscovery] Failed to clean up plugin source', error);
 					});
 				},

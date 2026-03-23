@@ -392,11 +392,9 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 					this.collapsedSidebarWidget.show();
 				}
 
-				// Collapsed Auxiliary Bar Widget (shown when auxiliary bar is hidden)
-				this.collapsedAuxiliaryBarWidget = this._register(instantiationService.createInstance(CollapsedAuxiliaryBarWidget, titlebarPart.rightContainer));
-				if (!this.partVisibility.auxiliaryBar) {
-					this.collapsedAuxiliaryBarWidget.show();
-				}
+				// Auxiliary bar changes widget (always visible, acts as a toggle)
+				this.collapsedAuxiliaryBarWidget = this._register(instantiationService.createInstance(CollapsedAuxiliaryBarWidget, titlebarPart.rightContainer, titlebarPart.rightWindowControlsContainer));
+				this.collapsedAuxiliaryBarWidget.updateActiveState(this.partVisibility.auxiliaryBar);
 
 				// Wire active session provider after restore, when ISessionsManagementService is available.
 				// Resolved via createDecorator to avoid a layering import from vs/sessions/contrib/.
@@ -830,7 +828,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Default sizes
 		const sideBarSize = 300;
-		const auxiliaryBarSize = 340;
+		const auxiliaryBarSize = 380;
 		const panelSize = 300;
 		const titleBarHeight = this.titleBarPartView?.minimumHeight ?? 30;
 
@@ -1143,12 +1141,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			!hidden,
 		);
 
-		// Toggle collapsed auxiliary bar widget
-		if (hidden) {
-			this.collapsedAuxiliaryBarWidget?.show();
-		} else {
-			this.collapsedAuxiliaryBarWidget?.hide();
-		}
+		// Update collapsed auxiliary bar widget active state
+		this.collapsedAuxiliaryBarWidget?.updateActiveState(!hidden);
 
 		// If auxiliary bar becomes hidden, also hide the current active pane composite
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)) {
