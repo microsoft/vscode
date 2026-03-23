@@ -31,7 +31,7 @@ import { CHAT_CATEGORY } from './chatActions.js';
 const VALID_PLUGIN_NAME = /^[a-z0-9]([a-z0-9\-.]*[a-z0-9])?$/;
 const INVALID_CONSECUTIVE = /--|[.][.]/;
 
-function validatePluginName(name: string): string | undefined {
+export function validatePluginName(name: string): string | undefined {
 	if (!name) {
 		return localize('pluginNameRequired', "Plugin name is required.");
 	}
@@ -49,7 +49,7 @@ function validatePluginName(name: string): string | undefined {
 
 type ResourceType = 'instruction' | 'prompt' | 'agent' | 'skill' | 'hook' | 'mcp';
 
-interface IResourceTreeItem extends IQuickTreeItem {
+export interface IResourceTreeItem extends IQuickTreeItem {
 	readonly resourceType: ResourceType;
 	readonly promptPath?: IPromptPath;
 	readonly mcpServer?: { collection: McpCollectionDefinition; definition: McpServerDefinition };
@@ -76,7 +76,7 @@ function isUserDefinedMcpCollection(collection: McpCollectionDefinition): boolea
  * Gets a display label for a prompt resource. Skills need special handling
  * because their URI points to `SKILL.md`, so we use the parent directory name.
  */
-function getResourceLabel(r: IPromptPath): string {
+export function getResourceLabel(r: IPromptPath): string {
 	if (r.name) {
 		return r.name;
 	}
@@ -90,7 +90,7 @@ function getResourceLabel(r: IPromptPath): string {
  * Gets a filesystem-safe name for a resource, stripping any namespace prefix
  * (e.g. `plugin:skillname` → `skillname`).
  */
-function getResourceFileName(r: IPromptPath): string {
+export function getResourceFileName(r: IPromptPath): string {
 	const label = getResourceLabel(r);
 	const colonIndex = label.indexOf(':');
 	return colonIndex >= 0 ? label.substring(colonIndex + 1) : label;
@@ -129,16 +129,21 @@ class CreatePluginAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const notificationService = accessor.get(INotificationService);
 
-		const cts = new CancellationTokenSource();
-
 		// Step 1: Gather resources
-		const [instructions, prompts, agents, skills, hooks] = await Promise.all([
-			promptsService.listPromptFiles(PromptsType.instructions, cts.token),
-			promptsService.listPromptFiles(PromptsType.prompt, cts.token),
-			promptsService.listPromptFiles(PromptsType.agent, cts.token),
-			promptsService.listPromptFiles(PromptsType.skill, cts.token),
-			promptsService.listPromptFiles(PromptsType.hook, cts.token),
-		]);
+		const [instructions, prompts, agents, skills, hooks] = await (async () => {
+			const cts = new CancellationTokenSource();
+			try {
+				return await Promise.all([
+					promptsService.listPromptFiles(PromptsType.instructions, cts.token),
+					promptsService.listPromptFiles(PromptsType.prompt, cts.token),
+					promptsService.listPromptFiles(PromptsType.agent, cts.token),
+					promptsService.listPromptFiles(PromptsType.skill, cts.token),
+					promptsService.listPromptFiles(PromptsType.hook, cts.token),
+				]);
+			} finally {
+				cts.dispose(true);
+			}
+		})();
 
 		const mcpCollections = mcpRegistry.collections.get();
 
@@ -286,194 +291,208 @@ class CreatePluginAction extends Action2 {
 
 		// Step 6: Create plugin structure
 		try {
-			await fileService.createFolder(pluginRoot);
-
-			// Create .plugin/plugin.json
-			const manifestDir = joinPath(pluginRoot, '.plugin');
-			await fileService.createFolder(manifestDir);
-			const manifest = {
-				name: pluginName,
-				version: '1.0.0',
-				description: '',
-			};
-			const manifestUri = joinPath(manifestDir, 'plugin.json');
-			await fileService.writeFile(manifestUri, VSBuffer.fromString(JSON.stringify(manifest, null, '\t')));
-
-			// Group selected items by type
-			const byType = {
-				instruction: selected.filter(i => i.resourceType === 'instruction'),
-				prompt: selected.filter(i => i.resourceType === 'prompt'),
-				agent: selected.filter(i => i.resourceType === 'agent'),
-				skill: selected.filter(i => i.resourceType === 'skill'),
-				hook: selected.filter(i => i.resourceType === 'hook'),
-				mcp: selected.filter(i => i.resourceType === 'mcp'),
-			};
-
-			// Copy instructions → rules/
-			if (byType.instruction.length > 0) {
-				const rulesDir = joinPath(pluginRoot, 'rules');
-				await fileService.createFolder(rulesDir);
-				for (const item of byType.instruction) {
-					if (!item.promptPath) {
-						continue;
-					}
-					const name = getResourceFileName(item.promptPath);
-					const fileName = name.endsWith('.instructions.md') ? name : name + '.instructions.md';
-					const content = await fileService.readFile(item.promptPath.uri);
-					await fileService.writeFile(joinPath(rulesDir, fileName), content.value);
-				}
-			}
-
-			// Copy prompts → commands/
-			if (byType.prompt.length > 0) {
-				const commandsDir = joinPath(pluginRoot, 'commands');
-				await fileService.createFolder(commandsDir);
-				for (const item of byType.prompt) {
-					if (!item.promptPath) {
-						continue;
-					}
-					const name = getResourceFileName(item.promptPath);
-					const fileName = name.endsWith('.md') ? name : name + '.md';
-					const content = await fileService.readFile(item.promptPath.uri);
-					await fileService.writeFile(joinPath(commandsDir, fileName), content.value);
-				}
-			}
-
-			// Copy agents → agents/
-			if (byType.agent.length > 0) {
-				const agentsDir = joinPath(pluginRoot, 'agents');
-				await fileService.createFolder(agentsDir);
-				for (const item of byType.agent) {
-					if (!item.promptPath) {
-						continue;
-					}
-					const name = getResourceFileName(item.promptPath);
-					const fileName = name.endsWith('.md') ? name : name + '.md';
-					const content = await fileService.readFile(item.promptPath.uri);
-					await fileService.writeFile(joinPath(agentsDir, fileName), content.value);
-				}
-			}
-
-			// Copy skills → skills/ (recursive directory copy)
-			if (byType.skill.length > 0) {
-				const skillsDir = joinPath(pluginRoot, 'skills');
-				await fileService.createFolder(skillsDir);
-				for (const item of byType.skill) {
-					if (!item.promptPath) {
-						continue;
-					}
-					const sourceUri = item.promptPath.uri;
-					const skillName = getResourceFileName(item.promptPath);
-
-					// The URI for a skill might point to the SKILL.md file or to the directory
-					// Try to determine the skill directory
-					const sourceName = basename(sourceUri);
-					const isFile = sourceName.toLowerCase() === 'skill.md';
-					const skillSourceDir = isFile ? joinPath(sourceUri, '..') : sourceUri;
-
-					const destSkillDir = joinPath(skillsDir, skillName);
-					await copyDirectory(fileService, skillSourceDir, destSkillDir);
-				}
-			}
-
-			// Copy hooks → hooks/hooks.json (merge all selected hook files)
-			if (byType.hook.length > 0) {
-				const hooksDir = joinPath(pluginRoot, 'hooks');
-				await fileService.createFolder(hooksDir);
-
-				const mergedHooks: Record<string, Record<string, unknown>[]> = {};
-				for (const item of byType.hook) {
-					if (!item.promptPath) {
-						continue;
-					}
-					try {
-						const content = await fileService.readFile(item.promptPath.uri);
-						const parsed = parseJSONC<Record<string, unknown>>(content.value.toString());
-						const hooksObj = (parsed?.hooks ?? parsed) as Record<string, unknown> | undefined;
-						if (hooksObj && typeof hooksObj === 'object') {
-							for (const [hookType, commands] of Object.entries(hooksObj)) {
-								if (Array.isArray(commands)) {
-									if (!mergedHooks[hookType]) {
-										mergedHooks[hookType] = [];
-									}
-									for (const cmd of commands) {
-										mergedHooks[hookType].push(serializeHookCommand(cmd));
-									}
-								}
-							}
-						}
-					} catch {
-						// Skip unparseable hook files
-					}
-				}
-
-				const hooksJson = { hooks: mergedHooks };
-				await fileService.writeFile(
-					joinPath(hooksDir, 'hooks.json'),
-					VSBuffer.fromString(JSON.stringify(hooksJson, null, '\t'))
-				);
-			}
-
-			// Export MCP servers → .mcp.json
-			if (byType.mcp.length > 0) {
-				const mcpServers: Record<string, object> = {};
-				for (const item of byType.mcp) {
-					if (!item.mcpServer) {
-						continue;
-					}
-					const def = item.mcpServer.definition;
-					mcpServers[def.label] = serializeMcpLaunch(def.launch);
-				}
-				const mcpJson = { mcpServers };
-				await fileService.writeFile(
-					joinPath(pluginRoot, '.mcp.json'),
-					VSBuffer.fromString(JSON.stringify(mcpJson, null, '\t'))
-				);
-			}
+			await writePluginToDisk(fileService, pluginRoot, pluginName, selected);
 
 			// Step 7: Check for marketplace.json and update it
 			await updateMarketplaceIfNeeded(fileService, targetDir, pluginName);
 
 			// Step 8: Reveal the plugin directory in the OS file explorer
-			await commandService.executeCommand('revealFileInOS', pluginRoot);
+			try {
+				await commandService.executeCommand('revealFileInOS', pluginRoot);
+			} catch {
+				// revealFileInOS may not be available for all URI schemes
+			}
 
 			notificationService.info(localize('pluginCreated', "Plugin '{0}' created successfully.", pluginName));
 
 		} catch (err) {
 			notificationService.error(localize('pluginCreateError', "Failed to create plugin: {0}", String(err)));
-		} finally {
-			cts.dispose();
 		}
 	}
 }
 
-function serializeHookCommand(cmd: Record<string, unknown>): Record<string, unknown> {
+/**
+ * Writes a plugin directory structure to disk from selected resources.
+ */
+export async function writePluginToDisk(
+	fileService: IFileService,
+	pluginRoot: URI,
+	pluginName: string,
+	selected: readonly IResourceTreeItem[],
+): Promise<void> {
+	await fileService.createFolder(pluginRoot);
+
+	// Create .plugin/plugin.json
+	const manifestDir = joinPath(pluginRoot, '.plugin');
+	await fileService.createFolder(manifestDir);
+	const manifest = {
+		name: pluginName,
+		version: '1.0.0',
+		description: '',
+	};
+	await fileService.writeFile(joinPath(manifestDir, 'plugin.json'), VSBuffer.fromString(JSON.stringify(manifest, null, '\t')));
+
+	// Group selected items by type
+	const byType = {
+		instruction: selected.filter(i => i.resourceType === 'instruction'),
+		prompt: selected.filter(i => i.resourceType === 'prompt'),
+		agent: selected.filter(i => i.resourceType === 'agent'),
+		skill: selected.filter(i => i.resourceType === 'skill'),
+		hook: selected.filter(i => i.resourceType === 'hook'),
+		mcp: selected.filter(i => i.resourceType === 'mcp'),
+	};
+
+	// Copy instructions → rules/
+	if (byType.instruction.length > 0) {
+		const rulesDir = joinPath(pluginRoot, 'rules');
+		await fileService.createFolder(rulesDir);
+		for (const item of byType.instruction) {
+			if (!item.promptPath) {
+				continue;
+			}
+			const name = getResourceFileName(item.promptPath);
+			const fileName = name.endsWith('.instructions.md') || name.endsWith('.mdc') || name.endsWith('.md')
+				? name
+				: name + '.instructions.md';
+			const content = await fileService.readFile(item.promptPath.uri);
+			await fileService.writeFile(joinPath(rulesDir, fileName), content.value);
+		}
+	}
+
+	// Copy prompts → commands/
+	if (byType.prompt.length > 0) {
+		const commandsDir = joinPath(pluginRoot, 'commands');
+		await fileService.createFolder(commandsDir);
+		for (const item of byType.prompt) {
+			if (!item.promptPath) {
+				continue;
+			}
+			const name = getResourceFileName(item.promptPath);
+			const fileName = name.endsWith('.md') ? name : name + '.md';
+			const content = await fileService.readFile(item.promptPath.uri);
+			await fileService.writeFile(joinPath(commandsDir, fileName), content.value);
+		}
+	}
+
+	// Copy agents → agents/
+	if (byType.agent.length > 0) {
+		const agentsDir = joinPath(pluginRoot, 'agents');
+		await fileService.createFolder(agentsDir);
+		for (const item of byType.agent) {
+			if (!item.promptPath) {
+				continue;
+			}
+			const name = getResourceFileName(item.promptPath);
+			const fileName = name.endsWith('.md') ? name : name + '.md';
+			const content = await fileService.readFile(item.promptPath.uri);
+			await fileService.writeFile(joinPath(agentsDir, fileName), content.value);
+		}
+	}
+
+	// Copy skills → skills/ (recursive directory copy)
+	if (byType.skill.length > 0) {
+		const skillsDir = joinPath(pluginRoot, 'skills');
+		await fileService.createFolder(skillsDir);
+		for (const item of byType.skill) {
+			if (!item.promptPath) {
+				continue;
+			}
+			const sourceUri = item.promptPath.uri;
+			const skillName = getResourceFileName(item.promptPath);
+
+			// The URI for a skill might point to the SKILL.md file or to the directory
+			const sourceName = basename(sourceUri);
+			const isFile = sourceName.toLowerCase() === 'skill.md';
+			const skillSourceDir = isFile ? joinPath(sourceUri, '..') : sourceUri;
+
+			const destSkillDir = joinPath(skillsDir, skillName);
+			await copyDirectory(fileService, skillSourceDir, destSkillDir);
+		}
+	}
+
+	// Copy hooks → hooks/hooks.json (merge all selected hook files)
+	if (byType.hook.length > 0) {
+		const hooksDir = joinPath(pluginRoot, 'hooks');
+		await fileService.createFolder(hooksDir);
+
+		const mergedHooks: Record<string, Record<string, unknown>[]> = {};
+		for (const item of byType.hook) {
+			if (!item.promptPath) {
+				continue;
+			}
+			try {
+				const content = await fileService.readFile(item.promptPath.uri);
+				const parsed = parseJSONC<Record<string, unknown>>(content.value.toString());
+				const hooksObj = (parsed?.hooks ?? parsed) as Record<string, unknown> | undefined;
+				if (hooksObj && typeof hooksObj === 'object') {
+					for (const [hookType, commands] of Object.entries(hooksObj)) {
+						if (Array.isArray(commands)) {
+							if (!mergedHooks[hookType]) {
+								mergedHooks[hookType] = [];
+							}
+							for (const cmd of commands) {
+								mergedHooks[hookType].push(serializeHookCommand(cmd));
+							}
+						}
+					}
+				}
+			} catch {
+				// Skip unparseable hook files
+			}
+		}
+
+		const hooksJson = { hooks: mergedHooks };
+		await fileService.writeFile(
+			joinPath(hooksDir, 'hooks.json'),
+			VSBuffer.fromString(JSON.stringify(hooksJson, null, '\t'))
+		);
+	}
+
+	// Export MCP servers → .mcp.json
+	if (byType.mcp.length > 0) {
+		const mcpServers: Record<string, object> = {};
+		for (const item of byType.mcp) {
+			if (!item.mcpServer) {
+				continue;
+			}
+			const def = item.mcpServer.definition;
+			mcpServers[def.label] = serializeMcpLaunch(def.launch);
+		}
+		const mcpJson = { mcpServers };
+		await fileService.writeFile(
+			joinPath(pluginRoot, '.mcp.json'),
+			VSBuffer.fromString(JSON.stringify(mcpJson, null, '\t'))
+		);
+	}
+}
+
+export function serializeHookCommand(cmd: Record<string, unknown>): Record<string, unknown> {
 	const result: Record<string, unknown> = { type: 'command' };
-	if (cmd.command) {
+	if (typeof cmd.command === 'string') {
 		result['command'] = cmd.command;
 	}
-	if (cmd.windows) {
+	if (typeof cmd.windows === 'string') {
 		result['windows'] = cmd.windows;
 	}
-	if (cmd.linux) {
+	if (typeof cmd.linux === 'string') {
 		result['linux'] = cmd.linux;
 	}
-	if (cmd.osx) {
+	if (typeof cmd.osx === 'string') {
 		result['osx'] = cmd.osx;
 	}
-	if (cmd.cwd) {
+	if (cmd.cwd !== undefined) {
 		result['cwd'] = isUriComponents(cmd.cwd) ? URI.revive(cmd.cwd).fsPath : String(cmd.cwd);
 	}
 	if (cmd.env && typeof cmd.env === 'object' && Object.keys(cmd.env as Record<string, unknown>).length > 0) {
 		result['env'] = cmd.env;
 	}
-	if (cmd.timeout) {
+	if (typeof cmd.timeout === 'number') {
 		result['timeout'] = cmd.timeout;
 	}
 	return result;
 }
 
-function serializeMcpLaunch(launch: McpServerDefinition['launch']): object {
+export function serializeMcpLaunch(launch: McpServerDefinition['launch']): object {
 	if (launch.type === McpServerTransportType.Stdio) {
 		const result: Record<string, unknown> = {
 			type: 'stdio',
@@ -505,7 +524,7 @@ function serializeMcpLaunch(launch: McpServerDefinition['launch']): object {
 	}
 }
 
-async function copyDirectory(fileService: IFileService, source: URI, target: URI): Promise<void> {
+export async function copyDirectory(fileService: IFileService, source: URI, target: URI): Promise<void> {
 	const stat = await fileService.resolve(source);
 	if (stat.isDirectory) {
 		await fileService.createFolder(target);
@@ -526,7 +545,7 @@ const MARKETPLACE_PATHS = [
 	'.plugin/marketplace.json',
 ];
 
-async function updateMarketplaceIfNeeded(fileService: IFileService, targetDir: URI, pluginName: string): Promise<void> {
+export async function updateMarketplaceIfNeeded(fileService: IFileService, targetDir: URI, pluginName: string): Promise<void> {
 	for (const relPath of MARKETPLACE_PATHS) {
 		const marketplaceUri = joinPath(targetDir, relPath);
 		if (await fileService.exists(marketplaceUri)) {
@@ -538,15 +557,16 @@ async function updateMarketplaceIfNeeded(fileService: IFileService, targetDir: U
 						marketplace['plugins'] = [];
 					}
 
-					// Determine the source path relative to pluginRoot
-					const pluginRoot = (marketplace['metadata'] as Record<string, unknown> | undefined)?.['pluginRoot'];
-					const source = pluginRoot
-						? `./${pluginName}/`
-						: `./${pluginName}/`;
+					const plugins = marketplace['plugins'] as { name?: string; source?: string }[];
 
-					(marketplace['plugins'] as unknown[]).push({
+					// Skip if a plugin with this name already exists
+					if (plugins.some(p => p.name === pluginName)) {
+						return;
+					}
+
+					plugins.push({
 						name: pluginName,
-						source,
+						source: `./${pluginName}/`,
 					});
 
 					await fileService.writeFile(
