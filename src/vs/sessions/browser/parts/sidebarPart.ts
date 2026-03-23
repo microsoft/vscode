@@ -33,14 +33,18 @@ import { Separator } from '../../../base/common/actions.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { Menus } from '../menus.js';
-import { $, append, getWindowId, prepend } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, getWindowId, prepend } from '../../../base/browser/dom.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { isMacintosh, isNative } from '../../../base/common/platform.js';
 import { isFullscreen, onDidChangeFullscreen } from '../../../base/browser/browser.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { hasNativeTitlebar, getTitleBarStyle } from '../../../platform/window/common/window.js';
-import { SessionStatusWidget } from '../collapsedPartWidgets.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { IAgentSessionsService } from '../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { AgentSessionStatus } from '../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 
 /**
  * Sidebar part specifically for agent sessions workbench.
@@ -152,10 +156,9 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			prepend(titleArea, $('div.titlebar-drag-region'));
 		}
 
-		// Session status widget (far left of sidebar header, across from filter)
+		// Session toggle widget (right side of title area)
 		if (titleArea) {
-			const widget = this._register(this.instantiationService.createInstance(SessionStatusWidget, titleArea, { prependToParent: true }));
-			widget.show();
+			this.createSessionsToggle(titleArea);
 		}
 
 		// macOS native: the sidebar spans full height and the traffic lights
@@ -182,6 +185,55 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}
 
 		return titleArea;
+	}
+
+	/**
+	 * Creates a standalone session toggle widget appended to the sidebar title area.
+	 * Displays a tasklist icon with an optional unread badge. Clicking hides the sidebar.
+	 */
+	private createSessionsToggle(titleArea: HTMLElement): void {
+		const widgetDisposables = this._register(new DisposableStore());
+
+		const widget = append(titleArea, $('button.session-status-toggle')) as HTMLButtonElement;
+		widget.type = 'button';
+		widget.tabIndex = 0;
+		widget.setAttribute('role', 'button');
+		append(widget, $(ThemeIcon.asCSSSelector(Codicon.tasklist)));
+		const badge = append(widget, $('span.session-status-toggle-badge'));
+
+		// Toggle sidebar on click
+		widgetDisposables.add(addDisposableListener(widget, EventType.CLICK, (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+		}));
+
+		// Update badge on session changes (deferred to avoid service unavailability)
+		const updateBadge = () => {
+			try {
+				const svc = this.instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
+				let unread = 0;
+				for (const session of svc.model.sessions) {
+					if (!session.isArchived() && session.status === AgentSessionStatus.Completed && !session.isRead()) {
+						unread++;
+					}
+				}
+				badge.textContent = unread > 0 ? `${unread}` : '';
+				badge.style.display = unread > 0 ? '' : 'none';
+			} catch {
+				badge.style.display = 'none';
+			}
+		};
+
+		setTimeout(() => {
+			updateBadge();
+			try {
+				const svc = this.instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
+				widgetDisposables.add(svc.model.onDidChangeSessions(() => updateBadge()));
+			} catch {
+				// Service not yet available
+			}
+		}, 0);
 	}
 
 	private createFooter(parent: HTMLElement): void {

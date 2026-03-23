@@ -5,7 +5,7 @@
 
 import '../../workbench/browser/style.js';
 import './media/style.css';
-import { SessionStatusWidget, CollapsedAuxiliaryBarWidget } from './collapsedPartWidgets.js';
+import { CollapsedAuxiliaryBarWidget } from './collapsedPartWidgets.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
 import { getActiveDocument, getActiveElement, getClientArea, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
@@ -244,7 +244,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private chatBarPartView!: ISerializableView;
 
-	private titlebarSessionStatusWidget: SessionStatusWidget | undefined;
 	private collapsedAuxiliaryBarWidget: CollapsedAuxiliaryBarWidget | undefined;
 
 	private readonly partVisibility: IPartVisibilityState = {
@@ -385,14 +384,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 				// Layout
 				this.layout();
 
-				// Session status widget in titlebar (shown when sidebar is collapsed)
-				const titlebarPart = this.getPart(Parts.TITLEBAR_PART) as TitlebarPart;
-				this.titlebarSessionStatusWidget = this._register(instantiationService.createInstance(SessionStatusWidget, titlebarPart.leftContainer, undefined));
-				if (!this.partVisibility.sidebar) {
-					this.titlebarSessionStatusWidget.show();
-				}
-
 				// Auxiliary bar changes widget (always visible, acts as a toggle)
+				const titlebarPart = this.getPart(Parts.TITLEBAR_PART) as TitlebarPart;
 				this.collapsedAuxiliaryBarWidget = this._register(instantiationService.createInstance(CollapsedAuxiliaryBarWidget, titlebarPart.rightContainer, titlebarPart.rightWindowControlsContainer));
 				this.collapsedAuxiliaryBarWidget.updateActiveState(this.partVisibility.auxiliaryBar);
 
@@ -1104,13 +1097,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			this.sideBarPartView,
 			!hidden,
 		);
-
-		// Toggle titlebar session status widget (visible when sidebar is hidden)
-		if (hidden) {
-			this.titlebarSessionStatusWidget?.show();
-		} else {
-			this.titlebarSessionStatusWidget?.hide();
-		}
 
 
 

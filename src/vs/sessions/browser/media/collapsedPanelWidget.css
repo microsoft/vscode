@@ -34,6 +34,11 @@
 	padding-left: 0;
 }
 
+/* When inside the sidebar title area (panel open), no left padding */
+.agent-sessions-workbench .part.sidebar .collapsed-sidebar-widget {
+	padding-left: 0;
+}
+
 /* ---- Auxiliary Bar widget (in titlebar-right) ---- */
 
 .agent-sessions-workbench .collapsed-auxbar-widget {
@@ -97,7 +102,7 @@
 }
 
 .agent-sessions-workbench .collapsed-sidebar-count {
-	color: var(--vscode-textLink-foreground);
+	color: inherit;
 }
 
 
