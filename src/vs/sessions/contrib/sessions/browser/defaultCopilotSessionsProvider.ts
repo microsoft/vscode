@@ -520,11 +520,19 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 				};
 				const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
 				const modelPicker = this.instantiationService.createInstance(EnhancedModelPickerActionItem, action, delegate, pickerOptions);
-				// Initialize with first available model
-				const models = this._getAvailableModels();
-				if (models[0]) {
-					currentModel.set(models[0], undefined);
-				}
+
+				// Initialize with first available model, or wait for models to load
+				const initModel = () => {
+					if (!currentModel.get()) {
+						const models = this._getAvailableModels();
+						if (models[0]) {
+							currentModel.set(models[0], undefined);
+						}
+					}
+				};
+				initModel();
+				this._register(this.languageModelsService.onDidChangeLanguageModels(() => initModel()));
+
 				return modelPicker;
 			},
 		));
