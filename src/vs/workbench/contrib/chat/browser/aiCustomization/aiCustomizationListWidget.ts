@@ -108,6 +108,8 @@ export interface IAICustomizationListItem {
 	readonly badgeTooltip?: string;
 	/** When set, overrides the default prompt-type icon. */
 	readonly typeIcon?: ThemeIcon;
+	/** Display label for the source extension (e.g. extension ID). */
+	readonly extensionLabel?: string;
 	nameMatches?: IMatch[];
 	descriptionMatches?: IMatch[];
 }
@@ -332,9 +334,14 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 
 		// Hover tooltip: name + path + badge context + plugin source
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => {
-			const isWorkspaceItem = element.storage === PromptsStorage.local;
-			const uriLabel = this.labelService.getUriLabel(element.uri, { relative: isWorkspaceItem });
-			let content = `${element.name}\n${uriLabel}`;
+			let content: string;
+			if (element.extensionLabel) {
+				content = `${element.name}\n${localize('fromExtension', "Extension: {0}", element.extensionLabel)}`;
+			} else {
+				const isWorkspaceItem = element.storage === PromptsStorage.local;
+				const uriLabel = this.labelService.getUriLabel(element.uri, { relative: isWorkspaceItem });
+				content = `${element.name}\n${uriLabel}`;
+			}
 			if (element.badgeTooltip) {
 				content += `\n\n${element.badgeTooltip}`;
 			}
@@ -1099,6 +1106,10 @@ export class AICustomizationListWidget extends Disposable {
 				// IAICustomizationListItem.groupKey is readonly for consumers but
 				// we own the items array here, so the mutation is safe.
 				(item as { groupKey?: string }).groupKey = override;
+			}
+			// Set extension label for tooltip display
+			if (extId) {
+				(item as { extensionLabel?: string }).extensionLabel = extId.value;
 			}
 		}
 	}
