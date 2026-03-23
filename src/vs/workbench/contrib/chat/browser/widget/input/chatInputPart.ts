@@ -129,6 +129,7 @@ import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
 import { ChatContextUsageWidget } from '../../widgetHosts/viewPane/chatContextUsageWidget.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { EnhancedModelPickerActionItem } from './modelPickerActionItem2.js';
+import { ConfigureToolsAction } from '../../actions/chatToolActions.js';
 
 const $ = dom.$;
 
@@ -1044,6 +1045,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		this._inputModel?.setState(state);
 		this._isSyncingToOrFromInputModel = false;
+
+		// Some picker label changed size; re-evaluate toolbar overflow
+		queueMicrotask(() => this.inputActionsToolbar?.relayout());
 	}
 
 	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
@@ -2208,6 +2212,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._register(dom.addStandardDisposableListener(toolbarsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
 		this._register(dom.addStandardDisposableListener(this.attachmentsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
+		const shorterChatInputActionIds = new Set<string>([
+			OpenModePickerAction.ID,
+			ConfigureToolsAction.ID,
+		]);
 		this.inputActionsToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.options.renderInputToolbarBelowInput ? this.attachmentsContainer : toolbarsContainer, MenuId.ChatInput, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
@@ -2217,7 +2225,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				enabled: true,
 				kind: 'last',
 				minItems: 1,
-				actionMinWidth: 22
+				actionMinWidth: 48,
+				getActionMinWidth: action => shorterChatInputActionIds.has(action.id) ? 22 : undefined,
 			},
 			actionViewItemProvider: (action, options) => {
 				if (action.id === OpenModelPickerAction.ID && action instanceof MenuItemAction) {
@@ -2315,6 +2324,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (this.cachedWidth && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
 				this._toolbarRelayoutScheduler.schedule();
 			}
+		}));
+		// When hideChevrons changes, picker items change their rendered size
+		// but the toolbar's ResizeObserver won't fire (the toolbar element size
+		// didn't change, only its children did). Force a relayout so the
+		// responsive overflow logic re-evaluates with the correct item widths.
+		// The relayout is deferred by a microtask so the picker action view
+		// items' own autoruns have a chance to re-render their labels first.
+		this._register(autorun(reader => {
+			pickerOptions.hideChevrons.read(reader);
+			queueMicrotask(() => this.inputActionsToolbar.relayout());
 		}));
 		this.executeToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, this.options.menus.executeToolbar, {
 			telemetrySource: this.options.menus.telemetrySource,
