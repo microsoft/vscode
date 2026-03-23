@@ -292,6 +292,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly inputEditorMaxHeight: number;
 	private readonly inputEditorMinHeight: number | undefined;
 	private inputEditorHeight: number = 0;
+	private _maxHeight: number | undefined;
 	private container!: HTMLElement;
 
 	private inputSideToolbarContainer?: HTMLElement;
@@ -2155,7 +2156,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
-			const currentHeight = Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight);
+			const currentHeight = Math.min(this._inputEditor.getContentHeight(), this._effectiveInputEditorMaxHeight);
 			if (currentHeight !== this.inputEditorHeight) {
 				this.inputEditorHeight = currentHeight;
 				// Directly update editor layout - ResizeObserver will notify parent about height change
@@ -3155,6 +3156,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
+	 * Sets the maximum height budget for the input part. The editor height will be
+	 * clamped so it does not grow beyond what this budget allows after accounting
+	 * for non-editor chrome such as attachments, toolbars, and widgets.
+	 */
+	setMaxHeight(maxHeight: number | undefined): void {
+		this._maxHeight = maxHeight;
+	}
+
+	/**
 	 * Layout the input part with the given width. Height is intrinsic - determined by content
 	 * and detected via ResizeObserver, which updates `inputPartHeight` for the parent to observe.
 	 */
@@ -3163,6 +3173,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._stableInputPartWidth.set(width, undefined);
 
 		return this._layout(width);
+	}
+
+	private get _effectiveInputEditorMaxHeight(): number {
+		if (this._maxHeight === undefined) {
+			return this.inputEditorMaxHeight;
+		}
+
+		// Compute non-editor height from the cached container height (updated by ResizeObserver)
+		// minus the current editor height. This avoids a forced reflow from reading offsetHeight.
+		const currentEditorHeight = this.previousInputEditorDimension?.height ?? 0;
+		const nonEditorHeight = Math.max(0, this.height.get() - currentEditorHeight);
+		const budgetForEditor = this._maxHeight - nonEditorHeight;
+		return Math.min(this.inputEditorMaxHeight, Math.max(0, budgetForEditor));
 	}
 
 	private previousInputEditorDimension: IDimension | undefined;
@@ -3174,7 +3197,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
 		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth;
-		const inputEditorHeight = this.inputEditorMinHeight ? Math.max(this.inputEditorMinHeight, Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight)) : Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight);
+		const effectiveMaxHeight = this._effectiveInputEditorMaxHeight;
+		const clampedContentHeight = Math.min(this._inputEditor.getContentHeight(), effectiveMaxHeight);
+		const inputEditorHeight = this.inputEditorMinHeight ? Math.min(Math.max(this.inputEditorMinHeight, clampedContentHeight), effectiveMaxHeight) : clampedContentHeight;
 		const newDimension = { width: newEditorWidth, height: inputEditorHeight };
 		if (!this.previousInputEditorDimension || (this.previousInputEditorDimension.width !== newDimension.width || this.previousInputEditorDimension.height !== newDimension.height)) {
 			// This layout call has side-effects that are hard to understand. eg if we are calling this inside a onDidChangeContent handler, this can trigger the next onDidChangeContent handler
