@@ -12,7 +12,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
 import type { ISerializableChatData } from '../../common/model/chatModel.js';
