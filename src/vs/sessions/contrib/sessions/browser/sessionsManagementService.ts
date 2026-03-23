@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IObservable, autorun, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -177,16 +177,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// isNewSession is false when there are any established sessions in the model.
 		this.isNewChatSessionContext = IsNewChatSessionContext.bindTo(contextKeyService);
 		this._isBackgroundProvider = IsActiveSessionBackgroundProviderContext.bindTo(contextKeyService);
-
-		// Propagate active session to the owning provider
-		this._register(autorun(reader => {
-			const session = this._activeSessionData.read(reader);
-			if (session) {
-				this.sessionsProvidersService.setActiveSession(session);
-			} else {
-				this.sessionsProvidersService.clearActiveSession();
-			}
-		}));
 
 		// Load last selected session
 		this.lastSelectedSession = this.loadLastSelectedSession();

@@ -5,8 +5,9 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, autorun, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { localize2 } from '../../../../nls.js';
@@ -36,7 +37,7 @@ import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/brow
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { Menus } from '../../../browser/menus.js';
-import { IsActiveSessionBackgroundProviderContext, IsNewChatSessionContext, SessionWorkspaceHasRepositoryContext } from './sessionsManagementService.js';
+import { ISessionsManagementService, IsActiveSessionBackgroundProviderContext, IsNewChatSessionContext, SessionWorkspaceHasRepositoryContext } from './sessionsManagementService.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IsolationPicker } from '../../chat/browser/sessionTargetPicker.js';
@@ -476,7 +477,6 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
 		@IGitService private readonly gitService: IGitService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -669,24 +669,6 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 		}
 	}
 
-	// ── Active Session ──
-
-	private readonly _hasRepositoryKey = SessionWorkspaceHasRepositoryContext.bindTo(this.contextKeyService);
-	private readonly _activeSessionDisposables = this._register(new DisposableStore());
-
-	setActiveSession(session: ISessionData): void {
-		this._activeSessionDisposables.clear();
-		this._activeSessionDisposables.add(autorun(reader => {
-			const workspace = session.workspace.read(reader);
-			this._hasRepositoryKey.set(!!(workspace?.repositories.length));
-		}));
-	}
-
-	clearActiveSession(): void {
-		this._activeSessionDisposables.clear();
-		this._hasRepositoryKey.set(false);
-	}
-
 	// ── Private ──
 
 	private async _browseForFolder(): Promise<SessionWorkspace | undefined> {
@@ -781,3 +763,29 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 		return sessionId.startsWith(prefix) ? sessionId.substring(prefix.length) : sessionId;
 	}
 }
+
+class DefaultCopilotActiveSessionContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.defaultCopilotActiveSession';
+
+	constructor(
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super();
+
+		const hasRepositoryKey = SessionWorkspaceHasRepositoryContext.bindTo(contextKeyService);
+
+		this._register(autorun(reader => {
+			const session = sessionsManagementService.activeSessionData.read(reader);
+			if (session?.providerId === 'default-copilot') {
+				const workspace = session.workspace.read(reader);
+				hasRepositoryKey.set(!!(workspace?.repositories.length));
+			} else {
+				hasRepositoryKey.set(false);
+			}
+		}));
+	}
+}
+
+registerWorkbenchContribution2(DefaultCopilotActiveSessionContribution.ID, DefaultCopilotActiveSessionContribution, WorkbenchPhase.AfterRestored);

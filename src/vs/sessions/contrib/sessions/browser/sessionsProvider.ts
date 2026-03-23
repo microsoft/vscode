@@ -91,10 +91,4 @@ export interface ISessionsProvider {
 	/** Rename a session. */
 	renameSession(sessionId: string, title: string): Promise<void>;
 
-	// ── Active Session ──
-
-	/** Called when a session owned by this provider becomes the active session. */
-	setActiveSession(session: ISessionData): void;
-	/** Called when the active session is no longer owned by this provider. */
-	clearActiveSession(): void;
 }

@@ -54,13 +54,6 @@ export interface ISessionsProvidersService {
 	/** Rename a session. */
 	renameSession(sessionId: string, title: string): Promise<void>;
 
-	// ── Active Session ──
-
-	/** Notify the owning provider that a session became active. */
-	setActiveSession(session: ISessionData): void;
-	/** Notify the current active provider that no session is active. */
-	clearActiveSession(): void;
-
 	// ── New Session ──
 
 	/** Create a new session via the specified provider. */
@@ -166,28 +159,6 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		const { provider } = this._resolveProvider(sessionId);
 		if (provider) {
 			await provider.renameSession(sessionId, title);
-		}
-	}
-
-	// ── Active Session ──
-
-	private _activeProviderId: string | undefined;
-
-	setActiveSession(session: ISessionData): void {
-		if (this._activeProviderId && this._activeProviderId !== session.providerId) {
-			const prev = this._providers.get(this._activeProviderId);
-			prev?.provider.clearActiveSession();
-		}
-		this._activeProviderId = session.providerId;
-		const entry = this._providers.get(session.providerId);
-		entry?.provider.setActiveSession(session);
-	}
-
-	clearActiveSession(): void {
-		if (this._activeProviderId) {
-			const entry = this._providers.get(this._activeProviderId);
-			entry?.provider.clearActiveSession();
-			this._activeProviderId = undefined;
 		}
 	}
 
