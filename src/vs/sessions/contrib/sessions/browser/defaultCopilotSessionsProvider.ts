@@ -136,7 +136,7 @@ registerAction2(class extends Action2 {
 			f1: false,
 			menu: [{
 				id: Menus.NewSessionControl,
-				group: 'permissions',
+				group: 'navigation',
 				order: 1,
 				when: IsActiveSessionBackgroundProviderContext,
 			}],
