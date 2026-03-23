@@ -28,6 +28,12 @@ import { ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessio
 import { INewSession, INewSessionPickerVisibility, CopilotCLISession, RemoteNewSession } from '../../chat/browser/newSession.js';
 import { CloudModelPicker } from '../../chat/browser/modelPicker.js';
 import { NewChatPermissionPicker } from '../../chat/browser/newChatPermissionPicker.js';
+import { ModePicker } from '../../chat/browser/modePicker.js';
+import { EnhancedModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem2.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { IModelPickerDelegate } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
+import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { Menus } from '../../../browser/menus.js';
 import { IsActiveSessionBackgroundProviderContext, IsNewChatSessionContext } from './sessionsManagementService.js';
@@ -97,12 +103,29 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			id: 'sessions.defaultCopilot.modePicker',
+			title: localize2('modePicker', "Mode"),
+			f1: false,
+			menu: [{
+				id: Menus.NewSessionConfig,
+				group: 'navigation',
+				order: 0,
+				when: IsActiveSessionBackgroundProviderContext,
+			}],
+		});
+	}
+	override async run(): Promise<void> { /* handled by action view item */ }
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
 			id: 'sessions.defaultCopilot.localModelPicker',
 			title: localize2('localModelPicker', "Model"),
 			f1: false,
 			menu: [{
 				id: Menus.NewSessionConfig,
-				group: 'model',
+				group: 'navigation',
 				order: 1,
 				when: IsActiveSessionBackgroundProviderContext,
 			}],
@@ -119,7 +142,7 @@ registerAction2(class extends Action2 {
 			f1: false,
 			menu: [{
 				id: Menus.NewSessionConfig,
-				group: 'model',
+				group: 'navigation',
 				order: 1,
 				when: ContextKeyExpr.and(IsNewChatSessionContext, IsActiveSessionBackgroundProviderContext.negate()),
 			}],
@@ -430,6 +453,7 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
 		@IGitService private readonly gitService: IGitService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 
@@ -469,11 +493,39 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 			},
 		));
 		this._register(this.actionViewItemService.register(
+			Menus.NewSessionConfig, 'sessions.defaultCopilot.modePicker',
+			(_action, _options) => {
+				const picker = this.instantiationService.createInstance(ModePicker);
+				return new PickerActionViewItem(picker);
+			},
+		));
+		this._register(this.actionViewItemService.register(
 			Menus.NewSessionConfig, 'sessions.defaultCopilot.localModelPicker',
 			(_action, _options) => {
-				// Local model picker — will be rendered by the MenuWorkbenchToolBar
-				// For now, return a placeholder that the widget's existing local model picker replaces
-				return undefined as any;
+				const currentModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('currentModel', undefined);
+				const delegate: IModelPickerDelegate = {
+					currentModel,
+					setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
+						currentModel.set(model, undefined);
+					},
+					getModels: () => this._getAvailableModels(),
+					useGroupedModelPicker: () => true,
+					showManageModelsAction: () => false,
+					showUnavailableFeatured: () => false,
+					showFeatured: () => true,
+				};
+				const pickerOptions: IChatInputPickerOptions = {
+					hideChevrons: observableValue('hideChevrons', false),
+					hoverPosition: { hoverPosition: HoverPosition.ABOVE },
+				};
+				const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
+				const modelPicker = this.instantiationService.createInstance(EnhancedModelPickerActionItem, action, delegate, pickerOptions);
+				// Initialize with first available model
+				const models = this._getAvailableModels();
+				if (models[0]) {
+					currentModel.set(models[0], undefined);
+				}
+				return modelPicker;
 			},
 		));
 		this._register(this.actionViewItemService.register(
@@ -555,6 +607,15 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 	}
 
 	// ── Session Actions ──
+
+	private _getAvailableModels(): ILanguageModelChatMetadataAndIdentifier[] {
+		return this.languageModelsService.getLanguageModelIds()
+			.map(id => {
+				const metadata = this.languageModelsService.lookupLanguageModel(id);
+				return metadata ? { metadata, identifier: id } : undefined;
+			})
+			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m && m.metadata.targetChatSessionType === AgentSessionProviders.Background);
+	}
 
 	async archiveSession(sessionId: string): Promise<void> {
 		const agentSession = this._findAgentSession(sessionId);
