@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { agentHostRemotePath, agentHostUri } from '../../common/agentHostFileSystemProvider.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../common/agentHostUri.js';
 
 suite('AgentHostFileSystemProvider - URI helpers', () => {
 
@@ -88,5 +88,43 @@ suite('AgentHostAuthority - encoding', () => {
 			const uri = URI.from({ scheme, path: '/test' });
 			assert.strictEqual(uri.scheme, scheme, `scheme for '${address}' must round-trip through URI`);
 		}
+	});
+});
+
+suite('toAgentHostUri / fromAgentHostUri', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('round-trips a file URI', () => {
+		const original = URI.file('/home/user/project/file.ts');
+		const wrapped = toAgentHostUri(original, 'my-server');
+		assert.strictEqual(wrapped.scheme, AGENT_HOST_SCHEME);
+		assert.strictEqual(wrapped.authority, 'my-server');
+
+		const unwrapped = fromAgentHostUri(wrapped);
+		assert.strictEqual(unwrapped.scheme, 'file');
+		assert.strictEqual(unwrapped.path, original.path);
+	});
+
+	test('round-trips a URI with authority', () => {
+		const original = URI.from({ scheme: 'agenthost-content', authority: 'session1', path: '/snap/before' });
+		const wrapped = toAgentHostUri(original, 'remote-host');
+		const unwrapped = fromAgentHostUri(wrapped);
+		assert.strictEqual(unwrapped.scheme, 'agenthost-content');
+		assert.strictEqual(unwrapped.authority, 'session1');
+		assert.strictEqual(unwrapped.path, '/snap/before');
+	});
+
+	test('local authority returns original URI unchanged', () => {
+		const original = URI.file('/workspace/test.ts');
+		const result = toAgentHostUri(original, 'local');
+		assert.strictEqual(result.toString(), original.toString());
+	});
+
+	test('fromAgentHostUri handles malformed path gracefully', () => {
+		const uri = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'host', path: '/file' });
+		const result = fromAgentHostUri(uri);
+		// Should not throw — falls back to extracting scheme only
+		assert.strictEqual(result.scheme, 'file');
 	});
 });
