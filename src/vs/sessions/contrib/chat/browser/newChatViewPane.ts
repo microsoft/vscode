@@ -10,7 +10,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -40,10 +39,6 @@ import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browse
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { IModelPickerDelegate } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
-import { EnhancedModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem2.js';
-import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
@@ -54,12 +49,10 @@ import { SessionTypePicker, IsolationPicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
 import { INewSession } from './newSession.js';
 import { ExtensionToolbarPickers } from './extensionToolbarPickers.js';
-import { CloudModelPicker } from './modelPicker.js';
 import { WorkspacePicker } from './workspacePicker.js';
 import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
 import { Menus } from '../../../browser/menus.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { ModePicker } from './modePicker.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -112,8 +105,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	// Input
 	private _editor!: CodeEditorWidget;
 	private _editorContainer!: HTMLElement;
-	private readonly _currentLanguageModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('currentLanguageModel', undefined);
-	private readonly _modelPickerDisposable = this._register(new MutableDisposable());
 
 	// Pending session
 	private readonly _newSession = this._register(new MutableDisposable<INewSession>());
@@ -132,10 +123,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	// Welcome part
 	private _pickersContainer: HTMLElement | undefined;
 	private _toolbarPickersContainer: HTMLElement | undefined;
-	private _localModelPickerContainer: HTMLElement | undefined;
 	private _inputSlot: HTMLElement | undefined;
-	private readonly _cloudModelPicker: CloudModelPicker;
-	private readonly _modePicker: ModePicker;
 	private readonly _extensionToolbarPickers: ExtensionToolbarPickers;
 
 	// Attached context
@@ -164,7 +152,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -177,8 +164,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
 		this._workspacePicker = this._register(this.instantiationService.createInstance(WorkspacePicker));
-		this._cloudModelPicker = this._register(this.instantiationService.createInstance(CloudModelPicker));
-		this._modePicker = this._register(this.instantiationService.createInstance(ModePicker));
 		this._sessionTypePicker = this._register(this.instantiationService.createInstance(SessionTypePicker));
 		this._branchPicker = this._register(this.instantiationService.createInstance(BranchPicker));
 		this._isolationPicker = this._register(this.instantiationService.createInstance(IsolationPicker));
@@ -214,24 +199,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._focusEditor();
 		}));
 
-		// When mode changes, focus the editor
-		this._register(this._modePicker.onDidChange((_mode) => {
-			this._focusEditor();
-		}));
-
-		// When language models change (e.g., extension activates), reinitialize if no model selected
-		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
-			this._initDefaultModel();
-		}));
-
-		// Update input state when attachments or model change
+		// Update input state when attachments change
 		this._register(this._contextAttachments.onDidChangeContext(() => {
 			this._updateDraftState();
 			this._focusEditor();
-		}));
-		this._register(autorun(reader => {
-			this._currentLanguageModel.read(reader);
-			this._updateDraftState();
 		}));
 	}
 
@@ -286,9 +257,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Render project picker & extension pickers
 		this._renderOptionGroupPickers();
-
-		// Initialize model picker
-		this._initDefaultModel();
 
 		// Restore draft input state from storage
 		this._restoreState();
@@ -365,12 +333,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		if (session.pickerVisibility.branch && this._branchPicker.selectedBranch) {
 			session.setBranch(this._branchPicker.selectedBranch);
-		}
-
-		// Set the current model on the session
-		const currentModel = this._currentLanguageModel.get();
-		if (currentModel) {
-			session.setModelId(currentModel.identifier);
 		}
 
 		// Listen for session changes
@@ -580,54 +542,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._updateSendButtonState();
 	}
 
-	// --- Model picker ---
-
-	private _createLocalModelPicker(container: HTMLElement): void {
-		const delegate: IModelPickerDelegate = {
-			currentModel: this._currentLanguageModel,
-			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
-				this._currentLanguageModel.set(model, undefined);
-				this._newSession.value?.setModelId(model.identifier);
-				this._focusEditor();
-			},
-			getModels: () => this._getAvailableModels(),
-			useGroupedModelPicker: () => true,
-			showManageModelsAction: () => false,
-			showUnavailableFeatured: () => false,
-			showFeatured: () => true,
-		};
-
-		const pickerOptions: IChatInputPickerOptions = {
-			hideChevrons: observableValue('hideChevrons', false),
-			hoverPosition: { hoverPosition: HoverPosition.ABOVE },
-		};
-
-		const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
-
-		const modelPicker = this.instantiationService.createInstance(
-			EnhancedModelPickerActionItem, action, delegate, pickerOptions,
-		);
-		this._modelPickerDisposable.value = modelPicker;
-		modelPicker.render(container);
-	}
-
-	private _initDefaultModel(): void {
-		const models = this._getAvailableModels();
-		const draft = this._getDraftState();
-		const lastModelId = draft?.selectedModel?.identifier ?? this._history.values.at(-1)?.selectedModel?.identifier;
-		const defaultModel = (lastModelId ? models.find(m => m.identifier === lastModelId) : undefined) ?? models[0];
-		this._currentLanguageModel.set(defaultModel, undefined);
-	}
-
-	private _getAvailableModels(): ILanguageModelChatMetadataAndIdentifier[] {
-		return this.languageModelsService.getLanguageModelIds()
-			.map(id => {
-				const metadata = this.languageModelsService.lookupLanguageModel(id);
-				return metadata ? { metadata, identifier: id } : undefined;
-			})
-			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m && m.metadata.targetChatSessionType === AgentSessionProviders.Background);
-	}
-
 	// --- Welcome: Target & option pickers (dropdown row below input) ---
 
 	private _renderOptionGroupPickers(): void {
@@ -671,7 +585,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			inputText: this._editor?.getModel()?.getValue() ?? '',
 			attachments,
 			mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent },
-			selectedModel: this._currentLanguageModel.get(),
+			selectedModel: undefined,
 			selections: this._editor?.getSelections() ?? [],
 			contrib: {},
 			branch: this._branchPicker.selectedBranch,
@@ -803,13 +717,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._editor?.getModel()?.setValue(draft.inputText);
 			if (draft.attachments?.length) {
 				this._contextAttachments.setAttachments(draft.attachments.map(IChatRequestVariableEntry.fromExport));
-			}
-			if (draft.selectedModel) {
-				const models = this._getAvailableModels();
-				const model = models.find(m => m.identifier === draft.selectedModel?.identifier);
-				if (model) {
-					this._currentLanguageModel.set(model, undefined);
-				}
 			}
 			if (draft.branch) {
 				this._branchPicker.setPreferredBranch(draft.branch);
