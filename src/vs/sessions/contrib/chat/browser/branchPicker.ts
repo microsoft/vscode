@@ -12,6 +12,7 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ICopilotNewSessionData } from '../../sessions/browser/defaultCopilotSessionsProvider.js';
 import { ISettableObservable } from '../../../../base/common/observable.js';
 
 const FILTER_THRESHOLD = 10;
@@ -137,7 +138,7 @@ export class BranchPicker extends Disposable {
 
 			const session = this.sessionsManagementService.activeSessionData.get();
 			if (session) {
-				(session.branch as ISettableObservable<string | undefined>).set(branch, undefined);
+				((session as ICopilotNewSessionData).branchObservable as ISettableObservable<string | undefined>).set(branch, undefined);
 			}
 		}
 	}

@@ -12,7 +12,7 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { RemoteNewSession } from './newSession.js';
+import { RemoteNewSession } from '../../sessions/browser/defaultCopilotSessionsProvider.js';
 
 const FILTER_THRESHOLD = 10;
 

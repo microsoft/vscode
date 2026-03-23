@@ -14,6 +14,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ICopilotNewSessionData } from '../../sessions/browser/defaultCopilotSessionsProvider.js';
 import { ISettableObservable } from '../../../../base/common/observable.js';
 
 // #region --- Types ---
@@ -295,7 +296,7 @@ export class IsolationPicker extends Disposable {
 
 			const session = this.sessionsManagementService.activeSessionData.get();
 			if (session) {
-				(session.isolationMode as ISettableObservable<string | undefined>).set(mode, undefined);
+				((session as ICopilotNewSessionData).isolationModeObservable as ISettableObservable<string | undefined>).set(mode, undefined);
 			}
 		}
 	}

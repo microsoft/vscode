@@ -13,7 +13,8 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessionPickerActionItem.js';
 import { SearchableOptionPickerActionItem } from '../../../../workbench/contrib/chat/browser/chatSessions/searchableOptionPickerActionItem.js';
 import { IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionOptionGroup, RemoteNewSession } from './newSession.js';
+import { ISessionOptionGroup } from './newSession.js';
+import { RemoteNewSession } from '../../sessions/browser/defaultCopilotSessionsProvider.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 
@@ -46,8 +47,7 @@ export class ExtensionToolbarPickers extends Disposable {
 			this._sessionDisposables.clear();
 
 			if (session) {
-				// The session data wraps a RemoteNewSession — we need the internal session
-				// to access getOtherOptionGroups(). This is accessed via the provider.
+				// The session data is directly a RemoteNewSession — access its option groups.
 				this._bindToSession();
 			} else {
 				this._clearPickers();
@@ -67,11 +67,10 @@ export class ExtensionToolbarPickers extends Disposable {
 		const providers = this.sessionsProvidersService.getProviders();
 		for (const provider of providers) {
 			const currentSession = (provider as any)._currentNewSession;
-			if (currentSession?._newSession instanceof RemoteNewSession) {
-				const remoteSession = currentSession._newSession as RemoteNewSession;
-				this._renderToolbarPickers(remoteSession, true);
-				this._sessionDisposables.add(remoteSession.onDidChangeOptionGroups(() => {
-					this._renderToolbarPickers(remoteSession);
+			if (currentSession instanceof RemoteNewSession) {
+				this._renderToolbarPickers(currentSession, true);
+				this._sessionDisposables.add(currentSession.onDidChangeOptionGroups(() => {
+					this._renderToolbarPickers(currentSession);
 				}));
 				return;
 			}

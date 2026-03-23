@@ -37,6 +37,7 @@ import { localize } from '../../../../nls.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ICopilotNewSessionData } from '../../sessions/browser/defaultCopilotSessionsProvider.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
@@ -558,7 +559,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			selectedModel: undefined,
 			selections: this._editor?.getSelections() ?? [],
 			contrib: {},
-			branch: this.sessionsManagementService.activeSessionData.get()?.branch.get(),
+			branch: (this.sessionsManagementService.activeSessionData.get() as ICopilotNewSessionData | undefined)?.branchObservable?.get(),
 			projectUri: this._newSession.value?.project?.uri.toJSON(),
 		};
 	}
@@ -718,7 +719,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			selectedModel: this._draftState?.selectedModel,
 			selections: [],
 			contrib: {},
-			branch: this.sessionsManagementService.activeSessionData.get()?.branch.get(),
+			branch: (this.sessionsManagementService.activeSessionData.get() as ICopilotNewSessionData | undefined)?.branchObservable?.get(),
 			projectUri: this._newSession.value?.project?.uri.toJSON(),
 		};
 		this._draftState = preserved;

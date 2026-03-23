@@ -298,16 +298,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const sessionType = provider.sessionTypes.find(t => t.id === target)!;
 		const sessionData = provider.createNewSession(sessionType, sessionResource);
 
-		// The provider returns ISessionData which wraps an INewSession internally.
-		// Extract the underlying INewSession for the legacy send flow.
-		const newSession = (sessionData as any)._newSession as INewSession | undefined;
-		if (newSession) {
+		// The provider returns ISessionData which directly implements INewSession.
+		// Extract the INewSession interface for the legacy send flow.
+		const newSession = sessionData as unknown as INewSession;
+		if (newSession && typeof newSession.setQuery === 'function') {
 			this._newSession.value = newSession;
 			this._newSessionObservable.set(newSession, undefined);
 			this.setActiveSession(newSession);
 		}
 		this._activeSessionData.set(sessionData, undefined);
-		return newSession ?? sessionData as any;
+		return newSession ?? sessionData as unknown as INewSession;
 	}
 
 	async sendRequestForNewSession(sessionResource: URI, options?: { permissionLevel?: ChatPermissionLevel }): Promise<void> {
