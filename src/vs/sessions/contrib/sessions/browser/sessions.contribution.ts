@@ -11,10 +11,14 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { AgenticSessionsViewPane, SessionsViewId } from './sessionsViewPane.js';
 import { SessionsManagementService, ISessionsManagementService } from './sessionsManagementService.js';
+import { ISessionsProvidersService } from './sessionsProvidersService.js';
+import { DefaultCopilotChatSessionsProvider } from './defaultCopilotSessionsProvider.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AgentSessionSection, IAgentSessionSection, isAgentSessionSection } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -84,3 +88,21 @@ registerAction2(class NewSessionForRepositoryAction extends Action2 {
 		}
 	}
 });
+
+/**
+ * Registers the {@link DefaultCopilotChatSessionsProvider} as a sessions provider.
+ */
+class DefaultSessionsProviderContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'sessions.defaultSessionsProvider';
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+	) {
+		super();
+		const provider = this._register(instantiationService.createInstance(DefaultCopilotChatSessionsProvider));
+		this._register(sessionsProvidersService.registerProvider(provider));
+	}
+}
+
+registerWorkbenchContribution2(DefaultSessionsProviderContribution.ID, DefaultSessionsProviderContribution, WorkbenchPhase.AfterRestored);
