@@ -137,12 +137,13 @@ suite('AgentSessionsDataSource', () => {
 		groupBy?: AgentSessionsGrouping;
 		exclude?: (session: IAgentSession) => boolean;
 		excludeRead?: boolean;
+		repositoryGroupCapped?: boolean;
 	}): IAgentSessionsFilter {
 		return {
 			onDidChange: Event.None,
 			groupResults: () => options.groupBy,
 			exclude: options.exclude ?? (() => false),
-			getExcludes: () => ({ providers: [], states: [], archived: false, read: options.excludeRead ?? false }),
+			getExcludes: () => ({ providers: [], states: [], archived: false, read: options.excludeRead ?? false, repositoryGroupCapped: options.repositoryGroupCapped ?? true }),
 			isDefault: () => true,
 			reset: () => { },
 		};
@@ -1067,6 +1068,23 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
 			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const model = createMockModel(sessions);
+			const topLevel = Array.from(dataSource.getChildren(model));
+			const section = topLevel.find(item => isAgentSessionSection(item) && item.section === AgentSessionSection.Repository) as IAgentSessionSection;
+
+			const children = Array.from(dataSource.getChildren(section));
+			assert.strictEqual(children.length, 8);
+			assert.ok(!children.some(isAgentSessionShowMore));
+		});
+
+		test('does not cap when repositoryGroupCapped filter is disabled', () => {
+			const now = Date.now();
+			const sessions = Array.from({ length: 8 }, (_, i) =>
+				createMockSession({ id: `s${i}`, metadata: { repositoryNwo: 'owner/vscode' }, startTime: now - i * 1000 })
+			);
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository, repositoryGroupCapped: false });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter(), 5));
 			const model = createMockModel(sessions);
 			const topLevel = Array.from(dataSource.getChildren(model));
 			const section = topLevel.find(item => isAgentSessionSection(item) && item.section === AgentSessionSection.Repository) as IAgentSessionSection;

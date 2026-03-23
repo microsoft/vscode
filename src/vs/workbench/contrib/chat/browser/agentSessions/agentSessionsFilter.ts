@@ -56,6 +56,7 @@ const DEFAULT_EXCLUDES: IAgentSessionsFilterExcludes = Object.freeze({
 	states: [] as const,
 	archived: true as const /* archived are never excluded but toggle between expanded and collapsed */,
 	read: false as const,
+	repositoryGroupCapped: true as const /* when true, repo groups are capped at a limit with a "show more" item */,
 });
 
 export class AgentSessionsFilter extends Disposable implements Required<IAgentSessionsFilter> {
@@ -143,6 +144,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this.registerStateActions(this.actionDisposables, menuId);
 		this.registerArchivedActions(this.actionDisposables, menuId);
 		this.registerReadActions(this.actionDisposables, menuId);
+		this.registerShowAllSessionsAction(this.actionDisposables, menuId);
 		this.registerResetAction(this.actionDisposables, menuId);
 	}
 
@@ -276,6 +278,31 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			}
 			run(): void {
 				that.storeExcludes({ ...that.excludes, read: !that.excludes.read });
+			}
+		}));
+	}
+
+	private registerShowAllSessionsAction(disposables: DisposableStore, menuId: MenuId): void {
+		if (!this.options.groupResults) {
+			return; // only show when grouping is available
+		}
+
+		const that = this;
+		disposables.add(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `agentSessions.filter.toggleShowAllSessions.${menuId.id.toLowerCase()}`,
+					title: localize('agentSessions.filter.showAllSessions', "Show All Sessions"),
+					menu: {
+						id: menuId,
+						group: '3_props',
+						order: 2000,
+					},
+					toggled: that.excludes.repositoryGroupCapped ? ContextKeyExpr.false() : ContextKeyExpr.true(),
+				});
+			}
+			run(): void {
+				that.storeExcludes({ ...that.excludes, repositoryGroupCapped: !that.excludes.repositoryGroupCapped });
 			}
 		}));
 	}

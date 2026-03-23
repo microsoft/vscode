@@ -779,6 +779,7 @@ export interface IAgentSessionsFilterExcludes {
 
 	readonly archived: boolean;
 	readonly read: boolean;
+	readonly repositoryGroupCapped: boolean;
 }
 
 export interface IAgentSessionsFilter {
@@ -852,6 +853,15 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		private readonly repositoryGroupLimit?: number,
 	) {
 		super();
+
+		if (this.filter) {
+			this._register(this.filter.onDidChange(() => {
+				// Clear expanded state when capping is re-enabled
+				if (this.filter?.getExcludes().repositoryGroupCapped) {
+					this.expandedRepositoryGroups.clear();
+				}
+			}));
+		}
 	}
 
 	expandRepositoryGroup(sectionLabel: string): void {
@@ -911,10 +921,10 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		// Sessions	section
 		else if (isAgentSessionSection(element)) {
-			const limit = this.repositoryGroupLimit;
-			if (limit && element.section === AgentSessionSection.Repository && !this.expandedRepositoryGroups.has(element.label) && element.sessions.length > limit) {
-				const visible = element.sessions.slice(0, limit);
-				const remainingCount = element.sessions.length - limit;
+			const isCappingEnabled = this.repositoryGroupLimit && this.filter?.getExcludes().repositoryGroupCapped;
+			if (isCappingEnabled && element.section === AgentSessionSection.Repository && !this.expandedRepositoryGroups.has(element.label) && element.sessions.length > this.repositoryGroupLimit) {
+				const visible = element.sessions.slice(0, this.repositoryGroupLimit);
+				const remainingCount = element.sessions.length - this.repositoryGroupLimit;
 				return [...visible, { showMore: true as const, sectionLabel: element.label, remainingCount }];
 			}
 			return element.sessions;
