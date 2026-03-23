@@ -1239,6 +1239,30 @@ suite('ChatThinkingContentPart', () => {
 			} as IChatToolInvocation;
 		}
 
+		function createMockSerializedImageToolInvocation(toolId: string, invocationMessage: string, toolCallId: string): IChatToolInvocationSerialized {
+			return {
+				kind: 'toolInvocationSerialized',
+				toolId,
+				toolCallId,
+				invocationMessage,
+				originMessage: undefined,
+				pastTenseMessage: undefined,
+				presentation: undefined,
+				resultDetails: {
+					output: {
+						type: 'data',
+						mimeType: 'image/png',
+						base64Data: 'AQID'
+					}
+				},
+				isConfirmed: { type: 0 },
+				isComplete: true,
+				source: ToolDataSource.Internal,
+				generatedTitle: undefined,
+				isAttachedToThinking: false,
+			};
+		}
+
 		test('should show "Editing files" for streaming edit tools instead of generic display name', () => {
 			const content = createThinkingPart('**Working**');
 			const context = createMockRenderContext(false);
@@ -1363,6 +1387,45 @@ suite('ChatThinkingContentPart', () => {
 			assert.ok(button, 'Should have collapse button');
 			const labelText = button.querySelector('.icon-label')?.textContent ?? button.textContent ?? '';
 			assert.ok(labelText.includes('Creating newFile.ts'), `Title should contain "Creating newFile.ts" but got "${labelText}"`);
+		});
+
+		test('should show external resources for serialized image tools when initially collapsed and hide them when expanded', () => {
+			const content = createThinkingPart('**Working**');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const serializedImageTool = createMockSerializedImageToolInvocation(
+				'chat_screenshot', 'Captured screenshot', 'image-call-1'
+			);
+
+			part.appendItem(() => {
+				const div = $('div.test-item');
+				div.textContent = 'Image tool';
+				return { domNode: div };
+			}, serializedImageTool.toolId, serializedImageTool);
+
+			const externalResources = part.domNode.querySelector('.chat-thinking-external-resources') as HTMLElement;
+			assert.ok(externalResources, 'Should render external resources container');
+			assert.notStrictEqual(externalResources.style.display, 'none', 'Should show external resources while initially collapsed');
+
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			assert.ok(button, 'Should have expand button');
+			button.click();
+
+			assert.strictEqual(externalResources.style.display, 'none', 'Should hide external resources when expanded');
+
+			button.click();
+			assert.notStrictEqual(externalResources.style.display, 'none', 'Should show external resources again after collapsing');
 		});
 	});
 });
