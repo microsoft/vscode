@@ -26,6 +26,8 @@ import { AgentHostSessionListController } from '../../../../workbench/contrib/ch
 import { ISessionsManagementService } from '../../../contrib/sessions/browser/sessionsManagementService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { AGENT_HOST_FS_SCHEME, AgentHostFileSystemProvider } from './agentHostFileSystemProvider.js';
+import { ISessionsProvidersService } from '../../../contrib/sessions/browser/sessionsProvidersService.js';
+import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 import * as nls from '../../../../nls.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -118,6 +120,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IFileService private readonly _fileService: IFileService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
@@ -294,6 +297,12 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			requiresCustomModels: true,
 			supportsDelegation: false,
 		}));
+
+		// Register as a sessions provider
+		const sessionsProvider = this._instantiationService.createInstance(
+			RemoteAgentHostSessionsProvider, address, configuredName, agent.provider);
+		agentStore.add(sessionsProvider);
+		agentStore.add(this._sessionsProvidersService.registerProvider(sessionsProvider));
 
 		// Session list controller (unified)
 		const listController = agentStore.add(this._instantiationService.createInstance(
