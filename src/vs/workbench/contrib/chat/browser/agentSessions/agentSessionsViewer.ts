@@ -573,6 +573,7 @@ export function toStatusLabel(status: AgentSessionStatus): string {
 interface IAgentSessionSectionTemplate {
 	readonly container: HTMLElement;
 	readonly label: HTMLSpanElement;
+	readonly count: HTMLSpanElement;
 	readonly toolbar: MenuWorkbenchToolBar;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: IDisposable;
@@ -596,6 +597,7 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 			'div.agent-session-section@container',
 			[
 				h('span.agent-session-section-label@label'),
+				h('span.agent-session-section-count@count'),
 				h('div.agent-session-section-toolbar@toolbar')
 			]
 		);
@@ -611,6 +613,7 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 		return {
 			container: elements.container,
 			label: elements.label,
+			count: elements.count,
 			toolbar,
 			contextKeyService,
 			disposables
@@ -621,6 +624,9 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 
 		// Label
 		template.label.textContent = element.element.label;
+
+		// Count
+		template.count.textContent = String(element.element.sessions.length);
 
 		// Toolbar
 		ChatContextKeys.agentSessionSection.bindTo(template.contextKeyService).set(element.element.section);
@@ -691,7 +697,7 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 
 	getAriaLabel(element: AgentSessionListItem): string | null {
 		if (isAgentSessionSection(element)) {
-			return localize('agentSessionSectionAriaLabel', "{0} sessions section", element.label);
+			return localize('agentSessionSectionAriaLabel', "{0} sessions section, {1} sessions", element.label, element.sessions.length);
 		}
 
 		return localize('agentSessionItemAriaLabel', "{0} session {1} ({2}), created {3}", element.providerLabel, element.label, toStatusLabel(element.status), new Date(element.timing.created).toLocaleString());
@@ -978,6 +984,19 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 export function getRepositoryName(session: IAgentSession): string | undefined {
 	const metadata = session.metadata;
 	if (metadata) {
+		// Remote agent host sessions: group by folder + remote name (e.g. "myproject [dev-box]")
+		const remoteAgentHost = metadata.remoteAgentHost as string | undefined;
+		if (remoteAgentHost) {
+			const workingDir = metadata.workingDirectoryPath as string | undefined;
+			if (workingDir) {
+				const folderName = extractRepoNameFromPath(workingDir);
+				if (folderName) {
+					return `${folderName} [${remoteAgentHost}]`;
+				}
+			}
+			return remoteAgentHost;
+		}
+
 		// Cloud sessions: metadata.owner + metadata.name
 		const owner = metadata.owner as string | undefined;
 		const name = metadata.name as string | undefined;

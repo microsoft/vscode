@@ -54,18 +54,48 @@
 	height: 100%;
 }
 
+/* Layout actions toolbar appears after the diff widget */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-layout-actions-container {
+	order: 2;
+	/* Always render so we can animate in/out instead of display:none */
+	display: flex !important;
+	align-items: center;
+	overflow: hidden;
+	width: 0;
+	opacity: 0;
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-layout-actions-container:not(.has-no-actions) {
+	/* TODO: Hardcoded to separator (9px) + single action button (28px).
+	Update if more actions are added to TitleBarRightLayout. */
+	width: 37px;
+	opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-layout-actions-container {
+		transition: width 0.15s ease-out, opacity 0.15s ease-out;
+	}
+}
+
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container:not(.has-no-actions) {
 	display: flex;
 	align-items: center;
 }
 
-/* Separator between session actions and layout actions toolbar */
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + .titlebar-layout-actions-container:not(.has-no-actions)::before {
+/* Separator before layout actions toolbar */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-layout-actions-container:not(.has-no-actions)::before {
 	content: '';
 	width: 1px;
 	height: 16px;
 	margin: 0 4px;
 	background-color: var(--vscode-disabledForeground);
+}
+
+/* Toggled action buttons in session actions toolbar */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.checked {
+	background: var(--vscode-toolbar-activeBackground);
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container .codicon {

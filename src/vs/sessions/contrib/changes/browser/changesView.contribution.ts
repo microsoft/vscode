@@ -10,7 +10,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewContainersRegistry, ViewContainerLocation, IViewsRegistry, Extensions as ViewContainerExtensions, WindowVisibility } from '../../../../workbench/common/views.js';
-import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
+import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, changesContainerTitle, ChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
 import './changesViewActions.js';
 import './fixCIChecksAction.js';
 import { ChangesViewController } from './changesViewController.js';
@@ -21,7 +21,7 @@ const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContaine
 
 const changesViewContainer = viewContainersRegistry.registerViewContainer({
 	id: CHANGES_VIEW_CONTAINER_ID,
-	title: localize2('changes', 'Changes'),
+	title: changesContainerTitle,
 	ctorDescriptor: new SyncDescriptor(ChangesViewPaneContainer),
 	icon: changesViewIcon,
 	order: 10,
