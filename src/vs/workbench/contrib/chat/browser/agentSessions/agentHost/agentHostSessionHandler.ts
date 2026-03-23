@@ -111,6 +111,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _activeSessions = new Map<string, AgentHostChatSession>();
 	/** Maps UI resource keys to resolved backend session URIs. */
 	private readonly _sessionToBackend = new Map<string, URI>();
+	/**
+	 * Maps chat request IDs to active turn info for yield/steering support.
+	 * Populated when a turn starts in {@link _handleTurn} and cleaned up
+	 * when the turn finishes. Used by {@link _handleYieldRequested} to
+	 * cancel the correct turn when the chat service signals a yield.
+	 */
+	private readonly _activeTurns = new Map<string, { session: string; turnId: string; finish: () => void }>();
 	private readonly _config: IAgentHostSessionHandlerConfig;
 
 	/** Client state manager shared across all sessions for this handler. */
@@ -215,6 +222,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			invoke: async (request, progress, _history, cancellationToken) => {
 				return this._invokeAgent(request, progress, cancellationToken);
 			},
+			setYieldRequested: (requestId: string, value: boolean) => {
+				if (value) {
+					this._handleYieldRequested(requestId);
+				}
+			},
 		};
 
 		this._register(this._chatAgentService.registerDynamicAgent(agentData, agentImpl));
@@ -315,6 +327,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			finished = true;
+			this._activeTurns.delete(request.requestId);
 			// Finalize any outstanding tool invocations
 			for (const [, invocation] of activeToolInvocations) {
 				invocation.didExecuteTool(undefined);
@@ -323,6 +336,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			turnDisposables.dispose();
 			resolveDone();
 		};
+
+		// Register the active turn after finish is defined so that
+		// _handleYieldRequested can call finish() directly.
+		this._activeTurns.set(request.requestId, { session: session.toString(), turnId, finish });
 
 		// Listen to state changes and translate to IChatProgress[]
 		turnDisposables.add(this._clientState.onDidChangeSessionState(e => {
@@ -432,6 +449,29 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 
 		await done;
+	}
+
+	/**
+	 * Handles a yield request from the chat service's steering mechanism.
+	 * Since the AHP protocol does not yet have a dedicated yield/steering
+	 * action, we cancel the active turn so that the chat service's queue
+	 * can advance and dispatch the steering message as a new turn.
+	 */
+	private _handleYieldRequested(requestId: string): void {
+		const turnInfo = this._activeTurns.get(requestId);
+		if (!turnInfo) {
+			return;
+		}
+
+		this._logService.info(`[AgentHost] Yield requested for request ${requestId}, cancelling turn ${turnInfo.turnId}`);
+		const cancelAction = {
+			type: ActionType.SessionTurnCancelled as const,
+			session: turnInfo.session,
+			turnId: turnInfo.turnId,
+		};
+		const seq = this._clientState.applyOptimistic(cancelAction);
+		this._config.connection.dispatchAction(cancelAction, this._clientState.clientId, seq);
+		turnInfo.finish();
 	}
 
 	// ---- Session resolution -------------------------------------------------
@@ -555,6 +595,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		this._activeSessions.clear();
 		this._sessionToBackend.clear();
+		// Finish any active turns so their done-promises resolve and
+		// turnDisposables are cleaned up. finish() is idempotent.
+		for (const [, turnInfo] of this._activeTurns) {
+			turnInfo.finish();
+		}
+		this._activeTurns.clear();
 		super.dispose();
 	}
 }

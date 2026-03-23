@@ -646,6 +646,118 @@ suite('AgentHostChatContribution', () => {
 		});
 	});
 
+	// ---- Steering / yield ---------------------------------------------------
+
+	suite('steering', () => {
+
+		test('setYieldRequested dispatches turnCancelled for the active turn', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			// Capture the agent impl BEFORE startTurn's awaits allow
+			// AgentHostContribution to re-register the agent with a second
+			// handler instance that has its own (empty) _activeTurns map.
+			const agentEntry = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(agentEntry, 'agent should be registered');
+			assert.ok(agentEntry.impl.setYieldRequested, 'agent should implement setYieldRequested');
+
+			const { turnPromise, session, turnId } = await startTurn(sessionHandler, agentHostService, disposables);
+
+			// Signal yield — this should dispatch session/turnCancelled
+			agentEntry.impl.setYieldRequested('req-1', true);
+
+			// The turn should resolve because finish() is called directly
+			await turnPromise;
+
+			const cancelActions = agentHostService.dispatchedActions.filter(a => a.action.type === 'session/turnCancelled');
+			assert.strictEqual(cancelActions.length, 1, 'should dispatch exactly one turnCancelled');
+			assert.strictEqual((cancelActions[0].action as { session: string }).session, session);
+			assert.strictEqual((cancelActions[0].action as { turnId: string }).turnId, turnId);
+		});
+
+		test('setYieldRequested with false is a no-op', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			// Capture the agent impl before async operations (see first test).
+			const agentEntry = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(agentEntry, 'agent should be registered');
+			assert.ok(agentEntry.impl.setYieldRequested);
+
+			const { turnPromise, fire, session, turnId } = await startTurn(sessionHandler, agentHostService, disposables);
+
+			// Yield reset should not dispatch anything
+			const actionCountBefore = agentHostService.dispatchedActions.length;
+			agentEntry.impl.setYieldRequested('req-1', false);
+			assert.strictEqual(agentHostService.dispatchedActions.length, actionCountBefore, 'should not dispatch on yield reset');
+
+			// Complete the turn normally
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+		});
+
+		test('setYieldRequested for unknown requestId is a no-op', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			// Capture the agent impl before async operations (see first test).
+			const agentEntry = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(agentEntry, 'agent should be registered');
+			assert.ok(agentEntry.impl.setYieldRequested);
+
+			const { turnPromise, fire, session, turnId } = await startTurn(sessionHandler, agentHostService, disposables);
+
+			// Yield for a request ID that doesn't match any active turn
+			const actionCountBefore = agentHostService.dispatchedActions.length;
+			agentEntry.impl.setYieldRequested('unknown-req', true);
+			assert.strictEqual(agentHostService.dispatchedActions.length, actionCountBefore, 'should not dispatch for unknown request');
+
+			// Complete the turn normally
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+		});
+
+		test('setYieldRequested after turn completed naturally is a no-op', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const agentEntry = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(agentEntry, 'agent should be registered');
+			assert.ok(agentEntry.impl.setYieldRequested);
+
+			const { turnPromise, fire, session, turnId } = await startTurn(sessionHandler, agentHostService, disposables);
+
+			// Complete the turn naturally first
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+
+			// Now yield for the already-completed request — should not dispatch
+			const actionCountBefore = agentHostService.dispatchedActions.length;
+			agentEntry.impl.setYieldRequested('req-1', true);
+			assert.strictEqual(agentHostService.dispatchedActions.length, actionCountBefore, 'should not dispatch after turn already completed');
+		});
+
+		test('setYieldRequested force-completes outstanding tool invocations', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const agentEntry = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(agentEntry, 'agent should be registered');
+			assert.ok(agentEntry.impl.setYieldRequested);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+
+			// Start a tool call but don't complete it
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-yield', toolName: 'bash', displayName: 'Bash' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-yield', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
+
+			// Yield while the tool is still running
+			agentEntry.impl.setYieldRequested('req-1', true);
+			await turnPromise;
+
+			// The outstanding tool invocation should be force-completed
+			assert.strictEqual(collected.length, 1);
+			const invocation = collected[0][0] as IChatToolInvocation;
+			assert.strictEqual(invocation.kind, 'toolInvocation');
+			assert.strictEqual(IChatToolInvocation.isComplete(invocation), true);
+		});
+	});
+
 	// ---- Error events -------------------------------------------------------
 
 	suite('error events', () => {
