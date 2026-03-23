@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -14,25 +12,14 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionOpenOptions, openSession as openSessionDefault } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsOpener.js';
-import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IAgentSession, isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { NewSessionChangeType } from '../../chat/browser/newSession.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISessionData } from '../common/sessionData.js';
-import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IChatMode, isBuiltinChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
-import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { GITHUB_REMOTE_FILE_SCHEME, SessionWorkspace } from '../common/sessionWorkspace.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionWorkspace.js';
 import { IGitHubSessionContext } from '../../github/common/types.js';
-import { ResourceSet } from '../../../../base/common/map.js';
-import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
 /**
  * Configuration properties available on new/pending sessions.
@@ -155,9 +142,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	readonly activeSession: IObservable<IActiveSessionItem | undefined> = this._activeSession;
 	private readonly _activeSessionData = observableValue<ISessionData | undefined>(this, undefined);
 	readonly activeSessionData: IObservable<ISessionData | undefined> = this._activeSessionData;
-	private readonly _newActiveSessionDisposables = this._register(new DisposableStore());
-
-	private readonly _newSession = this._register(new MutableDisposable<ISessionData>());
+	private _newSession: ISessionData | undefined;
 	private readonly _newSessionObservable = observableValue<ISessionData | undefined>(this, undefined);
 	readonly newSession: IObservable<ISessionData | undefined> = this._newSessionObservable;
 	private lastSelectedSession: URI | undefined;
@@ -166,17 +151,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IChatService private readonly chatService: IChatService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
-		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
-		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
@@ -306,14 +285,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const sessionType = provider.sessionTypes.find(t => t.id === target)!;
 		const sessionData = provider.createNewSession(sessionType, sessionResource);
 
-		// The provider returns ISessionData. Concrete implementations (CopilotCLISession,
-		// RemoteNewSession) also satisfy ISessionData for the pre-send flow.
-		const newSession = sessionData as unknown as ISessionData;
-		if (newSession && typeof newSession.setQuery === 'function') {
-			this._newSession.value = newSession;
-			this._newSessionObservable.set(sessionData, undefined);
-			this.setActiveSession(newSession);
-		}
+		this._newSession = sessionData;
+		this._newSessionObservable.set(sessionData, undefined);
+		this.setActiveSession(sessionData);
 		this._activeSessionData.set(sessionData, undefined);
 		return sessionData;
 	}
@@ -336,7 +310,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		// Clean up
-		this._newSession.value = undefined;
+		this._newSession = undefined;
 		this._newSessionObservable.set(undefined, undefined);
 	}
 
@@ -371,31 +345,18 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					providerType: session.providerType,
 				};
 			} else {
+				const workspace = session.workspace.get();
+				const repository = workspace?.repositories[0]?.uri;
 				activeSessionItem = {
 					isUntitled: true,
 					label: undefined,
 					resource: session.resource,
-					repository: session.project?.uri,
+					repository,
 					worktree: undefined,
 					worktreeBranchName: undefined,
 					worktreeBaseBranchProtected: undefined,
-					providerType: session.target,
+					providerType: session.sessionType,
 				};
-				this._newActiveSessionDisposables.clear();
-				this._newActiveSessionDisposables.add(session.onDidChange(e => {
-					if (e === 'repoUri') {
-						this.doSetActiveSession({
-							isUntitled: true,
-							label: undefined,
-							resource: session.resource,
-							repository: session.project?.uri,
-							worktree: undefined,
-							worktreeBranchName: undefined,
-							worktreeBaseBranchProtected: undefined,
-							providerType: session.target,
-						});
-					}
-				}));
 			}
 		}
 
