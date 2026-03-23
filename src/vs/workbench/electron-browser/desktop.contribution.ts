@@ -455,6 +455,10 @@ import product from '../../platform/product/common/product.js';
 			'remote-debugging-port': {
 				type: 'string',
 				description: localize('argv.remoteDebuggingPort', "Specifies the port to use for remote debugging.")
+			},
+			'js-flags': {
+				type: 'string',
+				description: localize('argv.jsFlags', "Specifies V8 JavaScript engine flags to pass (e.g. \"--max-old-space-size=4096\"). These flags are applied to the main process, renderer and utility processes.")
 			}
 		}
 	};

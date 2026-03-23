@@ -225,8 +225,7 @@
 			"windows": {
 				"command": ".\\scripts\\code.bat"
 			},
-			"problemMatcher": [],
-			"inSessions": true
+			"problemMatcher": []
 		},
 		{
 			"label": "Run Dev Sessions",
@@ -238,11 +237,10 @@
 			"args": [
 				"--sessions"
 			],
-			"inSessions": true,
 			"problemMatcher": []
 		},
 		{
-			"label": "Run and Compile Dev Sessions",
+			"label": "Run and Compile Sessions - OSS",
 			"type": "shell",
 			"command": "npm run transpile-client && ./scripts/code.sh",
 			"windows": {
@@ -251,6 +249,16 @@
 			"args": [
 				"--sessions"
 			],
+			"inSessions": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run and Compile Code - OSS",
+			"type": "shell",
+			"command": "npm run transpile-client && ./scripts/code.sh",
+			"windows": {
+				"command": "npm run transpile-client && .\\scripts\\code.bat"
+			},
 			"inSessions": true,
 			"problemMatcher": []
 		},
@@ -388,7 +396,7 @@
 		{
 			"label": "Launch Component Explorer",
 			"type": "shell",
-			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json -vv",
+			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
 			"isBackground": true,
 			"problemMatcher": {
 				"owner": "component-explorer",
@@ -404,6 +412,18 @@
 					"beginsPattern": ".*Setting up sessions.*",
 					"endsPattern": "Redirection server listening on.*"
 				}
+			}
+		},
+		{
+			"label": "Install & Watch",
+			"type": "shell",
+			"command": "npm ci && npm run watch",
+			"windows": {
+				"command": "cmd /c \"npm ci && npm run watch\""
+			},
+			"inSessions": true,
+			"runOptions": {
+				"runOn": "worktreeCreated"
 			}
 		}
 	]

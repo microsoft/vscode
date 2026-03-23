@@ -90,6 +90,22 @@ class WorkbenchBrowserElementsService implements IBrowserElementsService {
 			disposable.dispose();
 		}
 	}
+
+	async getFocusedElementData(rect: IRectangle, token: CancellationToken, locator: IBrowserTargetLocator | undefined): Promise<IElementData | undefined> {
+		if (!locator) {
+			return undefined;
+		}
+		const cancelSelectionId = cancelSelectionIdPool++;
+		const onCancelChannel = `vscode:cancelElementSelection${cancelSelectionId}`;
+		const disposable = token.onCancellationRequested(() => {
+			ipcRenderer.send(onCancelChannel, cancelSelectionId);
+		});
+		try {
+			return await this.simpleBrowser.getFocusedElementData(rect, token, locator, cancelSelectionId);
+		} finally {
+			disposable.dispose();
+		}
+	}
 }
 
 registerSingleton(IBrowserElementsService, WorkbenchBrowserElementsService, InstantiationType.Delayed);

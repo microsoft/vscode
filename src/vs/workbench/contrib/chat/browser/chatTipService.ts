@@ -20,7 +20,7 @@ import { IChatService } from '../common/chatService/chatService.js';
 import { CreateSlashCommandsUsageTracker } from './createSlashCommandsUsageTracker.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, IParsedChatRequest } from '../common/requestParser/chatParserTypes.js';
+import { ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, IParsedChatRequest } from '../common/requestParser/chatParserTypes.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { TipEligibilityTracker } from './chatTipEligibilityTracker.js';
 import { ChatTipTier, extractCommandIds, ITipBuildContext, ITipDefinition, TIP_CATALOG } from './chatTipCatalog.js';
@@ -41,9 +41,7 @@ type ChatTipClassification = {
 };
 
 // Re-export tracking commands for backwards compatibility
-export {
-	TipTrackingCommands,
-};
+export { TipTrackingCommands };
 /** @deprecated Use TipTrackingCommands.AttachFilesReferenceUsed */
 export const ATTACH_FILES_REFERENCE_TRACKING_COMMAND = TipTrackingCommands.AttachFilesReferenceUsed;
 /** @deprecated Use TipTrackingCommands.CreateAgentInstructionsUsed */
@@ -149,6 +147,12 @@ export interface IChatTipService {
 	hasMultipleTips(): boolean;
 
 	/**
+	 * Records usage of a slash command to update tip eligibility for flows where
+	 * the slash command text is transformed before request submission.
+	 */
+	recordSlashCommandUsage(command: string): void;
+
+	/**
 	 * Clears all dismissed tips so they can be shown again.
 	 */
 	clearDismissedTips(): void;
@@ -193,7 +197,6 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 	private readonly _tracker: TipEligibilityTracker;
 	private readonly _createSlashCommandsUsageTracker: CreateSlashCommandsUsageTracker;
-	private _yoloModeEverEnabled: boolean;
 	private _thinkingPhrasesEverModified: boolean;
 	private _tipsHiddenForSession = false;
 	private readonly _tipCommandListener = this._register(new MutableDisposable());
@@ -233,26 +236,9 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			if (slashCommandTrackingId) {
 				this._tracker.recordCommandExecuted(slashCommandTrackingId);
 			}
-		}));
 
-		// Track whether yolo mode was ever enabled
-		this._yoloModeEverEnabled = this._storageService.getBoolean(ChatTipStorageKeys.YoloModeEverEnabled, StorageScope.APPLICATION, false);
-		if (!this._yoloModeEverEnabled && this._configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove)) {
-			this._yoloModeEverEnabled = true;
-			this._storageService.store(ChatTipStorageKeys.YoloModeEverEnabled, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		}
-		if (!this._yoloModeEverEnabled) {
-			const configListener = this._register(new MutableDisposable());
-			configListener.value = this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)) {
-					if (this._configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove)) {
-						this._yoloModeEverEnabled = true;
-						this._storageService.store(ChatTipStorageKeys.YoloModeEverEnabled, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-						configListener.clear();
-					}
-				}
-			});
-		}
+			this._hideShownTipIfNowIneligible();
+		}));
 
 		this._thinkingPhrasesEverModified = this._storageService.getBoolean(ChatTipStorageKeys.ThinkingPhrasesEverModified, StorageScope.APPLICATION, false);
 		if (!this._thinkingPhrasesEverModified && this._isSettingModified(ChatConfiguration.ThinkingPhrases)) {
@@ -286,10 +272,15 @@ export class ChatTipService extends Disposable implements IChatTipService {
 				const slashCommand = (part as ChatRequestSlashCommandPart).slashCommand.command;
 				return this._toSlashCommandTrackingId(slashCommand);
 			}
+
+			if (part.kind === ChatRequestAgentSubcommandPart.Kind) {
+				const subCommand = (part as ChatRequestAgentSubcommandPart).command.name;
+				return this._toSlashCommandTrackingId(subCommand);
+			}
 		}
 
 		const trimmed = message.text.trimStart();
-		const match = /^\/(init|create-(?:instructions|prompt|agent|skill)|fork)(?:\s|$)/.exec(trimmed);
+		const match = /^(?:@\S+\s+)?\/(init|create-(?:instructions|prompt|agent|skill)|fork)(?:\s|$)/.exec(trimmed);
 		return match ? this._toSlashCommandTrackingId(match[1]) : undefined;
 	}
 
@@ -309,6 +300,16 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			default:
 				return undefined;
 		}
+	}
+
+	recordSlashCommandUsage(command: string): void {
+		const trackingId = this._toSlashCommandTrackingId(command);
+		if (!trackingId) {
+			return;
+		}
+
+		this._tracker.recordCommandExecuted(trackingId);
+		this._hideShownTipIfNowIneligible();
 	}
 
 	resetSession(): void {
@@ -467,6 +468,11 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			}
 
 			if (!this._isEligible(this._shownTip, contextKeyService)) {
+				if (this._tracker.isExcluded(this._shownTip)) {
+					this.hideTip();
+					return undefined;
+				}
+
 				const nextTip = this._findNextEligibleTip(this._shownTip.id, contextKeyService);
 				if (nextTip) {
 					this._shownTip = nextTip;
@@ -475,6 +481,9 @@ export class ChatTipService extends Disposable implements IChatTipService {
 					this._onDidNavigateTip.fire(tip);
 					return tip;
 				}
+
+				this.hideTip();
+				return undefined;
 			}
 			return this._createTip(this._shownTip);
 		}
@@ -501,6 +510,22 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 
 		return undefined;
+	}
+
+	private _hideShownTipIfNowIneligible(): void {
+		if (!this._shownTip || !this._contextKeyService) {
+			return;
+		}
+
+		if (this._tipsHiddenForSession) {
+			return;
+		}
+
+		if (this._isEligible(this._shownTip, this._contextKeyService)) {
+			return;
+		}
+
+		this.hideTip();
 	}
 
 	private _pickTip(sourceId: string, contextKeyService: IContextKeyService): IChatTip | undefined {
@@ -715,17 +740,6 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 		if (this._tracker.isExcluded(tip)) {
 			return false;
-		}
-		if (tip.id === 'tip.yoloMode') {
-			if (this._yoloModeEverEnabled) {
-				this._logService.debug('#ChatTips: tip excluded because yolo mode was previously enabled', tip.id);
-				return false;
-			}
-			const inspected = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
-			if (inspected.policyValue === false) {
-				this._logService.debug('#ChatTips: tip excluded because policy restricts auto-approve', tip.id);
-				return false;
-			}
 		}
 		if (tip.id === 'tip.thinkingPhrases' && this._thinkingPhrasesEverModified) {
 			this._logService.debug('#ChatTips: tip excluded because thinking phrases setting was previously modified', tip.id);

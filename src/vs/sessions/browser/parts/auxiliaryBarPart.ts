@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../../../workbench/browser/parts/auxiliarybar/media/auxiliaryBarPart.css';
+import './media/auxiliaryBarPart.css';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -47,9 +48,9 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	static readonly viewContainersWorkspaceStateKey = 'workbench.agentsession.auxiliarybar.viewContainersWorkspaceState';
 
 	/** Visual margin values for the card-like appearance */
-	static readonly MARGIN_TOP = 8;
-	static readonly MARGIN_BOTTOM = 8;
-	static readonly MARGIN_RIGHT = 8;
+	static readonly MARGIN_TOP = 16;
+	static readonly MARGIN_BOTTOM = 2;
+	static readonly MARGIN_RIGHT = 16;
 
 	// Action ID for run script - defined here to avoid layering issues
 	private static readonly RUN_SCRIPT_ACTION_ID = 'workbench.action.agentSessions.runScript';
@@ -82,7 +83,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			return undefined;
 		}
 
-		return Math.max(width, 300);
+		return Math.max(width, 380);
 	}
 
 	readonly priority = LayoutPriority.Low;

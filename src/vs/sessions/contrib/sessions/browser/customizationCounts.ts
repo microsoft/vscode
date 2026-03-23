@@ -10,21 +10,25 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { BUILTIN_STORAGE } from '../../chat/common/builtinPromptsStorage.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAICustomizationWorkspaceService, applyStorageSourceFilter, IStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { parseHooksFromFile } from '../../../../workbench/contrib/chat/common/promptSyntax/hookCompatibility.js';
+import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { parse as parseJSONC } from '../../../../base/common/jsonc.js';
 
 export interface ISourceCounts {
 	readonly workspace: number;
 	readonly user: number;
 	readonly extension: number;
+	readonly builtin: number;
 }
 
-const storageToCountKey: Partial<Record<PromptsStorage, keyof ISourceCounts>> = {
+const storageToCountKey: Partial<Record<string, keyof ISourceCounts>> = {
 	[PromptsStorage.local]: 'workspace',
 	[PromptsStorage.user]: 'user',
 	[PromptsStorage.extension]: 'extension',
+	[BUILTIN_STORAGE]: 'builtin',
 };
 
 export function getSourceCountsTotal(counts: ISourceCounts, filter: IStorageSourceFilter): number {
@@ -128,6 +132,7 @@ export async function getSourceCounts(
 		workspace: filtered.filter(i => i.storage === PromptsStorage.local).length,
 		user: filtered.filter(i => i.storage === PromptsStorage.user).length,
 		extension: filtered.filter(i => i.storage === PromptsStorage.extension).length,
+		builtin: filtered.filter(i => i.storage === BUILTIN_STORAGE).length,
 	};
 }
 
@@ -136,6 +141,7 @@ export async function getCustomizationTotalCount(
 	mcpService: IMcpService,
 	workspaceService: IAICustomizationWorkspaceService,
 	workspaceContextService: IWorkspaceContextService,
+	agentPluginService?: IAgentPluginService,
 ): Promise<number> {
 	const types: PromptsType[] = [PromptsType.agent, PromptsType.skill, PromptsType.instructions, PromptsType.prompt, PromptsType.hook];
 	const results = await Promise.all(types.map(type => {
@@ -143,5 +149,6 @@ export async function getCustomizationTotalCount(
 		return getSourceCounts(promptsService, type, filter, workspaceContextService, workspaceService)
 			.then(counts => getSourceCountsTotal(counts, filter));
 	}));
-	return results.reduce((sum, n) => sum + n, 0) + mcpService.servers.get().length;
+	const pluginCount = agentPluginService?.plugins.get().length ?? 0;
+	return results.reduce((sum, n) => sum + n, 0) + mcpService.servers.get().length + pluginCount;
 }

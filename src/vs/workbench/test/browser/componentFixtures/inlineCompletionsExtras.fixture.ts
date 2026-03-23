@@ -19,6 +19,8 @@ import { InlineCompletionsSource, InlineCompletionsState } from '../../../../edi
 import { InlineEditItem } from '../../../../editor/contrib/inlineCompletions/browser/model/inlineSuggestionItem.js';
 import { TextModelValueReference } from '../../../../editor/contrib/inlineCompletions/browser/model/textModelValueReference.js';
 import { JumpToView } from '../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/jumpToView.js';
+import { GutterIndicatorMenuContent } from '../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/components/gutterIndicatorMenu.js';
+import { InlineSuggestionGutterMenuData } from '../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/components/gutterIndicatorView.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
 
 import '../../../../editor/contrib/inlineCompletions/browser/hintsWidget/inlineCompletionsHintsWidget.css';
@@ -276,6 +278,58 @@ function createLongDistanceEditor(options: {
 	controller?.model?.get();
 }
 
+function renderGutterMenu({ container, disposableStore, theme }: ComponentFixtureContext): void {
+	container.style.width = '250px';
+	container.style.height = '280px';
+
+	const instantiationService = createEditorServices(disposableStore, {
+		colorTheme: theme,
+		additionalServices: (reg) => {
+			registerWorkbenchServices(reg);
+		},
+	});
+
+	const textModel = disposableStore.add(createTextModel(
+		instantiationService,
+		'const x = 1;',
+		URI.parse('inmemory://gutter-menu.ts'),
+		'typescript'
+	));
+
+	const editor = disposableStore.add(instantiationService.createInstance(
+		CodeEditorWidget,
+		document.createElement('div'),
+		{ minimap: { enabled: false } },
+		{ contributions: [] } satisfies ICodeEditorWidgetOptions
+	));
+	editor.setModel(textModel);
+
+	const editorObs = observableCodeEditor(editor);
+	const menuData = new InlineSuggestionGutterMenuData(
+		undefined,
+		'Copilot',
+		[],
+		undefined,
+		undefined,
+		undefined,
+	);
+
+	const content = disposableStore.add(
+		instantiationService.createInstance(
+			GutterIndicatorMenuContent,
+			editorObs,
+			menuData,
+			() => { },
+		).toDisposableLiveElement()
+	);
+
+	container.style.background = 'var(--vscode-editorHoverWidget-background)';
+	container.style.border = '2px solid var(--vscode-editorHoverWidget-border)';
+	container.style.borderRadius = '3px';
+	container.style.color = 'var(--vscode-editorHoverWidget-foreground)';
+	container.appendChild(content.element);
+}
+
 export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	HintsToolbar: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -306,5 +360,9 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	const processed = data.split('\\n').map(processLine).join('\\n');
 	await writeFile(outputPath, processed);`,
 		}),
+	}),
+	GutterMenu: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: renderGutterMenu,
 	}),
 });

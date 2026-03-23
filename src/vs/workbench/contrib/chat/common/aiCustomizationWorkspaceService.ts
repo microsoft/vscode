@@ -3,14 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqualOrParent } from '../../../../base/common/resources.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
-import { PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { IChatPromptSlashCommand, PromptsStorage } from './promptSyntax/service/promptsService.js';
 
 export const IAICustomizationWorkspaceService = createDecorator<IAICustomizationWorkspaceService>('aiCustomizationWorkspaceService');
+
+/**
+ * Extended storage type for AI Customization that includes built-in prompts
+ * shipped with the application, alongside the core `PromptsStorage` values.
+ */
+export type AICustomizationPromptsStorage = PromptsStorage | 'builtin';
+
+/**
+ * Storage type discriminator for built-in customizations shipped with the application.
+ */
+export const BUILTIN_STORAGE: AICustomizationPromptsStorage = 'builtin';
 
 /**
  * Possible section IDs for the AI Customization Management Editor sidebar.
@@ -22,6 +34,7 @@ export const AICustomizationManagementSection = {
 	Prompts: 'prompts',
 	Hooks: 'hooks',
 	McpServers: 'mcpServers',
+	Plugins: 'plugins',
 	Models: 'models',
 } as const;
 
@@ -33,9 +46,9 @@ export type AICustomizationManagementSection = typeof AICustomizationManagementS
  */
 export interface IStorageSourceFilter {
 	/**
-	 * Which storage groups to display (e.g. workspace, user, extension).
+	 * Which storage groups to display (e.g. workspace, user, extension, builtin).
 	 */
-	readonly sources: readonly PromptsStorage[];
+	readonly sources: readonly string[];
 
 	/**
 	 * If set, only user files under these roots are shown (allowlist).
@@ -49,7 +62,7 @@ export interface IStorageSourceFilter {
  * Removes items whose storage is not in the filter's source list,
  * and for user-storage items, removes those not under an allowed root.
  */
-export function applyStorageSourceFilter<T extends { readonly uri: URI; readonly storage: PromptsStorage }>(items: readonly T[], filter: IStorageSourceFilter): readonly T[] {
+export function applyStorageSourceFilter<T extends { readonly uri: URI; readonly storage: string }>(items: readonly T[], filter: IStorageSourceFilter): readonly T[] {
 	const sourceSet = new Set(filter.sources);
 	return items.filter(item => {
 		if (!sourceSet.has(item.storage)) {
@@ -100,6 +113,15 @@ export interface IAICustomizationWorkspaceService {
 	commitFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
 
 	/**
+	 * Commits the deletion of resources that have already been removed from disk.
+	 * The URIs may point to individual files or to directories (for example, when
+	 * deleting a skill, the entire customization folder is removed). Implementations
+	 * should ensure that directory deletions are handled recursively as needed.
+	 * In sessions this stages and commits the removal in the relevant repositories.
+	 */
+	deleteFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
+
+	/**
 	 * Launches the AI-guided creation flow for the given customization type.
 	 */
 	generateCustomization(type: PromptsType): Promise<void>;
@@ -121,4 +143,11 @@ export interface IAICustomizationWorkspaceService {
 	 * session-derived (or workspace-derived) root.
 	 */
 	clearOverrideProjectRoot(): void;
+
+	/**
+	 * Returns prompt/skill slash commands filtered through the workspace
+	 * service's storage source policy, ensuring the results match the
+	 * customizations visible in the AI Customization views.
+	 */
+	getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]>;
 }

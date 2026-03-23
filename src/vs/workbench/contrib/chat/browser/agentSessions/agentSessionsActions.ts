@@ -28,7 +28,7 @@ import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AgentSessionsPicker } from './agentSessionsPicker.js';
-import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { ActiveEditorContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -365,6 +365,25 @@ export class MarkAgentSessionSectionReadAction extends Action2 {
 	}
 }
 
+export class CollapseAllAgentSessionSectionsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSessionSection.collapseAll',
+			title: localize2('collapseAll', "Collapse All"),
+			menu: [{
+				id: MenuId.AgentSessionSectionContext,
+				group: '2_collapse',
+				order: 1,
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, _section: unknown, control?: IAgentSessionsControl): Promise<void> {
+		control?.collapseAllSections();
+	}
+}
+
 //#endregion
 
 //#region Session Actions
@@ -540,6 +559,74 @@ export class UnarchiveAgentSessionAction extends BaseAgentSessionAction {
 	}
 }
 
+export class PinAgentSessionAction extends BaseAgentSessionAction {
+
+	constructor() {
+		super({
+			id: 'agentSession.pin',
+			title: localize2('pin', "Pin"),
+			icon: Codicon.pin,
+			menu: [{
+				id: MenuId.AgentSessionItemToolbar,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isPinnedAgentSession.negate(),
+					ChatContextKeys.isArchivedAgentSession.negate()
+				),
+			}, {
+				id: MenuId.AgentSessionsContext,
+				group: '0_pin',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isPinnedAgentSession.negate(),
+					ChatContextKeys.isArchivedAgentSession.negate()
+				),
+			}]
+		});
+	}
+
+	runWithSessions(sessions: IAgentSession[]): void {
+		for (const session of sessions) {
+			session.setPinned(true);
+		}
+	}
+}
+
+export class UnpinAgentSessionAction extends BaseAgentSessionAction {
+
+	constructor() {
+		super({
+			id: 'agentSession.unpin',
+			title: localize2('unpin', "Unpin"),
+			icon: Codicon.pinned,
+			menu: [{
+				id: MenuId.AgentSessionItemToolbar,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isPinnedAgentSession,
+					ChatContextKeys.isArchivedAgentSession.negate()
+				),
+			}, {
+				id: MenuId.AgentSessionsContext,
+				group: '0_pin',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isPinnedAgentSession,
+					ChatContextKeys.isArchivedAgentSession.negate()
+				),
+			}]
+		});
+	}
+
+	runWithSessions(sessions: IAgentSession[]): void {
+		for (const session of sessions) {
+			session.setPinned(false);
+		}
+	}
+}
+
 export class RenameAgentSessionAction extends BaseAgentSessionAction {
 
 	constructor() {
@@ -708,10 +795,11 @@ export class OpenAgentSessionInEditorGroupAction extends BaseOpenAgentSessionAct
 					primary: KeyMod.WinCtrl | KeyCode.Enter
 				},
 				weight: KeybindingWeight.WorkbenchContrib + 1,
-				when: ChatContextKeys.agentSessionsViewerFocused,
+				when: ContextKeyExpr.and(ChatContextKeys.agentSessionsViewerFocused, IsSessionsWindowContext.negate()),
 			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
+				when: IsSessionsWindowContext.negate(),
 				order: 1,
 				group: 'navigation'
 			}
@@ -741,10 +829,11 @@ export class OpenAgentSessionInNewEditorGroupAction extends BaseOpenAgentSession
 					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Enter
 				},
 				weight: KeybindingWeight.WorkbenchContrib + 1,
-				when: ChatContextKeys.agentSessionsViewerFocused,
+				when: ContextKeyExpr.and(ChatContextKeys.agentSessionsViewerFocused, IsSessionsWindowContext.negate()),
 			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
+				when: IsSessionsWindowContext.negate(),
 				order: 2,
 				group: 'navigation'
 			}

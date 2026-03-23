@@ -11,8 +11,6 @@ export const ChatTipStorageKeys = {
 	DismissedTips: 'chat.tip.dismissed',
 	/** The ID of the last tip that was shown, for round-robin selection. */
 	LastTipId: 'chat.tip.lastTipId',
-	/** Whether the user has ever enabled global auto-approve (yolo mode). */
-	YoloModeEverEnabled: 'chat.tip.yoloModeEverEnabled',
 	/** Whether the user has ever modified the thinking phrases setting. */
 	ThinkingPhrasesEverModified: 'chat.tip.thinkingPhrasesEverModified',
 };

@@ -41,6 +41,7 @@ import { IMcpSandboxService } from './mcpSandboxService.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { McpTaskManager } from './mcpTaskManager.js';
 import { ElicitationKind, extensionMcpCollectionPrefix, IMcpElicitationService, IMcpIcons, IMcpPotentialSandboxBlock, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerStaticToolAvailability, McpServerTransportType, McpToolName, McpToolVisibility, MpcResponseError, UserInteractionRequiredError } from './mcpTypes.js';
+import { ContributionEnablementState, IEnablementModel } from '../../chat/common/enablement.js';
 import { MCP } from './modelContextProtocol.js';
 import { McpApps } from './modelContextProtocolApps.js';
 import { UriTemplate } from './uriTemplate.js';
@@ -424,6 +425,8 @@ export class McpServer extends Disposable implements IMcpServer {
 	/** Count of running tool calls, used to detect if sampling is during an LM call */
 	public runningToolCalls = new Set<IMcpToolCallContext>();
 
+	public readonly enablement: IObservable<ContributionEnablementState>;
+
 	constructor(
 		initialCollection: McpCollectionDefinition,
 		public readonly definition: McpDefinitionReference,
@@ -431,6 +434,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		private readonly _requiresExtensionActivation: boolean | undefined,
 		private readonly _primitiveCache: McpServerMetadataCache,
 		toolPrefix: string,
+		enablementModel: IEnablementModel,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@IWorkspaceContextService workspacesService: IWorkspaceContextService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -451,6 +455,7 @@ export class McpServer extends Disposable implements IMcpServer {
 
 		this.collection = initialCollection;
 		this._fullDefinitions = this._mcpRegistry.getServerDefinition(this.collection, this.definition);
+		this.enablement = derived(r => enablementModel.readEnabled(definition.id, r));
 		this._loggerId = `mcpServer.${definition.id}`;
 		this._logger = this._register(_loggerService.createLogger(this._loggerId, { hidden: true, name: `MCP: ${definition.label}` }));
 
@@ -902,6 +907,13 @@ export class McpServer extends Disposable implements IMcpServer {
 		if (toolInvalidCharRe.test(tool.name)) {
 			this._logger.warn(`Tool ${JSON.stringify(tool.name)} is invalid. Tools names may only contain [a-z0-9_-]`);
 			tool.name = tool.name.replace(toolInvalidCharRe, '_');
+		}
+
+		// Per MCP spec, properties is optional. But JSON Schema Draft 7 requires
+		// it for object types. Normalize the schema to include an empty properties
+		// object if not present. https://github.com/microsoft/vscode/issues/251723
+		if (tool.inputSchema && !tool.inputSchema.properties) {
+			tool.inputSchema = { ...tool.inputSchema, properties: {} };
 		}
 
 		type JsonDiagnostic = { message: string; range: { line: number; character: number }[] };
