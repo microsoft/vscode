@@ -11,6 +11,8 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISettableObservable } from '../../../../base/common/observable.js';
 
 const FILTER_THRESHOLD = 10;
 
@@ -54,6 +56,7 @@ export class BranchPicker extends Disposable {
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 	}
@@ -131,6 +134,11 @@ export class BranchPicker extends Disposable {
 			this._selectedBranch = branch;
 			this._onDidChange.fire(branch);
 			this._updateTriggerLabel();
+
+			const session = this.sessionsManagementService.activeSessionData.get();
+			if (session) {
+				(session.branch as ISettableObservable<string | undefined>).set(branch, undefined);
+			}
 		}
 	}
 

@@ -219,6 +219,12 @@ class NewSessionDataAdapter implements ISessionData {
 	private readonly _workspace: ReturnType<typeof observableValue<ISessionWorkspace | undefined>>;
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
 
+	private readonly _branch: ReturnType<typeof observableValue<string | undefined>>;
+	readonly branch: IObservable<string | undefined>;
+
+	private readonly _isolationMode: ReturnType<typeof observableValue<string | undefined>>;
+	readonly isolationMode: IObservable<string | undefined>;
+
 	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
 
 	/** The underlying new session object — internal to the provider. */
@@ -247,6 +253,10 @@ class NewSessionDataAdapter implements ISessionData {
 		this.permissionLevel = this._permissionLevel;
 		this._workspace = observableValue<ISessionWorkspace | undefined>(this, undefined);
 		this.workspace = this._workspace;
+		this._branch = observableValue<string | undefined>(this, undefined);
+		this.branch = this._branch;
+		this._isolationMode = observableValue<string | undefined>(this, undefined);
+		this.isolationMode = this._isolationMode;
 		this.changes = observableValue<readonly IChatSessionFileChange[]>(this, []);
 	}
 
@@ -256,6 +266,7 @@ class NewSessionDataAdapter implements ISessionData {
 	setOption(key: string, value: unknown): void {
 		switch (key) {
 			case 'branch':
+				this._branch.set(value as string | undefined, undefined);
 				this._newSession.setBranch(value as string | undefined);
 				break;
 			case 'modelId':
@@ -265,6 +276,7 @@ class NewSessionDataAdapter implements ISessionData {
 				this._newSession.setMode(value as any);
 				break;
 			case 'isolationMode':
+				this._isolationMode.set(value as string | undefined, undefined);
 				this._newSession.setIsolationMode(value as any);
 				break;
 			case 'project':
@@ -322,6 +334,9 @@ class AgentSessionAdapter implements ISessionData {
 
 	readonly permissionLevel: IObservable<ChatPermissionLevel>;
 
+	readonly branch: IObservable<string | undefined>;
+	readonly isolationMode: IObservable<string | undefined>;
+
 	constructor(
 		session: IAgentSession,
 		providerId: string,
@@ -348,6 +363,8 @@ class AgentSessionAdapter implements ISessionData {
 		this._changes = observableValue<readonly IChatSessionFileChange[]>(this, this._extractChanges(session));
 		this.changes = this._changes;
 		this.permissionLevel = observableValue(this, ChatPermissionLevel.Default);
+		this.branch = observableValue<string | undefined>(this, undefined);
+		this.isolationMode = observableValue<string | undefined>(this, undefined);
 	}
 
 	/**

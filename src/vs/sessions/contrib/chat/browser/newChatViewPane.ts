@@ -45,8 +45,7 @@ import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
-import { SessionTypePicker, IsolationPicker } from './sessionTargetPicker.js';
-import { BranchPicker } from './branchPicker.js';
+import { SessionTypePicker } from './sessionTargetPicker.js';
 import { INewSession } from './newSession.js';
 import { ExtensionToolbarPickers } from './extensionToolbarPickers.js';
 import { WorkspacePicker } from './workspacePicker.js';
@@ -91,8 +90,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _sessionTypePicker: SessionTypePicker;
-	private readonly _branchPicker: BranchPicker;
-	private readonly _isolationPicker: IsolationPicker;
 	private readonly _options: INewChatWidgetOptions;
 
 	// IHistoryNavigationWidget
@@ -116,7 +113,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	// Loading state
 	private readonly _projectSelectionCts = this._register(new MutableDisposable<CancellationTokenSource>());
-	private _branchLoading = false;
 	private _loadingSpinner: HTMLElement | undefined;
 	private readonly _loadingDelayDisposable = this._register(new MutableDisposable());
 
@@ -165,36 +161,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
 		this._workspacePicker = this._register(this.instantiationService.createInstance(WorkspacePicker));
 		this._sessionTypePicker = this._register(this.instantiationService.createInstance(SessionTypePicker));
-		this._branchPicker = this._register(this.instantiationService.createInstance(BranchPicker));
-		this._isolationPicker = this._register(this.instantiationService.createInstance(IsolationPicker));
 		this._extensionToolbarPickers = this._register(this.instantiationService.createInstance(ExtensionToolbarPickers));
 		this._options = options;
 
 		// When a project is selected, infer the target and create a new session
 		this._register(this._workspacePicker.onDidSelectProject(async (project) => {
 			await this._onProjectSelected(project);
-			this._updateDraftState();
-			this._focusEditor();
-		}));
-
-		this._register(this._branchPicker.onDidChangeLoading(loading => {
-			this._branchLoading = loading;
-			this._updateInputLoadingState();
-		}));
-
-		this._register(this._branchPicker.onDidChange((branch) => {
-			this._newSession.value?.setBranch(branch);
-			this._updateDraftState();
-			this._focusEditor();
-		}));
-
-		this._register(this._sessionTypePicker.onDidChange((_target) => {
-			this._updateDraftState();
-			this._focusEditor();
-		}));
-
-		this._register(this._isolationPicker.onDidChange((mode) => {
-			this._newSession.value?.setIsolationMode(mode);
 			this._updateDraftState();
 			this._focusEditor();
 		}));
@@ -333,10 +305,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private _setNewSession(session: INewSession): void {
 		this._newSession.value = session;
 
-		if (session.pickerVisibility.branch && this._branchPicker.selectedBranch) {
-			session.setBranch(this._branchPicker.selectedBranch);
-		}
-
 		// Listen for session changes
 		const listeners = new DisposableStore();
 		listeners.add(session.onDidChange((changeType) => {
@@ -352,12 +320,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	private _updateInputLoadingState(): void {
-		const loading = this._branchLoading || this._sending;
+		const loading = this._sending;
 		if (loading) {
 			if (!this._loadingDelayDisposable.value) {
 				const timer = setTimeout(() => {
 					this._loadingDelayDisposable.clear();
-					if (this._branchLoading || this._sending) {
+					if (this._sending) {
 						this._loadingSpinner?.classList.add('visible');
 					}
 				}, 500);
@@ -590,7 +558,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			selectedModel: undefined,
 			selections: this._editor?.getSelections() ?? [],
 			contrib: {},
-			branch: this._branchPicker.selectedBranch,
+			branch: this.sessionsManagementService.activeSessionData.get()?.branch.get(),
 			projectUri: this._newSession.value?.project?.uri.toJSON(),
 		};
 	}
@@ -720,9 +688,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			if (draft.attachments?.length) {
 				this._contextAttachments.setAttachments(draft.attachments.map(IChatRequestVariableEntry.fromExport));
 			}
-			if (draft.branch) {
-				this._branchPicker.setPreferredBranch(draft.branch);
-			}
 			if (draft.projectUri) {
 				try {
 					const project = new SessionWorkspace(URI.revive(draft.projectUri));
@@ -753,7 +718,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			selectedModel: this._draftState?.selectedModel,
 			selections: [],
 			contrib: {},
-			branch: this._newSession.value?.branch,
+			branch: this.sessionsManagementService.activeSessionData.get()?.branch.get(),
 			projectUri: this._newSession.value?.project?.uri.toJSON(),
 		};
 		this._draftState = preserved;

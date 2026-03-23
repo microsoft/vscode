@@ -99,6 +99,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			updatedAt: observableValue(this, new Date()),
 			status: observableValue(this, SessionStatus.Untitled),
 			permissionLevel: observableValue(this, ChatPermissionLevel.Default),
+			branch: observableValue<string | undefined>(this, undefined),
+			isolationMode: observableValue<string | undefined>(this, undefined),
 			changes: observableValue<readonly IChatSessionFileChange[]>(this, []),
 		};
 	}

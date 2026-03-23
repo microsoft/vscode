@@ -82,6 +82,10 @@ export interface ISessionData {
 	readonly status: IObservable<SessionStatus>;
 	/** Permission level for the session (e.g., default approvals, bypass). */
 	readonly permissionLevel: IObservable<ChatPermissionLevel>;
+	/** Selected branch for the session (CLI sessions only). */
+	readonly branch: IObservable<string | undefined>;
+	/** Isolation mode for the session (CLI sessions only). */
+	readonly isolationMode: IObservable<string | undefined>;
 	/** File changes produced by the session. */
 	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
 }

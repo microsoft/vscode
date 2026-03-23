@@ -13,6 +13,8 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISettableObservable } from '../../../../base/common/observable.js';
 
 // #region --- Types ---
 
@@ -182,6 +184,7 @@ export class IsolationPicker extends Disposable {
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 		this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
@@ -289,6 +292,11 @@ export class IsolationPicker extends Disposable {
 			this._isolationMode = mode;
 			this._updateTriggerLabel();
 			this._onDidChange.fire(mode);
+
+			const session = this.sessionsManagementService.activeSessionData.get();
+			if (session) {
+				(session.isolationMode as ISettableObservable<string | undefined>).set(mode, undefined);
+			}
 		}
 	}
 
