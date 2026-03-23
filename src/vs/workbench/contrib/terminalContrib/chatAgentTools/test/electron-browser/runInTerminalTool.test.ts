@@ -1588,7 +1588,7 @@ suite('RunInTerminalTool', () => {
 
 			const sessionResource = LocalChatSessionUri.forSession('autopilot-session');
 			instantiationService.stub(IChatWidgetService, {
-				getWidgetBySessionResource: () => ({ input: { currentModeInfo: { permissionLevel: ChatPermissionLevel.Autopilot } } }),
+				getWidgetBySessionResource: (() => ({ input: { currentModeInfo: { permissionLevel: ChatPermissionLevel.Autopilot } } })) as unknown as IChatWidgetService['getWidgetBySessionResource'],
 				lastFocusedWidget: undefined,
 			});
 
@@ -1615,7 +1615,7 @@ suite('RunInTerminalTool', () => {
 
 			const sessionResource = LocalChatSessionUri.forSession('bypass-session');
 			instantiationService.stub(IChatWidgetService, {
-				getWidgetBySessionResource: () => ({ input: { currentModeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove } } }),
+				getWidgetBySessionResource: (() => ({ input: { currentModeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove } } })) as unknown as IChatWidgetService['getWidgetBySessionResource'],
 				lastFocusedWidget: undefined,
 			});
 
