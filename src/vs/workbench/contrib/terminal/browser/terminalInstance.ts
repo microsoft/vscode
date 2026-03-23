@@ -2813,6 +2813,7 @@ export class TerminalInstanceColorProvider implements IXtermColorProvider {
 	constructor(
 		private readonly _target: IReference<TerminalLocation | undefined>,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 	}
 
@@ -2823,6 +2824,9 @@ export class TerminalInstanceColorProvider implements IXtermColorProvider {
 		const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);
 		if (terminalBackground) {
 			return terminalBackground;
+		}
+		if (this._environmentService.isSessionsWindow) {
+			return theme.getColor(SIDE_BAR_BACKGROUND);
 		}
 		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 		if (location === ViewContainerLocation.Panel) {

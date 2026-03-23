@@ -20,8 +20,8 @@
  */
 
 .agent-sessions-workbench .part.sidebar {
-	background: var(--vscode-sideBar-background);
-	border-right: 1px solid var(--vscode-sideBar-border, transparent);
+	background: var(--vscode-editor-background);
+	border-right: 1px solid var(--vscode-panel-border, transparent);
 }
 
 .agent-sessions-workbench .part.chatbar {
@@ -46,9 +46,9 @@
 	border-radius: 8px;
 }
 
-/* Grid background matches the chat bar / sidebar background */
+/* Grid background matches the editor background */
 .agent-sessions-workbench > .monaco-grid-view {
-	background-color: var(--vscode-sideBar-background);
+	background-color: var(--vscode-editor-background);
 }
 
 /* ---- Chat Layout ---- */
