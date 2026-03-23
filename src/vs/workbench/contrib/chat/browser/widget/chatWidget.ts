@@ -927,6 +927,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, true);
+		this.inputPart.clearArtifactsWidget();
 		this.chatSuggestNextWidget.hide();
 		await this.viewOptions.clear?.();
 	}
@@ -1985,6 +1986,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.finishedEditing();
 		}
 		this.inputPart.clearTodoListWidget(model.sessionResource, false);
+		this.inputPart.clearArtifactsWidget();
 		this.chatSuggestNextWidget.hide();
 		this.chatTipService.resetSession();
 
