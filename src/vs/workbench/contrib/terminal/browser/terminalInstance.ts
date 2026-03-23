@@ -1020,7 +1020,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// is being evaluated
 			await timeout(100);
 		}
-		// Use bracketed paste mode only when not running the command
+		// By default, use bracketed paste mode only when not running the command; callers can override
+		// this by explicitly enabling it via the bracketedPasteMode argument.
 		await this.sendText(commandLine, shouldExecute, !shouldExecute || forceBracketedPasteMode);
 	}
 
