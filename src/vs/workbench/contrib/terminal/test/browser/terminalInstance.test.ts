@@ -13,7 +13,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
