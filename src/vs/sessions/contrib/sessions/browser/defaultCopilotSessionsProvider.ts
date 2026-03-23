@@ -76,7 +76,10 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionRepositoryConfig,
 				group: 'isolation',
 				order: 1,
-				when: IsActiveSessionBackgroundProviderContext,
+				when: ContextKeyExpr.and(
+					IsActiveSessionBackgroundProviderContext,
+					ContextKeyExpr.notEquals('config.github.copilot.chat.cli.isolationOption.enabled', false),
+				),
 			}],
 		});
 	}
