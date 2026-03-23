@@ -16,7 +16,7 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../.
 import { AllowedMcpServer } from '../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IAuthenticationQueryService, IAccountQuery } from '../../../../services/authentication/common/authenticationQuery.js';
-import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 
 export class ManageTrustedMcpServersForAccountAction extends Action2 {

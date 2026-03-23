@@ -77,16 +77,19 @@ jobs:
         working-directory: build
 
       - name: Compile & Hygiene
-        run: npm exec -- npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+        run: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check cyclic dependencies
+        run: node build/lib/checkCyclicDependencies.ts out-build
 
   linux-cli-tests:
     name: Linux
     uses: ./.github/workflows/pr-linux-cli-test.yml
     with:
       job_name: CLI
-      rustup_toolchain: 1.85
+      rustup_toolchain: 1.88
 
   linux-electron-tests:
     name: Linux

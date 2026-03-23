@@ -255,6 +255,29 @@ registerQuickInputCommandAndKeybindingRule(
 
 //#endregion
 
+//#region Toggle Checkbox
+
+registerQuickPickCommandAndKeybindingRule(
+	{
+		id: 'quickInput.toggleCheckbox',
+		when: ContextKeyExpr.and(
+			inQuickInputContext,
+			ContextKeyExpr.or(
+				ContextKeyExpr.equals(quickInputTypeContextKeyValue, QuickInputType.QuickPick),
+				ContextKeyExpr.equals(quickInputTypeContextKeyValue, QuickInputType.QuickTree),
+			),
+			InputFocusedContext.negate()
+		),
+		primary: KeyCode.Space,
+		handler: accessor => {
+			const quickInputService = accessor.get(IQuickInputService);
+			quickInputService.toggle();
+		}
+	}
+);
+
+//#endregion
+
 //#region Toggle Hover
 
 registerQuickPickCommandAndKeybindingRule(

@@ -53,7 +53,7 @@ class QuickInputToggleButtonAction implements IAction {
 		className: string | undefined,
 		public enabled: boolean,
 		private _checked: boolean,
-		public run: () => unknown
+		private _run: () => unknown
 	) {
 		this.class = className;
 	}
@@ -65,7 +65,12 @@ class QuickInputToggleButtonAction implements IAction {
 	set checked(value: boolean) {
 		this._checked = value;
 		// Toggles behave like buttons. When clicked, they run... the only difference is that their checked state also changes.
-		this.run();
+		this._run();
+	}
+
+	run() {
+		this._checked = !this._checked;
+		return this._run();
 	}
 }
 
@@ -102,6 +107,35 @@ export function quickInputButtonToAction(button: IQuickInputButton, id: string, 
 		};
 
 	return action;
+}
+
+export function quickInputButtonsToActionArrays(
+	buttons: readonly IQuickInputButton[],
+	idPrefix: string,
+	onTrigger: (button: IQuickInputButton) => unknown
+): { primary: IAction[]; secondary: IAction[] } {
+	const primary: IAction[] = [];
+	const secondary: IAction[] = [];
+
+	buttons.forEach((button, index) => {
+		const action = quickInputButtonToAction(
+			button,
+			`${idPrefix}-${index}`,
+			async () => onTrigger(button)
+		);
+
+		if (button.label) {
+			action.label = button.label;
+		}
+
+		if (button.secondary) {
+			secondary.push(action);
+		} else {
+			primary.push(action);
+		}
+	});
+
+	return { primary, secondary };
 }
 
 export function renderQuickInputDescription(description: string, container: HTMLElement, actionHandler: { callback: (content: string) => void; disposables: DisposableStore }) {

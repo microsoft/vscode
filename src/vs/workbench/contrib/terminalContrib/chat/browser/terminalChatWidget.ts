@@ -17,10 +17,10 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatAcceptInputOptions, IChatWidgetService } from '../../../chat/browser/chat.js';
-import { IChatAgentService } from '../../../chat/common/chatAgents.js';
-import { IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/chatModel.js';
+import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
+import { IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/model/chatModel.js';
 import { ChatMode } from '../../../chat/common/chatModes.js';
-import { IChatModelReference, IChatProgress, IChatService } from '../../../chat/common/chatService.js';
+import { IChatModelReference, IChatProgress, IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
 import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
@@ -151,6 +151,7 @@ export class TerminalChatWidget extends Disposable {
 			this._inlineChatWidget.onDidChangeHeight,
 			this._instance.onDimensionsChanged,
 			this._inlineChatWidget.chatWidget.onDidChangeContentHeight,
+			Event.fromObservableLight(this._inlineChatWidget.chatWidget.input.selectedLanguageModel),
 			Event.debounce(this._xterm.raw.onCursorMove, () => void 0, MicrotaskDelay),
 		)(() => this._relayout()));
 
@@ -328,7 +329,7 @@ export class TerminalChatWidget extends Disposable {
 	private async _createSession(): Promise<void> {
 		this._sessionCtor = createCancelablePromise<void>(async token => {
 			if (!this._model.value) {
-				const modelRef = this._chatService.startSession(ChatAgentLocation.Terminal);
+				const modelRef = this._chatService.startNewLocalSession(ChatAgentLocation.Terminal);
 				this._model.value = modelRef;
 				const model = modelRef.object;
 				this._inlineChatWidget.setChatModel(model);
@@ -411,7 +412,7 @@ export class TerminalChatWidget extends Disposable {
 		if (!model?.sessionResource) {
 			return;
 		}
-		this._chatService.cancelCurrentRequestForSession(model?.sessionResource);
+		void this._chatService.cancelCurrentRequestForSession(model?.sessionResource, 'terminalChat');
 	}
 
 	async viewInChat(): Promise<void> {

@@ -3,16 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IAnyWorkspaceIdentifier, IWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 
 export const IWorkspaceEditingService = createDecorator<IWorkspaceEditingService>('workspaceEditingService');
+
+/**
+ * An event that is fired after entering a workspace. Clients can join the entering
+ * by providing a promise from the join method. This allows for long running operations
+ * to complete (e.g. to migrate data into the new workspace) before the workspace
+ * is fully entered.
+ */
+export interface IDidEnterWorkspaceEvent {
+	readonly oldWorkspace: IAnyWorkspaceIdentifier;
+	readonly newWorkspace: IAnyWorkspaceIdentifier;
+
+	join(promise: Promise<void>): void;
+}
 
 export interface IWorkspaceEditingService {
 
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Fired after the workspace is entered. Allows listeners to join the
+	 * entering with a promise to migrate data into this new workspace.
+	 */
+	readonly onDidEnterWorkspace: Event<IDidEnterWorkspaceEvent>;
 
 	/**
 	 * Add folders to the existing workspace.

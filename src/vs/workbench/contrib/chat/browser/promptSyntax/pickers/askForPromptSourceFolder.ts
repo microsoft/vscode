@@ -34,7 +34,7 @@ export async function askForPromptSourceFolder(
 	const workspaceService = accessor.get(IWorkspaceContextService);
 
 	// get prompts source folders based on the prompt type
-	const folders = promptsService.getSourceFolders(type);
+	const folders = await promptsService.getSourceFolders(type);
 
 	// if no source folders found, show 'learn more' dialog
 	// note! this is a temporary solution and must be replaced with a dialog to select
@@ -111,6 +111,10 @@ function getPlaceholderStringforNew(type: PromptsType): string {
 			return localize('workbench.command.prompt.create.location.placeholder', "Select a location to create the prompt file");
 		case PromptsType.agent:
 			return localize('workbench.command.agent.create.location.placeholder', "Select a location to create the agent file");
+		case PromptsType.skill:
+			return localize('workbench.command.skill.create.location.placeholder', "Select a location to create the skill");
+		case PromptsType.hook:
+			return localize('workbench.command.hook.create.location.placeholder', "Select a location to create the hook file");
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -125,6 +129,10 @@ function getPlaceholderStringforMove(type: PromptsType, isMove: boolean): string
 				return localize('prompt.move.location.placeholder', "Select a location to move the prompt file to");
 			case PromptsType.agent:
 				return localize('agent.move.location.placeholder', "Select a location to move the agent file to");
+			case PromptsType.skill:
+				return localize('skill.move.location.placeholder', "Select a location to move the skill to");
+			case PromptsType.hook:
+				throw new Error('Hooks cannot be moved');
 			default:
 				throw new Error('Unknown prompt type');
 		}
@@ -136,6 +144,10 @@ function getPlaceholderStringforMove(type: PromptsType, isMove: boolean): string
 			return localize('prompt.copy.location.placeholder', "Select a location to copy the prompt file to");
 		case PromptsType.agent:
 			return localize('agent.copy.location.placeholder', "Select a location to copy the agent file to");
+		case PromptsType.skill:
+			return localize('skill.copy.location.placeholder', "Select a location to copy the skill to");
+		case PromptsType.hook:
+			throw new Error('Hooks cannot be copied');
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -179,6 +191,10 @@ function getLearnLabel(type: PromptsType): string {
 			return localize('commands.instructions.create.ask-folder.empty.docs-label', 'Learn how to configure reusable instructions');
 		case PromptsType.agent:
 			return localize('commands.agent.create.ask-folder.empty.docs-label', 'Learn how to configure custom agents');
+		case PromptsType.skill:
+			return localize('commands.skill.create.ask-folder.empty.docs-label', 'Learn how to configure skills');
+		case PromptsType.hook:
+			return localize('commands.hook.create.ask-folder.empty.docs-label', 'Learn how to configure hooks');
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -192,6 +208,10 @@ function getMissingSourceFolderString(type: PromptsType): string {
 			return localize('commands.prompts.create.ask-folder.empty.placeholder', 'No prompt source folders found.');
 		case PromptsType.agent:
 			return localize('commands.agent.create.ask-folder.empty.placeholder', 'No agent source folders found.');
+		case PromptsType.skill:
+			return localize('commands.skill.create.ask-folder.empty.placeholder', 'No skill source folders found.');
+		case PromptsType.hook:
+			return localize('commands.hook.create.ask-folder.empty.placeholder', 'No hook source folders found.');
 		default:
 			throw new Error('Unknown prompt type');
 	}

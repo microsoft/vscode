@@ -21,6 +21,7 @@ export class MainThreadSearch implements MainThreadSearchShape {
 
 	private readonly _proxy: ExtHostSearchShape;
 	private readonly _searchProvider = new Map<number, RemoteSearchProvider>();
+	private readonly _aiSearchProviderHandles = new Set<number>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -36,6 +37,8 @@ export class MainThreadSearch implements MainThreadSearchShape {
 	dispose(): void {
 		this._searchProvider.forEach(value => value.dispose());
 		this._searchProvider.clear();
+		this._aiSearchProviderHandles.clear();
+		Constants.SearchContext.hasAIResultProvider.bindTo(this.contextKeyService).set(false);
 	}
 
 	$registerTextSearchProvider(handle: number, scheme: string): void {
@@ -44,6 +47,8 @@ export class MainThreadSearch implements MainThreadSearchShape {
 
 	$registerAITextSearchProvider(handle: number, scheme: string): void {
 		Constants.SearchContext.hasAIResultProvider.bindTo(this.contextKeyService).set(true);
+
+		this._aiSearchProviderHandles.add(handle);
 		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.aiText, scheme, handle, this._proxy));
 	}
 
@@ -54,6 +59,10 @@ export class MainThreadSearch implements MainThreadSearchShape {
 	$unregisterProvider(handle: number): void {
 		dispose(this._searchProvider.get(handle));
 		this._searchProvider.delete(handle);
+
+		if (this._aiSearchProviderHandles.delete(handle) && this._aiSearchProviderHandles.size === 0) {
+			Constants.SearchContext.hasAIResultProvider.bindTo(this.contextKeyService).set(false);
+		}
 	}
 
 	$handleFileMatch(handle: number, session: number, data: UriComponents[]): void {

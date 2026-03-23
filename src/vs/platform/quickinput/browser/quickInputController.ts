@@ -5,8 +5,7 @@
 
 import * as dom from '../../../base/browser/dom.js';
 import * as domStylesheetsJs from '../../../base/browser/domStylesheets.js';
-import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
-import { ActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ToolBar } from '../../../base/browser/ui/toolbar/toolbar.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
 import { CountBadge } from '../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
@@ -23,6 +22,7 @@ import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPi
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { IContextMenuService } from '../../contextview/browser/contextView.js';
 import { QuickInputList } from './quickInputList.js';
 import { IContextKey, IContextKeyService } from '../../contextkey/common/contextkey.js';
 import './quickInputActions.js';
@@ -37,6 +37,8 @@ import { TriStateCheckbox, createToggleActionViewItemProvider } from '../../../b
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
 import { QuickInputTreeController } from './tree/quickInputTreeController.js';
 import { QuickTree } from './tree/quickTree.js';
+import { AnchorAlignment, AnchorPosition, layout2d } from '../../../base/common/layout.js';
+import { getAnchorRect } from '../../../base/browser/ui/contextview/contextview.js';
 
 const $ = dom.$;
 
@@ -88,7 +90,8 @@ export class QuickInputController extends Disposable {
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super();
 
@@ -146,19 +149,23 @@ export class QuickInputController extends Disposable {
 
 		const titleBar = dom.append(container, $('.quick-input-titlebar'));
 
-		const leftActionBar = this._register(new ActionBar(titleBar, {
+		const leftActionBar = this._register(new ToolBar(titleBar, this.contextMenuService, {
 			hoverDelegate: this.options.hoverDelegate,
-			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle)
+			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
+			icon: true,
+			label: false
 		}));
-		leftActionBar.domNode.classList.add('quick-input-left-action-bar');
+		leftActionBar.getElement().classList.add('quick-input-left-action-bar');
 
 		const title = dom.append(titleBar, $('.quick-input-title'));
 
-		const rightActionBar = this._register(new ActionBar(titleBar, {
+		const rightActionBar = this._register(new ToolBar(titleBar, this.contextMenuService, {
 			hoverDelegate: this.options.hoverDelegate,
-			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle)
+			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
+			icon: true,
+			label: false
 		}));
-		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
+		rightActionBar.getElement().classList.add('quick-input-right-action-bar');
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
 
@@ -190,11 +197,13 @@ export class QuickInputController extends Disposable {
 		countContainer.setAttribute('aria-live', 'polite');
 		const count = this._register(new CountBadge(countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") }, this.styles.countBadge));
 
-		const inlineActionBar = this._register(new ActionBar(headerContainer, {
+		const inlineActionBar = this._register(new ToolBar(headerContainer, this.contextMenuService, {
 			hoverDelegate: this.options.hoverDelegate,
-			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle)
+			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
+			icon: true,
+			label: false
 		}));
-		inlineActionBar.domNode.classList.add('quick-input-inline-action-bar');
+		inlineActionBar.getElement().classList.add('quick-input-inline-action-bar');
 
 		const okContainer = dom.append(headerContainer, $('.quick-input-action'));
 		const ok = this._register(new Button(okContainer, this.styles.button));
@@ -229,8 +238,10 @@ export class QuickInputController extends Disposable {
 				const activeDescendant = list.getActiveDescendant();
 				if (activeDescendant) {
 					inputBox.setAttribute('aria-activedescendant', activeDescendant);
+					inputBox.setListFocusMode(true);
 				} else {
 					inputBox.removeAttribute('aria-activedescendant');
+					inputBox.setListFocusMode(false);
 				}
 			}
 		}));
@@ -273,8 +284,10 @@ export class QuickInputController extends Disposable {
 				const activeDescendant = tree.getActiveDescendant();
 				if (activeDescendant) {
 					inputBox.setAttribute('aria-activedescendant', activeDescendant);
+					inputBox.setListFocusMode(true);
 				} else {
 					inputBox.removeAttribute('aria-activedescendant');
+					inputBox.setListFocusMode(false);
 				}
 			}
 		}));
@@ -334,6 +347,8 @@ export class QuickInputController extends Disposable {
 			// See: https://github.com/microsoft/vscode/issues/271032
 			if (!isModifierKey(e.keyCode)) {
 				inputBox.removeAttribute('aria-activedescendant');
+				// Reset ARIA popup mode to allow normal text editing with arrow keys
+				inputBox.setListFocusMode(false);
 			}
 		}));
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
@@ -349,7 +364,7 @@ export class QuickInputController extends Disposable {
 				{
 					node: titleBar,
 					includeChildren: true,
-					excludeNodes: [leftActionBar.domNode, rightActionBar.domNode]
+					excludeNodes: [leftActionBar.getElement(), rightActionBar.getElement()]
 				},
 				{
 					node: headerContainer,
@@ -528,6 +543,7 @@ export class QuickInputController extends Disposable {
 			input.quickNavigate = options.quickNavigate;
 			input.hideInput = !!options.hideInput;
 			input.contextKey = options.contextKey;
+			input.anchor = options.anchor;
 			input.busy = true;
 			Promise.all([picks, options.activeItem])
 				.then(([items, _activeItem]) => {
@@ -660,13 +676,13 @@ export class QuickInputController extends Disposable {
 		oldController?.didHide();
 
 		this.setEnabled(true);
-		ui.leftActionBar.clear();
+		ui.leftActionBar.setActions([]);
 		ui.title.textContent = '';
 		ui.description1.textContent = '';
 		ui.description2.textContent = '';
 		dom.reset(ui.widget);
-		ui.rightActionBar.clear();
-		ui.inlineActionBar.clear();
+		ui.rightActionBar.setActions([]);
+		ui.inlineActionBar.setActions([]);
 		ui.checkAll.checked = false;
 		// ui.inputBox.value = ''; Avoid triggering an event.
 		ui.inputBox.placeholder = '';
@@ -697,6 +713,7 @@ export class QuickInputController extends Disposable {
 
 		ui.container.style.display = '';
 		this.updateLayout();
+		this.dndController?.setEnabled(!controller.anchor);
 		this.dndController?.layoutContainer();
 		ui.inputBox.setFocus();
 		this.quickInputTypeContext.set(controller.type);
@@ -731,11 +748,17 @@ export class QuickInputController extends Disposable {
 		if (enabled !== this.enabled) {
 			this.enabled = enabled;
 			const ui = this.getUI();
-			for (const item of ui.leftActionBar.viewItems) {
-				(item as ActionViewItem).action.enabled = enabled;
+			for (let i = 0; i < ui.leftActionBar.getItemsLength(); i++) {
+				const action = ui.leftActionBar.getItemAction(i);
+				if (action) {
+					action.enabled = enabled;
+				}
 			}
-			for (const item of ui.rightActionBar.viewItems) {
-				(item as ActionViewItem).action.enabled = enabled;
+			for (let i = 0; i < ui.rightActionBar.getItemsLength(); i++) {
+				const action = ui.rightActionBar.getItemAction(i);
+				if (action) {
+					action.enabled = enabled;
+				}
 			}
 			if (enabled) {
 				ui.checkAll.enable();
@@ -789,8 +812,13 @@ export class QuickInputController extends Disposable {
 	}
 
 	toggle() {
-		if (this.isVisible() && this.controller instanceof QuickPick && this.controller.canSelectMany) {
+		if (!this.isVisible()) {
+			return;
+		}
+		if (this.controller instanceof QuickPick && this.controller.canSelectMany) {
 			this.getUI().list.toggleCheckbox();
+		} else if (this.controller instanceof QuickTree) {
+			this.getUI().tree.toggleCheckbox();
 		}
 	}
 
@@ -837,16 +865,52 @@ export class QuickInputController extends Disposable {
 	private updateLayout() {
 		if (this.ui && this.isVisible()) {
 			const style = this.ui.container.style;
-			const width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
+			let width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
 			style.width = width + 'px';
 
+			let listHeight = this.dimension && this.dimension.height * 0.4;
+
 			// Position
-			style.top = `${this.viewState?.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
-			style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
+			if (this.controller?.anchor) {
+				const container = this.layoutService.getContainer(dom.getActiveWindow()).getBoundingClientRect();
+				const anchor = getAnchorRect(this.controller.anchor);
+				width = 380;
+				listHeight = this.dimension ? Math.min(this.dimension.height * 0.2, 200) : 200;
+
+				// Beware:
+				// We need to add some extra pixels to the height to account for the input and padding.
+				const containerHeight = Math.floor(listHeight) + 6 + 26 + 16;
+				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: AnchorPosition.ABOVE });
+
+				if (anchorAlignment === AnchorAlignment.RIGHT) {
+					style.right = `${right}px`;
+					style.left = 'initial';
+				} else {
+					style.left = `${left}px`;
+					style.right = 'initial';
+				}
+
+				if (anchorPosition === AnchorPosition.ABOVE) {
+					style.bottom = `${bottom}px`;
+					style.top = 'initial';
+				} else {
+					style.top = `${top}px`;
+					style.bottom = 'initial';
+				}
+
+				style.width = `${width}px`;
+				style.height = '';
+			} else {
+				style.top = `${this.viewState?.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
+				style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
+				style.right = '';
+				style.bottom = '';
+				style.height = '';
+			}
 
 			this.ui.inputBox.layout();
-			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);
-			this.ui.tree.layout(this.dimension && this.dimension.height * 0.4);
+			this.ui.list.layout(listHeight);
+			this.ui.tree.layout(listHeight);
 		}
 	}
 
@@ -858,13 +922,12 @@ export class QuickInputController extends Disposable {
 	private updateStyles() {
 		if (this.ui) {
 			const {
-				quickInputTitleBackground, quickInputBackground, quickInputForeground, widgetBorder, widgetShadow,
+				quickInputTitleBackground, quickInputBackground, quickInputForeground, widgetBorder,
 			} = this.styles.widget;
 			this.ui.titleBar.style.backgroundColor = quickInputTitleBackground ?? '';
 			this.ui.container.style.backgroundColor = quickInputBackground ?? '';
 			this.ui.container.style.color = quickInputForeground ?? '';
 			this.ui.container.style.border = widgetBorder ? `1px solid ${widgetBorder}` : '';
-			this.ui.container.style.boxShadow = widgetShadow ? `0 0 8px 2px ${widgetShadow}` : '';
 			this.ui.list.style(this.styles.list);
 			this.ui.tree.tree.style(this.styles.list);
 
@@ -941,6 +1004,8 @@ export interface IQuickInputControllerHost extends ILayoutService { }
 class QuickInputDragAndDropController extends Disposable {
 	readonly dndViewState = observableValue<{ top?: number; left?: number; done: boolean } | undefined>(this, undefined);
 
+	private _enabled = true;
+
 	private readonly _snapThreshold = 20;
 	private readonly _snapLineHorizontalRatio = 0.25;
 
@@ -976,6 +1041,10 @@ class QuickInputDragAndDropController extends Disposable {
 	}
 
 	layoutContainer(dimension = this._layoutService.activeContainerDimension): void {
+		if (!this._enabled) {
+			return;
+		}
+
 		const state = this.dndViewState.get();
 		const dragAreaRect = this._quickInputContainer.getBoundingClientRect();
 		if (state?.top && state?.left) {
@@ -985,6 +1054,11 @@ class QuickInputDragAndDropController extends Disposable {
 			const d = a * b - c / 2;
 			this._layout(state.top * dimension.height, d);
 		}
+	}
+
+	setEnabled(enabled: boolean): void {
+		this._enabled = enabled;
+		this._quickInputContainer.classList.toggle('no-drag', !enabled);
 	}
 
 	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }, done = true): void {
@@ -1017,6 +1091,10 @@ class QuickInputDragAndDropController extends Disposable {
 
 		// Double click
 		this._register(dom.addDisposableGenericMouseUpListener(dragArea, (event: MouseEvent) => {
+			if (!this._enabled) {
+				return;
+			}
+
 			const originEvent = new StandardMouseEvent(dom.getWindow(dragArea), event);
 			if (originEvent.detail !== 2) {
 				return;
@@ -1033,6 +1111,10 @@ class QuickInputDragAndDropController extends Disposable {
 
 		// Mouse down
 		this._register(dom.addDisposableGenericMouseDownListener(dragArea, (e: MouseEvent) => {
+			if (!this._enabled) {
+				return;
+			}
+
 			const activeWindow = dom.getWindow(this._layoutService.activeContainer);
 			const originEvent = new StandardMouseEvent(activeWindow, e);
 

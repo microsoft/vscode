@@ -127,8 +127,7 @@ export class QuickAccess {
 		await this.quickInput.selectQuickInputElement(0);
 
 		// wait for editor being focused
-		await this.editors.waitForActiveTab(fileName);
-		await this.editors.selectTab(fileName);
+		await this.editors.waitForEditorFocus(fileName);
 	}
 
 	private async openQuickAccessWithRetry(kind: QuickAccessKind, value?: string): Promise<void> {

@@ -14,7 +14,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { CopyOptions, generateDataToCopyAndStoreInMemory, InMemoryClipboardMetadataManager, PasteOptions } from '../../../browser/controller/editContext/clipboardUtils.js';
+import { CopyOptions, generateDataToCopyAndStoreInMemory, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
 import { NativeEditContextRegistry } from '../../../browser/controller/editContext/native/nativeEditContextRegistry.js';
 import { IActiveCodeEditor, ICodeEditor } from '../../../browser/editorBrowser.js';
 import { Command, EditorAction, MultiCommand, registerEditorAction } from '../../../browser/editorExtensions.js';
@@ -203,30 +203,8 @@ function executeClipboardCopyWithWorkaround(editor: IActiveCodeEditor, clipboard
 		// We have encountered the Electron bug!
 		// As a workaround, we will write (only the plaintext data) to the clipboard in a different way
 		// We will use the clipboard service (which in the native case will go to electron's clipboard API)
-		const { dataToCopy } = generateDataToCopyAndStoreInMemory(editor._getViewModel(), editor.getOptions(), undefined, browser.isFirefox);
+		const { dataToCopy } = generateDataToCopyAndStoreInMemory(editor._getViewModel(), undefined, browser.isFirefox);
 		clipboardService.writeText(dataToCopy.text);
-	}
-}
-
-async function pasteWithNavigatorAPI(editor: IActiveCodeEditor, clipboardService: IClipboardService, logService: ILogService): Promise<void> {
-	const clipboardText = await clipboardService.readText();
-	if (clipboardText !== '') {
-		const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(clipboardText);
-		let pasteOnNewLine = false;
-		let multicursorText: string[] | null = null;
-		let mode: string | null = null;
-		if (metadata) {
-			pasteOnNewLine = (editor.getOption(EditorOption.emptySelectionClipboard) && !!metadata.isFromEmptySelection);
-			multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
-			mode = metadata.mode;
-		}
-		logService.trace('pasteWithNavigatorAPI with id : ', metadata?.id, ', clipboardText.length : ', clipboardText.length);
-		editor.trigger('keyboard', Handler.Paste, {
-			text: clipboardText,
-			pasteOnNewLine,
-			multicursorText,
-			mode
-		});
 	}
 }
 
@@ -288,7 +266,7 @@ function logCopyCommand(editor: ICodeEditor) {
 	if (editContextEnabled) {
 		const nativeEditContext = NativeEditContextRegistry.get(editor.getId());
 		if (nativeEditContext) {
-			nativeEditContext.onWillCopy();
+			nativeEditContext.handleWillCopy();
 		}
 	}
 }
@@ -312,19 +290,15 @@ if (PasteAction) {
 			if (editContextEnabled) {
 				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
 				if (nativeEditContext) {
-					nativeEditContext.onWillPaste();
+					nativeEditContext.handleWillPaste();
 				}
 			}
 
 			logService.trace('registerExecCommandImpl (before triggerPaste)');
-			PasteOptions.electronBugWorkaroundPasteEventHasFired = false;
 			const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
 			if (triggerPaste) {
 				logService.trace('registerExecCommandImpl (triggerPaste defined)');
 				return triggerPaste.then(async () => {
-					if (PasteOptions.electronBugWorkaroundPasteEventHasFired === false) {
-						return pasteWithNavigatorAPI(focusedEditor, clipboardService, logService);
-					}
 					logService.trace('registerExecCommandImpl (after triggerPaste)');
 					return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
 				});
@@ -334,7 +308,27 @@ if (PasteAction) {
 			if (platform.isWeb) {
 				logService.trace('registerExecCommandImpl (Paste handling on web)');
 				// Use the clipboard service if document.execCommand('paste') was not successful
-				return pasteWithNavigatorAPI(focusedEditor, clipboardService, logService);
+				return (async () => {
+					const clipboardText = await clipboardService.readText();
+					if (clipboardText !== '') {
+						const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(clipboardText);
+						let pasteOnNewLine = false;
+						let multicursorText: string[] | null = null;
+						let mode: string | null = null;
+						if (metadata) {
+							pasteOnNewLine = (focusedEditor.getOption(EditorOption.emptySelectionClipboard) && !!metadata.isFromEmptySelection);
+							multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
+							mode = metadata.mode;
+						}
+						logService.trace('registerExecCommandImpl (clipboardText.length : ', clipboardText.length, ' id : ', metadata?.id, ')');
+						focusedEditor.trigger('keyboard', Handler.Paste, {
+							text: clipboardText,
+							pasteOnNewLine,
+							multicursorText,
+							mode
+						});
+					}
+				})();
 			}
 			return true;
 		}

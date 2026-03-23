@@ -326,6 +326,13 @@ suite('Annotations Suite', () => {
 		assertVisual(vas, 'Lore[4:m ipsum dolor ]sit [5:a]met');
 	});
 
+	test('setAnnotations 4', () => {
+		// 54 chars before 'i': "Lorem ipsum dolor sit amet, consectetur adipiscing el"
+		const vas = fromVisual('Lorem ipsum dolor sit amet, consectetur adipiscing el[:it]');
+		vas.setAnnotations(updateFromVisual('Lorem ipsum dolor sit amet, consectetur adipiscing el<_:i>t'));
+		assertVisual(vas, 'Lorem ipsum dolor sit amet, consectetur adipiscing elit');
+	});
+
 	test('getAnnotationsIntersecting 1', () => {
 		const vas = fromVisual('[1:Lorem] ipsum [2:dolor] sit [3:amet]');
 		const result1 = vas.getAnnotationsIntersecting(new OffsetRange(0, 13));
@@ -340,11 +347,11 @@ suite('Annotations Suite', () => {
 		const vas = fromVisual('[1:Lorem] [2:i]p[3:s]');
 
 		const result1 = vas.getAnnotationsIntersecting(new OffsetRange(5, 7));
-		assert.strictEqual(result1.length, 2);
-		assert.deepStrictEqual(result1.map(a => a.annotation), ['1', '2']);
+		assert.strictEqual(result1.length, 1);
+		assert.deepStrictEqual(result1.map(a => a.annotation), ['2']);
 		const result2 = vas.getAnnotationsIntersecting(new OffsetRange(5, 9));
-		assert.strictEqual(result2.length, 3);
-		assert.deepStrictEqual(result2.map(a => a.annotation), ['1', '2', '3']);
+		assert.strictEqual(result2.length, 2);
+		assert.deepStrictEqual(result2.map(a => a.annotation), ['2', '3']);
 	});
 
 	test('getAnnotationsIntersecting 3', () => {
@@ -372,6 +379,13 @@ suite('Annotations Suite', () => {
 		const result = vas.getAnnotationsIntersecting(new OffsetRange(1, 16));
 		assert.strictEqual(result.length, 3);
 		assert.deepStrictEqual(result.map(a => a.annotation), ['1', '2', '3']);
+	});
+
+	test('getAnnotationsIntersecting 6', () => {
+		const vas = fromVisual('[1:Lorem ][2:ip][3:sum]');
+		const result = vas.getAnnotationsIntersecting(new OffsetRange(6, 6));
+		assert.strictEqual(result.length, 1);
+		assert.deepStrictEqual(result.map(a => a.annotation), ['2']);
 	});
 
 	test('applyEdit 1 - deletion within annotation', () => {

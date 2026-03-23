@@ -117,6 +117,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return normalize(join(FileAccess.asFileUri('').fsPath, '..', 'extensions'));
 	}
 
+	@memoize
 	get extensionsDownloadLocation(): URI {
 		const cliExtensionsDownloadDir = this.args['extensions-download-dir'];
 		if (cliExtensionsDownloadDir) {
@@ -252,10 +253,19 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return undefined;
 	}
 
+	@memoize
+	get agentSessionsWorkspace(): URI {
+		return joinPath(this.appSettingsHome, 'agent-sessions.code-workspace');
+	}
+
 	get editSessionId(): string | undefined { return this.args['editSessionId']; }
 
 	get exportPolicyData(): string | undefined {
 		return this.args['export-policy-data'];
+	}
+
+	get exportDefaultKeybindings(): string | undefined {
+		return this.args['export-default-keybindings'];
 	}
 
 	get continueOn(): string | undefined {

@@ -437,9 +437,9 @@ export class CustomMenubarControl extends MenubarControl {
 		this._onFocusStateChange = this._register(new Emitter<boolean>());
 
 		this.actionRunner = this._register(new ActionRunner());
-		this.actionRunner.onDidRun(e => {
+		this._register(this.actionRunner.onDidRun(e => {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'menu' });
-		});
+		}));
 
 		this.workspacesService.getRecentlyOpened().then((recentlyOpened) => {
 			this.recentlyOpened = recentlyOpened;
@@ -474,10 +474,11 @@ export class CustomMenubarControl extends MenubarControl {
 			case StateType.AvailableForDownload:
 				return toAction({
 					id: 'update.downloadNow', label: localize({ key: 'download now', comment: ['&& denotes a mnemonic'] }, "D&&ownload Update"), enabled: true, run: () =>
-						this.updateService.downloadUpdate()
+						this.updateService.downloadUpdate(true)
 				});
 
 			case StateType.Downloading:
+			case StateType.Overwriting:
 				return toAction({ id: 'update.downloading', label: localize('DownloadingUpdate', "Downloading Update..."), enabled: false, run: () => { } });
 
 			case StateType.Downloaded:

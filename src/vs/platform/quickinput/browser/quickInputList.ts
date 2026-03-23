@@ -6,7 +6,7 @@
 import * as cssJs from '../../../base/browser/cssValue.js';
 import * as dom from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
-import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { ToolBar } from '../../../base/browser/ui/toolbar/toolbar.js';
 import { AriaRole } from '../../../base/browser/ui/aria/aria.js';
 import type { IHoverWidget, IManagedHoverTooltipMarkdownString } from '../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
@@ -27,7 +27,6 @@ import { Emitter, Event, EventBufferer, IValueWithChangeEvent } from '../../../b
 import { IMatch } from '../../../base/common/filters.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IParsedLabelWithIcons, getCodiconAriaLabel, matchesFuzzyIconAware, parseLabelWithIcons } from '../../../base/common/iconLabels.js';
-import { KeyCode } from '../../../base/common/keyCodes.js';
 import { Lazy } from '../../../base/common/lazy.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { observableValue, observableValueOpts, transaction } from '../../../base/common/observable.js';
@@ -36,6 +35,7 @@ import { escape, ltrim } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
+import { IContextMenuService } from '../../contextview/browser/contextView.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { WorkbenchObjectTree } from '../../list/browser/listService.js';
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
@@ -43,7 +43,7 @@ import { isDark } from '../../theme/common/theme.js';
 import { IThemeService } from '../../theme/common/themeService.js';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickFocus, QuickPickItem } from '../common/quickInput.js';
 import { IQuickInputStyles } from './quickInput.js';
-import { quickInputButtonToAction } from './quickInputUtils.js';
+import { quickInputButtonsToActionArrays } from './quickInputUtils.js';
 
 const $ = dom.$;
 
@@ -77,7 +77,7 @@ interface IQuickInputItemTemplateData {
 	keybinding: KeybindingLabel;
 	detail: IconLabel;
 	separator: HTMLDivElement;
-	actionBar: ActionBar;
+	toolBar: ToolBar;
 	element: IQuickPickElement;
 	toDisposeElement: DisposableStore;
 	toDisposeTemplate: DisposableStore;
@@ -321,13 +321,26 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<IQui
 	}
 }
 
-abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implements ITreeRenderer<T, void, IQuickInputItemTemplateData> {
+abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> extends Disposable implements ITreeRenderer<T, void, IQuickInputItemTemplateData> {
 	abstract templateId: string;
+
+	private readonly _onDidDisposeFocusedElement = this._register(new Emitter<void>());
+
+	/**
+	 * This event is emitted when the renderer disposes an element that has focus.
+	 * This allows the list to re-focus itself and prevent focus from being lost
+	 * (potentially causing quickinput to dismiss itself) when an element is
+	 * removed while focused.
+	 */
+	readonly onDidDisposeFocusedElement = this._onDidDisposeFocusedElement.event;
 
 	constructor(
 		private readonly hoverDelegate: IHoverDelegate | undefined,
-		private readonly toggleStyles: IToggleStyles
-	) { }
+		private readonly toggleStyles: IToggleStyles,
+		private readonly contextMenuService: IContextMenuService
+	) {
+		super();
+	}
 
 	// TODO: only do the common stuff here and have a subclass handle their specific stuff
 	renderTemplate(container: HTMLElement): IQuickInputItemTemplateData {
@@ -373,12 +386,14 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 		data.separator = dom.append(data.entry, $('.quick-input-list-separator'));
 
 		// Actions
-		data.actionBar = new ActionBar(data.entry, {
+		data.toolBar = new ToolBar(data.entry, this.contextMenuService, {
 			...(this.hoverDelegate ? { hoverDelegate: this.hoverDelegate } : undefined),
-			actionViewItemProvider: createToggleActionViewItemProvider(this.toggleStyles)
+			actionViewItemProvider: createToggleActionViewItemProvider(this.toggleStyles),
+			icon: true,
+			label: false
 		});
-		data.actionBar.domNode.classList.add('quick-input-list-entry-action-bar');
-		data.toDisposeTemplate.add(data.actionBar);
+		data.toolBar.getElement().classList.add('quick-input-list-entry-action-bar');
+		data.toDisposeTemplate.add(data.toolBar);
 
 		return data;
 	}
@@ -389,8 +404,11 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 	}
 
 	disposeElement(_element: ITreeNode<IQuickPickElement, void>, _index: number, data: IQuickInputItemTemplateData): void {
+		if (dom.isAncestorOfActiveElement(data.entry)) {
+			this._onDidDisposeFocusedElement.fire();
+		}
 		data.toDisposeElement.clear();
-		data.actionBar.clear();
+		data.toolBar.setActions([]);
 	}
 
 	// TODO: only do the common stuff here and have a subclass handle their specific stuff
@@ -406,9 +424,10 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 	constructor(
 		hoverDelegate: IHoverDelegate | undefined,
 		toggleStyles: IToggleStyles,
+		@IContextMenuService contextMenuService: IContextMenuService,
 		@IThemeService private readonly themeService: IThemeService,
 	) {
-		super(hoverDelegate, toggleStyles);
+		super(hoverDelegate, toggleStyles, contextMenuService);
 	}
 
 	get templateId() {
@@ -534,13 +553,15 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		// Actions
 		const buttons = mainItem.buttons;
 		if (buttons && buttons.length) {
-			data.actionBar.push(buttons.map((button, index) => quickInputButtonToAction(
-				button,
-				`id-${index}`,
-				() => element.fireButtonTriggered({ button, item: element.item })
-			)), { icon: true, label: false });
+			const { primary, secondary } = quickInputButtonsToActionArrays(
+				buttons,
+				'quick-input-item',
+				(button) => element.fireButtonTriggered({ button, item: element.item })
+			);
+			data.toolBar.setActions(primary, secondary);
 			data.entry.classList.add('has-actions');
 		} else {
+			data.toolBar.setActions([]);
 			data.entry.classList.remove('has-actions');
 		}
 	}
@@ -574,6 +595,14 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 	// This is a frequency map because sticky scroll re-uses the same renderer to render a second
 	// instance of the same separator.
 	private readonly _visibleSeparatorsFrequency = new Map<QuickPickSeparatorElement, number>();
+
+	constructor(
+		hoverDelegate: IHoverDelegate | undefined,
+		toggleStyles: IToggleStyles,
+		@IContextMenuService contextMenuService: IContextMenuService
+	) {
+		super(hoverDelegate, toggleStyles, contextMenuService);
+	}
 
 	get templateId() {
 		return QuickPickSeparatorElementRenderer.ID;
@@ -631,13 +660,15 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 		// Actions
 		const buttons = mainItem.buttons;
 		if (buttons && buttons.length) {
-			data.actionBar.push(buttons.map((button, index) => quickInputButtonToAction(
-				button,
-				`id-${index}`,
-				() => element.fireSeparatorButtonTriggered({ button, separator: element.separator })
-			)), { icon: true, label: false });
+			const { primary, secondary } = quickInputButtonsToActionArrays(
+				buttons,
+				'quick-input-separator',
+				(button) => element.fireSeparatorButtonTriggered({ button, separator: element.separator })
+			);
+			data.toolBar.setActions(primary, secondary);
 			data.entry.classList.add('has-actions');
 		} else {
+			data.toolBar.setActions([]);
 			data.entry.classList.remove('has-actions');
 		}
 
@@ -670,13 +701,13 @@ export class QuickInputList extends Disposable {
 
 	//#region QuickInputList Events
 
-	private readonly _onKeyDown = new Emitter<StandardKeyboardEvent>();
+	private readonly _onKeyDown = this._register(new Emitter<StandardKeyboardEvent>());
 	/**
 	 * Event that is fired when the tree receives a keydown.
 	*/
 	readonly onKeyDown: Event<StandardKeyboardEvent> = this._onKeyDown.event;
 
-	private readonly _onLeave = new Emitter<void>();
+	private readonly _onLeave = this._register(new Emitter<void>());
 	/**
 	 * Event that is fired when the tree would no longer have focus.
 	*/
@@ -694,13 +725,13 @@ export class QuickInputList extends Disposable {
 	private readonly _checkedElementsObservable = observableValueOpts({ equalsFn: equals }, new Array<IQuickPickItem>());
 	readonly onChangedCheckedElements: Event<IQuickPickItem[]> = Event.fromObservable(this._checkedElementsObservable, this._store);
 
-	private readonly _onButtonTriggered = new Emitter<IQuickPickItemButtonEvent<IQuickPickItem>>();
+	private readonly _onButtonTriggered = this._register(new Emitter<IQuickPickItemButtonEvent<IQuickPickItem>>());
 	onButtonTriggered = this._onButtonTriggered.event;
 
-	private readonly _onSeparatorButtonTriggered = new Emitter<IQuickPickSeparatorButtonEvent>();
+	private readonly _onSeparatorButtonTriggered = this._register(new Emitter<IQuickPickSeparatorButtonEvent>());
 	onSeparatorButtonTriggered = this._onSeparatorButtonTriggered.event;
 
-	private readonly _elementChecked = new Emitter<{ element: IQuickPickElement; checked: boolean }>();
+	private readonly _elementChecked = this._register(new Emitter<{ element: IQuickPickElement; checked: boolean }>());
 	private readonly _elementCheckedEventBufferer = new EventBufferer();
 
 	//#endregion
@@ -730,8 +761,8 @@ export class QuickInputList extends Disposable {
 	) {
 		super();
 		this._container = dom.append(this.parent, $('.quick-input-list'));
-		this._separatorRenderer = new QuickPickSeparatorElementRenderer(hoverDelegate, this.styles.toggle);
-		this._itemRenderer = instantiationService.createInstance(QuickPickItemElementRenderer, hoverDelegate, this.styles.toggle);
+		this._separatorRenderer = this._register(instantiationService.createInstance(QuickPickSeparatorElementRenderer, hoverDelegate, this.styles.toggle));
+		this._itemRenderer = this._register(instantiationService.createInstance(QuickPickItemElementRenderer, hoverDelegate, this.styles.toggle));
 		this._tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<IQuickPickElement, void>,
 			'QuickInput',
@@ -770,6 +801,8 @@ export class QuickInputList extends Disposable {
 			}
 		));
 		this._tree.getHTMLElement().id = id;
+		this._register(this._itemRenderer.onDidDisposeFocusedElement(() => this._tree.domFocus()));
+		this._register(this._separatorRenderer.onDidDisposeFocusedElement(() => this._tree.domFocus()));
 		this._registerListeners();
 	}
 
@@ -885,7 +918,6 @@ export class QuickInputList extends Disposable {
 	//#region register listeners
 
 	private _registerListeners() {
-		this._registerOnKeyDown();
 		this._registerOnContainerClick();
 		this._registerOnMouseMiddleClick();
 		this._registerOnTreeModelChanged();
@@ -894,20 +926,6 @@ export class QuickInputList extends Disposable {
 		this._registerHoverListeners();
 		this._registerSelectionChangeListener();
 		this._registerSeparatorActionShowingListeners();
-	}
-
-	private _registerOnKeyDown() {
-		// TODO: Should this be added at a higher level?
-		this._register(this._tree.onKeyDown(e => {
-			const event = new StandardKeyboardEvent(e);
-			switch (event.keyCode) {
-				case KeyCode.Space:
-					this.toggleCheckbox();
-					break;
-			}
-
-			this._onKeyDown.fire(event);
-		}));
 	}
 
 	private _registerOnContainerClick() {

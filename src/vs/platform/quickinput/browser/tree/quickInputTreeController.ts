@@ -62,7 +62,7 @@ export class QuickInputTreeController extends Disposable {
 	private readonly _onDidCheckedLeafItemsChange = this._register(new Emitter<ReadonlyArray<IQuickTreeItem>>());
 	readonly onDidChangeCheckedLeafItems = this._onDidCheckedLeafItemsChange.event;
 
-	private readonly _onLeave = new Emitter<void>();
+	private readonly _onLeave = this._register(new Emitter<void>());
 	/**
 	 * Event that is fired when the tree would no longer have focus.
 	*/
@@ -117,6 +117,9 @@ export class QuickInputTreeController extends Disposable {
 				identityProvider: new QuickInputTreeIdentityProvider()
 			}
 		));
+		this._register(this._renderer.onDidDisposeFocusedElement(() => {
+			this._tree.domFocus();
+		}));
 		this.registerCheckboxStateListeners();
 		this.registerOnDidChangeFocus();
 	}
@@ -297,18 +300,22 @@ export class QuickInputTreeController extends Disposable {
 		}));
 
 		this._register(this._checkboxStateHandler.onDidChangeCheckboxState(e => {
-			this.updateCheckboxState(e.item, e.checked === true);
+			this.updateCheckboxState(e.item, e.checked === true, true);
+			this._tree.setFocus([e.item]);
+			this._tree.setSelection([e.item]);
 		}));
 	}
 
-	private updateCheckboxState(item: IQuickTreeItem, newState: boolean): void {
+	private updateCheckboxState(item: IQuickTreeItem, newState: boolean, skipItemRerender = false): void {
 		if ((item.checked ?? false) === newState) {
 			return; // No change
 		}
 
 		// Handle checked item
 		item.checked = newState;
-		this._tree.rerender(item);
+		if (!skipItemRerender) {
+			this._tree.rerender(item);
+		}
 
 		// Handle children of the checked item
 		const updateSet = new Set<IQuickTreeItem>();
@@ -377,12 +384,12 @@ export class QuickInputTreeController extends Disposable {
 		return this._tree.getFocus().filter((item): item is IQuickTreeItem => item !== null);
 	}
 
-	check(element: IQuickTreeItem, checked: boolean | 'mixed') {
-		if (element.checked === checked) {
-			return;
+	toggleCheckbox() {
+		for (const element of this.getActiveItems()) {
+			if (element.pickable !== false && !element.disabled) {
+				this.updateCheckboxState(element, !(element.checked === true));
+			}
 		}
-		element.checked = checked;
-		this._onDidCheckedLeafItemsChange.fire(this.getCheckedLeafItems());
 	}
 
 	checkAll(checked: boolean | 'mixed') {

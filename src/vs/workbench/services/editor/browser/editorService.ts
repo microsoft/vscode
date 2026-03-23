@@ -579,6 +579,16 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 		}
 
+		// Modal group: override `preserveFocus` to move focus into the modal because there is nothing to preserve if this is the first modal editor
+		if (
+			options?.preserveFocus &&
+			this.editorGroupService.activeModalEditorPart?.groups.some(modalGroup => modalGroup.id === group.id) &&
+			this.editorGroupService.activeModalEditorPart.count === 1 &&
+			this.editorGroupService.activeModalEditorPart.groups[0].isEmpty
+		) {
+			options = { ...options, preserveFocus: false };
+		}
+
 		return group.openEditor(typedEditor, options);
 	}
 
@@ -635,6 +645,16 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				} else {
 					([group] = findGroupResult);
 				}
+			}
+
+			// Modal group: override `preserveFocus` to move focus into the modal there is nothing to preserve if this is the first modal editor
+			if (
+				typedEditor.options?.preserveFocus &&
+				this.editorGroupService.activeModalEditorPart?.groups.some(modalGroup => modalGroup.id === group.id) &&
+				this.editorGroupService.activeModalEditorPart.count === 1 &&
+				this.editorGroupService.activeModalEditorPart.groups[0].isEmpty
+			) {
+				typedEditor = { ...typedEditor, options: { ...typedEditor.options, preserveFocus: false } };
 			}
 
 			// Update map of groups to editors
