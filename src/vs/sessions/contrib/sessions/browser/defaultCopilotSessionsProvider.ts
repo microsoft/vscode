@@ -354,6 +354,18 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 		this._onDidChange.fire('repoUri');
 		this._onDidChange.fire('disabled');
 		this.setOption(REPOSITORY_OPTION_ID, project.uri.fsPath);
+
+		// Update ISessionData workspace observable
+		this._workspaceData.set({
+			label: project.uri.fsPath.split('/').pop() || project.uri.fsPath,
+			icon: Codicon.folder,
+			repositories: [{
+				uri: project.uri,
+				workingDirectory: undefined,
+				detail: undefined,
+				baseBranchProtected: undefined,
+			}],
+		}, undefined);
 	}
 
 	setIsolationMode(mode: IsolationMode): void {
