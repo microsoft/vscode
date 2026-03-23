@@ -34,7 +34,7 @@ import { LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenc
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { workspaceIcon, userIcon, mcpServerIcon, builtinIcon, pluginIcon, extensionIcon } from './aiCustomizationIcons.js';
-import { formatDisplayName, truncateToFirstSentence } from './aiCustomizationListWidget.js';
+import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
@@ -174,7 +174,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 			templateData.container.classList.add('builtin');
 			templateData.name.textContent = formatDisplayName(element.label);
 			if (element.description) {
-				templateData.description.textContent = truncateToFirstSentence(element.description);
+				templateData.description.textContent = truncateToFirstLine(element.description);
 				templateData.description.style.display = '';
 			} else {
 				templateData.description.style.display = 'none';
@@ -201,7 +201,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 		templateData.container.classList.remove('builtin');
 		templateData.name.textContent = formatDisplayName(element.server.label);
 		if (element.server.description) {
-			templateData.description.textContent = truncateToFirstSentence(element.server.description);
+			templateData.description.textContent = truncateToFirstLine(element.server.description);
 			templateData.description.style.display = '';
 		} else {
 			templateData.description.style.display = 'none';
