@@ -64,6 +64,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._register(this._stateManager.onDidEmitNotification(e => this._onDidNotification.fire(e)));
 		this._sideEffects = this._register(new AgentSideEffects(this._stateManager, {
 			getAgent: session => this._findProviderForSession(session),
+			sessionDataService: this._sessionDataService,
 			agents: this._agents,
 		}, this._logService, this._fileService));
 	}
@@ -205,8 +206,8 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._sideEffects.handleBrowseDirectory(uri.toString());
 	}
 
-	async fetchContent(uri: string): Promise<IFetchContentResult> {
-		return this._sideEffects.handleFetchContent(uri);
+	async fetchContent(uri: URI): Promise<IFetchContentResult> {
+		return this._sideEffects.handleFetchContent(uri.toString());
 	}
 
 	async shutdown(): Promise<void> {

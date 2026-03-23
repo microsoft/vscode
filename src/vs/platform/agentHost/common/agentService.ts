@@ -444,7 +444,7 @@ export interface IAgentService {
 	 * Fetch stored content by URI from the agent host (e.g. file edit snapshots,
 	 * or reading files from the remote filesystem).
 	 */
-	fetchContent(uri: string): Promise<IFetchContentResult>;
+	fetchContent(uri: URI): Promise<IFetchContentResult>;
 }
 
 /**

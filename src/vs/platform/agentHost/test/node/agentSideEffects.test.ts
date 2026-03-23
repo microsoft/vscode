@@ -111,6 +111,7 @@ suite('AgentSideEffects', () => {
 			const noAgentSideEffects = disposables.add(new AgentSideEffects(stateManager, {
 				getAgent: () => undefined,
 				agents: emptyAgents,
+				sessionDataService: {} as ISessionDataService,
 			}, new NullLogService(), fileService));
 
 			const envelopes: IActionEnvelope[] = [];
@@ -256,6 +257,7 @@ suite('AgentSideEffects', () => {
 			const noAgentSideEffects = disposables.add(new AgentSideEffects(stateManager, {
 				getAgent: () => undefined,
 				agents: emptyAgents,
+				sessionDataService: {} as ISessionDataService,
 			}, new NullLogService(), fileService));
 
 			await assert.rejects(

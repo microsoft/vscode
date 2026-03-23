@@ -436,7 +436,7 @@ export interface IProtocolSideEffectHandler {
 	handleGetResourceMetadata(): IResourceMetadata;
 	handleAuthenticate(params: IAuthenticateParams): Promise<IAuthenticateResult>;
 	handleBrowseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
-	handleFetchContent(uri: string): Promise<IFetchContentResult>;
+	handleFetchContent(uri: URI): Promise<IFetchContentResult>;
 	/** Returns the server's default browsing directory, if available. */
 	getDefaultDirectory?(): URI;
 	/** Refresh models from all providers (VS Code extension method). */

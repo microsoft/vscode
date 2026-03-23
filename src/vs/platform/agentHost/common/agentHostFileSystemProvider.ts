@@ -110,7 +110,7 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 		const connection = this._getConnection(resource.authority);
 		try {
 			const originalUri = fromAgentHostUri(resource);
-			const result = await connection.fetchContent(originalUri.toString());
+			const result = await connection.fetchContent(originalUri);
 			return VSBuffer.fromString(result.data).buffer;
 		} catch (err) {
 			throw createFileSystemProviderError(

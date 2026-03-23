@@ -119,7 +119,7 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	browseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
 		return this._proxy.browseDirectory(uri);
 	}
-	fetchContent(uri: string): Promise<IFetchContentResult> {
+	fetchContent(uri: URI): Promise<IFetchContentResult> {
 		return this._proxy.fetchContent(uri);
 	}
 	async restartAgentHost(): Promise<void> {

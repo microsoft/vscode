@@ -5,13 +5,13 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { agentHostUri } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IParsedRemoteAgentHostInput, IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostInputValidationError } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { agentHostAuthority } from './remoteAgentHost.contribution.js';
-import { AGENT_HOST_FS_SCHEME, agentHostUri } from './agentHostFileSystemProvider.js';
 
 interface IRemoteAgentHostPickItem extends IQuickPickItem {
 	readonly remoteType: 'existing' | 'add';
@@ -190,7 +190,7 @@ async function pickFolderOnRemote(
 			canSelectFolders: true,
 			canSelectMany: false,
 			title: localize('selectRemoteFolder', "Select Folder on {0}", selectedName),
-			availableFileSystems: [AGENT_HOST_FS_SCHEME],
+			availableFileSystems: [AGENT_HOST_SCHEME],
 			defaultUri,
 		});
 		return selected?.[0];

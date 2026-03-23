@@ -163,7 +163,7 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 			return agentService.browseDirectory(URI.parse(uri));
 		},
 		handleFetchContent(uri) {
-			return agentService.fetchContent(uri);
+			return agentService.fetchContent(URI.parse(uri));
 		},
 		getDefaultDirectory() {
 			return URI.file(os.homedir()).toString();

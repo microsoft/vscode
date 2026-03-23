@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ToolCallStatus, ToolCallConfirmationReason, PermissionKind, ToolResultContentType, TurnState, type ICompletedToolCall, type IPermissionRequest, type IToolCallRunningState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ToolCallStatus, ToolCallConfirmationReason, PermissionKind, ToolResultContentType, TurnState, type ICompletedToolCall, type IPermissionRequest, type IToolCallRunningState, type ITurn, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocationSerialized, type IChatMarkdownContent } from '../../../common/chatService/chatService.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory, toolCallStateToInvocation, permissionToConfirmation, finalizeToolInvocation } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -345,7 +345,7 @@ suite('stateToProgressAdapter', () => {
 				toolName: 'edit_file',
 				displayName: 'Edit File',
 				invocationMessage: 'Editing file...',
-				confirmed: ToolCallConfirmationReason.NotNeeded,
+				reason: ToolCallCancellationReason.Denied,
 				reasonMessage: 'User cancelled',
 			});
 

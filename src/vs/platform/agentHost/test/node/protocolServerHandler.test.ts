@@ -9,10 +9,11 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { IFetchContentResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type ISessionAction } from '../../common/state/sessionActions.js';
-import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type ICreateSessionParams, type IInitializeResult, type IProtocolMessage, type IAhpNotification, type IReconnectResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
+import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IAhpNotification, type ICreateSessionParams, type IInitializeResult, type IProtocolMessage, type IReconnectResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler, type IProtocolSideEffectHandler } from '../../node/protocolServerHandler.js';
 import { SessionStateManager } from '../../node/sessionStateManager.js';
@@ -92,7 +93,7 @@ class MockSideEffectHandler implements IProtocolSideEffectHandler {
 	getDefaultDirectory(): string {
 		return URI.file('/home/testuser').toString();
 	}
-	async handleFetchContent(_uri: string): Promise<{ data: string; encoding: 'utf-8'; contentType?: string }> {
+	async handleFetchContent(_uri: string): Promise<IFetchContentResult> {
 		throw new Error('Not implemented');
 	}
 }

@@ -23,8 +23,8 @@ import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quic
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { WorkspacePicker } from '../../browser/workspacePicker.js';
 import { SessionWorkspace, GITHUB_REMOTE_FILE_SCHEME } from '../../../sessions/common/sessionWorkspace.js';
-import { AGENT_HOST_FS_SCHEME, agentHostUri } from '../../../remoteAgentHost/browser/agentHostFileSystemProvider.js';
-import { agentHostAuthority } from '../../../remoteAgentHost/browser/remoteAgentHost.contribution.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostUri } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 
 suite('WorkspacePicker', () => {
 
@@ -127,7 +127,7 @@ suite('WorkspacePicker', () => {
 
 		assert.ok(picker.selectedProject);
 		assert.strictEqual(picker.selectedProject.isRemoteAgentHost, true);
-		assert.strictEqual(picker.selectedProject.uri.scheme, AGENT_HOST_FS_SCHEME);
+		assert.strictEqual(picker.selectedProject.uri.scheme, AGENT_HOST_SCHEME);
 		assert.strictEqual(picker.selectedProject.uri.path, '/home/user/project');
 	});
 

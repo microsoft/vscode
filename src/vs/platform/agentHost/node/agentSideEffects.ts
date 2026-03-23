@@ -275,7 +275,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		return URI.file(os.homedir()).toString();
 	}
 
-	async handleFetchContent(uri: string): Promise<IFetchContentResult> {
+	async handleFetchContent(uri: ProtocolURI): Promise<IFetchContentResult> {
 		try {
 			const content = await this._fileService.readFile(URI.parse(uri));
 			return {
