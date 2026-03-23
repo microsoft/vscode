@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, autorun, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { localize2 } from '../../../../nls.js';
@@ -36,8 +36,8 @@ import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/brow
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { Menus } from '../../../browser/menus.js';
-import { IsActiveSessionBackgroundProviderContext, IsNewChatSessionContext, ISessionsManagementService } from './sessionsManagementService.js';
-import { IContextKeyService, RawContextKey, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IsActiveSessionBackgroundProviderContext, IsNewChatSessionContext, SessionWorkspaceHasRepositoryContext } from './sessionsManagementService.js';
+import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IsolationPicker } from '../../chat/browser/sessionTargetPicker.js';
 import { BranchPicker } from '../../chat/browser/branchPicker.js';
@@ -66,7 +66,6 @@ const CopilotCloudSessionType: ISessionType = {
 
 // ── Context Keys ──
 
-export const SessionWorkspaceHasRepositoryContext = new RawContextKey<boolean>('sessionWorkspaceHasRepository', false);
 
 // ── Static Menu Registrations ──
 
@@ -478,7 +477,6 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 		@IGitService private readonly gitService: IGitService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 
@@ -500,18 +498,6 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 		// Forward session changes from the underlying model
 		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
 			this._refreshSessionCache();
-		}));
-
-		// Track whether the active session's workspace has a repository
-		const hasRepoKey = SessionWorkspaceHasRepositoryContext.bindTo(this.contextKeyService);
-		this._register(autorun(reader => {
-			const session = this.sessionsManagementService.activeSessionData.read(reader);
-			if (session) {
-				const workspace = session.workspace.read(reader);
-				hasRepoKey.set(!!(workspace?.repositories.length));
-			} else {
-				hasRepoKey.set(false);
-			}
 		}));
 
 		// Register action view item factories for picker widgets

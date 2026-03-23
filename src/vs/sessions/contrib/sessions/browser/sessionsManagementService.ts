@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, autorun, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -39,6 +39,11 @@ export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSess
  * Used to gate actions that require a local worktree (run script, open in VS Code, terminal).
  */
 export const IsActiveSessionBackgroundProviderContext = new RawContextKey<boolean>('isActiveSessionBackgroundProvider', false, localize('isActiveSessionBackgroundProvider', "Whether the active session uses the background agent provider"));
+
+/**
+ * True when the active session's workspace has at least one repository.
+ */
+export const SessionWorkspaceHasRepositoryContext = new RawContextKey<boolean>('sessionWorkspaceHasRepository', false);
 
 //#region Active Session Service
 
@@ -150,6 +155,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private lastSelectedSession: URI | undefined;
 	private readonly isNewChatSessionContext: IContextKey<boolean>;
 	private readonly _isBackgroundProvider: IContextKey<boolean>;
+	private readonly _hasRepository: IContextKey<boolean>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -172,6 +178,18 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// isNewSession is false when there are any established sessions in the model.
 		this.isNewChatSessionContext = IsNewChatSessionContext.bindTo(contextKeyService);
 		this._isBackgroundProvider = IsActiveSessionBackgroundProviderContext.bindTo(contextKeyService);
+		this._hasRepository = SessionWorkspaceHasRepositoryContext.bindTo(contextKeyService);
+
+		// Track workspace repository state via activeSessionData
+		this._register(autorun(reader => {
+			const session = this._activeSessionData.read(reader);
+			if (session) {
+				const workspace = session.workspace.read(reader);
+				this._hasRepository.set(!!(workspace?.repositories.length));
+			} else {
+				this._hasRepository.set(false);
+			}
+		}));
 
 		// Load last selected session
 		this.lastSelectedSession = this.loadLastSelectedSession();
