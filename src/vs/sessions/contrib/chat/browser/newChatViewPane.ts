@@ -251,9 +251,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 		}));
 		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));
-		const branchContainer = dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-right'));
-		this._isolationPicker.render(branchContainer);
-		this._branchPicker.render(branchContainer);
+		// Repository config pickers (isolation, branch) — rendered via MenuWorkbenchToolBar
+		const repoConfigContainer = dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-right'));
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, repoConfigContainer, Menus.NewSessionRepositoryConfig, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+		}));
 
 		// Render project picker & extension pickers
 		this._renderOptionGroupPickers();
