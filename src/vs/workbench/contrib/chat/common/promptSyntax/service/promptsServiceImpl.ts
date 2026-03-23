@@ -36,7 +36,7 @@ import {
 	PromptFilesLocator
 } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, IPromptDiscoveryLogEntry } from './promptsService.js';
+import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, IPromptDiscoveryChangeEvent } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ChatRequestHooks, IHookCommand, parseSubagentHooksFromYaml } from '../hookSchema.js';
@@ -46,7 +46,6 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { getTarget, mapClaudeModels, mapClaudeTools } from '../languageProviders/promptFileAttributes.js';
-import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { getCanonicalPluginCommandId, IAgentPlugin, IAgentPluginService } from '../../plugins/agentPluginService.js';
 import { isContributionEnabled } from '../../enablement.js';
@@ -127,11 +126,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly cachedParsedPromptFromModels = new ResourceMap<[number, ParsedPromptFile]>();
 
 	/**
-	 * Emitter for discovery log events. Listeners (e.g. a debug bridge
-	 * contribution) can forward these to IChatDebugService.
+	 * Emitter for discovery change events. Fired when cached discovery
+	 * data is invalidated and recomputed (not scoped to a session).
 	 */
-	private readonly _onDidLogDiscovery = this._register(new Emitter<IPromptDiscoveryLogEntry>());
-	public readonly onDidLogDiscovery: Event<IPromptDiscoveryLogEntry> = this._onDidLogDiscovery.event;
+	private readonly _onDidDiscoveryChange = this._register(new Emitter<IPromptDiscoveryChangeEvent>());
+	public readonly onDidDiscoveryChange: Event<IPromptDiscoveryChangeEvent> = this._onDidDiscoveryChange.event;
 
 	/**
 	 * Cached file locations commands. Caching only happens if the corresponding `fileLocatorEvents` event is used.
@@ -247,6 +246,29 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// Hack: Subscribe to activate caching (CachedPromise only caches when onDidChange has listeners)
 		this._register(this.cachedSkills.onDidChange(() => { }));
 		this._register(this.cachedHooks.onDidChange(() => { }));
+
+		// Fire onDidDiscoveryChange when any discovery cache is invalidated.
+		// Each listener asynchronously recomputes discovery info and emits.
+		this._register(this.cachedSlashCommands.onDidChange(() => {
+			void this.getPromptSlashCommandDiscoveryInfo(CancellationToken.None).catch(() => undefined)
+				.then(discoveryInfo => { if (discoveryInfo) { this._onDidDiscoveryChange.fire({ type: PromptsType.prompt, discoveryInfo }); } });
+		}));
+		this._register(this.cachedCustomAgents.onDidChange(() => {
+			void this.getAgentDiscoveryInfo(CancellationToken.None).catch(() => undefined)
+				.then(discoveryInfo => { if (discoveryInfo) { this._onDidDiscoveryChange.fire({ type: PromptsType.agent, discoveryInfo }); } });
+		}));
+		this._register(this.cachedSkills.onDidChange(() => {
+			void this.getSkillDiscoveryInfo(CancellationToken.None).catch(() => undefined)
+				.then(discoveryInfo => { if (discoveryInfo) { this._onDidDiscoveryChange.fire({ type: PromptsType.skill, discoveryInfo }); } });
+		}));
+		this._register(this.cachedHooks.onDidChange(() => {
+			void this.getHookDiscoveryInfo(CancellationToken.None).catch(() => undefined)
+				.then(discoveryInfo => { if (discoveryInfo) { this._onDidDiscoveryChange.fire({ type: PromptsType.hook, discoveryInfo }); } });
+		}));
+		this._register(this.onDidChangeInstructions(() => {
+			void this.getInstructionsDiscoveryInfo(CancellationToken.None).catch(() => undefined)
+				.then(discoveryInfo => { if (discoveryInfo) { this._onDidDiscoveryChange.fire({ type: PromptsType.instructions, discoveryInfo }); } });
+		}));
 
 		this._register(this.watchPluginPromptFilesForType(
 			PromptsType.prompt,
@@ -590,25 +612,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cachedSlashCommands.onDidChange;
 	}
 
-	public async getPromptSlashCommands(token: CancellationToken, sessionResource?: URI): Promise<readonly IChatPromptSlashCommand[]> {
-		const sw = StopWatch.create();
-		const result = await this.cachedSlashCommands.get(token);
-		if (sessionResource) {
-			const elapsed = sw.elapsed();
-			void this.getPromptSlashCommandDiscoveryInfo(token).catch(() => undefined).then(discoveryInfo => {
-				const details = result.length === 1
-					? localize("promptsService.resolvedSlashCommand", "Resolved {0} slash command in {1}ms", result.length, elapsed.toFixed(1))
-					: localize("promptsService.resolvedSlashCommands", "Resolved {0} slash commands in {1}ms", result.length, elapsed.toFixed(1));
-				this._onDidLogDiscovery.fire({
-					sessionResource,
-					name: localize("promptsService.loadSlashCommands", "Load Slash Commands"),
-					details,
-					discoveryInfo,
-					category: 'discovery',
-				});
-			});
-		}
-		return result;
+	public async getPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
+		return this.cachedSlashCommands.get(token);
 	}
 
 	private async computePromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
@@ -696,25 +701,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		);
 	}
 
-	public async getCustomAgents(token: CancellationToken, sessionResource?: URI): Promise<readonly ICustomAgent[]> {
-		const sw = StopWatch.create();
-		const result = await this.cachedCustomAgents.get(token);
-		if (sessionResource) {
-			const elapsed = sw.elapsed();
-			void this.getAgentDiscoveryInfo(token).catch(() => undefined).then(discoveryInfo => {
-				const details = result.length === 1
-					? localize("promptsService.resolvedAgent", "Resolved {0} agent in {1}ms", result.length, elapsed.toFixed(1))
-					: localize("promptsService.resolvedAgents", "Resolved {0} agents in {1}ms", result.length, elapsed.toFixed(1));
-				this._onDidLogDiscovery.fire({
-					sessionResource,
-					name: localize("promptsService.loadAgents", "Load Agents"),
-					details,
-					discoveryInfo,
-					category: 'discovery',
-				});
-			});
-		}
-		return result;
+	public async getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]> {
+		return this.cachedCustomAgents.get(token);
 	}
 
 	private async computeCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]> {
@@ -1102,30 +1090,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cachedSkills.onDidChange;
 	}
 
-	public async findAgentSkills(token: CancellationToken, sessionResource?: URI): Promise<IAgentSkill[] | undefined> {
+	public async findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> {
 		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
 		if (!useAgentSkills) {
 			return undefined;
 		}
 
-		const sw = StopWatch.create();
-		const result = await this.cachedSkills.get(token);
-		if (sessionResource) {
-			const elapsed = sw.elapsed();
-			void this.getSkillDiscoveryInfo(token).catch(() => undefined).then(discoveryInfo => {
-				const details = result.length === 1
-					? localize("promptsService.resolvedSkill", "Resolved {0} skill in {1}ms", result.length, elapsed.toFixed(1))
-					: localize("promptsService.resolvedSkills", "Resolved {0} skills in {1}ms", result.length, elapsed.toFixed(1));
-				this._onDidLogDiscovery.fire({
-					sessionResource,
-					name: localize("promptsService.loadSkills", "Load Skills"),
-					details,
-					discoveryInfo,
-					category: 'discovery',
-				});
-			});
-		}
-		return result;
+		return this.cachedSkills.get(token);
 	}
 
 	private async computeAgentSkills(token: CancellationToken): Promise<IAgentSkill[]> {
@@ -1233,47 +1204,22 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return result;
 	}
 
-	public async getHooks(token: CancellationToken, sessionResource?: URI): Promise<IConfiguredHooksInfo | undefined> {
-		const sw = StopWatch.create();
-		const result = await this.cachedHooks.get(token);
-		if (sessionResource) {
-			const elapsed = sw.elapsed();
-			void this.getHookDiscoveryInfo(token).catch(() => undefined).then(discoveryInfo => {
-				const hookCount = result ? Object.values(result.hooks).reduce((sum, arr) => sum + arr.length, 0) : 0;
-				const details = hookCount === 1
-					? localize("promptsService.resolvedHook", "Resolved {0} hook in {1}ms", hookCount, elapsed.toFixed(1))
-					: localize("promptsService.resolvedHooks", "Resolved {0} hooks in {1}ms", hookCount, elapsed.toFixed(1));
-				this._onDidLogDiscovery.fire({
-					sessionResource,
-					name: localize("promptsService.loadHooks", "Load Hooks"),
-					details,
-					discoveryInfo,
-					category: 'discovery',
-				});
-			});
-		}
-		return result;
+	public async getHooks(token: CancellationToken): Promise<IConfiguredHooksInfo | undefined> {
+		return this.cachedHooks.get(token);
 	}
 
-	public async getInstructionFiles(token: CancellationToken, sessionResource?: URI): Promise<readonly IPromptPath[]> {
-		const sw = StopWatch.create();
-		const result = await this.listPromptFiles(PromptsType.instructions, token);
-		if (sessionResource) {
-			const elapsed = sw.elapsed();
-			void this.getInstructionsDiscoveryInfo(token).catch(() => undefined).then(discoveryInfo => {
-				const details = result.length === 1
-					? localize("promptsService.resolvedInstruction", "Resolved {0} instruction in {1}ms", result.length, elapsed.toFixed(1))
-					: localize("promptsService.resolvedInstructions", "Resolved {0} instructions in {1}ms", result.length, elapsed.toFixed(1));
-				this._onDidLogDiscovery.fire({
-					sessionResource,
-					name: localize("promptsService.loadInstructions", "Load Instructions"),
-					details,
-					discoveryInfo,
-					category: 'discovery',
-				});
-			});
+	public async getInstructionFiles(token: CancellationToken): Promise<readonly IPromptPath[]> {
+		return this.listPromptFiles(PromptsType.instructions, token);
+	}
+
+	public async getDiscoveryInfo(type: PromptsType, token: CancellationToken): Promise<IPromptDiscoveryInfo> {
+		switch (type) {
+			case PromptsType.prompt: return this.getPromptSlashCommandDiscoveryInfo(token);
+			case PromptsType.agent: return this.getAgentDiscoveryInfo(token);
+			case PromptsType.skill: return this.getSkillDiscoveryInfo(token);
+			case PromptsType.hook: return this.getHookDiscoveryInfo(token);
+			case PromptsType.instructions: return this.getInstructionsDiscoveryInfo(token);
 		}
-		return result;
 	}
 
 	private async computeHooks(token: CancellationToken): Promise<IConfiguredHooksInfo | undefined> {

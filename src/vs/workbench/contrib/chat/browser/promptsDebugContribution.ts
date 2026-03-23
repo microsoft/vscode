@@ -3,18 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IChatDebugResolvedEventContent, IChatDebugService } from '../common/chatDebugService.js';
-import { IPromptDiscoveryInfo, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
+import { IChatDebugEvent, IChatDebugResolvedEventContent, IChatDebugService } from '../common/chatDebugService.js';
+import { IPromptDiscoveryChangeEvent, IPromptDiscoveryInfo, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
+import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 
 /**
- * Bridges {@link IPromptsService} discovery log events to {@link IChatDebugService}.
+ * Discovery type labels for debug log entries.
+ */
+const DISCOVERY_TYPE_LABELS: Record<PromptsType, string> = {
+	[PromptsType.prompt]: localize('promptsDebug.loadSlashCommands', 'Load Slash Commands'),
+	[PromptsType.agent]: localize('promptsDebug.loadAgents', 'Load Agents'),
+	[PromptsType.skill]: localize('promptsDebug.loadSkills', 'Load Skills'),
+	[PromptsType.hook]: localize('promptsDebug.loadHooks', 'Load Hooks'),
+	[PromptsType.instructions]: localize('promptsDebug.loadInstructions', 'Load Instructions'),
+};
+
+/**
+ * All discovery types that are emitted.
+ */
+const ALL_DISCOVERY_TYPES: readonly PromptsType[] = [
+	PromptsType.prompt,
+	PromptsType.agent,
+	PromptsType.skill,
+	PromptsType.hook,
+	PromptsType.instructions,
+];
+
+/**
+ * Bridges {@link IPromptsService} discovery events to {@link IChatDebugService}.
  *
- * This contribution listens for discovery events emitted by the prompts service
- * and forwards them as debug log entries. It also registers a resolve provider
- * so expanding a discovery event in the Agent Debug Logs shows the full file list.
+ * This contribution handles two concerns:
+ * 1. **Initial snapshot**: When a session first invokes providers, this contribution
+ *    returns discovery events for all prompt types so the session starts with full context.
+ * 2. **Change events**: When the prompts service emits {@link IPromptsService.onDidDiscoveryChange},
+ *    this contribution broadcasts the change to all currently active debug sessions.
+ *    Future sessions that start after the change will get the updated state via their initial snapshot,
+ *    so they do not see stale change events.
  */
 export class PromptsDebugContribution extends Disposable implements IWorkbenchContribution {
 
@@ -29,65 +59,111 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 	private readonly _discoveryEventDetails = new Map<string, IPromptDiscoveryInfo>();
 
 	constructor(
-		@IPromptsService promptsService: IPromptsService,
-		@IChatDebugService chatDebugService: IChatDebugService,
+		@IPromptsService private readonly _promptsService: IPromptsService,
+		@IChatDebugService private readonly _chatDebugService: IChatDebugService,
 	) {
 		super();
 
-		// Forward discovery log events to the debug service.
-		this._register(promptsService.onDidLogDiscovery(entry => {
-			let eventId: string | undefined;
-
-			if (entry.discoveryInfo) {
-				eventId = generateUuid();
-				this._discoveryEventDetails.set(eventId, entry.discoveryInfo);
-
-				// Evict oldest entries when the map exceeds the cap.
-				if (this._discoveryEventDetails.size > PromptsDebugContribution.MAX_DISCOVERY_DETAILS) {
-					const first = this._discoveryEventDetails.keys().next().value;
-					if (first !== undefined) {
-						this._discoveryEventDetails.delete(first);
-					}
-				}
-			}
-
-			// Enrich details with file paths so they appear in the event
-			// payload (e.g. forwarded via onDidReceiveChatDebugEvent to the
-			// extension's JSONL file logger).
-			let details = entry.details;
-			if (entry.discoveryInfo) {
-				const info = entry.discoveryInfo;
-				const loaded = info.files.filter(f => f.status === 'loaded').map(f => f.name ?? f.uri.path.split('/').pop() ?? f.uri.toString());
-				const skipped = info.files.filter(f => f.status === 'skipped').map(f => {
-					const label = f.uri.toString();
-					return f.skipReason ? `${label} (${f.skipReason})` : label;
-				});
-				const folders = info.sourceFolders?.map(sf => sf.uri.path) ?? [];
-				const parts: string[] = [];
-				if (details) { parts.push(details); }
-				if (loaded.length > 0) { parts.push(`loaded: [${truncateList(loaded)}]`); }
-				if (skipped.length > 0) { parts.push(`skipped: [${truncateList(skipped)}]`); }
-				if (folders.length > 0) { parts.push(`folders: [${truncateList(folders)}]`); }
-				details = parts.join(' | ') || undefined;
-			}
-
-			chatDebugService.log(
-				entry.sessionResource,
-				entry.name,
-				details,
-				undefined,
-				{ id: eventId, category: entry.category },
-			);
+		// Broadcast global discovery change events to all active debug sessions.
+		this._register(_promptsService.onDidDiscoveryChange(event => {
+			this._broadcastDiscoveryChange(event);
 		}));
 
-		// Register a resolve provider so expanding a discovery event
-		// in the Agent Debug Logs shows the full file list.
-		this._register(chatDebugService.registerProvider({
-			provideChatDebugLog: async () => undefined,
+		// Register a resolve provider:
+		// - provideChatDebugLog: returns the initial discovery snapshot for a new session
+		// - resolveChatDebugLogEvent: returns rich details when expanding a discovery event
+		this._register(_chatDebugService.registerProvider({
+			provideChatDebugLog: async (sessionResource, token) => {
+				return this._provideInitialSnapshot(sessionResource, token);
+			},
 			resolveChatDebugLogEvent: async (eventId) => {
 				return this._resolveDiscoveryEvent(eventId);
 			}
 		}));
+	}
+
+	/**
+	 * Called once per session when debug providers are invoked.
+	 * Returns discovery events for all prompt types as the initial snapshot.
+	 */
+	private async _provideInitialSnapshot(_sessionResource: URI, token: CancellationToken): Promise<IChatDebugEvent[]> {
+		const events: IChatDebugEvent[] = [];
+
+		for (const type of ALL_DISCOVERY_TYPES) {
+			try {
+				const discoveryInfo = await this._promptsService.getDiscoveryInfo(type, token);
+				if (token.isCancellationRequested) {
+					break;
+				}
+				const event = this._createDiscoveryEvent(_sessionResource, type, discoveryInfo);
+				events.push(event);
+			} catch {
+				// Skip types that fail to compute discovery info
+			}
+		}
+
+		return events;
+	}
+
+	/**
+	 * Broadcasts a discovery change to all currently tracked debug sessions.
+	 */
+	private _broadcastDiscoveryChange(change: IPromptDiscoveryChangeEvent): void {
+		const sessionResources = this._chatDebugService.getSessionResources();
+		for (const sessionResource of sessionResources) {
+			const event = this._createDiscoveryEvent(sessionResource, change.type, change.discoveryInfo, true);
+			this._chatDebugService.addEvent(event);
+		}
+	}
+
+	/**
+	 * Creates a generic debug event for a discovery snapshot or change.
+	 */
+	private _createDiscoveryEvent(sessionResource: URI, type: PromptsType, discoveryInfo: IPromptDiscoveryInfo, isChange?: boolean): IChatDebugEvent {
+		const eventId = generateUuid();
+		this._discoveryEventDetails.set(eventId, discoveryInfo);
+
+		// Evict oldest entries when the map exceeds the cap.
+		if (this._discoveryEventDetails.size > PromptsDebugContribution.MAX_DISCOVERY_DETAILS) {
+			const first = this._discoveryEventDetails.keys().next().value;
+			if (first !== undefined) {
+				this._discoveryEventDetails.delete(first);
+			}
+		}
+
+		const name = isChange
+			? localize('promptsDebug.discoveryChanged', '{0} (Changed)', DISCOVERY_TYPE_LABELS[type])
+			: DISCOVERY_TYPE_LABELS[type];
+
+		const details = this._buildDetailsString(discoveryInfo);
+
+		return {
+			kind: 'generic' as const,
+			id: eventId,
+			sessionResource,
+			created: new Date(),
+			name,
+			details,
+			level: 1 /* ChatDebugLogLevel.Info */,
+			category: 'discovery',
+		};
+	}
+
+	/**
+	 * Builds a human-readable details string from discovery info.
+	 */
+	private _buildDetailsString(info: IPromptDiscoveryInfo): string {
+		const loaded = info.files.filter(f => f.status === 'loaded').map(f => f.name ?? f.uri.path.split('/').pop() ?? f.uri.toString());
+		const skipped = info.files.filter(f => f.status === 'skipped').map(f => {
+			const label = f.uri.toString();
+			return f.skipReason ? `${label} (${f.skipReason})` : label;
+		});
+		const folders = info.sourceFolders?.map(sf => sf.uri.path) ?? [];
+		const parts: string[] = [];
+		if (loaded.length > 0) { parts.push(`loaded: [${truncateList(loaded)}]`); }
+		if (skipped.length > 0) { parts.push(`skipped: [${truncateList(skipped)}]`); }
+		if (folders.length > 0) { parts.push(`folders: [${truncateList(folders)}]`); }
+		return parts.join(' | ');
 	}
 
 	private _resolveDiscoveryEvent(eventId: string): IChatDebugResolvedEventContent | undefined {

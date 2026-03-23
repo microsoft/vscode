@@ -280,7 +280,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			// Collect hooks from hook .json files
 			let collectedHooks: ChatRequestHooks | undefined;
 			try {
-				const info = await this.promptsService.getHooks(token, invocation.context.sessionResource);
+				const info = await this.promptsService.getHooks(token);
 				collectedHooks = info?.hooks;
 			} catch (error) {
 				this.logService.warn('[ChatService] Failed to collect hooks:', error);

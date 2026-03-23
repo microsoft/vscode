@@ -19,16 +19,13 @@ import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
 import { ChatRequestHooks } from '../hookSchema.js';
 
 /**
- * Entry emitted by the prompts service when discovery logging occurs.
- * A debug bridge (e.g. contribution) can listen and forward these to IChatDebugService.
+ * Entry emitted by the prompts service when the discovery result for a
+ * particular {@link PromptsType} changes (cache invalidation + recomputation).
+ * Consumers such as a debug bridge listen and broadcast to active sessions.
  */
-export interface IPromptDiscoveryLogEntry {
-	readonly sessionResource: URI;
-	readonly name: string;
-	readonly details?: string;
-	readonly category?: string;
-	/** When present, the bridge should store this for later event resolution. */
-	readonly discoveryInfo?: IPromptDiscoveryInfo;
+export interface IPromptDiscoveryChangeEvent {
+	readonly type: PromptsType;
+	readonly discoveryInfo: IPromptDiscoveryInfo;
 }
 
 /**
@@ -417,9 +414,8 @@ export interface IPromptsService extends IDisposable {
 
 	/**
 	 * Returns a prompt command if the command name is valid.
-	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
-	getPromptSlashCommands(token: CancellationToken, sessionResource?: URI): Promise<readonly IChatPromptSlashCommand[]>;
+	getPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]>;
 
 	/**
 	 * Returns the prompt command name for the given URI.
@@ -437,10 +433,9 @@ export interface IPromptsService extends IDisposable {
 	readonly onDidChangeInstructions: Event<void>;
 
 	/**
-	 * Finds all available custom agents
-	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
+	 * Finds all available custom agents.
 	 */
-	getCustomAgents(token: CancellationToken, sessionResource?: URI): Promise<readonly ICustomAgent[]>;
+	getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]>;
 
 	/**
 	 * Parses the provided URI
@@ -498,9 +493,8 @@ export interface IPromptsService extends IDisposable {
 
 	/**
 	 * Gets list of agent skills files.
-	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
-	findAgentSkills(token: CancellationToken, sessionResource?: URI): Promise<IAgentSkill[] | undefined>;
+	findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined>;
 
 	/**
 	 * Event that is triggered when the list of skills changes.
@@ -510,19 +504,24 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * Gets all hooks collected from hooks.json files.
 	 * The result is cached and invalidated when hook files change.
-	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
-	getHooks(token: CancellationToken, sessionResource?: URI): Promise<IConfiguredHooksInfo | undefined>;
+	getHooks(token: CancellationToken): Promise<IConfiguredHooksInfo | undefined>;
 
 	/**
-	 * Gets all instruction files, logging discovery info to the debug log.
-	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
+	 * Gets all instruction files.
 	 */
-	getInstructionFiles(token: CancellationToken, sessionResource?: URI): Promise<readonly IPromptPath[]>;
+	getInstructionFiles(token: CancellationToken): Promise<readonly IPromptPath[]>;
 
 	/**
-	 * Fired when a discovery-related log entry is produced.
-	 * Listeners (such as a debug bridge) can forward these to IChatDebugService.
+	 * Returns discovery info for a given prompt type (e.g. which files
+	 * were loaded, skipped, and which source folders were searched).
 	 */
-	readonly onDidLogDiscovery: Event<IPromptDiscoveryLogEntry>;
+	getDiscoveryInfo(type: PromptsType, token: CancellationToken): Promise<IPromptDiscoveryInfo>;
+
+	/**
+	 * Fired when the discovery result for a prompt type changes
+	 * (i.e. the underlying cache was invalidated and recomputed).
+	 * Not scoped to any session — consumers broadcast to active sessions.
+	 */
+	readonly onDidDiscoveryChange: Event<IPromptDiscoveryChangeEvent>;
 }

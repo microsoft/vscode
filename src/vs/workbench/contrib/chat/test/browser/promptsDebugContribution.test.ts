@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -12,14 +13,15 @@ import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugS
 import { ChatDebugServiceImpl } from '../../common/chatDebugServiceImpl.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { PromptsDebugContribution } from '../../browser/promptsDebugContribution.js';
-import { IPromptDiscoveryLogEntry, IPromptDiscoveryInfo, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { IPromptDiscoveryChangeEvent, IPromptDiscoveryInfo, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 
 suite('PromptsDebugContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let chatDebugService: ChatDebugServiceImpl;
-	let promptsOnDidLogDiscovery: Emitter<IPromptDiscoveryLogEntry>;
+	let promptsOnDidDiscoveryChange: Emitter<IPromptDiscoveryChangeEvent>;
+	let discoveryInfoByType: Map<PromptsType, IPromptDiscoveryInfo>;
 	let instaService: TestInstantiationService;
 
 	setup(() => {
@@ -28,39 +30,19 @@ suite('PromptsDebugContribution', () => {
 		chatDebugService = disposables.add(new ChatDebugServiceImpl());
 		instaService.stub(IChatDebugService, chatDebugService);
 
-		promptsOnDidLogDiscovery = disposables.add(new Emitter<IPromptDiscoveryLogEntry>());
-		instaService.stub(IPromptsService, { onDidLogDiscovery: promptsOnDidLogDiscovery.event } as Partial<IPromptsService>);
+		promptsOnDidDiscoveryChange = disposables.add(new Emitter<IPromptDiscoveryChangeEvent>());
+		discoveryInfoByType = new Map();
+
+		instaService.stub(IPromptsService, {
+			onDidDiscoveryChange: promptsOnDidDiscoveryChange.event,
+			getDiscoveryInfo: async (type: PromptsType, _token: CancellationToken) => {
+				return discoveryInfoByType.get(type) ?? { type, files: [] };
+			},
+		} as Partial<IPromptsService>);
 	});
 
-	test('should forward discovery events to chat debug service', () => {
-		disposables.add(instaService.createInstance(PromptsDebugContribution));
-
-		const firedEvents: IChatDebugEvent[] = [];
-		disposables.add(chatDebugService.onDidAddEvent(e => firedEvents.push(e)));
-
-		promptsOnDidLogDiscovery.fire({
-			sessionResource: LocalChatSessionUri.forSession('session-1'),
-			name: 'Load Instructions',
-			details: 'Resolved 3 instructions in 12.5ms',
-			category: 'discovery',
-		});
-
-		assert.strictEqual(firedEvents.length, 1);
-		const event = firedEvents[0] as IChatDebugGenericEvent;
-		assert.strictEqual(event.kind, 'generic');
-		assert.ok(event.sessionResource);
-		assert.strictEqual(event.name, 'Load Instructions');
-		assert.strictEqual(event.details, 'Resolved 3 instructions in 12.5ms');
-		assert.strictEqual(event.category, 'discovery');
-	});
-
-	test('should store discoveryInfo and resolve via resolveEvent', async () => {
-		disposables.add(instaService.createInstance(PromptsDebugContribution));
-
-		const firedEvents: IChatDebugEvent[] = [];
-		disposables.add(chatDebugService.onDidAddEvent(e => firedEvents.push(e)));
-
-		const discoveryInfo: IPromptDiscoveryInfo = {
+	test('should provide initial snapshot via provideChatDebugLog', async () => {
+		const instructionsInfo: IPromptDiscoveryInfo = {
 			type: PromptsType.instructions,
 			files: [{
 				uri: URI.file('/workspace/.github/instructions/test.instructions.md'),
@@ -73,29 +55,81 @@ suite('PromptsDebugContribution', () => {
 				storage: PromptsStorage.local,
 			}],
 		};
+		discoveryInfoByType.set(PromptsType.instructions, instructionsInfo);
 
-		promptsOnDidLogDiscovery.fire({
-			sessionResource: LocalChatSessionUri.forSession('session-1'),
-			name: 'Discovery End',
-			details: '1 loaded, 0 skipped',
-			category: 'discovery',
-			discoveryInfo,
-		});
+		disposables.add(instaService.createInstance(PromptsDebugContribution));
 
-		assert.strictEqual(firedEvents.length, 1);
-		const eventId = firedEvents[0].id;
-		assert.ok(eventId, 'Event should have an ID for resolution');
+		const sessionResource = LocalChatSessionUri.forSession('session-1');
+		await chatDebugService.invokeProviders(sessionResource);
 
-		const resolved = await chatDebugService.resolveEvent(eventId);
+		const events = chatDebugService.getEvents(sessionResource);
+		// Should have events for all discovery types
+		const discoveryEvents = events.filter(e => e.kind === 'generic' && (e as IChatDebugGenericEvent).category === 'discovery');
+		assert.ok(discoveryEvents.length > 0, 'Should have discovery events');
+
+		// Find the instructions event
+		const instructionsEvent = discoveryEvents.find(e => (e as IChatDebugGenericEvent).name === 'Load Instructions');
+		assert.ok(instructionsEvent, 'Should have an instructions discovery event');
+		assert.ok(instructionsEvent.id, 'Event should have an ID for resolution');
+
+		const resolved = await chatDebugService.resolveEvent(instructionsEvent.id!);
 		assert.ok(resolved);
 		assert.strictEqual(resolved.kind, 'fileList');
 		if (resolved.kind === 'fileList') {
-			assert.strictEqual(resolved.discoveryType, 'instructions');
+			assert.strictEqual(resolved.discoveryType, PromptsType.instructions);
 			assert.strictEqual(resolved.files.length, 1);
 			assert.strictEqual(resolved.files[0].name, 'test.instructions.md');
 			assert.strictEqual(resolved.files[0].status, 'loaded');
 			assert.strictEqual(resolved.sourceFolders?.length, 1);
 		}
+	});
+
+	test('should broadcast change events to active sessions', () => {
+		disposables.add(instaService.createInstance(PromptsDebugContribution));
+
+		// Create two active sessions by logging events to them
+		const session1 = LocalChatSessionUri.forSession('session-1');
+		const session2 = LocalChatSessionUri.forSession('session-2');
+		chatDebugService.log(session1, 'init');
+		chatDebugService.log(session2, 'init');
+
+		const firedEvents: IChatDebugEvent[] = [];
+		disposables.add(chatDebugService.onDidAddEvent(e => firedEvents.push(e)));
+
+		const discoveryInfo: IPromptDiscoveryInfo = {
+			type: PromptsType.skill,
+			files: [{
+				uri: URI.file('/workspace/.github/skills/test/SKILL.md'),
+				name: 'test',
+				status: 'loaded' as const,
+				storage: PromptsStorage.local,
+			}],
+		};
+
+		promptsOnDidDiscoveryChange.fire({ type: PromptsType.skill, discoveryInfo });
+
+		// Should broadcast to both sessions
+		const changeEvents = firedEvents.filter(e =>
+			e.kind === 'generic' &&
+			(e as IChatDebugGenericEvent).category === 'discovery' &&
+			(e as IChatDebugGenericEvent).name.includes('Changed')
+		);
+		assert.strictEqual(changeEvents.length, 2, 'Should fire for both active sessions');
+	});
+
+	test('should not broadcast to sessions that do not exist yet', () => {
+		disposables.add(instaService.createInstance(PromptsDebugContribution));
+
+		const firedEvents: IChatDebugEvent[] = [];
+		disposables.add(chatDebugService.onDidAddEvent(e => firedEvents.push(e)));
+
+		// Fire a change event without any active sessions
+		promptsOnDidDiscoveryChange.fire({
+			type: PromptsType.agent,
+			discoveryInfo: { type: PromptsType.agent, files: [] },
+		});
+
+		assert.strictEqual(firedEvents.length, 0, 'No events should fire when no sessions exist');
 	});
 
 	test('should return undefined for unknown event ids', async () => {
@@ -105,24 +139,11 @@ suite('PromptsDebugContribution', () => {
 		assert.strictEqual(resolved, undefined);
 	});
 
-	test('should not assign event id when no discoveryInfo', () => {
+	test('should handle discoveryInfo with skipped files in change events', async () => {
 		disposables.add(instaService.createInstance(PromptsDebugContribution));
 
-		const firedEvents: IChatDebugEvent[] = [];
-		disposables.add(chatDebugService.onDidAddEvent(e => firedEvents.push(e)));
-
-		promptsOnDidLogDiscovery.fire({
-			sessionResource: LocalChatSessionUri.forSession('session-1'),
-			name: 'Discovery Start',
-			category: 'discovery',
-		});
-
-		assert.strictEqual(firedEvents.length, 1);
-		assert.strictEqual(firedEvents[0].id, undefined, 'Event without discoveryInfo should have no id');
-	});
-
-	test('should handle discoveryInfo with skipped files', async () => {
-		disposables.add(instaService.createInstance(PromptsDebugContribution));
+		const session = LocalChatSessionUri.forSession('session-1');
+		chatDebugService.log(session, 'init');
 
 		const firedEvents: IChatDebugEvent[] = [];
 		disposables.add(chatDebugService.onDidAddEvent(e => firedEvents.push(e)));
@@ -146,12 +167,9 @@ suite('PromptsDebugContribution', () => {
 			],
 		};
 
-		promptsOnDidLogDiscovery.fire({
-			sessionResource: LocalChatSessionUri.forSession('session-1'),
-			name: 'Discovery End',
-			discoveryInfo,
-		});
+		promptsOnDidDiscoveryChange.fire({ type: PromptsType.instructions, discoveryInfo });
 
+		assert.strictEqual(firedEvents.length, 1);
 		const eventId = firedEvents[0].id!;
 		const resolved = await chatDebugService.resolveEvent(eventId);
 		assert.ok(resolved);
@@ -163,18 +181,21 @@ suite('PromptsDebugContribution', () => {
 		}
 	});
 
-	test('should handle level as undefined (defaults to Info)', () => {
+	test('change events should have Info level', () => {
 		disposables.add(instaService.createInstance(PromptsDebugContribution));
+
+		const session = LocalChatSessionUri.forSession('session-1');
+		chatDebugService.log(session, 'init');
 
 		const firedEvents: IChatDebugEvent[] = [];
 		disposables.add(chatDebugService.onDidAddEvent(e => firedEvents.push(e)));
 
-		promptsOnDidLogDiscovery.fire({
-			sessionResource: LocalChatSessionUri.forSession('session-1'),
-			name: 'Test',
+		promptsOnDidDiscoveryChange.fire({
+			type: PromptsType.hook,
+			discoveryInfo: { type: PromptsType.hook, files: [] },
 		});
 
 		const event = firedEvents[0] as IChatDebugGenericEvent;
-		assert.strictEqual(event.level, ChatDebugLogLevel.Info, 'Default level should be Info');
+		assert.strictEqual(event.level, ChatDebugLogLevel.Info, 'Level should be Info');
 	});
 });
