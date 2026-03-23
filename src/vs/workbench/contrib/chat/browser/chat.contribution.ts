@@ -178,6 +178,8 @@ import { ChatQueuePickerRendering } from './widget/input/chatQueuePickerActionIt
 import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
 import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
 import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
+import { IChatSessionCustomViewService } from '../common/chatSessionCustomViewService.js';
+import { ChatSessionCustomViewServiceImpl } from './chatSessionCustomViewServiceImpl.js';
 
 const toolReferenceNameEnumValues: string[] = [];
 const toolReferenceNameEnumDescriptions: string[] = [];
@@ -1907,5 +1909,6 @@ registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delay
 registerSingleton(IChatTipService, ChatTipService, InstantiationType.Delayed);
 registerSingleton(IChatDebugService, ChatDebugServiceImpl, InstantiationType.Delayed);
 registerSingleton(IChatImageCarouselService, ChatImageCarouselService, InstantiationType.Delayed);
+registerSingleton(IChatSessionCustomViewService, ChatSessionCustomViewServiceImpl, InstantiationType.Delayed);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

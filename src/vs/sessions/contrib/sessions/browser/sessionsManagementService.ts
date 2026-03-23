@@ -28,6 +28,7 @@ import { ILanguageModelsService } from '../../../../workbench/contrib/chat/commo
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionWorkspace.js';
 import { IGitHubSessionContext } from '../../github/common/types.js';
+import { IChatSessionCustomViewService } from '../../../../workbench/contrib/chat/common/chatSessionCustomViewService.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
@@ -152,6 +153,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@ICommandService private readonly commandService: ICommandService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IChatSessionCustomViewService private readonly chatSessionCustomViewService: IChatSessionCustomViewService,
 	) {
 		super();
 
@@ -204,6 +206,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			.sort((a, b) => (b.timing.lastRequestEnded ?? b.timing.created) - (a.timing.lastRequestEnded ?? a.timing.created));
 
 		if (sessions.length > 0) {
+			this.chatSessionCustomViewService.closeCustomView();
 			this.setActiveSession(sessions[0]);
 			this.instantiationService.invokeFunction(openSessionDefault, sessions[0]);
 		} else {
@@ -261,6 +264,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		this.logService.info(`[SessionsManagement] openSession: ${sessionResource.toString()} provider=${existingSession.providerType}`);
 		this.isNewChatSessionContext.set(false);
+		this.chatSessionCustomViewService.closeCustomView();
 		this.setActiveSession(existingSession);
 		await this.instantiationService.invokeFunction(openSessionDefault, existingSession, openOptions);
 	}
@@ -367,6 +371,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private async openNewSession(session: INewSession): Promise<IChatWidget> {
 		this.isNewChatSessionContext.set(false);
+		this.chatSessionCustomViewService.closeCustomView();
 		const sessionResource = session.resource;
 		const chatWidget = await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
 		if (!chatWidget) {
@@ -462,6 +467,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			return;
 		}
 		this.setActiveSession(undefined);
+		this.chatSessionCustomViewService.closeCustomView();
 		this.isNewChatSessionContext.set(true);
 	}
 

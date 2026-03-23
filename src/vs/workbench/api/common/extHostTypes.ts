@@ -3567,6 +3567,12 @@ export enum ChatSessionStatus {
 	NeedsInput = 3
 }
 
+export enum ChatSessionCustomHeaderStatus {
+	Active = 0,
+	Idle = 1,
+	Error = 2
+}
+
 export enum ChatDebugLogLevel {
 	Trace = 0,
 	Info = 1,

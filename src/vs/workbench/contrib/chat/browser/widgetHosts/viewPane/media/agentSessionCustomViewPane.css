@@ -1,0 +1,92 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-session-custom-viewpane {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.agent-session-custom-header {
+	flex-shrink: 0;
+	overflow: hidden;
+}
+
+.agent-session-custom-chat {
+	flex: 1;
+	overflow: hidden;
+}
+
+/* Default header renderer styles */
+.agent-session-custom-header-default {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 12px;
+	border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-widget-border));
+	background: var(--vscode-sideBar-background);
+	font-size: 12px;
+	min-height: 28px;
+}
+
+.agent-session-header-status {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.agent-session-header-status.status-active {
+	background-color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.agent-session-header-status.status-idle {
+	background-color: var(--vscode-descriptionForeground, #999);
+}
+
+.agent-session-header-status.status-error {
+	background-color: var(--vscode-testing-iconFailed, #f14c4c);
+}
+
+.agent-session-header-icon {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.agent-session-header-label {
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.agent-session-header-description {
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.agent-session-header-details {
+	display: flex;
+	gap: 12px;
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
+.agent-session-header-detail {
+	display: flex;
+	gap: 4px;
+}
+
+.agent-session-header-detail .detail-key {
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-session-header-detail .detail-value {
+	color: var(--vscode-foreground);
+}

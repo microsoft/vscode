@@ -36,7 +36,8 @@ import { IEditorGroupsService } from '../../services/editor/common/editorGroupsS
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ChatSessionContentContextDto, ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionHistoryItemDto, IChatSessionItemsChange, IChatSessionRequestHistoryItemDto, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
+import { ChatSessionContentContextDto, ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionCustomHeaderDataDto, IChatSessionHistoryItemDto, IChatSessionItemsChange, IChatSessionRequestHistoryItemDto, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
+import { IChatSessionCustomViewService } from '../../contrib/chat/common/chatSessionCustomViewService.js';
 
 export class ObservableChatSession extends Disposable implements IChatSession {
 
@@ -450,6 +451,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IChatSessionCustomViewService private readonly _chatSessionCustomViewService: IChatSessionCustomViewService,
 	) {
 		super();
 
@@ -779,6 +781,23 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	$handleAnchorResolve(handle: number, sesssionResource: UriComponents, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void {
 		// throw new Error('Method not implemented.');
+	}
+
+	$setChatSessionCustomHeaderData(sessionResource: UriComponents, data: IChatSessionCustomHeaderDataDto): void {
+		const resource = URI.revive(sessionResource);
+		this._chatSessionCustomViewService.setHeaderData(resource, {
+			sessionResource: resource,
+			label: data.label,
+			description: data.description,
+			iconId: data.iconId,
+			status: data.status,
+			details: data.details,
+		});
+	}
+
+	async $openChatSessionInCustomView(sessionResource: UriComponents): Promise<void> {
+		const resource = URI.revive(sessionResource);
+		await this._chatSessionCustomViewService.openInCustomView(resource);
 	}
 
 	$onDidChangeChatSessionProviderOptions(handle: number): void {

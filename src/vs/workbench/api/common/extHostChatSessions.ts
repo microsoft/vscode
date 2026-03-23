@@ -502,6 +502,20 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		});
 	}
 
+	setChatSessionCustomHeaderData(sessionResource: vscode.Uri, data: vscode.ChatSessionCustomHeaderData): void {
+		this._proxy.$setChatSessionCustomHeaderData(sessionResource, {
+			label: data.label,
+			description: data.description,
+			iconId: data.icon?.id,
+			status: data.status !== undefined ? (['active', 'idle', 'error'] as const)[data.status] : undefined,
+			details: data.details,
+		});
+	}
+
+	openChatSessionInCustomView(sessionResource: vscode.Uri): Promise<void> {
+		return this._proxy.$openChatSessionInCustomView(sessionResource);
+	}
+
 	async $provideChatSessionContent(handle: number, sessionResourceComponents: UriComponents, context: ChatSessionContentContextDto, token: CancellationToken): Promise<ChatSessionDto> {
 		const provider = this._chatSessionContentProviders.get(handle);
 		if (!provider) {

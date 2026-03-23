@@ -37,9 +37,11 @@ import { NewChatViewPane, SessionsViewId } from './newChatViewPane.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ChatViewPane } from '../../../../workbench/contrib/chat/browser/widgetHosts/viewPane/chatViewPane.js';
+import { AgentSessionCustomViewPane, AgentSessionCustomViewId } from '../../../../workbench/contrib/chat/browser/widgetHosts/viewPane/agentSessionCustomViewPane.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { IsCustomSessionViewContext } from '../../../../workbench/contrib/chat/common/chatSessionCustomViewService.js';
 
 export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 	static readonly ID = 'chat.openSessionWorktreeInVSCode';
@@ -168,7 +170,7 @@ class RegisterChatViewContainerContribution implements IWorkbenchContribution {
 			canToggleVisibility: false,
 			canMoveView: false,
 			ctorDescriptor: new SyncDescriptor(ChatViewPane),
-			when: IsNewChatSessionContext.negate(),
+			when: ContextKeyExpr.and(IsNewChatSessionContext.negate(), IsCustomSessionViewContext.negate()),
 			windowVisibility: WindowVisibility.Sessions
 		}, {
 			id: SessionsViewId,
@@ -180,6 +182,17 @@ class RegisterChatViewContainerContribution implements IWorkbenchContribution {
 			canMoveView: false,
 			ctorDescriptor: new SyncDescriptor(NewChatViewPane),
 			when: IsNewChatSessionContext,
+			windowVisibility: WindowVisibility.Sessions,
+		}, {
+			id: AgentSessionCustomViewId,
+			containerIcon: chatViewContainer.icon,
+			containerTitle: chatViewContainer.title.value,
+			singleViewPaneContainerTitle: chatViewContainer.title.value,
+			name: localize2('sessions.customView', "Custom Session"),
+			canToggleVisibility: false,
+			canMoveView: false,
+			ctorDescriptor: new SyncDescriptor(AgentSessionCustomViewPane),
+			when: IsCustomSessionViewContext,
 			windowVisibility: WindowVisibility.Sessions,
 		}], chatViewContainer);
 	}

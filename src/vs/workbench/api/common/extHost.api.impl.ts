@@ -1668,6 +1668,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
 				return extHostChatSessions.registerChatSessionContentProvider(extension, scheme, chatParticipant, provider, capabilities);
 			},
+			setChatSessionCustomHeaderData(sessionResource: vscode.Uri, data: vscode.ChatSessionCustomHeaderData) {
+				checkProposedApiEnabled(extension, 'chatSessionCustomView');
+				extHostChatSessions.setChatSessionCustomHeaderData(sessionResource, data);
+			},
+			openChatSessionInCustomView(sessionResource: vscode.Uri) {
+				checkProposedApiEnabled(extension, 'chatSessionCustomView');
+				return extHostChatSessions.openChatSessionInCustomView(sessionResource);
+			},
 			registerChatOutputRenderer: (viewType: string, renderer: vscode.ChatOutputRenderer) => {
 				checkProposedApiEnabled(extension, 'chatOutputRenderer');
 				return extHostChatOutputRenderer.registerChatOutputRenderer(extension, viewType, renderer);
@@ -2125,6 +2133,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatToolInvocationPart: extHostTypes.ChatToolInvocationPart,
 			ChatLocation: extHostTypes.ChatLocation,
 			ChatSessionStatus: extHostTypes.ChatSessionStatus,
+			ChatSessionCustomHeaderStatus: extHostTypes.ChatSessionCustomHeaderStatus,
 			ChatDebugLogLevel: extHostTypes.ChatDebugLogLevel,
 			ChatDebugToolCallResult: extHostTypes.ChatDebugToolCallResult,
 			ChatDebugHookResult: extHostTypes.ChatDebugHookResult,

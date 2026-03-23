@@ -3618,6 +3618,14 @@ export interface ChatSessionDto {
 	options?: Record<string, string | IChatSessionProviderOptionItem>;
 }
 
+export interface IChatSessionCustomHeaderDataDto {
+	readonly label: string;
+	readonly description?: string;
+	readonly iconId?: string;
+	readonly status?: 'active' | 'idle' | 'error';
+	readonly details?: ReadonlyArray<{ readonly key: string; readonly value: string }>;
+}
+
 export interface IChatSessionProviderOptions {
 	optionGroups?: readonly IChatSessionProviderOptionGroup[];
 	newSessionOptions?: Record<string, string | IChatSessionProviderOptionItem>;
@@ -3642,6 +3650,9 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$handleProgressChunk(handle: number, sessionResource: UriComponents, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
 	$handleAnchorResolve(handle: number, sessionResource: UriComponents, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;
 	$handleProgressComplete(handle: number, sessionResource: UriComponents, requestId: string): void;
+
+	$setChatSessionCustomHeaderData(sessionResource: UriComponents, data: IChatSessionCustomHeaderDataDto): void;
+	$openChatSessionInCustomView(sessionResource: UriComponents): Promise<void>;
 }
 
 export interface ExtHostChatSessionsShape {
