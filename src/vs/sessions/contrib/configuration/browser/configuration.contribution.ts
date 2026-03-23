@@ -60,6 +60,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 
 		'terminal.integrated.initialHint': false,
 
+		'workbench.colorTheme': 'VS Code Dark',
 		'workbench.editor.doubleClickTabToToggleEditorGroupSizes': 'maximize',
 		'workbench.editor.restoreEditors': false,
 		'workbench.editor.modalMinWidth': 600,
@@ -69,7 +70,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'workbench.startupEditor': 'none',
 		'workbench.tips.enabled': false,
 
-		'window.autoDetectColorScheme': true,
 		'window.dialogStyle': 'custom',
 		'window.menuStyle': 'custom',
 	},
