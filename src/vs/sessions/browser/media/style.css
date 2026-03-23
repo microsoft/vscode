@@ -31,6 +31,7 @@
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
+	box-sizing: border-box;
 }
 
 .agent-sessions-workbench .part.auxiliarybar {

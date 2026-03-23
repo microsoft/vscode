@@ -48,6 +48,9 @@ export class ChatBarPart extends AbstractPaneCompositePart {
 	static readonly MARGIN_RIGHT = 16;
 	static readonly MARGIN_BOTTOM = 2;
 
+	/** Border width on the card (1px each side) */
+	static readonly BORDER_WIDTH = 1;
+
 	get preferredHeight(): number | undefined {
 		return this.layoutService.mainContainerDimension.height * 0.4;
 	}
@@ -118,10 +121,11 @@ export class ChatBarPart extends AbstractPaneCompositePart {
 			return;
 		}
 
-		// Layout content with reduced dimensions to account for visual margins
+		// Layout content with reduced dimensions to account for visual margins and border
+		const borderTotal = ChatBarPart.BORDER_WIDTH * 2;
 		super.layout(
-			width - ChatBarPart.MARGIN_LEFT - ChatBarPart.MARGIN_RIGHT,
-			height - ChatBarPart.MARGIN_TOP - ChatBarPart.MARGIN_BOTTOM,
+			width - ChatBarPart.MARGIN_LEFT - ChatBarPart.MARGIN_RIGHT - borderTotal,
+			height - ChatBarPart.MARGIN_TOP - ChatBarPart.MARGIN_BOTTOM - borderTotal,
 			top, left
 		);
 
