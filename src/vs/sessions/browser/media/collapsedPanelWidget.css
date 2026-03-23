@@ -21,11 +21,17 @@
 	display: none;
 }
 
-/* ---- Sidebar widget (in titlebar-left) ---- */
+
+/* ---- Sidebar widget (in titlebar-left, always visible, far left) ---- */
 
 .agent-sessions-workbench .collapsed-sidebar-widget {
-	order: 10;
+	order: 0;
 	padding-left: 8px;
+}
+
+/* When inside the sidebar title area (panel open), no left padding */
+.agent-sessions-workbench .part.sidebar .collapsed-sidebar-widget {
+	padding-left: 0;
 }
 
 /* ---- Auxiliary Bar widget (in titlebar-right) ---- */
@@ -74,23 +80,13 @@
 	color: inherit;
 }
 
-/* ---- Consolidated session status button ---- */
+/* ---- Session status button (tasklist icon + unread badge) ---- */
 
 .agent-sessions-workbench .collapsed-panel-button.collapsed-sidebar-status {
-	gap: 6px;
+	gap: 4px;
 }
 
-.agent-sessions-workbench .collapsed-sidebar-segment {
-	display: inline-flex;
-	align-items: center;
-	gap: 2px;
-}
-
-.agent-sessions-workbench .collapsed-panel-button .collapsed-sidebar-segment .codicon {
-	font-size: 14px;
-}
-
-/* ---- Sidebar indicators ---- */
+/* ---- Shared count styling ---- */
 
 .agent-sessions-workbench .collapsed-sidebar-count,
 .agent-sessions-workbench .collapsed-auxbar-count {
@@ -100,50 +96,10 @@
 	color: inherit;
 }
 
-.agent-sessions-workbench .collapsed-sidebar-segment.collapsed-sidebar-indicator-active .codicon {
+.agent-sessions-workbench .collapsed-sidebar-count {
 	color: var(--vscode-textLink-foreground);
 }
 
-.agent-sessions-workbench .collapsed-sidebar-segment.collapsed-sidebar-indicator-error {
-	color: var(--vscode-errorForeground);
-}
-
-.agent-sessions-workbench .collapsed-sidebar-segment.collapsed-sidebar-indicator-input {
-	color: var(--vscode-list-warningForeground);
-}
-
-.agent-sessions-workbench .collapsed-sidebar-segment.collapsed-sidebar-indicator-input .codicon {
-	animation: collapsed-sidebar-needs-input-pulse 2s ease-in-out infinite;
-}
-
-@keyframes collapsed-sidebar-needs-input-pulse {
-	0%, 100% {
-		opacity: 1;
-	}
-	50% {
-		opacity: 0.4;
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.agent-sessions-workbench .collapsed-sidebar-segment.collapsed-sidebar-indicator-input .codicon {
-		animation: none;
-	}
-}
-
-.agent-sessions-workbench .collapsed-sidebar-segment.collapsed-sidebar-indicator-unread {
-	color: var(--vscode-textLink-foreground);
-}
-
-/* ---- Panel toggle button ---- */
-
-.agent-sessions-workbench .collapsed-sidebar-panel-toggle {
-	opacity: 0.7;
-}
-
-.agent-sessions-workbench .collapsed-sidebar-panel-toggle:hover {
-	opacity: 1;
-}
 
 /* ---- Auxiliary bar indicators ---- */
 

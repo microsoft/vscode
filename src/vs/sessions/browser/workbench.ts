@@ -5,7 +5,7 @@
 
 import '../../workbench/browser/style.js';
 import './media/style.css';
-import { CollapsedSidebarWidget, CollapsedAuxiliaryBarWidget } from './collapsedPartWidgets.js';
+import { SessionStatusWidget, CollapsedAuxiliaryBarWidget } from './collapsedPartWidgets.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
 import { getActiveDocument, getActiveElement, getClientArea, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
@@ -244,7 +244,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private chatBarPartView!: ISerializableView;
 
-	private collapsedSidebarWidget: CollapsedSidebarWidget | undefined;
+	private titlebarSessionStatusWidget: SessionStatusWidget | undefined;
 	private collapsedAuxiliaryBarWidget: CollapsedAuxiliaryBarWidget | undefined;
 
 	private readonly partVisibility: IPartVisibilityState = {
@@ -385,11 +385,11 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 				// Layout
 				this.layout();
 
-				// Collapsed Sidebar Widget (shown when sidebar is hidden)
+				// Session status widget in titlebar (shown when sidebar is collapsed)
 				const titlebarPart = this.getPart(Parts.TITLEBAR_PART) as TitlebarPart;
-				this.collapsedSidebarWidget = this._register(instantiationService.createInstance(CollapsedSidebarWidget, titlebarPart.leftContainer));
+				this.titlebarSessionStatusWidget = this._register(instantiationService.createInstance(SessionStatusWidget, titlebarPart.leftContainer, undefined));
 				if (!this.partVisibility.sidebar) {
-					this.collapsedSidebarWidget.show();
+					this.titlebarSessionStatusWidget.show();
 				}
 
 				// Auxiliary bar changes widget (always visible, acts as a toggle)
@@ -1105,12 +1105,14 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			!hidden,
 		);
 
-		// Toggle collapsed sidebar widget
+		// Toggle titlebar session status widget (visible when sidebar is hidden)
 		if (hidden) {
-			this.collapsedSidebarWidget?.show();
+			this.titlebarSessionStatusWidget?.show();
 		} else {
-			this.collapsedSidebarWidget?.hide();
+			this.titlebarSessionStatusWidget?.hide();
 		}
+
+
 
 		// If sidebar becomes hidden, also hide the current active pane composite
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {

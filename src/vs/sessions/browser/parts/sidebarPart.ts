@@ -40,6 +40,7 @@ import { isFullscreen, onDidChangeFullscreen } from '../../../base/browser/brows
 import { mainWindow } from '../../../base/browser/window.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { hasNativeTitlebar, getTitleBarStyle } from '../../../platform/window/common/window.js';
+import { SessionStatusWidget } from '../collapsedPartWidgets.js';
 
 /**
  * Sidebar part specifically for agent sessions workbench.
@@ -149,6 +150,12 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			// Add a drag region so the sidebar title area can be used to move the window,
 			// matching the titlebar's drag behavior.
 			prepend(titleArea, $('div.titlebar-drag-region'));
+		}
+
+		// Session status widget (far left of sidebar header, across from filter)
+		if (titleArea) {
+			const widget = this._register(this.instantiationService.createInstance(SessionStatusWidget, titleArea, { prependToParent: true }));
+			widget.show();
 		}
 
 		// macOS native: the sidebar spans full height and the traffic lights
