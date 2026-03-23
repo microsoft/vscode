@@ -115,7 +115,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 										icon: Codicon.warning,
 										markdownDetails: [{
 											markdown: new MarkdownString(localize('permissions.autoApprove.warning.detail',
-												"Bypass Approvals will auto-approve all tool calls without asking for confirmation. Terminal commands will run immediately without a confirmation prompt. This includes file edits and external tool calls.\n\nThis mode still pauses between turns. Use **Autopilot** if you want the agent to continue until the task is complete.")),
+												"Bypass Approvals will auto-approve all tool calls without asking for confirmation. Terminal commands will run immediately without a confirmation prompt. This includes file edits and external tool calls.")),
 										}],
 									},
 								});
@@ -166,7 +166,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 										icon: Codicon.rocket,
 										markdownDetails: [{
 											markdown: new MarkdownString(localize('permissions.autopilot.warning.detail',
-												"Autopilot includes Bypass Approvals behavior and also keeps going until the task is complete. Terminal commands will run without confirmation prompts, and the agent will continue making decisions on your behalf between turns.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.")),
+												"Autopilot includes Bypass Approvals behavior and also keeps going until the task is complete. Terminal commands will run without confirmation prompts, and the agent will make decisions on your behalf.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.")),
 										}],
 									},
 								});
