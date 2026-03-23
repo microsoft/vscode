@@ -17,6 +17,7 @@ import { ILogService } from '../../log/common/log.js';
 import type { IAgentConnection } from '../common/agentService.js';
 import {
 	IRemoteAgentHostService,
+	RemoteAgentHostsEnabledSettingId,
 	RemoteAgentHostsSettingId,
 	normalizeRemoteAgentHostAddress,
 	type IRemoteAgentHostConnectionInfo,
@@ -52,7 +53,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 		// React to setting changes
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(RemoteAgentHostsSettingId)) {
+			if (e.affectsConfiguration(RemoteAgentHostsSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
 				this._reconcileConnections();
 			}
 		}));
@@ -87,6 +88,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	async addRemoteAgentHost(input: IRemoteAgentHostEntry): Promise<IRemoteAgentHostConnectionInfo> {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			throw new Error('Remote agent host connections are not enabled.');
+		}
+
 		const entry: IRemoteAgentHostEntry = { ...input, address: normalizeRemoteAgentHostAddress(input.address) };
 		const existingConnection = this._getConnectionInfo(entry.address);
 		await this._storeConfiguredEntries(this._upsertConfiguredEntry(entry));
@@ -125,6 +130,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	private _reconcileConnections(): void {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			// Disconnect all when disabled
+			for (const address of [...this._entries.keys()]) {
+				this._removeConnection(address);
+			}
+			this._names.clear();
+			return;
+		}
+
 		const rawEntries: IRemoteAgentHostEntry[] = this._configurationService.getValue<IRemoteAgentHostEntry[]>(RemoteAgentHostsSettingId) ?? [];
 		const entries = rawEntries.map(e => ({ ...e, address: normalizeRemoteAgentHostAddress(e.address) }));
 		const desired = new Set(entries.map(e => e.address));

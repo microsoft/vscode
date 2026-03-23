@@ -16,6 +16,7 @@ import { AGENT_HOST_FS_SCHEME, agentHostUri } from './agentHostFileSystemProvide
 interface IRemoteAgentHostPickItem extends IQuickPickItem {
 	readonly remoteType: 'existing' | 'add';
 	readonly address?: string;
+	readonly defaultDirectory?: string;
 }
 
 /**

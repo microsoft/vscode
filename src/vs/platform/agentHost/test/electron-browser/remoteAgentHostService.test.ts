@@ -12,7 +12,7 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { RemoteAgentHostService } from '../../electron-browser/remoteAgentHostServiceImpl.js';
-import { parseRemoteAgentHostInput, RemoteAgentHostsSettingId, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
+import { parseRemoteAgentHostInput, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 
 // ---- Mock protocol client ---------------------------------------------------
@@ -48,8 +48,12 @@ class TestConfigurationService {
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
 	private _entries: IRemoteAgentHostEntry[] = [];
+	private _enabled = true;
 
-	getValue(_key?: string): IRemoteAgentHostEntry[] {
+	getValue(key?: string): unknown {
+		if (key === RemoteAgentHostsEnabledSettingId) {
+			return this._enabled;
+		}
 		return this._entries;
 	}
 
@@ -70,7 +74,14 @@ class TestConfigurationService {
 	setEntries(entries: IRemoteAgentHostEntry[]): void {
 		this._entries = entries;
 		this._onDidChangeConfiguration.fire({
-			affectsConfiguration: (key: string) => key === RemoteAgentHostsSettingId,
+			affectsConfiguration: (key: string) => key === RemoteAgentHostsSettingId || key === RemoteAgentHostsEnabledSettingId,
+		});
+	}
+
+	setEnabled(enabled: boolean): void {
+		this._enabled = enabled;
+		this._onDidChangeConfiguration.fire({
+			affectsConfiguration: (key: string) => key === RemoteAgentHostsEnabledSettingId,
 		});
 	}
 
@@ -343,5 +354,41 @@ suite('RemoteAgentHostService', () => {
 
 		assert.strictEqual(connection.address, 'fast-host:1234');
 		assert.strictEqual(connection.name, 'Fast Host');
+	});
+
+	test('disabling the enabled setting disconnects all remotes', async () => {
+		configService.setEntries([{ address: 'host1:8080', name: 'Host 1' }]);
+		createdClients[0].connectDeferred.complete();
+		await Event.toPromise(service.onDidChangeConnections);
+		assert.strictEqual(service.connections.length, 1);
+
+		configService.setEnabled(false);
+
+		assert.strictEqual(service.connections.length, 0);
+	});
+
+	test('addRemoteAgentHost throws when disabled', async () => {
+		configService.setEnabled(false);
+
+		await assert.rejects(
+			() => service.addRemoteAgentHost({ address: 'host1:8080', name: 'Host 1' }),
+			/not enabled/,
+		);
+	});
+
+	test('re-enabling reconnects configured remotes', async () => {
+		configService.setEntries([{ address: 'host1:8080', name: 'Host 1' }]);
+		createdClients[0].connectDeferred.complete();
+		await Event.toPromise(service.onDidChangeConnections);
+		assert.strictEqual(service.connections.length, 1);
+
+		configService.setEnabled(false);
+		assert.strictEqual(service.connections.length, 0);
+
+		configService.setEnabled(true);
+		assert.strictEqual(createdClients.length, 2); // new client created
+		createdClients[1].connectDeferred.complete();
+		await Event.toPromise(service.onDidChangeConnections);
+		assert.strictEqual(service.connections.length, 1);
 	});
 });
