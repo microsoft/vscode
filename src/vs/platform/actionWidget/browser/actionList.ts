@@ -1236,7 +1236,12 @@ export class ActionListWidget<T> extends Disposable {
 			onHide: () => { },
 			onSelect: (action) => {
 				action.run();
+				// Also select the parent item in the main list
+				const parentItem = this._currentSubmenuElement?.item;
 				this._hideSubmenu();
+				if (parentItem) {
+					this._delegate.onSelect(parentItem);
+				}
 				this.hide();
 			},
 		};
@@ -1296,7 +1301,11 @@ export class ActionListWidget<T> extends Disposable {
 				const focused = submenuWidget.getFocusedElement();
 				if (focused?.item) {
 					focused.item.run();
+					const parentItem = this._currentSubmenuElement?.item;
 					this._hideSubmenu();
+					if (parentItem) {
+						this._delegate.onSelect(parentItem);
+					}
 					this.hide();
 				}
 			} else if (e.key === 'ArrowDown') {
