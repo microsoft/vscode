@@ -329,14 +329,14 @@
 		/* align with session item text: 6px item padding + 16px icon + 6px main-col padding */
 		padding: 0 6px 0 28px;
 		cursor: pointer;
-		text-decoration: none;
+		text-decoration: none !important;
 
 		.agent-session-show-more-label {
-			text-decoration: none;
+			text-decoration: none !important;
 		}
 
 		&:hover .agent-session-show-more-label {
-			text-decoration: underline;
+			text-decoration: underline !important;
 		}
 	}
 
