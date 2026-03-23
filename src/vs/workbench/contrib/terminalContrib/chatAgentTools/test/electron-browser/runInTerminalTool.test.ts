@@ -1978,8 +1978,8 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 
 		// Fire network config change
 		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === TerminalChatAgentToolsSettingId.TerminalSandboxNetwork,
-			affectedKeys: new Set([TerminalChatAgentToolsSettingId.TerminalSandboxNetwork]),
+			affectsConfiguration: (key: string) => key === TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains,
+			affectedKeys: new Set([TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains]),
 			source: ConfigurationTarget.USER,
 			change: null!,
 		});
