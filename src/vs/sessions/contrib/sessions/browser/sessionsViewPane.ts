@@ -23,6 +23,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { AgentSessionsControl } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsControl.js';
+import { AgentSessionsDataSource } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsViewer.js';
 import { AgentSessionsFilter, AgentSessionsGrouping, AgentSessionsSorting } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsFilter.js';
 import { AgentSessionProviders, isAgentHostTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from './sessionsManagementService.js';
@@ -157,6 +158,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			disableHover: true,
 			enableApprovalRow: true,
+			repositoryGroupLimit: AgentSessionsDataSource.REPOSITORY_GROUP_LIMIT,
 			getHoverPosition: () => this.getSessionHoverPosition(),
 			trackActiveEditorSession: () => true,
 			collapseOlderSections: () => true,

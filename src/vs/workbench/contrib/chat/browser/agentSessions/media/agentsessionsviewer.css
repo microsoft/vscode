@@ -321,6 +321,19 @@
 		}
 	}
 
+	.agent-session-show-more {
+		display: flex;
+		align-items: center;
+		font-size: 12px;
+		color: var(--vscode-textLink-foreground);
+		padding: 0 12px;
+		cursor: pointer;
+
+		&:hover {
+			text-decoration: underline;
+		}
+	}
+
 	.agent-session-section {
 		display: flex;
 		align-items: center;
