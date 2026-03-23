@@ -518,17 +518,17 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 					hideChevrons: observableValue('hideChevrons', false),
 					hoverPosition: { hoverPosition: HoverPosition.ABOVE },
 				};
-				const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
+				const modelsAvailable = this._getAvailableModels().length > 0;
+				const action = { id: 'sessions.modelPicker', label: '', enabled: modelsAvailable, class: undefined, tooltip: '', run: () => { } };
 				const modelPicker = this.instantiationService.createInstance(EnhancedModelPickerActionItem, action, delegate, pickerOptions);
 
 				// Initialize with first available model, or wait for models to load
 				const initModel = () => {
-					if (!currentModel.get()) {
-						const models = this._getAvailableModels();
-						if (models[0]) {
-							currentModel.set(models[0], undefined);
-						}
+					const models = this._getAvailableModels();
+					if (models.length > 0 && !currentModel.get()) {
+						currentModel.set(models[0], undefined);
 					}
+					action.enabled = models.length > 0;
 				};
 				initModel();
 				this._register(this.languageModelsService.onDidChangeLanguageModels(() => initModel()));
