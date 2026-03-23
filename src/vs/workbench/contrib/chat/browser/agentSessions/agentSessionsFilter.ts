@@ -144,7 +144,6 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this.registerStateActions(this.actionDisposables, menuId);
 		this.registerArchivedActions(this.actionDisposables, menuId);
 		this.registerReadActions(this.actionDisposables, menuId);
-		this.registerShowAllSessionsAction(this.actionDisposables, menuId);
 		this.registerResetAction(this.actionDisposables, menuId);
 	}
 
@@ -282,29 +281,13 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		}));
 	}
 
-	private registerShowAllSessionsAction(disposables: DisposableStore, menuId: MenuId): void {
-		if (!this.options.groupResults) {
-			return; // only show when grouping is available
+	/**
+	 * Programmatically toggle the repository group capping state.
+	 */
+	setRepositoryGroupCapped(capped: boolean): void {
+		if (this.excludes.repositoryGroupCapped !== capped) {
+			this.storeExcludes({ ...this.excludes, repositoryGroupCapped: capped });
 		}
-
-		const that = this;
-		disposables.add(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `agentSessions.filter.toggleShowAllSessions.${menuId.id.toLowerCase()}`,
-					title: localize('agentSessions.filter.showAllSessions', "Show All Sessions"),
-					menu: {
-						id: menuId,
-						group: '3_props',
-						order: 2000,
-					},
-					toggled: that.excludes.repositoryGroupCapped ? ContextKeyExpr.false() : ContextKeyExpr.true(),
-				});
-			}
-			run(): void {
-				that.storeExcludes({ ...that.excludes, repositoryGroupCapped: !that.excludes.repositoryGroupCapped });
-			}
-		}));
 	}
 
 	private registerResetAction(disposables: DisposableStore, menuId: MenuId): void {
