@@ -553,8 +553,15 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		this._createAttachButton(toolbar);
 
-		// Mode picker (before model pickers)
-		this._modePicker.render(toolbar);
+		// Mode picker — only for CLI sessions
+		const modeSlot = this._modePicker.render(toolbar);
+		this._register(autorun(reader => {
+			const session = this.sessionsManagementService.activeSessionData.read(reader);
+			const isBackground = !session || session.sessionType === AgentSessionProviders.Background;
+			if (modeSlot) {
+				modeSlot.style.display = isBackground ? '' : 'none';
+			}
+		}));
 
 		// Local model picker (EnhancedModelPickerActionItem) — kept for now until fully menu-driven
 		this._localModelPickerContainer = dom.append(toolbar, dom.$('.sessions-chat-model-picker'));
