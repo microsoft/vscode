@@ -558,13 +558,14 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Model picker visibility driven by context keys
 		// isActiveSessionBackgroundProvider = true → show local, hide cloud
 		// isActiveSessionBackgroundProvider = false → hide local, show cloud
+		// Default to showing local model picker when no session data yet (startup default is CLI)
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSessionData.read(reader);
-			const isBackground = session?.sessionType === AgentSessionProviders.Background;
+			const isBackground = !session || session.sessionType === AgentSessionProviders.Background;
 			if (this._localModelPickerContainer) {
 				this._localModelPickerContainer.style.display = isBackground ? '' : 'none';
 			}
-			this._cloudModelPicker.setVisible(!isBackground && !!session);
+			this._cloudModelPicker.setVisible(!isBackground);
 		}));
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
