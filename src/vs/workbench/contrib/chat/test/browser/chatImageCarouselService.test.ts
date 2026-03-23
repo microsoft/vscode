@@ -8,8 +8,11 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { buildCollectionArgs, buildSingleImageArgs, collectCarouselSections, findClickedImageIndex, ICarouselSection } from '../../browser/chatImageCarouselService.js';
+import { IChatToolInvocationSerialized } from '../../common/chatService/chatService.js';
+import { ChatResponseResource } from '../../common/model/chatModel.js';
 import { IImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel } from '../../common/model/chatViewModel.js';
+import { ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 
 suite('ChatImageCarouselService helpers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -35,12 +38,12 @@ suite('ChatImageCarouselService helpers', () => {
 		} as unknown as IChatRequestViewModel;
 	}
 
-	function makeResponse(requestId: string, id: string = 'resp-1'): IChatResponseViewModel {
+	function makeResponse(requestId: string, id: string = 'resp-1', responseValue: IChatResponseViewModel['response']['value'] = []): IChatResponseViewModel {
 		return {
 			id,
 			requestId,
 			sessionResource: URI.parse('chat-session://test/session'),
-			response: { value: [] },
+			response: { value: responseValue },
 			session: { getItems: () => [] },
 			setVote: () => { },
 		} as unknown as IChatResponseViewModel;
@@ -102,6 +105,28 @@ suite('ChatImageCarouselService helpers', () => {
 			}];
 			const unknownUri = URI.from({ scheme: 'data', path: 'b.png' });
 			assert.strictEqual(findClickedImageIndex(sections, unknownUri, new Uint8Array([30, 40])), 1);
+		});
+
+		test('prefers a later exact URI match over an earlier image with identical data', () => {
+			const firstUri = URI.parse('vscode-chat-response-resource://session/tool-call-1/0/file.png');
+			const secondUri = URI.parse('vscode-chat-response-resource://session/tool-call-2/0/file.png');
+			const identicalData = new Uint8Array([10, 20, 30]);
+			const sections: ICarouselSection[] = [
+				{
+					title: 'Earlier',
+					images: [
+						{ id: firstUri.toString(), name: 'first.png', mimeType: 'image/png', data: identicalData },
+					],
+				},
+				{
+					title: 'Later',
+					images: [
+						{ id: secondUri.toString(), name: 'second.png', mimeType: 'image/png', data: identicalData },
+					],
+				},
+			];
+
+			assert.strictEqual(findClickedImageIndex(sections, secondUri, identicalData), 1);
 		});
 
 		test('returns -1 for empty sections', () => {
@@ -281,6 +306,42 @@ suite('ChatImageCarouselService helpers', () => {
 
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].images.length, 3);
+		});
+
+		test('uses tool image URIs as carousel image ids', async () => {
+			const request = makeRequest('req-1', [], 'Request with tool output image');
+			const toolCallId = 'tool-call-1';
+			const sessionResource = URI.parse('chat-session://test/session');
+			const expectedUri = ChatResponseResource.createUri(sessionResource, toolCallId, 0, 'file.png').toString();
+			const response = makeResponse('req-1', 'resp-1', [
+				{
+					kind: 'toolInvocationSerialized',
+					toolId: 'test_tool',
+					toolCallId,
+					invocationMessage: 'Took screenshot',
+					originMessage: undefined,
+					pastTenseMessage: undefined,
+					presentation: undefined,
+					resultDetails: {
+						output: {
+							type: 'data',
+							mimeType: 'image/png',
+							base64Data: 'AQID'
+						}
+					},
+					isConfirmed: { type: 0 },
+					isComplete: true,
+					source: ToolDataSource.Internal,
+					generatedTitle: undefined,
+					isAttachedToThinking: false,
+				} as unknown as IChatToolInvocationSerialized,
+			]);
+
+			const result = await collectCarouselSections([request, response], async () => new Uint8Array());
+
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].images.length, 1);
+			assert.strictEqual(result[0].images[0].id, expectedUri);
 		});
 
 		test('image data is a plain Uint8Array usable by Blob constructor', async () => {
