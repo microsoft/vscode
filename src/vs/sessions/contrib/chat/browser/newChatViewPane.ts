@@ -275,7 +275,15 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Isolation mode and branch pickers (below the input, shown when Local target is selected)
 		const isolationContainer = dom.append(welcomeElement, dom.$('.chat-full-welcome-local-mode'));
 		this._sessionTypePicker.render(isolationContainer);
-		this._permissionPicker.render(isolationContainer);
+		const permissionSlot = this._permissionPicker.render(isolationContainer);
+		// Permissions only for CLI sessions
+		this._register(autorun(reader => {
+			const session = this.sessionsManagementService.activeSessionData.read(reader);
+			const isBackground = !session || session.sessionType === AgentSessionProviders.Background;
+			if (permissionSlot) {
+				permissionSlot.style.display = isBackground ? '' : 'none';
+			}
+		}));
 		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));
 		const branchContainer = dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-right'));
 		this._isolationPicker.render(branchContainer);

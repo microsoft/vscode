@@ -126,6 +126,23 @@ registerAction2(class extends Action2 {
 	override async run(): Promise<void> { /* handled by action view item */ }
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.defaultCopilot.permissionPicker',
+			title: localize2('permissionPicker', "Permissions"),
+			f1: false,
+			menu: [{
+				id: Menus.NewSessionControl,
+				group: 'permissions',
+				order: 1,
+				when: IsActiveSessionBackgroundProviderContext,
+			}],
+		});
+	}
+	override async run(): Promise<void> { /* handled by action view item */ }
+});
+
 /**
  * Wraps a standalone picker widget (like IsolationPicker, BranchPicker) as a
  * {@link BaseActionViewItem} so it can be rendered by a {@link MenuWorkbenchToolBar}.
