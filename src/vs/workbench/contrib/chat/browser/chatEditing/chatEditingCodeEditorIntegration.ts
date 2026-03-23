@@ -296,6 +296,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		});
 		this._viewZones = [];
 		this._diffHunksRenderStore.clear();
+		this._diffHunkWidgets.length = 0;
 		this._diffVisualDecorations.clear();
 	}
 
