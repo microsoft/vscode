@@ -10,18 +10,16 @@ import { ILogService } from '../../../log/common/log.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ToolResultContentType, type IToolResultFileEditContent } from '../../common/state/sessionState.js';
 
-/** Scheme used for content URIs served via fetchContent. */
-export const AGENT_CONTENT_SCHEME = 'agenthost-content';
-
 /**
  * Tracks file edits made by tools in a session by snapshotting file content
- * before and after each edit tool invocation.
+ * before each edit tool invocation.
  *
- * Before/after content is stored in the session data directory under
- * `file-edits/{editKey}/before` and `file-edits/{editKey}/after`.
+ * Before-snapshots are stored in the session data directory under
+ * `file-edits/{editKey}/before` and addressable via URIs of the form:
+ * `agenthost-content://[authority]/[sessionId]/file-edits/{editKey}/before`
  *
- * Content is addressable via URIs of the form:
- * `agenthost-content:///{sessionId}/file-edits/{editKey}/before`
+ * The after-content is the real file on the agent host, accessible via
+ * the `agenthost://` filesystem provider.
  */
 export class FileEditTracker {
 
@@ -29,7 +27,7 @@ export class FileEditTracker {
 	 * Pending edits keyed by file path. The `onPreToolUse` hook stores
 	 * entries here; `completeEdit` pops them when the tool finishes.
 	 */
-	private readonly _pendingEdits = new Map<string, { editKey: string; snapshotDone: Promise<void> }>();
+	private readonly _pendingEdits = new Map<string, { editKey: string; beforeUri: URI; snapshotDone: Promise<void> }>();
 
 	/**
 	 * Completed edits keyed by file path. The `onPostToolUse` hook stores
@@ -59,14 +57,15 @@ export class FileEditTracker {
 		const beforeUri = URI.joinPath(sessionDataDir, 'file-edits', editKey, 'before');
 
 		const snapshotDone = this._snapshotFile(filePath, beforeUri);
-		this._pendingEdits.set(filePath, { editKey, snapshotDone });
+		this._pendingEdits.set(filePath, { editKey, beforeUri, snapshotDone });
 		await snapshotDone;
 	}
 
 	/**
 	 * Call from the `onPostToolUse` hook after an edit tool finishes.
-	 * Snapshots the file's current content as the "after" state and stores
-	 * the result for later synchronous retrieval via {@link takeCompletedEdit}.
+	 * Stores the result for later synchronous retrieval via {@link takeCompletedEdit}.
+	 * The `beforeURI` points to the stored snapshot; the `afterURI` is
+	 * the real file path (the tool already modified it on disk).
 	 *
 	 * @param filePath - Absolute path of the file that was edited.
 	 */
@@ -78,42 +77,16 @@ export class FileEditTracker {
 		this._pendingEdits.delete(filePath);
 		await pending.snapshotDone;
 
+		// Snapshot the after-content into session data so it remains
+		// stable even if the file is modified again later.
 		const sessionDataDir = this._sessionDataService.getSessionDataDirById(this._sessionId);
-		const editDir = URI.joinPath(sessionDataDir, 'file-edits', pending.editKey);
-
-		// Snapshot the file after the edit
-		const afterUri = URI.joinPath(editDir, 'after');
-		let afterContent: string;
-		try {
-			const fileUri = URI.file(filePath);
-			const afterData = await this._fileService.readFile(fileUri);
-			afterContent = afterData.value.toString();
-			await this._fileService.writeFile(afterUri, afterData.value);
-		} catch {
-			afterContent = '';
-			await this._fileService.writeFile(afterUri, VSBuffer.fromString('')).catch(() => { });
-		}
-
-		// Read the before content for diff stats
-		let beforeContent: string;
-		try {
-			const beforeData = await this._fileService.readFile(URI.joinPath(editDir, 'before'));
-			beforeContent = beforeData.value.toString();
-		} catch {
-			beforeContent = '';
-		}
-
-		const beforeLines = beforeContent ? beforeContent.split('\n').length : 0;
-		const afterLines = afterContent ? afterContent.split('\n').length : 0;
+		const afterUri = URI.joinPath(sessionDataDir, 'file-edits', pending.editKey, 'after');
+		await this._snapshotFile(filePath, afterUri);
 
 		this._completedEdits.set(filePath, {
 			type: ToolResultContentType.FileEdit,
-			beforeURI: `${AGENT_CONTENT_SCHEME}:///${this._sessionId}/file-edits/${pending.editKey}/before`,
-			afterURI: `${AGENT_CONTENT_SCHEME}:///${this._sessionId}/file-edits/${pending.editKey}/after`,
-			diff: {
-				added: Math.max(0, afterLines - beforeLines),
-				removed: Math.max(0, beforeLines - afterLines),
-			},
+			beforeURI: pending.beforeUri.toString(),
+			afterURI: afterUri.toString(),
 		});
 	}
 
@@ -137,32 +110,6 @@ export class FileEditTracker {
 		} catch (err) {
 			this._logService.trace(`[FileEditTracker] Could not read file for snapshot: ${filePath}`, err);
 			await this._fileService.writeFile(targetUri, VSBuffer.fromString('')).catch(() => { });
-		}
-	}
-
-	/**
-	 * Resolves an `agenthost-content:` URI to the stored file on disk.
-	 * Returns `undefined` if the URI doesn't match the expected format.
-	 */
-	static resolveContentUri(uri: string, sessionDataService: ISessionDataService): URI | undefined {
-		// agenthost-content:///sessionId/file-edits/editKey/before|after
-		try {
-			const parsed = URI.parse(uri);
-			if (parsed.scheme !== AGENT_CONTENT_SCHEME) {
-				return undefined;
-			}
-			const parts = parsed.path.split('/').filter(Boolean);
-			if (parts.length !== 4 || parts[1] !== 'file-edits') {
-				return undefined;
-			}
-			const [sessionId, , editKey, snapshot] = parts;
-			if (snapshot !== 'before' && snapshot !== 'after') {
-				return undefined;
-			}
-			const sessionDataDir = sessionDataService.getSessionDataDirById(sessionId);
-			return URI.joinPath(sessionDataDir, 'file-edits', editKey, snapshot);
-		} catch {
-			return undefined;
 		}
 	}
 }

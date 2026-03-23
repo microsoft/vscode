@@ -379,8 +379,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return {
 			onPreToolUse: async (input: { toolName: string; toolArgs: unknown }, invocation: { sessionId: string }) => {
 				if (isEditTool(input.toolName)) {
-					const params = input.toolArgs as Record<string, unknown> | undefined;
-					const filePath = getEditFilePath(params);
+					const filePath = getEditFilePath(input.toolArgs);
 					if (filePath) {
 						const tracker = this._getOrCreateEditTracker(invocation.sessionId);
 						await tracker.trackEditStart(filePath);
@@ -389,8 +388,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			},
 			onPostToolUse: async (input: { toolName: string; toolArgs: unknown }, invocation: { sessionId: string }) => {
 				if (isEditTool(input.toolName)) {
-					const params = input.toolArgs as Record<string, unknown> | undefined;
-					const filePath = getEditFilePath(params);
+					const filePath = getEditFilePath(input.toolArgs);
 					if (filePath) {
 						const tracker = this._editTrackers.get(invocation.sessionId);
 						await tracker?.completeEdit(filePath);

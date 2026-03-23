@@ -15,7 +15,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ToolResultContentType } from '../../common/state/sessionState.js';
 import { SessionDataService } from '../../node/sessionDataService.js';
-import { AGENT_CONTENT_SCHEME, FileEditTracker } from '../../node/copilot/fileEditTracker.js';
+import { FileEditTracker } from '../../node/copilot/fileEditTracker.js';
 
 suite('FileEditTracker', () => {
 
@@ -48,8 +48,10 @@ suite('FileEditTracker', () => {
 		const fileEdit = tracker.takeCompletedEdit('/workspace/test.txt');
 		assert.ok(fileEdit);
 		assert.strictEqual(fileEdit.type, ToolResultContentType.FileEdit);
-		assert.strictEqual(fileEdit.diff?.added, 1);
-		assert.strictEqual(fileEdit.diff?.removed, 0);
+		// Both URIs point to snapshots in the session data directory
+		const sessionDir = sessionDataService.getSessionDataDirById('test-session');
+		assert.ok(fileEdit.beforeURI.startsWith(sessionDir.toString()));
+		assert.ok(fileEdit.afterURI.startsWith(sessionDir.toString()));
 	});
 
 	test('tracks edit for newly created file (no before content)', async () => {
@@ -62,8 +64,8 @@ suite('FileEditTracker', () => {
 
 		const fileEdit = tracker.takeCompletedEdit('/workspace/new-file.txt');
 		assert.ok(fileEdit);
-		assert.strictEqual(fileEdit.diff?.added, 2);
-		assert.strictEqual(fileEdit.diff?.removed, 0);
+		const sessionDir = sessionDataService.getSessionDataDirById('test-session');
+		assert.ok(fileEdit.afterURI.startsWith(sessionDir.toString()));
 	});
 
 	test('takeCompletedEdit returns undefined for unknown file path', () => {
@@ -71,53 +73,20 @@ suite('FileEditTracker', () => {
 		assert.strictEqual(result, undefined);
 	});
 
-	test('content URIs use the correct scheme and format', async () => {
+	test('before and after snapshot content can be read back', async () => {
 		const sourceFs = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(Schemas.file, sourceFs));
-		await fileService.writeFile(URI.file('/workspace/file.ts'), VSBuffer.fromString('code'));
+		await fileService.writeFile(URI.file('/workspace/file.ts'), VSBuffer.fromString('original'));
 
 		await tracker.trackEditStart('/workspace/file.ts');
-		await fileService.writeFile(URI.file('/workspace/file.ts'), VSBuffer.fromString('new code'));
+		await fileService.writeFile(URI.file('/workspace/file.ts'), VSBuffer.fromString('modified'));
 		await tracker.completeEdit('/workspace/file.ts');
 
 		const fileEdit = tracker.takeCompletedEdit('/workspace/file.ts');
 		assert.ok(fileEdit);
-		assert.ok(fileEdit.beforeURI.startsWith(`${AGENT_CONTENT_SCHEME}:///test-session/file-edits/`));
-		assert.ok(fileEdit.afterURI.startsWith(`${AGENT_CONTENT_SCHEME}:///test-session/file-edits/`));
-		assert.ok(fileEdit.beforeURI.endsWith('/before'));
-		assert.ok(fileEdit.afterURI.endsWith('/after'));
-	});
-
-	test('resolveContentUri maps to session data directory', async () => {
-		const sourceFs = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(Schemas.file, sourceFs));
-		await fileService.writeFile(URI.file('/workspace/resolve.txt'), VSBuffer.fromString('x'));
-
-		await tracker.trackEditStart('/workspace/resolve.txt');
-		await tracker.completeEdit('/workspace/resolve.txt');
-
-		const fileEdit = tracker.takeCompletedEdit('/workspace/resolve.txt');
-		assert.ok(fileEdit);
-
-		const resolved = FileEditTracker.resolveContentUri(fileEdit.beforeURI, sessionDataService);
-		assert.ok(resolved);
-		const sessionDir = sessionDataService.getSessionDataDirById('test-session');
-		assert.ok(resolved.toString().startsWith(sessionDir.toString()));
-	});
-
-	test('resolveContentUri returns undefined for unknown scheme', () => {
-		const resolved = FileEditTracker.resolveContentUri(
-			'https:///test-session/file-edits/tc-1/before',
-			sessionDataService,
-		);
-		assert.strictEqual(resolved, undefined);
-	});
-
-	test('resolveContentUri returns undefined for invalid path', () => {
-		const resolved = FileEditTracker.resolveContentUri(
-			`${AGENT_CONTENT_SCHEME}:///test-session/invalid/path`,
-			sessionDataService,
-		);
-		assert.strictEqual(resolved, undefined);
+		const beforeContent = await fileService.readFile(URI.parse(fileEdit.beforeURI));
+		assert.strictEqual(beforeContent.value.toString(), 'original');
+		const afterContent = await fileService.readFile(URI.parse(fileEdit.afterURI));
+		assert.strictEqual(afterContent.value.toString(), 'modified');
 	});
 });

@@ -8,7 +8,7 @@ import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oa
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IActionEnvelope, INotification, ISessionAction } from './state/sessionActions.js';
-import type { IBrowseDirectoryResult, IStateSnapshot } from './state/sessionProtocol.js';
+import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { AttachmentType, PermissionKind, type IToolCallResult, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
@@ -438,6 +438,12 @@ export interface IAgentService {
 	 * Used by the client to drive a remote folder picker before session creation.
 	 */
 	browseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
+
+	/**
+	 * Fetch stored content by URI from the agent host (e.g. file edit snapshots,
+	 * or reading files from the remote filesystem).
+	 */
+	fetchContent(uri: string): Promise<IFetchContentResult>;
 }
 
 /**

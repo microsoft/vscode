@@ -19,7 +19,6 @@ import {
 	type ISessionSummary, type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
 import { mapProgressEventToActions } from './agentEventMapper.js';
-import { FileEditTracker } from './copilot/fileEditTracker.js';
 import type { IProtocolSideEffectHandler } from './protocolServerHandler.js';
 import { SessionStateManager } from './sessionStateManager.js';
 
@@ -276,19 +275,15 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 	}
 
 	async handleFetchContent(uri: string): Promise<IFetchContentResult> {
-		const fileUri = FileEditTracker.resolveContentUri(uri, this._options.sessionDataService);
-		if (!fileUri) {
-			throw new ProtocolError(AhpErrorCodes.ContentNotFound, `Unknown content URI: ${uri}`);
-		}
 		try {
-			const content = await this._fileService.readFile(fileUri);
+			const content = await this._fileService.readFile(URI.parse(uri));
 			return {
 				data: content.value.toString(),
 				encoding: ContentEncoding.Utf8,
 				contentType: 'text/plain',
 			};
-		} catch {
-			throw new ProtocolError(AhpErrorCodes.ContentNotFound, `Content not found: ${uri}`);
+		} catch (_e) {
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri}`);
 		}
 	}
 

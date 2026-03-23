@@ -4,29 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from '../../../../../base/common/uri.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AGENT_HOST_FS_SCHEME, agentHostRemotePath, agentHostUri } from '../../browser/agentHostFileSystemProvider.js';
-import { agentHostAuthority } from '../../browser/remoteAgentHost.contribution.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { agentHostRemotePath, agentHostUri } from '../../common/agentHostFileSystemProvider.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
 
 suite('AgentHostFileSystemProvider - URI helpers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('agentHostUri builds correct URI', () => {
-		const uri = agentHostUri('localhost:8081', '/home/user/project');
-		assert.strictEqual(uri.scheme, AGENT_HOST_FS_SCHEME);
-		assert.strictEqual(uri.authority, 'localhost:8081');
-		assert.strictEqual(uri.path, '/home/user/project');
+		const uri = agentHostUri('localhost', '/home/user/project');
+		assert.strictEqual(uri.scheme, AGENT_HOST_SCHEME);
+		assert.strictEqual(uri.authority, 'localhost');
+		// path encodes file scheme: /file//home/user/project
+		assert.ok(uri.path.includes('/home/user/project'));
 	});
 
-	test('agentHostUri defaults to root path', () => {
-		const uri = agentHostUri('localhost:8081', '');
-		assert.strictEqual(uri.path, '/');
-	});
-
-	test('agentHostRemotePath extracts the path component', () => {
-		const uri = URI.from({ scheme: AGENT_HOST_FS_SCHEME, authority: 'host', path: '/some/path' });
+	test('agentHostRemotePath extracts the original path', () => {
+		const uri = agentHostUri('host', '/some/path');
 		assert.strictEqual(agentHostRemotePath(uri), '/some/path');
 	});
 
@@ -61,7 +57,7 @@ suite('AgentHostAuthority - encoding', () => {
 		const addresses = ['localhost', 'localhost:8081', 'user@host:8080', 'host with spaces', '192.168.1.1:9090'];
 		for (const address of addresses) {
 			const authority = agentHostAuthority(address);
-			const uri = URI.from({ scheme: AGENT_HOST_FS_SCHEME, authority, path: '/test' });
+			const uri = URI.from({ scheme: AGENT_HOST_SCHEME, authority, path: '/test' });
 			assert.strictEqual(uri.authority, authority, `authority for '${address}' must round-trip through URI`);
 		}
 	});

@@ -6,12 +6,16 @@
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { AgentHostFileSystemProvider } from '../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { IAgentHostService, AgentHostEnabledSettingId, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
 import { ROOT_STATE_URI, type IAgentInfo, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, LogLevel } from '../../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
@@ -19,6 +23,7 @@ import { IAuthenticationService } from '../../../../../services/authentication/c
 import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../../services/output/common/output.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { resolveTokenForResource } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
@@ -55,6 +60,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IOutputService private readonly _outputService: IOutputService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IFileService private readonly _fileService: IFileService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
@@ -64,6 +71,15 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 
 		this._setupIpcLogging();
+
+		// Register a read-only filesystem provider for the local agent host
+		// so that agent-host-scheme URIs with 'local' authority can be resolved.
+		const fsProvider = this._register(new AgentHostFileSystemProvider());
+		this._register(fsProvider.registerAuthority('local', this._agentHostService));
+		this._register(this._fileService.registerProvider(AGENT_HOST_SCHEME, fsProvider));
+
+		// Display agent-host URIs with the original file path
+		this._register(this._labelService.registerFormatter(AGENT_HOST_LABEL_FORMATTER));
 
 		// Shared client state for protocol reconciliation
 		this._clientState = this._register(new SessionClientState(this._agentHostService.clientId, this._logService));
@@ -219,6 +235,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			fullName: agent.displayName,
 			description: agent.description,
 			connection: this._agentHostService,
+			connectionAuthority: 'local',
 			resolveAuthentication: () => this._resolveAuthenticationInteractively(),
 		}));
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
@@ -269,24 +286,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * Resolve a bearer token for a set of authorization servers using the
 	 * standard VS Code authentication service provider resolution.
 	 */
-	private async _resolveTokenForResource(resourceServer: URI, authorizationServers: readonly string[], scopes: readonly string[]): Promise<string | undefined> {
-		for (const server of authorizationServers) {
-			const serverUri = URI.parse(server);
-			const providerId = await this._authenticationService.getOrActivateProviderIdForServer(serverUri, resourceServer);
-			if (!providerId) {
-				this._logService.trace(`[AgentHost] No auth provider found for server: ${server}`);
-				continue;
-			}
-			this._logService.trace(`[AgentHost] Resolved auth provider '${providerId}' for server: ${server}`);
-
-			const sessions = await this._authenticationService.getSessions(providerId, [...scopes], { authorizationServer: serverUri }, true);
-			if (sessions.length > 0) {
-				return sessions[0].accessToken;
-			}
-
-			this._logService.trace(`[AgentHost] No sessions found for provider '${providerId}'`);
-		}
-		return undefined;
+	private _resolveTokenForResource(resourceServer: URI, authorizationServers: readonly string[], scopes: readonly string[]): Promise<string | undefined> {
+		return resolveTokenForResource(resourceServer, authorizationServers, scopes, this._authenticationService, this._logService, '[AgentHost]');
 	}
 
 	/**
