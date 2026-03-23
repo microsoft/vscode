@@ -1234,7 +1234,7 @@ export class ActionListWidget<T> extends Disposable {
 						description: child.tooltip || undefined,
 						group: { title: '', icon: ThemeIcon.fromId(child.checked ? Codicon.check.id : Codicon.blank.id) },
 						hideIcon: false,
-						hover: { content: '' },
+						hover: {},
 					});
 				}
 			}
