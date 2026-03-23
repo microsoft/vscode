@@ -205,6 +205,46 @@ function interpolateMcpPluginRoot(
 }
 
 /**
+ * Regular expression matching bare `${VAR_NAME}` references that are NOT
+ * already using VS Code's `${env:VAR}` colon-delimited syntax. Only matches
+ * uppercase letters, digits, and underscores — the characters valid in POSIX
+ * environment variable names.
+ *
+ * Negative lookbehind ensures we skip tokens that already carry a namespace
+ * prefix (e.g. `${env:HOME}`, `${config:editor.fontSize}`).
+ */
+const BARE_ENV_VAR_RE = /\$\{(?![A-Za-z]+:)([A-Z_][A-Z0-9_]*)\}/g;
+
+/**
+ * Converts bare `${VAR}` environment-variable references found in MCP server
+ * definition strings to the VS Code `${env:VAR}` syntax so that the
+ * `configurationResolverService` can resolve them later in the pipeline.
+ *
+ * The MCP ecosystem (Claude Desktop, Copilot CLI) uses bare `${VAR}` to
+ * reference environment variables, while VS Code's resolver expects the
+ * `${env:VAR}` form. This function bridges that gap for all plugin-provided
+ * MCP server definitions.
+ *
+ * Only references whose name consists of uppercase letters, digits, and
+ * underscores are converted — this avoids transforming VS Code's own variable
+ * tokens (e.g. `${workspaceFolder}`) which use lowercase/camelCase names.
+ */
+export function convertBareEnvVarsToVsCodeSyntax(
+	def: IAgentPluginMcpServerDefinition,
+): IAgentPluginMcpServerDefinition {
+	return cloneAndChange(def, (value) => {
+		if (URI.isUri(value)) {
+			return value;
+		}
+		if (typeof value === 'string') {
+			const replaced = value.replace(BARE_ENV_VAR_RE, '${env:$1}');
+			return replaced !== value ? replaced : undefined;
+		}
+		return undefined;
+	});
+}
+
+/**
  * Shared hook-parsing logic for plugin formats that use the Claude/open-plugin
  * hook schema. Replaces `${token}` references in hook commands with the plugin
  * root path (shell-quoted when necessary), injects an environment variable, and
@@ -703,6 +743,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			if (adapter.pluginRootToken && adapter.pluginRootEnvVar) {
 				def = interpolateMcpPluginRoot(def, pluginFsPath, adapter.pluginRootToken, adapter.pluginRootEnvVar);
 			}
+			def = convertBareEnvVarsToVsCodeSyntax(def);
 			definitions.push(def);
 		}
 

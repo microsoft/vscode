@@ -15,6 +15,7 @@
  *
  * Margin values (must match the constants in the Part classes):
  *   Sidebar:       no card (flush, spans full height)
+ *   Chat bar:       top=16, bottom=2, left=16, right=16
  *   Auxiliary bar:  top=16, bottom=18, right=16
  *   Panel:          bottom=18, left=16, right=16
  */
@@ -22,7 +23,14 @@
 .agent-sessions-workbench .part.sidebar {
 	background: var(--vscode-sideBar-background);
 	border-right: 1px solid var(--vscode-sideBar-border, transparent);
-	animation: sessions-card-enter-left 250ms cubic-bezier(0.0, 0.0, 0.2, 1) both;
+}
+
+.agent-sessions-workbench .part.chatbar {
+	margin: 0 16px 2px 16px;
+	background: var(--part-background);
+	border: 1px solid var(--part-border-color, transparent);
+	border-radius: 8px;
+	box-sizing: border-box;
 }
 
 .agent-sessions-workbench .part.auxiliarybar {
@@ -30,7 +38,6 @@
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
-	animation: sessions-card-enter-right 250ms cubic-bezier(0.0, 0.0, 0.2, 1) both;
 }
 
 .agent-sessions-workbench .part.panel {
@@ -38,49 +45,6 @@
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
-	animation: sessions-card-enter-up 250ms cubic-bezier(0.0, 0.0, 0.2, 1) both;
-}
-
-/* Card entrance animations */
-@keyframes sessions-card-enter-left {
-	from {
-		opacity: 0;
-		transform: translateX(-12px) scale(0.97);
-	}
-	to {
-		opacity: 1;
-		transform: translateX(0) scale(1);
-	}
-}
-
-@keyframes sessions-card-enter-right {
-	from {
-		opacity: 0;
-		transform: translateX(12px) scale(0.97);
-	}
-	to {
-		opacity: 1;
-		transform: translateX(0) scale(1);
-	}
-}
-
-@keyframes sessions-card-enter-up {
-	from {
-		opacity: 0;
-		transform: translateY(12px) scale(0.97);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0) scale(1);
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.agent-sessions-workbench .part.sidebar,
-	.agent-sessions-workbench .part.auxiliarybar,
-	.agent-sessions-workbench .part.panel {
-		animation: none;
-	}
 }
 
 /* Grid background matches the chat bar / sidebar background */
@@ -124,7 +88,7 @@
 	margin: 0 auto !important;
 	display: inherit !important;
 	/* Align with panel (terminal) card margin */
-	padding: 4px 16px 16px 16px !important;
+	padding: 4px 16px !important;
 	box-sizing: border-box;
 }
 

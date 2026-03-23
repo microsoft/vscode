@@ -242,6 +242,7 @@ function makePR(): IGitHubPullRequest {
 		state: GitHubPullRequestState.Open,
 		author: { login: 'author', avatarUrl: '' },
 		headRef: 'feature',
+		headSha: 'abc123',
 		baseRef: 'main',
 		isDraft: false,
 		createdAt: '2024-01-01T00:00:00Z',

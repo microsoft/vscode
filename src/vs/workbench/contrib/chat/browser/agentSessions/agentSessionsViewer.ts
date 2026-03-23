@@ -62,6 +62,7 @@ interface IAgentSessionItemTemplate {
 
 	// Column 2 Row 1
 	readonly title: IconLabel;
+	readonly pinnedIndicator: HTMLElement;
 	readonly statusContainer: HTMLElement;
 	readonly statusTime: HTMLElement;
 	readonly titleToolbar: MenuWorkbenchToolBar;
@@ -139,6 +140,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 				h('div.agent-session-main-col', [
 					h('div.agent-session-title-row', [
 						h('div.agent-session-title@title'),
+						h('div.agent-session-pinned-indicator@pinnedIndicator'),
 						h('div.agent-session-title-toolbar@titleToolbar'),
 					]),
 					h('div.agent-session-details-row', [
@@ -174,6 +176,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			element: elements.item,
 			icon: elements.icon,
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
+			pinnedIndicator: elements.pinnedIndicator,
 			titleToolbar,
 			badge: elements.badge,
 			separator: elements.separator,
@@ -217,6 +220,11 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		ChatContextKeys.isReadAgentSession.bindTo(template.contextKeyService).set(session.element.isRead());
 		ChatContextKeys.agentSessionType.bindTo(template.contextKeyService).set(session.element.providerType);
 		template.titleToolbar.context = session.element;
+
+		// Pinned indicator
+		const isPinned = session.element.isPinned();
+		template.pinnedIndicator.className = 'agent-session-pinned-indicator ' + (ThemeIcon.asClassName(Codicon.pinned));
+		template.pinnedIndicator.classList.toggle('visible', isPinned);
 
 		// Badge
 		const hasBadge = this.renderBadge(session, template);
