@@ -75,6 +75,10 @@ const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
 const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 const QUICK_OPEN_ACTION_ID = 'workbench.action.quickOpenWithModes';
 
+// Mirrors SCM's window title variable registration for this widget's local WindowTitle instance.
+const SCM_ACTIVE_REPOSITORY_NAME_CONTEXT_KEY = 'scmActiveRepositoryName';
+const SCM_ACTIVE_REPOSITORY_BRANCH_NAME_CONTEXT_KEY = 'scmActiveRepositoryBranchName';
+
 // Storage key for filter state
 const FILTER_STORAGE_KEY = 'agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu';
 // Storage key for saving user's filter state before we override it
@@ -183,6 +187,10 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Create WindowTitle to honor the user's window.title setting
 		this._windowTitle = this._register(this.instantiationService.createInstance(WindowTitle, mainWindow));
+		this._windowTitle.registerVariables([
+			{ name: 'activeRepositoryName', contextKey: SCM_ACTIVE_REPOSITORY_NAME_CONTEXT_KEY },
+			{ name: 'activeRepositoryBranchName', contextKey: SCM_ACTIVE_REPOSITORY_BRANCH_NAME_CONTEXT_KEY },
+		]);
 
 		// Re-render when control mode or session info changes
 		this._register(this.agentTitleBarStatusService.onDidChangeMode(() => {
