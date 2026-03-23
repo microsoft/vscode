@@ -142,7 +142,9 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork)
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkDeniedDomains) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowTrustedDomains)
 			) {
 				this._registerRunInTerminalTool();
 			}
