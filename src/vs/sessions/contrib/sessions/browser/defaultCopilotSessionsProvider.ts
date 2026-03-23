@@ -213,6 +213,9 @@ class NewSessionDataAdapter implements ISessionData {
 	private readonly _status: ReturnType<typeof observableValue<SessionStatus>>;
 	readonly status: IObservable<SessionStatus>;
 
+	private readonly _permissionLevel: ReturnType<typeof observableValue<ChatPermissionLevel>>;
+	readonly permissionLevel: IObservable<ChatPermissionLevel>;
+
 	private readonly _workspace: ReturnType<typeof observableValue<ISessionWorkspace | undefined>>;
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
 
