@@ -116,17 +116,20 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IRes
 			}));
 		}
 		override async getPromptSlashCommands(): Promise<readonly IChatPromptSlashCommand[]> {
-			return files.filter(f => f.type === PromptsType.prompt).map(f => {
+			const promptFiles = files.filter(f => f.type === PromptsType.prompt);
+			const commands = await Promise.all(promptFiles.map(async f => {
 				const promptPath = { uri: f.uri, storage: f.storage, type: f.type };
+				const parsedPromptFile = await this.parseNew(f.uri, CancellationToken.None);
 				return {
 					name: f.name ?? 'prompt',
 					description: f.description,
 					argumentHint: undefined,
 					promptPath: promptPath as IChatPromptSlashCommand['promptPath'],
-					parsedPromptFile: new ParsedPromptFile(f.uri, null!),
+					parsedPromptFile,
 					when: undefined,
 				};
-			});
+			}));
+			return commands;
 		}
 	}();
 }
@@ -489,9 +492,6 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 
 	// Wait for the gallery query to resolve
 	await new Promise(resolve => setTimeout(resolve, 50));
-
-	// Re-layout after browse mode (this is the fix we're testing)
-	widget.layout(height, width);
 }
 
 // ============================================================================
@@ -592,9 +592,6 @@ async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<voi
 
 	// Wait for the marketplace query to resolve
 	await new Promise(resolve => setTimeout(resolve, 50));
-
-	// Re-layout after browse mode
-	widget.layout(height, width);
 }
 
 // ============================================================================
