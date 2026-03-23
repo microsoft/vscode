@@ -43,7 +43,7 @@ export function toAgentHostUri(originalUri: URI, connectionAuthority: string): U
 	return URI.from({
 		scheme: AGENT_HOST_SCHEME,
 		authority: connectionAuthority,
-		path: `/${originalUri.scheme}${originalAuthority ? `/${originalAuthority}` : ''}${originalUri.path}`,
+		path: `/${originalUri.scheme}/${originalAuthority || '-'}${originalUri.path}`,
 	});
 }
 
@@ -74,12 +74,11 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 	}
 
 	let originalAuthority = path.substring(schemeEnd + 1, authorityEnd);
-	let originalPath = path.substring(authorityEnd);
-	if (originalScheme === 'file') {
-		// file scheme URIs must have an authority of '' (not undefined) to be treated as absolute paths
-		originalPath = originalAuthority + originalPath;
+	if (originalAuthority === '-') {
 		originalAuthority = '';
 	}
+
+	const originalPath = path.substring(authorityEnd);
 
 	return URI.from({
 		scheme: originalScheme,

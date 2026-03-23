@@ -12,14 +12,7 @@ import { ToolResultContentType, type IToolResultFileEditContent } from '../../co
 
 /**
  * Tracks file edits made by tools in a session by snapshotting file content
- * before each edit tool invocation.
- *
- * Before-snapshots are stored in the session data directory under
- * `file-edits/{editKey}/before` and addressable via URIs of the form:
- * `agenthost-content://[authority]/[sessionId]/file-edits/{editKey}/before`
- *
- * The after-content is the real file on the agent host, accessible via
- * the `agenthost://` filesystem provider.
+ * before and after each edit tool invocation.
  */
 export class FileEditTracker {
 
