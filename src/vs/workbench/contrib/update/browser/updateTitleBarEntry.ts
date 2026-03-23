@@ -139,7 +139,12 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 
 	private async onStateChange(startup = false) {
 		this.updateContext();
-		if (this.mode === 'none' || this.tooltipVisible || !await this.hostService.hadLastFocus()) {
+		if (this.mode === 'none') {
+			return;
+		}
+
+		if (this.tooltipVisible || !await this.hostService.hadLastFocus()) {
+			this.tooltip.renderState(this.state);
 			return;
 		}
 
