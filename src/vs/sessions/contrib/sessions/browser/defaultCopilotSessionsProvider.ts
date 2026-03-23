@@ -9,22 +9,22 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { localize, localize2 } from '../../../../nls.js';
+import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionFileChange } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionData, ISessionPickerVisibility, ISessionRepository, ISessionWorkspace, SessionStatus } from '../common/sessionData.js';
-import { SessionWorkspace, GITHUB_REMOTE_FILE_SCHEME, AGENT_HOST_SCHEME } from '../common/sessionWorkspace.js';
+import { ISessionData, ISessionRepository, ISessionWorkspace, SessionStatus } from '../common/sessionData.js';
+import { SessionWorkspace, GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionWorkspace.js';
 import { ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
-import { INewSession, CopilotCLISession, RemoteNewSession } from '../../chat/browser/newSession.js';
+import { INewSession, INewSessionPickerVisibility, CopilotCLISession, RemoteNewSession } from '../../chat/browser/newSession.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { Menus } from '../../../browser/menus.js';
 import { IsActiveSessionBackgroundProviderContext } from './sessionsManagementService.js';
@@ -121,7 +121,7 @@ class NewSessionDataAdapter implements ISessionData {
 	readonly sessionType: string;
 	readonly icon: ThemeIcon;
 	readonly createdAt: Date;
-	readonly pickerVisibility: ISessionPickerVisibility;
+	readonly pickerVisibility: INewSessionPickerVisibility;
 
 	private readonly _title: ReturnType<typeof observableValue<string>>;
 	readonly title: IObservable<string>;
@@ -157,7 +157,7 @@ class NewSessionDataAdapter implements ISessionData {
 		this.title = this._title;
 		this._updatedAt = observableValue(this, new Date());
 		this.updatedAt = this._updatedAt;
-		this._status = observableValue(this, SessionStatus.Configuring);
+		this._status = observableValue(this, SessionStatus.Untitled);
 		this.status = this._status;
 		this._workspace = observableValue<ISessionWorkspace | undefined>(this, undefined);
 		this.workspace = this._workspace;
@@ -195,7 +195,7 @@ function toSessionStatus(status: ChatSessionStatus): SessionStatus {
 	switch (status) {
 		case ChatSessionStatus.InProgress:
 		case ChatSessionStatus.NeedsInput:
-			return SessionStatus.Active;
+			return SessionStatus.InProgress;
 		case ChatSessionStatus.Completed:
 			return SessionStatus.Completed;
 		case ChatSessionStatus.Failed:
@@ -214,7 +214,7 @@ class AgentSessionAdapter implements ISessionData {
 	readonly sessionType: string;
 	readonly icon: ThemeIcon;
 	readonly createdAt: Date;
-	readonly pickerVisibility: ISessionPickerVisibility = {};
+	readonly pickerVisibility: INewSessionPickerVisibility = {};
 
 	private readonly _workspace: ReturnType<typeof observableValue<ISessionWorkspace | undefined>>;
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;

@@ -6,15 +6,12 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
-import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 
-const COPILOT_WORKTREE_PATTERN = 'copilot-worktree-';
 const FILTER_THRESHOLD = 10;
 
 interface IBranchItem {
@@ -32,9 +29,7 @@ interface IBranchItem {
 export class BranchPicker extends Disposable {
 
 	private _selectedBranch: string | undefined;
-	private _preferredBranch: string | undefined;
 	private _branches: string[] = [];
-	private _repository: IGitRepository | undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<string | undefined>());
 	readonly onDidChange: Event<string | undefined> = this._onDidChange.event;
@@ -43,7 +38,6 @@ export class BranchPicker extends Disposable {
 	readonly onDidChangeLoading: Event<boolean> = this._onDidChangeLoading.event;
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
-	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private _slotElement: HTMLElement | undefined;
 	private _triggerElement: HTMLElement | undefined;
 
@@ -54,63 +48,14 @@ export class BranchPicker extends Disposable {
 	/**
 	 * Sets a preferred branch to select when branches are loaded.
 	 */
-	setPreferredBranch(branch: string | undefined): void {
-		this._preferredBranch = branch;
+	setPreferredBranch(_branch: string | undefined): void {
+		// TODO: Will be used when branch loading is re-integrated
 	}
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
-		@IGitService private readonly gitService: IGitService,
 	) {
 		super();
-	}
-
-	private async _onRepositoryChanged(repository: IGitRepository | undefined): Promise<void> {
-		// Cancel any in-flight branch loading
-		this._loadCts.value?.cancel();
-
-		this._repository = repository;
-		this._branches = [];
-		this._selectedBranch = undefined;
-
-		if (!repository) {
-			this._onDidChange.fire(undefined);
-			this._setLoading(false);
-			this._updateTriggerLabel();
-			return;
-		}
-
-		this._setLoading(true);
-		const cts = this._loadCts.value = new CancellationTokenSource();
-
-		try {
-			const refs = await repository.getRefs({ pattern: 'refs/heads' });
-			if (cts.token.isCancellationRequested) {
-				return;
-			}
-
-			this._branches = refs
-				.map(ref => ref.name)
-				.filter((name): name is string => !!name)
-				.filter(name => !name.includes(COPILOT_WORKTREE_PATTERN));
-
-			// Select preferred branch (from draft), active branch, main, master, or the first branch
-			const preferred = this._preferredBranch;
-			this._preferredBranch = undefined;
-			const defaultBranch = (preferred ? this._branches.find(b => b === preferred) : undefined)
-				?? this._branches.find(b => b === repository.state.get().HEAD?.name)
-				?? this._branches.find(b => b === 'main')
-				?? this._branches.find(b => b === 'master')
-				?? this._branches[0];
-			if (defaultBranch) {
-				this._selectBranch(defaultBranch);
-			}
-		} finally {
-			if (!cts.token.isCancellationRequested) {
-				this._setLoading(false);
-				this._updateTriggerLabel();
-			}
-		}
 	}
 
 	render(container: HTMLElement): void {
@@ -203,7 +148,4 @@ export class BranchPicker extends Disposable {
 		this._slotElement?.classList.toggle('disabled', isDisabled);
 	}
 
-	private _setLoading(loading: boolean): void {
-		this._onDidChangeLoading.fire(loading);
-	}
 }

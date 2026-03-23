@@ -24,6 +24,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { AgentSessionsControl } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsControl.js';
 import { AgentSessionsFilter, AgentSessionsGrouping, AgentSessionsSorting } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsFilter.js';
+import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from './sessionsManagementService.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -121,7 +122,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 
 		// Sessions Filter — allowed providers derived from registered sessions providers
 		const allowedProviders = this.sessionsProvidersService.getProviders()
-			.flatMap(p => p.sessionTypes.map(t => t.id));
+			.flatMap(p => p.sessionTypes.map(t => t.id)) as AgentSessionProviders[];
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: SessionsViewFilterOptionsSubMenu,
 			groupResults: () => this.currentGrouping,

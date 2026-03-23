@@ -6,12 +6,12 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { observableValue, IObservable } from '../../../../base/common/observable.js';
+import { observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ISessionData, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
+import { ISessionData, SessionStatus } from '../../sessions/common/sessionData.js';
 import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
 import { ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
 import { IChatSessionFileChange } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -36,8 +36,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 
 	constructor(
 		private readonly _address: string,
-		private readonly _connectionName: string | undefined,
-		private readonly _agentProvider: string,
+		_connectionName: string | undefined,
+		_agentProvider: string,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 	) {
 		super();

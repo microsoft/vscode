@@ -21,7 +21,7 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService, IContextKey, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -57,6 +57,7 @@ import { ExtensionToolbarPickers } from './extensionToolbarPickers.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { WorkspacePicker } from './workspacePicker.js';
 import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
+import { ISessionType } from '../../sessions/browser/sessionsProvider.js';
 import { ModePicker } from './modePicker.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -308,24 +309,34 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	private async _createNewSession(project?: SessionWorkspace): Promise<void> {
-		// Resolve the provider for this workspace via the registry
-		const providers = project
-			? this.sessionsProvidersService.getProvidersForWorkspace(project)
-			: this.sessionsProvidersService.getProviders();
+		let providerId: string;
+		let sessionType: ISessionType;
 
-		const provider = providers[0];
-		if (!provider) {
-			this.logService.error('No sessions provider found for workspace');
-			return;
-		}
-
-		// Determine session type: if provider supports multiple, pick the first.
-		// TODO: Show type picker when provider has multiple session types and
-		// the workspace doesn't imply a specific one.
-		const sessionType = provider.sessionTypes[0];
-		if (!sessionType) {
-			this.logService.error(`Sessions provider '${provider.id}' has no session types`);
-			return;
+		if (project) {
+			// Resolve the provider and session type for this workspace via the registry
+			const matches = this.sessionsProvidersService.getSessionTypesForWorkspace(project);
+			const match = matches[0];
+			if (!match) {
+				this.logService.error('No sessions provider found for workspace');
+				return;
+			}
+			providerId = match.provider.id;
+			sessionType = match.type;
+		} else {
+			// No project — pick the first provider with session types
+			const providers = this.sessionsProvidersService.getProviders();
+			const provider = providers[0];
+			if (!provider) {
+				this.logService.error('No sessions provider found');
+				return;
+			}
+			const type = provider.sessionTypes[0];
+			if (!type) {
+				this.logService.error(`Sessions provider '${provider.id}' has no session types`);
+				return;
+			}
+			providerId = provider.id;
+			sessionType = type;
 		}
 
 		const resource = getResourceForNewChatSession({
@@ -335,11 +346,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		});
 
 		try {
-			const session = this.sessionsProvidersService.createNewSession(provider.id, sessionType, resource, project);
-			if (project) {
-				session.setProject(project);
+			const sessionData = this.sessionsProvidersService.createNewSession(providerId, sessionType, resource, project);
+			// The provider wraps the INewSession — access it for the widget's configuration UI
+			const newSession = (sessionData as any)._newSession as INewSession | undefined;
+			if (newSession) {
+				this._setNewSession(newSession);
 			}
-			this._setNewSession(session);
 		} catch (e) {
 			this.logService.error('Failed to create new session:', e);
 		}

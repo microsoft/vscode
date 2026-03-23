@@ -165,7 +165,6 @@ export class IsolationPicker extends Disposable {
 	readonly onDidChange: Event<IsolationMode> = this._onDidChange.event;
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
-	private _slotElement: HTMLElement | undefined;
 	private _triggerElement: HTMLElement | undefined;
 
 	get isolationMode(): IsolationMode {
@@ -216,7 +215,6 @@ export class IsolationPicker extends Disposable {
 		this._renderDisposables.clear();
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
-		this._slotElement = slot;
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));

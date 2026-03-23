@@ -39,7 +39,6 @@ export class NewChatPermissionPicker extends Disposable {
 
 	private _currentLevel: ChatPermissionLevel = ChatPermissionLevel.Default;
 	private _triggerElement: HTMLElement | undefined;
-	private _container: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 
 	get permissionLevel(): ChatPermissionLevel {
@@ -58,7 +57,6 @@ export class NewChatPermissionPicker extends Disposable {
 		this._renderDisposables.clear();
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
-		this._container = slot;
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));

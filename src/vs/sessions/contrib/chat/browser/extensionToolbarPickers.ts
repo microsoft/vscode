@@ -15,6 +15,7 @@ import { SearchableOptionPickerActionItem } from '../../../../workbench/contrib/
 import { IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionOptionGroup, RemoteNewSession } from './newSession.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 
 /**
  * Self-contained widget that renders extension-driven toolbar pickers
@@ -35,15 +36,16 @@ export class ExtensionToolbarPickers extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 
 		// Observe active session and render toolbar pickers when it has option groups
 		this._register(autorun(reader => {
-			const session = this.sessionsProvidersService.activeSession.read(reader);
+			const session = this.sessionsManagementService.activeSessionData.read(reader);
 			this._sessionDisposables.clear();
 
-			if (session?.pickerVisibility.hasToolbarOptionGroups) {
+			if (session) {
 				// The session data wraps a RemoteNewSession — we need the internal session
 				// to access getOtherOptionGroups(). This is accessed via the provider.
 				this._bindToSession();
