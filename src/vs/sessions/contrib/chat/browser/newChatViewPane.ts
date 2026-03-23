@@ -311,23 +311,19 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		let sessionTypeId: string;
 
 		if (project) {
-			// Resolve the session type for this workspace via the registry
-			const matches = this.sessionsProvidersService.getSessionTypesForWorkspace(project);
-			const match = matches[0];
-			if (!match) {
-				this.logService.error('No sessions provider found for workspace');
-				return;
+			// Infer session type from workspace type
+			if (project.isRepo) {
+				sessionTypeId = AgentSessionProviders.Cloud;
+			} else if (project.isRemoteAgentHost) {
+				// Find the remote agent host provider's session type
+				const matches = this.sessionsProvidersService.getSessionTypesForWorkspace(project);
+				const match = matches.find(m => m.type.id.startsWith('remote-'));
+				sessionTypeId = match?.type.id ?? AgentSessionProviders.Background;
+			} else {
+				sessionTypeId = AgentSessionProviders.Background;
 			}
-			sessionTypeId = match.type.id;
 		} else {
-			// No project — pick the first provider's first session type
-			const providers = this.sessionsProvidersService.getProviders();
-			const provider = providers[0];
-			if (!provider?.sessionTypes[0]) {
-				this.logService.error('No sessions provider found');
-				return;
-			}
-			sessionTypeId = provider.sessionTypes[0].id;
+			sessionTypeId = AgentSessionProviders.Background;
 		}
 
 		const resource = getResourceForNewChatSession({
