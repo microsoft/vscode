@@ -1368,6 +1368,7 @@ export class ActionListWidget<T> extends Disposable {
 			// to avoid re-rendering which would destroy the element mid-hover
 			const isHoveringToolbar = dom.isHTMLElement(e.browserEvent.target) && e.browserEvent.target.closest('.action-list-item-toolbar') !== null;
 			if (isHoveringToolbar) {
+				this._cancelSubmenuShow();
 				this._list.setFocus([]);
 				return;
 			}
@@ -1389,6 +1390,7 @@ export class ActionListWidget<T> extends Disposable {
 			if (this._currentSubmenuElement === element) {
 				this._cancelSubmenuHide();
 			} else {
+				this._cancelSubmenuShow();
 				this._hideSubmenu();
 			}
 
