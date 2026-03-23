@@ -85,7 +85,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: 'chat.permissions.autoApprove',
 						label: localize('permissions.autoApprove', "Bypass Approvals"),
-						description: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
+						description: localize('permissions.autoApprove.subtext', "Auto-approve tool calls, but still pause between turns"),
 						icon: ThemeIcon.fromId(Codicon.warning.id),
 						checked: currentLevel === ChatPermissionLevel.AutoApprove,
 						enabled: !policyRestricted,
@@ -93,7 +93,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						hover: {
 							content: policyRestricted
 								? localize('permissions.autoApprove.policyDescription', "Disabled by enterprise policy")
-								: localize('permissions.autoApprove.description', "Auto-approve all tool calls and retry on errors"),
+								: localize('permissions.autoApprove.description', "Auto-approve all tool calls and retry on errors. Unlike Autopilot, this mode still pauses between turns."),
 							position: pickerOptions.hoverPosition
 						},
 						run: async () => {
@@ -114,7 +114,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 									custom: {
 										icon: Codicon.warning,
 										markdownDetails: [{
-											markdown: new MarkdownString(localize('permissions.autoApprove.warning.detail', "Bypass Approvals will auto-approve all tool calls without asking for confirmation. This includes file edits, terminal commands, and external tool calls.")),
+											markdown: new MarkdownString(localize('permissions.autoApprove.warning.detail', "Bypass Approvals will auto-approve all tool calls without asking for confirmation. This includes file edits, terminal commands, and external tool calls.\n\nThis mode still pauses between turns. Use **Autopilot** if you want the agent to continue until the task is complete.")),
 										}],
 									},
 								});
@@ -135,7 +135,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: 'chat.permissions.autopilot',
 						label: localize('permissions.autopilot', "Autopilot (Preview)"),
-						description: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
+						description: localize('permissions.autopilot.subtext', "Bypass approvals and continue until the task is complete"),
 						icon: ThemeIcon.fromId(Codicon.rocket.id),
 						checked: currentLevel === ChatPermissionLevel.Autopilot,
 						enabled: !policyRestricted,
@@ -143,7 +143,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						hover: {
 							content: policyRestricted
 								? localize('permissions.autopilot.policyDescription', "Disabled by enterprise policy")
-								: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done"),
+								: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue autonomously until the task is done. This includes everything in Bypass Approvals."),
 							position: pickerOptions.hoverPosition
 						},
 						run: async () => {
@@ -164,7 +164,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 									custom: {
 										icon: Codicon.rocket,
 										markdownDetails: [{
-											markdown: new MarkdownString(localize('permissions.autopilot.warning.detail', "Autopilot will auto-approve all tool calls and continue working autonomously until the task is complete. The agent will make decisions on your behalf without asking for confirmation.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.")),
+											markdown: new MarkdownString(localize('permissions.autopilot.warning.detail', "Autopilot includes Bypass Approvals behavior and also keeps going until the task is complete. The agent will make decisions on your behalf without asking for confirmation between turns.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.")),
 										}],
 									},
 								});

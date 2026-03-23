@@ -31,6 +31,8 @@ import { TestContextService } from '../../../../../test/common/workbenchTestServ
 import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/workbenchTestServices.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
+import { IChatWidgetService } from '../../../../chat/browser/chat.js';
+import { ChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocationPreparationContext, ToolDataSource, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
@@ -1577,6 +1579,60 @@ suite('RunInTerminalTool', () => {
 			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
 			ok(terminalData.autoApproveInfo, 'Expected autoApproveInfo to be defined');
 			ok(terminalData.autoApproveInfo.value.includes('Auto approved for this session'), 'Expected session approval message');
+		});
+
+		test('should bypass terminal auto-approve feature in Autopilot mode', async () => {
+			setAutoApprove({
+				curl: false
+			});
+
+			const sessionResource = LocalChatSessionUri.forSession('autopilot-session');
+			instantiationService.stub(IChatWidgetService, {
+				getWidgetBySessionResource: () => ({ input: { currentModeInfo: { permissionLevel: ChatPermissionLevel.Autopilot } } }),
+				lastFocusedWidget: undefined,
+			});
+
+			const autopilotRunInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+			const result = await autopilotRunInTerminalTool.prepareToolInvocation({
+				parameters: {
+					command: 'curl https://example.com',
+					explanation: 'Fetch a URL',
+					goal: 'Download content',
+					isBackground: false,
+				} as IRunInTerminalInputParams,
+				chatSessionResource: sessionResource,
+			} as IToolInvocationPreparationContext, CancellationToken.None);
+
+			assertAutoApproved(result);
+			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.autoApproveInfo, undefined, 'Expected no terminal auto-approve info in Autopilot mode');
+		});
+
+		test('should bypass terminal auto-approve feature in Bypass Approvals mode', async () => {
+			setAutoApprove({
+				curl: false
+			});
+
+			const sessionResource = LocalChatSessionUri.forSession('bypass-session');
+			instantiationService.stub(IChatWidgetService, {
+				getWidgetBySessionResource: () => ({ input: { currentModeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove } } }),
+				lastFocusedWidget: undefined,
+			});
+
+			const bypassRunInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+			const result = await bypassRunInTerminalTool.prepareToolInvocation({
+				parameters: {
+					command: 'curl https://example.com',
+					explanation: 'Fetch a URL',
+					goal: 'Download content',
+					isBackground: false,
+				} as IRunInTerminalInputParams,
+				chatSessionResource: sessionResource,
+			} as IToolInvocationPreparationContext, CancellationToken.None);
+
+			assertAutoApproved(result);
+			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.autoApproveInfo, undefined, 'Expected no terminal auto-approve info in Bypass Approvals mode');
 		});
 	});
 

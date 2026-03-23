@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { getMediaMime } from '../../../../../../base/common/mime.js';
@@ -647,7 +647,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			chatSessionResource,
 			requiresUnsandboxConfirmation,
 		};
-		const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
+
+		// In Autopilot/Bypass Approvals modes, do not interact with terminal auto-approve rules.
+		// Commands should flow through directly based on the chat permission level.
+		const isSessionAutoApproved = chatSessionResource && this._isSessionAutoApproveLevel(chatSessionResource);
+		const commandLineAnalyzers = isSessionAutoApproved
+			? this._commandLineAnalyzers.filter(e => !(e instanceof CommandLineAutoApproveAnalyzer))
+			: this._commandLineAnalyzers;
+		const commandLineAnalyzerResults = await Promise.all(commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
 
 		const disclaimersRaw = commandLineAnalyzerResults.map(e => e.disclaimers).filter(e => !!e).flatMap(e => e);
 		let disclaimer: IMarkdownString | undefined;
@@ -760,10 +767,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				? localize('runInTerminal.unsandboxed.background', "Run `{0}` command outside the sandbox in background?", shellType)
 				: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the sandbox?", shellType);
 		}
-
-		// Check if the session's permission level (Autopilot/Bypass Approvals) auto-approves all tools.
-		// When active, skip terminal confirmation entirely since the user has opted into full auto-approval.
-		const isSessionAutoApproved = chatSessionResource && this._isSessionAutoApproveLevel(chatSessionResource);
 
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
 		const shouldShowConfirmation = (!isFinalAutoApproved && !isSessionAutoApproved) || context.forceConfirmationReason !== undefined;
