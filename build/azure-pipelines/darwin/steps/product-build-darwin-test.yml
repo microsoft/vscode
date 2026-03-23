@@ -52,6 +52,11 @@ steps:
         compile-extension:vscode-test-resolver
     displayName: Build integration tests
 
+  - script: npm --prefix extensions/copilot run compile
+    displayName: Build copilot extension (tests)
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
     - script: |
         # Figure out the full absolute path of the product we just built

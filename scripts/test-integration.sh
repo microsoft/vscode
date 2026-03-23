@@ -127,6 +127,17 @@ echo
 npm run test-extension -- -l github-authentication
 kill_app
 
+echo
+echo "### Copilot tests"
+echo
+npm run test-extension -- -l copilot
+kill_app
+
+echo
+echo "### Copilot unit tests (vitest)"
+echo
+npm --prefix extensions/copilot run test:unit
+
 # Tests standalone (CommonJS)
 
 echo
