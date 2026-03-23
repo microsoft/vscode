@@ -89,18 +89,37 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 }
 
 /**
+ * Strips the redundant `ws://` scheme from an address. The transport layer
+ * already defaults to `ws://`, so only `wss://` needs to be preserved.
+ */
+export function normalizeRemoteAgentHostAddress(address: string): string {
+	if (address.startsWith('ws://')) {
+		return address.slice('ws://'.length);
+	}
+	return address;
+}
+
+/**
  * Encode a remote address into an identifier that is safe for use in
  * both URI schemes and URI authorities, and is collision-free.
  *
- * If the address contains only alphanumeric characters it is returned as-is.
- * Otherwise it is url-safe base64-encoded (no padding) to guarantee the
- * result contains only `[A-Za-z0-9_-]`.
+ * Three tiers:
+ * 1. Purely alphanumeric addresses are returned as-is.
+ * 2. "Normal" addresses containing only `[a-zA-Z0-9.:-]` get colons
+ *    replaced with `__` (double underscore) for human readability.
+ *    Addresses containing `_` skip this tier to keep the encoding
+ *    collision-free (`__` can only appear from colon replacement).
+ * 3. Everything else is url-safe base64-encoded with a `b64-` prefix.
  */
 export function agentHostAuthority(address: string): string {
-	if (/^[a-zA-Z0-9]+$/.test(address)) {
-		return address;
+	const normalized = normalizeRemoteAgentHostAddress(address);
+	if (/^[a-zA-Z0-9]+$/.test(normalized)) {
+		return normalized;
 	}
-	return 'b64-' + encodeBase64(VSBuffer.fromString(address), false, true);
+	if (/^[a-zA-Z0-9.:\-]+$/.test(normalized)) {
+		return normalized.replaceAll(':', '__');
+	}
+	return 'b64-' + encodeBase64(VSBuffer.fromString(normalized), false, true);
 }
 
 /**

@@ -828,7 +828,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Default sizes
 		const sideBarSize = 300;
-		const auxiliaryBarSize = 340;
+		const auxiliaryBarSize = 380;
 		const panelSize = 300;
 		const titleBarHeight = this.titleBarPartView?.minimumHeight ?? 30;
 

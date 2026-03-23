@@ -15,6 +15,7 @@
  *
  * Margin values (must match the constants in the Part classes):
  *   Sidebar:       no card (flush, spans full height)
+ *   Chat bar:       top=16, bottom=2, left=16, right=16
  *   Auxiliary bar:  top=16, bottom=18, right=16
  *   Panel:          bottom=18, left=16, right=16
  */
@@ -24,8 +25,16 @@
 	border-right: 1px solid var(--vscode-sideBar-border, transparent);
 }
 
+.agent-sessions-workbench .part.chatbar {
+	margin: 0 16px 2px 16px;
+	background: var(--part-background);
+	border: 1px solid var(--part-border-color, transparent);
+	border-radius: 8px;
+	box-sizing: border-box;
+}
+
 .agent-sessions-workbench .part.auxiliarybar {
-	margin: 16px 16px 18px 0;
+	margin: 0 16px 2px 0;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
@@ -79,7 +88,7 @@
 	margin: 0 auto !important;
 	display: inherit !important;
 	/* Align with panel (terminal) card margin */
-	padding: 4px 16px 16px 16px !important;
+	padding: 4px 16px !important;
 	box-sizing: border-box;
 }
 
