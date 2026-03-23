@@ -12,6 +12,7 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -49,8 +50,17 @@ export class NewChatPermissionPicker extends Disposable {
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
+
+		// Write permission level to the active session data when it changes
+		this._register(this.onDidChangeLevel(level => {
+			const session = this.sessionsManagementService.activeSessionData.get();
+			if (session) {
+				(session.permissionLevel as any).set(level, undefined);
+			}
+		}));
 	}
 
 	render(container: HTMLElement): HTMLElement {

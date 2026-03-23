@@ -22,6 +22,7 @@ import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browse
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionFileChange } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionData, ISessionRepository, ISessionWorkspace, SessionStatus } from '../common/sessionData.js';
+import { ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { SessionWorkspace, GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionWorkspace.js';
 import { ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
 import { INewSession, INewSessionPickerVisibility, CopilotCLISession, RemoteNewSession } from '../../chat/browser/newSession.js';
@@ -213,6 +214,8 @@ class NewSessionDataAdapter implements ISessionData {
 		this.updatedAt = this._updatedAt;
 		this._status = observableValue(this, SessionStatus.Untitled);
 		this.status = this._status;
+		this._permissionLevel = observableValue(this, ChatPermissionLevel.Default);
+		this.permissionLevel = this._permissionLevel;
 		this._workspace = observableValue<ISessionWorkspace | undefined>(this, undefined);
 		this.workspace = this._workspace;
 		this.changes = observableValue<readonly IChatSessionFileChange[]>(this, []);
@@ -237,6 +240,9 @@ class NewSessionDataAdapter implements ISessionData {
 				break;
 			case 'project':
 				this._newSession.setProject(value as SessionWorkspace);
+				break;
+			case 'permissionLevel':
+				this._permissionLevel.set(value as ChatPermissionLevel, undefined);
 				break;
 		}
 	}
@@ -285,6 +291,8 @@ class AgentSessionAdapter implements ISessionData {
 	private readonly _changes: ReturnType<typeof observableValue<readonly IChatSessionFileChange[]>>;
 	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
 
+	readonly permissionLevel: IObservable<ChatPermissionLevel>;
+
 	constructor(
 		session: IAgentSession,
 		providerId: string,
@@ -310,6 +318,7 @@ class AgentSessionAdapter implements ISessionData {
 
 		this._changes = observableValue<readonly IChatSessionFileChange[]>(this, this._extractChanges(session));
 		this.changes = this._changes;
+		this.permissionLevel = observableValue(this, ChatPermissionLevel.Default);
 	}
 
 	/**

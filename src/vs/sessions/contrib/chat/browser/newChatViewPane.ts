@@ -57,6 +57,8 @@ import { ExtensionToolbarPickers } from './extensionToolbarPickers.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { WorkspacePicker } from './workspacePicker.js';
 import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
+import { Menus } from '../../../browser/menus.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ModePicker } from './modePicker.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -64,7 +66,6 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
-import { NewChatPermissionPicker } from './newChatPermissionPicker.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 
 
@@ -133,7 +134,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private _toolbarPickersContainer: HTMLElement | undefined;
 	private _localModelPickerContainer: HTMLElement | undefined;
 	private _inputSlot: HTMLElement | undefined;
-	private readonly _permissionPicker: NewChatPermissionPicker;
 	private readonly _cloudModelPicker: CloudModelPicker;
 	private readonly _modePicker: ModePicker;
 	private readonly _extensionToolbarPickers: ExtensionToolbarPickers;
@@ -177,7 +177,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
 		this._workspacePicker = this._register(this.instantiationService.createInstance(WorkspacePicker));
-		this._permissionPicker = this._register(this.instantiationService.createInstance(NewChatPermissionPicker));
 		this._cloudModelPicker = this._register(this.instantiationService.createInstance(CloudModelPicker));
 		this._modePicker = this._register(this.instantiationService.createInstance(ModePicker));
 		this._sessionTypePicker = this._register(this.instantiationService.createInstance(SessionTypePicker));
@@ -275,14 +274,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Isolation mode and branch pickers (below the input, shown when Local target is selected)
 		const isolationContainer = dom.append(welcomeElement, dom.$('.chat-full-welcome-local-mode'));
 		this._sessionTypePicker.render(isolationContainer);
-		// Permissions picker — visibility controlled by isActiveSessionBackgroundProvider context key
-		const permissionSlot = this._permissionPicker.render(isolationContainer);
-		this._register(autorun(reader => {
-			const session = this.sessionsManagementService.activeSessionData.read(reader);
-			const isBackground = !session || session.sessionType === AgentSessionProviders.Background;
-			if (permissionSlot) {
-				permissionSlot.style.display = isBackground ? '' : 'none';
-			}
+		// Permissions picker — rendered via MenuWorkbenchToolBar, visibility via context key
+		const permissionContainer = dom.append(isolationContainer, dom.$('.sessions-chat-permission-toolbar'));
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, permissionContainer, Menus.NewSessionControl, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 		}));
 		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));
 		const branchContainer = dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-right'));
@@ -760,12 +755,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 
 		try {
-			await this.sessionsManagementService.sendRequestForNewSession(
-				session.resource,
-				{
-					permissionLevel: this._permissionPicker.permissionLevel,
-				}
-			);
+			await this.sessionsManagementService.sendRequestForNewSession(session.resource);
 			this._newSessionListener.clear();
 			this._contextAttachments.clear();
 			this._editor.getModel()?.setValue('');
