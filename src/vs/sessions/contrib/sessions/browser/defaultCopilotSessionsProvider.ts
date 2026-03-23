@@ -78,7 +78,7 @@ registerAction2(class extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsActiveSessionBackgroundProviderContext,
-					ContextKeyExpr.notEquals('config.github.copilot.chat.cli.isolationOption.enabled', false),
+					ContextKeyExpr.has('config.github.copilot.chat.cli.isolationOption.enabled'),
 				),
 			}],
 		});
