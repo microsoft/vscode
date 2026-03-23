@@ -1319,7 +1319,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	icon: Codicon.versions,
 	group: 'navigation',
 	order: 9,
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', CHANGES_VIEW_ID), IsSessionsWindowContext, ChatContextKeys.hasAgentSessionChanges),
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', CHANGES_VIEW_ID), IsSessionsWindowContext),
 });
 
 class AllChangesAction extends Action2 {
