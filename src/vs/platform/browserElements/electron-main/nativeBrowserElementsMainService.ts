@@ -395,9 +395,10 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		}
 
 		const nodeData = await this.getNodeData(targetSessionId, debuggers, window.win, cancellationId);
-		await this.finishOverlay(debuggers, targetSessionId);
 
-		const zoomFactor = simpleBrowserWebview.getZoomFactor();
+		const zoomFactor = await this.getPageZoomFactor(locator, debuggers, targetSessionId, simpleBrowserWebview);
+
+		await this.finishOverlay(debuggers, targetSessionId);
 		const absoluteBounds = {
 			x: rect.x + nodeData.bounds.x,
 			y: rect.y + nodeData.bounds.y,
@@ -509,7 +510,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 				return undefined;
 			}
 
-			const zoomFactor = simpleBrowserWebview.getZoomFactor();
+			const zoomFactor = await this.getPageZoomFactor(locator, debuggers, sessionId!, simpleBrowserWebview);
 			const absoluteBounds = {
 				x: rect.x + focusedData.bounds.x,
 				y: rect.y + focusedData.bounds.y,
@@ -701,6 +702,36 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 
 			debuggers.on('message', onMessage);
 		});
+	}
+
+	/**
+	 * Returns the zoom factor that should be used to scale element bounds from page CSS pixels
+	 * into the coordinate system expected by `captureScreenshot` / `getScreenshot`.
+	 *
+	 * For Integrated Browser targets (`locator.browserViewId`) the browser page may have its own
+	 * zoom level that is independent of VS Code's window zoom.  We therefore ask the page itself
+	 * by evaluating `window.visualViewport.scale` inside the already-open CDP session, so that we
+	 * always use the actual zoom at the moment of element selection rather than any cached value.
+	 *
+	 * For Simple Browser / Live Preview webview targets (`locator.webviewId`) the page has no
+	 * independent zoom, so we fall back to VS Code's window zoom factor.
+	 */
+	private async getPageZoomFactor(locator: IBrowserTargetLocator, debuggers: Electron.Debugger, sessionId: string, simpleBrowserWebview: Electron.WebContents): Promise<number> {
+		if (locator.browserViewId) {
+			try {
+				const { result: zoomResult } = await debuggers.sendCommand('Runtime.evaluate', {
+					expression: 'window.visualViewport?.scale ?? 1',
+					returnByValue: true,
+				}, sessionId);
+				if (typeof zoomResult?.value === 'number' && zoomResult.value > 0) {
+					return zoomResult.value;
+				}
+			} catch {
+				// Fall through to the default of 1
+			}
+			return 1;
+		}
+		return simpleBrowserWebview.getZoomFactor();
 	}
 
 	formatMatchedStyles(matched: { inlineStyle?: { cssProperties?: Array<{ name: string; value: string }> }; matchedCSSRules?: Array<{ rule: { selectorList: { selectors: Array<{ text: string }> }; origin: string; style: { cssProperties: Array<{ name: string; value: string }> } } }>; inherited?: Array<{ inlineStyle?: { cssText: string }; matchedCSSRules?: Array<{ rule: { selectorList: { selectors: Array<{ text: string }> }; origin: string; style: { cssProperties: Array<{ name: string; value: string }> } } }> }> }): string {
