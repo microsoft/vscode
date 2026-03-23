@@ -234,18 +234,9 @@ export function registerChatForkActions() {
 }
 
 async function forkContributedChatSession(sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, openForkedSessionImmediately: boolean, chatSessionsService: IChatSessionsService, chatWidgetService: IChatWidgetService, progressService: IProgressService) {
-	const forkedItem = await progressService.withProgress(
-		{ location: ProgressLocation.Notification, title: localize('forking', "Forking session...") },
-		async () => {
-			const cts = new CancellationTokenSource();
-			try {
-				return await chatSessionsService.forkChatSession(sourceSessionResource, request, cts.token);
-			} finally {
-				cts.dispose();
-			}
-		}
-	);
-	if (forkedItem) {
+	const cts = new CancellationTokenSource();
+	try {
+		const forkedItem = await chatSessionsService.forkChatSession(sourceSessionResource, request, cts.token);
 		if (openForkedSessionImmediately) {
 			await chatWidgetService.openSession(forkedItem.resource, ChatViewPaneTarget);
 		} else {
@@ -253,5 +244,7 @@ async function forkContributedChatSession(sourceSessionResource: URI, request: I
 				await chatWidgetService.openSession(forkedItem.resource, ChatViewPaneTarget);
 			}, 0);
 		}
+	} finally {
+		cts.dispose();
 	}
 }
