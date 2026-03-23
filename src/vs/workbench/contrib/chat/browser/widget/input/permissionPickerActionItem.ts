@@ -85,7 +85,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: 'chat.permissions.autoApprove',
 						label: localize('permissions.autoApprove', "Bypass Approvals"),
-						description: localize('permissions.autoApprove.subtext', "Auto-approve tool calls, but still pause between turns"),
+						description: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
 						icon: ThemeIcon.fromId(Codicon.warning.id),
 						checked: currentLevel === ChatPermissionLevel.AutoApprove,
 						enabled: !policyRestricted,
@@ -93,17 +93,14 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						hover: {
 							content: policyRestricted
 								? localize('permissions.autoApprove.policyDescription', "Disabled by enterprise policy")
-								: localize('permissions.autoApprove.description', "Auto-approve all tool calls and retry on errors. Unlike Autopilot, this mode still pauses between turns."),
+								: localize('permissions.autoApprove.description', "Auto-approve all tool calls and retry on errors"),
 							position: pickerOptions.hoverPosition
 						},
 						run: async () => {
 							if (!hasShownElevatedWarning(ChatPermissionLevel.AutoApprove)) {
 								const result = await this.dialogService.prompt({
 									type: Severity.Warning,
-									message: localize(
-										'permissions.autoApprove.warning.title',
-										"Enable Bypass Approvals and Run Terminal Commands?"
-									),
+									message: localize('permissions.autoApprove.warning.title', "Enable Bypass Approvals?"),
 									buttons: [
 										{
 											label: localize('permissions.autoApprove.warning.confirm', "Enable"),
@@ -117,10 +114,8 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 									custom: {
 										icon: Codicon.warning,
 										markdownDetails: [{
-											markdown: new MarkdownString(localize(
-												'permissions.autoApprove.warning.detail',
-												"Bypass Approvals will auto-approve all tool calls without asking for confirmation. Terminal commands will run immediately without a confirmation prompt. This includes file edits and external tool calls.\n\nThis mode still pauses between turns. Use **Autopilot** if you want the agent to continue until the task is complete."
-											)),
+											markdown: new MarkdownString(localize('permissions.autoApprove.warning.detail',
+												"Bypass Approvals will auto-approve all tool calls without asking for confirmation. Terminal commands will run immediately without a confirmation prompt. This includes file edits and external tool calls.\n\nThis mode still pauses between turns. Use **Autopilot** if you want the agent to continue until the task is complete.")),
 										}],
 									},
 								});
@@ -141,7 +136,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: 'chat.permissions.autopilot',
 						label: localize('permissions.autopilot', "Autopilot (Preview)"),
-						description: localize('permissions.autopilot.subtext', "Bypass approvals and continue until the task is complete"),
+						description: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
 						icon: ThemeIcon.fromId(Codicon.rocket.id),
 						checked: currentLevel === ChatPermissionLevel.Autopilot,
 						enabled: !policyRestricted,
@@ -149,17 +144,14 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						hover: {
 							content: policyRestricted
 								? localize('permissions.autopilot.policyDescription', "Disabled by enterprise policy")
-								: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue autonomously until the task is done. This includes everything in Bypass Approvals."),
+								: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done"),
 							position: pickerOptions.hoverPosition
 						},
 						run: async () => {
 							if (!hasShownElevatedWarning(ChatPermissionLevel.Autopilot)) {
 								const result = await this.dialogService.prompt({
 									type: Severity.Warning,
-									message: localize(
-										'permissions.autopilot.warning.title',
-										"Enable Autopilot and Run Terminal Commands?"
-									),
+									message: localize('permissions.autopilot.warning.title', "Enable Autopilot?"),
 									buttons: [
 										{
 											label: localize('permissions.autopilot.warning.confirm', "Enable"),
@@ -173,10 +165,8 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 									custom: {
 										icon: Codicon.rocket,
 										markdownDetails: [{
-											markdown: new MarkdownString(localize(
-												'permissions.autopilot.warning.detail',
-												"Autopilot includes Bypass Approvals behavior and also keeps going until the task is complete. Terminal commands will run without confirmation prompts, and the agent will continue making decisions on your behalf between turns.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only."
-											)),
+											markdown: new MarkdownString(localize('permissions.autopilot.warning.detail',
+												"Autopilot includes Bypass Approvals behavior and also keeps going until the task is complete. Terminal commands will run without confirmation prompts, and the agent will continue making decisions on your behalf between turns.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.")),
 										}],
 									},
 								});
