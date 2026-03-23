@@ -293,12 +293,25 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Restore draft input state from storage
 		this._restoreState();
 
-		// Create initial session
+		// Create initial session — wait for providers if none registered yet
 		const restoredProject = this._workspacePicker.selectedProject;
-		if (restoredProject) {
-			this._onProjectSelected(restoredProject);
+		if (this.sessionsProvidersService.getProviders().length > 0) {
+			if (restoredProject) {
+				this._onProjectSelected(restoredProject);
+			} else {
+				this._createNewSession();
+			}
 		} else {
-			this._createNewSession();
+			// Providers not yet registered (startup race) — wait for first registration
+			const sub = this.sessionsProvidersService.onDidChangeProviders(() => {
+				sub.dispose();
+				if (restoredProject) {
+					this._onProjectSelected(restoredProject);
+				} else {
+					this._createNewSession();
+				}
+			});
+			this._register(sub);
 		}
 
 		// Reveal
