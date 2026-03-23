@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 15
+// version: 16
 
 declare module 'vscode' {
 
@@ -200,9 +200,14 @@ declare module 'vscode' {
 		readonly modelId?: string;
 
 		/**
+		 * The mode instructions that were active for this request, if any.
+		 */
+		readonly modeInstructions2?: ChatRequestModeInstructions;
+
+		/**
 		 * @hidden
 		 */
-		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined, modelId: string | undefined);
+		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined, modelId: string | undefined, modeInstructions2: ChatRequestModeInstructions | undefined);
 	}
 
 	export class ChatResponseTurn2 {
