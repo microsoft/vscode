@@ -780,7 +780,9 @@ class DefaultCopilotActiveSessionContribution extends Disposable implements IWor
 			const session = sessionsManagementService.activeSessionData.read(reader);
 			if (session?.providerId === 'default-copilot') {
 				const workspace = session.workspace.read(reader);
-				hasRepositoryKey.set(!!(workspace?.repositories.length));
+				const repo = workspace?.repositories[0];
+				// Has git repo if the repository has a working directory (resolved by git service)
+				hasRepositoryKey.set(!!repo?.workingDirectory);
 			} else {
 				hasRepositoryKey.set(false);
 			}
