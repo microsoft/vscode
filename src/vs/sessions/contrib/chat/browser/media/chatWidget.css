@@ -72,14 +72,24 @@
 }
 
 /* Model picker - uses workbench ModelPickerActionItem */
-.sessions-chat-model-picker {
+/* Session config toolbar (mode, model pickers via MenuWorkbenchToolBar) */
+.sessions-chat-config-toolbar {
 	display: flex;
 	align-items: center;
 	min-width: 0;
 	overflow: hidden;
 }
 
-.sessions-chat-model-picker .action-label {
+.sessions-chat-config-toolbar .monaco-toolbar {
+	height: auto;
+}
+
+.sessions-chat-config-toolbar .monaco-action-bar .action-item {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-chat-config-toolbar .action-label {
 	display: flex;
 	align-items: center;
 	height: 16px;
@@ -95,17 +105,17 @@
 	overflow: hidden;
 }
 
-.sessions-chat-model-picker .action-label:hover {
+.sessions-chat-config-toolbar .action-label:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
 }
 
-.sessions-chat-model-picker .action-label .codicon {
+.sessions-chat-config-toolbar .action-label .codicon {
 	font-size: 14px;
 	flex-shrink: 0;
 }
 
-.sessions-chat-model-picker .action-label .codicon-chevron-down {
+.sessions-chat-config-toolbar .action-label .codicon-chevron-down {
 	font-size: 12px;
 	margin-left: 6px;
 }
