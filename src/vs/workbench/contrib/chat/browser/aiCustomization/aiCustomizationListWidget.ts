@@ -266,16 +266,12 @@ function storageToIcon(storage: PromptsStorage): ThemeIcon {
 }
 
 /**
- * Formats a name for display: strips a trailing .md extension, converts dashes/underscores
- * to spaces and applies title case.
- * Note: callers that pass IMatch highlight ranges must compute those ranges against the
- * formatted string (not the raw input), since .md stripping changes string length.
+ * Formats a name for display by stripping a trailing .md extension.
+ * Names from frontmatter headers are shown as-is to stay consistent
+ * with how they appear in agent dropdowns and error messages.
  */
 export function formatDisplayName(name: string): string {
-	return name
-		.replace(/\.md$/i, '')
-		.replace(/[-_]/g, ' ')
-		.replace(/\b\w/g, c => c.toUpperCase());
+	return name.replace(/\.md$/i, '');
 }
 
 /**
