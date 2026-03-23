@@ -57,7 +57,6 @@ import { ExtensionToolbarPickers } from './extensionToolbarPickers.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { WorkspacePicker } from './workspacePicker.js';
 import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
-import { ISessionType } from '../../sessions/browser/sessionsProvider.js';
 import { ModePicker } from './modePicker.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -309,49 +308,41 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	private async _createNewSession(project?: SessionWorkspace): Promise<void> {
-		let providerId: string;
-		let sessionType: ISessionType;
+		let sessionTypeId: string;
 
 		if (project) {
-			// Resolve the provider and session type for this workspace via the registry
+			// Resolve the session type for this workspace via the registry
 			const matches = this.sessionsProvidersService.getSessionTypesForWorkspace(project);
 			const match = matches[0];
 			if (!match) {
 				this.logService.error('No sessions provider found for workspace');
 				return;
 			}
-			providerId = match.provider.id;
-			sessionType = match.type;
+			sessionTypeId = match.type.id;
 		} else {
-			// No project — pick the first provider with session types
+			// No project — pick the first provider's first session type
 			const providers = this.sessionsProvidersService.getProviders();
 			const provider = providers[0];
-			if (!provider) {
+			if (!provider?.sessionTypes[0]) {
 				this.logService.error('No sessions provider found');
 				return;
 			}
-			const type = provider.sessionTypes[0];
-			if (!type) {
-				this.logService.error(`Sessions provider '${provider.id}' has no session types`);
-				return;
-			}
-			providerId = provider.id;
-			sessionType = type;
+			sessionTypeId = provider.sessionTypes[0].id;
 		}
 
 		const resource = getResourceForNewChatSession({
-			type: sessionType.id,
+			type: sessionTypeId,
 			position: this._options.sessionPosition ?? ChatSessionPosition.Sidebar,
 			displayName: '',
 		});
 
 		try {
-			const sessionData = this.sessionsProvidersService.createNewSession(providerId, sessionType, resource, project);
-			// The provider wraps the INewSession — access it for the widget's configuration UI
-			const newSession = (sessionData as any)._newSession as INewSession | undefined;
-			if (newSession) {
-				this._setNewSession(newSession);
+			// Use sessionsManagementService which sets activeSessionData, context keys, and _newSession
+			const session = await this.sessionsManagementService.createNewSessionForTarget(sessionTypeId, resource);
+			if (project) {
+				session.setProject(project);
 			}
+			this._setNewSession(session);
 		} catch (e) {
 			this.logService.error('Failed to create new session:', e);
 		}
