@@ -646,6 +646,106 @@ suite('AgentHostChatContribution', () => {
 		});
 	});
 
+	// ---- Steering / yield ---------------------------------------------------
+
+	suite('steering', () => {
+
+		test('yield dispatches turnCancelled and resolves the turn', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+
+			// Stream some partial content before yielding
+			fire({ type: 'session/delta', session, turnId, content: 'partial ' } as ISessionAction);
+
+			// Trigger yield via the agent implementation
+			const agentImpl = chatAgentService.registeredAgents.get('agent-host-copilot')!.impl;
+			agentImpl.setYieldRequested!('req-1', true);
+
+			await turnPromise;
+
+			// Should have dispatched turnCancelled
+			assert.ok(
+				agentHostService.dispatchedActions.some(a => a.action.type === 'session/turnCancelled'),
+				'Expected session/turnCancelled to be dispatched',
+			);
+
+			// Partial content streamed before yield should be preserved
+			assert.ok(collected.length >= 1);
+			assert.strictEqual((collected[0][0] as IChatMarkdownContent).content.value, 'partial ');
+		});
+
+		test('yield when no active turn is a no-op', async () => {
+			const { chatAgentService, agentHostService } = createContribution(disposables);
+
+			const agentImpl = chatAgentService.registeredAgents.get('agent-host-copilot')!.impl;
+			const actionCountBefore = agentHostService.dispatchedActions.length;
+
+			// Call yield with a non-existent request — should be a no-op
+			agentImpl.setYieldRequested!('non-existent-request', true);
+
+			assert.strictEqual(agentHostService.dispatchedActions.length, actionCountBefore);
+		});
+
+		test('yield with value=false is a no-op', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const actionCountAfterStart = agentHostService.dispatchedActions.length;
+
+			// Call yield with value=false — should not cancel
+			const agentImpl = chatAgentService.registeredAgents.get('agent-host-copilot')!.impl;
+			agentImpl.setYieldRequested!('req-1', false);
+
+			// No new actions should have been dispatched
+			assert.strictEqual(agentHostService.dispatchedActions.length, actionCountAfterStart);
+
+			// Complete the turn normally
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+		});
+
+		test('yield after natural completion is a no-op', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+
+			// Complete turn naturally
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+
+			const actionCountAfterComplete = agentHostService.dispatchedActions.length;
+
+			// Yield after completion — should be a no-op
+			const agentImpl = chatAgentService.registeredAgents.get('agent-host-copilot')!.impl;
+			agentImpl.setYieldRequested!('req-1', true);
+
+			assert.strictEqual(agentHostService.dispatchedActions.length, actionCountAfterComplete);
+		});
+
+		test('yield force-completes outstanding tool invocations', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+
+			// Start a tool invocation without completing it
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-yield', toolName: 'bash', displayName: 'Bash' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-yield', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
+
+			// Yield while tool is in progress
+			const agentImpl = chatAgentService.registeredAgents.get('agent-host-copilot')!.impl;
+			agentImpl.setYieldRequested!('req-1', true);
+
+			await turnPromise;
+
+			// The orphaned tool invocation should be force-completed
+			assert.strictEqual(collected.length, 1);
+			const invocation = collected[0][0] as IChatToolInvocation;
+			assert.strictEqual(invocation.kind, 'toolInvocation');
+			assert.strictEqual(IChatToolInvocation.isComplete(invocation), true);
+		});
+	});
+
 	// ---- Error events -------------------------------------------------------
 
 	suite('error events', () => {

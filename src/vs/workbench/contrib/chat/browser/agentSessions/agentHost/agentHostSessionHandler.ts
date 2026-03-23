@@ -111,6 +111,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _activeSessions = new Map<string, AgentHostChatSession>();
 	/** Maps UI resource keys to resolved backend session URIs. */
 	private readonly _sessionToBackend = new Map<string, URI>();
+	/** Maps chat request IDs to active turn info for steering/yield support. */
+	private readonly _activeTurnsByRequestId = new Map<string, { session: string; turnId: string; finish: () => void }>();
 	private readonly _config: IAgentHostSessionHandlerConfig;
 
 	/** Client state manager shared across all sessions for this handler. */
@@ -215,9 +217,42 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			invoke: async (request, progress, _history, cancellationToken) => {
 				return this._invokeAgent(request, progress, cancellationToken);
 			},
+			setYieldRequested: (requestId: string, value: boolean) => {
+				this._handleYieldRequested(requestId, value);
+			},
 		};
 
 		this._register(this._chatAgentService.registerDynamicAgent(agentData, agentImpl));
+	}
+
+	/**
+	 * Handles the yield signal from the chat framework. When a steering
+	 * message arrives while an AHP turn is active, the framework calls
+	 * this to ask the agent to yield. Since the AHP protocol doesn't
+	 * support native steering yet, we cancel the active turn so the
+	 * steering message can be processed as the next turn.
+	 */
+	private _handleYieldRequested(requestId: string, value: boolean): void {
+		if (!value) {
+			return;
+		}
+
+		const activeTurn = this._activeTurnsByRequestId.get(requestId);
+		if (!activeTurn) {
+			return;
+		}
+
+		this._logService.info(`[AgentHost] Yield requested for requestId=${requestId}, dispatching turnCancelled for turnId=${activeTurn.turnId}`);
+
+		const cancelAction = {
+			type: ActionType.SessionTurnCancelled as const,
+			session: activeTurn.session,
+			turnId: activeTurn.turnId,
+		};
+		const seq = this._clientState.applyOptimistic(cancelAction);
+		this._config.connection.dispatchAction(cancelAction, this._clientState.clientId, seq);
+
+		activeTurn.finish();
 	}
 
 	private async _invokeAgent(
@@ -315,6 +350,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			finished = true;
+			this._activeTurnsByRequestId.delete(request.requestId);
 			// Finalize any outstanding tool invocations
 			for (const [, invocation] of activeToolInvocations) {
 				invocation.didExecuteTool(undefined);
@@ -323,6 +359,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			turnDisposables.dispose();
 			resolveDone();
 		};
+
+		// Register this turn for yield/steering support
+		this._activeTurnsByRequestId.set(request.requestId, {
+			session: session.toString(),
+			turnId,
+			finish,
+		});
 
 		// Listen to state changes and translate to IChatProgress[]
 		turnDisposables.add(this._clientState.onDidChangeSessionState(e => {
@@ -550,6 +593,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	// ---- Lifecycle ----------------------------------------------------------
 
 	override dispose(): void {
+		this._activeTurnsByRequestId.clear();
 		for (const [, session] of this._activeSessions) {
 			session.dispose();
 		}
