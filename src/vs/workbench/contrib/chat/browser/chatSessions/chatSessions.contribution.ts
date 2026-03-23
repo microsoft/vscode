@@ -38,7 +38,7 @@ import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatService, IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
-import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -51,6 +51,10 @@ import { isUntitledChatSession, LocalChatSessionUri } from '../../common/model/c
 import { assertNever } from '../../../../../base/common/assert.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
+import { slashReg } from '../../common/requestParser/chatRequestParser.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -520,13 +524,22 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 				async run(accessor: ServicesAccessor, chatOptions?: { resource: UriComponents; prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
 					const chatService = accessor.get(IChatService);
+					const promptsService = accessor.get(IPromptsService);
+					const toolsService = accessor.get(ILanguageModelToolsService);
 					const { type } = contribution;
 
 					if (chatOptions) {
+						let attachedContext = chatOptions.attachedContext;
+
 						const resource = URI.revive(chatOptions.resource);
 						const ref = await chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 						try {
-							const result = await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
+							const promptFile = await getSlashCommandVariable(chatOptions.prompt, promptsService, toolsService);
+							if (promptFile) {
+								attachedContext = [...(attachedContext ?? []), promptFile];
+							}
+
+							const result = await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext });
 							if (result.kind === 'queued') {
 								await result.deferred;
 							} else if (result.kind === 'sent') {
@@ -1283,6 +1296,8 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 	const logService = accessor.get(ILogService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const editorService = accessor.get(IEditorService);
+	const promptsService = accessor.get(IPromptsService);
+	const toolsService = accessor.get(ILanguageModelToolsService);
 
 	// Determine resource to open
 	const resource = getResourceForNewChatSession(openOptions);
@@ -1341,11 +1356,36 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 					});
 				}
 			}
-			await chatService.sendRequest(resource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext: chatSendOptions.attachedContext });
+			let attachedContext = chatSendOptions.attachedContext;
+			const promptFile = await getSlashCommandVariable(chatSendOptions.prompt, promptsService, toolsService);
+			if (promptFile) {
+				attachedContext = [...(attachedContext ?? []), promptFile];
+			}
+			await chatService.sendRequest(resource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext });
 		} catch (e) {
 			logService.error(`Failed to send initial request to '${openOptions.type}' chat session with contextOptions: ${JSON.stringify(chatSendOptions)}`, e);
 		}
 	}
+}
+
+/**
+ * Returns the variable entry for a slash command if it exists
+ */
+async function getSlashCommandVariable(prompt: string, promptsService: IPromptsService, toolsService: ILanguageModelToolsService): Promise<IChatRequestVariableEntry | undefined> {
+	const slashMatch = prompt.match(slashReg);
+	// starts with a slash command, add the corresponding prompt file to the context if it exists
+	if (slashMatch) {
+		// need to resolve the slash command to get the prompt file
+		const slashCommand = await promptsService.resolvePromptSlashCommand(slashMatch[1], CancellationToken.None);
+		if (slashCommand) {
+			const parseResult = slashCommand.parsedPromptFile;
+			// add the prompt file to the context
+			const refs = parseResult.body?.variableReferences.map(({ name, offset }) => ({ name, range: new OffsetRange(offset, offset + name.length + 1) })) ?? [];
+			const toolReferences = toolsService.toToolReferences(refs);
+			return toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences);
+		}
+	}
+	return undefined;
 }
 
 export function getResourceForNewChatSession(options: NewChatSessionOpenOptions): URI {
