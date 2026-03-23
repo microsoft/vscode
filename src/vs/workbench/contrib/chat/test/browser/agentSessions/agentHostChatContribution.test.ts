@@ -653,16 +653,18 @@ suite('AgentHostChatContribution', () => {
 		test('setYieldRequested dispatches turnCancelled for the active turn', async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, session, turnId } = await startTurn(sessionHandler, agentHostService, disposables);
-
-			// The registered agent implementation should expose setYieldRequested
+			// Capture the agent impl BEFORE startTurn's awaits allow
+			// AgentHostContribution to re-register the agent with a second
+			// handler instance that has its own (empty) _activeTurns map.
 			const agentEntry = chatAgentService.registeredAgents.get('agent-host-copilot');
 			assert.ok(agentEntry?.impl.setYieldRequested, 'agent should implement setYieldRequested');
+
+			const { turnPromise, session, turnId } = await startTurn(sessionHandler, agentHostService, disposables);
 
 			// Signal yield — this should dispatch session/turnCancelled
 			agentEntry.impl.setYieldRequested!('req-1', true);
 
-			// The turn should resolve because the state listener detects activeTurn cleared
+			// The turn should resolve because finish() is called directly
 			await turnPromise;
 
 			const cancelActions = agentHostService.dispatchedActions.filter(a => a.action.type === 'session/turnCancelled');
@@ -674,10 +676,11 @@ suite('AgentHostChatContribution', () => {
 		test('setYieldRequested with false is a no-op', async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, fire, session, turnId } = await startTurn(sessionHandler, agentHostService, disposables);
-
+			// Capture the agent impl before async operations (see first test).
 			const agentEntry = chatAgentService.registeredAgents.get('agent-host-copilot');
 			assert.ok(agentEntry?.impl.setYieldRequested);
+
+			const { turnPromise, fire, session, turnId } = await startTurn(sessionHandler, agentHostService, disposables);
 
 			// Yield reset should not dispatch anything
 			const actionCountBefore = agentHostService.dispatchedActions.length;
@@ -692,10 +695,11 @@ suite('AgentHostChatContribution', () => {
 		test('setYieldRequested for unknown requestId is a no-op', async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, fire, session, turnId } = await startTurn(sessionHandler, agentHostService, disposables);
-
+			// Capture the agent impl before async operations (see first test).
 			const agentEntry = chatAgentService.registeredAgents.get('agent-host-copilot');
 			assert.ok(agentEntry?.impl.setYieldRequested);
+
+			const { turnPromise, fire, session, turnId } = await startTurn(sessionHandler, agentHostService, disposables);
 
 			// Yield for a request ID that doesn't match any active turn
 			const actionCountBefore = agentHostService.dispatchedActions.length;
