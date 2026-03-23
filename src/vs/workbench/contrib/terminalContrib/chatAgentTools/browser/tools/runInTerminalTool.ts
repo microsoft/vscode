@@ -47,7 +47,7 @@ import { SandboxedCommandLinePresenter } from './commandLinePresenter/sandboxedC
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
-import { type ICommandLineAnalyzer, type ICommandLineAnalyzerOptions, type ICommandLineAnalyzerResult } from './commandLineAnalyzer/commandLineAnalyzer.js';
+import { type ICommandLineAnalyzer, type ICommandLineAnalyzerOptions } from './commandLineAnalyzer/commandLineAnalyzer.js';
 import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLineAutoApproveAnalyzer.js';
 import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 import { CommandLineSandboxAnalyzer } from './commandLineAnalyzer/commandLineSandboxAnalyzer.js';
@@ -375,8 +375,6 @@ const telemetryIgnoredSequences = [
 ];
 
 const altBufferMessage = '\n' + localize('runInTerminalTool.altBufferMessage', "The command opened the alternate buffer.");
-const deniedCommandCircuitBreakerThreshold = 3;
-type DenialDetails = NonNullable<ICommandLineAnalyzerResult['denialDetails']>;
 
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {
@@ -395,7 +393,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	protected readonly _sessionTerminalAssociations = new ResourceMap<IToolTerminal>();
 	protected readonly _sessionTerminalInstances = new ResourceMap<Set<ITerminalInstance>>();
-	private readonly _sessionDeniedCommandCounts = new ResourceMap<Map<string, number>>();
 	private readonly _terminalsBeingDisposedBySessionCleanup = new Set<ITerminalInstance>();
 
 	// Immutable window state
@@ -650,7 +647,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			chatSessionResource,
 			requiresUnsandboxConfirmation,
 		};
-		const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
+
+		// In Autopilot/Bypass Approvals modes, do not interact with terminal auto-approve rules.
+		// Commands should flow through directly based on the chat permission level.
+		const isSessionAutoApproved = chatSessionResource && this._isSessionAutoApproveLevel(chatSessionResource);
+		const commandLineAnalyzers = isSessionAutoApproved
+			? this._commandLineAnalyzers.filter(e => !(e instanceof CommandLineAutoApproveAnalyzer))
+			: this._commandLineAnalyzers;
+		const commandLineAnalyzerResults = await Promise.all(commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
 
 		const disclaimersRaw = commandLineAnalyzerResults.map(e => e.disclaimers).filter(e => !!e).flatMap(e => e);
 		let disclaimer: IMarkdownString | undefined;
@@ -764,32 +768,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the sandbox?", shellType);
 		}
 
-		// Check if the session's permission level (Autopilot/Bypass Approvals) auto-approves all tools.
-		// When active, skip terminal confirmation entirely since the user has opted into full auto-approval.
-		const isSessionAutoApproved = chatSessionResource && this._isSessionAutoApproveLevel(chatSessionResource);
-		const deniedAnalyzerResult = commandLineAnalyzerResults.find(e => e.isAutoApproved === false && e.denialDetails);
-
-		// In auto-approval session mode, fail closed for policy-denied commands instead of showing
-		// a confirmation that may block unattended runs.
-		if (isSessionAutoApproved && deniedAnalyzerResult?.denialDetails && context.forceConfirmationReason === undefined) {
-			const denial = deniedAnalyzerResult.denialDetails;
-			const deniedRule = denial.ruleSourceText
-				? ` Rule: \`${escapeMarkdownSyntaxTokens(denial.ruleSourceText)}\`.`
-				: '';
-			const deniedAttempts = this._recordDeniedCommandAttempt(chatSessionResource!, denial);
-			const shouldCircuitBreak = deniedAttempts >= deniedCommandCircuitBreakerThreshold;
-			toolSpecificData.alternativeRecommendation = shouldCircuitBreak
-				? `POLICY_DENIED_CIRCUIT_BREAKER: Command was blocked ${deniedAttempts} times in this session and will not be retried. Scope: ${denial.scope}. Command: \`${escapeMarkdownSyntaxTokens(denial.deniedCommand)}\`. Reason: ${denial.reason}.${deniedRule}`
-				: `POLICY_DENIED: Command was not executed in auto-approval session mode. Scope: ${denial.scope}. Command: \`${escapeMarkdownSyntaxTokens(denial.deniedCommand)}\`. Reason: ${denial.reason}.${deniedRule}`;
-			return {
-				confirmationMessages: undefined,
-				toolSpecificData,
-			};
-		}
-		if (isSessionAutoApproved && chatSessionResource) {
-			this._sessionDeniedCommandCounts.delete(chatSessionResource);
-		}
-
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
 		const shouldShowConfirmation = (!isFinalAutoApproved && !isSessionAutoApproved) || context.forceConfirmationReason !== undefined;
 		const confirmationMessage = requiresUnsandboxConfirmation
@@ -839,10 +817,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const inspected = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
 		if (inspected.policyValue === false) {
 			return false;
-		}
-		// Check the terminal chat service's session auto-approval state
-		if (this._terminalChatService.hasChatSessionAutoApproval(chatSessionResource)) {
-			return true;
 		}
 		// Check the live widget picker level (handles mid-session switches).
 		// Fall back to lastFocusedWidget if the session-specific widget isn't found
@@ -1525,7 +1499,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		this._sessionTerminalAssociations.delete(chatSessionResource);
 		this._sessionTerminalInstances.delete(chatSessionResource);
-		this._sessionDeniedCommandCounts.delete(chatSessionResource);
 
 		for (const terminal of terminalsToDispose) {
 			// Skip redundant map walks in onDidDispose since this session has already been removed.
@@ -1544,18 +1517,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		for (const termId of terminalToRemove) {
 			RunInTerminalTool._activeExecutions.delete(termId);
 		}
-	}
-
-	private _recordDeniedCommandAttempt(chatSessionResource: URI, denial: DenialDetails): number {
-		let sessionCounts = this._sessionDeniedCommandCounts.get(chatSessionResource);
-		if (!sessionCounts) {
-			sessionCounts = new Map<string, number>();
-			this._sessionDeniedCommandCounts.set(chatSessionResource, sessionCounts);
-		}
-		const signature = JSON.stringify([denial.scope, denial.deniedCommand, denial.ruleSourceText ?? denial.reason]);
-		const attempts = (sessionCounts.get(signature) ?? 0) + 1;
-		sessionCounts.set(signature, attempts);
-		return attempts;
 	}
 
 	private _addSessionTerminalAssociation(chatSessionResource: URI, toolTerminal: IToolTerminal): void {
