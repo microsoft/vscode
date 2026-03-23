@@ -66,13 +66,4 @@ export interface ICommandLineAnalyzerResult {
 	readonly customActions?: ToolConfirmationAction[];
 	// Indicates that auto approval should be forced (e.g. sandboxed commands).
 	readonly forceAutoApproval?: boolean;
-	/**
-	 * Optional denial details when this analyzer explicitly denied auto-execution.
-	 */
-	readonly denialDetails?: {
-		readonly scope: 'subCommand' | 'commandLine';
-		readonly deniedCommand: string;
-		readonly reason: string;
-		readonly ruleSourceText?: string;
-	};
 }
