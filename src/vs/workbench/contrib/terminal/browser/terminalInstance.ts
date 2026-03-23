@@ -1131,10 +1131,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 
 			// Skip processing by xterm.js of keyboard events that resolve to commands defined in
-			// the commandsToSkipShell setting. Ensure sendKeybindingsToShell is respected here
-			// which will disable this special handling and always opt to send the keystroke to the
-			// shell process
-			if (!this._terminalConfigurationService.config.sendKeybindingsToShell && resolveResult.kind === ResultKind.KbFound && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
+			// the commandsToSkipShell setting, or that use the Meta.
+			// The metaKey check is needed because when a shell like fish enables the kitty
+			// keyboard protocol, xterm.js encodes Meta-modified keys as CSI u sequences and
+			// consumes them via preventDefault. The (non-kitty) traditional xterm.js handler already skips
+			// Meta keys so they bubble up naturally, but the kitty handler does not.
+			if (!this._terminalConfigurationService.config.sendKeybindingsToShell && resolveResult.kind === ResultKind.KbFound && resolveResult.commandId && (event.metaKey || this._skipTerminalCommands.some(k => k === resolveResult.commandId))) {
 				event.preventDefault();
 				return false;
 			}
@@ -1343,11 +1345,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async sendText(text: string, shouldExecute: boolean, bracketedPasteMode?: boolean): Promise<void> {
-		const useBracketedPasteMode = (bracketedPasteMode || /[\r\n]/.test(text)) && this.xterm?.raw.modes.bracketedPasteMode;
-
 		// Apply bracketed paste sequences if the terminal has the mode enabled, this will prevent
 		// the text from triggering keybindings and ensure new lines are handled properly
-		if (useBracketedPasteMode) {
+		if (bracketedPasteMode && this.xterm?.raw.modes.bracketedPasteMode) {
 			text = `\x1b[200~${text}\x1b[201~`;
 		}
 

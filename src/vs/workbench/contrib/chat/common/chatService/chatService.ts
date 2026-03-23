@@ -610,6 +610,7 @@ export interface IChatToolInvocation {
 	readonly toolId: string;
 	readonly toolCallId: string;
 	readonly subAgentInvocationId?: string;
+	readonly icon?: ThemeIcon;
 	readonly state: IObservable<IChatToolInvocation.State>;
 	generatedTitle?: string;
 	isAttachedToThinking: boolean;
@@ -873,6 +874,7 @@ export interface IChatToolInvocationSerialized {
 	isComplete: boolean;
 	toolCallId: string;
 	toolId: string;
+	readonly icon?: undefined;
 	source: ToolDataSource | undefined; // undefined on pre-1.104 versions
 	readonly subAgentInvocationId?: string;
 	generatedTitle?: string;
@@ -1204,35 +1206,35 @@ export interface IChatCompleteResponse {
 }
 
 export interface IChatSessionStats {
-	fileCount: number;
-	added: number;
-	removed: number;
+	readonly fileCount: number;
+	readonly added: number;
+	readonly removed: number;
 }
 
 export type IChatSessionTiming = {
 	/**
 	 * Timestamp when the session was created in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 	 */
-	created: number;
+	readonly created: number;
 
 	/**
 	 * Timestamp when the most recent request started in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 	 *
 	 * Should be undefined if no requests have been made yet.
 	 */
-	lastRequestStarted: number | undefined;
+	readonly lastRequestStarted: number | undefined;
 
 	/**
 	 * Timestamp when the most recent request completed in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 	 *
 	 * Should be undefined if the most recent request is still in progress or if no requests have been made yet.
 	 */
-	lastRequestEnded: number | undefined;
+	readonly lastRequestEnded: number | undefined;
 };
 
 interface ILegacyChatSessionTiming {
-	startTime: number;
-	endTime?: number;
+	readonly startTime: number;
+	readonly endTime?: number;
 }
 
 export function convertLegacyChatSessionTiming(timing: IChatSessionTiming | ILegacyChatSessionTiming): IChatSessionTiming {
@@ -1359,6 +1361,12 @@ export const enum ChatRequestQueueKind {
 	Steering = 'steering'
 }
 
+export interface IChatSessionGrouping {
+	readonly id: string;
+	readonly order: number;
+	readonly kind?: string;
+}
+
 export interface IChatSendRequestOptions {
 	modeInfo?: IChatRequestModeInfo;
 	userSelectedModelId?: string;
@@ -1383,7 +1391,7 @@ export interface IChatSendRequestOptions {
 
 	/**
 	 * The label of the confirmation action that was selected.
-	 */
+	*/
 	confirmation?: string;
 
 	/**
@@ -1395,9 +1403,11 @@ export interface IChatSendRequestOptions {
 	/**
 	 * When true, the queued request will not be processed immediately even if no request is active.
 	 * The request stays in the queue until `processPendingRequests` is called explicitly.
-	 */
+	*/
 	pauseQueue?: boolean;
 
+	/** Optional metadata for grouping related requests together in the UI, e.g. for sub-agent interactions */
+	sessionGrouping?: IChatSessionGrouping;
 }
 
 export type IChatModelReference = IReference<IChatModel>;

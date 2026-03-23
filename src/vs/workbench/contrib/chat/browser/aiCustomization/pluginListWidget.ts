@@ -365,6 +365,15 @@ export class PluginListWidget extends Disposable {
 			this.commandService.executeCommand('workbench.action.chat.installPluginFromSource');
 		}));
 
+		const createPluginButton = this._register(new Button(buttonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		createPluginButton.label = `$(${Codicon.save.id})`;
+		createPluginButton.setTitle(localize('createPlugin', "Create Plugin"));
+		createPluginButton.element.classList.add('list-icon-button');
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), createPluginButton.element, localize('createPluginTooltip', "Create Plugin")));
+		this._register(createPluginButton.onDidClick(() => {
+			this.commandService.executeCommand('workbench.action.chat.createPlugin');
+		}));
+
 		// Back to installed link (shown only in browse mode)
 		this.backLink = DOM.append(this.element, $('.mcp-back-link'));
 		this.backLink.setAttribute('role', 'button');

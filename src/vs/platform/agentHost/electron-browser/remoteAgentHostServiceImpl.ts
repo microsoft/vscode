@@ -9,14 +9,17 @@
 
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
+import { ConfigurationTarget, IConfigurationService } from '../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 
 import type { IAgentConnection } from '../common/agentService.js';
 import {
 	IRemoteAgentHostService,
+	RemoteAgentHostsEnabledSettingId,
 	RemoteAgentHostsSettingId,
+	normalizeRemoteAgentHostAddress,
 	type IRemoteAgentHostConnectionInfo,
 	type IRemoteAgentHostEntry,
 } from '../common/remoteAgentHostService.js';
@@ -30,6 +33,7 @@ interface IConnectionEntry {
 }
 
 export class RemoteAgentHostService extends Disposable implements IRemoteAgentHostService {
+	private static readonly ConnectionWaitTimeout = 10000;
 
 	declare readonly _serviceBrand: undefined;
 
@@ -38,6 +42,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 	private readonly _entries = new Map<string, IConnectionEntry>();
 	private readonly _names = new Map<string, string>();
+	private readonly _pendingConnectionWaits = new Map<string, DeferredPromise<IRemoteAgentHostConnectionInfo>>();
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -48,7 +53,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 		// React to setting changes
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(RemoteAgentHostsSettingId)) {
+			if (e.affectsConfiguration(RemoteAgentHostsSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
 				this._reconcileConnections();
 			}
 		}));
@@ -72,9 +77,46 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		return result;
 	}
 
+	get configuredEntries(): readonly IRemoteAgentHostEntry[] {
+		return this._getConfiguredEntries().map(e => ({ ...e, address: normalizeRemoteAgentHostAddress(e.address) }));
+	}
+
 	getConnection(address: string): IAgentConnection | undefined {
-		const entry = this._entries.get(address);
+		const normalized = normalizeRemoteAgentHostAddress(address);
+		const entry = this._entries.get(normalized);
 		return entry?.connected ? entry.client : undefined;
+	}
+
+	async addRemoteAgentHost(input: IRemoteAgentHostEntry): Promise<IRemoteAgentHostConnectionInfo> {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			throw new Error('Remote agent host connections are not enabled.');
+		}
+
+		const entry: IRemoteAgentHostEntry = { ...input, address: normalizeRemoteAgentHostAddress(input.address) };
+		const existingConnection = this._getConnectionInfo(entry.address);
+		await this._storeConfiguredEntries(this._upsertConfiguredEntry(entry));
+
+		if (existingConnection) {
+			return {
+				...existingConnection,
+				name: entry.name,
+			};
+		}
+
+		const connectedConnection = this._getConnectionInfo(entry.address);
+		if (connectedConnection) {
+			return connectedConnection;
+		}
+
+		const wait = this._getOrCreateConnectionWait(entry.address);
+		const connection = await raceTimeout(wait.p, RemoteAgentHostService.ConnectionWaitTimeout, () => {
+			this._pendingConnectionWaits.delete(entry.address);
+		});
+		if (!connection) {
+			throw new Error(`Timed out connecting to ${entry.address}`);
+		}
+
+		return connection;
 	}
 
 	private _removeConnection(address: string): void {
@@ -82,12 +124,23 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		if (entry) {
 			this._entries.delete(address);
 			entry.store.dispose();
+			this._rejectPendingConnectionWait(address, new Error(`Connection closed: ${address}`));
 			this._onDidChangeConnections.fire();
 		}
 	}
 
 	private _reconcileConnections(): void {
-		const entries: IRemoteAgentHostEntry[] = this._configurationService.getValue<IRemoteAgentHostEntry[]>(RemoteAgentHostsSettingId) ?? [];
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			// Disconnect all when disabled
+			for (const address of [...this._entries.keys()]) {
+				this._removeConnection(address);
+			}
+			this._names.clear();
+			return;
+		}
+
+		const rawEntries: IRemoteAgentHostEntry[] = this._configurationService.getValue<IRemoteAgentHostEntry[]>(RemoteAgentHostsSettingId) ?? [];
+		const entries = rawEntries.map(e => ({ ...e, address: normalizeRemoteAgentHostAddress(e.address) }));
 		const desired = new Set(entries.map(e => e.address));
 
 		this._logService.info(`[RemoteAgentHost] Reconciling: desired=[${[...desired].join(', ')}], current=[${[...this._entries.keys()].map(a => `${a}(${this._entries.get(a)!.connected ? 'connected' : 'pending'})`).join(', ')}]`);
@@ -150,14 +203,115 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 			this._logService.info(`[RemoteAgentHost] Connected to ${address}`);
 			entry.connected = true;
+			this._resolvePendingConnectionWait(address);
 			this._onDidChangeConnections.fire();
 		}).catch(err => {
 			this._logService.error(`[RemoteAgentHost] Failed to connect to ${address}`, err);
+			this._rejectPendingConnectionWait(address, err);
 			guardedRemove();
 		});
 	}
 
+	private _getConnectionInfo(address: string): IRemoteAgentHostConnectionInfo | undefined {
+		return this.connections.find(connection => connection.address === address);
+	}
+
+	private _getConfiguredEntries(): IRemoteAgentHostEntry[] {
+		return this._configurationService.getValue<IRemoteAgentHostEntry[]>(RemoteAgentHostsSettingId) ?? [];
+	}
+
+	private _upsertConfiguredEntry(entry: IRemoteAgentHostEntry): IRemoteAgentHostEntry[] {
+		// Read from the same scope we'll write to, so we don't accidentally
+		// merge entries from an overriding scope (e.g. workspace) into the
+		// user scope and then lose them on the next read.
+		const target = this._getConfigurationTarget();
+		const inspected = this._configurationService.inspect<IRemoteAgentHostEntry[]>(RemoteAgentHostsSettingId);
+		let configuredEntries: readonly IRemoteAgentHostEntry[];
+		switch (target) {
+			case ConfigurationTarget.USER_LOCAL:
+				configuredEntries = inspected.userLocalValue ?? [];
+				break;
+			case ConfigurationTarget.USER_REMOTE:
+				configuredEntries = inspected.userRemoteValue ?? [];
+				break;
+			default:
+				configuredEntries = inspected.userValue ?? [];
+				break;
+		}
+
+		const normalizedAddress = normalizeRemoteAgentHostAddress(entry.address);
+		const existingIndex = configuredEntries.findIndex(configuredEntry => normalizeRemoteAgentHostAddress(configuredEntry.address) === normalizedAddress);
+		if (existingIndex === -1) {
+			return [...configuredEntries, entry];
+		}
+
+		return configuredEntries.map((configuredEntry, index) => index === existingIndex ? entry : configuredEntry);
+	}
+
+	private _getConfigurationTarget(): ConfigurationTarget {
+		const inspected = this._configurationService.inspect<IRemoteAgentHostEntry[]>(RemoteAgentHostsSettingId);
+		if (inspected.userLocalValue !== undefined) {
+			return ConfigurationTarget.USER_LOCAL;
+		}
+		if (inspected.userRemoteValue !== undefined) {
+			return ConfigurationTarget.USER_REMOTE;
+		}
+		if (inspected.userValue !== undefined) {
+			return ConfigurationTarget.USER;
+		}
+		return ConfigurationTarget.USER;
+	}
+
+	private async _storeConfiguredEntries(entries: IRemoteAgentHostEntry[]): Promise<void> {
+		await this._configurationService.updateValue(RemoteAgentHostsSettingId, entries, this._getConfigurationTarget());
+	}
+
+	private _getOrCreateConnectionWait(address: string): DeferredPromise<IRemoteAgentHostConnectionInfo> {
+		let wait = this._pendingConnectionWaits.get(address);
+		if (wait) {
+			return wait;
+		}
+
+		// If the connection is already available (fast connect resolved before
+		// the caller called us), return an immediately-completed wait.
+		const existingConnection = this._getConnectionInfo(address);
+		if (existingConnection) {
+			const immediateWait = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
+			immediateWait.complete(existingConnection);
+			return immediateWait;
+		}
+
+		wait = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
+		this._pendingConnectionWaits.set(address, wait);
+		return wait;
+	}
+
+	private _resolvePendingConnectionWait(address: string): void {
+		const wait = this._pendingConnectionWaits.get(address);
+		const connection = this._getConnectionInfo(address);
+		if (!wait || !connection) {
+			return;
+		}
+
+		this._pendingConnectionWaits.delete(address);
+		void wait.complete(connection);
+	}
+
+	private _rejectPendingConnectionWait(address: string, err: unknown): void {
+		const wait = this._pendingConnectionWaits.get(address);
+		if (!wait) {
+			return;
+		}
+
+		this._pendingConnectionWaits.delete(address);
+		void wait.error(err);
+	}
+
 	override dispose(): void {
+		for (const [address, wait] of this._pendingConnectionWaits) {
+			void wait.error(new Error(`Remote agent host service disposed before connecting to ${address}`));
+		}
+		this._pendingConnectionWaits.clear();
 		for (const entry of this._entries.values()) {
 			entry.store.dispose();
 		}
