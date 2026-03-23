@@ -25,9 +25,11 @@ import { ISessionData, ISessionRepository, ISessionWorkspace, SessionStatus } fr
 import { SessionWorkspace, GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionWorkspace.js';
 import { ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
 import { INewSession, INewSessionPickerVisibility, CopilotCLISession, RemoteNewSession } from '../../chat/browser/newSession.js';
+import { CloudModelPicker } from '../../chat/browser/modelPicker.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { Menus } from '../../../browser/menus.js';
-import { IsActiveSessionBackgroundProviderContext } from './sessionsManagementService.js';
+import { IsActiveSessionBackgroundProviderContext, IsNewChatSessionContext } from './sessionsManagementService.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IsolationPicker } from '../../chat/browser/sessionTargetPicker.js';
 import { BranchPicker } from '../../chat/browser/branchPicker.js';
@@ -84,6 +86,40 @@ registerAction2(class extends Action2 {
 				group: 'branch',
 				order: 2,
 				when: IsActiveSessionBackgroundProviderContext,
+			}],
+		});
+	}
+	override async run(): Promise<void> { /* handled by action view item */ }
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.defaultCopilot.localModelPicker',
+			title: localize2('localModelPicker', "Model"),
+			f1: false,
+			menu: [{
+				id: Menus.NewSessionConfig,
+				group: 'model',
+				order: 1,
+				when: IsActiveSessionBackgroundProviderContext,
+			}],
+		});
+	}
+	override async run(): Promise<void> { /* handled by action view item */ }
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.defaultCopilot.cloudModelPicker',
+			title: localize2('cloudModelPicker', "Model"),
+			f1: false,
+			menu: [{
+				id: Menus.NewSessionConfig,
+				group: 'model',
+				order: 1,
+				when: ContextKeyExpr.and(IsNewChatSessionContext, IsActiveSessionBackgroundProviderContext.negate()),
 			}],
 		});
 	}
@@ -402,6 +438,21 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.branchPicker',
 			(_action, _options) => {
 				const picker = this.instantiationService.createInstance(BranchPicker);
+				return new PickerActionViewItem(picker);
+			},
+		));
+		this._register(this.actionViewItemService.register(
+			Menus.NewSessionConfig, 'sessions.defaultCopilot.localModelPicker',
+			(_action, _options) => {
+				// Local model picker — will be rendered by the MenuWorkbenchToolBar
+				// For now, return a placeholder that the widget's existing local model picker replaces
+				return undefined as any;
+			},
+		));
+		this._register(this.actionViewItemService.register(
+			Menus.NewSessionConfig, 'sessions.defaultCopilot.cloudModelPicker',
+			(_action, _options) => {
+				const picker = this.instantiationService.createInstance(CloudModelPicker);
 				return new PickerActionViewItem(picker);
 			},
 		));

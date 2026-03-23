@@ -553,7 +553,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Mode picker (before model pickers)
 		this._modePicker.render(toolbar);
 
-		// Local model picker (EnhancedModelPickerActionItem)
+		// Local model picker (EnhancedModelPickerActionItem) — kept for now until fully menu-driven
 		this._localModelPickerContainer = dom.append(toolbar, dom.$('.sessions-chat-model-picker'));
 		this._createLocalModelPicker(this._localModelPickerContainer);
 
@@ -561,19 +561,19 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._toolbarPickersContainer = dom.append(toolbar, dom.$('.sessions-chat-toolbar-pickers'));
 		this._extensionToolbarPickers.setContainer(this._toolbarPickersContainer);
 
-		// Remote model picker
+		// Remote model picker — visibility driven by context key (isActiveSessionBackgroundProvider)
 		this._cloudModelPicker.render(toolbar);
 
-		// Model picker visibility: local and cloud are mutually exclusive
-		// based on the active session's pickerVisibility
+		// Model picker visibility driven by context keys
+		// isActiveSessionBackgroundProvider = true → show local, hide cloud
+		// isActiveSessionBackgroundProvider = false → hide local, show cloud
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSessionData.read(reader);
-			const newSession = this._newSession.value;
-			const vis = newSession?.pickerVisibility;
+			const isBackground = session?.sessionType === AgentSessionProviders.Background;
 			if (this._localModelPickerContainer) {
-				this._localModelPickerContainer.style.display = vis?.localModel ? '' : 'none';
+				this._localModelPickerContainer.style.display = isBackground ? '' : 'none';
 			}
-			this._cloudModelPicker.setVisible(!!vis?.cloudModel);
+			this._cloudModelPicker.setVisible(!isBackground && !!session);
 		}));
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
