@@ -7,9 +7,9 @@ import './media/chatWidget.css';
 import './media/chatWelcomePart.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -47,7 +47,7 @@ import { ContextMenuController } from '../../../../editor/contrib/contextmenu/br
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { SessionTypePicker } from './sessionTargetPicker.js';
-import { INewSession } from './newSession.js';
+import { NewSessionChangeType } from './newSession.js';
 import { ExtensionToolbarPickers } from './extensionToolbarPickers.js';
 import { WorkspacePicker } from './workspacePicker.js';
 import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
@@ -65,6 +65,21 @@ import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } 
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
 const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
+
+/**
+ * Configuration properties available on new/pending sessions.
+ * Not part of the public {@link ISessionData} contract but present on
+ * concrete session implementations (CopilotCLISession, RemoteNewSession, AgentHostNewSession).
+ */
+interface INewSessionConfig extends IDisposable {
+	readonly resource: URI;
+	readonly project: SessionWorkspace | undefined;
+	readonly disabled: boolean;
+	readonly onDidChange: Event<NewSessionChangeType>;
+	setProject(project: SessionWorkspace): void;
+	setQuery(query: string): void;
+	setAttachedContext(context: IChatRequestVariableEntry[] | undefined): void;
+}
 
 interface IDraftState extends IChatModelInputState {
 	branch?: string;
@@ -105,7 +120,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private _editorContainer!: HTMLElement;
 
 	// Pending session
-	private readonly _newSession = this._register(new MutableDisposable<INewSession>());
+	private readonly _newSession = this._register(new MutableDisposable<INewSessionConfig>());
 	private readonly _newSessionListener = this._register(new MutableDisposable());
 
 	// Send button
@@ -293,8 +308,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		try {
 			// Use sessionsManagementService which sets activeSessionData, context keys, and _newSession
-			const session = await this.sessionsManagementService.createNewSessionForTarget(sessionTypeId, resource);
-			if (project) {
+			const sessionData = await this.sessionsManagementService.createNewSessionForTarget(sessionTypeId, resource);
+			// Concrete implementations (CopilotCLISession, RemoteNewSession) satisfy INewSessionConfig
+			const session = sessionData as unknown as INewSessionConfig;
+			if (project && typeof session.setProject === 'function') {
 				session.setProject(project);
 			}
 			this._setNewSession(session);
@@ -303,7 +320,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}
 	}
 
-	private _setNewSession(session: INewSession): void {
+	private _setNewSession(session: INewSessionConfig): void {
 		this._newSession.value = session;
 
 		// Listen for session changes

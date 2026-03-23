@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IsolationMode } from './sessionTargetPicker.js';
@@ -24,11 +24,6 @@ export interface ISessionOptionGroup {
 }
 
 /**
- * A new session represents a session being configured before the first
- * request is sent. It holds the user's selections (repoUri, isolationMode)
- * and fires a single event when any property changes.
- */
-/**
  * Describes which pickers should be visible for a new session.
  * Each property defaults to false if omitted.
  */
@@ -43,43 +38,12 @@ export interface INewSessionPickerVisibility {
 	readonly hasToolbarOptionGroups?: boolean;
 }
 
-export interface INewSession extends IDisposable {
-	readonly resource: URI;
-	readonly target: AgentSessionTarget;
-	readonly project: SessionWorkspace | undefined;
-	readonly isolationMode: IsolationMode | undefined;
-	readonly branch: string | undefined;
-	readonly modelId: string | undefined;
-	readonly mode: IChatMode | undefined;
-	readonly query: string | undefined;
-	readonly attachedContext: IChatRequestVariableEntry[] | undefined;
-	readonly selectedOptions: ReadonlyMap<string, IChatSessionProviderOptionItem>;
-	readonly disabled: boolean;
-	/** Describes which pickers the widget should show for this session. */
-	readonly pickerVisibility: INewSessionPickerVisibility;
-	readonly onDidChange: Event<NewSessionChangeType>;
-	/** Fires when extension-driven option groups change. Only present when {@link INewSessionPickerVisibility.hasToolbarOptionGroups} is true. */
-	readonly onDidChangeOptionGroups?: Event<void>;
-	setProject(project: SessionWorkspace): void;
-	setIsolationMode(mode: IsolationMode): void;
-	setBranch(branch: string | undefined): void;
-	setModelId(modelId: string | undefined): void;
-	setMode(mode: IChatMode | undefined): void;
-	setQuery(query: string): void;
-	setAttachedContext(context: IChatRequestVariableEntry[] | undefined): void;
-	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void;
-	/** Returns the model option group for cloud sessions. Only present when {@link INewSessionPickerVisibility.cloudModel} is true. */
-	getModelOptionGroup?(): ISessionOptionGroup | undefined;
-	/** Returns extension-driven option groups. Only present when {@link INewSessionPickerVisibility.hasToolbarOptionGroups} is true. */
-	getOtherOptionGroups?(): ISessionOptionGroup[];
-}
-
 /**
  * New session for agent host sessions (local or remote agent host processes).
  * Agent host sessions use local model and mode pickers but don't need
  * isolation mode, branch selection, or cloud option groups.
  */
-export class AgentHostNewSession extends Disposable implements INewSession {
+export class AgentHostNewSession extends Disposable {
 
 	private _project: SessionWorkspace | undefined;
 	private _modelId: string | undefined;

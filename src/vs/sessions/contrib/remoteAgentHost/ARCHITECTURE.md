@@ -205,7 +205,7 @@ URI.from({ scheme: target, path: `/untitled-${generateUuid()}` })
 
 `SessionsManagementService.createNewSessionForTarget()` creates an
 `AgentHostNewSession` (when the `agentHost` option is set). This is a
-lightweight `INewSession` that supports local model and mode pickers but
+lightweight new session that supports local model and mode pickers but
 skips isolation mode, branch, and cloud option groups.
 The project URI is set on the session, making it available as
 `activeSessionItem.repository`.

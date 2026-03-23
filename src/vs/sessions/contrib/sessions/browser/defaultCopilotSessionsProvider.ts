@@ -26,7 +26,7 @@ import { ISessionData, ISessionRepository, ISessionWorkspace, SessionStatus } fr
 import { ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { SessionWorkspace, GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionWorkspace.js';
 import { ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
-import { INewSession, INewSessionPickerVisibility, ISessionOptionGroup, NewSessionChangeType } from '../../chat/browser/newSession.js';
+import { INewSessionPickerVisibility, ISessionOptionGroup, NewSessionChangeType } from '../../chat/browser/newSession.js';
 import { IsolationMode, IsolationPicker } from '../../chat/browser/sessionTargetPicker.js';
 import { CloudModelPicker } from '../../chat/browser/modelPicker.js';
 import { NewChatPermissionPicker } from '../../chat/browser/newChatPermissionPicker.js';
@@ -218,10 +218,10 @@ export interface ICopilotNewSessionData extends ISessionData {
 
 /**
  * Local new session for Background agent sessions.
- * Implements both {@link INewSession} (pre-send configuration) and {@link ISessionData}
- * (session facade), eliminating the need for a separate adapter.
+ * Implements {@link ISessionData} (session facade) and provides
+ * pre-send configuration methods for the new-session flow.
  */
-export class CopilotCLISession extends Disposable implements INewSession, ISessionData {
+export class CopilotCLISession extends Disposable implements ISessionData {
 
 	// -- ISessionData fields --
 
@@ -257,7 +257,7 @@ export class CopilotCLISession extends Disposable implements INewSession, ISessi
 	readonly _hasGitRepo = observableValue(this, false);
 	readonly hasGitRepo: IObservable<boolean> = this._hasGitRepo;
 
-	// -- INewSession fields --
+	// -- New session configuration fields --
 
 	private _repoUri: URI | undefined;
 	private _project: SessionWorkspace | undefined;
@@ -344,7 +344,7 @@ export class CopilotCLISession extends Disposable implements INewSession, ISessi
 		}
 	}
 
-	// -- INewSession methods --
+	// -- New session configuration methods --
 
 	setProject(project: SessionWorkspace): void {
 		this._project = project;
@@ -419,10 +419,10 @@ function isRepositoriesOptionGroup(group: IChatSessionProviderOptionGroup): bool
 
 /**
  * Remote new session for Cloud agent sessions.
- * Implements both {@link INewSession} (pre-send configuration) and {@link ISessionData}
- * (session facade), eliminating the need for a separate adapter.
+ * Implements {@link ISessionData} (session facade) and provides
+ * pre-send configuration methods for the new-session flow.
  */
-export class RemoteNewSession extends Disposable implements INewSession, ISessionData {
+export class RemoteNewSession extends Disposable implements ISessionData {
 
 	// -- ISessionData fields --
 
@@ -452,7 +452,7 @@ export class RemoteNewSession extends Disposable implements INewSession, ISessio
 	readonly _hasGitRepo = observableValue(this, false);
 	readonly hasGitRepo: IObservable<boolean> = this._hasGitRepo;
 
-	// -- INewSession fields --
+	// -- New session configuration fields --
 
 	private _repoUri: URI | undefined;
 	private _project: SessionWorkspace | undefined;
@@ -532,7 +532,7 @@ export class RemoteNewSession extends Disposable implements INewSession, ISessio
 		}
 	}
 
-	// -- INewSession methods --
+	// -- New session configuration methods --
 
 	setProject(project: SessionWorkspace): void {
 		this._project = project;
