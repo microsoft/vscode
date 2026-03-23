@@ -117,7 +117,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * when the turn finishes. Used by {@link _handleYieldRequested} to
 	 * cancel the correct turn when the chat service signals a yield.
 	 */
-	private readonly _activeTurns = new Map<string, { session: string; turnId: string }>();
+	private readonly _activeTurns = new Map<string, { session: string; turnId: string; finish: () => void }>();
 	private readonly _config: IAgentHostSessionHandlerConfig;
 
 	/** Client state manager shared across all sessions for this handler. */
@@ -270,7 +270,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		const turnId = generateUuid();
-		this._activeTurns.set(request.requestId, { session: session.toString(), turnId });
 		const attachments = this._convertVariablesToAttachments(request);
 		const messageAttachments: IMessageAttachment[] = attachments.map(a => ({
 			type: a.type,
@@ -337,6 +336,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			turnDisposables.dispose();
 			resolveDone();
 		};
+
+		// Register the active turn after finish is defined so that
+		// _handleYieldRequested can call finish() directly.
+		this._activeTurns.set(request.requestId, { session: session.toString(), turnId, finish });
 
 		// Listen to state changes and translate to IChatProgress[]
 		turnDisposables.add(this._clientState.onDidChangeSessionState(e => {
@@ -460,10 +463,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return;
 		}
 
-		// Eagerly remove the entry so concurrent cancel paths cannot
-		// dispatch a duplicate turnCancelled for the same turn.
-		this._activeTurns.delete(requestId);
-
 		this._logService.info(`[AgentHost] Yield requested for request ${requestId}, cancelling turn ${turnInfo.turnId}`);
 		const cancelAction = {
 			type: ActionType.SessionTurnCancelled as const,
@@ -472,6 +471,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 		const seq = this._clientState.applyOptimistic(cancelAction);
 		this._config.connection.dispatchAction(cancelAction, this._clientState.clientId, seq);
+		turnInfo.finish();
 	}
 
 	// ---- Session resolution -------------------------------------------------
