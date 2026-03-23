@@ -14,6 +14,8 @@ import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js
 
 suite('GetTerminalOutputTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const UNKNOWN_TERMINAL_ID = '123e4567-e89b-12d3-a456-426614174000';
+	const KNOWN_TERMINAL_ID = '123e4567-e89b-12d3-a456-426614174001';
 	let tool: GetTerminalOutputTool;
 	let originalGetExecution: typeof RunInTerminalTool.getExecution;
 
@@ -57,7 +59,7 @@ suite('GetTerminalOutputTool', () => {
 		RunInTerminalTool.getExecution = () => undefined;
 
 		const result = await tool.invoke(
-			createInvocation('pwsh'),
+			createInvocation(UNKNOWN_TERMINAL_ID),
 			async () => 0,
 			{ report: () => { } },
 			CancellationToken.None,
@@ -74,7 +76,7 @@ suite('GetTerminalOutputTool', () => {
 		RunInTerminalTool.getExecution = () => createMockExecution('line1\nline2');
 
 		const result = await tool.invoke(
-			createInvocation('abc'),
+			createInvocation(KNOWN_TERMINAL_ID),
 			async () => 0,
 			{ report: () => { } },
 			CancellationToken.None,
@@ -83,7 +85,7 @@ suite('GetTerminalOutputTool', () => {
 		assert.strictEqual(result.content.length, 1);
 		assert.strictEqual(result.content[0].kind, 'text');
 		const value = (result.content[0] as { value: string }).value;
-		assert.ok(value.includes('Output of terminal abc:'));
+		assert.ok(value.includes(`Output of terminal ${KNOWN_TERMINAL_ID}:`));
 		assert.ok(value.includes('line1\nline2'));
 	});
 });
