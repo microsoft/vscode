@@ -301,6 +301,7 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 		defaultRepoUri: URI | undefined,
 		providerId: string,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IGitService private readonly gitService: IGitService,
 	) {
 		super();
 		this.sessionId = `${providerId}:${resource.toString()}`;
@@ -366,6 +367,23 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 				baseBranchProtected: undefined,
 			}],
 		}, undefined);
+
+		// Resolve git repository
+		if (project.isFolder) {
+			this._resolveGitRepository(project);
+		}
+	}
+
+	private async _resolveGitRepository(workspace: SessionWorkspace): Promise<void> {
+		try {
+			const repository = await this.gitService.openRepository(workspace.uri);
+			if (this._project === workspace) {
+				this._project = workspace.withRepository(repository);
+			}
+			this._hasGitRepo.set(!!repository, undefined);
+		} catch {
+			this._hasGitRepo.set(false, undefined);
+		}
 	}
 
 	setIsolationMode(mode: IsolationMode): void {
@@ -851,7 +869,6 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 		@ICommandService private readonly commandService: ICommandService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
-		@IGitService private readonly gitService: IGitService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
@@ -977,12 +994,6 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 		if (type.id === AgentSessionProviders.Background) {
 			const session = this.instantiationService.createInstance(CopilotCLISession, resource, workspace?.uri, this.id);
 			this._currentNewSession = session;
-
-			// For local sessions, resolve git repository and attach to project
-			if (workspace?.isFolder) {
-				this._resolveGitRepository(session, workspace);
-			}
-
 			return session;
 		}
 
@@ -997,23 +1008,6 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 		// Route to the current new session if it matches
 		if (this._currentNewSession?.sessionId === sessionId) {
 			this._currentNewSession.setSessionDataOption(key, value);
-		}
-	}
-
-	/**
-	 * Opens the git repository for a workspace folder and attaches it to the session's project.
-	 * Pickers (branch, isolation) observe the session and react automatically.
-	 */
-	private async _resolveGitRepository(session: CopilotCLISession, workspace: SessionWorkspace): Promise<void> {
-		try {
-			const repository = await this.gitService.openRepository(workspace.uri);
-			if (session.project) {
-				session.setProject(session.project.withRepository(repository));
-			}
-			session._hasGitRepo.set(!!repository, undefined);
-		} catch {
-			// No git repo at this path
-			session._hasGitRepo.set(false, undefined);
 		}
 	}
 
