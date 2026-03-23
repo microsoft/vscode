@@ -646,6 +646,68 @@ suite('AgentHostChatContribution', () => {
 		});
 	});
 
+	// ---- Steering / yield ---------------------------------------------------
+
+	suite('steering', () => {
+
+		test('setYieldRequested dispatches turnCancelled for the active turn', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, session, turnId } = await startTurn(sessionHandler, agentHostService, disposables);
+
+			// The registered agent implementation should expose setYieldRequested
+			const agentEntry = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(agentEntry?.impl.setYieldRequested, 'agent should implement setYieldRequested');
+
+			// Signal yield — this should dispatch session/turnCancelled
+			agentEntry.impl.setYieldRequested!('req-1', true);
+
+			// The turn should resolve because the state listener detects activeTurn cleared
+			await turnPromise;
+
+			const cancelActions = agentHostService.dispatchedActions.filter(a => a.action.type === 'session/turnCancelled');
+			assert.strictEqual(cancelActions.length, 1, 'should dispatch exactly one turnCancelled');
+			assert.strictEqual((cancelActions[0].action as { session: string }).session, session);
+			assert.strictEqual((cancelActions[0].action as { turnId: string }).turnId, turnId);
+		});
+
+		test('setYieldRequested with false is a no-op', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, fire, session, turnId } = await startTurn(sessionHandler, agentHostService, disposables);
+
+			const agentEntry = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(agentEntry?.impl.setYieldRequested);
+
+			// Yield reset should not dispatch anything
+			const actionCountBefore = agentHostService.dispatchedActions.length;
+			agentEntry.impl.setYieldRequested!('req-1', false);
+			assert.strictEqual(agentHostService.dispatchedActions.length, actionCountBefore, 'should not dispatch on yield reset');
+
+			// Complete the turn normally
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+		});
+
+		test('setYieldRequested for unknown requestId is a no-op', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, fire, session, turnId } = await startTurn(sessionHandler, agentHostService, disposables);
+
+			const agentEntry = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(agentEntry?.impl.setYieldRequested);
+
+			// Yield for a request ID that doesn't match any active turn
+			const actionCountBefore = agentHostService.dispatchedActions.length;
+			agentEntry.impl.setYieldRequested!('unknown-req', true);
+			assert.strictEqual(agentHostService.dispatchedActions.length, actionCountBefore, 'should not dispatch for unknown request');
+
+			// Complete the turn normally
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+		});
+	});
+
 	// ---- Error events -------------------------------------------------------
 
 	suite('error events', () => {
