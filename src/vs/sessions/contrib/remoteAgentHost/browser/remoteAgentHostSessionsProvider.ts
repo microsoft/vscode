@@ -12,7 +12,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ISessionData, SessionStatus } from '../../sessions/common/sessionData.js';
-import { ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
 import { ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
 import { IChatSessionFileChange } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -98,9 +97,6 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			title: observableValue(this, ''),
 			updatedAt: observableValue(this, new Date()),
 			status: observableValue(this, SessionStatus.Untitled),
-			permissionLevel: observableValue(this, ChatPermissionLevel.Default),
-			branch: observableValue<string | undefined>(this, undefined),
-			isolationMode: observableValue<string | undefined>(this, undefined),
 			changes: observableValue<readonly IChatSessionFileChange[]>(this, []),
 		};
 	}

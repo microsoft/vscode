@@ -332,11 +332,6 @@ class AgentSessionAdapter implements ISessionData {
 	private readonly _changes: ReturnType<typeof observableValue<readonly IChatSessionFileChange[]>>;
 	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
 
-	readonly permissionLevel: IObservable<ChatPermissionLevel>;
-
-	readonly branch: IObservable<string | undefined>;
-	readonly isolationMode: IObservable<string | undefined>;
-
 	constructor(
 		session: IAgentSession,
 		providerId: string,
@@ -362,9 +357,6 @@ class AgentSessionAdapter implements ISessionData {
 
 		this._changes = observableValue<readonly IChatSessionFileChange[]>(this, this._extractChanges(session));
 		this.changes = this._changes;
-		this.permissionLevel = observableValue(this, ChatPermissionLevel.Default);
-		this.branch = observableValue<string | undefined>(this, undefined);
-		this.isolationMode = observableValue<string | undefined>(this, undefined);
 	}
 
 	/**

@@ -7,7 +7,6 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatSessionFileChange } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 
 /**
  * Status of an agent session as reported by the sessions provider.
@@ -80,12 +79,6 @@ export interface ISessionData {
 	readonly updatedAt: IObservable<Date>;
 	/** Current session status. */
 	readonly status: IObservable<SessionStatus>;
-	/** Permission level for the session (e.g., default approvals, bypass). */
-	readonly permissionLevel: IObservable<ChatPermissionLevel>;
-	/** Selected branch for the session (CLI sessions only). */
-	readonly branch: IObservable<string | undefined>;
-	/** Isolation mode for the session (CLI sessions only). */
-	readonly isolationMode: IObservable<string | undefined>;
 	/** File changes produced by the session. */
 	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
 }

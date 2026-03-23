@@ -347,7 +347,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				modeInstructions,
 				modeId,
 				applyCodeBlockSuggestionId: undefined,
-				permissionLevel: this._activeSessionData.get()?.permissionLevel.get() ?? options?.permissionLevel ?? ChatPermissionLevel.Default,
+				permissionLevel: (this._activeSessionData.get() as any)?.permissionLevel?.get() ?? options?.permissionLevel ?? ChatPermissionLevel.Default,
 			},
 			agentIdSilent: contribution?.type,
 			attachedContext: session.attachedContext,
