@@ -251,7 +251,7 @@ export class ToolBar extends Disposable {
 			this.actionBar.push(action, { icon: this.options.icon ?? true, label: this.options.label ?? false, keybinding: this.getKeybindingLabel(action) });
 		});
 
-		this.actionBar.domNode.classList.toggle('has-overflow', this.actionBar.hasAction(this.toggleMenuAction));
+		this.updateOverflowClassName();
 
 		if (this.options.responsiveBehavior?.enabled) {
 			// Reset hidden actions
@@ -300,7 +300,8 @@ export class ToolBar extends Disposable {
 
 		// Ensure that the container width respects the minimum width of the
 		// element which is set based on the `responsiveBehavior.minItems` option
-		containerWidth = Math.max(containerWidth, parseInt(this.element.style.minWidth));
+		const parsedMinWidth = parseInt(this.element.style.minWidth);
+		containerWidth = Math.max(containerWidth, Number.isNaN(parsedMinWidth) ? 0 : parsedMinWidth);
 
 		// Each action is assumed to have a minimum width so that actions with a label
 		// can shrink to the action's minimum width. We do this so that action visibility
@@ -326,12 +327,14 @@ export class ToolBar extends Disposable {
 			}
 		};
 
+		const minimumWidth = actionBarWidth(false);
+
 		// Action bar fits and there are no hidden actions to show
-		if (actionBarWidth(false) <= containerWidth && this.hiddenActions.length === 0) {
+		if (minimumWidth <= containerWidth && this.hiddenActions.length === 0) {
 			return;
 		}
 
-		if (actionBarWidth(false) > containerWidth) {
+		if (minimumWidth > containerWidth) {
 			// Check for max items limit
 			if (this.options.responsiveBehavior?.minItems !== undefined) {
 				const primaryActionsCount = this.actionBar.hasAction(this.toggleMenuAction)
@@ -367,6 +370,7 @@ export class ToolBar extends Disposable {
 						label: this.options.label ?? false,
 						keybinding: this.getKeybindingLabel(this.toggleMenuAction),
 					});
+					this.updateOverflowClassName();
 				}
 			}
 		} else {
@@ -392,6 +396,7 @@ export class ToolBar extends Disposable {
 				if (this.originalSecondaryActions.length === 0 && this.hiddenActions.length === 0) {
 					this.toggleMenuAction.menuActions = [];
 					this.actionBar.pull(this.actionBar.length() - 1);
+					this.updateOverflowClassName();
 				}
 			}
 		}
@@ -403,6 +408,10 @@ export class ToolBar extends Disposable {
 			this.toggleMenuAction.menuActions = Separator.join(hiddenActions, secondaryActions);
 		}
 
+		this.updateOverflowClassName();
+	}
+
+	private updateOverflowClassName(): void {
 		this.actionBar.domNode.classList.toggle('has-overflow', this.actionBar.hasAction(this.toggleMenuAction));
 	}
 
