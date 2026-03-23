@@ -73,30 +73,29 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 
 		responseHeaders['Content-Type'] = textMimeType[extname(filePath)] || getMediaMime(filePath) || 'text/plain';
 
-		res.writeHead(200, responseHeaders);
-
-		// Data
+		// Create the stream first and wait for it to open before sending
+		// headers so that errors (e.g. ENOENT race) can still produce a
+		// proper 404 response instead of aborting a half-sent 200.
 		const fileStream = createReadStream(filePath);
-		fileStream.on('error', error => {
-			const err = error as NodeJS.ErrnoException;
-			if (err.code !== 'ENOENT') {
-				logService.error(err);
-				console.error(err.toString());
-			} else {
-				console.error(`File not found: ${filePath}`);
-			}
-
-			if (!res.headersSent) {
-				res.writeHead(404, { 'Content-Type': 'text/plain' });
-				res.end('Not found');
-			} else {
-				res.destroy();
-			}
+		await new Promise<void>((resolve, reject) => {
+			fileStream.on('error', reject);
+			fileStream.on('open', () => {
+				// File opened successfully - send headers and pipe
+				res.writeHead(200, responseHeaders);
+				fileStream.pipe(res);
+				// Destroy the read stream if the response is closed prematurely
+				// (e.g. client disconnect) to avoid leaking the file descriptor.
+				res.once('close', () => fileStream.destroy());
+				fileStream.on('end', resolve);
+				// Replace the initial error handler now that headers are sent
+				fileStream.removeAllListeners('error');
+				fileStream.on('error', error => {
+					logService.error(error);
+					console.error(error.toString());
+					res.destroy();
+				});
+			});
 		});
-		fileStream.pipe(res);
-		// Destroy the read stream if the response is closed prematurely
-		// (e.g. client disconnect) to avoid leaking the file descriptor.
-		res.once('close', () => fileStream.destroy());
 	} catch (error) {
 		if (error.code !== 'ENOENT') {
 			logService.error(error);
