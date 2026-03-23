@@ -330,14 +330,6 @@
 		padding: 0 6px 0 28px;
 		cursor: pointer;
 		text-decoration: none !important;
-
-		.agent-session-show-more-label {
-			text-decoration: none !important;
-		}
-
-		&:hover .agent-session-show-more-label {
-			text-decoration: underline !important;
-		}
 	}
 
 	.agent-session-section {
