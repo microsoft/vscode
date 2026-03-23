@@ -1084,6 +1084,10 @@ export class AICustomizationListWidget extends Disposable {
 		return undefined;
 	}
 
+	private static extensionDisplayName(ext: { id: ExtensionIdentifier; displayName?: string }): string {
+		return ext.displayName || ext.id.value;
+	}
+
 	/**
 	 * Post-processes items to assign groupKey overrides for extension-sourced
 	 * items. Applies the built-in grouping consistently across all item types.
@@ -1092,7 +1096,7 @@ export class AICustomizationListWidget extends Disposable {
 	 * agent hooks) are left untouched — groupKey overrides are only applied to
 	 * items whose current groupKey is `undefined`.
 	 */
-	private applyBuiltinGroupKeys(items: IAICustomizationListItem[], extensionIdByUri: ReadonlyMap<string, ExtensionIdentifier>): void {
+	private applyBuiltinGroupKeys(items: IAICustomizationListItem[], extensionInfoByUri: ReadonlyMap<string, { id: ExtensionIdentifier; displayName?: string }>): void {
 		for (const item of items) {
 			if (item.groupKey !== undefined) {
 				continue; // respect explicit groupKey from upstream (e.g. instruction categories)
@@ -1100,16 +1104,16 @@ export class AICustomizationListWidget extends Disposable {
 			if (item.storage !== PromptsStorage.extension) {
 				continue;
 			}
-			const extId = extensionIdByUri.get(item.uri.toString());
-			const override = this.resolveExtensionGroupKey(extId);
+			const extInfo = extensionInfoByUri.get(item.uri.toString());
+			const override = this.resolveExtensionGroupKey(extInfo?.id);
 			if (override) {
 				// IAICustomizationListItem.groupKey is readonly for consumers but
 				// we own the items array here, so the mutation is safe.
 				(item as { groupKey?: string }).groupKey = override;
 			}
-			// Set extension label for tooltip display
-			if (extId) {
-				(item as { extensionLabel?: string }).extensionLabel = extId.value;
+			// Set extension display name for tooltip
+			if (extInfo) {
+				(item as { extensionLabel?: string }).extensionLabel = AICustomizationListWidget.extensionDisplayName(extInfo);
 			}
 		}
 	}
@@ -1122,7 +1126,7 @@ export class AICustomizationListWidget extends Disposable {
 		const promptType = sectionToPromptType(section);
 		const items: IAICustomizationListItem[] = [];
 		const disabledUris = this.promptsService.getDisabledPromptFiles(promptType);
-		const extensionIdByUri = new Map<string, ExtensionIdentifier>();
+		const extensionInfoByUri = new Map<string, { id: ExtensionIdentifier; displayName?: string }>();
 
 
 		if (promptType === PromptsType.agent) {
@@ -1141,9 +1145,9 @@ export class AICustomizationListWidget extends Disposable {
 					pluginUri: agent.source.storage === PromptsStorage.plugin ? agent.source.pluginUri : undefined,
 					disabled: disabledUris.has(agent.uri),
 				});
-				// Track extension ID for built-in grouping
+				// Track extension info for built-in grouping and tooltip display
 				if (agent.source.storage === PromptsStorage.extension) {
-					extensionIdByUri.set(agent.uri.toString(), agent.source.extensionId);
+					extensionInfoByUri.set(agent.uri.toString(), { id: agent.source.extensionId });
 				}
 			}
 		} else if (promptType === PromptsType.skill) {
@@ -1153,7 +1157,7 @@ export class AICustomizationListWidget extends Disposable {
 			const allSkillFiles = await this.promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None);
 			for (const file of allSkillFiles) {
 				if (file.extension) {
-					extensionIdByUri.set(file.uri.toString(), file.extension.identifier);
+					extensionInfoByUri.set(file.uri.toString(), { id: file.extension.identifier, displayName: file.extension.displayName });
 				}
 			}
 			const seenUris = new ResourceSet();
@@ -1212,7 +1216,7 @@ export class AICustomizationListWidget extends Disposable {
 					disabled: disabledUris.has(command.promptPath.uri),
 				});
 				if (command.promptPath.extension) {
-					extensionIdByUri.set(command.promptPath.uri.toString(), command.promptPath.extension.identifier);
+					extensionInfoByUri.set(command.promptPath.uri.toString(), { id: command.promptPath.extension.identifier, displayName: command.promptPath.extension.displayName });
 				}
 			}
 		} else if (promptType === PromptsType.hook) {
@@ -1322,7 +1326,7 @@ export class AICustomizationListWidget extends Disposable {
 			const promptFiles = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
 			for (const file of promptFiles) {
 				if (file.extension) {
-					extensionIdByUri.set(file.uri.toString(), file.extension.identifier);
+					extensionInfoByUri.set(file.uri.toString(), { id: file.extension.identifier, displayName: file.extension.displayName });
 				}
 			}
 			const agentInstructionFiles = await this.promptsService.listAgentInstructions(CancellationToken.None, undefined);
@@ -1418,7 +1422,7 @@ export class AICustomizationListWidget extends Disposable {
 		// are re-grouped under "Built-in" instead of "Extensions".
 		// This is a single-pass transformation applied after all items are
 		// collected, keeping the item-building code free of grouping logic.
-		this.applyBuiltinGroupKeys(items, extensionIdByUri);
+		this.applyBuiltinGroupKeys(items, extensionInfoByUri);
 
 		// Apply storage source filter (removes items not in visible sources or excluded user roots)
 		const filter = this.workspaceService.getStorageSourceFilter(promptType);

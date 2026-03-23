@@ -1416,7 +1416,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				if (isEqual(e.workingCopy.resource, uri)) {
 					this._editorContentChanged = this.workingCopyService.isDirty(uri);
 					this.editorSaveIndicator.className = 'editor-save-indicator visible saved';
-					this.editorSaveIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
+					this.editorSaveIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.save));
 					this.editorSaveIndicator.title = localize('saved', "Saved");
 				}
 			}));
