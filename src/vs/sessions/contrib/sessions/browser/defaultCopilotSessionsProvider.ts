@@ -26,6 +26,7 @@ import { SessionWorkspace, GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionWo
 import { ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
 import { INewSession, INewSessionPickerVisibility, CopilotCLISession, RemoteNewSession } from '../../chat/browser/newSession.js';
 import { CloudModelPicker } from '../../chat/browser/modelPicker.js';
+import { NewChatPermissionPicker } from '../../chat/browser/newChatPermissionPicker.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { Menus } from '../../../browser/menus.js';
 import { IsActiveSessionBackgroundProviderContext, IsNewChatSessionContext } from './sessionsManagementService.js';
@@ -470,6 +471,13 @@ export class DefaultCopilotChatSessionsProvider extends Disposable implements IS
 			Menus.NewSessionConfig, 'sessions.defaultCopilot.cloudModelPicker',
 			(_action, _options) => {
 				const picker = this.instantiationService.createInstance(CloudModelPicker);
+				return new PickerActionViewItem(picker);
+			},
+		));
+		this._register(this.actionViewItemService.register(
+			Menus.NewSessionControl, 'sessions.defaultCopilot.permissionPicker',
+			(_action, _options) => {
+				const picker = this.instantiationService.createInstance(NewChatPermissionPicker);
 				return new PickerActionViewItem(picker);
 			},
 		));
