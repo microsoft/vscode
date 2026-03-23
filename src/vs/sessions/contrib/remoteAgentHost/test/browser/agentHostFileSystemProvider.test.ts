@@ -70,6 +70,11 @@ suite('AgentHostAuthority - encoding', () => {
 		assert.ok(agentHostAuthority('http://myhost:3000').startsWith('b64-'));
 	});
 
+	test('ws:// prefix is normalized so authority matches bare address', () => {
+		assert.strictEqual(agentHostAuthority('ws://127.0.0.1:8080'), agentHostAuthority('127.0.0.1:8080'));
+		assert.strictEqual(agentHostAuthority('ws://localhost:9090'), agentHostAuthority('localhost:9090'));
+	});
+
 	test('different addresses produce different authorities', () => {
 		const cases = ['localhost:8080', 'localhost:8081', '192.168.1.1:8080', 'host-name:80', 'host.name:80', 'host_name:80', 'user@host:8080'];
 		const results = cases.map(agentHostAuthority);

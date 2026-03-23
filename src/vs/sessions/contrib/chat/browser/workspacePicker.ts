@@ -14,14 +14,16 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { GITHUB_REMOTE_FILE_SCHEME, SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
-import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { agentHostAuthority } from '../../remoteAgentHost/browser/remoteAgentHost.contribution.js';
-import { AGENT_HOST_FS_SCHEME, agentHostUri } from '../../remoteAgentHost/browser/agentHostFileSystemProvider.js';
+import { AGENT_HOST_FS_SCHEME } from '../../remoteAgentHost/browser/agentHostFileSystemProvider.js';
+import { pickRemoteAgentHostFolder } from '../../remoteAgentHost/browser/remoteAgentHostPicker.js';
 
 const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
 const STORAGE_KEY_LAST_PROJECT = 'sessions.lastPickedProject';
@@ -80,7 +82,8 @@ export class WorkspacePicker extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -304,59 +307,9 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private async _browseForRemoteAgentHost(): Promise<void> {
-		const connections = this.remoteAgentHostService.connections;
-		if (connections.length === 0) {
-			return;
-		}
-
-		// Show remote picker even with a single connection so the user
-		// can see which remote they are connecting to.
-		let selectedAddress: string;
-		let selectedName: string;
-		let defaultDirectory: string | undefined;
-		{
-			const picks = connections.map(c => ({
-				label: c.name,
-				description: c.address,
-				address: c.address,
-				defaultDirectory: c.defaultDirectory,
-			}));
-
-			const picked = await this.quickInputService.pick(picks, {
-				title: localize('selectRemote', "Select Remote"),
-				placeHolder: localize('selectRemotePlaceholder', "Choose a remote agent host"),
-			});
-			if (!picked) {
-				return;
-			}
-			selectedAddress = picked.address;
-			selectedName = picked.label;
-			defaultDirectory = picked.defaultDirectory;
-		}
-
-		// Open a folder picker scoped to the remote filesystem.
-		// The defaultUri carries both the scheme (agenthost) and authority
-		// (sanitized address), so SimpleFileDialog stays scoped to this
-		// particular remote connection.
-		const authority = agentHostAuthority(selectedAddress);
-		const defaultUri = defaultDirectory
-			? agentHostUri(authority, defaultDirectory)
-			: agentHostUri(authority, '/');
-
-		try {
-			const selected = await this.fileDialogService.showOpenDialog({
-				canSelectFiles: false,
-				canSelectFolders: true,
-				canSelectMany: false,
-				title: localize('selectRemoteFolder', "Select Folder on {0}", selectedName),
-				availableFileSystems: [AGENT_HOST_FS_SCHEME],
-				defaultUri,
-			});
-			if (selected?.[0]) {
-				this._selectProject(new SessionWorkspace(selected[0]));
-			}
-		} catch {
-			// dialog was cancelled or failed
+		const folderUri = await this.instantiationService.invokeFunction(pickRemoteAgentHostFolder);
+		if (folderUri) {
+			this._selectProject(new SessionWorkspace(folderUri));
 		}
 	}
 
@@ -453,7 +406,7 @@ export class WorkspacePicker extends Disposable {
 			group: { title: '', icon: Codicon.repo },
 			item: { uri: URI.parse(COMMAND_BROWSE_REPOS).toJSON() },
 		});
-		if (this.remoteAgentHostService.connections.length > 0) {
+		if (this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: localize('browseRemotes', "Browse Remotes..."),
