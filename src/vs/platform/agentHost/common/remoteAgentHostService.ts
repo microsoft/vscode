@@ -11,6 +11,9 @@ import type { IAgentConnection } from './agentService.js';
 /** Configuration key for the list of remote agent host addresses. */
 export const RemoteAgentHostsSettingId = 'chat.remoteAgentHosts';
 
+/** Configuration key to enable remote agent host connections. */
+export const RemoteAgentHostsEnabledSettingId = 'chat.remoteAgentHosts.enabled';
+
 /** An entry in the {@link RemoteAgentHostsSettingId} setting. */
 export interface IRemoteAgentHostEntry {
 	readonly address: string;

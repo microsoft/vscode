@@ -19,7 +19,8 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { GITHUB_REMOTE_FILE_SCHEME, SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
-import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { agentHostAuthority } from '../../remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import { AGENT_HOST_FS_SCHEME } from '../../remoteAgentHost/browser/agentHostFileSystemProvider.js';
 import { pickRemoteAgentHostFolder } from '../../remoteAgentHost/browser/remoteAgentHostPicker.js';
@@ -82,6 +83,7 @@ export class WorkspacePicker extends Disposable {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -404,12 +406,14 @@ export class WorkspacePicker extends Disposable {
 			group: { title: '', icon: Codicon.repo },
 			item: { uri: URI.parse(COMMAND_BROWSE_REPOS).toJSON() },
 		});
-		items.push({
-			kind: ActionListItemKind.Action,
-			label: localize('browseRemotes', "Browse Remotes..."),
-			group: { title: '', icon: Codicon.remote },
-			item: { uri: URI.parse(COMMAND_BROWSE_REMOTE_AGENT_HOSTS).toJSON() },
-		});
+		if (this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			items.push({
+				kind: ActionListItemKind.Action,
+				label: localize('browseRemotes', "Browse Remotes..."),
+				group: { title: '', icon: Codicon.remote },
+				item: { uri: URI.parse(COMMAND_BROWSE_REMOTE_AGENT_HOSTS).toJSON() },
+			});
+		}
 
 		return items;
 	}

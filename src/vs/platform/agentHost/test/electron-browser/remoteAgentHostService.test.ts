@@ -322,4 +322,26 @@ suite('RemoteAgentHostService', () => {
 		]);
 		assert.strictEqual(service.connections.length, 2);
 	});
+
+	test('addRemoteAgentHost resolves when connection completes before wait is created', async () => {
+		// Simulate a fast connect: the mock client resolves synchronously
+		// during the config change handler, before addRemoteAgentHost has a
+		// chance to create its DeferredPromise wait.
+		const originalSetEntries = configService.setEntries.bind(configService);
+		configService.setEntries = (entries: IRemoteAgentHostEntry[]) => {
+			originalSetEntries(entries);
+			// Complete the connection synchronously inside the config change callback
+			if (createdClients.length > 0) {
+				createdClients[createdClients.length - 1].connectDeferred.complete();
+			}
+		};
+
+		const connection = await service.addRemoteAgentHost({
+			address: 'fast-host:1234',
+			name: 'Fast Host',
+		});
+
+		assert.strictEqual(connection.address, 'fast-host:1234');
+		assert.strictEqual(connection.name, 'Fast Host');
+	});
 });

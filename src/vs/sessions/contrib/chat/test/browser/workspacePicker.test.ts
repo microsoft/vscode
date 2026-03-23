@@ -20,6 +20,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, IRemoteAgentHostConnectionInfo } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { WorkspacePicker } from '../../browser/workspacePicker.js';
 import { SessionWorkspace, GITHUB_REMOTE_FILE_SCHEME } from '../../../sessions/common/sessionWorkspace.js';
 import { AGENT_HOST_FS_SCHEME, agentHostUri } from '../../../remoteAgentHost/browser/agentHostFileSystemProvider.js';
@@ -89,6 +90,7 @@ suite('WorkspacePicker', () => {
 				return addedConnection;
 			}
 		});
+		instantiationService.stub(IConfigurationService, { getValue: () => true });
 		instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
 			override async pick<T extends IQuickPickItem>(): Promise<T | undefined> {
 				return pickedItem as T | undefined;
@@ -252,6 +254,17 @@ suite('WorkspacePicker', () => {
 		picker.showPicker();
 
 		assert.ok(shownItems.some(item => item.kind === ActionListItemKind.Action && item.label === 'Browse Remotes...'));
+	});
+
+	test('showPicker hides Browse Remotes when setting is disabled', () => {
+		instantiationService.stub(IConfigurationService, { getValue: () => false });
+		const picker = ds.add(instantiationService.createInstance(WorkspacePicker));
+		const container = document.createElement('div');
+		picker.render(container);
+
+		picker.showPicker();
+
+		assert.ok(!shownItems.some(item => item.kind === ActionListItemKind.Action && item.label === 'Browse Remotes...'));
 	});
 
 	test('Browse Remotes shows configured entries and selecting one ensures connection', async () => {

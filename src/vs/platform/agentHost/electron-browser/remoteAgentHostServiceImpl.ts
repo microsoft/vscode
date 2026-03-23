@@ -254,10 +254,21 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 	private _getOrCreateConnectionWait(address: string): DeferredPromise<IRemoteAgentHostConnectionInfo> {
 		let wait = this._pendingConnectionWaits.get(address);
-		if (!wait) {
-			wait = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
-			this._pendingConnectionWaits.set(address, wait);
+		if (wait) {
+			return wait;
 		}
+
+		// If the connection is already available (fast connect resolved before
+		// the caller called us), return an immediately-completed wait.
+		const existingConnection = this._getConnectionInfo(address);
+		if (existingConnection) {
+			const immediateWait = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
+			immediateWait.complete(existingConnection);
+			return immediateWait;
+		}
+
+		wait = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
+		this._pendingConnectionWaits.set(address, wait);
 		return wait;
 	}
 
