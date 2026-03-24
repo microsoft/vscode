@@ -73,7 +73,7 @@
 	max-width: 800px;
 	display: flex;
 	flex-direction: column;
-	align-items: stretch;
+	align-items: center;
 }
 
 /* Local mode picker (Workspace / Worktree) below input */
@@ -141,7 +141,7 @@
 	flex-direction: row;
 	flex-wrap: nowrap;
 	align-items: center;
-	justify-content: flex-start;
+	justify-content: center;
 	gap: 6px;
 	width: 100%;
 	box-sizing: border-box;
