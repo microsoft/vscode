@@ -325,7 +325,7 @@
 		display: flex;
 		align-items: center;
 		font-size: 12px;
-		color: rgb(191, 191, 191);
+		color: var(--vscode-descriptionForeground);
 		/* align with session item text: 6px item padding + 16px icon + 6px main-col padding */
 		padding: 0 6px 0 28px;
 		cursor: pointer;

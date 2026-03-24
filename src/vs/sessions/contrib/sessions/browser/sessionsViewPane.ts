@@ -439,6 +439,7 @@ registerAction2(class ShowTopSessionsAction extends Action2 {
 				id: SessionsViewFilterSubMenu,
 				group: '4_cap',
 				order: 0,
+				when: ContextKeyExpr.equals(SessionsViewGroupingContext.key, AgentSessionsGrouping.Repository),
 			}]
 		});
 	}
@@ -461,6 +462,7 @@ registerAction2(class ShowAllSessionsAction extends Action2 {
 				id: SessionsViewFilterSubMenu,
 				group: '4_cap',
 				order: 1,
+				when: ContextKeyExpr.equals(SessionsViewGroupingContext.key, AgentSessionsGrouping.Repository),
 			}]
 		});
 	}

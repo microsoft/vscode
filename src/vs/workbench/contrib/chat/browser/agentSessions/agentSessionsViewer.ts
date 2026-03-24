@@ -855,11 +855,14 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		super();
 
 		if (this.filter) {
+			let previousCapped = this.filter.getExcludes().repositoryGroupCapped;
 			this._register(this.filter.onDidChange(() => {
-				// Clear expanded state when capping is re-enabled
-				if (this.filter?.getExcludes().repositoryGroupCapped) {
+				const currentCapped = this.filter!.getExcludes().repositoryGroupCapped;
+				// Only clear expanded state when capping transitions from off to on
+				if (currentCapped && !previousCapped) {
 					this.expandedRepositoryGroups.clear();
 				}
+				previousCapped = currentCapped;
 			}));
 		}
 	}
@@ -1333,7 +1336,7 @@ export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSe
 	}
 
 	getGroupId(element: IAgentSessionsModel | AgentSessionListItem): number | NotSelectableGroupIdType {
-		if (isAgentSessionSection(element) || isAgentSessionsModel(element) || isAgentSessionShowMore(element)) {
+		if (isAgentSessionSection(element) || isAgentSessionsModel(element)) {
 			return NotSelectableGroupId;
 		}
 		return 1;
