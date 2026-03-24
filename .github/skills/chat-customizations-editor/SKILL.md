@@ -98,6 +98,21 @@ The management editor embeds a `CodeEditorWidget`. Electron-side editor contribu
 
 These are cross-layer imports from `vs/sessions/` — use `// eslint-disable-next-line local/code-import-patterns` on the import lines.
 
+### CI regression gates
+
+Key fixtures have `blocksCi: true` in their labels. The `screenshot-test.yml` GitHub Action captures screenshots on every PR to `main` and **fails the CI status check** if any `blocks-ci`-labeled fixture's screenshot changes. This catches layout regressions automatically.
+
+Currently gated fixtures: `LocalHarness`, `McpServersTab`, `McpServersTabNarrow`, `AgentsTabNarrow`. When adding a new section or layout-critical fixture, add `blocksCi: true`:
+
+```typescript
+MyFixture: defineComponentFixture({
+    labels: { kind: 'screenshot', blocksCi: true },
+    render: ctx => renderEditor(ctx, { ... }),
+}),
+```
+
+Don't add `blocksCi` to every fixture — only ones that cover critical layout paths (default view, section with list + footer, narrow viewport). Too many gated fixtures creates noisy CI.
+
 ### Screenshot stability
 
 Scrollbar fade transitions cause screenshot instability — the scrollbar shifts from `visible` to `invisible fade` class ~2 seconds after a programmatic scroll. After calling `revealLastItem()` or any scroll action, wait for the transition to complete before the fixture's render promise resolves:
