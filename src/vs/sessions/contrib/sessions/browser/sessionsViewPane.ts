@@ -150,11 +150,8 @@ export class AgenticSessionsViewPane extends ViewPane {
 
 		// New Session Button
 		const newSessionButtonContainer = DOM.append(sessionsContent, $('.agent-sessions-new-button-container'));
-		const keybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_CHAT);
-		const fallbackKeybindingLabel = isMacintosh ? 'Cmd+N' : 'Ctrl+N';
-		const fallbackKeybindingAriaLabel = isMacintosh ? 'Command+N' : 'Control+N';
-		const keybindingLabel = keybinding?.getLabel() ?? fallbackKeybindingLabel;
-		const keybindingAriaLabel = keybinding?.getAriaLabel() ?? fallbackKeybindingAriaLabel;
+		const keybindingLabel = isMacintosh ? '\u2318N' : 'Ctrl+N';
+		const keybindingAriaLabel = isMacintosh ? 'Command+N' : 'Control+N';
 		const newSessionButtonTitle = keybindingLabel
 			? localize('newSessionButtonTitle', "New Session ({0})", keybindingLabel)
 			: localize('newSessionButtonTitleWithoutKeybinding', "New Session");
@@ -178,7 +175,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 		}
 		DOM.reset(newSessionButton.element, buttonLabel);
 		if (keybindingLabel) {
-			DOM.append(newSessionButton.element, $('span.new-session-keybinding-hint', undefined, keybindingLabel));
+			DOM.append(newSessionButton.element, $('kbd.new-session-keybinding-hint', undefined, keybindingLabel));
 		}
 
 		// Sessions Control
