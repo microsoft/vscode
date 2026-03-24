@@ -14,6 +14,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IURLService } from '../../../../../../platform/url/common/url.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
+import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { PluginUrlHandler } from '../../../browser/pluginUrlHandler.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
@@ -67,6 +68,10 @@ suite('PluginUrlHandler', () => {
 		instantiationService.stub(IHostService, {
 			focus: async () => { },
 		} as unknown as IHostService);
+
+		instantiationService.stub(IExtensionsWorkbenchService, {
+			openSearch: () => { },
+		} as unknown as IExtensionsWorkbenchService);
 
 		instantiationService.stub(ILogService, new NullLogService());
 

@@ -14,6 +14,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IURLHandler, IURLService } from '../../../../platform/url/common/url.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences } from '../common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
@@ -35,6 +36,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		@IPluginInstallService private readonly _pluginInstallService: IPluginInstallService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IHostService private readonly _hostService: IHostService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -92,6 +94,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		}
 
 		await this._pluginInstallService.installPluginFromSource(source);
+		this._extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
 		return true;
 	}
 
@@ -134,6 +137,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			);
 		}
 
+		this._extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
 		return true;
 	}
 
