@@ -17,6 +17,11 @@
 	transition: opacity 200ms ease-out;
 }
 
+/* Hide titlebar right actions during sign-in */
+.monaco-workbench:has(.sessions-walkthrough-overlay) .part.titlebar .titlebar-right {
+	visibility: hidden;
+}
+
 .sessions-walkthrough-overlay.sessions-walkthrough-dismissed {
 	opacity: 0;
 	pointer-events: none;
@@ -226,6 +231,23 @@
 
 .sessions-walkthrough-icon.sessions-walkthrough-icon-large .codicon {
 	font-size: 112px;
+}
+
+/* Sessions logo for sign-in screen */
+.sessions-walkthrough-logo {
+	width: 112px;
+	height: 112px;
+	background-image: url('./sessions-logo-dark.svg');
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center;
+	flex-shrink: 0;
+	align-self: center;
+}
+
+.vs .sessions-walkthrough-logo,
+.hc-light .sessions-walkthrough-logo {
+	background-image: url('./sessions-logo-light.svg');
 }
 
 /* ---- Action area (used inside content for sign-in step spinner) ---- */
