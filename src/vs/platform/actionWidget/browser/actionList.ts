@@ -191,7 +191,6 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 	constructor(
 		private readonly _supportsPreview: boolean,
 		private readonly _onRemoveItem: ((item: IActionListItem<T>) => void) | undefined,
-		private readonly _onSubmenuIndicatorHover: ((element: IActionListItem<T>, indicator: HTMLElement, disposables: DisposableStore) => void) | undefined,
 		private _hasAnySubmenuActions: boolean,
 		private readonly _linkHandler: ((uri: URI, item: IActionListItem<T>) => void) | undefined,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -348,7 +347,6 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		if (hasSubmenu) {
 			data.submenuIndicator.className = 'action-list-submenu-indicator has-submenu ' + ThemeIcon.asClassName(Codicon.chevronRight);
 			data.submenuIndicator.style.display = '';
-			this._onSubmenuIndicatorHover?.(element, data.submenuIndicator, data.elementDisposables);
 		} else if (this._hasAnySubmenuActions) {
 			// Reserve space for alignment when other items have submenus
 			data.submenuIndicator.className = 'action-list-submenu-indicator';
@@ -459,6 +457,7 @@ export class ActionListWidget<T> extends Disposable {
 	private readonly _submenuDisposables = this._register(new DisposableStore());
 	private readonly _submenuContainer: HTMLElement;
 	private _submenuHideTimeout: ReturnType<typeof setTimeout> | undefined;
+	private _submenuShowTimeout: ReturnType<typeof setTimeout> | undefined;
 	private _currentSubmenuWidget: ActionListWidget<IAction> | undefined;
 	private _currentSubmenuElement: IActionListItem<T> | undefined;
 
@@ -508,7 +507,10 @@ export class ActionListWidget<T> extends Disposable {
 		this._register(dom.addDisposableListener(this._submenuContainer, 'mouseleave', () => {
 			this._scheduleSubmenuHide();
 		}));
-		this._register(toDisposable(() => this._cancelSubmenuHide()));
+		this._register(toDisposable(() => {
+			this._cancelSubmenuHide();
+			this._cancelSubmenuShow();
+		}));
 
 		// Initialize collapsed sections
 		if (this._options?.collapsedByDefault) {
@@ -535,7 +537,7 @@ export class ActionListWidget<T> extends Disposable {
 		const hasAnySubmenuActions = items.some(item => !!item.submenuActions?.length);
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<T>(preview, (item) => this._removeItem(item), (element, indicator, disposables) => this._wireSubmenuIndicator(element, indicator, disposables), hasAnySubmenuActions, this._options?.linkHandler, this._keybindingService, this._openerService),
+			new ActionItemRenderer<T>(preview, (item) => this._removeItem(item), hasAnySubmenuActions, this._options?.linkHandler, this._keybindingService, this._openerService),
 			new HeaderRenderer(),
 			new SeparatorRenderer(),
 		], {
@@ -1161,7 +1163,7 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
-		if (this._currentSubmenuElement === element) {
+		if (this._currentSubmenuElement === element || element.submenuActions?.length) {
 			return;
 		}
 		this._submenuDisposables.clear();
@@ -1199,17 +1201,7 @@ export class ActionListWidget<T> extends Disposable {
 		}, { groupId: `actionListHover` });
 	}
 
-	private _wireSubmenuIndicator(element: IActionListItem<T>, indicator: HTMLElement, disposables: DisposableStore): void {
-		disposables.add(dom.addDisposableListener(indicator, 'mouseenter', () => {
-			this._cancelSubmenuHide();
-			this._showSubmenuForElement(element, indicator);
-		}));
-		disposables.add(dom.addDisposableListener(indicator, 'mouseleave', () => {
-			this._scheduleSubmenuHide();
-		}));
-	}
-
-	private _showSubmenuForElement(element: IActionListItem<T>, indicator: HTMLElement): void {
+	private _showSubmenuForElement(element: IActionListItem<T>, anchor: HTMLElement): void {
 		this._submenuDisposables.clear();
 		this._hover.clear();
 		this._currentSubmenuElement = element;
@@ -1234,6 +1226,7 @@ export class ActionListWidget<T> extends Disposable {
 						description: child.tooltip || undefined,
 						group: { title: '', icon: ThemeIcon.fromId(child.checked ? Codicon.check.id : Codicon.blank.id) },
 						hideIcon: false,
+						hover: {},
 					});
 				}
 			}
@@ -1243,7 +1236,12 @@ export class ActionListWidget<T> extends Disposable {
 			onHide: () => { },
 			onSelect: (action) => {
 				action.run();
+				// Also select the parent item in the main list
+				const parentItem = this._currentSubmenuElement?.item;
 				this._hideSubmenu();
+				if (parentItem) {
+					this._delegate.onSelect(parentItem);
+				}
 				this.hide();
 			},
 		};
@@ -1253,7 +1251,7 @@ export class ActionListWidget<T> extends Disposable {
 		this._submenuContainer.style.position = 'absolute';
 
 		// Position: prefer right side, fall back to left if not enough space
-		const indicatorRect = indicator.getBoundingClientRect();
+		const anchorRect = anchor.getBoundingClientRect();
 		const parentRect = this.domNode.getBoundingClientRect();
 
 		const submenuWidget = this._submenuDisposables.add(this._instantiationService.createInstance(
@@ -1278,18 +1276,19 @@ export class ActionListWidget<T> extends Disposable {
 		// Position: prefer right side, fall back to left if not enough space
 		const targetWindow = dom.getWindow(this.domNode);
 		const viewportWidth = targetWindow.innerWidth;
-		const spaceRight = viewportWidth - indicatorRect.right;
+		const spaceRight = viewportWidth - anchorRect.right;
 		const spaceLeft = parentRect.left;
 		const submenuWidth = maxWidth + 10; // account for border/padding
 
+		const gap = 4;
 		if (spaceRight >= submenuWidth || spaceRight >= spaceLeft) {
-			// Show on the right
-			this._submenuContainer.style.left = `${indicatorRect.right - parentRect.left}px`;
+			// Show on the right, offset past the parent's right edge
+			this._submenuContainer.style.left = `${parentRect.right - parentRect.left + gap}px`;
 		} else {
 			// Show on the left
-			this._submenuContainer.style.left = `${-submenuWidth}px`;
+			this._submenuContainer.style.left = `${-submenuWidth - gap}px`;
 		}
-		this._submenuContainer.style.top = `${indicatorRect.top - parentRect.top - 4}px`;
+		this._submenuContainer.style.top = `${anchorRect.top - parentRect.top - 4}px`;
 
 		// Keyboard navigation in submenu
 		this._submenuDisposables.add(dom.addDisposableListener(submenuWidget.domNode, 'keydown', (e: KeyboardEvent) => {
@@ -1302,7 +1301,11 @@ export class ActionListWidget<T> extends Disposable {
 				const focused = submenuWidget.getFocusedElement();
 				if (focused?.item) {
 					focused.item.run();
+					const parentItem = this._currentSubmenuElement?.item;
 					this._hideSubmenu();
+					if (parentItem) {
+						this._delegate.onSelect(parentItem);
+					}
 					this.hide();
 				}
 			} else if (e.key === 'ArrowDown') {
@@ -1317,6 +1320,7 @@ export class ActionListWidget<T> extends Disposable {
 
 	private _hideSubmenu(): void {
 		this._cancelSubmenuHide();
+		this._cancelSubmenuShow();
 		this._submenuDisposables.clear();
 		this._currentSubmenuWidget = undefined;
 		this._currentSubmenuElement = undefined;
@@ -1338,30 +1342,55 @@ export class ActionListWidget<T> extends Disposable {
 		}
 	}
 
+	private _scheduleSubmenuShow(element: IActionListItem<T>, index: number | undefined): void {
+		this._cancelSubmenuShow();
+		this._submenuShowTimeout = setTimeout(() => {
+			this._submenuShowTimeout = undefined;
+			const rowElement = typeof index === 'number' ? this._getRowElement(index) : null;
+			if (rowElement) {
+				this._showSubmenuForElement(element, rowElement);
+			}
+		}, 300);
+	}
+
+	private _cancelSubmenuShow(): void {
+		if (this._submenuShowTimeout !== undefined) {
+			clearTimeout(this._submenuShowTimeout);
+			this._submenuShowTimeout = undefined;
+		}
+	}
+
 	private async onListHover(e: IListMouseEvent<IActionListItem<T>>) {
 		const element = e.element;
 
 		if (element && element.item && this.focusCondition(element)) {
-			// Check if the hover target is inside a toolbar or submenu indicator - if so, skip the splice
+			// Check if the hover target is inside a toolbar - if so, skip the splice
 			// to avoid re-rendering which would destroy the element mid-hover
 			const isHoveringToolbar = dom.isHTMLElement(e.browserEvent.target) && e.browserEvent.target.closest('.action-list-item-toolbar') !== null;
-			const submenuIndicator = dom.isHTMLElement(e.browserEvent.target) ? e.browserEvent.target.closest('.action-list-submenu-indicator') as HTMLElement | null : null;
 			if (isHoveringToolbar) {
+				this._cancelSubmenuShow();
 				this._list.setFocus([]);
-				return;
-			}
-			if (submenuIndicator && element.submenuActions?.length) {
-				this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
-				this._cancelSubmenuHide();
-				this._showSubmenuForElement(element, submenuIndicator);
 				return;
 			}
 
 			// Set focus immediately for responsive hover feedback
 			this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
+
+			// Show submenu on row hover for items with submenu actions
+			if (element.submenuActions?.length) {
+				if (this._currentSubmenuElement === element) {
+					this._cancelSubmenuHide();
+					this._cancelSubmenuShow();
+				} else {
+					this._scheduleSubmenuShow(element, e.index);
+				}
+				return;
+			}
+
 			if (this._currentSubmenuElement === element) {
 				this._cancelSubmenuHide();
 			} else {
+				this._cancelSubmenuShow();
 				this._hideSubmenu();
 			}
 
@@ -1383,15 +1412,6 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private onListClick(e: IListMouseEvent<IActionListItem<T>>): void {
-		// Click on submenu indicator opens/keeps the submenu
-		if (e.element && e.element.submenuActions?.length) {
-			const submenuIndicator = dom.isHTMLElement(e.browserEvent.target) ? e.browserEvent.target.closest('.action-list-submenu-indicator') as HTMLElement | null : null;
-			if (submenuIndicator) {
-				this._cancelSubmenuHide();
-				this._showSubmenuForElement(e.element, submenuIndicator);
-				return;
-			}
-		}
 		if (e.element && e.element.isSectionToggle && e.element.section) {
 			const section = e.element.section;
 			queueMicrotask(() => this._toggleSection(section));

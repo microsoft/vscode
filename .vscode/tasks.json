@@ -410,7 +410,7 @@
 				"background": {
 					"activeOnStart": true,
 					"beginsPattern": ".*Setting up sessions.*",
-					"endsPattern": "Redirection server listening on.*"
+					"endsPattern": "  current: (?<componentExplorerUrl>.*) \\(current\\)"
 				}
 			}
 		},

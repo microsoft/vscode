@@ -14,7 +14,7 @@ import { constObservable, observableValue } from '../../../../base/common/observ
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
-import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
@@ -23,22 +23,28 @@ import { IMarkdownRendererService } from '../../../../platform/markdown/browser/
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createClaudeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots, getClaudeUserRoots } from '../../../contrib/chat/common/customizationHarnessService.js';
 import { PromptsType } from '../../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ParsedPromptFile } from '../../../contrib/chat/common/promptSyntax/promptFileParser.js';
-import { IAgentPluginService } from '../../../contrib/chat/common/plugins/agentPluginService.js';
-import { IPluginMarketplaceService } from '../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
+import { IAgentPluginService, IAgentPlugin } from '../../../contrib/chat/common/plugins/agentPluginService.js';
+import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
+import { MarketplaceReferenceKind } from '../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../contrib/chat/common/plugins/pluginInstallService.js';
 import { AICustomizationManagementEditor } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { ContributionEnablementState } from '../../../contrib/chat/common/enablement.js';
 import { AICustomizationManagementEditorInput } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpServerInstallState } from '../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../contrib/mcp/common/mcpRegistryTypes.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { McpListWidget } from '../../../contrib/chat/browser/aiCustomization/mcpListWidget.js';
+import { PluginListWidget } from '../../../contrib/chat/browser/aiCustomization/pluginListWidget.js';
+import { IIterativePager } from '../../../../base/common/paging.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
 
 // Ensure theme colors & widget CSS are loaded
@@ -98,8 +104,33 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IRes
 			return new ParsedPromptFile(uri, header as never);
 		}
 		override async getSourceFolders() { return [] as never[]; }
-		override async findAgentSkills() { return [] as never[]; }
-		override async getPromptSlashCommands() { return [] as never[]; }
+		override async findAgentSkills(): Promise<IAgentSkill[]> {
+			return files.filter(f => f.type === PromptsType.skill).map(f => ({
+				uri: f.uri,
+				storage: f.storage,
+				name: f.name ?? 'skill',
+				description: f.description,
+				disableModelInvocation: false,
+				userInvocable: true,
+				when: undefined,
+			}));
+		}
+		override async getPromptSlashCommands(): Promise<readonly IChatPromptSlashCommand[]> {
+			const promptFiles = files.filter(f => f.type === PromptsType.prompt);
+			const commands = await Promise.all(promptFiles.map(async f => {
+				const promptPath = { uri: f.uri, storage: f.storage, type: f.type };
+				const parsedPromptFile = await this.parseNew(f.uri, CancellationToken.None);
+				return {
+					name: f.name ?? 'prompt',
+					description: f.description,
+					argumentHint: undefined,
+					promptPath: promptPath as IChatPromptSlashCommand['promptPath'],
+					parsedPromptFile,
+					when: undefined,
+				};
+			}));
+			return commands;
+		}
 	}();
 }
 
@@ -138,24 +169,71 @@ function makeLocalMcpServer(id: string, label: string, scope: LocalMcpServerScop
 // ============================================================================
 
 const allFiles: IFixtureFile[] = [
-	// Copilot instructions
+	// Instructions — workspace
 	{ uri: URI.file('/workspace/.github/instructions/coding-standards.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Coding Standards', description: 'Repository-wide coding standards' },
 	{ uri: URI.file('/workspace/.github/instructions/testing.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Testing', description: 'Testing best practices', applyTo: '**/*.test.ts' },
+	{ uri: URI.file('/workspace/.github/instructions/security.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Security', description: 'Security review checklist', applyTo: 'src/auth/**' },
+	{ uri: URI.file('/workspace/.github/instructions/accessibility.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Accessibility', description: 'WCAG compliance guidelines', applyTo: '**/*.tsx' },
+	{ uri: URI.file('/workspace/.github/instructions/api-design.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'API Design', description: 'REST API design conventions' },
+	{ uri: URI.file('/workspace/.github/instructions/performance.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Performance', description: 'Performance optimization rules', applyTo: 'src/core/**' },
+	{ uri: URI.file('/workspace/.github/instructions/error-handling.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Error Handling', description: 'Error handling patterns' },
+	{ uri: URI.file('/workspace/.github/instructions/database.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Database', description: 'Database migration and query patterns', applyTo: 'src/db/**' },
+	// Instructions — user
 	{ uri: URI.file('/home/dev/.copilot/instructions/my-style.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, name: 'My Style', description: 'Personal coding style' },
-	// Claude rules
+	{ uri: URI.file('/home/dev/.copilot/instructions/typescript-rules.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, name: 'TypeScript Rules', description: 'Strict TypeScript conventions' },
+	{ uri: URI.file('/home/dev/.copilot/instructions/commit-messages.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, name: 'Commit Messages', description: 'Conventional commit format' },
+	// Instructions — Claude rules
 	{ uri: URI.file('/workspace/.claude/rules/code-style.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Code Style', description: 'Claude code style rules' },
 	{ uri: URI.file('/workspace/.claude/rules/testing.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Testing', description: 'Claude testing conventions' },
 	{ uri: URI.file('/home/dev/.claude/rules/personal.md'), storage: PromptsStorage.user, type: PromptsType.instructions, name: 'Personal', description: 'Personal rules' },
-	// Agents
+	// Agents — workspace
 	{ uri: URI.file('/workspace/.github/agents/reviewer.agent.md'), storage: PromptsStorage.local, type: PromptsType.agent, name: 'Reviewer', description: 'Code review agent' },
 	{ uri: URI.file('/workspace/.github/agents/documenter.agent.md'), storage: PromptsStorage.local, type: PromptsType.agent, name: 'Documenter', description: 'Documentation agent' },
-	{ uri: URI.file('/workspace/.claude/agents/planner.md'), storage: PromptsStorage.local, type: PromptsType.agent, name: 'Planner', description: 'Project planning agent' },
-	// Skills
+	{ uri: URI.file('/workspace/.github/agents/tester.agent.md'), storage: PromptsStorage.local, type: PromptsType.agent, name: 'Tester', description: 'Test generation and validation' },
+	{ uri: URI.file('/workspace/.github/agents/refactorer.agent.md'), storage: PromptsStorage.local, type: PromptsType.agent, name: 'Refactorer', description: 'Code refactoring specialist' },
+	{ uri: URI.file('/workspace/.github/agents/security-auditor.agent.md'), storage: PromptsStorage.local, type: PromptsType.agent, name: 'Security Auditor', description: 'Security vulnerability scanner' },
+	{ uri: URI.file('/workspace/.github/agents/api-designer.agent.md'), storage: PromptsStorage.local, type: PromptsType.agent, name: 'API Designer', description: 'REST and GraphQL API design' },
+	{ uri: URI.file('/workspace/.github/agents/performance-tuner.agent.md'), storage: PromptsStorage.local, type: PromptsType.agent, name: 'Performance Tuner', description: 'Performance profiling and optimization' },
+	// Agents — user
+	{ uri: URI.file('/home/dev/.copilot/agents/planner.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, name: 'Planner', description: 'Project planning agent' },
+	{ uri: URI.file('/home/dev/.copilot/agents/debugger.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, name: 'Debugger', description: 'Interactive debugging assistant' },
+	{ uri: URI.file('/home/dev/.copilot/agents/nls-helper.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, name: 'NLS Helper', description: 'Natural language searching code for clarity' },
+	// Skills — workspace
 	{ uri: URI.file('/workspace/.github/skills/deploy/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, name: 'Deploy', description: 'Deployment automation' },
 	{ uri: URI.file('/workspace/.github/skills/refactor/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, name: 'Refactor', description: 'Code refactoring patterns' },
-	// Prompts
+	{ uri: URI.file('/workspace/.github/skills/unit-tests/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, name: 'Unit Tests', description: 'Test generation and runner integration' },
+	{ uri: URI.file('/workspace/.github/skills/ci-fix/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, name: 'CI Fix', description: 'Diagnose and fix CI failures' },
+	{ uri: URI.file('/workspace/.github/skills/migration/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, name: 'Migration', description: 'Database migration generation' },
+	{ uri: URI.file('/workspace/.github/skills/accessibility/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, name: 'Accessibility', description: 'ARIA labels and keyboard navigation' },
+	{ uri: URI.file('/workspace/.github/skills/docker/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, name: 'Docker', description: 'Dockerfile and compose generation' },
+	{ uri: URI.file('/workspace/.github/skills/api-docs/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, name: 'API Docs', description: 'OpenAPI spec generation' },
+	// Skills — user
+	{ uri: URI.file('/home/dev/.copilot/skills/git-workflow/SKILL.md'), storage: PromptsStorage.user, type: PromptsType.skill, name: 'Git Workflow', description: 'Branch and PR workflows' },
+	{ uri: URI.file('/home/dev/.copilot/skills/code-review/SKILL.md'), storage: PromptsStorage.user, type: PromptsType.skill, name: 'Code Review', description: 'Structured code review checklist' },
+	// Prompts — workspace
 	{ uri: URI.file('/workspace/.github/prompts/explain.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, name: 'Explain', description: 'Explain selected code' },
 	{ uri: URI.file('/workspace/.github/prompts/review.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, name: 'Review', description: 'Review changes' },
+	{ uri: URI.file('/workspace/.github/prompts/fix-bug.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, name: 'Fix Bug', description: 'Diagnose and fix a bug from issue' },
+	{ uri: URI.file('/workspace/.github/prompts/write-tests.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, name: 'Write Tests', description: 'Generate unit tests for selection' },
+	{ uri: URI.file('/workspace/.github/prompts/add-docs.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, name: 'Add Docs', description: 'Add JSDoc comments to functions' },
+	{ uri: URI.file('/workspace/.github/prompts/optimize.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, name: 'Optimize', description: 'Optimize code for performance' },
+	{ uri: URI.file('/workspace/.github/prompts/convert-to-ts.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, name: 'Convert to TS', description: 'Convert JavaScript to TypeScript' },
+	{ uri: URI.file('/workspace/.github/prompts/summarize-pr.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, name: 'Summarize PR', description: 'Generate PR description from diff' },
+	// Prompts — user
+	{ uri: URI.file('/home/dev/.copilot/prompts/translate.prompt.md'), storage: PromptsStorage.user, type: PromptsType.prompt, name: 'Translate', description: 'Translate strings for i18n' },
+	{ uri: URI.file('/home/dev/.copilot/prompts/commit-msg.prompt.md'), storage: PromptsStorage.user, type: PromptsType.prompt, name: 'Commit Message', description: 'Generate conventional commit' },
+	// Hooks — workspace
+	{ uri: URI.file('/workspace/.github/hooks/pre-commit.json'), storage: PromptsStorage.local, type: PromptsType.hook, name: 'Pre-Commit Lint', description: 'Run linting before commit' },
+	{ uri: URI.file('/workspace/.github/hooks/post-save.json'), storage: PromptsStorage.local, type: PromptsType.hook, name: 'Post-Save Format', description: 'Auto-format on save' },
+	{ uri: URI.file('/workspace/.github/hooks/on-test-fail.json'), storage: PromptsStorage.local, type: PromptsType.hook, name: 'On Test Failure', description: 'Suggest fix when tests fail' },
+	{ uri: URI.file('/workspace/.github/hooks/pre-push.json'), storage: PromptsStorage.local, type: PromptsType.hook, name: 'Pre-Push Check', description: 'Run type-check before push' },
+	{ uri: URI.file('/workspace/.github/hooks/post-create.json'), storage: PromptsStorage.local, type: PromptsType.hook, name: 'Post-Create', description: 'Initialize boilerplate for new files' },
+	{ uri: URI.file('/workspace/.github/hooks/on-error.json'), storage: PromptsStorage.local, type: PromptsType.hook, name: 'On Error', description: 'Log and report unhandled errors' },
+	{ uri: URI.file('/workspace/.github/hooks/post-tool-call.json'), storage: PromptsStorage.local, type: PromptsType.hook, name: 'Post Tool Call', description: 'Echo confirmation after each tool call' },
+	{ uri: URI.file('/workspace/.github/hooks/on-build-fail.json'), storage: PromptsStorage.local, type: PromptsType.hook, name: 'On Build Failure', description: 'Auto-diagnose build errors' },
+	// Hooks — user
+	{ uri: URI.file('/home/dev/.copilot/hooks/daily-summary.json'), storage: PromptsStorage.user, type: PromptsType.hook, name: 'Daily Summary', description: 'Generate daily work summary' },
+	{ uri: URI.file('/home/dev/.copilot/hooks/backup-changes.json'), storage: PromptsStorage.user, type: PromptsType.hook, name: 'Backup Changes', description: 'Auto-stash uncommitted changes' },
 ];
 
 const agentInstructions: IResolvedAgentFile[] = [
@@ -167,9 +245,17 @@ const agentInstructions: IResolvedAgentFile[] = [
 const mcpWorkspaceServers = [
 	makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access'),
 	makeLocalMcpServer('mcp-github', 'GitHub', LocalMcpServerScope.Workspace, 'GitHub API'),
+	makeLocalMcpServer('mcp-redis', 'Redis', LocalMcpServerScope.Workspace, 'In-memory data store'),
+	makeLocalMcpServer('mcp-docker', 'Docker', LocalMcpServerScope.Workspace, 'Container management'),
+	makeLocalMcpServer('mcp-slack', 'Slack', LocalMcpServerScope.Workspace, 'Team messaging'),
+	makeLocalMcpServer('mcp-jira', 'Jira', LocalMcpServerScope.Workspace, 'Issue tracking'),
+	makeLocalMcpServer('mcp-aws', 'AWS', LocalMcpServerScope.Workspace, 'Amazon Web Services'),
+	makeLocalMcpServer('mcp-graphql', 'GraphQL', LocalMcpServerScope.Workspace, 'GraphQL API gateway'),
 ];
 const mcpUserServers = [
 	makeLocalMcpServer('mcp-web-search', 'Web Search', LocalMcpServerScope.User, 'Search the web'),
+	makeLocalMcpServer('mcp-filesystem', 'Filesystem', LocalMcpServerScope.User, 'Local file operations'),
+	makeLocalMcpServer('mcp-puppeteer', 'Puppeteer', LocalMcpServerScope.User, 'Browser automation'),
 ];
 const mcpRuntimeServers = [
 	{ definition: { id: 'github-copilot-mcp', label: 'GitHub Copilot' }, collection: { id: 'ext.github.copilot/mcp', label: 'ext.github.copilot/mcp' }, enablement: constObservable(2), connectionState: constObservable({ state: 2 }) },
@@ -180,6 +266,7 @@ interface IRenderEditorOptions {
 	readonly isSessionsWindow?: boolean;
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
+	readonly selectedSection?: AICustomizationManagementSection;
 }
 
 // ============================================================================
@@ -277,7 +364,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly onDidChangeInputs = Event.None;
 			}());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
-				override readonly plugins = constObservable([]);
+				override readonly plugins = constObservable(installedPlugins);
 				override readonly enablementModel = undefined as never;
 			}());
 			reg.defineInstance(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
@@ -285,6 +372,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly onDidChangeMarketplaces = Event.None;
 			}());
 			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
+			reg.defineInstance(IProductService, new class extends mock<IProductService>() { }());
 		},
 	});
 
@@ -300,6 +388,210 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	} catch {
 		// Expected in fixture — some services are partially mocked
 	}
+
+	if (options.selectedSection) {
+		editor.selectSectionById(options.selectedSection);
+		editor.layout(new Dimension(width, height));
+	}
+}
+
+// ============================================================================
+// MCP Browse Mode — standalone widget with gallery results
+// ============================================================================
+
+function makeGalleryServer(id: string, label: string, description: string, publisher: string): IWorkbenchMcpServer {
+	const galleryStub = new class extends mock<NonNullable<IWorkbenchMcpServer['gallery']>>() { }();
+	return new class extends mock<IWorkbenchMcpServer>() {
+		override readonly id = id;
+		override readonly name = id;
+		override readonly label = label;
+		override readonly description = description;
+		override readonly publisherDisplayName = publisher;
+		override readonly installState = McpServerInstallState.Uninstalled;
+		override readonly gallery = galleryStub;
+		override readonly local = undefined;
+	}();
+}
+
+const galleryServers = [
+	makeGalleryServer('gallery-postgres', 'PostgreSQL', 'Access PostgreSQL databases with schema inspection and query tools', 'Microsoft'),
+	makeGalleryServer('gallery-github', 'GitHub', 'Repository management, issues, pull requests, and code search', 'GitHub'),
+	makeGalleryServer('gallery-slack', 'Slack', 'Send messages, manage channels, and search workspace history', 'Slack Technologies'),
+	makeGalleryServer('gallery-docker', 'Docker', 'Container lifecycle management and image operations', 'Docker Inc'),
+	makeGalleryServer('gallery-filesystem', 'Filesystem', 'Read, write, and navigate local files and directories', 'Microsoft'),
+	makeGalleryServer('gallery-brave', 'Brave Search', 'Web and local search powered by the Brave Search API', 'Brave Software'),
+	makeGalleryServer('gallery-puppeteer', 'Puppeteer', 'Browser automation with screenshots, navigation, and form filling', 'Google'),
+	makeGalleryServer('gallery-memory', 'Memory', 'Knowledge graph for persistent memory across conversations', 'Microsoft'),
+	makeGalleryServer('gallery-fetch', 'Fetch', 'Retrieve and convert web content to markdown for analysis', 'Microsoft'),
+	makeGalleryServer('gallery-sentry', 'Sentry', 'Error monitoring, issue tracking, and performance tracing', 'Sentry'),
+	makeGalleryServer('gallery-sqlite', 'SQLite', 'Query and manage SQLite databases with schema exploration', 'Community'),
+	makeGalleryServer('gallery-redis', 'Redis', 'In-memory data store operations and key management', 'Redis Ltd'),
+];
+
+async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> {
+	const width = 650;
+	const height = 500;
+	ctx.container.style.width = `${width}px`;
+	ctx.container.style.height = `${height}px`;
+
+	const instantiationService = createEditorServices(ctx.disposableStore, {
+		colorTheme: ctx.theme,
+		additionalServices: (reg) => {
+			registerWorkbenchServices(reg);
+			reg.define(IListService, ListService);
+			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
+				override readonly onChange = Event.None;
+				override readonly onReset = Event.None;
+				override readonly local: IWorkbenchMcpServer[] = [];
+				override async queryLocal() { return []; }
+				override canInstall() { return true as const; }
+				override async queryGallery(): Promise<IIterativePager<IWorkbenchMcpServer>> {
+					return {
+						firstPage: { items: galleryServers, hasMore: false },
+						async getNextPage() { return { items: [], hasMore: false }; },
+					};
+				}
+			}());
+			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
+				override readonly servers = constObservable([] as never[]);
+			}());
+			reg.defineInstance(IMcpRegistry, new class extends mock<IMcpRegistry>() {
+				override readonly collections = constObservable([]);
+				override readonly delegates = constObservable([]);
+				override readonly onDidChangeInputs = Event.None;
+			}());
+			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
+				override readonly plugins = constObservable([]);
+			}());
+			reg.defineInstance(IDialogService, new class extends mock<IDialogService>() { }());
+			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly isSessionsWindow = false;
+				override readonly activeProjectRoot = observableValue('root', URI.file('/workspace'));
+				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
+				override getActiveProjectRoot() { return URI.file('/workspace'); }
+				override getStorageSourceFilter() {
+					return { sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin] };
+				}
+			}());
+			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+				override readonly activeHarness = observableValue('activeHarness', CustomizationHarness.VSCode);
+				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension]); }
+			}());
+		},
+	});
+
+	const widget = ctx.disposableStore.add(
+		instantiationService.createInstance(McpListWidget)
+	);
+	ctx.container.appendChild(widget.element);
+	widget.layout(height, width);
+
+	// Click the Browse Marketplace button to enter browse mode
+	const browseButton = widget.element.querySelector('.list-add-button') as HTMLElement;
+	browseButton?.click();
+
+	// Wait for the gallery query to resolve
+	await new Promise(resolve => setTimeout(resolve, 50));
+}
+
+// ============================================================================
+// Plugin Browse Mode — standalone widget with marketplace results
+// ============================================================================
+
+function makeInstalledPlugin(name: string, uri: URI, enabled: boolean): IAgentPlugin {
+	return new class extends mock<IAgentPlugin>() {
+		override readonly uri = uri;
+		override readonly label = name;
+		override readonly enablement = constObservable(enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile);
+		override readonly hooks = constObservable([]);
+		override readonly commands = constObservable([]);
+		override readonly skills = constObservable([]);
+		override readonly agents = constObservable([]);
+		override readonly instructions = constObservable([]);
+		override readonly mcpServerDefinitions = constObservable([]);
+		override remove() { }
+	}();
+}
+
+const installedPlugins: IAgentPlugin[] = [
+	makeInstalledPlugin('Linear', URI.file('/workspace/.copilot/plugins/linear'), true),
+	makeInstalledPlugin('Sentry', URI.file('/workspace/.copilot/plugins/sentry'), true),
+	makeInstalledPlugin('Datadog', URI.file('/workspace/.copilot/plugins/datadog'), true),
+	makeInstalledPlugin('Notion', URI.file('/workspace/.copilot/plugins/notion'), true),
+	makeInstalledPlugin('Confluence', URI.file('/workspace/.copilot/plugins/confluence'), true),
+	makeInstalledPlugin('PagerDuty', URI.file('/workspace/.copilot/plugins/pagerduty'), false),
+	makeInstalledPlugin('LaunchDarkly', URI.file('/workspace/.copilot/plugins/launchdarkly'), true),
+	makeInstalledPlugin('CircleCI', URI.file('/workspace/.copilot/plugins/circleci'), true),
+	makeInstalledPlugin('Vercel', URI.file('/workspace/.copilot/plugins/vercel'), false),
+	makeInstalledPlugin('Supabase', URI.file('/workspace/.copilot/plugins/supabase'), true),
+];
+
+function makeMarketplacePlugin(name: string, description: string, repo: string): IMarketplacePlugin {
+	return {
+		name,
+		description,
+		version: '1.0.0',
+		source: repo,
+		sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: `example/${repo}` },
+		marketplace: 'copilot',
+		marketplaceReference: { rawValue: `example/${repo}`, displayLabel: repo, cloneUrl: `https://github.com/example/${repo}.git`, canonicalId: `github:example/${repo}`, cacheSegments: ['example', repo], kind: MarketplaceReferenceKind.GitHubShorthand },
+		marketplaceType: MarketplaceType.Copilot,
+	};
+}
+
+const marketplacePlugins: IMarketplacePlugin[] = [
+	makeMarketplacePlugin('Linear', 'Issue tracking and project management integration', 'linear-plugin'),
+	makeMarketplacePlugin('Sentry', 'Error monitoring and performance tracing', 'sentry-plugin'),
+	makeMarketplacePlugin('Datadog', 'Observability and monitoring dashboards', 'datadog-plugin'),
+	makeMarketplacePlugin('Notion', 'Knowledge base and documentation management', 'notion-plugin'),
+	makeMarketplacePlugin('Figma', 'Design system inspection and asset export', 'figma-plugin'),
+	makeMarketplacePlugin('Stripe', 'Payment processing and billing management', 'stripe-plugin'),
+	makeMarketplacePlugin('Twilio', 'Communication APIs for SMS and voice', 'twilio-plugin'),
+	makeMarketplacePlugin('Auth0', 'Identity and access management', 'auth0-plugin'),
+	makeMarketplacePlugin('Algolia', 'Search and discovery API integration', 'algolia-plugin'),
+	makeMarketplacePlugin('LaunchDarkly', 'Feature flag management and experimentation', 'launchdarkly-plugin'),
+	makeMarketplacePlugin('PlanetScale', 'Serverless MySQL database management', 'planetscale-plugin'),
+	makeMarketplacePlugin('Vercel', 'Deployment and preview environments', 'vercel-plugin'),
+];
+
+async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<void> {
+	const width = 650;
+	const height = 500;
+	ctx.container.style.width = `${width}px`;
+	ctx.container.style.height = `${height}px`;
+
+	const instantiationService = createEditorServices(ctx.disposableStore, {
+		colorTheme: ctx.theme,
+		additionalServices: (reg) => {
+			registerWorkbenchServices(reg);
+			reg.define(IListService, ListService);
+			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
+				override readonly plugins = constObservable([] as readonly IAgentPlugin[]);
+				override readonly enablementModel = undefined!;
+			}());
+			reg.defineInstance(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
+				override readonly installedPlugins = constObservable([]);
+				override readonly onDidChangeMarketplaces = Event.None;
+				override async fetchMarketplacePlugins() { return marketplacePlugins; }
+			}());
+			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() {
+				override getPluginInstallUri() { return URI.file('/dev/null'); }
+			}());
+		},
+	});
+
+	const widget = ctx.disposableStore.add(
+		instantiationService.createInstance(PluginListWidget)
+	);
+	ctx.container.appendChild(widget.element);
+	widget.layout(height, width);
+
+	// Click the Browse Marketplace button to enter browse mode
+	const browseButton = widget.element.querySelector('.list-add-button') as HTMLElement;
+	browseButton?.click();
+
+	// Wait for the marketplace query to resolve
+	await new Promise(resolve => setTimeout(resolve, 50));
 }
 
 // ============================================================================
@@ -349,5 +641,81 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				AICustomizationManagementSection.Plugins,
 			],
 		}),
+	}),
+
+	// MCP Servers tab with many servers to verify scrollable list layout
+	McpServersTab: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.McpServers,
+		}),
+	}),
+
+	// Agents tab — workspace and user agents, scrollable
+	AgentsTab: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.Agents,
+		}),
+	}),
+
+	// Skills tab — workspace and user skills, scrollable
+	SkillsTab: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.Skills,
+		}),
+	}),
+
+	// Instructions tab — many instructions with applyTo patterns, scrollable
+	InstructionsTab: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.Instructions,
+		}),
+	}),
+
+	// Hooks tab — workspace and user hooks, scrollable
+	HooksTab: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.Hooks,
+		}),
+	}),
+
+	// Prompts tab — workspace and user prompts, scrollable
+	PromptsTab: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.Prompts,
+		}),
+	}),
+
+	// Plugins tab
+	PluginsTab: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.Plugins,
+		}),
+	}),
+
+	// MCP browse/marketplace mode — standalone widget with gallery results, scrollable
+	// Verifies fix for https://github.com/microsoft/vscode/issues/304139
+	McpBrowseMode: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: renderMcpBrowseMode,
+	}),
+
+	// Plugin browse/marketplace mode — standalone widget with marketplace results, scrollable
+	PluginBrowseMode: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: renderPluginBrowseMode,
 	}),
 });

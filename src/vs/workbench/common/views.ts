@@ -364,13 +364,6 @@ export interface IViewContainerModel {
 	readonly keybindingId: string | undefined;
 	readonly onDidChangeContainerInfo: Event<{ title?: boolean; icon?: boolean; keybindingId?: boolean; badgeEnablement?: boolean }>;
 
-	/**
-	 * Re-reads the container info (title, icon, keybinding) and fires
-	 * `onDidChangeContainerInfo` if anything changed. Call this when
-	 * the container's dynamic title has been updated externally.
-	 */
-	refreshContainerInfo(): void;
-
 	readonly allViewDescriptors: ReadonlyArray<IViewDescriptor>;
 	readonly onDidChangeAllViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>; removed: ReadonlyArray<IViewDescriptor> }>;
 

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -14,7 +13,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
@@ -125,8 +123,7 @@ suite('Workbench - TerminalInstance', () => {
 
 	suite('TerminalInstance', () => {
 		let terminalInstance: ITerminalInstance;
-
-		async function createTerminalInstance(): Promise<TerminalInstance> {
+		test('should create an instance of TerminalInstance with env from default profile', async () => {
 			const instantiationService = workbenchInstantiationService({
 				configurationService: () => new TestConfigurationService({
 					files: {},
@@ -150,25 +147,9 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
 			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
 			instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
-			const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
-			await instance.xtermReadyPromise;
-			return instance;
-		}
-
-		async function waitForShellLaunchConfigEnv(instance: ITerminalInstance): Promise<void> {
-			for (let i = 0; i < 50; i++) {
-				if (instance.shellLaunchConfig.env) {
-					return;
-				}
-				await timeout(0);
-			}
-
-			throw new Error('Timed out waiting for shell launch config env');
-		}
-
-		test('should create an instance of TerminalInstance with env from default profile', async () => {
-			terminalInstance = await createTerminalInstance();
-			await waitForShellLaunchConfigEnv(terminalInstance);
+			terminalInstance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
+			// //Wait for the teminalInstance._xtermReadyPromise to resolve
+			await new Promise(resolve => setTimeout(resolve, 100));
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
 		});
 
@@ -211,75 +192,6 @@ suite('Workbench - TerminalInstance', () => {
 
 			// Verify that the task name is preserved
 			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title');
-		});
-
-		test('should use bracketed paste mode for multiline executed text when available', async () => {
-			const instance = await createTerminalInstance();
-			const writes: string[] = [];
-			const processManager = (instance as unknown as { _processManager: { write(data: string): Promise<void> } })._processManager;
-			const originalWrite = processManager.write;
-			const originalXterm = instance.xterm!;
-			const testRaw = Object.create(originalXterm.raw) as typeof originalXterm.raw;
-			Object.defineProperty(testRaw, 'modes', {
-				value: {
-					...originalXterm.raw.modes,
-					bracketedPasteMode: true
-				},
-				configurable: true
-			});
-			const testXterm = Object.create(originalXterm) as typeof originalXterm;
-			Object.defineProperty(testXterm, 'raw', {
-				value: testRaw,
-				configurable: true
-			});
-			Object.defineProperty(testXterm, 'scrollToBottom', {
-				value: () => { },
-				configurable: true
-			});
-
-			processManager.write = async (data: string) => {
-				writes.push(data);
-			};
-			instance.xterm = testXterm;
-
-			try {
-				await instance.sendText('echo hello\nworld', true);
-			} finally {
-				processManager.write = originalWrite;
-				instance.xterm = originalXterm;
-			}
-
-			strictEqual(writes.length, 1);
-			strictEqual(writes[0].replace(/\x1b/g, '\\x1b').replace(/\r/g, '\\r'), '\\x1b[200~echo hello\\rworld\\x1b[201~\\r');
-		});
-
-		test('custom key event handler should intercept Meta-modified keys that resolve to a command when sendKeybindingsToShell is disabled', async () => {
-			const instance = await createTerminalInstance();
-			const keybindingService = instance['_keybindingService'];
-			const originalSoftDispatch = keybindingService.softDispatch;
-			// Simulate Cmd+= resolving to zoomIn. This command is deliberately NOT in
-			// DEFAULT_COMMANDS_TO_SKIP_SHELL, so only the event.metaKey check can intercept it.
-			keybindingService.softDispatch = () => ({ kind: ResultKind.KbFound, commandId: 'workbench.action.zoomIn', commandArgs: undefined, isBubble: false });
-
-			// Capture the inline handler by intercepting its registration on xterm.raw,
-			// then attach + show the terminal so the handler gets registered.
-			let capturedHandler: ((e: KeyboardEvent) => boolean) | undefined;
-			instance.xterm!.raw.attachCustomKeyEventHandler = handler => { capturedHandler = handler; };
-			const container = document.createElement('div');
-			document.body.appendChild(container);
-			instance.attachToElement(container);
-			instance.setVisible(true);
-
-			const event = new KeyboardEvent('keydown', { key: '=', metaKey: true, cancelable: true });
-			try {
-				deepStrictEqual(
-					{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
-					{ result: false, defaultPrevented: true }
-				);
-			} finally {
-				keybindingService.softDispatch = originalSoftDispatch;
-				container.remove();
-			}
 		});
 	});
 	suite('parseExitResult', () => {
