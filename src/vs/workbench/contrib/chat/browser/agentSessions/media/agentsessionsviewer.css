@@ -181,6 +181,18 @@
 			max-height: 15px;
 			color: var(--vscode-descriptionForeground);
 
+			.agent-session-details-icon {
+				display: none;
+				font-size: 11px;
+				line-height: 1;
+				flex-shrink: 0;
+
+				&.visible {
+					display: flex;
+					align-items: center;
+				}
+			}
+
 			.rendered-markdown {
 				p {
 					display: flex;

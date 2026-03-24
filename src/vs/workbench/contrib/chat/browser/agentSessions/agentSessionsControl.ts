@@ -50,6 +50,9 @@ export interface IAgentSessionsControlOptions {
 	readonly disableHover?: boolean;
 	readonly enableApprovalRow?: boolean;
 	readonly repositoryGroupLimit?: number;
+	readonly hideSectionCount?: boolean;
+	readonly hideSessionBadge?: boolean;
+	readonly useStatusOnlyIcons?: boolean;
 
 	getHoverPosition(): HoverPosition;
 	trackActiveEditorSession(): boolean;
@@ -270,7 +273,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			new AgentSessionsCompressionDelegate(),
 			[
 				sessionRenderer,
-				this.instantiationService.createInstance(AgentSessionSectionRenderer),
+				this.instantiationService.createInstance(AgentSessionSectionRenderer, { hideSectionCount: this.options.hideSectionCount }),
 				new AgentSessionShowMoreRenderer(),
 				new AgentSessionShowLessRenderer(),
 			],

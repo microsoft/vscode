@@ -68,6 +68,7 @@ interface IAgentSessionItemTemplate {
 	readonly titleToolbar: MenuWorkbenchToolBar;
 
 	// Column 2 Row 2
+	readonly detailsIcon: HTMLElement;
 	readonly diffContainer: HTMLElement;
 	readonly diffAddedSpan: HTMLSpanElement;
 	readonly diffRemovedSpan: HTMLSpanElement;
@@ -88,6 +89,8 @@ interface IAgentSessionItemTemplate {
 
 export interface IAgentSessionRendererOptions {
 	readonly disableHover?: boolean;
+	readonly hideSessionBadge?: boolean;
+	readonly useStatusOnlyIcons?: boolean;
 	getHoverPosition(): HoverPosition;
 
 	isGroupedByRepository?(): boolean;
@@ -144,6 +147,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 						h('div.agent-session-title-toolbar@titleToolbar'),
 					]),
 					h('div.agent-session-details-row', [
+						h('div.agent-session-details-icon@detailsIcon'),
 						h('div.agent-session-badge@badge'),
 						h('span.agent-session-separator@separator'),
 						h('div.agent-session-diff-container@diffContainer',
@@ -178,6 +182,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
 			pinnedIndicator: elements.pinnedIndicator,
 			titleToolbar,
+			detailsIcon: elements.detailsIcon,
 			badge: elements.badge,
 			separator: elements.separator,
 			diffContainer: elements.diffContainer,
@@ -207,8 +212,15 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		// Archived
 		template.element.classList.toggle('archived', session.element.isArchived());
 
-		// Icon
-		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}${session.element.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
+		// Icon — in status-only mode, show status indicator in icon column and session type icon in details row
+		if (this.options.useStatusOnlyIcons) {
+			template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getStatusIcon(session.element))}${session.element.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
+			template.detailsIcon.className = `agent-session-details-icon ${ThemeIcon.asClassName(session.element.icon)}`;
+			template.detailsIcon.classList.add('visible');
+		} else {
+			template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}${session.element.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
+			template.detailsIcon.className = 'agent-session-details-icon';
+		}
 
 		// Title
 		const markdownTitle = new MarkdownString(session.element.label);
@@ -279,6 +291,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	}
 
 	private renderBadge(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
+		if (this.options.hideSessionBadge) {
+			return false;
+		}
+
 		const badge = session.element.badge;
 		if (!badge) {
 			return false;
@@ -381,6 +397,26 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		}
 
 		return session.icon;
+	}
+
+	private getStatusIcon(session: IAgentSession): ThemeIcon {
+		if (session.status === AgentSessionStatus.InProgress) {
+			return Codicon.sessionInProgress;
+		}
+
+		if (session.status === AgentSessionStatus.NeedsInput) {
+			return Codicon.circleFilled;
+		}
+
+		if (session.status === AgentSessionStatus.Failed) {
+			return Codicon.error;
+		}
+
+		if (!session.isRead() && !session.isArchived()) {
+			return Codicon.circleFilled;
+		}
+
+		return Codicon.circleSmallFilled;
 	}
 
 	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
@@ -587,6 +623,10 @@ interface IAgentSessionSectionTemplate {
 	readonly disposables: IDisposable;
 }
 
+export interface IAgentSessionSectionRendererOptions {
+	readonly hideSectionCount?: boolean;
+}
+
 export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IAgentSessionSection, FuzzyScore, IAgentSessionSectionTemplate> {
 
 	static readonly TEMPLATE_ID = 'agent-session-section';
@@ -594,6 +634,7 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 	readonly templateId = AgentSessionSectionRenderer.TEMPLATE_ID;
 
 	constructor(
+		private readonly sectionOptions: IAgentSessionSectionRendererOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) { }
@@ -634,7 +675,11 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 		template.label.textContent = element.element.label;
 
 		// Count
-		template.count.textContent = String(element.element.sessions.length);
+		if (this.sectionOptions.hideSectionCount) {
+			template.count.textContent = '';
+		} else {
+			template.count.textContent = String(element.element.sessions.length);
+		}
 
 		// Toolbar
 		ChatContextKeys.agentSessionSection.bindTo(template.contextKeyService).set(element.element.section);
