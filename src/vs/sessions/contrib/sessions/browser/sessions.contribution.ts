@@ -14,6 +14,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../work
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { SessionsManagementService, ISessionsManagementService } from './sessionsManagementService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { AgentSessionSection, IAgentSessionSection, isAgentSessionSection } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -21,7 +22,7 @@ import { SessionsViewId as NewChatViewId } from '../../chat/browser/newChatViewP
 import { SessionsViewPane, SessionsViewPaneId } from './views/sessionsViewPane.js';
 import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { SessionItemToolbarMenuId, SessionItemContextMenuId } from './sessionsListControl.js';
+import { SessionItemToolbarMenuId, SessionItemContextMenuId, IsSessionPinnedContext } from './sessionsListControl.js';
 import { ISessionData } from '../common/sessionData.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
@@ -103,7 +104,63 @@ registerAction2(class NewSessionForRepositoryAction extends Action2 {
 });
 
 // -- Session Item Actions --
+registerAction2(class PinSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.pinSession',
+			title: localize2('pinSession', "Pin"),
+			icon: Codicon.pin,
+			menu: [{
+				id: SessionItemToolbarMenuId,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
+			}, {
+				id: SessionItemContextMenuId,
+				group: '0_pin',
+				order: 0,
+				when: ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor, context?: ISessionData): void {
+		if (!context) {
+			return;
+		}
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
+		view?.sessionsControl?.pinSession(context);
+	}
+});
 
+registerAction2(class UnpinSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.unpinSession',
+			title: localize2('unpinSession', "Unpin"),
+			icon: Codicon.pinned,
+			menu: [{
+				id: SessionItemToolbarMenuId,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
+			}, {
+				id: SessionItemContextMenuId,
+				group: '0_pin',
+				order: 0,
+				when: ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor, context?: ISessionData): void {
+		if (!context) {
+			return;
+		}
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
+		view?.sessionsControl?.unpinSession(context);
+	}
+});
 registerAction2(class ArchiveSessionAction extends Action2 {
 	constructor() {
 		super({
