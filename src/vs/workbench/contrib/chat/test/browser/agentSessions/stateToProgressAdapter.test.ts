@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ToolCallStatus, ToolCallConfirmationReason, PermissionKind, ToolResultContentType, TurnState, type ICompletedToolCall, type IPermissionRequest, type IToolCallRunningState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ToolCallStatus, ToolCallConfirmationReason, PermissionKind, ToolResultContentType, TurnState, type ICompletedToolCall, type IPermissionRequest, type IToolCallRunningState, type ITurn, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocationSerialized, type IChatMarkdownContent } from '../../../common/chatService/chatService.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory, toolCallStateToInvocation, permissionToConfirmation, finalizeToolInvocation } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -304,6 +305,118 @@ suite('stateToProgressAdapter', () => {
 			});
 
 			// Should not throw
+		});
+
+		test('returns file edits from completed tool call with FileEdit content', () => {
+			const tc = createToolCallState({ status: ToolCallStatus.Running });
+			const invocation = toolCallStateToInvocation(tc);
+
+			const fileEdits = finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'edit_file',
+				displayName: 'Edit File',
+				invocationMessage: 'Editing file...',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Edited file',
+				toolInput: JSON.stringify({ path: '/home/user/file.ts' }),
+				content: [{
+					type: ToolResultContentType.FileEdit,
+					beforeURI: 'agenthost-content:///session/snap/before',
+					afterURI: 'agenthost-content:///session/snap/after',
+				}],
+			});
+
+			assert.strictEqual(fileEdits.length, 1);
+			assert.strictEqual(fileEdits[0].resource.fsPath.replace(/\\/g, '/'), '/home/user/file.ts');
+			assert.strictEqual(fileEdits[0].beforeContentUri.toString(), URI.parse('agenthost-content:///session/snap/before').toString());
+			assert.strictEqual(fileEdits[0].afterContentUri.toString(), URI.parse('agenthost-content:///session/snap/after').toString());
+			assert.ok(fileEdits[0].undoStopId);
+		});
+
+		test('returns empty file edits for cancelled tool call', () => {
+			const tc = createToolCallState({ status: ToolCallStatus.Running });
+			const invocation = toolCallStateToInvocation(tc);
+
+			const fileEdits = finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Cancelled,
+				toolCallId: 'tc-1',
+				toolName: 'edit_file',
+				displayName: 'Edit File',
+				invocationMessage: 'Editing file...',
+				reason: ToolCallCancellationReason.Denied,
+				reasonMessage: 'User cancelled',
+			});
+
+			assert.strictEqual(fileEdits.length, 0);
+		});
+
+		test('returns empty file edits when tool has no FileEdit content', () => {
+			const tc = createToolCallState({ status: ToolCallStatus.Running });
+			const invocation = toolCallStateToInvocation(tc);
+
+			const fileEdits = finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'test_tool',
+				displayName: 'Test Tool',
+				invocationMessage: 'Running test tool...',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Ran test tool',
+				content: [{ type: ToolResultContentType.Text, text: 'output' }],
+			});
+
+			assert.strictEqual(fileEdits.length, 0);
+		});
+
+		test('returns empty file edits when toolInput has no path', () => {
+			const tc = createToolCallState({ status: ToolCallStatus.Running });
+			const invocation = toolCallStateToInvocation(tc);
+
+			const fileEdits = finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'edit_file',
+				displayName: 'Edit File',
+				invocationMessage: 'Editing file...',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Edited',
+				toolInput: JSON.stringify({ content: 'no path field' }),
+				content: [{
+					type: ToolResultContentType.FileEdit,
+					beforeURI: 'agenthost-content:///before',
+					afterURI: 'agenthost-content:///after',
+				}],
+			});
+
+			assert.strictEqual(fileEdits.length, 0);
+		});
+
+		test('returns empty file edits when toolInput is invalid JSON', () => {
+			const tc = createToolCallState({ status: ToolCallStatus.Running });
+			const invocation = toolCallStateToInvocation(tc);
+
+			const fileEdits = finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'edit_file',
+				displayName: 'Edit File',
+				invocationMessage: 'Editing file...',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Edited',
+				toolInput: 'not json',
+				content: [{
+					type: ToolResultContentType.FileEdit,
+					beforeURI: 'agenthost-content:///before',
+					afterURI: 'agenthost-content:///after',
+				}],
+			});
+
+			assert.strictEqual(fileEdits.length, 0);
 		});
 	});
 });

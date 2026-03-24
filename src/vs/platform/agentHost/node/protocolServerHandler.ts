@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IAgentDescriptor, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
@@ -19,6 +20,7 @@ import {
 	type IAhpServerNotification,
 	type IBrowseDirectoryResult,
 	type ICreateSessionParams,
+	type IFetchContentResult,
 	type IInitializeParams,
 	type IJsonRpcResponse,
 	type IReconnectParams,
@@ -85,6 +87,11 @@ export class ProtocolServerHandler extends Disposable {
 
 	private readonly _clients = new Map<string, IConnectedClient>();
 	private readonly _replayBuffer: IActionEnvelope[] = [];
+
+	private readonly _onDidChangeConnectionCount = this._register(new Emitter<number>());
+
+	/** Fires with the current client count whenever a client connects or disconnects. */
+	readonly onDidChangeConnectionCount = this._onDidChangeConnectionCount.event;
 
 	constructor(
 		private readonly _stateManager: SessionStateManager,
@@ -171,9 +178,10 @@ export class ProtocolServerHandler extends Disposable {
 		}));
 
 		disposables.add(transport.onClose(() => {
-			if (client) {
+			if (client && this._clients.get(client.clientId) === client) {
 				this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}`);
 				this._clients.delete(client.clientId);
+				this._onDidChangeConnectionCount.fire(this._clients.size);
 			}
 			disposables.dispose();
 		}));
@@ -205,6 +213,7 @@ export class ProtocolServerHandler extends Disposable {
 			disposables,
 		};
 		this._clients.set(params.clientId, client);
+		this._onDidChangeConnectionCount.fire(this._clients.size);
 
 		const snapshots: IStateSnapshot[] = [];
 		if (params.initialSubscriptions) {
@@ -243,6 +252,7 @@ export class ProtocolServerHandler extends Disposable {
 			disposables,
 		};
 		this._clients.set(params.clientId, client);
+		this._onDidChangeConnectionCount.fire(this._clients.size);
 
 		const oldestBuffered = this._replayBuffer.length > 0 ? this._replayBuffer[0].serverSeq : this._stateManager.serverSeq;
 		const canReplay = params.lastSeenServerSeq >= oldestBuffered;
@@ -281,7 +291,14 @@ export class ProtocolServerHandler extends Disposable {
 	 */
 	private readonly _requestHandlers: RequestHandlerMap = {
 		subscribe: async (client, params) => {
-			const snapshot = this._stateManager.getSnapshot(params.resource);
+			let snapshot = this._stateManager.getSnapshot(params.resource);
+			if (!snapshot) {
+				// Session may exist on the agent backend but not in the
+				// current state manager (e.g. from a previous server
+				// lifetime). Try to restore it.
+				await this._sideEffectHandler.handleRestoreSession(params.resource);
+				snapshot = this._stateManager.getSnapshot(params.resource);
+			}
 			if (!snapshot) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Resource not found: ${params.resource}`);
 			}
@@ -325,8 +342,8 @@ export class ProtocolServerHandler extends Disposable {
 		browseDirectory: async (_client, params) => {
 			return this._sideEffectHandler.handleBrowseDirectory(params.uri);
 		},
-		fetchContent: async () => {
-			throw new Error('fetchContent not implemented');
+		fetchContent: async (_client, params) => {
+			return this._sideEffectHandler.handleFetchContent(params.uri);
 		},
 	};
 
@@ -432,9 +449,12 @@ export interface IProtocolSideEffectHandler {
 	handleCreateSession(command: ICreateSessionParams): Promise<void>;
 	handleDisposeSession(session: URI): void;
 	handleListSessions(): Promise<ISessionSummary[]>;
+	/** Restore a session from a previous server lifetime into the state manager. */
+	handleRestoreSession(session: URI): Promise<void>;
 	handleGetResourceMetadata(): IResourceMetadata;
 	handleAuthenticate(params: IAuthenticateParams): Promise<IAuthenticateResult>;
 	handleBrowseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
+	handleFetchContent(uri: URI): Promise<IFetchContentResult>;
 	/** Returns the server's default browsing directory, if available. */
 	getDefaultDirectory?(): URI;
 	/** Refresh models from all providers (VS Code extension method). */
