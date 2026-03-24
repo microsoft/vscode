@@ -372,10 +372,6 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		}
 	}
 
-	refreshContainerInfo(): void {
-		this.updateContainerInfo();
-	}
-
 	private isEqualIcon(icon: URI | ThemeIcon | undefined): boolean {
 		if (URI.isUri(icon)) {
 			return URI.isUri(this._icon) && isEqual(icon, this._icon);

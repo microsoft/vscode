@@ -734,3 +734,22 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 			return configurationKeyValuePairs;
 		}
 	}]);
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: TerminalContribSettingId.DeprecatedTerminalSandboxNetwork,
+		migrateFn: (value: { allowedDomains?: string[]; deniedDomains?: string[]; allowTrustedDomains?: boolean }, valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value?.allowedDomains !== undefined && valueAccessor(TerminalContribSettingId.TerminalSandboxNetworkAllowedDomains) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.TerminalSandboxNetworkAllowedDomains, { value: value.allowedDomains }]);
+			}
+			if (value?.deniedDomains !== undefined && valueAccessor(TerminalContribSettingId.TerminalSandboxNetworkDeniedDomains) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.TerminalSandboxNetworkDeniedDomains, { value: value.deniedDomains }]);
+			}
+			if (value?.allowTrustedDomains !== undefined && valueAccessor(TerminalContribSettingId.TerminalSandboxNetworkAllowTrustedDomains) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.TerminalSandboxNetworkAllowTrustedDomains, { value: value.allowTrustedDomains }]);
+			}
+			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxNetwork, { value: undefined }]);
+			return configurationKeyValuePairs;
+		}
+	}]);

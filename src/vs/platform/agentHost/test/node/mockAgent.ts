@@ -7,7 +7,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentMessageEvent, type IAgentModelInfo, type IAgentProgressEvent, type IAgentSessionMetadata, type IAgentToolCompleteEvent, type IAgentToolStartEvent } from '../../common/agentService.js';
-import { PermissionKind } from '../../common/state/sessionState.js';
+import { PermissionKind, ToolResultContentType, type IToolCallResult } from '../../common/state/sessionState.js';
 
 /**
  * General-purpose mock agent for unit tests. Tracks all method calls
@@ -28,6 +28,12 @@ export class MockAgent implements IAgent {
 	readonly changeModelCalls: { session: URI; model: string }[] = [];
 	readonly authenticateCalls: { resource: string; token: string }[] = [];
 
+	/** Configurable return value for getSessionMessages. */
+	sessionMessages: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] = [];
+
+	/** Optional overrides applied to session metadata from listSessions. */
+	sessionMetadataOverrides: Partial<Omit<IAgentSessionMetadata, 'session'>> = {};
+
 	constructor(readonly id: AgentProvider = 'mock') { }
 
 	getDescriptor(): IAgentDescriptor {
@@ -46,7 +52,7 @@ export class MockAgent implements IAgent {
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		return [...this._sessions.values()].map(s => ({ session: s, startTime: Date.now(), modifiedTime: Date.now() }));
+		return [...this._sessions.values()].map(s => ({ session: s, startTime: Date.now(), modifiedTime: Date.now(), ...this.sessionMetadataOverrides }));
 	}
 
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> {
@@ -61,7 +67,7 @@ export class MockAgent implements IAgent {
 	}
 
 	async getSessionMessages(_session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
-		return [];
+		return this.sessionMessages;
 	}
 
 	async disposeSession(session: URI): Promise<void> {
@@ -97,6 +103,15 @@ export class MockAgent implements IAgent {
 	}
 }
 
+/**
+ * Well-known URI of a pre-existing session seeded in {@link ScriptedMockAgent}.
+ * This session appears in `listSessions()` and has message history via
+ * `getSessionMessages()`, but was never created through the server's
+ * `handleCreateSession`. It simulates a session from a previous server
+ * lifetime for testing the restore-on-subscribe path.
+ */
+export const PRE_EXISTING_SESSION_URI = AgentSession.uri('mock', 'pre-existing-session');
+
 export class ScriptedMockAgent implements IAgent {
 	readonly id: AgentProvider = 'mock';
 
@@ -106,10 +121,26 @@ export class ScriptedMockAgent implements IAgent {
 	private readonly _sessions = new Map<string, URI>();
 	private _nextId = 1;
 
+	/**
+	 * Message history for the pre-existing session: a single user→assistant
+	 * turn with a tool call.
+	 */
+	private readonly _preExistingMessages: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] = [
+		{ type: 'message', role: 'user', session: PRE_EXISTING_SESSION_URI, messageId: 'h-msg-1', content: 'What files are here?' },
+		{ type: 'tool_start', session: PRE_EXISTING_SESSION_URI, toolCallId: 'h-tc-1', toolName: 'list_files', displayName: 'List Files', invocationMessage: 'Listing files...' },
+		{ type: 'tool_complete', session: PRE_EXISTING_SESSION_URI, toolCallId: 'h-tc-1', result: { pastTenseMessage: 'Listed files', content: [{ type: ToolResultContentType.Text, text: 'file1.ts\nfile2.ts' }], success: true } satisfies IToolCallResult },
+		{ type: 'message', role: 'assistant', session: PRE_EXISTING_SESSION_URI, messageId: 'h-msg-2', content: 'Here are the files: file1.ts and file2.ts' },
+	];
+
 	// Track pending permission requests
 	private readonly _pendingPermissions = new Map<string, (approved: boolean) => void>();
 	// Track pending abort callbacks for slow responses
 	private readonly _pendingAborts = new Map<string, () => void>();
+
+	constructor() {
+		// Seed the pre-existing session so it appears in listSessions()
+		this._sessions.set(AgentSession.id(PRE_EXISTING_SESSION_URI), PRE_EXISTING_SESSION_URI);
+	}
 
 	getDescriptor(): IAgentDescriptor {
 		return { provider: 'mock', displayName: 'Mock Agent', description: 'Scripted test agent', requiresAuth: false };
@@ -124,7 +155,7 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		return [...this._sessions.values()].map(s => ({ session: s, startTime: Date.now(), modifiedTime: Date.now() }));
+		return [...this._sessions.values()].map(s => ({ session: s, startTime: Date.now(), modifiedTime: Date.now(), summary: s.toString() === PRE_EXISTING_SESSION_URI.toString() ? 'Pre-existing session' : undefined }));
 	}
 
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> {
@@ -146,7 +177,7 @@ export class ScriptedMockAgent implements IAgent {
 			case 'use-tool':
 				this._fireSequence(session, [
 					{ type: 'tool_start', session, toolCallId: 'tc-1', toolName: 'echo_tool', displayName: 'Echo Tool', invocationMessage: 'Running echo tool...' },
-					{ type: 'tool_complete', session, toolCallId: 'tc-1', success: true, pastTenseMessage: 'Ran echo tool', toolOutput: 'echoed' },
+					{ type: 'tool_complete', session, toolCallId: 'tc-1', result: { pastTenseMessage: 'Ran echo tool', content: [{ type: ToolResultContentType.Text, text: 'echoed' }], success: true } },
 					{ type: 'delta', session, messageId: 'msg-1', content: 'Tool done.' },
 					{ type: 'idle', session },
 				]);
@@ -210,7 +241,10 @@ export class ScriptedMockAgent implements IAgent {
 		}
 	}
 
-	async getSessionMessages(_session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
+	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
+		if (session.toString() === PRE_EXISTING_SESSION_URI.toString()) {
+			return this._preExistingMessages;
+		}
 		return [];
 	}
 

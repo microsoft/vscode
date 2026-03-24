@@ -200,6 +200,13 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return await this._sendRequest('browseDirectory', { uri: uri.toString() });
 	}
 
+	/**
+	 * Fetch the content of a file on the remote host's filesystem.
+	 */
+	async fetchContent(uri: URI): Promise<ICommandMap['fetchContent']['result']> {
+		return this._sendRequest('fetchContent', { uri: uri.toString() });
+	}
+
 	private _handleMessage(msg: IProtocolMessage): void {
 		if (isJsonRpcResponse(msg)) {
 			const pending = this._pendingRequests.get(msg.id);

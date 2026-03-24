@@ -7,8 +7,10 @@ import assert from 'assert';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IconPathDto } from '../../common/extHost.protocol.js';
-import { IconPath } from '../../common/extHostTypeConverters.js';
+import { ChatRequestModeInstructions, IconPath } from '../../common/extHostTypeConverters.js';
 import { ThemeColor, ThemeIcon } from '../../common/extHostTypes.js';
+import { IChatRequestModeInstructions } from '../../../contrib/chat/common/model/chatModel.js';
+import { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 
 suite('extHostTypeConverters', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -118,6 +120,127 @@ suite('extHostTypeConverters', function () {
 				assert.strictEqual(result.dark.toString(), URI.revive(input.dark).toString());
 				assert.strictEqual(result.light.toString(), URI.revive(input.light).toString());
 			});
+		});
+	});
+
+	suite('ChatRequestModeInstructions', function () {
+		test('to returns undefined for undefined input', function () {
+			assert.strictEqual(ChatRequestModeInstructions.to(undefined), undefined);
+		});
+
+		test('from returns undefined for undefined input', function () {
+			assert.strictEqual(ChatRequestModeInstructions.from(undefined), undefined);
+		});
+
+		test('to converts IChatRequestModeInstructions to API type', function () {
+			const uri = URI.parse('file:///custom-agent');
+			const input: IChatRequestModeInstructions = {
+				uri,
+				name: 'test-mode',
+				content: 'test content',
+				toolReferences: [{
+					kind: 'tool',
+					id: 'tool1',
+					name: 'tool1',
+					value: undefined,
+					range: { start: 0, endExclusive: 5 },
+				}],
+				metadata: { key: 'value' },
+				isBuiltin: false,
+			};
+
+			const result = ChatRequestModeInstructions.to(input)!;
+			assert.deepStrictEqual(result, {
+				uri,
+				name: 'test-mode',
+				content: 'test content',
+				toolReferences: [{ name: 'tool1', range: [0, 5] }],
+				metadata: { key: 'value' },
+				isBuiltin: false,
+			});
+		});
+
+		test('to handles Dto with UriComponents', function () {
+			const input: Dto<IChatRequestModeInstructions> = {
+				uri: { scheme: 'file', path: '/custom-agent' } as UriComponents,
+				name: 'test-mode',
+				content: 'test content',
+				toolReferences: [],
+				metadata: undefined,
+				isBuiltin: true,
+			};
+
+			const result = ChatRequestModeInstructions.to(input)!;
+			assert.ok(URI.isUri(result.uri));
+			assert.strictEqual(result.name, 'test-mode');
+			assert.strictEqual(result.isBuiltin, true);
+			assert.deepStrictEqual(result.toolReferences, []);
+		});
+
+		test('from converts API type to IChatRequestModeInstructions', function () {
+			const uri = URI.parse('file:///custom-agent');
+			const input = {
+				uri,
+				name: 'test-mode',
+				content: 'test content',
+				toolReferences: [{ name: 'tool1', range: [0, 5] as [number, number] }],
+				metadata: { key: 'value' },
+				isBuiltin: false,
+			};
+
+			const result = ChatRequestModeInstructions.from(input)!;
+			assert.deepStrictEqual(result, {
+				uri,
+				name: 'test-mode',
+				content: 'test content',
+				toolReferences: [{
+					kind: 'tool',
+					id: 'tool1',
+					name: 'tool1',
+					value: undefined,
+					range: { start: 0, endExclusive: 5 },
+				}],
+				metadata: { key: 'value' },
+				isBuiltin: false,
+			});
+		});
+
+		test('from handles missing toolReferences', function () {
+			const input = {
+				name: 'test-mode',
+				content: 'test content',
+			};
+
+			const result = ChatRequestModeInstructions.from(input)!;
+			assert.deepStrictEqual(result.toolReferences, []);
+		});
+
+		test('roundtrip from -> to preserves data', function () {
+			const uri = URI.parse('file:///custom-agent');
+			const apiInput = {
+				uri,
+				name: 'roundtrip-mode',
+				content: 'roundtrip content',
+				toolReferences: [
+					{ name: 'tool1' },
+					{ name: 'tool2', range: [10, 20] as [number, number] },
+				],
+				metadata: { flag: true },
+				isBuiltin: false,
+			};
+
+			const internal = ChatRequestModeInstructions.from(apiInput)!;
+			const backToApi = ChatRequestModeInstructions.to(internal)!;
+
+			assert.strictEqual(backToApi.name, apiInput.name);
+			assert.strictEqual(backToApi.content, apiInput.content);
+			assert.strictEqual(backToApi.isBuiltin, apiInput.isBuiltin);
+			assert.strictEqual(backToApi.uri?.toString(), uri.toString());
+			assert.strictEqual(backToApi.toolReferences?.length, 2);
+			assert.strictEqual(backToApi.toolReferences?.[0].name, 'tool1');
+			assert.strictEqual(backToApi.toolReferences?.[0].range, undefined);
+			assert.strictEqual(backToApi.toolReferences?.[1].name, 'tool2');
+			assert.deepStrictEqual(backToApi.toolReferences?.[1].range, [10, 20]);
 		});
 	});
 });

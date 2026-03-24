@@ -6,15 +6,13 @@
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 
 /**
- * Truncates a description string to the first sentence, with a maximum character fallback.
+ * Truncates a description string to the first line.
+ * The UI applies CSS text-overflow ellipsis for width overflow.
  */
-export function truncateToFirstSentence(text: string, maxChars = 120): string {
-	const match = text.match(/^[^.!?]*[.!?]/);
-	if (match && match[0].length <= maxChars) {
-		return match[0];
-	}
-	if (text.length > maxChars) {
-		return text.substring(0, maxChars).trimEnd() + '\u2026';
+export function truncateToFirstLine(text: string): string {
+	const newlineIndex = text.search(/[\r\n]/);
+	if (newlineIndex !== -1) {
+		return text.substring(0, newlineIndex);
 	}
 	return text;
 }
@@ -27,5 +25,5 @@ export function getCustomizationSecondaryText(description: string | undefined, f
 		return filename;
 	}
 
-	return promptType === PromptsType.hook ? description : truncateToFirstSentence(description);
+	return promptType === PromptsType.hook ? description : truncateToFirstLine(description);
 }

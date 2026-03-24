@@ -1099,12 +1099,13 @@ suite('ChatModel - Pending Requests', () => {
 	test('pending requests preserve send options', () => {
 		const model = createModel();
 		const request = addRequestToModel(model, 'test');
-		const sendOptions = { agentId: 'test-agent', attempt: 3 };
+		const sendOptions = { agentId: 'test-agent', attempt: 3, sessionGrouping: { id: 'group-123', order: 1, kind: 'subagent' } };
 
 		const pending = model.addPendingRequest(request, ChatRequestQueueKind.Queued, sendOptions);
 
 		assert.strictEqual(pending.sendOptions.agentId, 'test-agent');
 		assert.strictEqual(pending.sendOptions.attempt, 3);
+		assert.deepStrictEqual(pending.sendOptions.sessionGrouping, { id: 'group-123', order: 1, kind: 'subagent' });
 	});
 });
 

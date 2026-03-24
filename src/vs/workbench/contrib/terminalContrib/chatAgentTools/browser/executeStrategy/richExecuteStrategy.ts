@@ -85,7 +85,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 			// Execute the command
 			this._log(`Executing command line \`${commandLine}\``);
 			markerRecreation.dispose();
-			this._instance.runCommand(commandLine, true, commandId);
+			this._instance.runCommand(commandLine, true, commandId, true);
 
 			// Wait for the terminal to idle
 			this._log('Waiting for done event');

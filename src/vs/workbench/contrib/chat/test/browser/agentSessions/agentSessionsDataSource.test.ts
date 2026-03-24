@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName, AgentSessionsSorter, groupAgentSessionsByDate } from '../../../browser/agentSessions/agentSessionsViewer.js';
-import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSessionSection } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSessionSection, isAgentSessionShowMore } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { ChatSessionStatus } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -137,12 +137,13 @@ suite('AgentSessionsDataSource', () => {
 		groupBy?: AgentSessionsGrouping;
 		exclude?: (session: IAgentSession) => boolean;
 		excludeRead?: boolean;
+		repositoryGroupCapped?: boolean;
 	}): IAgentSessionsFilter {
 		return {
 			onDidChange: Event.None,
 			groupResults: () => options.groupBy,
 			exclude: options.exclude ?? (() => false),
-			getExcludes: () => ({ providers: [], states: [], archived: false, read: options.excludeRead ?? false }),
+			getExcludes: () => ({ providers: [], states: [], archived: false, read: options.excludeRead ?? false, repositoryGroupCapped: options.repositoryGroupCapped ?? true }),
 			isDefault: () => true,
 			reset: () => { },
 		};
@@ -981,6 +982,116 @@ suite('AgentSessionsDataSource', () => {
 
 			// Archived must come after Other
 			assert.ok(archivedIndex > otherIndex, 'Archived section should come after Other');
+		});
+	});
+
+	suite('repositoryGroupLimit', () => {
+
+		test('caps repo group children at limit and appends show-more item', () => {
+			const now = Date.now();
+			const sessions = Array.from({ length: 8 }, (_, i) =>
+				createMockSession({ id: `s${i}`, metadata: { repositoryNwo: 'owner/vscode' }, startTime: now - i * 1000 })
+			);
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter(), 5));
+			const model = createMockModel(sessions);
+			const topLevel = Array.from(dataSource.getChildren(model));
+			const section = topLevel.find(item => isAgentSessionSection(item) && item.section === AgentSessionSection.Repository) as IAgentSessionSection;
+			assert.ok(section);
+
+			const children = Array.from(dataSource.getChildren(section));
+			assert.strictEqual(children.length, 6); // 5 sessions + 1 show-more
+			const showMore = children[5];
+			assert.ok(isAgentSessionShowMore(showMore));
+			assert.strictEqual(showMore.remainingCount, 3);
+			assert.strictEqual(showMore.sectionLabel, 'vscode');
+		});
+
+		test('does not cap when group has fewer items than limit', () => {
+			const now = Date.now();
+			const sessions = Array.from({ length: 3 }, (_, i) =>
+				createMockSession({ id: `s${i}`, metadata: { repositoryNwo: 'owner/vscode' }, startTime: now - i * 1000 })
+			);
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter(), 5));
+			const model = createMockModel(sessions);
+			const topLevel = Array.from(dataSource.getChildren(model));
+			const section = topLevel.find(item => isAgentSessionSection(item) && item.section === AgentSessionSection.Repository) as IAgentSessionSection;
+
+			const children = Array.from(dataSource.getChildren(section));
+			assert.strictEqual(children.length, 3);
+			assert.ok(!children.some(isAgentSessionShowMore));
+		});
+
+		test('expanding a group removes the cap', () => {
+			const now = Date.now();
+			const sessions = Array.from({ length: 8 }, (_, i) =>
+				createMockSession({ id: `s${i}`, metadata: { repositoryNwo: 'owner/vscode' }, startTime: now - i * 1000 })
+			);
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter(), 5));
+			const model = createMockModel(sessions);
+			const topLevel = Array.from(dataSource.getChildren(model));
+			const section = topLevel.find(item => isAgentSessionSection(item) && item.section === AgentSessionSection.Repository) as IAgentSessionSection;
+
+			dataSource.expandRepositoryGroup('vscode');
+			const children = Array.from(dataSource.getChildren(section));
+			assert.strictEqual(children.length, 8);
+			assert.ok(!children.some(isAgentSessionShowMore));
+		});
+
+		test('does not cap non-repository sections', () => {
+			const now = Date.now();
+			const sessions = Array.from({ length: 8 }, (_, i) =>
+				createMockSession({ id: `s${i}`, startTime: now - i * 1000 })
+			);
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter(), 5));
+			const model = createMockModel(sessions);
+			const topLevel = Array.from(dataSource.getChildren(model));
+			const todaySection = topLevel.find(item => isAgentSessionSection(item) && item.section === AgentSessionSection.Today) as IAgentSessionSection;
+
+			const children = Array.from(dataSource.getChildren(todaySection));
+			assert.strictEqual(children.length, 8);
+			assert.ok(!children.some(isAgentSessionShowMore));
+		});
+
+		test('does not cap when repositoryGroupLimit is not set', () => {
+			const now = Date.now();
+			const sessions = Array.from({ length: 8 }, (_, i) =>
+				createMockSession({ id: `s${i}`, metadata: { repositoryNwo: 'owner/vscode' }, startTime: now - i * 1000 })
+			);
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const model = createMockModel(sessions);
+			const topLevel = Array.from(dataSource.getChildren(model));
+			const section = topLevel.find(item => isAgentSessionSection(item) && item.section === AgentSessionSection.Repository) as IAgentSessionSection;
+
+			const children = Array.from(dataSource.getChildren(section));
+			assert.strictEqual(children.length, 8);
+			assert.ok(!children.some(isAgentSessionShowMore));
+		});
+
+		test('does not cap when repositoryGroupCapped filter is disabled', () => {
+			const now = Date.now();
+			const sessions = Array.from({ length: 8 }, (_, i) =>
+				createMockSession({ id: `s${i}`, metadata: { repositoryNwo: 'owner/vscode' }, startTime: now - i * 1000 })
+			);
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository, repositoryGroupCapped: false });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter(), 5));
+			const model = createMockModel(sessions);
+			const topLevel = Array.from(dataSource.getChildren(model));
+			const section = topLevel.find(item => isAgentSessionSection(item) && item.section === AgentSessionSection.Repository) as IAgentSessionSection;
+
+			const children = Array.from(dataSource.getChildren(section));
+			assert.strictEqual(children.length, 8);
+			assert.ok(!children.some(isAgentSessionShowMore));
 		});
 	});
 

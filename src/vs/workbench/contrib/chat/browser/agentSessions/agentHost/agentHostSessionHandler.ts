@@ -24,11 +24,12 @@ import { getToolKind, getToolLanguage } from '../../../../../../platform/agentHo
 import { AttachmentType, ToolCallStatus, TurnState, type IMessageAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { IChatProgress, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
+import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getAgentHostIcon } from '../agentSessions.js';
-import { turnsToHistory, toolCallStateToInvocation, permissionToConfirmation, finalizeToolInvocation } from './stateToProgressAdapter.js';
+import { turnsToHistory, toolCallStateToInvocation, permissionToConfirmation, finalizeToolInvocation, type IToolCallFileEdit } from './stateToProgressAdapter.js';
 
 // =============================================================================
 // AgentHostSessionHandler — renderer-side handler for a single agent host
@@ -89,6 +90,8 @@ export interface IAgentHostSessionHandlerConfig {
 	readonly description: string;
 	/** The agent connection to use for this handler. */
 	readonly connection: IAgentConnection;
+	/** Sanitized connection authority for constructing vscode-agent-host:// URIs. */
+	readonly connectionAuthority: string;
 	/** Extension identifier for the registered agent. Defaults to 'vscode.agent-host'. */
 	readonly extensionId?: string;
 	/** Extension display name for the registered agent. Defaults to 'Agent Host'. */
@@ -119,6 +122,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	constructor(
 		config: IAgentHostSessionHandlerConfig,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+		@IChatService private readonly _chatService: IChatService,
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -310,11 +314,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const done = new Promise<void>(resolve => { resolveDone = resolve; });
 
 		let finished = false;
-		const finish = () => {
+		const pendingFileEdits: Promise<void>[] = [];
+		const finish = async () => {
 			if (finished) {
 				return;
 			}
 			finished = true;
+			// Wait for any in-flight file edit operations before finalizing
+			await Promise.allSettled(pendingFileEdits);
 			// Finalize any outstanding tool invocations
 			for (const [, invocation] of activeToolInvocations) {
 				invocation.didExecuteTool(undefined);
@@ -370,7 +377,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					}
 				} else if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
 					activeToolInvocations.delete(toolCallId);
-					finalizeToolInvocation(existing, tc);
+					const fileEdits = finalizeToolInvocation(existing, tc);
+					if (fileEdits.length > 0) {
+						pendingFileEdits.push(
+							this._applyFileEdits(request.sessionResource, request, fileEdits, progress)
+						);
+					}
 				} else if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.PendingConfirmation) {
 					// Tool transitioned from streaming to ready — update the invocation
 					// with the now-available invocationMessage and toolSpecificData.
@@ -433,6 +445,51 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		await done;
 	}
+
+	// ---- File edit routing ---------------------------------------------------
+
+	/**
+	 * Routes file edits from completed tool calls through the editing session's
+	 * external edits pipeline. Calls start/stop in sequence since the edit has
+	 * already happened on the remote by the time we receive the tool completion.
+	 */
+	private async _applyFileEdits(
+		sessionResource: URI,
+		request: IChatAgentRequest,
+		fileEdits: IToolCallFileEdit[],
+		progress: (parts: IChatProgress[]) => void,
+	): Promise<void> {
+		const chatSession = this._chatService.getSession(sessionResource);
+		const editingSession = chatSession?.editingSession;
+		const response = chatSession?.getRequests().find(req => req.id === request.requestId)?.response;
+		if (!editingSession || !response) {
+			return;
+		}
+
+		const authority = this._config.connectionAuthority;
+		const wrapUri = (uri: URI) => toAgentHostUri(uri, authority);
+
+		for (const edit of fileEdits) {
+			const operationId = this._nextOperationId++;
+			const resource = wrapUri(edit.resource);
+			const beforeUri = wrapUri(edit.beforeContentUri);
+			const afterUri = wrapUri(edit.afterContentUri);
+
+			const startProgress = await editingSession.startExternalEdits(
+				response, operationId, [resource], edit.undoStopId,
+				[beforeUri],
+			);
+			progress(startProgress);
+
+			const stopProgress = await editingSession.stopExternalEdits(
+				response, operationId,
+				[afterUri],
+			);
+			progress(stopProgress);
+		}
+	}
+
+	private _nextOperationId = 0;
 
 	// ---- Session resolution -------------------------------------------------
 

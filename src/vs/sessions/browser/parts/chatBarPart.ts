@@ -12,6 +12,8 @@ import { INotificationService } from '../../../platform/notification/common/noti
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_DRAG_AND_DROP_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_TITLE_BORDER, SIDE_BAR_FOREGROUND } from '../../../workbench/common/theme.js';
+import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
+import { sessionsSidebarBorder } from '../../common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../workbench/common/views.js';
 import { IExtensionService } from '../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -19,6 +21,7 @@ import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../../../workbench/browser/parts/paneCompositePart.js';
+import { Part } from '../../../workbench/browser/part.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { IPaneCompositeBarOptions } from '../../../workbench/browser/parts/paneCompositeBar.js';
 import { IMenuService } from '../../../platform/actions/common/actions.js';
@@ -38,6 +41,15 @@ export class ChatBarPart extends AbstractPaneCompositePart {
 	override readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	override readonly minimumHeight: number = 0;
 	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+
+	/** Visual margin values for the card-like appearance */
+	static readonly MARGIN_TOP = 16;
+	static readonly MARGIN_LEFT = 16;
+	static readonly MARGIN_RIGHT = 16;
+	static readonly MARGIN_BOTTOM = 2;
+
+	/** Border width on the card (1px each side) */
+	static readonly BORDER_WIDTH = 1;
 
 	get preferredHeight(): number | undefined {
 		return this.layoutService.mainContainerDimension.height * 0.4;
@@ -96,8 +108,29 @@ export class ChatBarPart extends AbstractPaneCompositePart {
 		super.updateStyles();
 
 		const container = assertReturnsDefined(this.getContainer());
-		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';
+
+		// Store background and border as CSS variables for the card styling on .part
+		container.style.setProperty('--part-background', this.getColor(SIDE_BAR_BACKGROUND) || '');
+		container.style.setProperty('--part-border-color', this.getColor(sessionsSidebarBorder) || this.getColor(contrastBorder) || 'transparent');
+		container.style.backgroundColor = 'transparent';
 		container.style.color = this.getColor(SIDE_BAR_FOREGROUND) || '';
+	}
+
+	override layout(width: number, height: number, top: number, left: number): void {
+		if (!this.layoutService.isVisible(Parts.CHATBAR_PART)) {
+			return;
+		}
+
+		// Layout content with reduced dimensions to account for visual margins and border
+		const borderTotal = ChatBarPart.BORDER_WIDTH * 2;
+		super.layout(
+			width - ChatBarPart.MARGIN_LEFT - ChatBarPart.MARGIN_RIGHT - borderTotal,
+			height - ChatBarPart.MARGIN_TOP - ChatBarPart.MARGIN_BOTTOM - borderTotal,
+			top, left
+		);
+
+		// Restore the full grid-allocated dimensions so that Part.relayout() works correctly.
+		Part.prototype.layout.call(this, width, height, top, left);
 	}
 
 	protected getCompositeBarOptions(): IPaneCompositeBarOptions {

@@ -4,16 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
 
-export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
+export { AGENT_HOST_SCHEME };
 
-/**
- * URI scheme for agent host remote filesystems.
- * Must match {@link AGENT_HOST_FS_SCHEME} in `agentHostFileSystemProvider.ts`
- * (which lives in the `browser` layer and cannot be imported here).
- */
-export const AGENT_HOST_SCHEME = 'agenthost';
+export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
 
 /**
  * Represents a workspace (folder or repository) for a session.

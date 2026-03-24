@@ -57,6 +57,16 @@ export const AhpErrorCodes = {
 	 * @see {@link /specification/authentication | Authentication}
 	 */
 	AuthRequired: -32007,
+	/** The requested file, folder, or URI does not exist */
+	NotFound: -32008,
+	/**
+	 * The client is not permitted to access the requested resource.
+	 *
+	 * Servers SHOULD return this when a client attempts to read or browse
+	 * a path outside the allowed set (e.g. outside the session's working
+	 * directory or workspace roots).
+	 */
+	PermissionDenied: -32009,
 } as const;
 
 /** Union type of all AHP application error codes. */

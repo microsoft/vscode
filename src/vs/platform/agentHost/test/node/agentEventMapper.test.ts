@@ -31,7 +31,7 @@ import type {
 	ITurnCompleteAction,
 	IUsageAction,
 } from '../../common/state/sessionActions.js';
-import { PermissionKind } from '../../common/state/sessionState.js';
+import { PermissionKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { mapProgressEventToActions } from '../../node/agentEventMapper.js';
 
 /** Helper: flatten the result of mapProgressEventToActions into an array. */
@@ -104,9 +104,11 @@ suite('AgentEventMapper', () => {
 			session,
 			type: 'tool_complete',
 			toolCallId: 'tc-1',
-			success: true,
-			pastTenseMessage: 'Read file successfully',
-			toolOutput: 'file contents here',
+			result: {
+				success: true,
+				pastTenseMessage: 'Read file successfully',
+				content: [{ type: ToolResultContentType.Text, text: 'file contents here' }],
+			},
 		};
 
 		const actions = mapToArray(mapProgressEventToActions(event, session.toString(), turnId));

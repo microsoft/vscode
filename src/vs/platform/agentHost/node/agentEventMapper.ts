@@ -28,7 +28,7 @@ import {
 	type IPermissionRequestAction,
 	type IReasoningAction,
 } from '../common/state/sessionActions.js';
-import { ToolCallConfirmationReason, ToolResultContentType, type URI } from '../common/state/sessionState.js';
+import { ToolCallConfirmationReason, type URI } from '../common/state/sessionState.js';
 
 /**
  * Maps a flat {@link IAgentProgressEvent} from the agent host into
@@ -81,12 +81,7 @@ export function mapProgressEventToActions(event: IAgentProgressEvent, session: U
 				session,
 				turnId,
 				toolCallId: e.toolCallId,
-				result: {
-					success: e.success,
-					pastTenseMessage: e.pastTenseMessage,
-					content: e.toolOutput !== undefined ? [{ type: ToolResultContentType.Text, text: e.toolOutput }] : undefined,
-					error: e.error,
-				},
+				result: e.result,
 			} satisfies IToolCallCompleteAction;
 		}
 

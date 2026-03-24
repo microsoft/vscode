@@ -82,6 +82,7 @@ export enum VariableKind {
 	Command = 'command',
 	Input = 'input',
 	ExtensionInstallFolder = 'extensionInstallFolder',
+	TaskVar = 'taskVar',
 
 	WorkspaceFolder = 'workspaceFolder',
 	Cwd = 'cwd',

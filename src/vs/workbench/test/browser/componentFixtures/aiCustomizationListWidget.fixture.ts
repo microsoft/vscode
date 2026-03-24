@@ -19,6 +19,7 @@ import { PromptsType } from '../../../contrib/chat/common/promptSyntax/promptTyp
 import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IPromptPath } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { AICustomizationManagementSection } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationListWidget } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationListWidget.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
 import { ParsedPromptFile, PromptHeader } from '../../../contrib/chat/common/promptSyntax/promptFileParser.js';
@@ -155,6 +156,7 @@ async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFi
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;
 			}());
+			reg.defineInstance(IProductService, new class extends mock<IProductService>() { }());
 			reg.defineInstance(IPathService, new class extends mock<IPathService>() {
 				override readonly defaultUriScheme = 'file';
 				override userHome(): URI;

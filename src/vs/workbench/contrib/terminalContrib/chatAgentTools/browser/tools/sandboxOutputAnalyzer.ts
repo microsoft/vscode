@@ -37,7 +37,7 @@ export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer
 			? 'Command failed while running in sandboxed mode. If the command failed due to sandboxing:'
 			: 'Command ran in sandboxed mode and may have been blocked by the sandbox. If the command failed due to sandboxing:';
 		return `${prefix}
-- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${fileSystemSetting}, or to add required domains to ${TerminalChatAgentToolsSettingId.TerminalSandboxNetwork}.allowedDomains.
+- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${fileSystemSetting}, or to add required domains to ${TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains}.
 - Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user — setting this flag automatically shows a confirmation prompt to the user.
 
 Here is the output of the command:\n`;

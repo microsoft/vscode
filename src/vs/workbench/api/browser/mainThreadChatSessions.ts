@@ -137,7 +137,8 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 						variableData: variables ? { variables } : undefined,
 						id: turn.id,
 						modelId: turn.modelId,
-					};
+						modeInstructions: turn.modeInstructions ? revive(turn.modeInstructions) : undefined,
+					} satisfies IChatSessionRequestHistoryItem;
 				}
 
 				return {
@@ -326,6 +327,7 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 			command: request.command,
 			variableData: undefined,
 			modelId: request.modelId,
+			modeInstructions: request.modeInstructions,
 		};
 	}
 

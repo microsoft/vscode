@@ -21,7 +21,9 @@ export const enum TerminalChatAgentToolsSettingId {
 	AutoReplyToPrompts = 'chat.tools.terminal.autoReplyToPrompts',
 	OutputLocation = 'chat.tools.terminal.outputLocation',
 	TerminalSandboxEnabled = 'chat.tools.terminal.sandbox.enabled',
-	TerminalSandboxNetwork = 'chat.tools.terminal.sandbox.network',
+	TerminalSandboxNetworkAllowedDomains = 'chat.tools.terminal.sandbox.network.allowedDomains',
+	TerminalSandboxNetworkDeniedDomains = 'chat.tools.terminal.sandbox.network.deniedDomains',
+	TerminalSandboxNetworkAllowTrustedDomains = 'chat.tools.terminal.sandbox.network.allowTrustedDomains',
 	TerminalSandboxLinuxFileSystem = 'chat.tools.terminal.sandbox.linuxFileSystem',
 	TerminalSandboxMacFileSystem = 'chat.tools.terminal.sandbox.macFileSystem',
 	PreventShellHistory = 'chat.tools.terminal.preventShellHistory',
@@ -32,6 +34,7 @@ export const enum TerminalChatAgentToolsSettingId {
 	TerminalProfileMacOs = 'chat.tools.terminal.terminalProfile.osx',
 	TerminalProfileWindows = 'chat.tools.terminal.terminalProfile.windows',
 
+	DeprecatedTerminalSandboxNetwork = 'chat.tools.terminal.sandbox.network',
 	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
 	DeprecatedAutoApprove1 = 'chat.agent.terminal.allowList',
 	DeprecatedAutoApprove2 = 'chat.agent.terminal.denyList',
@@ -531,33 +534,26 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			mode: 'auto'
 		}
 	},
-	[TerminalChatAgentToolsSettingId.TerminalSandboxNetwork]: {
-		markdownDescription: localize('terminalSandbox.networkSetting', "Note: this setting is applicable only when {0} is enabled. Controls network access in the terminal sandbox.", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
-		type: 'object',
-		properties: {
-			allowedDomains: {
-				type: 'array',
-				description: localize('terminalSandbox.networkSetting.allowedDomains', " Supports wildcards like {0} and an empty list means no network access.", '`*.example.com`'),
-				items: { type: 'string' },
-				default: []
-			},
-			deniedDomains: {
-				type: 'array',
-				description: localize('terminalSandbox.networkSetting.deniedDomains', "Array of denied domains (checked first, takes precedence over allowedDomains)."),
-				items: { type: 'string' },
-				default: []
-			},
-			allowTrustedDomains: {
-				type: 'boolean',
-				description: localize('terminalSandbox.networkSetting.allowTrustedDomains', "When enabled, the Trusted Domains list is included in the allowed domains for network access."),
-				default: false
-			}
-		},
-		default: {
-			allowedDomains: [],
-			deniedDomains: [],
-			allowTrustedDomains: false
-		},
+	[TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains]: {
+		markdownDescription: localize('terminalSandbox.networkSetting.allowedDomains', "Note: this setting is applicable only when {0} is enabled. Allowed domains for network access in the terminal sandbox. Supports wildcards like {1} and an empty list means no network access.", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``, '`*.example.com`'),
+		type: 'array',
+		items: { type: 'string' },
+		default: [],
+		tags: ['preview'],
+		restricted: true,
+	},
+	[TerminalChatAgentToolsSettingId.TerminalSandboxNetworkDeniedDomains]: {
+		markdownDescription: localize('terminalSandbox.networkSetting.deniedDomains', "Note: this setting is applicable only when {0} is enabled. Array of denied domains for network access in the terminal sandbox (checked first, takes precedence over {1}).", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``, `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains}#\``),
+		type: 'array',
+		items: { type: 'string' },
+		default: [],
+		tags: ['preview'],
+		restricted: true,
+	},
+	[TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowTrustedDomains]: {
+		markdownDescription: localize('terminalSandbox.networkSetting.allowTrustedDomains', "Note: this setting is applicable only when {0} is enabled. When enabled, the Trusted Domains list is included in the allowed domains for network access in the terminal sandbox.", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
+		type: 'boolean',
+		default: false,
 		tags: ['preview'],
 		restricted: true,
 	},
@@ -658,3 +654,15 @@ for (const id of [
 		markdownDeprecationMessage: localize('autoApprove.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AutoApprove}#\``)
 	};
 }
+
+terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetwork] = {
+	type: 'object',
+	deprecated: true,
+	markdownDeprecationMessage: localize(
+		'terminalSandboxNetwork.deprecated',
+		'This setting has been split into {0}, {1}, and {2}.',
+		`\`#${TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains}#\``,
+		`\`#${TerminalChatAgentToolsSettingId.TerminalSandboxNetworkDeniedDomains}#\``,
+		`\`#${TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowTrustedDomains}#\``,
+	),
+};

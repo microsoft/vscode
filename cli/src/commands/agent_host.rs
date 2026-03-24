@@ -104,7 +104,8 @@ pub async fn agent_host(ctx: CommandContext, mut args: AgentHostArgs) -> Result<
 	if let Some(ct) = &args.connection_token {
 		url.push_str(&format!("?tkn={ct}"));
 	}
-	ctx.log.result(format!("Listening on {url}"));
+	ctx.log
+		.result(format!("Agent host proxy listening on {url}"));
 
 	let manager_for_svc = manager.clone();
 	let make_svc = move || {

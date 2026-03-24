@@ -84,7 +84,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 			this._log(`Executing command line \`${commandLine}\``);
 			markerRecreation.dispose();
 			const startLine = this._startMarker.value?.line;
-			this._instance.sendText(commandLine, true);
+			this._instance.sendText(commandLine, true, true);
 
 			// Wait for the cursor to move past the command line before
 			// starting idle detection. Without this, the idle poll may

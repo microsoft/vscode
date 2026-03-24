@@ -111,6 +111,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 
 	// State
 	private _terminating: boolean;
+	private _mainProcessHandlesExtHostShutdown: boolean;
 
 	// Resources, in order they get acquired/created when .start() is called:
 	private _inspectListener: IExtensionInspectInfo | null;
@@ -146,6 +147,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 		this._isExtensionDevTestFromCli = devOpts.isExtensionDevTestFromCli;
 
 		this._terminating = false;
+		this._mainProcessHandlesExtHostShutdown = false;
 
 		this._inspectListener = null;
 		this._extensionHostProcess = null;
@@ -175,6 +177,8 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 	public async disconnect(): Promise<void> {
 		this._terminating = true;
 
+		// Send the Terminate message so the extension host can run
+		// deactivation handlers and exit gracefully.
 		if (this._messageProtocol) {
 			try {
 				const protocol = await Promise.race([
@@ -187,12 +191,15 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 			}
 		}
 
-		if (this._extensionHostProcess) {
-			try {
-				await this._extensionHostProcess.waitForExit(extensionHostGraceTimeMs);
-			} catch {
-				// best-effort: waitForExit may reject with canceled() if the main side is already shutting down
-			}
+		// For the restart case where the main process does not handle the
+		// extension host shutdown, signal the main process to start the grace
+		// timer (fire-and-forget). After the timeout the extension host will
+		// be forcefully killed if it hasn't exited on its own. For all
+		// window-lifecycle shutdown reasons (close/quit/reload/load), the
+		// main process already handles this via
+		// WindowUtilityProcess.registerWindowListeners.
+		if (this._extensionHostProcess && !this._mainProcessHandlesExtHostShutdown) {
+			this._extensionHostProcess.waitForExit(extensionHostGraceTimeMs).catch(() => { /* best-effort */ });
 		}
 
 		this._messageProtocol = null;
@@ -621,6 +628,8 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 	}
 
 	private _onWillShutdown(event: WillShutdownEvent): void {
+		this._mainProcessHandlesExtHostShutdown = true;
+
 		// If the extension development host was started without debugger attached we need
 		// to communicate this back to the main side to terminate the debug session
 		if (this._isExtensionDevHost && !this._isExtensionDevTestFromCli && !this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {

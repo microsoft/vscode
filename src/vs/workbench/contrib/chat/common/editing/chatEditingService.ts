@@ -110,8 +110,8 @@ export interface IChatEditingSession extends IDisposable {
 	 * agents that make changes on-disk rather than streaming edits through the
 	 * chat session.
 	 */
-	startExternalEdits(responseModel: IChatResponseModel, operationId: number, resources: URI[], undoStopId: string): Promise<IChatProgress[]>;
-	stopExternalEdits(responseModel: IChatResponseModel, operationId: number): Promise<IChatProgress[]>;
+	startExternalEdits(responseModel: IChatResponseModel, operationId: number, resources: URI[], undoStopId: string, contentFor?: URI[]): Promise<IChatProgress[]>;
+	stopExternalEdits(responseModel: IChatResponseModel, operationId: number, contentFor?: URI[]): Promise<IChatProgress[]>;
 
 	/**
 	 * Gets the snapshot URI of a file at the request and _after_ changes made in the undo stop.

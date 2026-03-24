@@ -48,6 +48,19 @@
 		color: var(--vscode-descriptionForeground);
 	}
 
+	.monaco-list-row .agent-session-pinned-indicator {
+		display: none;
+		height: 16px;
+		align-items: center;
+		color: var(--vscode-descriptionForeground);
+		font-size: 12px;
+		pointer-events: none;
+
+		&.visible {
+			display: flex;
+		}
+	}
+
 	.monaco-list-row .agent-session-title-toolbar {
 		/* for the absolute positioning of the toolbar below */
 		position: relative;
@@ -62,9 +75,13 @@
 		}
 	}
 
-	/* On hover or keyboard focus: show toolbar */
+	/* On hover or keyboard focus: show toolbar, hide pinned indicator */
 	.monaco-list-row:hover,
 	.monaco-list-row.focused:not(.selected) {
+
+		.agent-session-pinned-indicator {
+			display: none;
+		}
 
 		.agent-session-title-toolbar {
 			display: block;
@@ -302,6 +319,17 @@
 				}
 			}
 		}
+	}
+
+	.agent-session-show-more {
+		display: flex;
+		align-items: center;
+		font-size: 12px;
+		color: var(--vscode-foreground);
+		/* align with session item text: 6px item padding + 16px icon + 6px main-col padding */
+		padding: 0 6px 0 24px;
+		cursor: pointer;
+		text-decoration: none !important;
 	}
 
 	.agent-session-section {

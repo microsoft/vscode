@@ -121,6 +121,10 @@
 	opacity: 0.8;
 }
 
+.image-carousel-editor .slideshow-container:hover .nav-arrow:disabled {
+	opacity: 0.3;
+}
+
 .image-carousel-editor .nav-arrow:hover:not(:disabled) {
 	opacity: 1 !important;
 	background: var(--vscode-toolbar-activeBackground);
@@ -134,9 +138,7 @@
 }
 
 .image-carousel-editor .nav-arrow:disabled {
-	opacity: 0 !important;
 	cursor: default;
-	pointer-events: none;
 }
 
 .image-carousel-editor .nav-arrow.prev-arrow {

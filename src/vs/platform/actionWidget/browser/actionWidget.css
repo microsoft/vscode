@@ -55,7 +55,7 @@
 
 /** Styles for each row in the list element **/
 .action-widget .monaco-list .monaco-list-row {
-	padding: 0 4px 0 8px;
+	padding: 0 12px 0 8px;
 	white-space: nowrap;
 	cursor: pointer;
 	touch-action: none;
@@ -119,7 +119,7 @@
 
 .action-widget .monaco-list-row.action {
 	display: flex;
-	gap: 8px;
+	gap: 6px;
 	align-items: center;
 }
 
@@ -272,6 +272,7 @@
 	display: flex;
 	align-items: center;
 	gap: 4px;
+	padding-right: 10px;
 }
 
 .action-widget .action-list-filter:first-child {
@@ -324,22 +325,15 @@
 	height: 20px;
 	flex-shrink: 0;
 	border-radius: 4px;
-	margin-right: 2px;
 }
 
 .action-widget .action-list-submenu-indicator.has-submenu {
-	cursor: pointer;
 	opacity: 0.6;
 }
 
 .action-widget .monaco-list-row.action .action-list-submenu-indicator.codicon {
 	display: flex;
 	font-size: 16px;
-}
-
-.action-widget .action-list-submenu-indicator.has-submenu:hover {
-	opacity: 1;
-	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .action-list-submenu-panel {

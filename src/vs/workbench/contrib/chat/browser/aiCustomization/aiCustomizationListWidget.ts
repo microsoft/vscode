@@ -60,7 +60,7 @@ import { evaluateApplyToPattern } from '../../common/promptSyntax/computeAutomat
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 
-export { truncateToFirstSentence } from './aiCustomizationListWidgetUtils.js';
+export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
 const $ = DOM.$;
 

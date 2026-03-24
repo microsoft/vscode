@@ -23,6 +23,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { AgentSessionsControl } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsControl.js';
+import { AgentSessionsDataSource } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsViewer.js';
 import { AgentSessionsFilter, AgentSessionsGrouping, AgentSessionsSorting } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsFilter.js';
 import { AgentSessionProviders, isAgentHostTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from './sessionsManagementService.js';
@@ -44,6 +45,7 @@ const SessionsViewFilterSubMenu = new MenuId('AgentSessionsViewFilterSubMenu');
 const SessionsViewFilterOptionsSubMenu = new MenuId('AgentSessionsViewFilterOptionsSubMenu');
 const SessionsViewGroupingContext = new RawContextKey<string>('sessionsView.grouping', AgentSessionsGrouping.Repository);
 const SessionsViewSortingContext = new RawContextKey<string>('sessionsView.sorting', AgentSessionsSorting.Created);
+const IsRepositoryGroupCappedContext = new RawContextKey<boolean>('sessionsView.isRepositoryGroupCapped', true);
 const GROUPING_STORAGE_KEY = 'agentSessions.grouping';
 const SORTING_STORAGE_KEY = 'agentSessions.sorting';
 
@@ -52,10 +54,12 @@ export class AgenticSessionsViewPane extends ViewPane {
 	private viewPaneContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	sessionsControl: AgentSessionsControl | undefined;
+	private sessionsFilter: AgentSessionsFilter | undefined;
 	private currentGrouping: AgentSessionsGrouping = AgentSessionsGrouping.Repository;
 	private currentSorting: AgentSessionsSorting = AgentSessionsSorting.Created;
 	private groupingContextKey: IContextKey | undefined;
 	private sortingContextKey: IContextKey | undefined;
+	private isRepositoryGroupCappedContextKey: IContextKey<boolean> | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -92,6 +96,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 		this.groupingContextKey.set(this.currentGrouping);
 		this.sortingContextKey = SessionsViewSortingContext.bindTo(contextKeyService);
 		this.sortingContextKey.set(this.currentSorting);
+		this.isRepositoryGroupCappedContextKey = IsRepositoryGroupCappedContext.bindTo(contextKeyService);
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -119,7 +124,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 		const sessionsContainer = DOM.append(parent, $('.agent-sessions-container'));
 
 		// Sessions Filter (actions go to the nested filter submenu)
-		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
+		const sessionsFilter = this.sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: SessionsViewFilterOptionsSubMenu,
 			groupResults: () => this.currentGrouping,
 			sortResults: () => this.currentSorting,
@@ -129,6 +134,12 @@ export class AgenticSessionsViewPane extends ViewPane {
 				[AgentSessionProviders.Background, localize('chat.session.providerLabel.background', "Copilot CLI")],
 			]),
 		}));
+
+		// Sync context key with filter state
+		this._register(sessionsFilter.onDidChange(() => {
+			this.isRepositoryGroupCappedContextKey?.set(sessionsFilter.getExcludes().repositoryGroupCapped);
+		}));
+		this.isRepositoryGroupCappedContextKey?.set(sessionsFilter.getExcludes().repositoryGroupCapped);
 
 		// Sessions section (top, fills available space)
 		const sessionsSection = DOM.append(sessionsContainer, $('.agent-sessions-section'));
@@ -157,6 +168,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			disableHover: true,
 			enableApprovalRow: true,
+			repositoryGroupLimit: AgentSessionsDataSource.REPOSITORY_GROUP_LIMIT,
 			getHoverPosition: () => this.getSessionHoverPosition(),
 			trackActiveEditorSession: () => true,
 			collapseOlderSections: () => true,
@@ -265,6 +277,10 @@ export class AgenticSessionsViewPane extends ViewPane {
 		this.storageService.store(SORTING_STORAGE_KEY, this.currentSorting, StorageScope.PROFILE, StorageTarget.USER);
 		this.sortingContextKey?.set(this.currentSorting);
 		this.sessionsControl?.update();
+	}
+
+	setRepositoryGroupCapped(capped: boolean): void {
+		this.sessionsFilter?.setRepositoryGroupCapped(capped);
 	}
 }
 
@@ -408,6 +424,53 @@ registerAction2(class GroupByTimeAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getViewWithId<AgenticSessionsViewPane>(SessionsViewId);
 		view?.setGrouping(AgentSessionsGrouping.Date);
+	}
+});
+
+// Show top N or all sessions per repo group (radio pattern)
+registerAction2(class ShowTopSessionsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsView.showTopSessions',
+			title: localize2('showRecentSessions', "Show Recent Sessions"),
+			category: SessionsCategories.Sessions,
+			toggled: IsRepositoryGroupCappedContext,
+			menu: [{
+				id: SessionsViewFilterSubMenu,
+				group: '4_cap',
+				order: 0,
+				when: ContextKeyExpr.equals(SessionsViewGroupingContext.key, AgentSessionsGrouping.Repository),
+			}]
+		});
+	}
+
+	override run(accessor: ServicesAccessor) {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<AgenticSessionsViewPane>(SessionsViewId);
+		view?.setRepositoryGroupCapped(true);
+	}
+});
+
+registerAction2(class ShowAllSessionsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsView.showAllSessions',
+			title: localize2('showAllSessions', "Show All Sessions"),
+			category: SessionsCategories.Sessions,
+			toggled: IsRepositoryGroupCappedContext.negate(),
+			menu: [{
+				id: SessionsViewFilterSubMenu,
+				group: '4_cap',
+				order: 1,
+				when: ContextKeyExpr.equals(SessionsViewGroupingContext.key, AgentSessionsGrouping.Repository),
+			}]
+		});
+	}
+
+	override run(accessor: ServicesAccessor) {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<AgenticSessionsViewPane>(SessionsViewId);
+		view?.setRepositoryGroupCapped(false);
 	}
 });
 

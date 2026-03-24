@@ -3,56 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, toDisposable, type IDisposable } from '../../../../base/common/lifecycle.js';
-import { dirname, basename } from '../../../../base/common/resources.js';
-import { URI } from '../../../../base/common/uri.js';
-import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
-import type { IDirectoryEntry } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
-import {
-	createFileSystemProviderError,
-	FilePermission,
-	FileSystemProviderCapabilities,
-	FileSystemProviderErrorCode,
-	FileType,
-	type IFileChange,
-	type IFileDeleteOptions,
-	type IFileOverwriteOptions,
-	type IFileSystemProvider,
-	type IFileWriteOptions,
-	type IStat,
-} from '../../../../platform/files/common/files.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { Emitter } from '../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { basename, dirname } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { createFileSystemProviderError, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileWriteOptions, IStat } from '../../files/common/files.js';
+import { type IAgentConnection } from './agentService.js';
+import { fromAgentHostUri, toAgentHostUri } from './agentHostUri.js';
+import { IDirectoryEntry } from './state/protocol/commands.js';
+
 
 /**
- * The URI scheme used for browsing remote agent host filesystems.
- * URIs are structured as `agenthost://{sanitizedAddress}/path/on/remote`.
- */
-export const AGENT_HOST_FS_SCHEME = 'agenthost';
-
-/**
- * Build an agenthost URI for a given address and path.
+ * Build a {@link AGENT_HOST_SCHEME} URI for a given connection authority
+ * and remote path. Assumes the remote path is a `file://` resource.
  */
 export function agentHostUri(authority: string, path: string): URI {
-	const normalizedPath = !path ? '/' : path.startsWith('/') ? path : `/${path}`;
-	return URI.from({ scheme: AGENT_HOST_FS_SCHEME, authority, path: normalizedPath });
+	return toAgentHostUri(URI.file(path), authority);
 }
 
 /**
- * Extract the remote filesystem path from an agenthost URI.
- * This is the inverse of {@link agentHostUri} -- the path component
- * of the URI is the path on the remote machine.
+ * Extract the remote filesystem path from a {@link AGENT_HOST_SCHEME} URI.
  */
 export function agentHostRemotePath(uri: URI): string {
-	return uri.path;
+	return fromAgentHostUri(uri).path;
 }
 
 /**
- * Read-only {@link IFileSystemProvider} that proxies `stat` and `readdir`
- * calls through the agent host protocol's `browseDirectory` RPC.
+ * Read-only {@link IFileSystemProvider} that proxies filesystem operations
+ * through the agent host protocol.
  *
- * Registered once under the {@link AGENT_HOST_FS_SCHEME} scheme. Individual
- * connections are identified by the URI's authority component, which is
- * the sanitized remote address.
+ * Registered under the {@link AGENT_HOST_SCHEME} scheme. URIs encode the
+ * original scheme and authority in the path so any remote resource can be
+ * represented (not just `file://`):
+ *
+ * ```
+ * vscode-agent-host://[connectionAuthority]/[originalScheme]/[originalAuthority]/[originalPath]
+ * ```
+ *
+ * Individual connections are identified by the URI's authority component,
+ * which is the sanitized remote address.
  */
 export class AgentHostFileSystemProvider extends Disposable implements IFileSystemProvider {
 
@@ -67,21 +57,15 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile = this._onDidChangeFile.event;
 
-	private readonly _authorityToAddress = new Map<string, string>();
-
-	constructor(
-		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
-	) {
-		super();
-	}
+	private readonly _authorityToConnection = new Map<string, IAgentConnection>();
 
 	/**
-	 * Register a mapping from a URI authority to a remote address.
+	 * Register a mapping from a URI authority to an agent connection.
 	 * Returns a disposable that unregisters the mapping.
 	 */
-	registerAuthority(authority: string, address: string): IDisposable {
-		this._authorityToAddress.set(authority, address);
-		return toDisposable(() => this._authorityToAddress.delete(authority));
+	registerAuthority(authority: string, connection: IAgentConnection): IDisposable {
+		this._authorityToConnection.set(authority, connection);
+		return toDisposable(() => this._authorityToConnection.delete(authority));
 	}
 
 	watch(): IDisposable {
@@ -122,8 +106,18 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 
 	// ---- Read-only stubs (required by interface) ----------------------------
 
-	async readFile(): Promise<Uint8Array> {
-		throw createFileSystemProviderError('readFile not supported on remote agent host filesystem', FileSystemProviderErrorCode.NoPermissions);
+	async readFile(resource: URI): Promise<Uint8Array> {
+		const connection = this._getConnection(resource.authority);
+		try {
+			const originalUri = fromAgentHostUri(resource);
+			const result = await connection.fetchContent(originalUri);
+			return VSBuffer.fromString(result.data).buffer;
+		} catch (err) {
+			throw createFileSystemProviderError(
+				err instanceof Error ? err.message : String(err),
+				FileSystemProviderErrorCode.FileNotFound,
+			);
+		}
 	}
 
 	async writeFile(_resource: URI, _content: Uint8Array, _opts: IFileWriteOptions): Promise<void> {
@@ -145,13 +139,9 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 	// ---- Internals ----------------------------------------------------------
 
 	private _getConnection(authority: string) {
-		const address = this._authorityToAddress.get(authority);
-		if (!address) {
-			throw createFileSystemProviderError(`No connection for authority: ${authority}`, FileSystemProviderErrorCode.Unavailable);
-		}
-		const connection = this._remoteAgentHostService.getConnection(address);
+		const connection = this._authorityToConnection.get(authority);
 		if (!connection) {
-			throw createFileSystemProviderError(`Connection unavailable: ${address}`, FileSystemProviderErrorCode.Unavailable);
+			throw createFileSystemProviderError(`No connection for authority: ${authority}`, FileSystemProviderErrorCode.Unavailable);
 		}
 		return connection;
 	}
@@ -159,9 +149,8 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 	private async _listDirectory(authority: string, resource: URI): Promise<readonly IDirectoryEntry[]> {
 		const connection = this._getConnection(authority);
 		try {
-			// Convert the agenthost URI to a file URI for the remote server
-			const remoteUri = URI.from({ scheme: 'file', path: resource.path || '/' });
-			const result = await connection.browseDirectory(remoteUri);
+			const originalUri = fromAgentHostUri(resource);
+			const result = await connection.browseDirectory(originalUri);
 			return result.entries;
 		} catch (err) {
 			throw createFileSystemProviderError(

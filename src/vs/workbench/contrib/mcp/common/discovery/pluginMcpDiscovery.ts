@@ -97,6 +97,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 			id: `${collectionId}.${name}`,
 			label: name,
 			launch,
+			variableReplacement: { target: ConfigurationTarget.USER },
 			cacheNonce: String(hash(launch)),
 		};
 	}
