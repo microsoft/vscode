@@ -158,7 +158,7 @@ export class TerminalEditor extends EditorPane {
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
 		this._disposableStore.clear();
-		const actions = getTerminalActionBarArgs(TerminalLocation.Editor, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore, this._configurationService);
+		const actions = getTerminalActionBarArgs(TerminalLocation.Editor, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
 		this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
 	}
 
@@ -182,7 +182,7 @@ export class TerminalEditor extends EditorPane {
 				if (action instanceof MenuItemAction) {
 					const location = { viewColumn: ACTIVE_GROUP };
 					this._disposableStore.clear();
-					const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore, this._configurationService);
+					const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
 					this._newDropdown.value = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, { hoverDelegate: options.hoverDelegate });
 					this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
 					return this._newDropdown.value;
