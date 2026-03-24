@@ -436,6 +436,10 @@ export class ChangesViewPane extends ViewPane {
 		}
 	}
 
+	override getActionsContext(): URI | undefined {
+		return this.viewModel.activeSessionResourceObs.get();
+	}
+
 	private onVisible(): void {
 		this.renderDisposables.clear();
 
