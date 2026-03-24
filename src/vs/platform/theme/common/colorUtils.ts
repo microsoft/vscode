@@ -193,9 +193,7 @@ class ColorRegistry extends Disposable implements IColorRegistry {
 
 	public updateDefaultColor(id: string, defaults: ColorDefaults | ColorValue | null): void {
 		const existing = this.colorsById[id];
-		console.log(`Updating default color for ${id} to ${JSON.stringify(defaults)}`);
 		if (existing) {
-			console.log(`Existing color contribution: ${JSON.stringify(existing)}`);
 			this.colorsById[id] = { ...existing, defaults };
 		}
 	}
