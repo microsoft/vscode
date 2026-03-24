@@ -40,6 +40,29 @@
 	.monaco-list:not(:focus) .monaco-list-row.selected .session-details-row {
 		color: var(--vscode-descriptionForeground);
 	}
+
+	.monaco-list-row .session-title-toolbar {
+		position: relative;
+		height: 16px;
+		display: none;
+
+		.monaco-toolbar {
+			position: relative;
+			right: 0;
+			top: 0;
+		}
+	}
+
+	.monaco-list-row:hover,
+	.monaco-list-row.focused:not(.selected) {
+		.session-title-toolbar {
+			display: block;
+		}
+
+		.session-title {
+			margin-right: 8px;
+		}
+	}
 }
 
 /* Session Item */

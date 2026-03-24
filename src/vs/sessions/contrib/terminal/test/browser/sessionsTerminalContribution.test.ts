@@ -17,7 +17,9 @@ import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapabili
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentSession, IAgentSessionsModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IActiveSessionItem, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { ISessionData } from '../../../sessions/common/sessionData.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { SessionsTerminalContribution } from '../../browser/sessionsTerminalContribution.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
@@ -47,28 +49,54 @@ function makeAgentSession(opts: {
 	providerType?: string;
 	isArchived?: boolean;
 	worktreePath?: string;
-}): IActiveSessionItem & IAgentSession {
+}): ISessionData {
+	const repo = opts.repository || opts.worktree ? {
+		uri: opts.repository ?? opts.worktree!,
+		workingDirectory: opts.worktree,
+		detail: undefined,
+		baseBranchProtected: undefined,
+	} : undefined;
 	return {
+		sessionId: 'test:session',
 		resource: URI.parse('file:///session'),
-		repository: opts.repository,
-		worktree: opts.worktree,
-		providerType: opts.providerType ?? AgentSessionProviders.Local,
-		setArchived: () => { },
-		setPinned: () => { },
-		setRead: () => { },
-		isArchived: () => opts.isArchived ?? false,
-		isPinned: () => false,
-		isRead: () => true,
-		metadata: opts.worktreePath ? { worktreePath: opts.worktreePath } : undefined,
-	} as unknown as IActiveSessionItem & IAgentSession;
+		providerId: 'test',
+		sessionType: opts.providerType ?? AgentSessionProviders.Local,
+		icon: Codicon.copilot,
+		createdAt: new Date(),
+		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo] } : undefined),
+		title: observableValue('test.title', 'Test Session'),
+		updatedAt: observableValue('test.updatedAt', new Date()),
+		status: observableValue('test.status', 0),
+		changes: observableValue('test.changes', []),
+		modelId: observableValue('test.modelId', undefined),
+		mode: observableValue('test.mode', undefined),
+		loading: observableValue('test.loading', false),
+	};
 }
 
-function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerType?: string }): IActiveSessionItem {
+function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerType?: string }): ISessionData {
+	const repo = opts.repository || opts.worktree ? {
+		uri: opts.repository ?? opts.worktree!,
+		workingDirectory: opts.worktree,
+		detail: undefined,
+		baseBranchProtected: undefined,
+	} : undefined;
 	return {
-		repository: opts.repository,
-		worktree: opts.worktree,
-		providerType: opts.providerType ?? AgentSessionProviders.Local,
-	} as IActiveSessionItem;
+		sessionId: 'test:non-agent',
+		resource: URI.parse('file:///session'),
+		providerId: 'test',
+		sessionType: opts.providerType ?? AgentSessionProviders.Local,
+		icon: Codicon.copilot,
+		createdAt: new Date(),
+		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo] } : undefined),
+		title: observableValue('test.title', 'Test Session'),
+		updatedAt: observableValue('test.updatedAt', new Date()),
+		status: observableValue('test.status', 0),
+		changes: observableValue('test.changes', []),
+		modelId: observableValue('test.modelId', undefined),
+		mode: observableValue('test.mode', undefined),
+		loading: observableValue('test.loading', false),
+	};
 }
 
 function makeTerminalInstance(id: number, cwd: string): TestTerminalInstance {
@@ -107,7 +135,7 @@ function addCommandToInstance(instance: ITerminalInstance, timestamp: number): v
 suite('SessionsTerminalContribution', () => {
 	const store = new DisposableStore();
 	let contribution: SessionsTerminalContribution;
-	let activeSessionObs: ReturnType<typeof observableValue<IActiveSessionItem | undefined>>;
+	let activeSessionObs: ReturnType<typeof observableValue<ISessionData | undefined>>;
 	let onDidChangeSessionArchivedState: Emitter<IAgentSession>;
 	let onDidCreateInstance: Emitter<ITerminalInstance>;
 
@@ -138,14 +166,14 @@ suite('SessionsTerminalContribution', () => {
 
 		const instantiationService = store.add(new TestInstantiationService());
 
-		activeSessionObs = observableValue('activeSession', undefined);
+		activeSessionObs = observableValue<ISessionData | undefined>('activeSession', undefined);
 		onDidChangeSessionArchivedState = store.add(new Emitter<IAgentSession>());
 		onDidCreateInstance = store.add(new Emitter<ITerminalInstance>());
 
 		instantiationService.stub(ILogService, logService);
 
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = activeSessionObs;
+			override activeSessionData = activeSessionObs;
 		});
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
@@ -384,7 +412,7 @@ suite('SessionsTerminalContribution', () => {
 			isArchived: true,
 			worktreePath: worktreeUri.fsPath,
 		});
-		onDidChangeSessionArchivedState.fire(session);
+		onDidChangeSessionArchivedState.fire(session as unknown as IAgentSession);
 		await tick();
 
 		assert.strictEqual(disposedInstances.length, 1);
@@ -398,7 +426,7 @@ suite('SessionsTerminalContribution', () => {
 			isArchived: false,
 			worktreePath: worktreeUri.fsPath,
 		});
-		onDidChangeSessionArchivedState.fire(session);
+		onDidChangeSessionArchivedState.fire(session as unknown as IAgentSession);
 		await tick();
 
 		assert.strictEqual(disposedInstances.length, 0);
@@ -409,7 +437,7 @@ suite('SessionsTerminalContribution', () => {
 		await contribution.ensureTerminal(worktreeUri, false);
 
 		const session = makeAgentSession({ isArchived: true });
-		onDidChangeSessionArchivedState.fire(session);
+		onDidChangeSessionArchivedState.fire(session as unknown as IAgentSession);
 		await tick();
 
 		assert.strictEqual(disposedInstances.length, 0);

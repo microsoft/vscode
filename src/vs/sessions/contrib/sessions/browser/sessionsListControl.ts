@@ -18,7 +18,11 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { localize } from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { IStyleOverride } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -27,6 +31,10 @@ import { GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionWorkspace.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 
 const $ = DOM.$;
+
+export const SessionItemToolbarMenuId = new MenuId('SessionItemToolbar');
+export const SessionItemContextMenuId = new MenuId('SessionItemContextMenu');
+export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 
 //#region Types
 
@@ -77,7 +85,9 @@ interface ISessionItemTemplate {
 	readonly container: HTMLElement;
 	readonly iconContainer: HTMLElement;
 	readonly title: HTMLElement;
+	readonly titleToolbar: MenuWorkbenchToolBar;
 	readonly detailsRow: HTMLElement;
+	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 }
@@ -86,7 +96,11 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	static readonly TEMPLATE_ID = 'session-item';
 	readonly templateId = SessionItemRenderer.TEMPLATE_ID;
 
-	constructor(private readonly options: { grouping: () => SessionsGrouping }) { }
+	constructor(
+		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISessionData) => boolean },
+		private readonly instantiationService: IInstantiationService,
+		private readonly contextKeyService: IContextKeyService,
+	) { }
 
 	renderTemplate(container: HTMLElement): ISessionItemTemplate {
 		const disposables = new DisposableStore();
@@ -98,9 +112,16 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const mainCol = DOM.append(container, $('.session-main'));
 		const titleRow = DOM.append(mainCol, $('.session-title-row'));
 		const title = DOM.append(titleRow, $('.session-title'));
+		const titleToolbarContainer = DOM.append(titleRow, $('.session-title-toolbar'));
 		const detailsRow = DOM.append(mainCol, $('.session-details-row'));
 
-		return { container, iconContainer, title, detailsRow, disposables, elementDisposables };
+		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
+		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+		const titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, titleToolbarContainer, SessionItemToolbarMenuId, {
+			menuOptions: { shouldForwardArgs: true },
+		}));
+
+		return { container, iconContainer, title, titleToolbar, detailsRow, contextKeyService, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -113,6 +134,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	private renderSession(element: ISessionData, template: ISessionItemTemplate): void {
 		template.elementDisposables.clear();
+
+		// Toolbar context
+		template.titleToolbar.context = element;
+
+		// Context key: isPinned
+		IsSessionPinnedContext.bindTo(template.contextKeyService).set(this.options.isPinned(element));
 
 		// Icon — reactive based on status
 		template.elementDisposables.add(autorun(reader => {
@@ -323,16 +350,21 @@ export interface ISessionsListControl {
 	update(): void;
 	openFind(): void;
 	resetSectionCollapseState(): void;
+	pinSession(session: ISessionData): void;
+	unpinSession(session: ISessionData): void;
+	isSessionPinned(session: ISessionData): boolean;
 }
 
 export class SessionsListControl extends Disposable implements ISessionsListControl {
 
 	private static readonly SECTION_COLLAPSE_STATE_KEY = 'sessionsListControl.sectionCollapseState';
+	private static readonly PINNED_SESSIONS_KEY = 'sessionsListControl.pinnedSessions';
 
 	private readonly listContainer: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
 	private sessions: ISessionData[] = [];
 	private visible = true;
+	private readonly pinnedSessionIds: Set<string>;
 
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
 	readonly onDidUpdate: Event<void> = this._onDidUpdate.event;
@@ -344,9 +376,13 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 		private readonly options: ISessionsListControlOptions,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
+
+		// Load pinned sessions from storage
+		this.pinnedSessionIds = this.loadPinnedSessions();
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control'));
 
@@ -356,7 +392,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 			this.listContainer,
 			new SessionsTreeDelegate(),
 			[
-				new SessionItemRenderer({ grouping: this.options.grouping }),
+				new SessionItemRenderer({ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s) }, instantiationService, contextKeyService),
 				new SessionSectionRenderer(),
 			],
 			{
@@ -418,10 +454,31 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 	update(): void {
 		const sorted = this.sortSessions(this.sessions);
+
+		// Separate pinned sessions
+		const pinned: ISessionData[] = [];
+		const unpinned: ISessionData[] = [];
+		for (const session of sorted) {
+			if (this.isSessionPinned(session)) {
+				pinned.push(session);
+			} else {
+				unpinned.push(session);
+			}
+		}
+
 		const grouping = this.options.grouping();
-		const sections = grouping === SessionsGrouping.Repository
-			? this.groupByRepository(sorted)
-			: this.groupByDate(sorted);
+		const sections: ISessionSection[] = [];
+
+		// Add pinned section at the top if there are pinned sessions
+		if (pinned.length > 0) {
+			sections.push({ id: 'pinned', label: localize('pinned', "Pinned"), sessions: pinned });
+		}
+
+		// Group remaining sessions
+		const grouped = grouping === SessionsGrouping.Repository
+			? this.groupByRepository(unpinned)
+			: this.groupByDate(unpinned);
+		sections.push(...grouped);
 
 		const children: IObjectTreeElement<SessionListItem>[] = sections.map(section => ({
 			element: section,
@@ -486,6 +543,47 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 	resetSectionCollapseState(): void {
 		this.storageService.remove(SessionsListControl.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+	}
+
+	// -- Pinning --
+
+	pinSession(session: ISessionData): void {
+		this.pinnedSessionIds.add(session.sessionId);
+		this.savePinnedSessions();
+		this.update();
+	}
+
+	unpinSession(session: ISessionData): void {
+		this.pinnedSessionIds.delete(session.sessionId);
+		this.savePinnedSessions();
+		this.update();
+	}
+
+	isSessionPinned(session: ISessionData): boolean {
+		return this.pinnedSessionIds.has(session.sessionId);
+	}
+
+	private loadPinnedSessions(): Set<string> {
+		const raw = this.storageService.get(SessionsListControl.PINNED_SESSIONS_KEY, StorageScope.PROFILE);
+		if (raw) {
+			try {
+				const arr = JSON.parse(raw);
+				if (Array.isArray(arr)) {
+					return new Set(arr);
+				}
+			} catch {
+				// ignore corrupt data
+			}
+		}
+		return new Set();
+	}
+
+	private savePinnedSessions(): void {
+		if (this.pinnedSessionIds.size === 0) {
+			this.storageService.remove(SessionsListControl.PINNED_SESSIONS_KEY, StorageScope.PROFILE);
+		} else {
+			this.storageService.store(SessionsListControl.PINNED_SESSIONS_KEY, JSON.stringify([...this.pinnedSessionIds]), StorageScope.PROFILE, StorageTarget.USER);
+		}
 	}
 
 	// -- Section collapse persistence --

@@ -19,7 +19,8 @@ import { IAgentSession, IAgentSessionsModel } from '../../../../../workbench/con
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
-import { IActiveSessionItem, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { ISessionData } from '../../../sessions/common/sessionData.js';
 import { ICodeReviewService, CodeReviewService, CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion } from '../../browser/codeReviewService.js';
 
 suite('CodeReviewService', () => {
@@ -172,7 +173,7 @@ suite('CodeReviewService', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() { }());
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override readonly activeSession = observableValue<IActiveSessionItem | undefined>('test.activeSession', undefined);
+			override readonly activeSessionData = observableValue<ISessionData | undefined>('test.activeSession', undefined);
 		}());
 
 		storageService = store.add(new InMemoryStorageService());

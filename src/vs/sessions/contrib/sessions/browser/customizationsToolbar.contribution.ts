@@ -168,7 +168,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		}));
 		this._viewItemDisposables.add(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._updateCounts()));
 		this._viewItemDisposables.add(autorun(reader => {
-			this._activeSessionService.activeSession.read(reader);
+			this._activeSessionService.activeSessionData.read(reader);
 			this._updateCounts();
 		}));
 

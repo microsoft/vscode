@@ -53,17 +53,6 @@ const ACTIVE_PROVIDER_KEY = 'sessions.activeProviderId';
  * - For agent session items: repository is the workingDirectory from metadata
  * - For new sessions: repository comes from the session option with id 'repository'
  */
-export interface IActiveSessionItem {
-	readonly resource: URI;
-	readonly isUntitled: boolean;
-	readonly label: string | undefined;
-	readonly repository: URI | undefined;
-	readonly worktree: URI | undefined;
-	readonly worktreeBranchName: string | undefined;
-	readonly worktreeBaseBranchProtected: boolean | undefined;
-	readonly providerType: string;
-}
-
 export interface ISessionsManagementService {
 	readonly _serviceBrand: undefined;
 
@@ -96,17 +85,6 @@ export interface ISessionsManagementService {
 	 * Set the active sessions provider by ID.
 	 */
 	setActiveProvider(providerId: string): void;
-
-	/**
-	 * @deprecated Use {@link activeSessionData} instead.
-	 * Observable for the currently active session.
-	 */
-	readonly activeSession: IObservable<IActiveSessionItem | undefined>;
-
-	/**
-	 * Returns the currently active session, if any.
-	 */
-	getActiveSession(): IActiveSessionItem | undefined;
 
 	/**
 	 * Select an existing session as the active session.
@@ -165,6 +143,15 @@ export interface ISessionsManagementService {
 	 * Resolve a relative file path to a full URI based on the session's repository/worktree.
 	 */
 	resolveSessionFileUri(sessionResource: URI, relativePath: string): URI | undefined;
+
+	// -- Session Actions --
+
+	/** Archive a session. */
+	archiveSession(session: ISessionData): Promise<void>;
+	/** Delete a session. */
+	deleteSession(session: ISessionData): Promise<void>;
+	/** Rename a session. */
+	renameSession(session: ISessionData, title: string): Promise<void>;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');
@@ -176,8 +163,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionsChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent> = this._onDidChangeSessions.event;
 
-	private readonly _activeSession = observableValue<IActiveSessionItem | undefined>(this, undefined);
-	readonly activeSession: IObservable<IActiveSessionItem | undefined> = this._activeSession;
 	private readonly _activeSessionData = observableValue<ISessionData | undefined>(this, undefined);
 	readonly activeSessionData: IObservable<ISessionData | undefined> = this._activeSessionData;
 	private readonly _newSessionObservable = observableValue<ISessionData | undefined>(this, undefined);
@@ -227,7 +212,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// Clear active session if the active session gets archived
 		this._register(this.agentSessionsService.model.onDidChangeSessionArchivedState(e => {
 			if (e.isArchived()) {
-				const currentActive = this._activeSession.get();
+				const currentActive = this._activeSessionData.get();
 				if (currentActive && currentActive.resource.toString() === e.resource.toString()) {
 					this.openNewSessionView();
 				}
@@ -319,10 +304,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this.sessionsProvidersService.getSessions();
 	}
 
-	getActiveSession(): IActiveSessionItem | undefined {
-		return this._activeSession.get();
-	}
-
 	async openSession(sessionResource: URI): Promise<void> {
 		const sessionData = this.sessionsProvidersService.getSessions().find(s => s.resource.toString() === sessionResource.toString());
 		if (!sessionData) {
@@ -407,74 +388,19 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// Update context keys from session data
 		this._activeSessionProviderId.set(session?.providerId ?? '');
 		this._activeSessionType.set(session?.sessionType ?? '');
-		this._activeSessionData.set(session, undefined);
+		this._isBackgroundProvider.set(session?.sessionType === AgentSessionProviders.Background);
 
-		let activeSessionItem: IActiveSessionItem | undefined;
+		if (session && isAgentSession(session)) {
+			this.lastSelectedSession = session.resource;
+		}
+
 		if (session) {
-			if (isAgentSession(session)) {
-				this.lastSelectedSession = session.resource;
-				const [repository, worktree, worktreeBranchName, worktreeBaseBranchProtected] = this.getRepositoryFromMetadata(session);
-				activeSessionItem = {
-					isUntitled: false,
-					label: session.label,
-					resource: session.resource,
-					repository: repository,
-					worktree,
-					worktreeBranchName: worktreeBranchName,
-					worktreeBaseBranchProtected: worktreeBaseBranchProtected === true,
-					providerType: session.providerType,
-				};
-			} else {
-				const workspace = session.workspace.get();
-				const repository = workspace?.repositories[0]?.uri;
-				activeSessionItem = {
-					isUntitled: true,
-					label: undefined,
-					resource: session.resource,
-					repository,
-					worktree: undefined,
-					worktreeBranchName: undefined,
-					worktreeBaseBranchProtected: undefined,
-					providerType: session.sessionType,
-				};
-			}
-		}
-
-		this.doSetActiveSession(activeSessionItem);
-	}
-
-	private doSetActiveSession(activeSessionItem: IActiveSessionItem | undefined): void {
-		if (this.equalsSessionItem(this._activeSession.get(), activeSessionItem)) {
-			return;
-		}
-
-		if (activeSessionItem) {
-			this.logService.info(`[ActiveSessionService] Active session changed: ${activeSessionItem.resource.toString()}`);
-			this.logService.trace(`[ActiveSessionService] Active session details: ${JSON.stringify(activeSessionItem)}`);
+			this.logService.info(`[ActiveSessionService] Active session changed: ${session.resource.toString()}`);
 		} else {
 			this.logService.trace('[ActiveSessionService] Active session cleared');
 		}
 
-		this._isBackgroundProvider.set(activeSessionItem?.providerType === AgentSessionProviders.Background);
-		this._activeSession.set(activeSessionItem, undefined);
-	}
-
-	private equalsSessionItem(a: IActiveSessionItem | undefined, b: IActiveSessionItem | undefined): boolean {
-		if (a === b) {
-			return true;
-		}
-		if (!a || !b) {
-			return false;
-		}
-		return (
-			a.label === b.label &&
-			a.resource.toString() === b.resource.toString() &&
-			a.repository?.toString() === b.repository?.toString() &&
-			a.worktree?.toString() === b.worktree?.toString() &&
-			a.worktreeBranchName === b.worktreeBranchName &&
-			a.providerType === b.providerType &&
-			a.worktreeBaseBranchProtected === b.worktreeBaseBranchProtected
-		);
+		this._activeSessionData.set(session, undefined);
 	}
 
 	async commitWorktreeFiles(session: ISessionData, fileUris: URI[]): Promise<void> {
@@ -611,6 +537,20 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (this.lastSelectedSession) {
 			this.storageService.store(LAST_SELECTED_SESSION_KEY, this.lastSelectedSession.toString(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
+	}
+
+	// -- Session Actions --
+
+	async archiveSession(session: ISessionData): Promise<void> {
+		await this.sessionsProvidersService.archiveSession(session.sessionId);
+	}
+
+	async deleteSession(session: ISessionData): Promise<void> {
+		await this.sessionsProvidersService.deleteSession(session.sessionId);
+	}
+
+	async renameSession(session: ISessionData, title: string): Promise<void> {
+		await this.sessionsProvidersService.renameSession(session.sessionId, title);
 	}
 }
 

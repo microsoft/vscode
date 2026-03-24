@@ -21,6 +21,8 @@ import { SessionsViewId as NewChatViewId } from '../../chat/browser/newChatViewP
 import { SessionsViewPane, SessionsViewPaneId } from './views/sessionsViewPane.js';
 import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { SessionItemToolbarMenuId, SessionItemContextMenuId } from './sessionsListControl.js';
+import { ISessionData } from '../common/sessionData.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
@@ -49,7 +51,7 @@ const agentSessionsViewContainer: ViewContainer = Registry.as<IViewContainersReg
 // 	windowVisibility: WindowVisibility.Sessions
 // }], agentSessionsViewContainer);
 
-// ── New Sessions View Pane (sessions-data-model based) ──
+// -- New Sessions View Pane (sessions-data-model based) --
 
 const sessionsViewPaneDescriptor: IViewDescriptor = {
 	id: SessionsViewPaneId,
@@ -69,7 +71,7 @@ registerSingleton(ISessionsManagementService, SessionsManagementService, Instant
 
 registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.AfterRestored);
 
-// ── Other Actions ──
+// -- Other Actions --
 
 registerAction2(class NewSessionForRepositoryAction extends Action2 {
 
@@ -97,5 +99,55 @@ registerAction2(class NewSessionForRepositoryAction extends Action2 {
 
 		sessionsManagementService.openNewSessionView();
 		await viewsService.openView(NewChatViewId, true);
+	}
+});
+
+// -- Session Item Actions --
+
+registerAction2(class ArchiveSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.archiveSession',
+			title: localize2('archiveSession', "Archive"),
+			icon: Codicon.archive,
+			menu: [{
+				id: SessionItemToolbarMenuId,
+				group: 'navigation',
+				order: 1,
+			}, {
+				id: SessionItemContextMenuId,
+				group: '1_edit',
+				order: 2,
+			}]
+		});
+	}
+	async run(accessor: ServicesAccessor, context?: ISessionData): Promise<void> {
+		if (!context) {
+			return;
+		}
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		await sessionsManagementService.archiveSession(context);
+	}
+});
+
+registerAction2(class DeleteSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.deleteSession',
+			title: localize2('deleteSession', "Delete"),
+			icon: Codicon.trash,
+			menu: [{
+				id: SessionItemContextMenuId,
+				group: '2_delete',
+				order: 0,
+			}]
+		});
+	}
+	async run(accessor: ServicesAccessor, context?: ISessionData): Promise<void> {
+		if (!context) {
+			return;
+		}
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		await sessionsManagementService.deleteSession(context);
 	}
 });
