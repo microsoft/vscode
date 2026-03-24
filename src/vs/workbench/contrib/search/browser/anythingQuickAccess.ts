@@ -1087,8 +1087,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			},
 			accept: (keyMods, event) => this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, preserveFocus: event.inBackground, forcePinned: event.inBackground }),
 			attach: (keyMods, event) => {
-				// Only support adding context to chat when ctrl/cmd is pressed
-				if (keyMods.ctrlCmd) {
+				// Only support adding context to chat when shift is pressed
+				if (keyMods.shift) {
 					const widget = this.chatWidgetService.lastFocusedWidget;
 					if (widget && resource) {
 						widget.attachmentModel.addContext(widget.attachmentModel.asFileVariableEntry(resource));

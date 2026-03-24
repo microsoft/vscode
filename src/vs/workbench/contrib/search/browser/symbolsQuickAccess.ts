@@ -215,8 +215,8 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 				},
 				accept: async (keyMods, event) => this.openSymbol(provider, symbol, token, { keyMods, preserveFocus: event.inBackground, forcePinned: event.inBackground }),
 				attach: (keyMods, event) => {
-					// Only support adding context to chat when cmd/ctrl is pressed
-					if (keyMods.ctrlCmd) {
+					// Only support adding context to chat when shift is pressed
+					if (keyMods.shift) {
 						const widget = this.chatWidgetService.lastFocusedWidget;
 						if (widget) {
 							const entry: ISymbolVariableEntry = {
