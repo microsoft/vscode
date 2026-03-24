@@ -5,18 +5,22 @@
 
 import './media/sessionsList.css';
 import * as DOM from '../../../../base/browser/dom.js';
+import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
+import { ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
+import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { FuzzyScore } from '../../../../base/common/filters.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { IStyleOverride } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
 import { ISessionData, SessionStatus } from '../common/sessionData.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 
@@ -34,12 +38,13 @@ export enum SessionsSorting {
 	Updated = 'updated',
 }
 
-interface ISessionSection {
+export interface ISessionSection {
+	readonly id: string;
 	readonly label: string;
 	readonly sessions: ISessionData[];
 }
 
-type SessionListItem = ISessionData | ISessionSection;
+export type SessionListItem = ISessionData | ISessionSection;
 
 function isSessionSection(item: SessionListItem): item is ISessionSection {
 	return 'sessions' in item && Array.isArray((item as ISessionSection).sessions);
@@ -47,14 +52,14 @@ function isSessionSection(item: SessionListItem): item is ISessionSection {
 
 //#endregion
 
-//#region List Delegate
+//#region Tree Delegate
 
-class SessionsListDelegate implements IListVirtualDelegate<SessionListItem> {
+class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT = 54;
 	private static readonly SECTION_HEIGHT = 26;
 
 	getHeight(element: SessionListItem): number {
-		return isSessionSection(element) ? SessionsListDelegate.SECTION_HEIGHT : SessionsListDelegate.ITEM_HEIGHT;
+		return isSessionSection(element) ? SessionsTreeDelegate.SECTION_HEIGHT : SessionsTreeDelegate.ITEM_HEIGHT;
 	}
 
 	getTemplateId(element: SessionListItem): string {
@@ -70,13 +75,18 @@ interface ISessionItemTemplate {
 	readonly container: HTMLElement;
 	readonly iconContainer: HTMLElement;
 	readonly title: HTMLElement;
-	readonly details: HTMLElement;
-	readonly status: HTMLElement;
+	readonly detailsRow: HTMLElement;
+	readonly workspace: HTMLElement;
+	readonly diffContainer: HTMLElement;
+	readonly diffAdded: HTMLSpanElement;
+	readonly diffRemoved: HTMLSpanElement;
+	readonly description: HTMLElement;
+	readonly time: HTMLElement;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 }
 
-class SessionItemRenderer implements IListRenderer<ISessionData, ISessionItemTemplate> {
+class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionItemTemplate> {
 	static readonly TEMPLATE_ID = 'session-item';
 	readonly templateId = SessionItemRenderer.TEMPLATE_ID;
 
@@ -91,13 +101,25 @@ class SessionItemRenderer implements IListRenderer<ISessionData, ISessionItemTem
 		const titleRow = DOM.append(mainCol, $('.session-title-row'));
 		const title = DOM.append(titleRow, $('.session-title'));
 		const detailsRow = DOM.append(mainCol, $('.session-details-row'));
-		const details = DOM.append(detailsRow, $('.session-details'));
-		const status = DOM.append(detailsRow, $('.session-status'));
+		const workspace = DOM.append(detailsRow, $('span.session-workspace'));
+		const diffContainer = DOM.append(detailsRow, $('span.session-diff'));
+		const diffAdded = DOM.append(diffContainer, $('span.session-diff-added'));
+		const diffRemoved = DOM.append(diffContainer, $('span.session-diff-removed'));
+		const description = DOM.append(detailsRow, $('span.session-description'));
+		const time = DOM.append(detailsRow, $('span.session-time'));
 
-		return { container, iconContainer, title, details, status, disposables, elementDisposables };
+		return { container, iconContainer, title, detailsRow, workspace, diffContainer, diffAdded, diffRemoved, description, time, disposables, elementDisposables };
 	}
 
-	renderElement(element: ISessionData, _index: number, template: ISessionItemTemplate): void {
+	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
+		const element = node.element;
+		if (isSessionSection(element)) {
+			return;
+		}
+		this.renderSession(element, template);
+	}
+
+	private renderSession(element: ISessionData, template: ISessionItemTemplate): void {
 		template.elementDisposables.clear();
 
 		// Icon — reactive based on status
@@ -116,32 +138,72 @@ class SessionItemRenderer implements IListRenderer<ISessionData, ISessionItemTem
 			template.title.textContent = titleText;
 		}));
 
-		// Details — workspace label
-		template.elementDisposables.add(autorun(reader => {
-			const workspace = element.workspace.read(reader);
-			template.details.textContent = workspace?.label ?? '';
-		}));
-
-		// Status time — reactive
-		const statusDisposable = template.elementDisposables.add(new MutableDisposable());
+		// Details row — reactive: workspace, diff stats, description, time
+		const timeDisposable = template.elementDisposables.add(new MutableDisposable());
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = element.status.read(reader);
+			const workspace = element.workspace.read(reader);
+			const changes = element.changes.read(reader);
 			const updatedAt = element.updatedAt.read(reader);
 
-			if (sessionStatus === SessionStatus.InProgress) {
-				template.status.textContent = localize('working', "Working...");
-			} else if (sessionStatus === SessionStatus.NeedsInput) {
-				template.status.textContent = localize('needsInput', "Input needed");
-			} else if (sessionStatus === SessionStatus.Error) {
-				template.status.textContent = localize('failed', "Failed");
-			} else {
-				template.status.textContent = this.formatRelativeTime(updatedAt);
-				// Update relative time periodically
-				const interval = setInterval(() => {
-					template.status.textContent = this.formatRelativeTime(updatedAt);
-				}, 60_000);
-				statusDisposable.value = { dispose: () => clearInterval(interval) };
+			const parts: string[] = [];
+
+			// Workspace label
+			const workspaceLabel = workspace?.label ?? '';
+			template.workspace.textContent = workspaceLabel;
+			template.workspace.classList.toggle('has-detail', workspaceLabel.length > 0);
+			if (workspaceLabel) {
+				parts.push('workspace');
 			}
+
+			// Diff stats
+			let hasDiff = false;
+			if (changes.length > 0) {
+				let insertions = 0;
+				let deletions = 0;
+				for (const change of changes) {
+					insertions += change.insertions;
+					deletions += change.deletions;
+				}
+				if (insertions > 0 || deletions > 0) {
+					template.diffAdded.textContent = `+${insertions}`;
+					template.diffRemoved.textContent = `-${deletions}`;
+					hasDiff = true;
+					parts.push('diff');
+				}
+			}
+			template.diffContainer.classList.toggle('has-detail', hasDiff);
+
+			// Status description
+			let statusText = '';
+			if (sessionStatus === SessionStatus.InProgress) {
+				statusText = localize('working', "Working...");
+			} else if (sessionStatus === SessionStatus.NeedsInput) {
+				statusText = localize('needsInput', "Input needed");
+			} else if (sessionStatus === SessionStatus.Error) {
+				statusText = localize('failed', "Failed");
+			}
+			template.description.textContent = statusText;
+			template.description.classList.toggle('has-detail', statusText.length > 0);
+			if (statusText) {
+				parts.push('status');
+			}
+
+			// Relative timestamp
+			if (!statusText) {
+				template.time.textContent = this.formatRelativeTime(updatedAt);
+				const interval = setInterval(() => {
+					template.time.textContent = this.formatRelativeTime(updatedAt);
+				}, 60_000);
+				timeDisposable.value = { dispose: () => clearInterval(interval) };
+			} else {
+				template.time.textContent = '';
+				timeDisposable.clear();
+			}
+			template.time.classList.toggle('has-detail', template.time.textContent.length > 0);
+
+			// Toggle separator visibility based on how many parts are shown
+			template.detailsRow.classList.toggle('has-multiple', parts.length > 0 || template.time.textContent.length > 0);
 		}));
 	}
 
@@ -179,6 +241,10 @@ class SessionItemRenderer implements IListRenderer<ISessionData, ISessionItemTem
 		}
 	}
 
+	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
+		template.elementDisposables.clear();
+	}
+
 	disposeTemplate(template: ISessionItemTemplate): void {
 		template.disposables.dispose();
 	}
@@ -189,11 +255,12 @@ class SessionItemRenderer implements IListRenderer<ISessionData, ISessionItemTem
 //#region Section Header Renderer
 
 interface ISessionSectionTemplate {
+	readonly container: HTMLElement;
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
 }
 
-class SessionSectionRenderer implements IListRenderer<ISessionSection, ISessionSectionTemplate> {
+class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionSectionTemplate> {
 	static readonly TEMPLATE_ID = 'session-section';
 	readonly templateId = SessionSectionRenderer.TEMPLATE_ID;
 
@@ -201,10 +268,14 @@ class SessionSectionRenderer implements IListRenderer<ISessionSection, ISessionS
 		container.classList.add('session-section');
 		const label = DOM.append(container, $('span.session-section-label'));
 		const count = DOM.append(container, $('span.session-section-count'));
-		return { label, count };
+		return { container, label, count };
 	}
 
-	renderElement(element: ISessionSection, _index: number, template: ISessionSectionTemplate): void {
+	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
+		const element = node.element;
+		if (!isSessionSection(element)) {
+			return;
+		}
 		template.label.textContent = element.label;
 		template.count.textContent = String(element.sessions.length);
 	}
@@ -214,17 +285,40 @@ class SessionSectionRenderer implements IListRenderer<ISessionSection, ISessionS
 
 //#endregion
 
+//#region Accessibility
+
+class SessionsAccessibilityProvider {
+	getWidgetAriaLabel(): string {
+		return localize('sessionsList', "Sessions");
+	}
+
+	getAriaLabel(element: SessionListItem): string | null {
+		if (isSessionSection(element)) {
+			return `${element.label}, ${element.sessions.length}`;
+		}
+		return element.title.get();
+	}
+}
+
+//#endregion
+
 //#region Sessions List Control
 
-export interface ISessionsListOptions {
+export interface ISessionsListControlOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly grouping: () => SessionsGrouping;
 	readonly sorting: () => SessionsSorting;
 	onSessionOpen(resource: URI): void;
 }
 
+/**
+ * @deprecated Use {@link ISessionsListControlOptions} instead.
+ */
+export type ISessionsListOptions = ISessionsListControlOptions;
+
 export interface ISessionsListControl {
 	readonly element: HTMLElement;
+	readonly onDidUpdate: Event<void>;
 	refresh(): void;
 	reveal(sessionResource: URI): boolean;
 	clearFocus(): void;
@@ -238,8 +332,8 @@ export interface ISessionsListControl {
 export class SessionsListControl extends Disposable implements ISessionsListControl {
 
 	private readonly listContainer: HTMLElement;
-	private readonly list!: WorkbenchList<SessionListItem>;
-	private flatItems: SessionListItem[] = [];
+	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
+	private sessions: ISessionData[] = [];
 	private visible = true;
 
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
@@ -249,39 +343,42 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 	constructor(
 		container: HTMLElement,
-		private readonly options: ISessionsListOptions,
+		private readonly options: ISessionsListControlOptions,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this.listContainer = DOM.append(container, $('.sessions-list'));
+		this.listContainer = DOM.append(container, $('.sessions-list-control'));
 
-		// eslint-disable-next-line no-restricted-syntax
-		(this as any).list = this._register(instantiationService.createInstance(WorkbenchList,
-			'SessionsListView',
+		this.tree = this._register(instantiationService.createInstance(
+			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
+			'SessionsListTree',
 			this.listContainer,
-			new SessionsListDelegate(),
+			new SessionsTreeDelegate(),
 			[
 				new SessionItemRenderer(),
 				new SessionSectionRenderer(),
 			],
 			{
+				accessibilityProvider: new SessionsAccessibilityProvider(),
 				identityProvider: {
-					getId: (element: unknown) => {
-						if (isSessionSection(element as SessionListItem)) {
-							return `section-${(element as ISessionSection).label}`;
+					getId: (element: SessionListItem) => {
+						if (isSessionSection(element)) {
+							return `section:${element.id}`;
 						}
-						return (element as ISessionData).resource.toString();
+						return element.resource.toString();
 					}
 				},
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
 				overrideStyles: this.options.overrideStyles,
+				renderIndentGuides: RenderIndentGuides.None,
+				twistieAdditionalCssClass: () => 'force-no-twistie',
 			}
 		));
 
-		this._register(this.list.onDidOpen(e => {
+		this._register(this.tree.onDidOpen(e => {
 			const element = e.element;
 			if (element && !isSessionSection(element)) {
 				this.options.onSessionOpen(element.resource);
@@ -290,52 +387,62 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 		this._register(this.sessionsProvidersService.onDidChangeSessions(() => {
 			if (this.visible) {
-				this.update();
+				this.refresh();
 			}
 		}));
 
-		this.update();
+		this.refresh();
 	}
 
 	refresh(): void {
+		this.sessions = this.sessionsProvidersService.getSessions();
 		this.update();
 	}
 
 	update(): void {
-		const sessions = this.sessionsProvidersService.getSessions();
-		const sorted = this.sortSessions(sessions);
+		const sorted = this.sortSessions(this.sessions);
 		const grouping = this.options.grouping();
+		const sections = grouping === SessionsGrouping.Repository
+			? this.groupByRepository(sorted)
+			: this.groupByDate(sorted);
 
-		if (grouping === SessionsGrouping.Repository) {
-			this.flatItems = this.groupByRepository(sorted);
-		} else {
-			this.flatItems = this.groupByDate(sorted);
-		}
+		const children: IObjectTreeElement<SessionListItem>[] = sections.map(section => ({
+			element: section,
+			collapsible: true,
+			collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+			children: section.sessions.map(session => ({
+				element: session,
+			})),
+		}));
 
-		this.list.splice(0, this.list.length, this.flatItems);
+		this.tree.setChildren(null, children);
 		this._onDidUpdate.fire();
 	}
 
 	reveal(sessionResource: URI): boolean {
-		const index = this.flatItems.findIndex(item =>
-			!isSessionSection(item) && item.resource.toString() === sessionResource.toString()
-		);
-		if (index >= 0) {
-			this.list.reveal(index, 0.5);
-			this.list.setFocus([index]);
-			this.list.setSelection([index]);
-			return true;
+		const resourceStr = sessionResource.toString();
+		for (const session of this.sessions) {
+			if (session.resource.toString() === resourceStr) {
+				if (this.tree.hasElement(session)) {
+					if (this.tree.getRelativeTop(session) === null) {
+						this.tree.reveal(session, 0.5);
+					}
+					this.tree.setFocus([session]);
+					this.tree.setSelection([session]);
+					return true;
+				}
+			}
 		}
 		return false;
 	}
 
 	clearFocus(): void {
-		this.list.setFocus([]);
-		this.list.setSelection([]);
+		this.tree.setFocus([]);
+		this.tree.setSelection([]);
 	}
 
 	hasFocusOrSelection(): boolean {
-		return this.list.getFocus().length > 0 || this.list.getSelection().length > 0;
+		return this.tree.getFocus().length > 0 || this.tree.getSelection().length > 0;
 	}
 
 	setVisible(visible: boolean): void {
@@ -344,16 +451,16 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 		}
 		this.visible = visible;
 		if (this.visible) {
-			this.update();
+			this.refresh();
 		}
 	}
 
 	layout(height: number, width: number): void {
-		this.list.layout(height, width);
+		this.tree.layout(height, width);
 	}
 
 	focus(): void {
-		this.list.domFocus();
+		this.tree.domFocus();
 	}
 
 	// ── Sorting ──
@@ -370,8 +477,9 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 	// ── Grouping ──
 
-	private groupByRepository(sessions: ISessionData[]): SessionListItem[] {
+	private groupByRepository(sessions: ISessionData[]): ISessionSection[] {
 		const groups = new Map<string, ISessionData[]>();
+		const order: string[] = [];
 		for (const session of sessions) {
 			const workspace = session.workspace.get();
 			const label = workspace?.label ?? localize('noProject', "No Project");
@@ -379,19 +487,19 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 			if (!group) {
 				group = [];
 				groups.set(label, group);
+				order.push(label);
 			}
 			group.push(session);
 		}
 
-		const result: SessionListItem[] = [];
-		for (const [label, groupSessions] of groups) {
-			result.push({ label, sessions: groupSessions });
-			result.push(...groupSessions);
-		}
-		return result;
+		return order.map(label => ({
+			id: `repo:${label}`,
+			label,
+			sessions: groups.get(label)!,
+		}));
 	}
 
-	private groupByDate(sessions: ISessionData[]): SessionListItem[] {
+	private groupByDate(sessions: ISessionData[]): ISessionSection[] {
 		const now = new Date();
 		const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 		const startOfYesterday = startOfToday - 86_400_000;
@@ -419,20 +527,19 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 			}
 		}
 
-		const result: SessionListItem[] = [];
-		const addGroup = (label: string, groupSessions: ISessionData[]) => {
+		const sections: ISessionSection[] = [];
+		const addGroup = (id: string, label: string, groupSessions: ISessionData[]) => {
 			if (groupSessions.length > 0) {
-				result.push({ label, sessions: groupSessions });
-				result.push(...groupSessions);
+				sections.push({ id, label, sessions: groupSessions });
 			}
 		};
 
-		addGroup(localize('today', "Today"), today);
-		addGroup(localize('yesterday', "Yesterday"), yesterday);
-		addGroup(localize('thisWeek', "This Week"), week);
-		addGroup(localize('older', "Older"), older);
+		addGroup('today', localize('today', "Today"), today);
+		addGroup('yesterday', localize('yesterday', "Yesterday"), yesterday);
+		addGroup('thisWeek', localize('thisWeek', "This Week"), week);
+		addGroup('older', localize('older', "Older"), older);
 
-		return result;
+		return sections;
 	}
 }
 

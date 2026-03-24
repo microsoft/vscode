@@ -3,9 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.sessions-list {
+.sessions-list-control {
 	flex: 1 1 auto;
 	overflow: hidden;
+}
+
+/* Hide tree twisties — sections expand/collapse but we do not show arrows */
+.sessions-list-control .force-no-twistie {
+	display: none !important;
 }
 
 /* ── Session Item ── */
@@ -26,6 +31,7 @@
 	justify-content: center;
 	width: 16px;
 	height: 17px;
+	font-size: 12px;
 	margin-top: 1px;
 }
 
@@ -71,23 +77,63 @@
 	flex: 1;
 }
 
+/* ── Details row: workspace · +N -N · description · time ── */
+
 .session-details-row {
 	display: flex;
 	align-items: center;
-	gap: 4px;
 	font-size: 12px;
 	line-height: 15px;
 	color: var(--vscode-descriptionForeground);
 }
 
-.session-details {
+/* Inline separator dot between visible detail parts */
+.session-workspace.has-detail::after,
+.session-diff.has-detail::after,
+.session-description.has-detail::after {
+	content: '\00b7';
+	margin: 0 4px;
+	opacity: 0.7;
+}
+
+.session-workspace {
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	flex-shrink: 1;
 }
 
-.session-status {
+.session-workspace:not(.has-detail),
+.session-diff:not(.has-detail),
+.session-description:not(.has-detail),
+.session-time:not(.has-detail) {
+	display: none;
+}
+
+/* Diff stats */
+.session-diff {
+	display: inline-flex;
+	gap: 4px;
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.session-diff-added {
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.session-diff-removed {
+	color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+/* Status description */
+.session-description {
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+/* Relative time */
+.session-time {
 	white-space: nowrap;
 	margin-left: auto;
 	flex-shrink: 0;
