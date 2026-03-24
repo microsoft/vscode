@@ -43,6 +43,9 @@
 	width: fit-content;
 	flex-grow: 0;
 	justify-content: flex-end;
+}
+
+.agent-sessions-workbench.monaco-workbench:not(.windows) .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container {
 	margin-right: 12px;
 }
 
