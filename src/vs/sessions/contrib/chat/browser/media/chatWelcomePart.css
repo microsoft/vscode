@@ -188,13 +188,7 @@
 	font-size: 16px;
 	margin-left: 6px;
 	line-height: 1;
-	transform: translateY(1px) rotate(0deg);
-	transform-origin: center;
-	transition: transform 0.15s ease;
-}
-
-.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label.expanded .sessions-chat-dropdown-chevron {
-	transform: translateY(1px) rotate(180deg);
+	transform: translateY(1px);
 }
 
 .sessions-chat-dropdown-label {
