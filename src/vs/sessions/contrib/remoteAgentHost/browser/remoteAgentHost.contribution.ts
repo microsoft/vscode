@@ -262,12 +262,19 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			if (cached) {
 				return cached;
 			}
-			const activeSessionItem = this._sessionsManagementService.getActiveSession();
-			if (activeSessionItem?.repository) {
-				// Decode the agent host URI to get the actual remote filesystem path
-				const dir = agentHostRemotePath(activeSessionItem.repository);
-				sessionWorkingDirs.set(resourceKey, dir);
-				return dir;
+			const repository = this._sessionsManagementService.getActiveSession()?.repository;
+			if (repository) {
+				let dir: string | undefined;
+				if (repository.scheme === AGENT_HOST_SCHEME) {
+					// Decode the agent host URI to get the actual remote filesystem path
+					dir = agentHostRemotePath(repository);
+				} else if (repository.scheme === 'file') {
+					dir = repository.fsPath || repository.path;
+				}
+				if (dir) {
+					sessionWorkingDirs.set(resourceKey, dir);
+					return dir;
+				}
 			}
 			return undefined;
 		};
