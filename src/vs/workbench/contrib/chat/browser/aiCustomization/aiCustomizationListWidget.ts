@@ -1116,6 +1116,13 @@ export class AICustomizationListWidget extends Disposable {
 		if (promptType === PromptsType.agent) {
 			// Use getCustomAgents which has parsed name/description from frontmatter
 			const agents = await this.promptsService.getCustomAgents(CancellationToken.None);
+			// Build extension display name lookup from raw file list
+			const allAgentFiles = await this.promptsService.listPromptFiles(PromptsType.agent, CancellationToken.None);
+			for (const file of allAgentFiles) {
+				if (file.extension) {
+					extensionInfoByUri.set(file.uri.toString(), { id: file.extension.identifier, displayName: file.extension.displayName });
+				}
+			}
 			for (const agent of agents) {
 				const filename = basename(agent.uri);
 				items.push({
@@ -1129,8 +1136,8 @@ export class AICustomizationListWidget extends Disposable {
 					pluginUri: agent.source.storage === PromptsStorage.plugin ? agent.source.pluginUri : undefined,
 					disabled: disabledUris.has(agent.uri),
 				});
-				// Track extension ID for built-in grouping
-				if (agent.source.storage === PromptsStorage.extension) {
+				// Track extension ID for built-in grouping (if not already set from file list)
+				if (agent.source.storage === PromptsStorage.extension && !extensionInfoByUri.has(agent.uri.toString())) {
 					extensionInfoByUri.set(agent.uri.toString(), { id: agent.source.extensionId });
 				}
 			}
