@@ -43,7 +43,7 @@ export class ExtensionToolbarPickers extends Disposable {
 
 		// Observe active session and render toolbar pickers when it has option groups
 		this._register(autorun(reader => {
-			const session = this.sessionsManagementService.activeSessionData.read(reader);
+			const session = this.sessionsManagementService.activeSession.read(reader);
 			this._sessionDisposables.clear();
 
 			if (session) {
@@ -66,6 +66,7 @@ export class ExtensionToolbarPickers extends Disposable {
 		// Get the current new session from the provider's internal state
 		const providers = this.sessionsProvidersService.getProviders();
 		for (const provider of providers) {
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 			const currentSession = (provider as any)._currentNewSession;
 			if (currentSession instanceof RemoteNewSession) {
 				this._renderToolbarPickers(currentSession, true);

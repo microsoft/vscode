@@ -201,7 +201,7 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 				override readonly onDidChangeLanguageModels = Event.None;
 			}());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-				override readonly activeSessionData = observableValue<ISessionData | undefined>('activeSession', undefined);
+				override readonly activeSession = observableValue<ISessionData | undefined>('activeSession', undefined);
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;

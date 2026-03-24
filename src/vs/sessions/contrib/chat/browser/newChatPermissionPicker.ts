@@ -57,7 +57,7 @@ export class NewChatPermissionPicker extends Disposable {
 
 		// Write permission level to the active session data when it changes
 		this._register(this.onDidChangeLevel(level => {
-			const session = this.sessionsManagementService.activeSessionData.get();
+			const session = this.sessionsManagementService.activeSession.get();
 			if (!(session instanceof CopilotCLISession)) {
 				throw new Error('NewChatPermissionPicker requires a CopilotCLISession');
 			}

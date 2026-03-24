@@ -353,18 +353,22 @@ export interface ISessionsListControl {
 	pinSession(session: ISessionData): void;
 	unpinSession(session: ISessionData): void;
 	isSessionPinned(session: ISessionData): boolean;
+	setSessionTypeExcluded(sessionTypeId: string, excluded: boolean): void;
+	isSessionTypeExcluded(sessionTypeId: string): boolean;
 }
 
 export class SessionsListControl extends Disposable implements ISessionsListControl {
 
 	private static readonly SECTION_COLLAPSE_STATE_KEY = 'sessionsListControl.sectionCollapseState';
 	private static readonly PINNED_SESSIONS_KEY = 'sessionsListControl.pinnedSessions';
+	private static readonly EXCLUDED_TYPES_KEY = 'sessionsListControl.excludedSessionTypes';
 
 	private readonly listContainer: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
 	private sessions: ISessionData[] = [];
 	private visible = true;
 	private readonly pinnedSessionIds: Set<string>;
+	private readonly excludedSessionTypes: Set<string>;
 
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
 	readonly onDidUpdate: Event<void> = this._onDidUpdate.event;
@@ -383,6 +387,9 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 		// Load pinned sessions from storage
 		this.pinnedSessionIds = this.loadPinnedSessions();
+
+		// Load excluded session types from storage
+		this.excludedSessionTypes = this.loadExcludedSessionTypes();
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control'));
 
@@ -453,7 +460,12 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 	}
 
 	update(): void {
-		const sorted = this.sortSessions(this.sessions);
+		// Filter by session type
+		const filtered = this.excludedSessionTypes.size > 0
+			? this.sessions.filter(s => !this.excludedSessionTypes.has(s.sessionType))
+			: this.sessions;
+
+		const sorted = this.sortSessions(filtered);
 
 		// Separate pinned sessions
 		const pinned: ISessionData[] = [];
@@ -583,6 +595,45 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 			this.storageService.remove(SessionsListControl.PINNED_SESSIONS_KEY, StorageScope.PROFILE);
 		} else {
 			this.storageService.store(SessionsListControl.PINNED_SESSIONS_KEY, JSON.stringify([...this.pinnedSessionIds]), StorageScope.PROFILE, StorageTarget.USER);
+		}
+	}
+
+	// -- Session type filtering --
+
+	setSessionTypeExcluded(sessionTypeId: string, excluded: boolean): void {
+		if (excluded) {
+			this.excludedSessionTypes.add(sessionTypeId);
+		} else {
+			this.excludedSessionTypes.delete(sessionTypeId);
+		}
+		this.saveExcludedSessionTypes();
+		this.update();
+	}
+
+	isSessionTypeExcluded(sessionTypeId: string): boolean {
+		return this.excludedSessionTypes.has(sessionTypeId);
+	}
+
+	private loadExcludedSessionTypes(): Set<string> {
+		const raw = this.storageService.get(SessionsListControl.EXCLUDED_TYPES_KEY, StorageScope.PROFILE);
+		if (raw) {
+			try {
+				const arr = JSON.parse(raw);
+				if (Array.isArray(arr)) {
+					return new Set(arr);
+				}
+			} catch {
+				// ignore corrupt data
+			}
+		}
+		return new Set();
+	}
+
+	private saveExcludedSessionTypes(): void {
+		if (this.excludedSessionTypes.size === 0) {
+			this.storageService.remove(SessionsListControl.EXCLUDED_TYPES_KEY, StorageScope.PROFILE);
+		} else {
+			this.storageService.store(SessionsListControl.EXCLUDED_TYPES_KEY, JSON.stringify([...this.excludedSessionTypes]), StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 

@@ -173,7 +173,7 @@ suite('CodeReviewService', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() { }());
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override readonly activeSessionData = observableValue<ISessionData | undefined>('test.activeSession', undefined);
+			override readonly activeSession = observableValue<ISessionData | undefined>('test.activeSession', undefined);
 		}());
 
 		storageService = store.add(new InMemoryStorageService());

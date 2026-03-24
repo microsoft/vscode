@@ -64,7 +64,7 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 		const productService = accessor.get(IProductService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 
-		const activeSession = sessionsManagementService.activeSessionData.get();
+		const activeSession = sessionsManagementService.activeSession.get();
 		if (!activeSession) {
 			return;
 		}

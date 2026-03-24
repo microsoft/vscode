@@ -88,7 +88,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 		// Re-render when the active session, its data, or the active provider changes
 		this._register(autorun(reader => {
-			const sessionData = this.activeSessionService.activeSessionData.read(reader);
+			const sessionData = this.activeSessionService.activeSession.read(reader);
 			this._trackModelTitleChanges(sessionData?.resource);
 			if (sessionData) {
 				sessionData.title.read(reader);
@@ -320,7 +320,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 * Get the label of the active chat session.
 	 */
 	private _getActiveSessionLabel(): string {
-		const sessionData = this.activeSessionService.activeSessionData.get();
+		const sessionData = this.activeSessionService.activeSession.get();
 		if (sessionData) {
 			return sessionData.title.get() || localize('agentSessions.newSession', "New Session");
 		}
@@ -331,7 +331,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 * Get the icon for the active session's type.
 	 */
 	private _getActiveSessionIcon(): ThemeIcon | undefined {
-		const sessionData = this.activeSessionService.activeSessionData.get();
+		const sessionData = this.activeSessionService.activeSession.get();
 		if (sessionData) {
 			return sessionData.icon;
 		}
@@ -342,7 +342,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 * Get the repository label for the active session.
 	 */
 	private _getRepositoryLabel(): string | undefined {
-		const sessionData = this.activeSessionService.activeSessionData.get();
+		const sessionData = this.activeSessionService.activeSession.get();
 		if (sessionData) {
 			const workspace = sessionData.workspace.get();
 			if (workspace) {
@@ -356,7 +356,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 * Whether the active session is untitled (no messages sent yet).
 	 */
 	private _isUntitledSession(): boolean {
-		const sessionData = this.activeSessionService.activeSessionData.get();
+		const sessionData = this.activeSessionService.activeSession.get();
 		if (sessionData) {
 			return sessionData.status.get() === SessionStatus.Untitled;
 		}
@@ -368,7 +368,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	private _showContextMenu(e: MouseEvent): void {
-		const sessionData = this.activeSessionService.activeSessionData.get();
+		const sessionData = this.activeSessionService.activeSession.get();
 		if (!sessionData) {
 			return;
 		}

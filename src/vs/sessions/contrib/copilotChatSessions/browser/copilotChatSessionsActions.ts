@@ -33,7 +33,7 @@ const IsActiveSessionCopilotCLI = ContextKeyExpr.equals('activeSessionType', COP
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals('activeSessionProviderId', COPILOT_PROVIDER_ID);
 const IsActiveSessionCopilotChatCLI = ContextKeyExpr.and(IsActiveSessionCopilotCLI, IsActiveCopilotChatSessionProvider);
 
-// ── Actions ──
+// -- Actions --
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -141,7 +141,7 @@ registerAction2(class extends Action2 {
 	override async run(): Promise<void> { /* handled by action view item */ }
 });
 
-// ── Helper ──
+// -- Helper --
 
 /**
  * Wraps a standalone picker widget as a {@link BaseActionViewItem}
@@ -162,7 +162,7 @@ class PickerActionViewItem extends BaseActionViewItem {
 	}
 }
 
-// ── Action View Item Registrations ──
+// -- Action View Item Registrations --
 
 class CopilotPickerActionViewItemContribution extends Disposable implements IWorkbenchContribution {
 
@@ -206,7 +206,7 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 					currentModel,
 					setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 						currentModel.set(model, undefined);
-						const session = sessionsManagementService.activeSessionData.get();
+						const session = sessionsManagementService.activeSession.get();
 						if (session) {
 							const provider = sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
 							provider?.setModel(session.sessionId, model.identifier);
@@ -265,7 +265,7 @@ function getAvailableModels(languageModelsService: ILanguageModelsService): ILan
 		.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m && m.metadata.targetChatSessionType === AgentSessionProviders.Background);
 }
 
-// ── Context Key Contribution ──
+// -- Context Key Contribution --
 
 class CopilotActiveSessionContribution extends Disposable implements IWorkbenchContribution {
 
@@ -280,7 +280,7 @@ class CopilotActiveSessionContribution extends Disposable implements IWorkbenchC
 		const hasRepositoryKey = ActiveSessionHasGitRepositoryContext.bindTo(contextKeyService);
 
 		this._register(autorun((reader: IReader) => {
-			const session = sessionsManagementService.activeSessionData.read(reader);
+			const session = sessionsManagementService.activeSession.read(reader);
 			if (session instanceof CopilotCLISession) {
 				const isLoading = session.loading.read(reader);
 				hasRepositoryKey.set(!isLoading && !!session.gitRepository);

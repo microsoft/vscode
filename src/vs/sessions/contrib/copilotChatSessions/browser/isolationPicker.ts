@@ -62,7 +62,7 @@ export class IsolationPicker extends Disposable {
 		}));
 
 		this._register(autorun(reader => {
-			const session = this.sessionsManagementService.activeSessionData.read(reader);
+			const session = this.sessionsManagementService.activeSession.read(reader);
 			if (session instanceof CopilotCLISession) {
 				const isLoading = session.loading.read(reader);
 				this.setHasGitRepo(!isLoading && !!session.gitRepository);
@@ -162,7 +162,7 @@ export class IsolationPicker extends Disposable {
 			this._updateTriggerLabel();
 			this._onDidChange.fire(mode);
 
-			const session = this.sessionsManagementService.activeSessionData.get();
+			const session = this.sessionsManagementService.activeSession.get();
 			if (!(session instanceof CopilotCLISession)) {
 				throw new Error('IsolationPicker requires a CopilotCLISession');
 			}

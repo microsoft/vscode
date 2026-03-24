@@ -66,7 +66,7 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 
 			const resource = URI.isUri(sessionResource)
 				? sessionResource
-				: sessionManagementService.activeSessionData.get()?.resource;
+				: sessionManagementService.activeSession.get()?.resource;
 			if (!resource) {
 				return;
 			}
@@ -130,7 +130,7 @@ class CodeReviewToolbarContribution extends Disposable implements IWorkbenchCont
 		const sessionsChangedSignal = observableSignalFromEvent(this, this._agentSessionsService.model.onDidChangeSessions);
 
 		this._register(autorun(reader => {
-			const activeSession = this._sessionManagementService.activeSessionData.read(reader);
+			const activeSession = this._sessionManagementService.activeSession.read(reader);
 			sessionsChangedSignal.read(reader);
 			this._actionRegistration.clear();
 

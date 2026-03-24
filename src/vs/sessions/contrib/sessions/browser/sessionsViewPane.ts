@@ -192,7 +192,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 
 		// When the active session changes, select it in the tree
 		this._register(autorun(reader => {
-			const activeSession = this.activeSessionService.activeSessionData.read(reader);
+			const activeSession = this.activeSessionService.activeSession.read(reader);
 			if (activeSession) {
 				if (!sessionsControl.reveal(activeSession.resource)) {
 					sessionsControl.clearFocus();
@@ -214,7 +214,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 	}
 
 	private restoreLastSelectedSession(): void {
-		const activeSession = this.activeSessionService.activeSessionData.get();
+		const activeSession = this.activeSessionService.activeSession.get();
 		if (activeSession && this.sessionsControl) {
 			this.sessionsControl.reveal(activeSession.resource);
 		}

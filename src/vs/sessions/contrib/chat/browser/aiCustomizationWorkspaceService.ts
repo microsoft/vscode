@@ -59,7 +59,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			if (override) {
 				return override;
 			}
-			const session = this.sessionsService.activeSessionData.read(reader);
+			const session = this.sessionsService.activeSession.read(reader);
 			const repo = session?.workspace.read(reader)?.repositories[0];
 			return repo?.workingDirectory ?? repo?.uri;
 		});
@@ -74,7 +74,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		if (override) {
 			return override;
 		}
-		const session = this.sessionsService.activeSessionData.get();
+		const session = this.sessionsService.activeSession.get();
 		const repo = session?.workspace.get()?.repositories[0];
 		return repo?.workingDirectory ?? repo?.uri;
 	}
@@ -109,7 +109,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 * the file is also committed there so the session sees it immediately.
 	 */
 	async commitFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
-		const session = this.sessionsService.activeSessionData.get();
+		const session = this.sessionsService.activeSession.get();
 		const repo = session?.workspace.get()?.repositories[0];
 		if (!repo?.uri) {
 			return;
@@ -126,7 +126,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 * in the worktree if one is active.
 	 */
 	async deleteFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
-		const session = this.sessionsService.activeSessionData.get();
+		const session = this.sessionsService.activeSession.get();
 		const repo = session?.workspace.get()?.repositories[0];
 		if (!repo?.uri) {
 			return;

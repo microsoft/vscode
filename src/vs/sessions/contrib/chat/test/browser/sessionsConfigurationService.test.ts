@@ -141,7 +141,7 @@ suite('SessionsConfigurationService', () => {
 		});
 
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSessionData = activeSessionObs;
+			override activeSession = activeSessionObs;
 			override async commitWorktreeFiles(session: ISessionData, fileUris: URI[]) { committedFiles.push({ session, fileUris }); }
 		});
 

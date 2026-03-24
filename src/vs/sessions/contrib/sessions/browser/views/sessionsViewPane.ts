@@ -8,6 +8,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorsVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -32,11 +33,13 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/k
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
+import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 
 const $ = DOM.$;
 export const SessionsViewPaneId = 'agentic.workbench.view.sessionsViewPane';
 const ACTION_ID_NEW_SESSION = 'workbench.action.chat.newChat';
 const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
+const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
 const SessionsViewGroupingContext = new RawContextKey<string>('sessionsViewPane.grouping', SessionsGrouping.Repository);
 const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);
 const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
@@ -51,6 +54,7 @@ export class SessionsViewPane extends ViewPane {
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
 	private groupingContextKey: IContextKey | undefined;
 	private sortingContextKey: IContextKey | undefined;
+	private readonly filterActionDisposables = this._register(new DisposableStore());
 
 	constructor(
 		options: IViewPaneOptions,
@@ -66,6 +70,7 @@ export class SessionsViewPane extends ViewPane {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IHostService private readonly hostService: IHostService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -141,6 +146,12 @@ export class SessionsViewPane extends ViewPane {
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 
+		// Register session type filter actions (re-register when providers change)
+		this.registerSessionTypeFilters(sessionsControl);
+		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
+			this.registerSessionTypeFilters(sessionsControl);
+		}));
+
 		// Refresh sessions when window gets focus to compensate for missing events
 		this._register(this.hostService.onDidChangeFocus(hasFocus => {
 			if (hasFocus) {
@@ -157,7 +168,7 @@ export class SessionsViewPane extends ViewPane {
 
 		// When the active session changes, select it in the list
 		this._register(autorun(reader => {
-			const activeSession = this.sessionsManagementService.activeSessionData.read(reader);
+			const activeSession = this.sessionsManagementService.activeSession.read(reader);
 			if (activeSession) {
 				if (!sessionsControl.reveal(activeSession.resource)) {
 					sessionsControl.clearFocus();
@@ -179,9 +190,40 @@ export class SessionsViewPane extends ViewPane {
 	}
 
 	private restoreLastSelectedSession(): void {
-		const activeSession = this.sessionsManagementService.activeSessionData.get();
+		const activeSession = this.sessionsManagementService.activeSession.get();
 		if (activeSession && this.sessionsControl) {
 			this.sessionsControl.reveal(activeSession.resource);
+		}
+	}
+
+	private registerSessionTypeFilters(sessionsControl: SessionsListControl): void {
+		this.filterActionDisposables.clear();
+
+		const sessionTypes = this.sessionsManagementService.getAllSessionTypes();
+		for (let i = 0; i < sessionTypes.length; i++) {
+			const type = sessionTypes[i];
+			const contextKey = new RawContextKey<boolean>(`sessionsViewPane.filterType.${type.id}`, !sessionsControl.isSessionTypeExcluded(type.id));
+			const contextKeyInstance = contextKey.bindTo(this.scopedContextKeyService);
+
+			this.filterActionDisposables.add(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: `sessionsViewPane.filterType.${type.id}`,
+						title: type.label,
+						toggled: ContextKeyExpr.equals(contextKey.key, true),
+						menu: [{
+							id: SessionsViewFilterOptionsSubMenu,
+							group: '1_types',
+							order: i,
+						}]
+					});
+				}
+				override run() {
+					const isExcluded = sessionsControl.isSessionTypeExcluded(type.id);
+					sessionsControl.setSessionTypeExcluded(type.id, !isExcluded);
+					contextKeyInstance.set(isExcluded); // was excluded, now included (toggle)
+				}
+			}));
 		}
 	}
 
@@ -275,6 +317,13 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	order: 3,
 	icon: Codicon.settings,
 	when: ContextKeyExpr.equals('view', SessionsViewPaneId)
+});
+
+MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {
+	submenu: SessionsViewFilterOptionsSubMenu,
+	title: localize2('filter', "Filter"),
+	group: '0_filter',
+	order: 0,
 });
 
 registerAction2(class SortByCreatedAction extends Action2 {

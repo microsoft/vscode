@@ -33,7 +33,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 	) {
 		super();
 		this._register(autorun(reader => {
-			const activeSession = this.sessionManagementService.activeSessionData.read(reader);
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
 			this.queue.queue(() => this.updateWorkspaceFoldersForSession(activeSession));
 		}));
 	}

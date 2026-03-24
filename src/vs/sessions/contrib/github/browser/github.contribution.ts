@@ -29,7 +29,7 @@ class GitHubActiveSessionRefreshContribution extends Disposable implements IWork
 		super();
 
 		this._register(autorun(reader => {
-			const session = this._sessionsManagementService.activeSessionData.read(reader);
+			const session = this._sessionsManagementService.activeSession.read(reader);
 			if (!session) {
 				this._lastSessionResource = undefined;
 				return;

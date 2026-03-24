@@ -324,7 +324,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		this._registerSessionListeners();
 
 		this._register(autorun(reader => {
-			const activeSession = this._sessionsManagementService.activeSessionData.read(reader);
+			const activeSession = this._sessionsManagementService.activeSession.read(reader);
 			if (activeSession) {
 				this._ensurePRReviewInitialized(activeSession.resource);
 			}

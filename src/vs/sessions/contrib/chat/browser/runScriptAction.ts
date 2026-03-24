@@ -135,7 +135,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 						&& t1.task.runOptions?.runOn === t2.task.runOptions?.runOn);
 			}
 		}, reader => {
-			const activeSession = this._activeSessionService.activeSessionData.read(reader);
+			const activeSession = this._activeSessionService.activeSession.read(reader);
 			if (!activeSession) {
 				return undefined;
 			}

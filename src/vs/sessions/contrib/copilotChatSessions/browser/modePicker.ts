@@ -212,7 +212,7 @@ export class ModePicker extends Disposable {
 		this._updateTriggerLabel();
 		this._onDidChange.fire(mode);
 
-		const session = this.sessionsManagementService.activeSessionData.get();
+		const session = this.sessionsManagementService.activeSession.get();
 		if (session instanceof CopilotCLISession) {
 			session.setMode(mode);
 		}

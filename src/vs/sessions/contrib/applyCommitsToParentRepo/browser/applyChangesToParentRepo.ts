@@ -42,7 +42,7 @@ class ApplyChangesToParentRepoContribution extends Disposable implements IWorkbe
 		const worktreeAndRepoKey = hasWorktreeAndRepositoryContextKey.bindTo(contextKeyService);
 
 		this._register(autorun(reader => {
-			const activeSession = sessionManagementService.activeSessionData.read(reader);
+			const activeSession = sessionManagementService.activeSession.read(reader);
 			const repo = activeSession?.workspace.read(reader)?.repositories[0];
 			const hasWorktreeAndRepo = !!repo?.workingDirectory && !!repo?.uri;
 			worktreeAndRepoKey.set(hasWorktreeAndRepo);
@@ -86,7 +86,7 @@ class ApplyChangesToParentRepoAction extends Action2 {
 		const openerService = accessor.get(IOpenerService);
 		const productService = accessor.get(IProductService);
 
-		const activeSession = sessionManagementService.activeSessionData.get();
+		const activeSession = sessionManagementService.activeSession.get();
 		const repo = activeSession?.workspace.get()?.repositories[0];
 		if (!activeSession || !repo?.workingDirectory || !repo?.uri) {
 			return;

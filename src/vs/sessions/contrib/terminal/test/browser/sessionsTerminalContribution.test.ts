@@ -173,7 +173,7 @@ suite('SessionsTerminalContribution', () => {
 		instantiationService.stub(ILogService, logService);
 
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSessionData = activeSessionObs;
+			override activeSession = activeSessionObs;
 		});
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {

@@ -32,7 +32,7 @@ export class SessionTypePicker extends Disposable {
 		super();
 
 		this._register(autorun(reader => {
-			const session = this.sessionsManagementService.activeSessionData.read(reader);
+			const session = this.sessionsManagementService.activeSession.read(reader);
 			if (session) {
 				this._sessionTypes = this.sessionsProvidersService.getSessionTypes(session);
 				this._sessionType = session.sessionType;
@@ -79,7 +79,7 @@ export class SessionTypePicker extends Disposable {
 			return;
 		}
 
-		const session = this.sessionsManagementService.activeSessionData.get();
+		const session = this.sessionsManagementService.activeSession.get();
 		if (!session) {
 			return;
 		}

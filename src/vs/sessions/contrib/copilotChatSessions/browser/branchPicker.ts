@@ -53,7 +53,7 @@ export class BranchPicker extends Disposable {
 
 		// Watch the active session — load branches when a CopilotCLISession finishes loading
 		this._register(autorun(reader => {
-			const session = this.sessionsManagementService.activeSessionData.read(reader);
+			const session = this.sessionsManagementService.activeSession.read(reader);
 			if (session instanceof CopilotCLISession) {
 				const isLoading = session.loading.read(reader);
 				if (!isLoading && session.gitRepository) {
@@ -196,7 +196,7 @@ export class BranchPicker extends Disposable {
 			this._onDidChange.fire(branch);
 			this._updateTriggerLabel();
 
-			const session = this.sessionsManagementService.activeSessionData.get();
+			const session = this.sessionsManagementService.activeSession.get();
 			if (!(session instanceof CopilotCLISession)) {
 				throw new Error('BranchPicker requires a CopilotCLISession');
 			}

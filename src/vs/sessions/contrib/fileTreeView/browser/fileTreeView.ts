@@ -229,7 +229,7 @@ export class FileTreeViewPane extends ViewPane {
 		);
 
 		this.treeRootUri = derived(reader => {
-			const activeSession = this.sessionManagementService.activeSessionData.read(reader);
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
 			sessionsChangedSignal.read(reader); // re-evaluate when sessions data updates
 			return this.resolveTreeRoot(activeSession);
 		});

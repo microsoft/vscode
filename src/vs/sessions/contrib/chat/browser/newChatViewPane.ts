@@ -145,7 +145,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Update send button and loading state when active session changes or loads
 		this._register(autorun(reader => {
-			const session = this.sessionsManagementService.activeSessionData.read(reader);
+			const session = this.sessionsManagementService.activeSession.read(reader);
 			const isLoading = session?.loading.read(reader) ?? false;
 			this._loadingSpinner?.classList.toggle('visible', isLoading);
 			this._updateSendButtonState();
@@ -508,7 +508,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			return;
 		}
 		const hasText = !!this._editor?.getModel()?.getValue().trim();
-		const session = this.sessionsManagementService.activeSessionData.get();
+		const session = this.sessionsManagementService.activeSession.get();
 		const hasActiveSession = !!session;
 		const isLoading = session?.loading.get() ?? false;
 		this._sendButton.enabled = !this._sending && hasText && hasActiveSession && !isLoading;
@@ -553,7 +553,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._updateInputLoadingState();
 
 		try {
-			const session = this.sessionsManagementService.activeSessionData.get();
+			const session = this.sessionsManagementService.activeSession.get();
 			if (!session) {
 				return;
 			}

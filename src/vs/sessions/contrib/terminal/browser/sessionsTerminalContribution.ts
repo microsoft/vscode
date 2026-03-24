@@ -77,7 +77,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 		// React to active session changes — use worktree/repo for background sessions, home dir otherwise
 		this._register(autorun(reader => {
-			const session = this._sessionsManagementService.activeSessionData.read(reader);
+			const session = this._sessionsManagementService.activeSession.read(reader);
 			this._onActiveSessionChanged(session);
 		}));
 
@@ -332,7 +332,7 @@ class OpenSessionInTerminalAction extends Action2 {
 		const sessionsManagementService = _accessor.get(ISessionsManagementService);
 		const pathService = _accessor.get(IPathService);
 
-		const activeSession = sessionsManagementService.activeSessionData.get();
+		const activeSession = sessionsManagementService.activeSession.get();
 		const cwd = getSessionCwd(activeSession) ?? await pathService.userHome();
 		await contribution.ensureTerminal(cwd, true);
 		viewsService.openView(TERMINAL_VIEW_ID);

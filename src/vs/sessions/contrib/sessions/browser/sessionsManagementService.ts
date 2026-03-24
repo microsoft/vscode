@@ -64,6 +64,11 @@ export interface ISessionsManagementService {
 	getSessions(): ISessionData[];
 
 	/**
+	 * Get all session types from all registered providers.
+	 */
+	getAllSessionTypes(): ISessionType[];
+
+	/**
 	 * Fires when sessions change across any provider.
 	 */
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
@@ -73,7 +78,7 @@ export interface ISessionsManagementService {
 	/**
 	 * Observable for the currently active session as {@link ISessionData}.
 	 */
-	readonly activeSessionData: IObservable<ISessionData | undefined>;
+	readonly activeSession: IObservable<ISessionData | undefined>;
 
 	/**
 	 * Observable for the currently active sessions provider ID.
@@ -163,8 +168,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionsChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent> = this._onDidChangeSessions.event;
 
-	private readonly _activeSessionData = observableValue<ISessionData | undefined>(this, undefined);
-	readonly activeSessionData: IObservable<ISessionData | undefined> = this._activeSessionData;
+	private readonly _activeSession = observableValue<ISessionData | undefined>(this, undefined);
+	readonly activeSession: IObservable<ISessionData | undefined> = this._activeSession;
 	private readonly _newSessionObservable = observableValue<ISessionData | undefined>(this, undefined);
 	readonly newSession: IObservable<ISessionData | undefined> = this._newSessionObservable;
 	private readonly _activeProviderId = observableValue<string | undefined>(this, undefined);
@@ -212,7 +217,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// Clear active session if the active session gets archived
 		this._register(this.agentSessionsService.model.onDidChangeSessionArchivedState(e => {
 			if (e.isArchived()) {
-				const currentActive = this._activeSessionData.get();
+				const currentActive = this._activeSession.get();
 				if (currentActive && currentActive.resource.toString() === e.resource.toString()) {
 					this.openNewSessionView();
 				}
@@ -249,7 +254,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private refreshActiveSessionFromModel(): void {
-		const currentActive = this._activeSessionData.get();
+		const currentActive = this._activeSession.get();
 		if (!currentActive) {
 			return;
 		}
@@ -304,6 +309,20 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this.sessionsProvidersService.getSessions();
 	}
 
+	getAllSessionTypes(): ISessionType[] {
+		const types: ISessionType[] = [];
+		const seen = new Set<string>();
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			for (const type of provider.sessionTypes) {
+				if (!seen.has(type.id)) {
+					seen.add(type.id);
+					types.push(type);
+				}
+			}
+		}
+		return types;
+	}
+
 	async openSession(sessionResource: URI): Promise<void> {
 		const sessionData = this.sessionsProvidersService.getSessions().find(s => s.resource.toString() === sessionResource.toString());
 		if (!sessionData) {
@@ -331,7 +350,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		this._newSessionObservable.set(sessionData, undefined);
 		this.setActiveSession(sessionData);
-		this._activeSessionData.set(sessionData, undefined);
+		this._activeSession.set(sessionData, undefined);
 		return sessionData;
 	}
 
@@ -343,10 +362,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		const updatedSession = provider.setSessionType(session.sessionId, type);
 
-		const activeSession = this._activeSessionData.get();
+		const activeSession = this._activeSession.get();
 		if (activeSession && activeSession.sessionId === session.sessionId) {
 			this._newSessionObservable.set(updatedSession, undefined);
-			this._activeSessionData.set(updatedSession, undefined);
+			this._activeSession.set(updatedSession, undefined);
 		}
 	}
 
@@ -363,7 +382,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		// Set the new agent session as active
 		if (result) {
-			this._activeSessionData.set(result, undefined);
+			this._activeSession.set(result, undefined);
 		}
 
 		// Clean up
@@ -400,7 +419,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this.logService.trace('[ActiveSessionService] Active session cleared');
 		}
 
-		this._activeSessionData.set(session, undefined);
+		this._activeSession.set(session, undefined);
 	}
 
 	async commitWorktreeFiles(session: ISessionData, fileUris: URI[]): Promise<void> {

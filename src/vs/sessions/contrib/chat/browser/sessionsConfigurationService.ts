@@ -148,7 +148,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		this._pinnedTaskLabels = this._loadPinnedTaskLabels();
 
 		this._register(autorun(reader => {
-			const activeSession = this._sessionsManagementService.activeSessionData.read(reader);
+			const activeSession = this._sessionsManagementService.activeSession.read(reader);
 			this._handleActiveSessionChange(activeSession);
 		}));
 	}
