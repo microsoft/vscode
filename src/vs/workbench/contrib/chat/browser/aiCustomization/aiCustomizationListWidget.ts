@@ -1078,25 +1078,28 @@ export class AICustomizationListWidget extends Disposable {
 	 * agent hooks) are left untouched — groupKey overrides are only applied to
 	 * items whose current groupKey is `undefined`.
 	 */
-	private applyBuiltinGroupKeys(items: IAICustomizationListItem[], extensionInfoByUri: ReadonlyMap<string, { id: ExtensionIdentifier; displayName?: string }>): void {
-		for (const item of items) {
+	private applyBuiltinGroupKeys(items: IAICustomizationListItem[], extensionInfoByUri: ReadonlyMap<string, { id: ExtensionIdentifier; displayName?: string }>): IAICustomizationListItem[] {
+		return items.map(item => {
 			if (item.storage !== PromptsStorage.extension) {
-				continue;
+				return item;
 			}
 			const extInfo = extensionInfoByUri.get(item.uri.toString());
 			if (!extInfo) {
-				continue;
+				return item;
 			}
 			const isBuiltin = this.isChatExtensionItem(extInfo.id);
 			if (isBuiltin) {
-				(item as { isBuiltin?: boolean }).isBuiltin = true;
-				if (item.groupKey === undefined) {
-					(item as { groupKey?: string }).groupKey = BUILTIN_STORAGE;
-				}
-			} else {
-				(item as { extensionLabel?: string }).extensionLabel = extInfo.displayName || extInfo.id.value;
+				return {
+					...item,
+					isBuiltin: true,
+					groupKey: item.groupKey ?? BUILTIN_STORAGE,
+				};
 			}
-		}
+			return {
+				...item,
+				extensionLabel: extInfo.displayName || extInfo.id.value,
+			};
+		});
 	}
 
 	/**
@@ -1403,11 +1406,11 @@ export class AICustomizationListWidget extends Disposable {
 		// are re-grouped under "Built-in" instead of "Extensions".
 		// This is a single-pass transformation applied after all items are
 		// collected, keeping the item-building code free of grouping logic.
-		this.applyBuiltinGroupKeys(items, extensionInfoByUri);
+		const groupedItems = this.applyBuiltinGroupKeys(items, extensionInfoByUri);
 
 		// Apply storage source filter (removes items not in visible sources or excluded user roots)
 		const filter = this.workspaceService.getStorageSourceFilter(promptType);
-		const filteredItems = applyStorageSourceFilter(items, filter);
+		const filteredItems = applyStorageSourceFilter(groupedItems, filter);
 		items.length = 0;
 		items.push(...filteredItems);
 
