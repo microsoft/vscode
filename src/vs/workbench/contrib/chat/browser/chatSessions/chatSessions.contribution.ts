@@ -221,6 +221,11 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					description: localize('chatSessionsExtPoint.autoAttachReferences', 'Whether to automatically attach instruction files to chat requests for this session type.'),
 					type: 'boolean',
 					default: false
+				},
+				useRequestToPopulateBuiltInPickers: {
+					description: localize('chatSessionsExtPoint.useRequestToPopulateBuiltInPickers', 'Whether to use ChatRequestTurn2 to populate built-in pickers such as the Agent and Model pickers.'),
+					type: 'boolean',
+					default: false
 				}
 			},
 			required: ['type', 'name', 'displayName', 'description'],
@@ -1151,7 +1156,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public getNewSessionOptionsForSessionType(chatSessionType: string): ReadonlyChatSessionOptionsMap | undefined {
-		return new Map(this._sessionTypeNewSessionOptions.get(chatSessionType));
+		const options = this._sessionTypeNewSessionOptions.get(chatSessionType);
+		if (!options || options.size === 0) {
+			return undefined;
+		}
+		return new Map(options);
 	}
 
 	public setNewSessionOptionsForSessionType(chatSessionType: string, options: ReadonlyChatSessionOptionsMap): void {

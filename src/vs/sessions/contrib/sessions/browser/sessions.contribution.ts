@@ -12,15 +12,15 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
-import { SessionsViewPane, SessionsViewPaneId } from './views/sessionsViewPane.js';
 import { SessionsManagementService, ISessionsManagementService } from './sessionsManagementService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { AgentSessionSection, IAgentSessionSection, isAgentSessionSection } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { SessionsViewId as NewChatViewId } from '../../chat/browser/newChatViewPane.js';
+import { SessionsViewPane, SessionsViewPaneId } from './views/sessionsViewPane.js';
+import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
