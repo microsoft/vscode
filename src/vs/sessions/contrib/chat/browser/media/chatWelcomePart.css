@@ -193,7 +193,7 @@
 }
 
 .chat-full-welcome-pickers-label {
-	font-size: 20px;
+	font-size: 18px;
 	line-height: 1.25;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
@@ -203,11 +203,11 @@
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label {
 	height: auto;
 	padding: 4px 4px 4px 6px;
-	font-size: 20px;
+	font-size: 18px;
 	line-height: 1.25;
 	border: none;
 	background-color: transparent;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-foreground);
 	border-radius: 4px;
 }
 
@@ -228,7 +228,7 @@
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label {
-	font-size: 20px;
+	font-size: 18px;
 }
 
 .sessions-chat-dropdown-label {
