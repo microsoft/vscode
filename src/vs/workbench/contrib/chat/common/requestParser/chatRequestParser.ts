@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IPosition, Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
@@ -26,6 +27,8 @@ export interface IChatParserContext {
 	/** Parse as this agent, even when it does not appear in the query text */
 	forcedAgent?: IChatAgentData;
 	attachmentCapabilities?: IChatAgentAttachmentCapabilities;
+	/** Evaluates a context key expression against the current widget context. */
+	contextMatchesRules?: (when: ContextKeyExpression) => boolean;
 }
 
 export class ChatRequestParser {
@@ -225,7 +228,7 @@ export class ChatRequestParser {
 
 		const capabilities = context?.attachmentCapabilities ?? usedAgent?.capabilities;
 		const slashCommands = this.slashCommandService.getCommands(location, context?.mode ?? ChatModeKind.Ask);
-		const slashCommand = slashCommands.find(c => c.command === command);
+		const slashCommand = slashCommands.find(c => c.command === command && (!c.when || context?.contextMatchesRules?.(c.when) !== false));
 		// If there is no agent, we allow any slash command.
 		// If there is an agent, we let
 		// * silent ones go through since they are only UI-facing and don't influence chat history

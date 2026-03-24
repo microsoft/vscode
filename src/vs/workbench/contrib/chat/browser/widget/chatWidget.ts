@@ -356,7 +356,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					selectedAgent: this._lastSelectedAgent,
 					mode: this.input.currentModeKind,
 					attachmentCapabilities: this.attachmentCapabilities,
-					forcedAgent: this._lockedAgent?.id ? this.chatAgentService.getAgent(this._lockedAgent.id) : undefined
+					forcedAgent: this._lockedAgent?.id ? this.chatAgentService.getAgent(this._lockedAgent.id) : undefined,
+					contextMatchesRules: when => this.contextKeyService.contextMatchesRules(when),
 				});
 			this._onDidChangeParsedInput.fire();
 		}
@@ -882,7 +883,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const previous = this.parsedChatRequest;
-		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequestWithReferences(getDynamicVariablesForWidget(this), getSelectedToolAndToolSetsForWidget(this), this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind, attachmentCapabilities: this.attachmentCapabilities });
+		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequestWithReferences(
+			getDynamicVariablesForWidget(this),
+			getSelectedToolAndToolSetsForWidget(this),
+			this.getInput(),
+			this.location,
+			{
+				selectedAgent: this._lastSelectedAgent,
+				mode: this.input.currentModeKind,
+				attachmentCapabilities: this.attachmentCapabilities,
+				contextMatchesRules: when => this.contextKeyService.contextMatchesRules(when)
+			});
 		if (!previous || !IParsedChatRequest.equals(previous, this.parsedChatRequest)) {
 			this._onDidChangeParsedInput.fire();
 		}
@@ -2424,7 +2435,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			userSelectedModelId: this.input.currentLanguageModel,
 			location: this.location,
 			locationData: this._location.resolveData?.(),
-			parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities },
+			parserContext: {
+				selectedAgent: this._lastSelectedAgent,
+				mode: this.input.currentModeKind,
+				attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities,
+				contextMatchesRules: when => this.contextKeyService.contextMatchesRules(when)
+			},
 			attachedContext: requestInputs.attachedContext.asArray(),
 			resolvedVariables: resolvedImageVariables,
 			noCommandDetection: options?.noCommandDetection,
