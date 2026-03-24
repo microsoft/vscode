@@ -5,7 +5,6 @@
 
 import '../../workbench/browser/style.js';
 import './media/style.css';
-import { CollapsedSidebarWidget } from './collapsedPartWidgets.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
 import { getActiveDocument, getActiveElement, getClientArea, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
@@ -61,7 +60,7 @@ import { NotificationsToasts } from '../../workbench/browser/parts/notifications
 import { IMarkdownRendererService } from '../../platform/markdown/browser/markdownRenderer.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
-import { TitleService, TitlebarPart } from './parts/titlebarPart.js';
+import { TitleService } from './parts/titlebarPart.js';
 
 //#region Workbench Options
 
@@ -232,8 +231,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private chatBarPartView!: ISerializableView;
 
-	private collapsedSidebarWidget: CollapsedSidebarWidget | undefined;
-
 	private readonly partVisibility: IPartVisibilityState = {
 		sidebar: true,
 		auxiliaryBar: false,
@@ -371,13 +368,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 				// Layout
 				this.layout();
-
-				// Collapsed Sidebar Widget (shown when sidebar is hidden)
-				const titlebarPart = this.getPart(Parts.TITLEBAR_PART) as TitlebarPart;
-				this.collapsedSidebarWidget = this._register(instantiationService.createInstance(CollapsedSidebarWidget, titlebarPart.leftContainer));
-				if (!this.partVisibility.sidebar) {
-					this.collapsedSidebarWidget.show();
-				}
 
 				// Restore
 				this.restore(lifecycleService);
@@ -1069,13 +1059,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			this.sideBarPartView,
 			!hidden,
 		);
-
-		// Toggle collapsed sidebar widget
-		if (hidden) {
-			this.collapsedSidebarWidget?.show();
-		} else {
-			this.collapsedSidebarWidget?.hide();
-		}
 
 		// If sidebar becomes hidden, also hide the current active pane composite
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
