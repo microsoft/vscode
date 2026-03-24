@@ -382,8 +382,6 @@ export class McpListWidget extends Disposable {
 	private galleryServers: IWorkbenchMcpServer[] = [];
 	private searchQuery: string = '';
 	private browseMode: boolean = false;
-	private lastHeight: number = 0;
-	private lastWidth: number = 0;
 	private readonly collapsedGroups = new Set<string>();
 	private galleryCts: CancellationTokenSource | undefined;
 	private readonly delayedFilter = new Delayer<void>(200);
@@ -609,11 +607,6 @@ export class McpListWidget extends Disposable {
 			this.galleryCts?.dispose(true);
 			this.galleryServers = [];
 			this.filterServers();
-		}
-
-		// Re-layout to account for the back link height change
-		if (this.lastHeight > 0) {
-			this.layout(this.lastHeight, this.lastWidth);
 		}
 	}
 
@@ -889,8 +882,6 @@ export class McpListWidget extends Disposable {
 	 * Layouts the widget.
 	 */
 	layout(height: number, width: number): void {
-		this.lastHeight = height;
-		this.lastWidth = width;
 		const sectionFooterHeight = this.sectionHeader.offsetHeight || 0;
 		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 52;
 		const backLinkHeight = this.browseMode ? (this.backLink.offsetHeight || 28) : 0;
