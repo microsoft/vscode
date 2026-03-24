@@ -176,6 +176,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
 
+	private _sessionTypes: readonly ISessionType[] = [];
+
 	private readonly _activeSession = observableValue<ISessionData | undefined>(this, undefined);
 	readonly activeSession: IObservable<ISessionData | undefined> = this._activeSession;
 	private readonly _newSessionObservable = observableValue<ISessionData | undefined>(this, undefined);
@@ -222,7 +224,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._initActiveProvider();
 		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
 			this._initActiveProvider();
-			this._onDidChangeSessionTypes.fire();
+			this._updateSessionTypes();
 		}));
 
 		// Clear active session if the active session gets archived
@@ -321,6 +323,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	getAllSessionTypes(): ISessionType[] {
+		return [...this._sessionTypes];
+	}
+
+	private _collectSessionTypes(): ISessionType[] {
 		const types: ISessionType[] = [];
 		const seen = new Set<string>();
 		for (const provider of this.sessionsProvidersService.getProviders()) {
@@ -332,6 +338,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 		return types;
+	}
+
+	private _updateSessionTypes(): void {
+		const newTypes = this._collectSessionTypes();
+		const oldIds = new Set(this._sessionTypes.map(t => t.id));
+		const newIds = new Set(newTypes.map(t => t.id));
+		if (oldIds.size !== newIds.size || [...oldIds].some(id => !newIds.has(id))) {
+			this._sessionTypes = newTypes;
+			this._onDidChangeSessionTypes.fire();
+		}
 	}
 
 	async openSession(sessionResource: URI): Promise<void> {

@@ -8,7 +8,6 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorsVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -53,7 +52,6 @@ export class SessionsViewPane extends ViewPane {
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
 	private groupingContextKey: IContextKey | undefined;
 	private sortingContextKey: IContextKey | undefined;
-	private readonly filterActionDisposables = this._register(new DisposableStore());
 
 	constructor(
 		options: IViewPaneOptions,
@@ -194,16 +192,23 @@ export class SessionsViewPane extends ViewPane {
 		}
 	}
 
-	private registerSessionTypeFilters(sessionsControl: SessionsListControl): void {
-		this.filterActionDisposables.clear();
+	private readonly registeredFilterTypeIds = new Set<string>();
 
+	private registerSessionTypeFilters(sessionsControl: SessionsListControl): void {
 		const sessionTypes = this.sessionsManagementService.getAllSessionTypes();
 		for (let i = 0; i < sessionTypes.length; i++) {
 			const type = sessionTypes[i];
+
+			// Skip if already registered (action IDs are global and can't be re-registered)
+			if (this.registeredFilterTypeIds.has(type.id)) {
+				continue;
+			}
+			this.registeredFilterTypeIds.add(type.id);
+
 			const contextKey = new RawContextKey<boolean>(`sessionsViewPane.filterType.${type.id}`, !sessionsControl.isSessionTypeExcluded(type.id));
 			const contextKeyInstance = contextKey.bindTo(this.scopedContextKeyService);
 
-			this.filterActionDisposables.add(registerAction2(class extends Action2 {
+			this._register(registerAction2(class extends Action2 {
 				constructor() {
 					super({
 						id: `sessionsViewPane.filterType.${type.id}`,
