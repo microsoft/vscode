@@ -279,11 +279,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		container.style.color = this.getColor(SIDE_BAR_FOREGROUND) || '';
 		container.style.outlineColor = this.getColor(SIDE_BAR_DRAG_AND_DROP_BACKGROUND) ?? '';
 
-		// Right border to separate from the right section
-		const borderColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
-		container.style.borderRightWidth = borderColor ? '1px' : '';
-		container.style.borderRightStyle = borderColor ? 'solid' : '';
-		container.style.borderRightColor = borderColor;
+		// No right border in sessions sidebar
+		container.style.borderRightWidth = '';
+		container.style.borderRightStyle = '';
+		container.style.borderRightColor = '';
 
 		// Title area uses sessions-specific header colors
 		if (this.sideBarTitleArea) {

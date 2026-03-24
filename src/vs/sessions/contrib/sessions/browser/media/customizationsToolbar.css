@@ -7,7 +7,8 @@
 	display: flex;
 	flex-direction: column;
 	flex-shrink: 0;
-	border-top: 1px solid var(--vscode-widget-border);
+	border-top: 1px solid var(--vscode-panel-border, transparent);
+	margin-left: 12px;
 	padding: 6px;
 }
 

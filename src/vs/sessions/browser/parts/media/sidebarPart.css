@@ -30,13 +30,29 @@
 }
 
 /* Sidebar Footer Container */
-.monaco-workbench .part.sidebar > .sidebar-footer {
+.agent-sessions-workbench .part.sidebar > .sidebar-footer {
 	display: flex;
 	align-items: stretch;
 	gap: 4px;
 	padding: 6px;
-	border-top: 1px solid var(--vscode-sideBarSectionHeader-border, transparent);
+	border-top: 1px solid var(--vscode-panel-border, transparent);
+	margin-left: 12px;
 	flex-shrink: 0;
+}
+
+/* Inset pane section header borders — hide inline border-top, replace with inset pseudo-element */
+.agent-sessions-workbench .part.sidebar .pane > .pane-header {
+	border-top-color: transparent !important;
+}
+
+.agent-sessions-workbench .part.sidebar .split-view-view:not(:first-of-type) > .pane > .pane-header::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 12px;
+	right: 0;
+	height: 1px;
+	background-color: var(--vscode-panel-border, transparent);
 }
 
 /* Make the toolbar fill the footer width and stack actions vertically */

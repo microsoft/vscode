@@ -21,7 +21,6 @@
 
 .agent-sessions-workbench .part.sidebar {
 	background: var(--vscode-editor-background);
-	border-right: 1px solid var(--vscode-panel-border, transparent);
 }
 
 .agent-sessions-workbench .part.chatbar {
