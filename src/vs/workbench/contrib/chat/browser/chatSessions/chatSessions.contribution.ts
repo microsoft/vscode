@@ -534,9 +534,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						const resource = URI.revive(chatOptions.resource);
 						const ref = await chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 						try {
-							const promptFile = await getSlashCommandVariable(chatOptions.prompt, promptsService, toolsService);
+							const promptFile = await resolvePromptSlashCommand(chatOptions.prompt, promptsService, toolsService);
 							if (promptFile) {
-								attachedContext = [...(attachedContext ?? []), promptFile];
+								attachedContext = [promptFile, ...(attachedContext ?? [])];
 							}
 
 							const result = await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext });
@@ -1357,9 +1357,9 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 				}
 			}
 			let attachedContext = chatSendOptions.attachedContext;
-			const promptFile = await getSlashCommandVariable(chatSendOptions.prompt, promptsService, toolsService);
+			const promptFile = await resolvePromptSlashCommand(chatSendOptions.prompt, promptsService, toolsService);
 			if (promptFile) {
-				attachedContext = [...(attachedContext ?? []), promptFile];
+				attachedContext = [promptFile, ...(attachedContext ?? [])];
 			}
 			await chatService.sendRequest(resource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext });
 		} catch (e) {
@@ -1369,11 +1369,10 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 }
 
 /**
- * Returns the variable entry for a slash command if it exists
+ * Returns the variable entry for a slash command if the prompt starts with a slash command that can be resolved to a prompt file, otherwise returns undefined.
  */
-async function getSlashCommandVariable(prompt: string, promptsService: IPromptsService, toolsService: ILanguageModelToolsService): Promise<IChatRequestVariableEntry | undefined> {
-	const trimmedPrompt = prompt.trimStart();
-	const slashMatch = trimmedPrompt.match(slashReg);
+async function resolvePromptSlashCommand(prompt: string, promptsService: IPromptsService, toolsService: ILanguageModelToolsService): Promise<IChatRequestVariableEntry | undefined> {
+	const slashMatch = prompt.match(slashReg);
 	// starts with a slash command, add the corresponding prompt file to the context if it exists
 	if (slashMatch) {
 		// need to resolve the slash command to get the prompt file
