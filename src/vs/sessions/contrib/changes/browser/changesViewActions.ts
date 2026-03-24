@@ -57,13 +57,12 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 		// Bind context key: true when the active session has changes
 		const sessionsChanged = observableFromEvent(this, agentSessionsService.model.onDidChangeSessions, () => { });
 		this._register(bindContextKey(activeSessionHasChangesContextKey, contextKeyService, reader => {
-			sessionManagementService.activeSession.read(reader);
+			const activeSessionData = sessionManagementService.activeSessionData.read(reader);
 			sessionsChanged.read(reader);
-			const activeSession = sessionManagementService.getActiveSession();
-			if (!activeSession) {
+			if (!activeSessionData) {
 				return false;
 			}
-			const agentSession = agentSessionsService.getSession(activeSession.resource);
+			const agentSession = agentSessionsService.getSession(activeSessionData.resource);
 			return !!agentSession?.changes && hasValidDiff(agentSession.changes);
 		}));
 	}

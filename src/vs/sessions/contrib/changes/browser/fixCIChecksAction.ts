@@ -109,7 +109,7 @@ class ActiveSessionFailedCIChecksContextContribution extends Disposable implemen
 		super();
 
 		const ciModelObs = derived(this, reader => {
-			const session = sessionManagementService.activeSession.read(reader);
+			const session = sessionManagementService.activeSessionData.read(reader);
 			if (!session) {
 				return undefined;
 			}
@@ -162,7 +162,7 @@ class FixCIChecksAction extends Action2 {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const logService = accessor.get(ILogService);
 
-		const activeSession = sessionManagementService.getActiveSession();
+		const activeSession = sessionManagementService.activeSessionData.get();
 		if (!activeSession) {
 			return;
 		}

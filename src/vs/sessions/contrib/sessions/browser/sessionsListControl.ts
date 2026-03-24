@@ -335,6 +335,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 				},
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
+				indent: 0,
 				overrideStyles: this.options.overrideStyles,
 				renderIndentGuides: RenderIndentGuides.None,
 				twistieAdditionalCssClass: () => 'force-no-twistie',
