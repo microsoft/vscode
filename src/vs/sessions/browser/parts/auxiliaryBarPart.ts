@@ -106,7 +106,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			{
 				hasTitle: true,
 				trailingSeparator: false,
-				borderWidth: () => (this.getColor(PANEL_BORDER) || this.getColor(contrastBorder)) ? 1 : 0,
+				borderWidth: () => 0,
 			},
 			AuxiliaryBarPart.activeViewSettingsKey,
 			ActiveAuxiliaryContext.bindTo(contextKeyService),
