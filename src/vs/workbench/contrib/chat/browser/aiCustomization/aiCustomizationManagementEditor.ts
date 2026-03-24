@@ -1412,6 +1412,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this._editorContentChanged = true;
 				this.resetEditorSaveIndicator();
 			}));
+			this.editorModelChangeDisposables.add(this.workingCopyService.onDidChangeDirty(e => {
+				if (isEqual(e.resource, uri) && !this.workingCopyService.isDirty(uri)) {
+					// File is being saved — show loading spinner
+					this.editorSaveIndicator.className = 'editor-save-indicator visible';
+					this.editorSaveIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+					this.editorSaveIndicator.title = localize('saving', "Saving...");
+				}
+			}));
 			this.editorModelChangeDisposables.add(this.workingCopyService.onDidSave(e => {
 				if (isEqual(e.workingCopy.resource, uri)) {
 					this._editorContentChanged = this.workingCopyService.isDirty(uri);
