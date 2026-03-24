@@ -152,11 +152,13 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const isRead = element.isRead.read(reader);
 			const isArchived = element.isArchived.read(reader);
 			DOM.clearNode(template.iconContainer);
-			const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, element.icon);
+			const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, element.sessionType, element.icon);
 			DOM.append(template.iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 			template.iconContainer.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
 			template.iconContainer.classList.toggle('session-icon-active', sessionStatus === SessionStatus.InProgress);
-			template.iconContainer.classList.toggle('session-icon-unread', !isRead && !isArchived && sessionStatus === SessionStatus.Completed);
+			template.iconContainer.classList.toggle('session-icon-error', sessionStatus === SessionStatus.Error);
+			template.iconContainer.classList.toggle('session-icon-unread', !isRead && !isArchived && sessionStatus !== SessionStatus.InProgress && sessionStatus !== SessionStatus.NeedsInput && sessionStatus !== SessionStatus.Error);
+			template.iconContainer.classList.toggle('session-icon-read', isRead && !isArchived && sessionStatus !== SessionStatus.InProgress && sessionStatus !== SessionStatus.NeedsInput && sessionStatus !== SessionStatus.Error);
 		}));
 
 		// Title — reactive
@@ -246,7 +248,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}));
 	}
 
-	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, defaultIcon: ThemeIcon): ThemeIcon {
+	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, sessionType: string, defaultIcon: ThemeIcon): ThemeIcon {
 		switch (status) {
 			case SessionStatus.InProgress: return Codicon.loading;
 			case SessionStatus.NeedsInput: return Codicon.circleFilled;
@@ -254,6 +256,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			default:
 				if (!isRead && !isArchived) {
 					return Codicon.circleFilled;
+				}
+				if (sessionType === AgentSessionProviders.Background) {
+					return Codicon.circleSmallFilled;
 				}
 				return defaultIcon;
 		}
@@ -718,7 +723,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 		}
 	}
 
-	// -- Archived / Read filtering --
+	// ── Archived / Read filtering ──
 
 	setExcludeArchived(exclude: boolean): void {
 		this._excludeArchived = exclude;

@@ -71,7 +71,7 @@ export interface ISessionData {
 	/** Workspace this session operates on. */
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
 
-	// -- Reactive properties --
+	// ── Reactive properties ──
 
 	/** Session display title (changes when auto-titled or renamed). */
 	readonly title: IObservable<string>;
