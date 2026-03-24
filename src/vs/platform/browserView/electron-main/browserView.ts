@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WebContentsView, webContents } from 'electron';
-import { FileAccess } from '../../../base/common/network.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -87,17 +86,11 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		const webPreferences: Electron.WebPreferences & { type: ReturnType<Electron.WebContents['getType']> } = {
 			...options?.webPreferences,
 
-			// Important note: when combined with the additional flags below, `nodeIntegrationInSubFrames: true`
-			// does not actually allow node integration in subframe contents. Instead, it allows the preload script to run in subframes,
-			// but with the same context isolation and node integration settings as the main frame.
-			nodeIntegrationInSubFrames: true,
 			nodeIntegration: false,
 			contextIsolation: true,
 			sandbox: true,
-
 			webviewTag: false,
 			session: this.session.electronSession,
-			preload: FileAccess.asFileUri('vs/platform/browserView/electron-browser/preload-browserView.js').fsPath,
 
 			// TODO@kycutler: Remove this once https://github.com/electron/electron/issues/42578 is fixed
 			type: 'browserView'
