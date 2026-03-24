@@ -19,8 +19,9 @@ import { IMenuService, MenuId, MenuRegistry, SubmenuItemAction } from '../../../
 import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IMarshalledAgentSessionContext } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { IMarshalledAgentSessionContext, countUnreadSessions } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -76,6 +77,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super(undefined, action, options);
 
@@ -128,8 +130,9 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			const label = this._getActiveSessionLabel();
 			const icon = this._getActiveSessionIcon();
 			const repoLabel = this._getRepositoryLabel();
+			const unreadCount = this._countUnreadSessions();
 			// Build a render-state key from all displayed data
-			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}`;
+			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${unreadCount}`;
 
 			// Skip re-render if state hasn't changed
 			if (this._lastRenderState === renderState) {
@@ -193,6 +196,37 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			}));
 
 			this._container.appendChild(sessionPill);
+
+			// Session count widget (to the left of the pill) — toggles sidebar
+			const countWidget = $('button.agent-sessions-titlebar-count') as HTMLButtonElement;
+			countWidget.type = 'button';
+			countWidget.tabIndex = 0;
+			const countIcon = $(ThemeIcon.asCSSSelector(Codicon.tasklist));
+			countWidget.appendChild(countIcon);
+			if (unreadCount > 0) {
+				const countLabel = $('span.agent-sessions-titlebar-count-label');
+				countLabel.textContent = `${unreadCount}`;
+				countWidget.appendChild(countLabel);
+				countWidget.setAttribute('aria-label', localize('showSidebarUnread', "Show Side Bar, {0} unread session(s)", unreadCount));
+			} else {
+				countWidget.setAttribute('aria-label', localize('showSidebar', "Show Side Bar"));
+			}
+			// Hide when sidebar is visible (only shown when sidebar is hidden)
+			const updateVisibility = () => {
+				countWidget.style.display = this.layoutService.isVisible(Parts.SIDEBAR_PART) ? 'none' : '';
+			};
+			updateVisibility();
+			this._dynamicDisposables.add(this.layoutService.onDidChangePartVisibility(e => {
+				if (e.partId === Parts.SIDEBAR_PART) {
+					updateVisibility();
+				}
+			}));
+			this._dynamicDisposables.add(addDisposableListener(countWidget, EventType.CLICK, (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				this.layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
+			}));
+			this._container.insertBefore(countWidget, sessionPill);
 
 			// Hover
 			this._dynamicDisposables.add(this.hoverService.setupManagedHover(
@@ -303,6 +337,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		}
 
 		return basename(uri);
+	}
+
+	private _countUnreadSessions(): number {
+		return countUnreadSessions(this.agentSessionsService.model.sessions);
 	}
 
 	private _showContextMenu(e: MouseEvent): void {
