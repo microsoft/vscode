@@ -277,6 +277,8 @@ export interface IChatDebugFileEntry {
 	readonly skipReason?: string;
 	readonly errorMessage?: string;
 	readonly duplicateOf?: URI;
+	/** For hook files, the list of resolved hook types */
+	readonly resolvedHookTypes?: readonly string[];
 }
 
 /**

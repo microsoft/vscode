@@ -340,6 +340,8 @@ export interface IPromptFileDiscoveryResult {
 	readonly userInvocable?: boolean;
 	/** If true, the skill won't be automatically loaded by the agent (disable-model-invocation: true) */
 	readonly disableModelInvocation?: boolean;
+	/** For hook files, the list of resolved hook types */
+	readonly resolvedHookTypes?: readonly string[];
 }
 
 /**

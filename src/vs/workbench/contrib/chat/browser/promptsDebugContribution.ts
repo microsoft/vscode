@@ -108,6 +108,7 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 				skipReason: f.skipReason,
 				errorMessage: f.errorMessage,
 				duplicateOf: f.duplicateOf,
+				resolvedHookTypes: f.resolvedHookTypes,
 			})),
 			sourceFolders: info.sourceFolders?.map(sf => ({
 				uri: sf.uri,

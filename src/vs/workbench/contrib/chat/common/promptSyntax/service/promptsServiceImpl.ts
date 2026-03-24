@@ -1675,8 +1675,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const hookWorkspaceFolder = this.workspaceService.getWorkspaceFolder(uri) ?? this.workspaceService.getWorkspace().folders[0];
 				const workspaceRootUri = hookWorkspaceFolder?.uri;
 
-				// Use format-aware parsing to check for disabledAllHooks
-				const { disabledAllHooks } = parseHooksFromFile(uri, json, workspaceRootUri, userHome);
+				// Use format-aware parsing to check for disabledAllHooks and resolve hook types
+				const { hooks, disabledAllHooks } = parseHooksFromFile(uri, json, workspaceRootUri, userHome);
 
 				if (disabledAllHooks) {
 					files.push({
@@ -1690,8 +1690,18 @@ export class PromptsService extends Disposable implements IPromptsService {
 					continue;
 				}
 
-				// File is valid
-				files.push({ uri, storage, status: 'loaded', name, extensionId });
+				// Collect resolved hook types from this file
+				const resolvedHookTypes: string[] = [];
+				for (const [hookType, { hooks: commands }] of hooks) {
+					if (commands.length > 0) {
+						resolvedHookTypes.push(hookType);
+					}
+				}
+
+				// Only include files that actually define hooks
+				if (resolvedHookTypes.length > 0) {
+					files.push({ uri, storage, status: 'loaded', name, extensionId, resolvedHookTypes });
+				}
 			} catch (e) {
 				files.push({
 					uri,
