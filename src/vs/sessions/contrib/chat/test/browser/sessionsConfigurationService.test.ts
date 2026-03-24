@@ -51,6 +51,7 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISessionD
 		loading: observableValue('loading', false),
 		isArchived: observableValue('isArchived', false),
 		isRead: observableValue('isRead', true),
+		lastTurnEnd: observableValue('lastTurnEnd', undefined),
 	};
 }
 

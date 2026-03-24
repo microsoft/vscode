@@ -74,6 +74,10 @@
 	box-sizing: border-box;
 	padding: 8px 6px;
 
+	&.archived {
+		color: var(--vscode-descriptionForeground);
+	}
+
 	.session-main,
 	.session-title-row,
 	.session-details-row {
@@ -108,6 +112,10 @@
 			&.session-icon-pulse > .codicon {
 				animation: none;
 			}
+		}
+
+		&.session-icon-unread > .codicon {
+			color: var(--vscode-textLink-foreground);
 		}
 	}
 

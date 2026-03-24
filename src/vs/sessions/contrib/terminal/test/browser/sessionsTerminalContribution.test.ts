@@ -73,6 +73,7 @@ function makeAgentSession(opts: {
 		loading: observableValue('test.loading', false),
 		isArchived: observableValue('test.isArchived', false),
 		isRead: observableValue('test.isRead', true),
+		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 	};
 }
 
@@ -100,6 +101,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		loading: observableValue('test.loading', false),
 		isArchived: observableValue('test.isArchived', false),
 		isRead: observableValue('test.isRead', true),
+		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 	};
 }
 

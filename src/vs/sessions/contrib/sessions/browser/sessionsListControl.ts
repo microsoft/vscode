@@ -141,14 +141,22 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// Context key: isPinned
 		IsSessionPinnedContext.bindTo(template.contextKeyService).set(this.options.isPinned(element));
 
-		// Icon — reactive based on status
+		// Archived styling — reactive
+		template.elementDisposables.add(autorun(reader => {
+			template.container.classList.toggle('archived', element.isArchived.read(reader));
+		}));
+
+		// Icon — reactive based on status and read state
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = element.status.read(reader);
+			const isRead = element.isRead.read(reader);
+			const isArchived = element.isArchived.read(reader);
 			DOM.clearNode(template.iconContainer);
-			const icon = this.getStatusIcon(sessionStatus, element.icon);
+			const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, element.icon);
 			DOM.append(template.iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 			template.iconContainer.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
 			template.iconContainer.classList.toggle('session-icon-active', sessionStatus === SessionStatus.InProgress);
+			template.iconContainer.classList.toggle('session-icon-unread', !isRead && !isArchived && sessionStatus === SessionStatus.Completed);
 		}));
 
 		// Title — reactive
@@ -238,12 +246,16 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}));
 	}
 
-	private getStatusIcon(status: SessionStatus, defaultIcon: ThemeIcon): ThemeIcon {
+	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, defaultIcon: ThemeIcon): ThemeIcon {
 		switch (status) {
 			case SessionStatus.InProgress: return Codicon.loading;
 			case SessionStatus.NeedsInput: return Codicon.circleFilled;
 			case SessionStatus.Error: return Codicon.error;
-			default: return defaultIcon;
+			default:
+				if (!isRead && !isArchived) {
+					return Codicon.circleFilled;
+				}
+				return defaultIcon;
 		}
 	}
 
@@ -357,6 +369,11 @@ export interface ISessionsListControl {
 	isSessionTypeExcluded(sessionTypeId: string): boolean;
 	setStatusExcluded(status: SessionStatus, excluded: boolean): void;
 	isStatusExcluded(status: SessionStatus): boolean;
+	setExcludeArchived(exclude: boolean): void;
+	isExcludeArchived(): boolean;
+	setExcludeRead(exclude: boolean): void;
+	isExcludeRead(): boolean;
+	resetFilters(): void;
 }
 
 export class SessionsListControl extends Disposable implements ISessionsListControl {
@@ -365,6 +382,8 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 	private static readonly PINNED_SESSIONS_KEY = 'sessionsListControl.pinnedSessions';
 	private static readonly EXCLUDED_TYPES_KEY = 'sessionsListControl.excludedSessionTypes';
 	private static readonly EXCLUDED_STATUSES_KEY = 'sessionsListControl.excludedStatuses';
+	private static readonly EXCLUDE_ARCHIVED_KEY = 'sessionsListControl.excludeArchived';
+	private static readonly EXCLUDE_READ_KEY = 'sessionsListControl.excludeRead';
 
 	private readonly listContainer: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
@@ -373,6 +392,8 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 	private readonly pinnedSessionIds: Set<string>;
 	private readonly excludedSessionTypes: Set<string>;
 	private readonly excludedStatuses: Set<SessionStatus>;
+	private _excludeArchived: boolean;
+	private _excludeRead: boolean;
 
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
 	readonly onDidUpdate: Event<void> = this._onDidUpdate.event;
@@ -397,6 +418,10 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 		// Load excluded statuses from storage
 		this.excludedStatuses = this.loadExcludedStatuses();
+
+		// Load archived/read filter state
+		this._excludeArchived = this.storageService.getBoolean(SessionsListControl.EXCLUDE_ARCHIVED_KEY, StorageScope.PROFILE, true);
+		this._excludeRead = this.storageService.getBoolean(SessionsListControl.EXCLUDE_READ_KEY, StorageScope.PROFILE, false);
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control'));
 
@@ -474,6 +499,12 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 		}
 		if (this.excludedStatuses.size > 0) {
 			filtered = filtered.filter(s => !this.excludedStatuses.has(s.status.get()));
+		}
+		if (this._excludeArchived) {
+			filtered = filtered.filter(s => !s.isArchived.get());
+		}
+		if (this._excludeRead) {
+			filtered = filtered.filter(s => !s.isRead.get());
 		}
 
 		const sorted = this.sortSessions(filtered);
@@ -685,6 +716,40 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 		} else {
 			this.storageService.store(SessionsListControl.EXCLUDED_STATUSES_KEY, JSON.stringify([...this.excludedStatuses]), StorageScope.PROFILE, StorageTarget.USER);
 		}
+	}
+
+	// -- Archived / Read filtering --
+
+	setExcludeArchived(exclude: boolean): void {
+		this._excludeArchived = exclude;
+		this.storageService.store(SessionsListControl.EXCLUDE_ARCHIVED_KEY, exclude, StorageScope.PROFILE, StorageTarget.USER);
+		this.update();
+	}
+
+	isExcludeArchived(): boolean {
+		return this._excludeArchived;
+	}
+
+	setExcludeRead(exclude: boolean): void {
+		this._excludeRead = exclude;
+		this.storageService.store(SessionsListControl.EXCLUDE_READ_KEY, exclude, StorageScope.PROFILE, StorageTarget.USER);
+		this.update();
+	}
+
+	isExcludeRead(): boolean {
+		return this._excludeRead;
+	}
+
+	resetFilters(): void {
+		this.excludedSessionTypes.clear();
+		this.saveExcludedSessionTypes();
+		this.excludedStatuses.clear();
+		this.saveExcludedStatuses();
+		this._excludeArchived = true;
+		this.storageService.store(SessionsListControl.EXCLUDE_ARCHIVED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
+		this._excludeRead = false;
+		this.storageService.store(SessionsListControl.EXCLUDE_READ_KEY, false, StorageScope.PROFILE, StorageTarget.USER);
+		this.update();
 	}
 
 	// -- Section collapse persistence --

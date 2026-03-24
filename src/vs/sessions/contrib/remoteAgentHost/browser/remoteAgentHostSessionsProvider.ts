@@ -113,6 +113,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			loading: observableValue(this, false),
 			isArchived: observableValue(this, false),
 			isRead: observableValue(this, true),
+			lastTurnEnd: observableValue(this, undefined),
 		};
 	}
 

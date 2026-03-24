@@ -53,6 +53,7 @@ export class SessionsViewPane extends ViewPane {
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
 	private groupingContextKey: IContextKey | undefined;
 	private sortingContextKey: IContextKey | undefined;
+	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; getDefault: () => boolean }>();
 
 	constructor(
 		options: IViewPaneOptions,
@@ -211,6 +212,7 @@ export class SessionsViewPane extends ViewPane {
 
 			const contextKey = new RawContextKey<boolean>(`sessionsViewPane.filterType.${type.id}`, !sessionsControl.isSessionTypeExcluded(type.id));
 			const contextKeyInstance = contextKey.bindTo(this.scopedContextKeyService);
+			this.filterContextKeys.set(contextKey.key, { key: contextKeyInstance, getDefault: () => true });
 
 			this._register(registerAction2(class extends Action2 {
 				constructor() {
@@ -245,6 +247,7 @@ export class SessionsViewPane extends ViewPane {
 			const { status, label } = statusFilters[i];
 			const contextKey = new RawContextKey<boolean>(`sessionsViewPane.filterStatus.${status}`, !sessionsControl.isStatusExcluded(status));
 			const contextKeyInstance = contextKey.bindTo(this.scopedContextKeyService);
+			this.filterContextKeys.set(contextKey.key, { key: contextKeyInstance, getDefault: () => true });
 
 			this._register(registerAction2(class extends Action2 {
 				constructor() {
@@ -266,6 +269,78 @@ export class SessionsViewPane extends ViewPane {
 				}
 			}));
 		}
+
+		// Archived toggle
+		const archivedContextKey = new RawContextKey<boolean>('sessionsViewPane.filter.showArchived', !sessionsControl.isExcludeArchived());
+		const archivedContextKeyInstance = archivedContextKey.bindTo(this.scopedContextKeyService);
+		this.filterContextKeys.set(archivedContextKey.key, { key: archivedContextKeyInstance, getDefault: () => false });
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'sessionsViewPane.filterArchived',
+					title: localize('filterArchived', "Archived"),
+					toggled: ContextKeyExpr.equals(archivedContextKey.key, true),
+					menu: [{
+						id: SessionsViewFilterOptionsSubMenu,
+						group: '3_props',
+						order: 0,
+					}]
+				});
+			}
+			override run() {
+				const excluding = sessionsControl.isExcludeArchived();
+				sessionsControl.setExcludeArchived(!excluding);
+				archivedContextKeyInstance.set(excluding); // was excluding → now showing
+			}
+		}));
+
+		// Read toggle
+		const readContextKey = new RawContextKey<boolean>('sessionsViewPane.filter.showRead', !sessionsControl.isExcludeRead());
+		const readContextKeyInstance = readContextKey.bindTo(this.scopedContextKeyService);
+		this.filterContextKeys.set(readContextKey.key, { key: readContextKeyInstance, getDefault: () => true });
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'sessionsViewPane.filterRead',
+					title: localize('filterRead', "Read"),
+					toggled: ContextKeyExpr.equals(readContextKey.key, true),
+					menu: [{
+						id: SessionsViewFilterOptionsSubMenu,
+						group: '3_props',
+						order: 1,
+					}]
+				});
+			}
+			override run() {
+				const excluding = sessionsControl.isExcludeRead();
+				sessionsControl.setExcludeRead(!excluding);
+				readContextKeyInstance.set(excluding);
+			}
+		}));
+
+		// Reset filter action
+		const filterContextKeys = this.filterContextKeys;
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'sessionsViewPane.resetFilters',
+					title: localize('resetFilters', "Reset"),
+					menu: [{
+						id: SessionsViewFilterOptionsSubMenu,
+						group: '4_reset',
+						order: 0,
+					}]
+				});
+			}
+			override run() {
+				sessionsControl.resetFilters();
+				for (const { key, getDefault } of filterContextKeys.values()) {
+					key.set(getDefault());
+				}
+			}
+		}));
 	}
 
 	protected override layoutBody(height: number, width: number): void {

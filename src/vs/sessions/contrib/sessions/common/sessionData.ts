@@ -71,7 +71,7 @@ export interface ISessionData {
 	/** Workspace this session operates on. */
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
 
-	// ── Reactive properties ──
+	// -- Reactive properties --
 
 	/** Session display title (changes when auto-titled or renamed). */
 	readonly title: IObservable<string>;
@@ -91,4 +91,6 @@ export interface ISessionData {
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the session has been read. */
 	readonly isRead: IObservable<boolean>;
+	/** Timestamp of when the last agent turn ended, if any. */
+	readonly lastTurnEnd: IObservable<Date | undefined>;
 }

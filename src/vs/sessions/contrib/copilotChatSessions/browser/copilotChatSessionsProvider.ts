@@ -130,6 +130,7 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 
 	readonly isArchived: IObservable<boolean> = observableValue(this, false);
 	readonly isRead: IObservable<boolean> = observableValue(this, true);
+	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
 
 	private _gitRepository: IGitRepository | undefined;
 
@@ -303,6 +304,7 @@ export class RemoteNewSession extends Disposable implements ISessionData {
 
 	readonly isArchived: IObservable<boolean> = observableValue(this, false);
 	readonly isRead: IObservable<boolean> = observableValue(this, true);
+	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
 
 	readonly _hasGitRepo = observableValue(this, false);
 	readonly hasGitRepo: IObservable<boolean> = this._hasGitRepo;
@@ -561,6 +563,9 @@ class AgentSessionAdapter implements ISessionData {
 	private readonly _isRead: ReturnType<typeof observableValue<boolean>>;
 	readonly isRead: IObservable<boolean>;
 
+	private readonly _lastTurnEnd: ReturnType<typeof observableValue<Date | undefined>>;
+	readonly lastTurnEnd: IObservable<Date | undefined>;
+
 	constructor(
 		session: IAgentSession,
 		providerId: string,
@@ -595,6 +600,8 @@ class AgentSessionAdapter implements ISessionData {
 		this.isArchived = this._isArchived;
 		this._isRead = observableValue(this, session.isRead());
 		this.isRead = this._isRead;
+		this._lastTurnEnd = observableValue(this, session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined);
+		this.lastTurnEnd = this._lastTurnEnd;
 	}
 
 	/**
@@ -609,6 +616,7 @@ class AgentSessionAdapter implements ISessionData {
 			this._changes.set(this._extractChanges(session), tx);
 			this._isArchived.set(session.isArchived(), tx);
 			this._isRead.set(session.isRead(), tx);
+			this._lastTurnEnd.set(session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx);
 		});
 	}
 
