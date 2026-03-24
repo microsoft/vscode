@@ -1372,7 +1372,8 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
  * Returns the variable entry for a slash command if it exists
  */
 async function getSlashCommandVariable(prompt: string, promptsService: IPromptsService, toolsService: ILanguageModelToolsService): Promise<IChatRequestVariableEntry | undefined> {
-	const slashMatch = prompt.match(slashReg);
+	const trimmedPrompt = prompt.trimStart();
+	const slashMatch = trimmedPrompt.match(slashReg);
 	// starts with a slash command, add the corresponding prompt file to the context if it exists
 	if (slashMatch) {
 		// need to resolve the slash command to get the prompt file
