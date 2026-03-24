@@ -4,35 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ToolCallStatus, TurnState, type ICompletedToolCall, type IPermissionRequest, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ToolCallStatus, ToolCallConfirmationReason, PermissionKind, ToolResultContentType, TurnState, type ICompletedToolCall, type IPermissionRequest, type IToolCallRunningState, type ITurn, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocationSerialized, type IChatMarkdownContent } from '../../../common/chatService/chatService.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory, toolCallStateToInvocation, permissionToConfirmation, finalizeToolInvocation } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
-function createToolCallState(overrides?: Partial<IToolCallState>): IToolCallState {
+function createToolCallState(overrides?: Partial<IToolCallRunningState>): IToolCallRunningState {
 	return {
 		toolCallId: 'tc-1',
 		toolName: 'test_tool',
 		displayName: 'Test Tool',
 		invocationMessage: 'Running test tool...',
 		status: ToolCallStatus.Running,
+		confirmed: ToolCallConfirmationReason.NotNeeded,
 		...overrides,
 	};
 }
 
 function createCompletedToolCall(overrides?: Partial<ICompletedToolCall>): ICompletedToolCall {
 	return {
+		status: ToolCallStatus.Completed,
 		toolCallId: 'tc-1',
 		toolName: 'test_tool',
 		displayName: 'Test Tool',
 		invocationMessage: 'Running test tool...',
 		success: true,
+		confirmed: ToolCallConfirmationReason.NotNeeded,
 		pastTenseMessage: 'Ran test tool',
 		...overrides,
-	};
+	} as ICompletedToolCall;
 }
 
 function createTurn(overrides?: Partial<ITurn>): ITurn {
@@ -51,7 +55,7 @@ function createTurn(overrides?: Partial<ITurn>): ITurn {
 function createPermission(overrides?: Partial<IPermissionRequest>): IPermissionRequest {
 	return {
 		requestId: 'perm-1',
-		permissionKind: 'shell',
+		permissionKind: PermissionKind.Shell,
 		...overrides,
 	};
 }
@@ -98,10 +102,9 @@ suite('stateToProgressAdapter', () => {
 		test('terminal tool call in history has correct terminal data', () => {
 			const turn = createTurn({
 				toolCalls: [createCompletedToolCall({
-					toolKind: 'terminal',
+					_meta: { toolKind: 'terminal', language: 'shellscript' },
 					toolInput: 'echo hello',
-					language: 'shellscript',
-					toolOutput: 'hello',
+					content: [{ type: ToolResultContentType.Text, text: 'hello' }],
 					success: true,
 				})],
 			});
@@ -153,9 +156,9 @@ suite('stateToProgressAdapter', () => {
 		test('failed tool in history has exitCode 1', () => {
 			const turn = createTurn({
 				toolCalls: [createCompletedToolCall({
-					toolKind: 'terminal',
+					_meta: { toolKind: 'terminal' },
 					toolInput: 'bad-command',
-					toolOutput: 'error',
+					content: [{ type: ToolResultContentType.Text, text: 'error' }],
 					success: false,
 				})],
 			});
@@ -192,7 +195,7 @@ suite('stateToProgressAdapter', () => {
 
 		test('sets terminal toolSpecificData', () => {
 			const tc = createToolCallState({
-				toolKind: 'terminal',
+				_meta: { toolKind: 'terminal' },
 				toolInput: 'ls -la',
 			});
 
@@ -203,13 +206,11 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.commandLine.original, 'ls -la');
 		});
 
-		test('parses toolArguments as parameters', () => {
-			const tc = createToolCallState({
-				toolArguments: '{"path":"test.ts"}',
-			});
+		test('creates invocation without toolArguments', () => {
+			const tc = createToolCallState({});
 
 			const invocation = toolCallStateToInvocation(tc);
-			assert.deepStrictEqual(invocation.parameters, { path: 'test.ts' });
+			assert.strictEqual(invocation.toolCallId, 'tc-1');
 		});
 	});
 
@@ -217,7 +218,7 @@ suite('stateToProgressAdapter', () => {
 
 		test('shell permission has terminal data', () => {
 			const perm = createPermission({
-				permissionKind: 'shell',
+				permissionKind: PermissionKind.Shell,
 				fullCommandText: 'rm -rf /',
 				intention: 'Delete everything',
 			});
@@ -231,7 +232,7 @@ suite('stateToProgressAdapter', () => {
 
 		test('mcp permission uses server + tool name as title', () => {
 			const perm = createPermission({
-				permissionKind: 'mcp',
+				permissionKind: PermissionKind.Mcp,
 				serverName: 'My Server',
 				toolName: 'my_tool',
 			});
@@ -243,7 +244,7 @@ suite('stateToProgressAdapter', () => {
 
 		test('write permission has input data', () => {
 			const perm = createPermission({
-				permissionKind: 'write',
+				permissionKind: PermissionKind.Write,
 				path: '/test.ts',
 				rawRequest: '{"path":"/test.ts","content":"hello"}',
 			});
@@ -258,20 +259,25 @@ suite('stateToProgressAdapter', () => {
 
 		test('finalizes terminal tool with output and exit code', () => {
 			const tc = createToolCallState({
-				toolKind: 'terminal',
+				_meta: { toolKind: 'terminal' },
 				toolInput: 'echo hi',
 				status: ToolCallStatus.Running,
 			});
 			const invocation = toolCallStateToInvocation(tc);
 
-			const completedTc = createToolCallState({
-				toolKind: 'terminal',
-				toolInput: 'echo hi',
+			finalizeToolInvocation(invocation, {
 				status: ToolCallStatus.Completed,
-				toolOutput: 'output text',
+				toolCallId: 'tc-1',
+				toolName: 'test_tool',
+				displayName: 'Test Tool',
+				invocationMessage: 'Running test tool...',
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'echo hi',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Ran echo hi',
+				content: [{ type: ToolResultContentType.Text, text: 'output text' }],
 			});
-
-			finalizeToolInvocation(invocation, completedTc);
 
 			assert.ok(invocation.toolSpecificData);
 			assert.strictEqual(invocation.toolSpecificData.kind, 'terminal');
@@ -286,13 +292,131 @@ suite('stateToProgressAdapter', () => {
 			});
 			const invocation = toolCallStateToInvocation(tc);
 
-			const failedTc = createToolCallState({
-				status: ToolCallStatus.Failed,
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'test_tool',
+				displayName: 'Test Tool',
+				invocationMessage: 'Running test tool...',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: false,
+				pastTenseMessage: 'Failed',
 				error: { message: 'timeout' },
 			});
 
 			// Should not throw
-			finalizeToolInvocation(invocation, failedTc);
+		});
+
+		test('returns file edits from completed tool call with FileEdit content', () => {
+			const tc = createToolCallState({ status: ToolCallStatus.Running });
+			const invocation = toolCallStateToInvocation(tc);
+
+			const fileEdits = finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'edit_file',
+				displayName: 'Edit File',
+				invocationMessage: 'Editing file...',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Edited file',
+				toolInput: JSON.stringify({ path: '/home/user/file.ts' }),
+				content: [{
+					type: ToolResultContentType.FileEdit,
+					beforeURI: 'agenthost-content:///session/snap/before',
+					afterURI: 'agenthost-content:///session/snap/after',
+				}],
+			});
+
+			assert.strictEqual(fileEdits.length, 1);
+			assert.strictEqual(fileEdits[0].resource.fsPath.replace(/\\/g, '/'), '/home/user/file.ts');
+			assert.strictEqual(fileEdits[0].beforeContentUri.toString(), URI.parse('agenthost-content:///session/snap/before').toString());
+			assert.strictEqual(fileEdits[0].afterContentUri.toString(), URI.parse('agenthost-content:///session/snap/after').toString());
+			assert.ok(fileEdits[0].undoStopId);
+		});
+
+		test('returns empty file edits for cancelled tool call', () => {
+			const tc = createToolCallState({ status: ToolCallStatus.Running });
+			const invocation = toolCallStateToInvocation(tc);
+
+			const fileEdits = finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Cancelled,
+				toolCallId: 'tc-1',
+				toolName: 'edit_file',
+				displayName: 'Edit File',
+				invocationMessage: 'Editing file...',
+				reason: ToolCallCancellationReason.Denied,
+				reasonMessage: 'User cancelled',
+			});
+
+			assert.strictEqual(fileEdits.length, 0);
+		});
+
+		test('returns empty file edits when tool has no FileEdit content', () => {
+			const tc = createToolCallState({ status: ToolCallStatus.Running });
+			const invocation = toolCallStateToInvocation(tc);
+
+			const fileEdits = finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'test_tool',
+				displayName: 'Test Tool',
+				invocationMessage: 'Running test tool...',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Ran test tool',
+				content: [{ type: ToolResultContentType.Text, text: 'output' }],
+			});
+
+			assert.strictEqual(fileEdits.length, 0);
+		});
+
+		test('returns empty file edits when toolInput has no path', () => {
+			const tc = createToolCallState({ status: ToolCallStatus.Running });
+			const invocation = toolCallStateToInvocation(tc);
+
+			const fileEdits = finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'edit_file',
+				displayName: 'Edit File',
+				invocationMessage: 'Editing file...',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Edited',
+				toolInput: JSON.stringify({ content: 'no path field' }),
+				content: [{
+					type: ToolResultContentType.FileEdit,
+					beforeURI: 'agenthost-content:///before',
+					afterURI: 'agenthost-content:///after',
+				}],
+			});
+
+			assert.strictEqual(fileEdits.length, 0);
+		});
+
+		test('returns empty file edits when toolInput is invalid JSON', () => {
+			const tc = createToolCallState({ status: ToolCallStatus.Running });
+			const invocation = toolCallStateToInvocation(tc);
+
+			const fileEdits = finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'edit_file',
+				displayName: 'Edit File',
+				invocationMessage: 'Editing file...',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Edited',
+				toolInput: 'not json',
+				content: [{
+					type: ToolResultContentType.FileEdit,
+					beforeURI: 'agenthost-content:///before',
+					afterURI: 'agenthost-content:///after',
+				}],
+			});
+
+			assert.strictEqual(fileEdits.length, 0);
 		});
 	});
 });

@@ -14,75 +14,80 @@ import type {
 	IAgentDeltaEvent,
 	IAgentTitleChangedEvent,
 } from '../common/agentService.js';
-import type {
-	ISessionAction,
-	IDeltaAction,
-	IToolStartAction,
-	IToolCompleteAction,
-	ITurnCompleteAction,
-	ISessionErrorAction,
-	IUsageAction,
-	ITitleChangedAction,
-	IPermissionRequestAction,
-	IReasoningAction,
+import {
+	ActionType,
+	type ISessionAction,
+	type IDeltaAction,
+	type IToolCallStartAction,
+	type IToolCallReadyAction,
+	type IToolCallCompleteAction,
+	type ITurnCompleteAction,
+	type ISessionErrorAction,
+	type IUsageAction,
+	type ITitleChangedAction,
+	type IPermissionRequestAction,
+	type IReasoningAction,
 } from '../common/state/sessionActions.js';
-import { ToolCallStatus } from '../common/state/sessionState.js';
-import { URI } from '../../../base/common/uri.js';
+import { ToolCallConfirmationReason, type URI } from '../common/state/sessionState.js';
 
 /**
  * Maps a flat {@link IAgentProgressEvent} from the agent host into
- * a protocol {@link ISessionAction} suitable for dispatch to the reducer.
+ * protocol {@link ISessionAction}(s) suitable for dispatch to the reducer.
+ *
  * Returns `undefined` for events that have no corresponding action.
+ * May return an array when a single SDK event maps to multiple protocol actions
+ * (e.g. `tool_start` → `toolCallStart` + `toolCallReady`).
  */
-export function mapProgressEventToAction(event: IAgentProgressEvent, session: URI, turnId: string): ISessionAction | undefined {
+export function mapProgressEventToActions(event: IAgentProgressEvent, session: URI, turnId: string): ISessionAction | ISessionAction[] | undefined {
 	switch (event.type) {
 		case 'delta':
 			return {
-				type: 'session/delta',
+				type: ActionType.SessionDelta,
 				session,
 				turnId,
 				content: (event as IAgentDeltaEvent).content,
 			} satisfies IDeltaAction;
 
 		case 'tool_start': {
+			// The Copilot SDK provides full parameters at tool_start time.
+			// We emit both toolCallStart (streaming → created) and toolCallReady
+			// (params complete → running with auto-confirm) as a pair.
 			const e = event as IAgentToolStartEvent;
-			return {
-				type: 'session/toolStart',
+			const startAction: IToolCallStartAction = {
+				type: ActionType.SessionToolCallStart,
 				session,
 				turnId,
-				toolCall: {
-					toolCallId: e.toolCallId,
-					toolName: e.toolName,
-					displayName: e.displayName,
-					invocationMessage: e.invocationMessage,
-					toolInput: e.toolInput,
-					toolKind: e.toolKind,
-					language: e.language,
-					toolArguments: e.toolArguments,
-					status: ToolCallStatus.Running,
-				},
-			} satisfies IToolStartAction;
+				toolCallId: e.toolCallId,
+				toolName: e.toolName,
+				displayName: e.displayName,
+				_meta: { toolKind: e.toolKind, language: e.language },
+			};
+			const readyAction: IToolCallReadyAction = {
+				type: ActionType.SessionToolCallReady,
+				session,
+				turnId,
+				toolCallId: e.toolCallId,
+				invocationMessage: e.invocationMessage,
+				toolInput: e.toolInput,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			};
+			return [startAction, readyAction];
 		}
 
 		case 'tool_complete': {
 			const e = event as IAgentToolCompleteEvent;
 			return {
-				type: 'session/toolComplete',
+				type: ActionType.SessionToolCallComplete,
 				session,
 				turnId,
 				toolCallId: e.toolCallId,
-				result: {
-					success: e.success,
-					pastTenseMessage: e.pastTenseMessage,
-					toolOutput: e.toolOutput,
-					error: e.error,
-				},
-			} satisfies IToolCompleteAction;
+				result: e.result,
+			} satisfies IToolCallCompleteAction;
 		}
 
 		case 'idle':
 			return {
-				type: 'session/turnComplete',
+				type: ActionType.SessionTurnComplete,
 				session,
 				turnId,
 			} satisfies ITurnCompleteAction;
@@ -90,7 +95,7 @@ export function mapProgressEventToAction(event: IAgentProgressEvent, session: UR
 		case 'error': {
 			const e = event as IAgentErrorEvent;
 			return {
-				type: 'session/error',
+				type: ActionType.SessionError,
 				session,
 				turnId,
 				error: {
@@ -104,7 +109,7 @@ export function mapProgressEventToAction(event: IAgentProgressEvent, session: UR
 		case 'usage': {
 			const e = event as IAgentUsageEvent;
 			return {
-				type: 'session/usage',
+				type: ActionType.SessionUsage,
 				session,
 				turnId,
 				usage: {
@@ -118,7 +123,7 @@ export function mapProgressEventToAction(event: IAgentProgressEvent, session: UR
 
 		case 'title_changed':
 			return {
-				type: 'session/titleChanged',
+				type: ActionType.SessionTitleChanged,
 				session,
 				title: (event as IAgentTitleChangedEvent).title,
 			} satisfies ITitleChangedAction;
@@ -126,7 +131,7 @@ export function mapProgressEventToAction(event: IAgentProgressEvent, session: UR
 		case 'permission_request': {
 			const e = event as IAgentPermissionRequestEvent;
 			return {
-				type: 'session/permissionRequest',
+				type: ActionType.SessionPermissionRequest,
 				session,
 				turnId,
 				request: {
@@ -145,7 +150,7 @@ export function mapProgressEventToAction(event: IAgentProgressEvent, session: UR
 
 		case 'reasoning':
 			return {
-				type: 'session/reasoning',
+				type: ActionType.SessionReasoning,
 				session,
 				turnId,
 				content: (event as IAgentReasoningEvent).content,

@@ -9,10 +9,11 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../chatModes.js';
-import { ChatModeKind } from '../../constants.js';
+import { ChatConfiguration, ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService, SpecedToolAliases } from '../../tools/languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType, Target } from '../promptTypes.js';
@@ -21,10 +22,9 @@ import { Disposable, DisposableStore, toDisposable } from '../../../../../../bas
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { AGENTS_SOURCE_FOLDER, CLAUDE_AGENTS_SOURCE_FOLDER, isInClaudeRulesFolder, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { AGENTS_SOURCE_FOLDER, CLAUDE_AGENTS_SOURCE_FOLDER, isInClaudeRulesFolder, LEGACY_MODE_FILE_EXTENSION, VALID_SKILL_NAME_REGEX } from '../config/promptFileLocations.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { dirname } from '../../../../../../base/common/resources.js';
@@ -52,7 +52,7 @@ export class PromptValidator {
 		await this.validateHeader(promptAST, promptType, target, report);
 		await this.validateBody(promptAST, target, report);
 		await this.validateFileName(promptAST, promptType, report);
-		await this.validateSkillFolderName(promptAST, promptType, report);
+		await this.validateSkillAttributes(promptAST, promptType, report);
 	}
 
 	private async validateFileName(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
@@ -66,32 +66,55 @@ export class PromptValidator {
 		}
 	}
 
-	private async validateSkillFolderName(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
+	private async validateSkillAttributes(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
 		if (promptType !== PromptsType.skill) {
 			return;
 		}
 
 		const nameAttribute = promptAST.header?.attributes.find(attr => attr.key === PromptHeaderAttributes.name);
-		if (!nameAttribute || nameAttribute.value.type !== 'scalar') {
+		if (!nameAttribute) {
+			report(toMarker(
+				localize('promptValidator.skillNameMissing', "Skill must provide a name."),
+				new Range(1, 1, 1, 4),
+				MarkerSeverity.Error
+			));
 			return;
 		}
 
-		const skillName = nameAttribute.value.value.trim();
-		if (!skillName) {
+		const descriptionAttribute = promptAST.header?.attributes.find(attr => attr.key === PromptHeaderAttributes.description);
+		if (!descriptionAttribute) {
+			report(toMarker(
+				localize('promptValidator.skillDescriptionMissing', "Skill must provide a description."),
+				new Range(1, 1, 1, 4),
+				MarkerSeverity.Error
+			));
 			return;
 		}
 
-		// Extract folder name from path (e.g., .github/skills/my-skill/SKILL.md -> my-skill)
-		const pathParts = promptAST.uri.path.split('/');
-		const skillIndex = pathParts.findIndex(part => part === 'SKILL.md');
-		if (skillIndex > 0) {
-			const folderName = pathParts[skillIndex - 1];
-			if (folderName && skillName !== folderName) {
-				report(toMarker(
-					localize('promptValidator.skillNameFolderMismatch', "The skill name '{0}' should match the folder name '{1}'.", skillName, folderName),
-					nameAttribute.value.range,
-					MarkerSeverity.Warning
-				));
+		if (nameAttribute.value.type === 'scalar') {
+			const skillName = nameAttribute.value.value.trim();
+			if (skillName.length > 0) {
+				if (!VALID_SKILL_NAME_REGEX.test(skillName)) {
+					report(toMarker(
+						localize('promptValidator.skillNameInvalidChars', "Skill name may only contain lowercase letters, numbers, and hyphens."),
+						nameAttribute.value.range,
+						MarkerSeverity.Error
+					));
+				}
+
+				// Extract folder name from path (e.g., .github/skills/my-skill/SKILL.md -> my-skill)
+				const pathParts = promptAST.uri.path.split('/');
+				const skillIndex = pathParts.findIndex(part => part === 'SKILL.md');
+				if (skillIndex > 0) {
+					const folderName = pathParts[skillIndex - 1];
+					if (folderName && skillName !== folderName) {
+						report(toMarker(
+							localize('promptValidator.skillNameFolderMismatch', "The skill name '{0}' should match the folder name '{1}'.", skillName, folderName),
+							nameAttribute.value.range,
+							MarkerSeverity.Warning
+						));
+					}
+				}
 			}
 		}
 	}
@@ -684,6 +707,7 @@ export class PromptValidator {
 			report(toMarker(localize('promptValidator.handoffsMustBeArray', "The 'handoffs' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
+		const seenLabels = new Map<string, Range>();
 		for (const item of attribute.value.items) {
 			if (item.type !== 'map') {
 				report(toMarker(localize('promptValidator.eachHandoffMustBeObject', "Each handoff in the 'handoffs' attribute must be an object with 'label', 'agent', 'prompt' and optional 'send'."), item.range, MarkerSeverity.Error));
@@ -695,6 +719,8 @@ export class PromptValidator {
 					case 'label':
 						if (prop.value.type !== 'scalar' || prop.value.value.trim().length === 0) {
 							report(toMarker(localize('promptValidator.handoffLabelMustBeNonEmptyString', "The 'label' property in a handoff must be a non-empty string."), prop.value.range, MarkerSeverity.Error));
+						} else if (!/[a-zA-Z0-9]/.test(prop.value.value)) {
+							report(toMarker(localize('promptValidator.handoffLabelMustContainAlphanumeric', "The 'label' property in a handoff must contain at least one alphanumeric character."), prop.value.range, MarkerSeverity.Error));
 						}
 						break;
 					case 'agent':
@@ -731,6 +757,17 @@ export class PromptValidator {
 			}
 			if (required.size > 0) {
 				report(toMarker(localize('promptValidator.missingHandoffProperties', "Missing required properties {0} in handoff object.", Array.from(required).map(s => `'${s}'`).join(', ')), item.range, MarkerSeverity.Error));
+			}
+
+			// Detect duplicate labels (case-insensitive, consistent with ExecuteHandoffAction lookup)
+			const labelProp = item.properties.find(p => p.key.value === 'label');
+			if (labelProp?.value.type === 'scalar') {
+				const normalizedLabel = labelProp.value.value.toLowerCase();
+				if (normalizedLabel && seenLabels.has(normalizedLabel)) {
+					report(toMarker(localize('promptValidator.duplicateHandoffLabel', "Duplicate handoff label '{0}'. Each handoff must have a unique label.", labelProp.value.value), labelProp.value.range, MarkerSeverity.Error));
+				} else if (normalizedLabel) {
+					seenLabels.set(normalizedLabel, labelProp.value.range);
+				}
 			}
 		}
 	}
@@ -791,6 +828,12 @@ export class PromptValidator {
 			report(toMarker(localize('promptValidator.disableModelInvocationMustBeBoolean', "The 'disable-model-invocation' attribute must be 'true' or 'false'."), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
+
+		if (attribute.value.type === 'scalar' && attribute.value.value === 'false') {
+			if (!this.isCustomAgentInSubagentEnabled()) {
+				report(toMarker(localize('promptValidator.inferRequiresConfig', "For agents to be used as subagent you also need to enable the 'chat.customAgentInSubagent.enabled' setting."), attribute.value.range, MarkerSeverity.Warning));
+			}
+		}
 	}
 
 	private async validateAgentsAttribute(attributes: IHeaderAttribute[], header: PromptHeader, report: (markers: IMarkerData) => void): Promise<undefined> {
@@ -801,6 +844,11 @@ export class PromptValidator {
 		if (attribute.value.type !== 'sequence') {
 			report(toMarker(localize('promptValidator.agentsMustBeArray', "The 'agents' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
 			return;
+		}
+
+		// Check if the configuration setting is enabled
+		if (!this.isCustomAgentInSubagentEnabled()) {
+			report(toMarker(localize('promptValidator.agentsRequiresConfig', "For agents to be used as subagent you also need to enable the 'chat.customAgentInSubagent.enabled' setting."), attribute.range, MarkerSeverity.Warning));
 		}
 
 		// Collect available agent names
@@ -828,6 +876,10 @@ export class PromptValidator {
 				report(toMarker(localize('promptValidator.agentsRequiresAgentTool', "When 'agents' and 'tools' are specified, the 'agent' tool must be included in the 'tools' attribute."), attribute.value.range, MarkerSeverity.Warning));
 			}
 		}
+	}
+
+	private isCustomAgentInSubagentEnabled(): boolean {
+		return !!this.configurationService.getValue<boolean>(ChatConfiguration.SubagentToolCustomAgents);
 	}
 
 	private validateGithubPermissions(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {

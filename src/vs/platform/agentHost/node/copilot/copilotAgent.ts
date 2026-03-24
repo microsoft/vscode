@@ -4,16 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CopilotClient, CopilotSession, type SessionEvent, type SessionEventPayload } from '@github/copilot-sdk';
+import { rgPath } from '@vscode/ripgrep';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../base/common/network.js';
+import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
+import { delimiter, dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
-import { IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession, IAgentDescriptor, IAgentAttachment } from '../../common/agentService.js';
-import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isHiddenTool } from './copilotToolDisplay.js';
+import { AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentDescriptor, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
+import { PermissionKind, ToolResultContentType, type IToolResultContent, type PolicyState } from '../../common/state/sessionState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
+import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool } from './copilotToolDisplay.js';
+import { FileEditTracker } from './fileEditTracker.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -42,9 +49,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _pendingPermissions = new Map<string, { sessionId: string; deferred: DeferredPromise<boolean> }>();
 	/** Working directory per session, used when resuming. */
 	private readonly _sessionWorkingDirs = new Map<string, string>();
+	/** File edit trackers per session, keyed by raw session ID. */
+	private readonly _editTrackers = new Map<string, FileEditTracker>();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
+		@IFileService private readonly _fileService: IFileService,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) {
 		super();
 	}
@@ -60,10 +71,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	async setAuthToken(token: string): Promise<void> {
+	getProtectedResources(): IAuthorizationProtectedResourceMetadata[] {
+		return [{
+			resource: 'https://api.github.com',
+			resource_name: 'GitHub Copilot',
+			authorization_servers: ['https://github.com/login/oauth'],
+			scopes_supported: ['read:user', 'user:email'],
+		}];
+	}
+
+	async authenticate(resource: string, token: string): Promise<boolean> {
+		if (resource !== 'https://api.github.com') {
+			return false;
+		}
 		const tokenChanged = this._githubToken !== token;
 		this._githubToken = token;
-		this._logService.info(`[Copilot] Auth token ${tokenChanged ? 'updated' : 'unchanged'} (${token.substring(0, 4)}...)`);
+		this._logService.info(`[Copilot] Auth token ${tokenChanged ? 'updated' : 'unchanged'}`);
 		if (tokenChanged && this._client && this._sessions.size === 0) {
 			this._logService.info('[Copilot] Restarting CopilotClient with new token');
 			const client = this._client;
@@ -71,6 +94,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._clientStarting = undefined;
 			await client.stop();
 		}
+		return true;
 	}
 
 	// ---- client lifecycle ---------------------------------------------------
@@ -83,7 +107,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return this._clientStarting;
 		}
 		this._clientStarting = (async () => {
-			this._logService.info(`[Copilot] Starting CopilotClient... ${this._githubToken ? '(with token)' : '(using logged-in user)'}`);
+			this._logService.info(`[Copilot] Starting CopilotClient... ${this._githubToken ? '(with token)' : '(no token)'}`);
 
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
@@ -101,11 +125,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 			}
 			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
+			env['USE_BUILTIN_RIPGREP'] = '0';
 
 			// Resolve the CLI entry point from node_modules. We can't use require.resolve()
 			// because @github/copilot's exports map blocks direct subpath access.
 			// FileAccess.asFileUri('') points to the `out/` directory; node_modules is one level up.
 			const cliPath = URI.joinPath(FileAccess.asFileUri(''), '..', 'node_modules', '@github', 'copilot', 'index.js').fsPath;
+
+			// Add VS Code's built-in ripgrep to PATH so the CLI subprocess can find it.
+			// If @vscode/ripgrep is in an .asar file, the binary is unpacked.
+			const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
+			const rgDir = dirname(rgDiskPath);
+			const currentPath = env['PATH'];
+			env['PATH'] = currentPath ? `${currentPath}${delimiter}${rgDir}` : rgDir;
 			this._logService.info(`[Copilot] Resolved CLI path: ${cliPath}`);
 
 			const client = new CopilotClient({
@@ -131,11 +163,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info('[Copilot] Listing sessions...');
 		const client = await this._ensureClient();
 		const sessions = await client.listSessions();
-		const result = sessions.map(s => ({
+		const result: IAgentSessionMetadata[] = sessions.map(s => ({
 			session: AgentSession.uri(this.id, s.sessionId),
 			startTime: s.startTime.getTime(),
 			modifiedTime: s.modifiedTime.getTime(),
 			summary: s.summary,
+			workingDirectory: typeof s.context?.cwd === 'string' ? s.context.cwd : undefined,
 		}));
 		this._logService.info(`[Copilot] Found ${result.length} sessions`);
 		return result;
@@ -154,7 +187,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			supportsReasoningEffort: m.capabilities.supports.reasoningEffort,
 			supportedReasoningEfforts: m.supportedReasoningEfforts,
 			defaultReasoningEffort: m.defaultReasoningEffort,
-			policyState: m.policy?.state,
+			policyState: m.policy?.state as PolicyState | undefined,
 			billingMultiplier: m.billing?.multiplier,
 		}));
 		this._logService.info(`[Copilot] Found ${result.length} models`);
@@ -170,6 +203,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			streaming: true,
 			workingDirectory: config?.workingDirectory,
 			onPermissionRequest: (request, invocation) => this._handlePermissionRequest(request, invocation),
+			hooks: this._createSessionHooks(),
 		});
 
 		const wrapper = this._trackSession(raw);
@@ -294,9 +328,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const deferred = new DeferredPromise<boolean>();
 		this._pendingPermissions.set(requestId, { sessionId: invocation.sessionId, deferred });
 
-		const permissionKind = (['shell', 'write', 'mcp', 'read', 'url'] as const).includes(request.kind as 'shell')
-			? request.kind as 'shell' | 'write' | 'mcp' | 'read' | 'url'
-			: 'read'; // Treat unknown kinds as read (safest default)
+		const permissionKind = ([PermissionKind.Shell, PermissionKind.Write, PermissionKind.Mcp, PermissionKind.Read, PermissionKind.Url] as const).includes(request.kind as PermissionKind)
+			? request.kind as PermissionKind
+			: PermissionKind.Read; // Treat unknown kinds as read (safest default)
 
 		// Fire the event so the renderer can handle it
 		this._onDidSessionProgress.fire({
@@ -325,6 +359,44 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._activeToolCalls.delete(key);
 			}
 		}
+	}
+
+	private _getOrCreateEditTracker(rawSessionId: string): FileEditTracker {
+		let tracker = this._editTrackers.get(rawSessionId);
+		if (!tracker) {
+			tracker = new FileEditTracker(rawSessionId, this._sessionDataService, this._fileService, this._logService);
+			this._editTrackers.set(rawSessionId, tracker);
+		}
+		return tracker;
+	}
+
+	/**
+	 * Creates SDK session hooks for pre/post tool use. The `onPreToolUse`
+	 * hook snapshots files before edit tools run. The `onPostToolUse` hook
+	 * snapshots the after-content so that it's ready synchronously when
+	 * `onToolComplete` fires.
+	 */
+	private _createSessionHooks() {
+		return {
+			onPreToolUse: async (input: { toolName: string; toolArgs: unknown }, invocation: { sessionId: string }) => {
+				if (isEditTool(input.toolName)) {
+					const filePath = getEditFilePath(input.toolArgs);
+					if (filePath) {
+						const tracker = this._getOrCreateEditTracker(invocation.sessionId);
+						await tracker.trackEditStart(filePath);
+					}
+				}
+			},
+			onPostToolUse: async (input: { toolName: string; toolArgs: unknown }, invocation: { sessionId: string }) => {
+				if (isEditTool(input.toolName)) {
+					const filePath = getEditFilePath(input.toolArgs);
+					if (filePath) {
+						const tracker = this._editTrackers.get(invocation.sessionId);
+						await tracker?.completeEdit(filePath);
+					}
+				}
+			},
+		};
 	}
 
 	private _trackSession(raw: CopilotSession, sessionIdOverride?: string): CopilotSessionWrapper {
@@ -379,6 +451,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const trackingKey = `${rawId}:${e.data.toolCallId}`;
 			this._activeToolCalls.set(trackingKey, { toolName: e.data.toolName, displayName, parameters });
 			const toolKind = getToolKind(e.data.toolName);
+
 			this._onDidSessionProgress.fire({
 				session,
 				type: 'tool_start',
@@ -406,16 +479,33 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._activeToolCalls.delete(trackingKey);
 			const displayName = tracked.displayName;
 			const toolOutput = e.data.error?.message ?? e.data.result?.content;
+
+			const content: IToolResultContent[] = [];
+			if (toolOutput !== undefined) {
+				content.push({ type: ToolResultContentType.Text, text: toolOutput });
+			}
+
+			// File edit data was already prepared by the onPostToolUse hook
+			const tracker = this._editTrackers.get(rawId);
+			const filePath = isEditTool(tracked.toolName) ? getEditFilePath(tracked.parameters) : undefined;
+			if (tracker && filePath) {
+				const fileEdit = tracker.takeCompletedEdit(filePath);
+				if (fileEdit) {
+					content.push(fileEdit);
+				}
+			}
+
 			this._onDidSessionProgress.fire({
 				session,
 				type: 'tool_complete',
 				toolCallId: e.data.toolCallId,
-				success: e.data.success,
-				pastTenseMessage: getPastTenseMessage(tracked?.toolName ?? '', displayName, tracked?.parameters, e.data.success),
-				toolOutput,
+				result: {
+					success: e.data.success,
+					pastTenseMessage: getPastTenseMessage(tracked.toolName, displayName, tracked.parameters, e.data.success),
+					content: content.length > 0 ? content : undefined,
+					error: e.data.error,
+				},
 				isUserRequested: e.data.isUserRequested,
-				result: e.data.result,
-				error: e.data.error,
 				toolTelemetry: e.data.toolTelemetry !== undefined ? tryStringify(e.data.toolTelemetry) : undefined,
 				parentToolCallId: e.data.parentToolCallId,
 			});
@@ -588,6 +678,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const raw = await client.resumeSession(sessionId, {
 			onPermissionRequest: (request, invocation) => this._handlePermissionRequest(request, invocation),
 			workingDirectory: this._sessionWorkingDirs.get(sessionId),
+			hooks: this._createSessionHooks(),
 		});
 		return this._trackSession(raw, sessionId);
 	}
@@ -652,16 +743,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 				toolInfoByCallId.delete(d.toolCallId);
 				const displayName = getToolDisplayName(info.toolName);
+				const toolOutput = d.error?.message ?? d.result?.content;
+				const content: IToolResultContent[] = [];
+				if (toolOutput !== undefined) {
+					content.push({ type: ToolResultContentType.Text, text: toolOutput });
+				}
 				result.push({
 					session,
 					type: 'tool_complete',
 					toolCallId: d.toolCallId,
-					success: d.success,
-					pastTenseMessage: getPastTenseMessage(info.toolName, displayName, info.parameters, d.success),
-					toolOutput: d.error?.message ?? d.result?.content,
+					result: {
+						success: d.success,
+						pastTenseMessage: getPastTenseMessage(info.toolName, displayName, info.parameters, d.success),
+						content: content.length > 0 ? content : undefined,
+						error: d.error,
+					},
 					isUserRequested: d.isUserRequested,
-					result: d.result,
-					error: d.error,
 					toolTelemetry: d.toolTelemetry !== undefined ? tryStringify(d.toolTelemetry) : undefined,
 				});
 			}

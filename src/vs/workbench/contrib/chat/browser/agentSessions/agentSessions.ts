@@ -7,8 +7,6 @@ import { localize } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-
-import { IChatSessionTiming } from '../../common/chatService/chatService.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -22,6 +20,14 @@ export enum AgentSessionProviders {
 	Growth = 'copilot-growth',
 	AgentHostCopilot = 'agent-host-copilot',
 }
+
+/**
+ * A session target is either a well-known {@link AgentSessionProviders} enum
+ * value or a dynamic string for dynamically-registered providers (e.g. remote
+ * agent hosts like `remote-{authority}-copilot`).
+ * TODO@roblourens HACK
+ */
+export type AgentSessionTarget = AgentSessionProviders | (string & {});
 
 export function isBuiltInAgentSessionProvider(provider: string): boolean {
 	return provider === AgentSessionProviders.Local ||
@@ -104,6 +110,21 @@ export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders
 	}
 }
 
+/**
+ * Returns whether the given session type is an agent host target.
+ * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
+ *
+ * Note: The `remote-` prefix convention is established by
+ * {@link RemoteAgentHostContribution} which generates session types as
+ * `remote-{sanitizedAddress}-{provider}`. If future remote providers that
+ * are NOT agent hosts need a different prefix, this function must be updated.
+ */
+export function isAgentHostTarget(target: string): boolean {
+	return target === AgentSessionProviders.AgentHostCopilot ||
+		target.startsWith('agent-host-') ||
+		target.startsWith('remote-');
+}
+
 export function getAgentCanContinueIn(provider: AgentSessionProviders): boolean {
 	switch (provider) {
 		case AgentSessionProviders.Local:
@@ -158,6 +179,9 @@ export interface IAgentSessionsControl {
 
 	clearFocus(): void;
 	hasFocusOrSelection(): boolean;
+
+	resetSectionCollapseState(): void;
+	collapseAllSections(): void;
 }
 
 export const agentSessionReadIndicatorForeground = registerColor(
@@ -180,7 +204,3 @@ export const agentSessionSelectedUnfocusedBadgeBorder = registerColor(
 
 export const AGENT_SESSION_RENAME_ACTION_ID = 'agentSession.rename';
 export const AGENT_SESSION_DELETE_ACTION_ID = 'agentSession.delete';
-
-export function getAgentSessionTime(timing: IChatSessionTiming): number {
-	return timing.lastRequestStarted ?? timing.created;
-}

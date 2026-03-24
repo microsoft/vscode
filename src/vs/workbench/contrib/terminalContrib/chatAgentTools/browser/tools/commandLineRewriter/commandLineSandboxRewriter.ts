@@ -15,19 +15,27 @@ export class CommandLineSandboxRewriter extends Disposable implements ICommandLi
 	}
 
 	async rewrite(options: ICommandLineRewriterOptions): Promise<ICommandLineRewriterResult | undefined> {
+		if (options.requestUnsandboxedExecution) {
+			return undefined;
+		}
+
 		if (!(await this._sandboxService.isEnabled())) {
 			return undefined;
 		}
 
-		const wrappedCommand = await this._sandboxService.wrapCommand(options.commandLine);
-		if (wrappedCommand === options.commandLine) {
-			// If the sandbox service returns the same command, it means it didn't actually wrap it for some reason. In that case, we should return undefined to allow other rewriters to run, instead of returning a result that claims the command was rewritten but doesn't actually change anything.
+		// Ensure sandbox config is initialized before wrapping
+		const sandboxConfigPath = await this._sandboxService.getSandboxConfigPath();
+		if (!sandboxConfigPath) {
+			// If no sandbox config is available, run without sandboxing
 			return undefined;
 		}
+
+		const wrappedCommand = this._sandboxService.wrapCommand(options.commandLine);
 		return {
 			rewritten: wrappedCommand,
 			reasoning: 'Wrapped command for sandbox execution',
-			forDisplay: options.commandLine, // show the command that is passed as input. In this case, the output from CommandLinePreventHistoryRewriter
+			forDisplay: options.commandLine, // show the command that is passed as input (after prior rewrites like cd prefix stripping)
+			isSandboxWrapped: true,
 		};
 	}
 }

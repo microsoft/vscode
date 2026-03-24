@@ -6,7 +6,7 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
@@ -71,13 +71,12 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUpdateService updateService: IUpdateService,
 	) {
 		super();
@@ -140,7 +139,12 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 
 	private async onStateChange(startup = false) {
 		this.updateContext();
-		if (this.mode === 'none' || this.tooltipVisible || !await this.hostService.hadLastFocus()) {
+		if (this.mode === 'none') {
+			return;
+		}
+
+		if (this.tooltipVisible || !await this.hostService.hadLastFocus()) {
+			this.tooltip.renderState(this.state);
 			return;
 		}
 
@@ -188,48 +192,10 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		this.storageService.store(LAST_KNOWN_VERSION_KEY, JSON.stringify(to), StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 		if (from) {
-			this.trackVersionChange(from, to);
 			return isMajorMinorVersionChange(from.version, to.version);
 		}
 
 		return false;
-	}
-
-	private trackVersionChange(from: ILastKnownVersion, to: ILastKnownVersion) {
-		type VersionChangeEvent = {
-			fromVersion: string | undefined;
-			fromCommit: string | undefined;
-			fromVersionTime: number | undefined;
-			toVersion: string;
-			toCommit: string | undefined;
-			timeToUpdateMs: number | undefined;
-			updateMode: string | undefined;
-			titleBarMode: string | undefined;
-		};
-
-		type VersionChangeClassification = {
-			owner: 'dmitriv';
-			comment: 'Fired when VS Code detects a version change on startup.';
-			fromVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous version of VS Code.' };
-			fromCommit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The commit hash of the previous version.' };
-			fromVersionTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Timestamp when the previous version was first detected.' };
-			toVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current version of VS Code.' };
-			toCommit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The commit hash of the current version.' };
-			timeToUpdateMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds between the previous version install and this version install.' };
-			updateMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The update mode configured by the user.' };
-			titleBarMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The title bar update indicator mode configured by the user.' };
-		};
-
-		this.telemetryService.publicLog2<VersionChangeEvent, VersionChangeClassification>('update:versionChanged', {
-			fromVersion: from.version,
-			fromCommit: from.commit,
-			fromVersionTime: from.timestamp,
-			toVersion: to.version,
-			toCommit: to.commit,
-			timeToUpdateMs: from.timestamp !== undefined ? to.timestamp - from.timestamp : undefined,
-			updateMode: this.configurationService.getValue<string>('update.mode'),
-			titleBarMode: this.mode
-		});
 	}
 }
 
@@ -247,6 +213,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		private readonly onUserDismissedTooltip: () => void,
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUpdateService private readonly updateService: IUpdateService,
 	) {
 		super(undefined, action, options);
@@ -293,21 +260,25 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		return this.tooltip.domNode;
 	}
 
-	private runAction() {
+	private async runAction() {
+		let commandId: string | undefined;
 		switch (this.updateService.state.type) {
 			case StateType.AvailableForDownload:
-				this.commandService.executeCommand('update.downloadNow');
+				commandId = 'update.downloadNow';
 				break;
 			case StateType.Downloaded:
-				this.commandService.executeCommand('update.install');
+				commandId = 'update.install';
 				break;
 			case StateType.Ready:
-				this.commandService.executeCommand('update.restart');
+				commandId = 'update.restart';
 				break;
 			default:
 				this.showTooltip(true);
-				break;
+				return;
 		}
+
+		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'titlebar' });
+		await this.commandService.executeCommand(commandId);
 	}
 
 	private onStateChange(state: State) {

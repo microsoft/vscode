@@ -3,18 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as os from 'os';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, IAgentAttachment, IAgent } from '../common/agentService.js';
-import type { ISessionAction } from '../common/state/sessionActions.js';
-import type { ICreateSessionParams } from '../common/state/sessionProtocol.js';
+import { IAgent, IAgentAttachment, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
+import { ISessionDataService } from '../common/sessionDataService.js';
+import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
+import { AhpErrorCodes, AHP_PROVIDER_NOT_FOUND, AHP_SESSION_NOT_FOUND, ContentEncoding, IBrowseDirectoryResult, ICreateSessionParams, IDirectoryEntry, IFetchContentResult, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../common/state/sessionProtocol.js';
 import {
-	ISessionModelInfo,
-	SessionStatus, type ISessionSummary
+	ResponsePartKind,
+	SessionStatus,
+	ToolCallConfirmationReason,
+	ToolCallStatus,
+	TurnState,
+	type IResponsePart,
+	type ISessionModelInfo,
+	type ISessionSummary,
+	type IToolCallCompletedState,
+	type ITurn,
+	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
-import { mapProgressEventToAction } from './agentEventMapper.js';
+import { mapProgressEventToActions } from './agentEventMapper.js';
 import type { IProtocolSideEffectHandler } from './protocolServerHandler.js';
 import { SessionStateManager } from './sessionStateManager.js';
 
@@ -23,9 +35,11 @@ import { SessionStateManager } from './sessionStateManager.js';
  */
 export interface IAgentSideEffectsOptions {
 	/** Resolve the agent responsible for a given session URI. */
-	readonly getAgent: (session: URI) => IAgent | undefined;
+	readonly getAgent: (session: ProtocolURI) => IAgent | undefined;
 	/** Observable set of registered agents. Triggers `root/agentsChanged` when it changes. */
 	readonly agents: IObservable<readonly IAgent[]>;
+	/** Session data service for cleaning up per-session data on disposal. */
+	readonly sessionDataService: ISessionDataService;
 }
 
 /**
@@ -41,12 +55,13 @@ export interface IAgentSideEffectsOptions {
 export class AgentSideEffects extends Disposable implements IProtocolSideEffectHandler {
 
 	/** Maps pending permission request IDs to the provider that issued them. */
-	private readonly _pendingPermissions = new Map<string, AgentProvider>();
+	private readonly _pendingPermissions = new Map<string, string>();
 
 	constructor(
 		private readonly _stateManager: SessionStateManager,
 		private readonly _options: IAgentSideEffectsOptions,
 		private readonly _logService: ILogService,
+		private readonly _fileService: IFileService,
 	) {
 		super();
 
@@ -76,7 +91,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			}
 			return { provider: d.provider, displayName: d.displayName, description: d.description, models };
 		}));
-		this._stateManager.dispatchServerAction({ type: 'root/agentsChanged', agents: infos });
+		this._stateManager.dispatchServerAction({ type: ActionType.RootAgentsChanged, agents: infos });
 	}
 
 	// ---- Agent registration -------------------------------------------------
@@ -95,11 +110,17 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				this._pendingPermissions.set(e.requestId, agent.id);
 			}
 
-			const turnId = this._stateManager.getActiveTurnId(e.session);
+			const turnId = this._stateManager.getActiveTurnId(e.session.toString());
 			if (turnId) {
-				const action = mapProgressEventToAction(e, e.session, turnId);
-				if (action) {
-					this._stateManager.dispatchServerAction(action);
+				const actions = mapProgressEventToActions(e, e.session.toString(), turnId);
+				if (actions) {
+					if (Array.isArray(actions)) {
+						for (const action of actions) {
+							this._stateManager.dispatchServerAction(action);
+						}
+					} else {
+						this._stateManager.dispatchServerAction(actions);
+					}
 				}
 			}
 		}));
@@ -110,11 +131,11 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 
 	handleAction(action: ISessionAction): void {
 		switch (action.type) {
-			case 'session/turnStarted': {
+			case ActionType.SessionTurnStarted: {
 				const agent = this._options.getAgent(action.session);
 				if (!agent) {
 					this._stateManager.dispatchServerAction({
-						type: 'session/error',
+						type: ActionType.SessionError,
 						session: action.session,
 						turnId: action.turnId,
 						error: { errorType: 'noAgent', message: 'No agent found for session' },
@@ -126,10 +147,10 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 					path: a.path,
 					displayName: a.displayName,
 				}));
-				agent.sendMessage(action.session, action.userMessage.text, attachments).catch(err => {
+				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments).catch(err => {
 					this._logService.error('[AgentSideEffects] sendMessage failed', err);
 					this._stateManager.dispatchServerAction({
-						type: 'session/error',
+						type: ActionType.SessionError,
 						session: action.session,
 						turnId: action.turnId,
 						error: { errorType: 'sendFailed', message: String(err) },
@@ -137,7 +158,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				});
 				break;
 			}
-			case 'session/permissionResolved': {
+			case ActionType.SessionPermissionResolved: {
 				const providerId = this._pendingPermissions.get(action.requestId);
 				if (providerId) {
 					this._pendingPermissions.delete(action.requestId);
@@ -148,16 +169,16 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				}
 				break;
 			}
-			case 'session/turnCancelled': {
+			case ActionType.SessionTurnCancelled: {
 				const agent = this._options.getAgent(action.session);
-				agent?.abortSession(action.session).catch(err => {
+				agent?.abortSession(URI.parse(action.session)).catch(err => {
 					this._logService.error('[AgentSideEffects] abortSession failed', err);
 				});
 				break;
 			}
-			case 'session/modelChanged': {
+			case ActionType.SessionModelChanged: {
 				const agent = this._options.getAgent(action.session);
-				agent?.changeModel?.(action.session, action.model).catch(err => {
+				agent?.changeModel?.(URI.parse(action.session), action.model).catch(err => {
 					this._logService.error('[AgentSideEffects] changeModel failed', err);
 				});
 				break;
@@ -166,18 +187,21 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 	}
 
 	async handleCreateSession(command: ICreateSessionParams): Promise<void> {
-		const provider = command.provider as AgentProvider | undefined;
+		const provider = command.provider;
 		if (!provider) {
-			throw new Error('No provider specified for session creation');
+			throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, 'No provider specified for session creation');
 		}
 		const agent = this._options.agents.get().find(a => a.id === provider);
 		if (!agent) {
-			throw new Error(`No agent registered for provider: ${provider}`);
+			throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, `No agent registered for provider: ${provider}`);
 		}
-		const session = await agent.createSession({
+		// Use the client-provided session URI per the protocol spec
+		const session = command.session;
+		await agent.createSession({
 			provider,
 			model: command.model,
 			workingDirectory: command.workingDirectory,
+			session: URI.parse(session),
 		});
 		const summary: ISessionSummary = {
 			resource: session,
@@ -186,15 +210,17 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			status: SessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
+			workingDirectory: command.workingDirectory,
 		};
 		this._stateManager.createSession(summary);
-		this._stateManager.dispatchServerAction({ type: 'session/ready', session });
+		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session });
 	}
 
-	handleDisposeSession(session: URI): void {
+	handleDisposeSession(session: ProtocolURI): void {
 		const agent = this._options.getAgent(session);
-		agent?.disposeSession(session).catch(() => { });
+		agent?.disposeSession(URI.parse(session)).catch(() => { });
 		this._stateManager.removeSession(session);
+		this._options.sessionDataService.deleteSessionData(URI.parse(session));
 	}
 
 	async handleListSessions(): Promise<ISessionSummary[]> {
@@ -204,7 +230,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			const provider = agent.id;
 			for (const s of sessions) {
 				allSessions.push({
-					resource: s.session,
+					resource: s.session.toString(),
 					provider,
 					title: s.summary ?? 'Session',
 					status: SessionStatus.Idle,
@@ -214,6 +240,254 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			}
 		}
 		return allSessions;
+	}
+
+	/**
+	 * Restores a session from a previous server lifetime into the state
+	 * manager. Fetches the session's message history from the agent backend,
+	 * reconstructs `ITurn[]`, and creates the session in the state manager.
+	 *
+	 * @throws {ProtocolError} if the session URI doesn't match any agent or
+	 * the agent cannot retrieve the session messages.
+	 */
+	async handleRestoreSession(session: ProtocolURI): Promise<void> {
+		// Already in state manager - nothing to do.
+		if (this._stateManager.getSessionState(session)) {
+			return;
+		}
+
+		const agent = this._options.getAgent(session);
+		if (!agent) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `No agent for session: ${session}`);
+		}
+
+		// Verify the session actually exists on the backend to avoid
+		// creating phantom sessions for made-up URIs.
+		let allSessions;
+		try {
+			allSessions = await agent.listSessions();
+		} catch (err) {
+			if (err instanceof ProtocolError) {
+				throw err;
+			}
+			const message = err instanceof Error ? err.message : String(err);
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to list sessions for ${session}: ${message}`);
+		}
+		const meta = allSessions.find(s => s.session.toString() === session);
+		if (!meta) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${session}`);
+		}
+
+		const sessionUri = URI.parse(session);
+		let messages;
+		try {
+			messages = await agent.getSessionMessages(sessionUri);
+		} catch (err) {
+			if (err instanceof ProtocolError) {
+				throw err;
+			}
+			const message = err instanceof Error ? err.message : String(err);
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to restore session ${session}: ${message}`);
+		}
+		const turns = this._buildTurnsFromMessages(messages);
+
+		const summary: ISessionSummary = {
+			resource: session,
+			provider: agent.id,
+			title: meta.summary ?? 'Session',
+			status: SessionStatus.Idle,
+			createdAt: meta.startTime,
+			modifiedAt: meta.modifiedTime,
+			workingDirectory: meta.workingDirectory,
+		};
+
+		this._stateManager.restoreSession(summary, turns);
+		this._logService.info(`[AgentSideEffects] Restored session ${session} with ${turns.length} turns`);
+	}
+
+	/**
+	 * Reconstructs completed `ITurn[]` from a sequence of agent session
+	 * messages (user messages, assistant messages, tool starts, tool
+	 * completions). Each user-message starts a new turn; the assistant
+	 * message closes it.
+	 */
+	private _buildTurnsFromMessages(
+		messages: readonly (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[],
+	): ITurn[] {
+		const turns: ITurn[] = [];
+		let currentTurn: {
+			id: string;
+			userMessage: { text: string };
+			responseText: string;
+			responseParts: IResponsePart[];
+			toolCalls: IToolCallCompletedState[];
+			pendingTools: Map<string, IAgentToolStartEvent>;
+		} | undefined;
+
+		let turnCounter = 0;
+
+		for (const msg of messages) {
+			if (msg.type === 'message' && msg.role === 'user') {
+				// Flush any in-progress turn (e.g. interrupted/cancelled
+				// turn that never got a closing assistant message).
+				if (currentTurn) {
+					turns.push({
+						id: currentTurn.id,
+						userMessage: currentTurn.userMessage,
+						responseText: currentTurn.responseText,
+						responseParts: currentTurn.responseParts,
+						toolCalls: currentTurn.toolCalls,
+						usage: undefined,
+						state: TurnState.Cancelled,
+					});
+				}
+				// Start a new turn
+				currentTurn = {
+					id: `restored-${turnCounter++}`,
+					userMessage: { text: msg.content },
+					responseText: '',
+					responseParts: [],
+					toolCalls: [],
+					pendingTools: new Map(),
+				};
+			} else if (msg.type === 'message' && msg.role === 'assistant') {
+				if (!currentTurn) {
+					// Orphan assistant message - start an implicit turn
+					currentTurn = {
+						id: `restored-${turnCounter++}`,
+						userMessage: { text: '' },
+						responseText: '',
+						responseParts: [],
+						toolCalls: [],
+						pendingTools: new Map(),
+					};
+				}
+
+				if (msg.content) {
+					// Flush any accumulated text as a response part for
+					// interleaving with tool calls
+					currentTurn.responseParts.push({
+						kind: ResponsePartKind.Markdown,
+						content: msg.content,
+					});
+					currentTurn.responseText += msg.content;
+				}
+
+				// If this assistant message has no tool requests, the turn
+				// is complete. If it has tool requests, more events follow.
+				if (!msg.toolRequests || msg.toolRequests.length === 0) {
+					turns.push({
+						id: currentTurn.id,
+						userMessage: currentTurn.userMessage,
+						responseText: currentTurn.responseText,
+						responseParts: currentTurn.responseParts,
+						toolCalls: currentTurn.toolCalls,
+						usage: undefined,
+						state: TurnState.Complete,
+					});
+					currentTurn = undefined;
+				}
+			} else if (msg.type === 'tool_start') {
+				currentTurn?.pendingTools.set(msg.toolCallId, msg);
+			} else if (msg.type === 'tool_complete') {
+				if (currentTurn) {
+					const start = currentTurn.pendingTools.get(msg.toolCallId);
+					currentTurn.pendingTools.delete(msg.toolCallId);
+
+					const tc: IToolCallCompletedState = {
+						status: ToolCallStatus.Completed,
+						toolCallId: msg.toolCallId,
+						toolName: start?.toolName ?? 'unknown',
+						displayName: start?.displayName ?? 'Unknown Tool',
+						invocationMessage: start?.invocationMessage ?? '',
+						toolInput: start?.toolInput,
+						success: msg.result.success,
+						pastTenseMessage: msg.result.pastTenseMessage,
+						content: msg.result.content,
+						error: msg.result.error,
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+						_meta: start ? {
+							toolKind: start.toolKind,
+							language: start.language,
+						} : undefined,
+					};
+					currentTurn.toolCalls.push(tc);
+
+					// If all tools are complete and there are no more pending,
+					// the turn may be finalized by the next assistant message.
+				}
+			}
+		}
+
+		// If there's a dangling turn (no final assistant message closed it),
+		// finalize it as cancelled so we don't lose history.
+		if (currentTurn) {
+			turns.push({
+				id: currentTurn.id,
+				userMessage: currentTurn.userMessage,
+				responseText: currentTurn.responseText,
+				responseParts: currentTurn.responseParts,
+				toolCalls: currentTurn.toolCalls,
+				usage: undefined,
+				state: TurnState.Cancelled,
+			});
+		}
+
+		return turns;
+	}
+
+	handleGetResourceMetadata(): IResourceMetadata {
+		const resources = this._options.agents.get().flatMap(a => a.getProtectedResources());
+		return { resources };
+	}
+
+	async handleAuthenticate(params: IAuthenticateParams): Promise<IAuthenticateResult> {
+		for (const agent of this._options.agents.get()) {
+			const resources = agent.getProtectedResources();
+			if (resources.some(r => r.resource === params.resource)) {
+				const accepted = await agent.authenticate(params.resource, params.token);
+				if (accepted) {
+					return { authenticated: true };
+				}
+			}
+		}
+		return { authenticated: false };
+	}
+
+	async handleBrowseDirectory(uri: ProtocolURI): Promise<IBrowseDirectoryResult> {
+		let stat;
+		try {
+			stat = await this._fileService.resolve(URI.parse(uri));
+		} catch {
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Directory not found: ${uri.toString()}`);
+		}
+
+		if (!stat.isDirectory) {
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Not a directory: ${uri.toString()}`);
+		}
+
+		const entries: IDirectoryEntry[] = (stat.children ?? []).map(child => ({
+			name: child.name,
+			type: child.isDirectory ? 'directory' : 'file',
+		}));
+		return { entries };
+	}
+
+	getDefaultDirectory(): ProtocolURI {
+		return URI.file(os.homedir()).toString();
+	}
+
+	async handleFetchContent(uri: ProtocolURI): Promise<IFetchContentResult> {
+		try {
+			const content = await this._fileService.readFile(URI.parse(uri));
+			return {
+				data: content.value.toString(),
+				encoding: ContentEncoding.Utf8,
+				contentType: 'text/plain',
+			};
+		} catch (_e) {
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri}`);
+		}
 	}
 
 	override dispose(): void {
