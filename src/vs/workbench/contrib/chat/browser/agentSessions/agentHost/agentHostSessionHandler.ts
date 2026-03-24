@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, type IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -21,7 +21,7 @@ import { ActionType, isSessionAction } from '../../../../../../platform/agentHos
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
 import { getToolKind, getToolLanguage } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
-import { AttachmentType, ToolCallStatus, TurnState, type IMessageAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AttachmentType, ToolCallStatus, TurnState, type IMessageAttachment, type ISessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -29,7 +29,7 @@ import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chat
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getAgentHostIcon } from '../agentSessions.js';
-import { turnsToHistory, toolCallStateToInvocation, permissionToConfirmation, finalizeToolInvocation, type IToolCallFileEdit } from './stateToProgressAdapter.js';
+import { turnsToHistory, activeTurnToProgress, toolCallStateToInvocation, permissionToConfirmation, finalizeToolInvocation, type IToolCallFileEdit } from './stateToProgressAdapter.js';
 
 // =============================================================================
 // AgentHostSessionHandler — renderer-side handler for a single agent host
@@ -51,16 +51,23 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly onWillDispose = this._onWillDispose.event;
 
 	readonly requestHandler: IChatSession['requestHandler'];
-	readonly interruptActiveResponseCallback: IChatSession['interruptActiveResponseCallback'];
+	interruptActiveResponseCallback: IChatSession['interruptActiveResponseCallback'];
 
 	constructor(
 		readonly sessionResource: URI,
 		readonly history: readonly IChatSessionHistoryItem[],
 		private readonly _sendRequest: (request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, token: CancellationToken) => Promise<void>,
+		initialProgress: IChatProgress[] | undefined,
 		onDispose: () => void,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+
+		const hasActiveTurn = initialProgress !== undefined;
+		if (hasActiveTurn) {
+			this.isCompleteObs.set(false, undefined);
+			this.progressObs.set(initialProgress, undefined);
+		}
 
 		this._register(toDisposable(() => this._onWillDispose.fire()));
 		this._register(toDisposable(onDispose));
@@ -72,9 +79,34 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			this.isCompleteObs.set(true, undefined);
 		};
 
-		this.interruptActiveResponseCallback = history.length > 0 ? undefined : async () => {
+		// Provide interrupt callback when reconnecting to an active turn or
+		// when this is a brand-new session (no history yet).
+		this.interruptActiveResponseCallback = (hasActiveTurn || history.length === 0) ? async () => {
 			return true;
-		};
+		} : undefined;
+	}
+
+	/**
+	 * Registers a disposable to be cleaned up when this session is disposed.
+	 */
+	registerDisposable<T extends IDisposable>(disposable: T): T {
+		return this._register(disposable);
+	}
+
+	/**
+	 * Appends new progress items to the observable. Used by the reconnection
+	 * flow to stream ongoing state changes into the chat UI.
+	 */
+	appendProgress(items: IChatProgress[]): void {
+		const current = this.progressObs.get();
+		this.progressObs.set([...current, ...items], undefined);
+	}
+
+	/**
+	 * Marks the active turn as complete.
+	 */
+	complete(): void {
+		this.isCompleteObs.set(true, undefined);
 	}
 }
 
@@ -153,6 +185,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let resolvedSession: URI | undefined;
 		const isUntitled = resourceKey.startsWith('untitled-');
 		const history: IChatSessionHistoryItem[] = [];
+		let initialProgress: IChatProgress[] | undefined;
+		let activeTurnId: string | undefined;
 		if (!isUntitled) {
 			resolvedSession = this._resolveSessionUri(sessionResource);
 			this._sessionToBackend.set(resourceKey, resolvedSession);
@@ -163,6 +197,26 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					const sessionState = this._clientState.getSessionState(resolvedSession.toString());
 					if (sessionState) {
 						history.push(...turnsToHistory(sessionState.turns, this._config.agentId));
+
+						// If there's an active turn, include its request in history
+						// with an empty response so the chat service creates a
+						// pending request, then provide accumulated progress via
+						// progressObs for live streaming.
+						if (sessionState.activeTurn) {
+							activeTurnId = sessionState.activeTurn.id;
+							history.push({
+								type: 'request',
+								prompt: sessionState.activeTurn.userMessage.text,
+								participant: this._config.agentId,
+							});
+							history.push({
+								type: 'response',
+								parts: [],
+								participant: this._config.agentId,
+							});
+							initialProgress = activeTurnToProgress(sessionState.activeTurn);
+							this._logService.info(`[AgentHost] Reconnecting to active turn ${activeTurnId} for session ${resolvedSession.toString()}`);
+						}
 					}
 				}
 			} catch (err) {
@@ -179,6 +233,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._sessionToBackend.set(resourceKey, backendSession);
 				return this._handleTurn(backendSession, request, progress, token);
 			},
+			initialProgress,
 			() => {
 				this._activeSessions.delete(resourceKey);
 				this._sessionToBackend.delete(resourceKey);
@@ -190,6 +245,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			},
 		);
 		this._activeSessions.set(resourceKey, session);
+
+		// If reconnecting to an active turn, wire up an ongoing state listener
+		// to stream new progress into the session's progressObs.
+		if (activeTurnId && resolvedSession && initialProgress) {
+			this._reconnectToActiveTurn(resolvedSession, activeTurnId, session, initialProgress);
+		}
+
 		return session;
 	}
 
@@ -444,6 +506,206 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 
 		await done;
+	}
+
+	// ---- Reconnection to active turn ----------------------------------------
+
+	/**
+	 * Wires up an ongoing state listener that streams incremental progress
+	 * from an already-running turn into the chat session's progressObs.
+	 * This is the reconnection counterpart of {@link _handleTurn}, which
+	 * handles newly-initiated turns.
+	 */
+	private _reconnectToActiveTurn(
+		backendSession: URI,
+		turnId: string,
+		chatSession: AgentHostChatSession,
+		initialProgress: IChatProgress[],
+	): void {
+		const sessionKey = backendSession.toString();
+
+		// Build sets of tool-call IDs and permission request IDs from the
+		// snapshot state so we can distinguish them in the initial progress
+		// array without relying on naming conventions.
+		const currentState = this._clientState.getSessionState(sessionKey);
+		const snapshotToolCallIds = new Set(
+			currentState?.activeTurn
+				? Object.keys(currentState.activeTurn.toolCalls)
+				: []
+		);
+		const snapshotPermissionIds = new Set(
+			currentState?.activeTurn
+				? Object.keys(currentState.activeTurn.pendingPermissions)
+				: []
+		);
+
+		// Extract live ChatToolInvocation objects from the initial progress
+		// array so we can update/finalize the same instances the chat UI holds.
+		const activeToolInvocations = new Map<string, ChatToolInvocation>();
+		const activePermissions = new Map<string, ChatToolInvocation>();
+		for (const item of initialProgress) {
+			if (item instanceof ChatToolInvocation) {
+				if (snapshotPermissionIds.has(item.toolCallId)) {
+					activePermissions.set(item.toolCallId, item);
+				} else if (snapshotToolCallIds.has(item.toolCallId)) {
+					activeToolInvocations.set(item.toolCallId, item);
+				}
+			}
+		}
+
+		// Track last-emitted lengths to compute deltas from the immutable state.
+		// Start from the lengths already present in the snapshot so we only emit
+		// new content beyond what activeTurnToProgress captured.
+		let lastStreamedTextLen = currentState?.activeTurn?.streamingText.length ?? 0;
+		let lastReasoningLen = currentState?.activeTurn?.reasoning.length ?? 0;
+
+		const reconnectDisposables = chatSession.registerDisposable(new DisposableStore());
+
+		// Set up the interrupt callback so the user can actually cancel the
+		// remote turn. This dispatches session/turnCancelled to the server.
+		chatSession.interruptActiveResponseCallback = async () => {
+			this._logService.info(`[AgentHost] Reconnect cancellation requested for ${sessionKey}, dispatching turnCancelled`);
+			const cancelAction = {
+				type: ActionType.SessionTurnCancelled as const,
+				session: sessionKey,
+				turnId,
+			};
+			const seq = this._clientState.applyOptimistic(cancelAction);
+			this._config.connection.dispatchAction(cancelAction, this._clientState.clientId, seq);
+			return true;
+		};
+
+		// Wire up awaitConfirmation for permissions that were already pending
+		// at snapshot time so the user can approve/deny them.
+		for (const [requestId, confirmInvocation] of activePermissions) {
+			this._wireUpPermissionConfirmation(reconnectDisposables, confirmInvocation, sessionKey, turnId, requestId);
+		}
+
+		// Process state changes from the protocol layer.
+		const processStateChange = (sessionState: ISessionState) => {
+			const activeTurn = sessionState.activeTurn;
+
+			if (!activeTurn || activeTurn.id !== turnId) {
+				// Turn completed -- emit any final error and mark complete
+				const lastTurn = sessionState.turns[sessionState.turns.length - 1];
+				if (lastTurn?.id === turnId && lastTurn.state === TurnState.Error && lastTurn.error) {
+					chatSession.appendProgress([{
+						kind: 'markdownContent',
+						content: new MarkdownString(`\n\nError: (${lastTurn.error.errorType}) ${lastTurn.error.message}`),
+					}]);
+				}
+				chatSession.complete();
+				reconnectDisposables.dispose();
+				return;
+			}
+
+			// Stream text deltas
+			if (activeTurn.streamingText.length > lastStreamedTextLen) {
+				const delta = activeTurn.streamingText.substring(lastStreamedTextLen);
+				lastStreamedTextLen = activeTurn.streamingText.length;
+				chatSession.appendProgress([{ kind: 'markdownContent', content: new MarkdownString(delta) }]);
+			}
+
+			// Stream reasoning deltas
+			if (activeTurn.reasoning.length > lastReasoningLen) {
+				const delta = activeTurn.reasoning.substring(lastReasoningLen);
+				lastReasoningLen = activeTurn.reasoning.length;
+				chatSession.appendProgress([{ kind: 'thinking', value: delta }]);
+			}
+
+			// Handle tool calls -- create/finalize ChatToolInvocations
+			for (const [toolCallId, tc] of Object.entries(activeTurn.toolCalls)) {
+				const existing = activeToolInvocations.get(toolCallId);
+				if (!existing) {
+					if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Streaming || tc.status === ToolCallStatus.PendingConfirmation) {
+						const invocation = toolCallStateToInvocation(tc);
+						activeToolInvocations.set(toolCallId, invocation);
+						chatSession.appendProgress([invocation]);
+					}
+				} else if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
+					activeToolInvocations.delete(toolCallId);
+					finalizeToolInvocation(existing, tc);
+					// Note: file edits from reconnection are not routed through
+					// the editing session pipeline as there is no active request
+					// context. The edits already happened on the remote.
+				} else if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.PendingConfirmation) {
+					existing.invocationMessage = typeof tc.invocationMessage === 'string'
+						? tc.invocationMessage
+						: new MarkdownString(tc.invocationMessage.markdown);
+					if (getToolKind(tc) === 'terminal' && tc.toolInput) {
+						existing.toolSpecificData = {
+							kind: 'terminal',
+							commandLine: { original: tc.toolInput },
+							language: getToolLanguage(tc) ?? 'shellscript',
+						};
+					}
+				}
+			}
+
+			// Handle new permission requests
+			for (const [requestId, perm] of Object.entries(activeTurn.pendingPermissions)) {
+				if (activePermissions.has(requestId)) {
+					continue;
+				}
+				const confirmInvocation = permissionToConfirmation(perm);
+				activePermissions.set(requestId, confirmInvocation);
+				chatSession.appendProgress([confirmInvocation]);
+
+				this._wireUpPermissionConfirmation(reconnectDisposables, confirmInvocation, sessionKey, turnId, requestId);
+			}
+		};
+
+		// Attach the ongoing state listener
+		reconnectDisposables.add(this._clientState.onDidChangeSessionState(e => {
+			if (e.session !== sessionKey) {
+				return;
+			}
+			processStateChange(e.state);
+		}));
+
+		// Immediately reconcile against the current state to close any gap
+		// between snapshot time and listener registration. If the turn already
+		// completed in the interim, this will mark the session complete.
+		const latestState = this._clientState.getSessionState(sessionKey);
+		if (latestState) {
+			processStateChange(latestState);
+		}
+	}
+
+	/**
+	 * Wires up interactive confirmation handling for a permission request.
+	 * Awaits the user's decision and dispatches the appropriate action.
+	 */
+	private _wireUpPermissionConfirmation(
+		disposables: DisposableStore,
+		confirmInvocation: ChatToolInvocation,
+		sessionKey: string,
+		turnId: string,
+		requestId: string,
+	): void {
+		const cts = new CancellationTokenSource();
+		disposables.add(toDisposable(() => cts.dispose(true)));
+
+		IChatToolInvocation.awaitConfirmation(confirmInvocation, cts.token).then(reason => {
+			const approved = reason.type !== ToolConfirmKind.Denied && reason.type !== ToolConfirmKind.Skipped;
+			this._logService.info(`[AgentHost] Reconnect permission response: requestId=${requestId}, approved=${approved}`);
+			const resolveAction = {
+				type: ActionType.SessionPermissionResolved as const,
+				session: sessionKey,
+				turnId,
+				requestId,
+				approved,
+			};
+			const seq = this._clientState.applyOptimistic(resolveAction);
+			this._config.connection.dispatchAction(resolveAction, this._clientState.clientId, seq);
+			if (approved) {
+				confirmInvocation.didExecuteTool(undefined);
+			} else {
+				confirmInvocation.didExecuteTool({ content: [], toolResultError: 'User denied' });
+			}
+		}).catch(err => {
+			this._logService.warn(`[AgentHost] Reconnect permission confirmation failed for requestId=${requestId}`, err);
+		});
 	}
 
 	// ---- File edit routing ---------------------------------------------------

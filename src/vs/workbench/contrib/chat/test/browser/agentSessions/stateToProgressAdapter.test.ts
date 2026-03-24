@@ -6,10 +6,10 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ToolCallStatus, ToolCallConfirmationReason, PermissionKind, ToolResultContentType, TurnState, type ICompletedToolCall, type IPermissionRequest, type IToolCallRunningState, type ITurn, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ToolCallStatus, ToolCallConfirmationReason, PermissionKind, ToolResultContentType, TurnState, type IActiveTurn, type ICompletedToolCall, type IPermissionRequest, type IToolCallRunningState, type ITurn, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocationSerialized, type IChatMarkdownContent } from '../../../common/chatService/chatService.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory, toolCallStateToInvocation, permissionToConfirmation, finalizeToolInvocation } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory, activeTurnToProgress, toolCallStateToInvocation, permissionToConfirmation, finalizeToolInvocation } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -417,6 +417,126 @@ suite('stateToProgressAdapter', () => {
 			});
 
 			assert.strictEqual(fileEdits.length, 0);
+		});
+	});
+
+	suite('activeTurnToProgress', () => {
+
+		function createActiveTurn(overrides?: Partial<IActiveTurn>): IActiveTurn {
+			return {
+				id: 'turn-active',
+				userMessage: { text: 'Do things' },
+				streamingText: '',
+				responseParts: [],
+				toolCalls: {},
+				pendingPermissions: {},
+				reasoning: '',
+				usage: undefined,
+				...overrides,
+			};
+		}
+
+		test('empty active turn produces empty progress', () => {
+			const result = activeTurnToProgress(createActiveTurn());
+			assert.deepStrictEqual(result, []);
+		});
+
+		test('produces markdown content for streamed text', () => {
+			const result = activeTurnToProgress(createActiveTurn({
+				streamingText: 'Hello world',
+			}));
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].kind, 'markdownContent');
+			assert.strictEqual((result[0] as IChatMarkdownContent).content.value, 'Hello world');
+		});
+
+		test('produces thinking progress for reasoning', () => {
+			const result = activeTurnToProgress(createActiveTurn({
+				reasoning: 'Let me think about this...',
+			}));
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].kind, 'thinking');
+		});
+
+		test('reasoning comes before streamed text', () => {
+			const result = activeTurnToProgress(createActiveTurn({
+				reasoning: 'Hmm...',
+				streamingText: 'Result text',
+			}));
+			assert.strictEqual(result.length, 2);
+			assert.strictEqual(result[0].kind, 'thinking');
+			assert.strictEqual(result[1].kind, 'markdownContent');
+		});
+
+		test('serializes completed tool calls', () => {
+			const result = activeTurnToProgress(createActiveTurn({
+				toolCalls: {
+					'tc-done': {
+						status: ToolCallStatus.Completed,
+						toolCallId: 'tc-done',
+						toolName: 'test_tool',
+						displayName: 'Test Tool',
+						invocationMessage: 'Ran test',
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+						success: true,
+						pastTenseMessage: 'Ran test tool',
+					} as IActiveTurn['toolCalls'][string],
+				},
+			}));
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].kind, 'toolInvocationSerialized');
+		});
+
+		test('creates live invocations for running tool calls', () => {
+			const result = activeTurnToProgress(createActiveTurn({
+				toolCalls: {
+					'tc-running': createToolCallState({
+						toolCallId: 'tc-running',
+						status: ToolCallStatus.Running,
+					}),
+				},
+			}));
+			assert.strictEqual(result.length, 1);
+			// Live ChatToolInvocation - check it has the right toolCallId
+			const invocation = result[0] as { toolCallId?: string; kind?: string };
+			assert.strictEqual(invocation.toolCallId, 'tc-running');
+		});
+
+		test('creates confirmation invocations for pending permissions', () => {
+			const result = activeTurnToProgress(createActiveTurn({
+				pendingPermissions: {
+					'perm-1': createPermission({
+						requestId: 'perm-1',
+						permissionKind: PermissionKind.Shell,
+						fullCommandText: 'echo hello',
+					}),
+				},
+			}));
+			assert.strictEqual(result.length, 1);
+			// Permission invocations have terminal toolSpecificData for shell
+			const invocation = result[0] as { toolSpecificData?: { kind: string } };
+			assert.ok(invocation.toolSpecificData);
+			assert.strictEqual(invocation.toolSpecificData.kind, 'terminal');
+		});
+
+		test('includes all parts in correct order', () => {
+			const result = activeTurnToProgress(createActiveTurn({
+				reasoning: 'Thinking...',
+				streamingText: 'Output so far',
+				toolCalls: {
+					'tc-1': createToolCallState({
+						toolCallId: 'tc-1',
+						status: ToolCallStatus.Running,
+					}),
+				},
+				pendingPermissions: {
+					'perm-1': createPermission({ requestId: 'perm-1' }),
+				},
+			}));
+			// reasoning + text + tool call + permission = 4 items
+			assert.strictEqual(result.length, 4);
+			assert.strictEqual(result[0].kind, 'thinking');
+			assert.strictEqual(result[1].kind, 'markdownContent');
 		});
 	});
 });
