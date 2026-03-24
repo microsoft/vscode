@@ -327,7 +327,7 @@
 		font-size: 12px;
 		color: var(--vscode-descriptionForeground);
 		/* align with session item text: 6px item padding + 16px icon + 6px main-col padding */
-		padding: 0 6px 0 28px;
+		padding: 0 6px 0 24px;
 		cursor: pointer;
 		text-decoration: none !important;
 	}
