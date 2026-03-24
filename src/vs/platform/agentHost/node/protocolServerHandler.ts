@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IAgentDescriptor, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
@@ -85,6 +86,11 @@ export class ProtocolServerHandler extends Disposable {
 
 	private readonly _clients = new Map<string, IConnectedClient>();
 	private readonly _replayBuffer: IActionEnvelope[] = [];
+
+	private readonly _onDidChangeConnectionCount = this._register(new Emitter<number>());
+
+	/** Fires with the current client count whenever a client connects or disconnects. */
+	readonly onDidChangeConnectionCount = this._onDidChangeConnectionCount.event;
 
 	constructor(
 		private readonly _stateManager: SessionStateManager,
@@ -171,9 +177,10 @@ export class ProtocolServerHandler extends Disposable {
 		}));
 
 		disposables.add(transport.onClose(() => {
-			if (client) {
+			if (client && this._clients.get(client.clientId) === client) {
 				this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}`);
 				this._clients.delete(client.clientId);
+				this._onDidChangeConnectionCount.fire(this._clients.size);
 			}
 			disposables.dispose();
 		}));
@@ -205,6 +212,7 @@ export class ProtocolServerHandler extends Disposable {
 			disposables,
 		};
 		this._clients.set(params.clientId, client);
+		this._onDidChangeConnectionCount.fire(this._clients.size);
 
 		const snapshots: IStateSnapshot[] = [];
 		if (params.initialSubscriptions) {
@@ -243,6 +251,7 @@ export class ProtocolServerHandler extends Disposable {
 			disposables,
 		};
 		this._clients.set(params.clientId, client);
+		this._onDidChangeConnectionCount.fire(this._clients.size);
 
 		const oldestBuffered = this._replayBuffer.length > 0 ? this._replayBuffer[0].serverSeq : this._stateManager.serverSeq;
 		const canReplay = params.lastSeenServerSeq >= oldestBuffered;

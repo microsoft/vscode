@@ -7,6 +7,7 @@ import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Server as ChildProcessServer } from '../../../base/parts/ipc/node/ipc.cp.js';
 import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc.mp.js';
 import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
+import { Emitter } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import * as os from 'os';
@@ -73,8 +74,18 @@ function startAgentHost(): void {
 	const agentChannel = ProxyChannel.fromService(agentService, disposables);
 	server.registerChannel(AgentHostIpcChannels.AgentHost, agentChannel);
 
+	// Expose the WebSocket client connection count to the parent process via IPC.
+	// This is NOT part of the agent host protocol -- it is only used by the
+	// server process to manage the agent host process lifetime.
+	const connectionCountEmitter = disposables.add(new Emitter<number>());
+	const connectionTrackerChannel = ProxyChannel.fromService(
+		{ onDidChangeConnectionCount: connectionCountEmitter.event },
+		disposables,
+	);
+	server.registerChannel(AgentHostIpcChannels.ConnectionTracker, connectionTrackerChannel);
+
 	// Start WebSocket server for external clients if configured
-	startWebSocketServer(agentService, logService, disposables).catch(err => {
+	startWebSocketServer(agentService, logService, disposables, count => connectionCountEmitter.fire(count)).catch(err => {
 		logService.error('Failed to start WebSocket server', err);
 	});
 
@@ -91,7 +102,7 @@ function startAgentHost(): void {
  * This reuses the same {@link AgentService} and {@link SessionStateManager}
  * that the IPC channel uses, so both IPC and WebSocket clients share state.
  */
-async function startWebSocketServer(agentService: AgentService, logService: ILogService, disposables: DisposableStore): Promise<void> {
+async function startWebSocketServer(agentService: AgentService, logService: ILogService, disposables: DisposableStore, onConnectionCountChanged: (count: number) => void): Promise<void> {
 	const port = process.env['VSCODE_AGENT_HOST_PORT'];
 	const socketPath = process.env['VSCODE_AGENT_HOST_SOCKET_PATH'];
 
@@ -163,7 +174,8 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 		},
 	};
 
-	disposables.add(new ProtocolServerHandler(agentService.stateManager, wsServer, sideEffects, logService));
+	const protocolHandler = disposables.add(new ProtocolServerHandler(agentService.stateManager, wsServer, sideEffects, logService));
+	disposables.add(protocolHandler.onDidChangeConnectionCount(onConnectionCountChanged));
 
 	const listenTarget = socketPath ?? `${host}:${port}`;
 	logService.info(`[AgentHost] WebSocket server listening on ${listenTarget}`);
