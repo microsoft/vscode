@@ -105,7 +105,7 @@ export interface IChatSessionsExtensionPoint {
 	 */
 	readonly autoAttachReferences?: boolean;
 	/**
-	 * Temporary setting that will be removed once feature is stable. When true, uses the incoming request's mode instructions to populate the built-in pickers such as Agent and Model pickers. When false, the pickers are populated based on the session type as they have been before. This is useful for testing the new ChatRequestTurn2-based flow for populating pickers.
+	 * When true, uses the incoming request's mode instructions to populate the built-in pickers such as Agent and Model pickers. When false, the pickers are populated based on the session type as they have been before. This is useful for testing the new ChatRequestTurn2-based flow for populating pickers.
 	 */
 	readonly useRequestToPopulateBuiltInPickers?: boolean;
 }
