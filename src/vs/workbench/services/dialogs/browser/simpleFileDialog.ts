@@ -138,6 +138,15 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	 * {@link remoteAuthority}).
 	 */
 	private scopedAuthority: string | undefined;
+	/**
+	 * Path prefix that the label formatter strips from URIs in the
+	 * scoped scheme (e.g. `/file/-` for agent host URIs that encode
+	 * the original scheme and authority as leading path segments).
+	 *
+	 * Stripped by {@link pathFromUri} and re-applied by
+	 * {@link remoteUriFrom} so the user sees clean paths.
+	 */
+	private scopedPathPrefix: string = '';
 	private readonly onBusyChangeEmitter = this._register(new Emitter<boolean>());
 	private updatingPromise: CancelablePromise<boolean> | undefined;
 
@@ -200,6 +209,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI[] | undefined> {
 		this.scheme = this.getScheme(options.availableFileSystems, options.defaultUri);
 		this.scopedAuthority = this.getScopedAuthority(options.defaultUri);
+		this.scopedPathPrefix = options.defaultUri && this.scopedAuthority ? this.computeScopedPathPrefix(options.defaultUri) : '';
 		this.userHome = await this.getUserHome();
 		this.trueHome = await this.getUserHome(true);
 		const newOptions = this.getOptions(options);
@@ -217,6 +227,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	public async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		this.scheme = this.getScheme(options.availableFileSystems, options.defaultUri);
 		this.scopedAuthority = this.getScopedAuthority(options.defaultUri);
+		this.scopedPathPrefix = options.defaultUri && this.scopedAuthority ? this.computeScopedPathPrefix(options.defaultUri) : '';
 		this.userHome = await this.getUserHome();
 		this.trueHome = await this.getUserHome(true);
 		this.requiresTrailing = true;
@@ -264,8 +275,9 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		// When scoped to a specific authority (e.g. agenthost://host/...),
 		// construct the URI directly with the authority to avoid
 		// toLocalResource stripping or replacing it.
+		// Re-add the scopedPathPrefix that was stripped in pathFromUri.
 		if (this.scopedAuthority) {
-			return URI.from({ scheme: this.scheme, authority: this.scopedAuthority, path, query: hintUri?.query, fragment: hintUri?.fragment });
+			return URI.from({ scheme: this.scheme, authority: this.scopedAuthority, path: this.scopedPathPrefix + path, query: hintUri?.query, fragment: hintUri?.fragment });
 		}
 		const uri: URI = this.scheme === Schemas.file ? URI.file(path) : URI.from({ scheme: this.scheme, path, query: hintUri?.query, fragment: hintUri?.fragment });
 		// If the default scheme is file, then we don't care about the remote authority or the hint authority
@@ -306,6 +318,23 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		return undefined;
 	}
 
+	/**
+	 * Computes the path prefix that the label formatter strips for the
+	 * scoped scheme, by comparing the raw URI path with the label
+	 * service's formatted output.
+	 *
+	 * For example, an agent host URI with path `/file/-/Users/roblou`
+	 * formats as `/Users/roblou`, so the prefix is `/file/-`.
+	 */
+	private computeScopedPathPrefix(uri: URI): string {
+		const fullPath = uri.path;
+		const displayPath = this.labelService.getUriLabel(uri);
+		if (displayPath && fullPath.endsWith(displayPath)) {
+			return fullPath.substring(0, fullPath.length - displayPath.length);
+		}
+		return '';
+	}
+
 	private async getRemoteAgentEnvironment(): Promise<IRemoteAgentEnvironment | null> {
 		if (this.remoteAgentEnvironment === undefined) {
 			this.remoteAgentEnvironment = await this.remoteAgentService.getEnvironment();
@@ -317,8 +346,9 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		// When scoped to a custom authority, the platform userHome is not
 		// meaningful (it would return a local file:// path). Use the root
 		// of the scoped filesystem as the home directory instead.
+		// Include the scopedPathPrefix so the URI resolves correctly.
 		if (this.scopedAuthority) {
-			return Promise.resolve(URI.from({ scheme: this.scheme, authority: this.scopedAuthority, path: '/' }));
+			return Promise.resolve(URI.from({ scheme: this.scheme, authority: this.scopedAuthority, path: this.scopedPathPrefix + '/' }));
 		}
 		return trueHome
 			? this.pathService.userHome({ preferLocal: this.scheme === Schemas.file })
@@ -1025,9 +1055,15 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	private pathFromUri(uri: URI, endWithSeparator: boolean = false): string {
 		// For authority-scoped schemes, use the raw path component instead
 		// of fsPath, which would prepend the authority as a UNC prefix.
+		// Strip the scopedPathPrefix so the user sees clean paths
+		// (e.g. `/Users/roblou/code` instead of `/file/-/Users/roblou/code`).
 		let result: string;
 		if (this.scopedAuthority) {
-			result = uri.path.replace(/\n/g, '');
+			let path = uri.path;
+			if (this.scopedPathPrefix && path.startsWith(this.scopedPathPrefix)) {
+				path = path.substring(this.scopedPathPrefix.length);
+			}
+			result = path.replace(/\n/g, '');
 		} else {
 			result = normalizeDriveLetter(uri.fsPath, this.isWindows).replace(/\n/g, '');
 		}
@@ -1071,6 +1107,14 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	}
 
 	private async createBackItem(currFolder: URI): Promise<FileQuickPickItem | undefined> {
+		// For authority-scoped URIs with a path prefix, treat the prefix
+		// root as the filesystem root so the user cannot navigate above it.
+		if (this.scopedPathPrefix) {
+			const pathAfterPrefix = currFolder.path.substring(this.scopedPathPrefix.length);
+			if (pathAfterPrefix === '/' || pathAfterPrefix === '') {
+				return undefined;
+			}
+		}
 		// For authority-scoped URIs, compare within the original scheme so
 		// that the authority is preserved and the root is detected correctly.
 		const compareScheme = this.scopedAuthority ? this.scheme : Schemas.file;
