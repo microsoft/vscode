@@ -319,7 +319,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				modeInstructions,
 				parentRequestId: invocation.chatRequestId,
 				hooks: collectedHooks,
-				hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
+				hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr && arr.length > 0),
 			};
 
 			// Subscribe to tool invocations to clear markdown parts when a tool is invoked
