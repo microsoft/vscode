@@ -239,26 +239,6 @@ registerQuickPickCommandAndKeybindingRule(
 
 //#endregion
 
-//#region Attach
-
-registerQuickPickCommandAndKeybindingRule(
-	{
-		id: 'quickInput.attach',
-		when: ContextKeyExpr.and(
-			inQuickInputContext,
-			ContextKeyExpr.equals(quickInputTypeContextKeyValue, QuickInputType.QuickPick),
-		),
-		primary: KeyMod.Shift | KeyCode.Enter,
-		weight: KeybindingWeight.WorkbenchContrib + 100,
-		handler: (accessor) => {
-			const currentQuickPick = accessor.get(IQuickInputService).currentQuickInput as IQuickPick<any>;
-			currentQuickPick?.attach();
-		},
-	},
-);
-
-//#endregion
-
 //#region Hide
 
 registerQuickInputCommandAndKeybindingRule(
