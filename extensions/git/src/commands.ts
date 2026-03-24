@@ -5626,10 +5626,15 @@ export class CommandCenter {
 					case GitErrorCodes.NoUserEmailConfigured: {
 						const configured = await this.promptConfigureIdentity(resolvedRepository);
 						if (configured) {
-							if (resolvedRepository) {
-								return method.apply(this, [resolvedRepository, ...args.slice(1)]);
+							try {
+								if (resolvedRepository) {
+									return await method.apply(this, [resolvedRepository, ...args.slice(1)]);
+								}
+								return await method.apply(this, args);
+							} catch (error) {
+								// Retry failed; update the error and fall through to existing error handling.
+								err = error;
 							}
-							return method.apply(this, args);
 						}
 						message = l10n.t('Make sure you configure your "user.name" and "user.email" in git.');
 						choices.set(l10n.t('Learn More'), () => commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-setup-git')));
