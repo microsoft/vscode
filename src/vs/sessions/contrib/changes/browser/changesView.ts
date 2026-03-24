@@ -243,7 +243,7 @@ class ChangesViewModel extends Disposable {
 
 		// Active session resource
 		this.activeSessionResourceObs = derivedOpts({ equalsFn: isEqual }, reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionManagementService.activeSessionData.read(reader);
 			return activeSession?.resource;
 		});
 
@@ -268,12 +268,13 @@ class ChangesViewModel extends Disposable {
 				return constObservable(undefined);
 			}
 
-			const activeSession = this.sessionManagementService.getActiveSession();
-			if (!activeSession?.worktree) {
+			const activeSession = this.sessionManagementService.activeSessionData.read(reader);
+			const worktree = activeSession?.workspace.read(reader)?.repositories[0]?.workingDirectory;
+			if (!worktree) {
 				return constObservable(undefined);
 			}
 
-			return new ObservablePromise(this.gitService.openRepository(activeSession.worktree)).resolvedValue;
+			return new ObservablePromise(this.gitService.openRepository(worktree)).resolvedValue;
 		});
 
 		this.activeSessionRepositoryObs = derived<IGitRepository | undefined>(reader => {
@@ -361,8 +362,8 @@ export class ChangesViewPane extends ViewPane {
 		// can use it in their `when` clauses. Update reactively when the active session
 		// changes.
 		this._register(bindContextKey(ChatContextKeys.agentSessionType, this.scopedContextKeyService, reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
-			return activeSession?.providerType ?? '';
+			const activeSession = this.sessionManagementService.activeSessionData.read(reader);
+			return activeSession?.sessionType ?? '';
 		}));
 
 		// Badge
@@ -615,8 +616,8 @@ export class ChangesViewPane extends ViewPane {
 			}));
 
 			this.renderDisposables.add(bindContextKey(isMergeBaseBranchProtectedContextKey, this.scopedContextKeyService, reader => {
-				const activeSession = this.sessionManagementService.activeSession.read(reader);
-				return activeSession?.worktreeBaseBranchProtected === true;
+				const activeSession = this.sessionManagementService.activeSessionData.read(reader);
+				return activeSession?.workspace.read(reader)?.repositories[0]?.baseBranchProtected === true;
 			}));
 
 			this.renderDisposables.add(bindContextKey(hasOpenPullRequestContextKey, this.scopedContextKeyService, reader => {
@@ -871,10 +872,10 @@ export class ChangesViewPane extends ViewPane {
 
 		// Bind CI status widget to active session's PR CI model
 		if (this.ciStatusWidget) {
-			const activeSessionResourceObs = derived(this, reader => this.sessionManagementService.activeSession.read(reader)?.resource);
+			const activeSessionResourceObs = derived(this, reader => this.sessionManagementService.activeSessionData.read(reader)?.resource);
 
 			const ciModelObs = derived(this, reader => {
-				const session = this.sessionManagementService.activeSession.read(reader);
+				const session = this.sessionManagementService.activeSessionData.read(reader);
 				if (!session) {
 					return undefined;
 				}

@@ -142,9 +142,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 			// Workspace badge — show when not grouped by repository
 			if (workspace && this.options.grouping() !== SessionsGrouping.Repository) {
-				const badgeEl = DOM.append(template.detailsRow, $('span.session-badge'));
-				badgeEl.textContent = workspace.label;
-				parts.push(badgeEl);
+				const badgeLabel = this.getWorkspaceBadgeLabel(workspace);
+				if (badgeLabel) {
+					const badgeEl = DOM.append(template.detailsRow, $('span.session-badge'));
+					badgeEl.textContent = badgeLabel;
+					parts.push(badgeEl);
+				}
 			}
 
 			// Diff stats
