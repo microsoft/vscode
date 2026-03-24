@@ -4,54 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IOutputService } from '../../../../workbench/services/output/common/output.js';
-import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import * as nls from '../../../../nls.js';
+import { AgentHostFileSystemProvider } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { type AgentProvider, type IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../platform/agentHost/common/state/sessionClientState.js';
 import { ROOT_STATE_URI, type IAgentInfo, type IRootState } from '../../../../platform/agentHost/common/state/sessionState.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, normalizeRemoteAgentHostAddress, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { resolveTokenForResource } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { AgentHostSessionListController } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionListController.js';
+import { AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { IOutputService } from '../../../../workbench/services/output/common/output.js';
 import { ISessionsManagementService } from '../../../contrib/sessions/browser/sessionsManagementService.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-import { AGENT_HOST_FS_SCHEME, AgentHostFileSystemProvider } from './agentHostFileSystemProvider.js';
-import * as nls from '../../../../nls.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-
-/**
- * Encode a remote address into an identifier that is safe for use in
- * both URI schemes and URI authorities, and is collision-free.
- *
- * Three tiers:
- * 1. Purely alphanumeric addresses are returned as-is.
- * 2. "Normal" addresses containing only `[a-zA-Z0-9.:-]` get colons
- *    replaced with `__` (double underscore) for human readability.
- *    Addresses containing `_` skip this tier to keep the encoding
- *    collision-free (`__` can only appear from colon replacement).
- * 3. Everything else is url-safe base64-encoded with a `b64-` prefix.
- */
-export function agentHostAuthority(address: string): string {
-	const normalized = normalizeRemoteAgentHostAddress(address);
-	if (/^[a-zA-Z0-9]+$/.test(normalized)) {
-		return normalized;
-	}
-	if (/^[a-zA-Z0-9.:\-]+$/.test(normalized)) {
-		return normalized.replaceAll(':', '__');
-	}
-	return 'b64-' + encodeBase64(VSBuffer.fromString(normalized), false, true);
-}
 
 /**
  * Given a sanitized URI authority, resolves the corresponding agent host
@@ -119,13 +98,17 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IFileService private readonly _fileService: IFileService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super();
 
 		// Register a single read-only filesystem provider for all remote agent
 		// hosts. Individual connections are identified by the URI authority.
-		this._fsProvider = this._register(this._instantiationService.createInstance(AgentHostFileSystemProvider));
-		this._register(this._fileService.registerProvider(AGENT_HOST_FS_SCHEME, this._fsProvider));
+		this._fsProvider = this._register(new AgentHostFileSystemProvider());
+		this._register(this._fileService.registerProvider(AGENT_HOST_SCHEME, this._fsProvider));
+
+		// Display agent-host URIs with the original file path
+		this._register(this._labelService.registerFormatter(AGENT_HOST_LABEL_FORMATTER));
 
 		// Reconcile when connections change (added/removed/reconnected)
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => {
@@ -177,9 +160,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		this._connections.set(address, connState);
 		const store = connState.store;
 
-		// Track authority -> address mapping for FS provider routing
+		// Track authority -> connection mapping for FS provider routing
 		const authority = agentHostAuthority(address);
-		store.add(this._fsProvider.registerAuthority(authority, address));
+		store.add(this._fsProvider.registerAuthority(authority, connection));
 
 		// Forward non-session actions to client state
 		store.add(connection.onDidAction(envelope => {
@@ -310,6 +293,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			fullName: displayName,
 			description: agent.description,
 			connection,
+			connectionAuthority: sanitized,
 			extensionId: 'vscode.remote-agent-host',
 			extensionDisplayName: 'Remote Agent Host',
 			resolveWorkingDirectory,
@@ -366,21 +350,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	 * Resolve a bearer token for a set of authorization servers using the
 	 * standard VS Code authentication service provider resolution.
 	 */
-	private async _resolveTokenForResource(resourceServer: URI, authorizationServers: readonly string[], scopes: readonly string[]): Promise<string | undefined> {
-		for (const server of authorizationServers) {
-			const serverUri = URI.parse(server);
-			const providerId = await this._authenticationService.getOrActivateProviderIdForServer(serverUri, resourceServer);
-			if (!providerId) {
-				this._logService.trace(`[RemoteAgentHost] No auth provider found for server: ${server}`);
-				continue;
-			}
-
-			const sessions = await this._authenticationService.getSessions(providerId, [...scopes], { authorizationServer: serverUri }, true);
-			if (sessions.length > 0) {
-				return sessions[0].accessToken;
-			}
-		}
-		return undefined;
+	private _resolveTokenForResource(resourceServer: URI, authorizationServers: readonly string[], scopes: readonly string[]): Promise<string | undefined> {
+		return resolveTokenForResource(resourceServer, authorizationServers, scopes, this._authenticationService, this._logService, '[RemoteAgentHost]');
 	}
 
 	/**

@@ -23,8 +23,8 @@ import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quic
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { WorkspacePicker } from '../../browser/workspacePicker.js';
 import { SessionWorkspace, GITHUB_REMOTE_FILE_SCHEME } from '../../../sessions/common/sessionWorkspace.js';
-import { AGENT_HOST_FS_SCHEME, agentHostUri } from '../../../remoteAgentHost/browser/agentHostFileSystemProvider.js';
-import { agentHostAuthority } from '../../../remoteAgentHost/browser/remoteAgentHost.contribution.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostUri } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 
 suite('WorkspacePicker', () => {
 
@@ -127,8 +127,8 @@ suite('WorkspacePicker', () => {
 
 		assert.ok(picker.selectedProject);
 		assert.strictEqual(picker.selectedProject.isRemoteAgentHost, true);
-		assert.strictEqual(picker.selectedProject.uri.scheme, AGENT_HOST_FS_SCHEME);
-		assert.strictEqual(picker.selectedProject.uri.path, '/home/user/project');
+		assert.strictEqual(picker.selectedProject.uri.scheme, AGENT_HOST_SCHEME);
+		assert.strictEqual(picker.selectedProject.uri.path, '/file/-/home/user/project');
 	});
 
 	test('setSelectedProject with GitHub repo URI', () => {
@@ -155,7 +155,7 @@ suite('WorkspacePicker', () => {
 
 		assert.ok(fired);
 		assert.strictEqual(fired.isRemoteAgentHost, true);
-		assert.strictEqual(fired.uri.path, '/remote/path');
+		assert.strictEqual(fired.uri.path, '/file/-/remote/path');
 	});
 
 	test('onDidSelectProject does not fire when fireEvent is false', () => {
@@ -217,7 +217,7 @@ suite('WorkspacePicker', () => {
 		const picker2 = ds.add(instantiationService.createInstance(WorkspacePicker));
 		assert.ok(picker2.selectedProject);
 		assert.strictEqual(picker2.selectedProject.isRemoteAgentHost, true);
-		assert.strictEqual(picker2.selectedProject.uri.path, '/home/user/project');
+		assert.strictEqual(picker2.selectedProject.uri.path, '/file/-/home/user/project');
 		assert.strictEqual(picker2.selectedProject.uri.authority, authority);
 	});
 
@@ -303,7 +303,7 @@ suite('WorkspacePicker', () => {
 		assert.strictEqual(openDialogOptions.title, 'Select Folder on My Host');
 		assert.strictEqual(openDialogOptions.defaultUri?.toString(), agentHostUri(agentHostAuthority('ws://myhost:9090'), '/home/user').toString());
 		assert.ok(picker.selectedProject);
-		assert.strictEqual(picker.selectedProject.uri.path, '/home/user/project');
+		assert.strictEqual(picker.selectedProject.uri.path, '/file/-/home/user/project');
 	});
 
 	test('Browse Remotes can add a remote and continue to folder selection', async () => {
@@ -344,7 +344,7 @@ suite('WorkspacePicker', () => {
 		assert.strictEqual(openDialogOptions.title, 'Select Folder on Loopback');
 		assert.strictEqual(openDialogOptions.defaultUri?.toString(), agentHostUri(agentHostAuthority('127.0.0.1:8089'), '/home/loopback').toString());
 		assert.ok(picker.selectedProject);
-		assert.strictEqual(picker.selectedProject.uri.path, '/home/loopback/project');
+		assert.strictEqual(picker.selectedProject.uri.path, '/file/-/home/loopback/project');
 	});
 
 	test('Browse Remotes with no configured entries goes straight to add remote', async () => {
@@ -376,6 +376,6 @@ suite('WorkspacePicker', () => {
 			connectionToken: undefined,
 		}]);
 		assert.ok(picker.selectedProject);
-		assert.strictEqual(picker.selectedProject.uri.path, '/workspace/myproject');
+		assert.strictEqual(picker.selectedProject.uri.path, '/file/-/workspace/myproject');
 	});
 });

@@ -7,7 +7,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentMessageEvent, type IAgentModelInfo, type IAgentProgressEvent, type IAgentSessionMetadata, type IAgentToolCompleteEvent, type IAgentToolStartEvent } from '../../common/agentService.js';
-import { PermissionKind } from '../../common/state/sessionState.js';
+import { PermissionKind, ToolResultContentType } from '../../common/state/sessionState.js';
 
 /**
  * General-purpose mock agent for unit tests. Tracks all method calls
@@ -146,7 +146,7 @@ export class ScriptedMockAgent implements IAgent {
 			case 'use-tool':
 				this._fireSequence(session, [
 					{ type: 'tool_start', session, toolCallId: 'tc-1', toolName: 'echo_tool', displayName: 'Echo Tool', invocationMessage: 'Running echo tool...' },
-					{ type: 'tool_complete', session, toolCallId: 'tc-1', success: true, pastTenseMessage: 'Ran echo tool', toolOutput: 'echoed' },
+					{ type: 'tool_complete', session, toolCallId: 'tc-1', result: { pastTenseMessage: 'Ran echo tool', content: [{ type: ToolResultContentType.Text, text: 'echoed' }], success: true } },
 					{ type: 'delta', session, messageId: 'msg-1', content: 'Tool done.' },
 					{ type: 'idle', session },
 				]);

@@ -30,6 +30,7 @@ import { localize } from '../../../nls.js';
 import { FileService } from '../../files/common/fileService.js';
 import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
 import { Schemas } from '../../../base/common/network.js';
+import { SessionDataService } from './sessionDataService.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
@@ -62,11 +63,14 @@ function startAgentHost(): void {
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
 
+	// Session data service
+	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
+
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
 	try {
-		agentService = new AgentService(logService, fileService);
-		agentService.registerProvider(new CopilotAgent(logService));
+		agentService = new AgentService(logService, fileService, sessionDataService);
+		agentService.registerProvider(new CopilotAgent(logService, fileService, sessionDataService));
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
 		throw err;
@@ -168,6 +172,9 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 		},
 		handleBrowseDirectory(uri) {
 			return agentService.browseDirectory(URI.parse(uri));
+		},
+		handleFetchContent(uri) {
+			return agentService.fetchContent(URI.parse(uri));
 		},
 		getDefaultDirectory() {
 			return URI.file(os.homedir()).toString();
