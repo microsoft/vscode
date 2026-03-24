@@ -38,7 +38,7 @@ import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatService, IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
-import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -47,10 +47,14 @@ import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { BugIndicatingError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { assertNever } from '../../../../../base/common/assert.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
+import { slashReg } from '../../common/requestParser/chatRequestParser.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -83,7 +87,7 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					type: 'string'
 				},
 				icon: {
-					description: localize('chatSessionsExtPoint.icon', 'Icon identifier (codicon ID) for the chat session editor tab. For example, "$(github)" or "$(cloud)".'),
+					description: localize('chatSessionsExtPoint.icon', 'Icon identifier (codicon ID) for the chat session editor tab. For example, "{0}" or "{1}".', '$(github)', '$(cloud)'),
 					anyOf: [{
 						type: 'string'
 					},
@@ -221,6 +225,11 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					description: localize('chatSessionsExtPoint.autoAttachReferences', 'Whether to automatically attach instruction files to chat requests for this session type.'),
 					type: 'boolean',
 					default: false
+				},
+				useRequestToPopulateBuiltInPickers: {
+					description: localize('chatSessionsExtPoint.useRequestToPopulateBuiltInPickers', 'Whether to use ChatRequestTurn2 to populate built-in pickers such as the Agent and Model pickers.'),
+					type: 'boolean',
+					default: false
 				}
 			},
 			required: ['type', 'name', 'displayName', 'description'],
@@ -295,7 +304,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _onDidChangeOptionGroups = this._register(new Emitter<string>());
 	public get onDidChangeOptionGroups() { return this._onDidChangeOptionGroups.event; }
 
-	private readonly inProgressMap: Map<string, number> = new Map();
+	private readonly inProgressMap = new Map</* chatSessionType */ string, number>();
 	private readonly _sessionTypeOptions = new Map<string, IChatSessionProviderOptionGroup[]>();
 	private readonly _sessionTypeNewSessionOptions = new Map</* sessionType */string, ChatSessionOptionsMap>();
 
@@ -351,23 +360,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		}));
 
-		this._register(this.onDidChangeSessionItems((delta) => {
-			const changedChatSessionTypes = new Set<string>();
-			for (const session of delta.addedOrUpdated ?? []) {
-				changedChatSessionTypes.add(getChatSessionType(session.resource));
-			}
-
-			for (const resource of delta.removed ?? []) {
-				changedChatSessionTypes.add(getChatSessionType(resource));
-			}
-
-			for (const chatSessionType of changedChatSessionTypes) {
-				this.updateInProgressStatus(chatSessionType).catch(error => {
-					this._logService.warn(`Failed to update progress status for '${chatSessionType}':`, error);
-				});
-			}
-		}));
-
 		this._register(this._labelService.registerFormatter({
 			scheme: Schemas.copilotPr,
 			formatting: {
@@ -378,27 +370,17 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}));
 	}
 
-	public reportInProgress(chatSessionType: string, count: number): void {
-		let displayName: string | undefined;
-
-		if (chatSessionType === AgentSessionProviders.Local) {
-			displayName = localize('chat.session.inProgress.local', "Local Agent");
-		} else if (chatSessionType === AgentSessionProviders.Background) {
-			displayName = localize('chat.session.inProgress.background', "Background Agent");
-		} else if (chatSessionType === AgentSessionProviders.Cloud) {
-			displayName = localize('chat.session.inProgress.cloud', "Cloud Agent");
-		} else {
-			displayName = this._contributions.get(chatSessionType)?.contribution.displayName;
+	private reportInProgress(chatSessionType: string, count: number): void {
+		if (!this._itemControllers.has(chatSessionType)) {
+			this._logService.warn(`Attempted to report in-progress status for unknown chat session type '${chatSessionType}'`);
 		}
 
-		if (displayName) {
-			this.inProgressMap.set(displayName, count);
-		}
+		this.inProgressMap.set(chatSessionType, count);
 		this._onDidChangeInProgress.fire();
 	}
 
-	public getInProgress(): { displayName: string; count: number }[] {
-		return Array.from(this.inProgressMap.entries()).map(([displayName, count]) => ({ displayName, count }));
+	public getInProgress(): { chatSessionType: string; count: number }[] {
+		return Array.from(this.inProgressMap.entries()).map(([chatSessionType, count]) => ({ chatSessionType, count }));
 	}
 
 	private async updateInProgressStatus(chatSessionType: string): Promise<void> {
@@ -547,13 +529,22 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 				async run(accessor: ServicesAccessor, chatOptions?: { resource: UriComponents; prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
 					const chatService = accessor.get(IChatService);
+					const promptsService = accessor.get(IPromptsService);
+					const toolsService = accessor.get(ILanguageModelToolsService);
 					const { type } = contribution;
 
 					if (chatOptions) {
+						let attachedContext = chatOptions.attachedContext;
+
 						const resource = URI.revive(chatOptions.resource);
 						const ref = await chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 						try {
-							const result = await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
+							const promptFile = await resolvePromptSlashCommand(chatOptions.prompt, promptsService, toolsService);
+							if (promptFile) {
+								attachedContext = [promptFile, ...(attachedContext ?? [])];
+							}
+
+							const result = await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext });
 							if (result.kind === 'queued') {
 								await result.deferred;
 							} else if (result.kind === 'sent') {
@@ -919,11 +910,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		disposables.add(controller.onDidChangeChatSessionItems(e => {
 			this._onDidChangeSessionItems.fire(e);
+			this.updateInProgressStatus(chatSessionType);
 		}));
-
-		this.updateInProgressStatus(chatSessionType).catch(error => {
-			this._logService.warn(`Failed to update initial progress status for '${chatSessionType}':`, error);
-		});
 
 		return {
 			dispose: () => {
@@ -935,6 +923,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					this._itemControllers.delete(chatSessionType);
 					this._onDidChangeItemsProviders.fire({ chatSessionType });
 				}
+
+				// Remove any in-progress tracking for this provider since it's no longer available
+				this.updateInProgressStatus(chatSessionType);
 			}
 		};
 	}
@@ -1178,7 +1169,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public getNewSessionOptionsForSessionType(chatSessionType: string): ReadonlyChatSessionOptionsMap | undefined {
-		return new Map(this._sessionTypeNewSessionOptions.get(chatSessionType));
+		const options = this._sessionTypeNewSessionOptions.get(chatSessionType);
+		if (!options || options.size === 0) {
+			return undefined;
+		}
+		return new Map(options);
 	}
 
 	public setNewSessionOptionsForSessionType(chatSessionType: string, options: ReadonlyChatSessionOptionsMap): void {
@@ -1306,6 +1301,8 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 	const logService = accessor.get(ILogService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const editorService = accessor.get(IEditorService);
+	const promptsService = accessor.get(IPromptsService);
+	const toolsService = accessor.get(ILanguageModelToolsService);
 
 	// Determine resource to open
 	const resource = getResourceForNewChatSession(openOptions);
@@ -1364,11 +1361,36 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 					});
 				}
 			}
-			await chatService.sendRequest(resource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext: chatSendOptions.attachedContext });
+			let attachedContext = chatSendOptions.attachedContext;
+			const promptFile = await resolvePromptSlashCommand(chatSendOptions.prompt, promptsService, toolsService);
+			if (promptFile) {
+				attachedContext = [promptFile, ...(attachedContext ?? [])];
+			}
+			await chatService.sendRequest(resource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext });
 		} catch (e) {
 			logService.error(`Failed to send initial request to '${openOptions.type}' chat session with contextOptions: ${JSON.stringify(chatSendOptions)}`, e);
 		}
 	}
+}
+
+/**
+ * Returns the variable entry for a slash command if the prompt starts with a slash command that can be resolved to a prompt file, otherwise returns undefined.
+ */
+async function resolvePromptSlashCommand(prompt: string, promptsService: IPromptsService, toolsService: ILanguageModelToolsService): Promise<IChatRequestVariableEntry | undefined> {
+	const slashMatch = prompt.match(slashReg);
+	// starts with a slash command, add the corresponding prompt file to the context if it exists
+	if (slashMatch) {
+		// need to resolve the slash command to get the prompt file
+		const slashCommand = await promptsService.resolvePromptSlashCommand(slashMatch[1], CancellationToken.None);
+		if (slashCommand) {
+			const parseResult = slashCommand.parsedPromptFile;
+			// add the prompt file to the context
+			const refs = parseResult.body?.variableReferences.map(({ name, offset }) => ({ name, range: new OffsetRange(offset, offset + name.length + 1) })) ?? [];
+			const toolReferences = toolsService.toToolReferences(refs);
+			return toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences);
+		}
+	}
+	return undefined;
 }
 
 export function getResourceForNewChatSession(options: NewChatSessionOpenOptions): URI {

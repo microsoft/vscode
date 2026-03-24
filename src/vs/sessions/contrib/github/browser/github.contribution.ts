@@ -3,7 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { GitHubService, IGitHubService } from './githubService.js';
 
+/**
+ * Immediately refreshes PR data when the active session changes so that
+ * CI checks and PR state are up-to-date without waiting for the next
+ * polling cycle.
+ */
+class GitHubActiveSessionRefreshContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'sessions.contrib.githubActiveSessionRefresh';
+
+	private _lastSessionResource: URI | undefined;
+
+	constructor(
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@IGitHubService private readonly _gitHubService: IGitHubService,
+	) {
+		super();
+
+		this._register(autorun(reader => {
+			const session = this._sessionsManagementService.activeSession.read(reader);
+			if (!session) {
+				this._lastSessionResource = undefined;
+				return;
+			}
+			if (this._lastSessionResource?.toString() === session.resource.toString()) {
+				return;
+			}
+			this._lastSessionResource = session.resource;
+			const context = this._sessionsManagementService.getGitHubContextForSession(session.resource);
+			if (!context || context.prNumber === undefined) {
+				return;
+			}
+			const prModel = this._gitHubService.getPullRequest(context.owner, context.repo, context.prNumber);
+			prModel.refresh();
+		}));
+	}
+}
+
 registerSingleton(IGitHubService, GitHubService, InstantiationType.Delayed);
+registerWorkbenchContribution2(GitHubActiveSessionRefreshContribution.ID, GitHubActiveSessionRefreshContribution, WorkbenchPhase.AfterRestored);

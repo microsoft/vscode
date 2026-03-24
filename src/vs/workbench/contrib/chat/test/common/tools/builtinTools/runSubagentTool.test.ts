@@ -9,7 +9,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { RunSubagentTool } from '../../../../common/tools/builtinTools/runSubagentTool.js';
+import { RUN_SUBAGENT_MAX_NESTING_DEPTH, RunSubagentTool } from '../../../../common/tools/builtinTools/runSubagentTool.js';
 import { MockLanguageModelToolsService } from '../mockLanguageModelToolsService.js';
 import { IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService, UserSelectedTools } from '../../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatService } from '../../../../common/chatService/chatService.js';
@@ -502,12 +502,12 @@ suite('RunSubagentTool', () => {
 		 */
 		let callIdCounter = 0;
 		function createInvokableTool(opts: {
-			maxDepth: number;
+			allowInvocationsFromSubagents: boolean;
 			capturedRequests: IChatAgentRequest[];
 		}) {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
 			const configService = new TestConfigurationService({
-				[ChatConfiguration.SubagentsMaxDepth]: opts.maxDepth,
+				[ChatConfiguration.SubagentsAllowInvocationsFromSubagents]: opts.allowInvocationsFromSubagents,
 			});
 			const promptsService = new MockPromptsService();
 
@@ -565,9 +565,9 @@ suite('RunSubagentTool', () => {
 		const countTokens = async () => 0;
 		const noProgress: ToolProgress = { report() { } };
 
-		test('disables runSubagent tool when maxDepth is 0', async () => {
+		test('disables runSubagent tool when nesting is disabled', async () => {
 			const capturedRequests: IChatAgentRequest[] = [];
-			const { tool } = createInvokableTool({ maxDepth: 0, capturedRequests });
+			const { tool } = createInvokableTool({ allowInvocationsFromSubagents: false, capturedRequests });
 			const sessionUri = URI.parse('test://session/depth0');
 
 			await tool.invoke(createInvocation(sessionUri), countTokens, noProgress, CancellationToken.None);
@@ -576,9 +576,9 @@ suite('RunSubagentTool', () => {
 			assert.strictEqual(capturedRequests[0].userSelectedTools?.['runSubagent'], false);
 		});
 
-		test('enables runSubagent tool at depth 0 when maxDepth >= 1', async () => {
+		test('enables runSubagent tool at depth 0 when nesting is enabled', async () => {
 			const capturedRequests: IChatAgentRequest[] = [];
-			const { tool } = createInvokableTool({ maxDepth: 3, capturedRequests });
+			const { tool } = createInvokableTool({ allowInvocationsFromSubagents: true, capturedRequests });
 			const sessionUri = URI.parse('test://session/depth-enabled');
 
 			await tool.invoke(createInvocation(sessionUri), countTokens, noProgress, CancellationToken.None);
@@ -587,21 +587,22 @@ suite('RunSubagentTool', () => {
 			assert.strictEqual(capturedRequests[0].userSelectedTools?.['runSubagent'], true);
 		});
 
-		test('disables runSubagent tool when depth reaches maxDepth', async () => {
+		test('disables runSubagent tool when depth reaches hard limit', async () => {
 			const capturedRequests: IChatAgentRequest[] = [];
 			const sessionUri = URI.parse('test://session/depth-limit');
 
-			// maxDepth=1, so the first invoke (depth 0→1) should allow nesting,
-			// but the second invoke (depth 1→2) should not since 1+1 <= 1 is false.
-			const { tool, mockChatAgentService } = createInvokableTool({ maxDepth: 1, capturedRequests });
+			// When nesting is enabled, the tool enforces a hardcoded maximum depth of 5.
+			// Simulate nested invocation until we exceed the limit and ensure it disables nesting.
+			const { tool, mockChatAgentService } = createInvokableTool({ allowInvocationsFromSubagents: true, capturedRequests });
 
 			// Simulate nested invocation: the first invoke's invokeAgent callback
 			// triggers a second invoke on the same tool (same session).
 			capturedRequests.length = 0;
+			let nestedInvocations = 0;
 			mockChatAgentService.invokeAgent = async (_id: string, request: IChatAgentRequest) => {
 				capturedRequests.push(request);
-				// On the first call (depth 0), simulate a nested subagent call
-				if (capturedRequests.length === 1) {
+				// Keep nesting until we go beyond the hardcoded maxDepth
+				if (nestedInvocations++ < RUN_SUBAGENT_MAX_NESTING_DEPTH + 1) {
 					await tool.invoke(createInvocation(sessionUri), countTokens, noProgress, CancellationToken.None);
 				}
 				return {};
@@ -609,16 +610,17 @@ suite('RunSubagentTool', () => {
 
 			await tool.invoke(createInvocation(sessionUri), countTokens, noProgress, CancellationToken.None);
 
-			assert.strictEqual(capturedRequests.length, 2);
-			// First call at depth 0: should enable (0 + 1 <= 1)
-			assert.strictEqual(capturedRequests[0].userSelectedTools?.['runSubagent'], true);
-			// Second call at depth 1: should disable (1 + 1 <= 1 is false)
-			assert.strictEqual(capturedRequests[1].userSelectedTools?.['runSubagent'], false);
+			assert.ok(capturedRequests.length >= 2);
+			// At depth 0..(maxDepth-1), nesting is allowed. Once depth reaches maxDepth, the next call should disable nesting.
+			const enabledFlags = capturedRequests.map(r => r.userSelectedTools?.['runSubagent']);
+			assert.strictEqual(enabledFlags[0], true);
+			assert.strictEqual(enabledFlags[1], true);
+			assert.strictEqual(enabledFlags[RUN_SUBAGENT_MAX_NESTING_DEPTH], false);
 		});
 
 		test('depth is decremented after invoke completes', async () => {
 			const capturedRequests: IChatAgentRequest[] = [];
-			const { tool } = createInvokableTool({ maxDepth: 2, capturedRequests });
+			const { tool } = createInvokableTool({ allowInvocationsFromSubagents: true, capturedRequests });
 			const sessionUri = URI.parse('test://session/depth-decrement');
 
 			// First invoke

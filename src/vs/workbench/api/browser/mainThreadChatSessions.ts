@@ -137,7 +137,8 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 						variableData: variables ? { variables } : undefined,
 						id: turn.id,
 						modelId: turn.modelId,
-					};
+						modeInstructions: turn.modeInstructions ? revive(turn.modeInstructions) : undefined,
+					} satisfies IChatSessionRequestHistoryItem;
 				}
 
 				return {
@@ -326,6 +327,7 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 			command: request.command,
 			variableData: undefined,
 			modelId: request.modelId,
+			modeInstructions: request.modeInstructions,
 		};
 	}
 
@@ -515,7 +517,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		}
 
 		// We can still get stats if there is no model or if fetching from model failed
-		if (!item.changes || !model) {
+		let changes = revive<typeof item.changes>(item.changes);
+		if (!changes || !model) {
 			const stats = (await this._chatService.getMetadataForSession(uri))?.stats;
 			const diffs: IAgentSession['changes'] = {
 				files: stats?.fileCount || 0,
@@ -523,13 +526,13 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				deletions: stats?.removed || 0
 			};
 			if (hasValidDiff(diffs)) {
-				item.changes = diffs;
+				changes = diffs;
 			}
 		}
 
 		return {
 			...item,
-			changes: revive(item.changes),
+			changes,
 			resource: uri,
 			iconPath: item.iconPath,
 			tooltip: item.tooltip ? this._reviveTooltip(item.tooltip) : undefined,
@@ -662,18 +665,20 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	}
 
 	private async handleSessionModelOverrides(model: IChatModel, session: Dto<IChatSessionItem>): Promise<Dto<IChatSessionItem>> {
-		// Override desciription if there's an in-progress count
+		const outgoingSession = { ...session };
+
+		// Override description if there's an in-progress count
 		const inProgress = model.getRequests().filter(r => r.response && !r.response.isComplete);
 		if (inProgress.length) {
-			session.description = this._chatSessionsService.getInProgressSessionDescription(model);
+			outgoingSession.description = this._chatSessionsService.getInProgressSessionDescription(model);
 		}
 
 		// Override changes
 		// TODO: @osortega we don't really use statistics anymore, we need to clarify that in the API
-		if (!(session.changes instanceof Array)) {
+		if (!(outgoingSession.changes instanceof Array)) {
 			const modelStats = await awaitStatsForSession(model);
 			if (modelStats) {
-				session.changes = {
+				outgoingSession.changes = {
 					files: modelStats.fileCount,
 					insertions: modelStats.added,
 					deletions: modelStats.removed
@@ -683,10 +688,10 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		// Override status if the models needs input
 		if (model.lastRequest?.response?.state === ResponseModelState.NeedsInput) {
-			session.status = ChatSessionStatus.NeedsInput;
+			outgoingSession.status = ChatSessionStatus.NeedsInput;
 		}
 
-		return session;
+		return outgoingSession;
 	}
 
 	private async _provideChatSessionContent(providerHandle: number, sessionResource: URI, token: CancellationToken): Promise<IChatSession> {

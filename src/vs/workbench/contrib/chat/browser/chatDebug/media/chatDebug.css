@@ -331,6 +331,10 @@
 .chat-debug-table-header .chat-debug-col-details {
 	flex: 1;
 }
+.chat-debug-logs-main > .monaco-progress-container {
+	height: 2px;
+	flex-shrink: 0;
+}
 .chat-debug-logs-content {
 	display: flex;
 	flex-direction: row;
@@ -401,31 +405,6 @@
 }
 .chat-debug-log-row.chat-debug-log-trace {
 	opacity: 0.7;
-}
-.chat-debug-logs-shimmer-row {
-	position: absolute;
-	left: 0;
-	right: 0;
-	display: flex;
-	align-items: center;
-	padding: 0 16px;
-	height: 28px;
-	gap: 40px;
-	pointer-events: none;
-}
-.chat-debug-logs-shimmer-bar {
-	flex: 1;
-	height: 10px;
-	border-radius: 3px;
-	background: linear-gradient(
-		90deg,
-		var(--vscode-descriptionForeground) 25%,
-		var(--vscode-chat-thinkingShimmer, rgba(255, 255, 255, 0.3)) 50%,
-		var(--vscode-descriptionForeground) 75%
-	);
-	background-size: 200% 100%;
-	animation: chat-debug-shimmer 2s linear infinite;
-	opacity: 0.15;
 }
 .chat-debug-detail-panel {
 	flex-shrink: 0;

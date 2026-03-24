@@ -260,6 +260,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private listWidget!: ChatListWidget;
 	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
+	private inputPartMaxHeightOverride: number | undefined;
 
 	private readonly visibilityTimeoutDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private readonly visibilityAnimationFrameDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
@@ -927,6 +928,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, true);
+		this.inputPart.clearArtifactsWidget();
 		this.chatSuggestNextWidget.hide();
 		await this.viewOptions.clear?.();
 	}
@@ -1835,7 +1837,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 
 				if (this.bodyDimension) {
-					this.layout(this.bodyDimension.height, this.bodyDimension.width);
+					// Only re-layout the list/containers to match the new input
+					// height. Do NOT re-call this.layout() here: the input part
+					// has already laid itself out and re-entering inputPart.layout
+					// creates a layout loop when the viewPane also reacts.
+					this._layoutListForInputHeight();
 				}
 
 				this._onDidChangeContentHeight.fire();
@@ -1985,6 +1991,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.finishedEditing();
 		}
 		this.inputPart.clearTodoListWidget(model.sessionResource, false);
+		this.inputPart.clearArtifactsWidget();
 		this.chatSuggestNextWidget.hide();
 		this.chatTipService.resetSession();
 
@@ -2580,6 +2587,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.focusLastItem(lastFocused);
 	}
 
+	setInputPartMaxHeightOverride(maxHeight: number | undefined): void {
+		this.inputPartMaxHeightOverride = maxHeight;
+	}
+
 	layout(height: number, width: number): void {
 		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950); // no min width of inline chat
 
@@ -2589,10 +2600,33 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.inlineInputPart?.layout(width);
 		}
 
+		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
+		const inputMaxHeight = this._dynamicMessageLayoutData || this.location !== ChatAgentLocation.Chat
+			? undefined
+			: this.inputPartMaxHeightOverride !== undefined
+				? Math.max(0, this.inputPartMaxHeightOverride - chatSuggestNextWidgetHeight - MIN_LIST_HEIGHT)
+				: Math.max(0, height - chatSuggestNextWidgetHeight - MIN_LIST_HEIGHT);
+		this.inputPart.setMaxHeight(inputMaxHeight);
 		this.inputPart.layout(width);
 
-		const inputHeight = this.inputPart.height.get();
+		this._layoutListForInputHeight();
+	}
+
+	/**
+	 * Re-layout just the list, welcome container, and list container to match
+	 * the current input-part height. Called both from {@link layout} and from
+	 * the inputPart.height autorun so we never re-enter inputPart.layout when
+	 * only the input height changed.
+	 */
+	private _layoutListForInputHeight(): void {
+		if (!this.bodyDimension) {
+			return;
+		}
+
+		const { height, width } = this.bodyDimension;
 		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
+
+		const inputHeight = this.inputPart.height.get();
 		const lastElementVisible = this.listWidget.isScrolledToBottom;
 		const lastItem = this.listWidget.lastItem;
 
@@ -2799,3 +2833,5 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
 }
+
+const MIN_LIST_HEIGHT = 50;

@@ -16,6 +16,7 @@ globalThis._VSCODE_FILE_ROOT = fileURLToPath(new URL('../../../..', import.meta.
 import * as fs from 'fs';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { observableValue } from '../../../base/common/observable.js';
+import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
@@ -35,8 +36,11 @@ import { SessionStateManager } from './sessionStateManager.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { FileService } from '../../files/common/fileService.js';
+import { IFileService } from '../../files/common/files.js';
 import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
 import { Schemas } from '../../../base/common/network.js';
+import { ISessionDataService } from '../common/sessionDataService.js';
+import { SessionDataService } from './sessionDataService.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -112,7 +116,12 @@ async function main(): Promise<void> {
 	const options = parseServerOptions();
 	const disposables = new DisposableStore();
 
-	// Services — production logging unless --quiet
+	// Services
+	const productService: IProductService = { _serviceBrand: undefined, ...product };
+	const args = parseArgs(process.argv.slice(2), OPTIONS);
+	const environmentService = new NativeEnvironmentService(args, productService);
+
+	// Logging — production logging unless --quiet
 	let logService: ILogService;
 	let loggerService: LoggerService | undefined;
 
@@ -120,10 +129,7 @@ async function main(): Promise<void> {
 		logService = new NullLogService();
 	} else {
 		const services = new ServiceCollection();
-		const productService: IProductService = { _serviceBrand: undefined, ...product };
 		services.set(IProductService, productService);
-		const args = parseArgs(process.argv.slice(2), OPTIONS);
-		const environmentService = new NativeEnvironmentService(args, productService);
 		services.set(INativeEnvironmentService, environmentService);
 		loggerService = new LoggerService(getLogLevel(environmentService), environmentService.logsHome);
 		const logger = loggerService.createLogger('agenthost-server', { name: localize('agentHostServer', "Agent Host Server") });
@@ -147,6 +153,9 @@ async function main(): Promise<void> {
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
 
+	// Session data service
+	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
+
 	// Shared side-effect handler
 	const sideEffects = disposables.add(new AgentSideEffects(stateManager, {
 		getAgent(session) {
@@ -154,6 +163,7 @@ async function main(): Promise<void> {
 			return provider ? agents.get(provider) : agents.values().next().value;
 		},
 		agents: registeredAgents,
+		sessionDataService,
 	}, logService, fileService));
 
 	function registerAgent(agent: IAgent): void {
@@ -166,14 +176,13 @@ async function main(): Promise<void> {
 	// Register agents
 	if (!options.quiet) {
 		// Production agents (require DI)
-		const services = new ServiceCollection();
-		const productService: IProductService = { _serviceBrand: undefined, ...product };
-		services.set(IProductService, productService);
-		const args = parseArgs(process.argv.slice(2), OPTIONS);
-		const environmentService = new NativeEnvironmentService(args, productService);
-		services.set(INativeEnvironmentService, environmentService);
-		services.set(ILogService, logService);
-		const instantiationService = new InstantiationService(services);
+		const diServices = new ServiceCollection();
+		diServices.set(IProductService, productService);
+		diServices.set(INativeEnvironmentService, environmentService);
+		diServices.set(ILogService, logService);
+		diServices.set(IFileService, fileService);
+		diServices.set(ISessionDataService, sessionDataService);
+		const instantiationService = new InstantiationService(diServices);
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		registerAgent(copilotAgent);
 		log('CopilotAgent registered');
