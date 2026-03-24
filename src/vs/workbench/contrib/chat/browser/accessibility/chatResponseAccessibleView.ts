@@ -8,7 +8,6 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
@@ -22,7 +21,7 @@ import { IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatPullRe
 import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { IToolResultInputOutputDetails, IToolResultOutputDetails, isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
-import { isLocation, Location } from '../../../../../editor/common/languages.js';
+import { Location } from '../../../../../editor/common/languages.js';
 
 export class ChatResponseAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 100;
@@ -298,29 +297,6 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					if (text.trim()) {
 						contentParts.push(text);
 					}
-					break;
-				}
-				case 'inlineReference': {
-					const ref = part.inlineReference;
-					let text: string;
-					if (URI.isUri(ref)) {
-						const name = part.name || basename(ref);
-						const isFileUri = ref.scheme === 'file';
-						const path = isFileUri ? (ref.fsPath || ref.path) : ref.toString(true);
-						text = name !== path ? `${name} (${path})` : path;
-					} else if (isLocation(ref)) {
-						const name = part.name || basename(ref.uri);
-						const isFileUri = ref.uri.scheme === 'file';
-						const basePath = isFileUri ? (ref.uri.fsPath || ref.uri.path) : ref.uri.toString(true);
-						const location = `${basePath}:${ref.range.startLineNumber}`;
-						text = `${name} (${location})`;
-					} else {
-						// IWorkspaceSymbol
-						const isFileUri = ref.location.uri.scheme === 'file';
-						const basePath = isFileUri ? (ref.location.uri.fsPath || ref.location.uri.path) : ref.location.uri.toString(true);
-						text = `${ref.name} (${basePath}:${ref.location.range.startLineNumber})`;
-					}
-					contentParts.push(text);
 					break;
 				}
 				case 'elicitation2':
