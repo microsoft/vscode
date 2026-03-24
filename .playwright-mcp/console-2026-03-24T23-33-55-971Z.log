@@ -35,3 +35,5 @@
 [      80ms] [WARNING] Failed to decode character for README.md fontCharacter: \E04D @ http://127.0.0.1:5500/:10014
 [      80ms] [WARNING] Failed to decode character for app.js fontCharacter: \E051 @ http://127.0.0.1:5500/:10014
 [      80ms] [WARNING] Failed to decode character for style.css fontCharacter: \E01D @ http://127.0.0.1:5500/:10014
+[  321960ms] TypeError: Cannot read properties of null (reading 'classList')
+    at http://127.0.0.1:5500/:10303:130
