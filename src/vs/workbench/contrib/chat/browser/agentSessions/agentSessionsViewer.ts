@@ -689,7 +689,7 @@ export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<I
 	}
 
 	renderElement(element: ITreeNode<IAgentSessionShowMore, FuzzyScore>, _index: number, template: IAgentSessionShowMoreTemplate): void {
-		template.label.textContent = localize('agentSessions.showMore', "Show {0} More...", element.element.remainingCount);
+		template.label.textContent = localize('agentSessions.showMore', "+{0} more", element.element.remainingCount);
 	}
 
 	renderCompressedElements(): void {
