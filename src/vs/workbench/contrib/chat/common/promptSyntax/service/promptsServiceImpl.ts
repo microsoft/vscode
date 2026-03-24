@@ -1301,6 +1301,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const defaultFolder = this.workspaceService.getWorkspace().folders[0];
 
 		for (const hookFile of hookFiles) {
+			// Plugins are handled separately down below because they do their own parsing+interpolation
+			if (hookFile.storage === PromptsStorage.plugin) {
+				continue;
+			}
+
 			try {
 				const content = await this.fileService.readFile(hookFile.uri);
 				const json = parseJSONC(content.value.toString());
