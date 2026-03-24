@@ -40,6 +40,7 @@
 		flex: 1;
 		overflow: hidden;
 		min-height: 0;
+		margin-bottom: 12px;
 	}
 
 	.agent-sessions-header {
@@ -73,7 +74,7 @@
 	}
 
 	.agent-sessions-new-button-container {
-		padding: 6px 12px 8px 12px;
+		padding: 8px 12px;
 	}
 
 	.agent-sessions-new-button-container .monaco-button {
