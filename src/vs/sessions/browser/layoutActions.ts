@@ -14,7 +14,7 @@ import { Menus } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
-import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
 
@@ -41,12 +41,6 @@ class ToggleSidebarVisibilityAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyB
 			},
 			menu: [
-				{
-					id: Menus.SidebarTitle,
-					group: 'navigation',
-					order: 100,
-					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SideBarVisibleContext, SessionsWelcomeVisibleContext.toNegated())
-				},
 				{
 					id: Menus.TitleBarContext,
 					group: 'navigation',

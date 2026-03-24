@@ -1177,33 +1177,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * that was last used - providing continuity.
 	 */
 	private preselectModelFromSessionHistory(): void {
-		const sessionType = this.getCurrentSessionType();
-		if (!sessionType) {
-			return;
-		}
-		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
-		if (contribution?.useRequestToPopulateBuiltInPickers) {
-			return;
-		}
-		const sessionResource = this._widget?.viewModel?.model.sessionResource;
-		const ctx = sessionResource ? this.chatService.getChatSessionFromInternalUri(sessionResource) : undefined;
-		const requiresCustomModels = ctx && this.chatSessionsService.requiresCustomModelsForSessionType(getChatSessionType(ctx.chatSessionResource));
-		if (!requiresCustomModels) {
-			return;
-		}
-
 		const requests = this._widget?.viewModel?.model.getRequests();
 		if (!requests || requests.length === 0) {
 			return;
-		}
-
-		// Find the modelId from the last request that has one
-		let lastModelId: string | undefined;
-		for (let i = requests.length - 1; i >= 0; i--) {
-			if (requests[i].modelId) {
-				lastModelId = requests[i].modelId;
-				break;
-			}
 		}
 
 		const modeInfo = findLast(requests, req => !!req.modeInfo)?.modeInfo;
@@ -1211,6 +1187,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.setChatMode(modeInfo.modeInstructions.uri.toString());
 		}
 
+		// Find the modelId from the last request that has one
+		const lastModelId = findLast(requests, req => !!req.modelId)?.modelId;
 		if (!lastModelId) {
 			return;
 		}

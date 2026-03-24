@@ -15,7 +15,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ISessionOpenOptions, openSession as openSessionDefault } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsOpener.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IChatService, IChatSendRequestOptions, IChatSessionGrouping } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IAgentSession, isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
@@ -29,7 +29,6 @@ import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/c
 import { GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionWorkspace.js';
 import { IGitHubSessionContext } from '../../github/common/types.js';
 import { ResourceSet } from '../../../../base/common/map.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 
@@ -99,7 +98,7 @@ export interface ISessionsManagementService {
 	 * Open a new session, apply options, and send the initial request.
 	 * Looks up the session by resource URI and builds send options from it.
 	 */
-	sendRequestForNewSession(sessionResource: URI, options?: { permissionLevel?: ChatPermissionLevel; sessionGrouping?: IChatSessionGrouping }): Promise<void>;
+	sendRequestForNewSession(sessionResource: URI, options?: { permissionLevel?: ChatPermissionLevel }): Promise<void>;
 
 	/**
 	 * Commit files in a worktree and refresh the agent sessions model
@@ -284,7 +283,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return newSession;
 	}
 
-	async sendRequestForNewSession(sessionResource: URI, options?: { permissionLevel?: ChatPermissionLevel; sessionGrouping?: IChatSessionGrouping }): Promise<void> {
+	async sendRequestForNewSession(sessionResource: URI, options?: { permissionLevel?: ChatPermissionLevel }): Promise<void> {
 		const session = this._newSession.value;
 		if (!session) {
 			this.logService.error(`[SessionsManagementService] No new session found for resource: ${sessionResource.toString()}`);
@@ -330,7 +329,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			},
 			agentIdSilent: contribution?.type,
 			attachedContext: session.attachedContext,
-			sessionGrouping: options?.sessionGrouping ?? { id: generateUuid(), order: 0 },
 		};
 
 		await this.chatSessionsService.getOrCreateChatSession(session.resource, CancellationToken.None);

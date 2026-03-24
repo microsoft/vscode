@@ -57,6 +57,12 @@ export interface IPickerQuickAccessItem extends IQuickPickItem {
 	 * which can be a `Promise` for long running operations.
 	 */
 	trigger?(buttonIndex: number, keyMods: IKeyMods): TriggerAction | Promise<TriggerAction>;
+
+	/**
+	 * A method that will be executed when the pick item should be attached
+	 * as context, e.g. to a chat conversation.
+	 */
+	attach?(): void;
 }
 
 export interface IPickerQuickAccessSeparator extends IQuickPickSeparator {
@@ -342,6 +348,14 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 				}
 
 				item.accept(picker.keyMods, event);
+			}
+		}));
+
+		// Attach the active pick item as context
+		disposables.add(picker.onDidAttach(() => {
+			const [item] = picker.activeItems;
+			if (typeof item?.attach === 'function') {
+				item.attach();
 			}
 		}));
 

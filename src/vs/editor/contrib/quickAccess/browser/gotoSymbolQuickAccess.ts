@@ -32,6 +32,7 @@ export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	uri?: URI;
 	symbolName?: string;
 	range?: { decoration: IRange; selection: IRange };
+	attach?(): void;
 }
 
 export interface IGotoSymbolQuickAccessProviderOptions extends IEditorNavigationQuickAccessOptions {
@@ -161,6 +162,14 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 				this.gotoLocation(context, { range: item.range.selection, keyMods: picker.keyMods, forceSideBySide: true });
 
 				picker.hide();
+			}
+		}));
+
+		// Attach the active symbol as context
+		disposables.add(picker.onDidAttach(() => {
+			const [item] = picker.activeItems;
+			if (typeof item?.attach === 'function') {
+				item.attach();
 			}
 		}));
 

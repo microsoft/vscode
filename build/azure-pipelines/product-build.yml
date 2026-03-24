@@ -740,15 +740,15 @@ extends:
                       VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
       - ${{ if and(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/')) }}:
-        - stage: TriggerInsiderBuild
-          displayName: Trigger Insider Build
+        - stage: TriggerStableBuild
+          displayName: Trigger Stable Build
           dependsOn: []
           pool:
             name: 1es-ubuntu-22.04-x64
             os: linux
           jobs:
-            - job: TriggerInsiderBuild
-              displayName: Trigger Insider Build
+            - job: TriggerStableBuild
+              displayName: Trigger Stable Build
               steps:
                 - checkout: none
                 - script: |
@@ -759,9 +759,9 @@ extends:
                           definition: { id: Number(process.env.DEFINITION_ID) },
                           sourceBranch: process.env.SOURCE_BRANCH,
                           sourceVersion: process.env.SOURCE_VERSION,
-                          templateParameters: { VSCODE_QUALITY: "insider", VSCODE_RELEASE: "false" }
+                          templateParameters: { VSCODE_QUALITY: "stable", VSCODE_RELEASE: "false" }
                         });
-                        console.log(`Triggering insider build on ${process.env.SOURCE_BRANCH} @ ${process.env.SOURCE_VERSION}...`);
+                        console.log(`Triggering stable build on ${process.env.SOURCE_BRANCH} @ ${process.env.SOURCE_VERSION}...`);
                         const response = await fetch(process.env.BUILDS_API_URL, {
                           method: "POST",
                           headers: { "Authorization": `Bearer ${process.env.SYSTEM_ACCESSTOKEN}`, "Content-Type": "application/json" },
@@ -775,7 +775,7 @@ extends:
                       }
                       main().catch(err => { console.error(err); process.exit(1); });
                     '
-                  displayName: Queue insider build
+                  displayName: Queue stable build
                   env:
                     SYSTEM_ACCESSTOKEN: $(System.AccessToken)
                     DEFINITION_ID: $(System.DefinitionId)

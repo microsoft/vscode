@@ -292,32 +292,6 @@ suite('ChatService', () => {
 		await assertSnapshot(toSnapshotExportData(model));
 	});
 
-	test('sendRequest forwards sessionGrouping to the agent request', async () => {
-		const receivedSessionGroupings: Array<{ readonly id: string; readonly order: number; readonly kind?: string } | undefined> = [];
-		const groupAwareAgent: IChatAgentImplementation = {
-			async invoke(request) {
-				receivedSessionGroupings.push(request.sessionGrouping);
-				return {};
-			},
-		};
-
-		testDisposables.add(chatAgentService.registerAgent('groupAwareAgent', { ...getAgentData('groupAwareAgent'), isDefault: true }));
-		testDisposables.add(chatAgentService.registerAgentImplementation('groupAwareAgent', groupAwareAgent));
-
-		const testService = createChatService();
-		const modelRef = testDisposables.add(startSessionModel(testService));
-		const model = modelRef.object;
-
-		const response = await testService.sendRequest(model.sessionResource, 'test request', {
-			agentId: 'groupAwareAgent',
-			sessionGrouping: { id: 'group-123', order: 2, kind: 'subagent' }
-		});
-		ChatSendResult.assertSent(response);
-		await response.data.responseCompletePromise;
-
-		assert.deepStrictEqual(receivedSessionGroupings, [{ id: 'group-123', order: 2, kind: 'subagent' }]);
-	});
-
 	test('history', async () => {
 		const historyLengthAgent: IChatAgentImplementation = {
 			async invoke(request, progress, history, token) {

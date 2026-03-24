@@ -5,7 +5,7 @@
 
 import '../../workbench/browser/style.js';
 import './media/style.css';
-import { CollapsedSidebarWidget, CollapsedAuxiliaryBarWidget } from './collapsedPartWidgets.js';
+import { CollapsedAuxiliaryBarWidget } from './collapsedPartWidgets.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
 import { getActiveDocument, getActiveElement, getClientArea, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
@@ -244,7 +244,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private chatBarPartView!: ISerializableView;
 
-	private collapsedSidebarWidget: CollapsedSidebarWidget | undefined;
 	private collapsedAuxiliaryBarWidget: CollapsedAuxiliaryBarWidget | undefined;
 
 	private readonly partVisibility: IPartVisibilityState = {
@@ -385,14 +384,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 				// Layout
 				this.layout();
 
-				// Collapsed Sidebar Widget (shown when sidebar is hidden)
-				const titlebarPart = this.getPart(Parts.TITLEBAR_PART) as TitlebarPart;
-				this.collapsedSidebarWidget = this._register(instantiationService.createInstance(CollapsedSidebarWidget, titlebarPart.leftContainer));
-				if (!this.partVisibility.sidebar) {
-					this.collapsedSidebarWidget.show();
-				}
-
 				// Auxiliary bar changes widget (always visible, acts as a toggle)
+				const titlebarPart = this.getPart(Parts.TITLEBAR_PART) as TitlebarPart;
 				this.collapsedAuxiliaryBarWidget = this._register(instantiationService.createInstance(CollapsedAuxiliaryBarWidget, titlebarPart.rightContainer, titlebarPart.rightWindowControlsContainer));
 				this.collapsedAuxiliaryBarWidget.updateActiveState(this.partVisibility.auxiliaryBar);
 
@@ -1104,13 +1097,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			this.sideBarPartView,
 			!hidden,
 		);
-
-		// Toggle collapsed sidebar widget
-		if (hidden) {
-			this.collapsedSidebarWidget?.show();
-		} else {
-			this.collapsedSidebarWidget?.hide();
-		}
 
 		// If sidebar becomes hidden, also hide the current active pane composite
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {

@@ -7,7 +7,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$MILESTONE=milestone:\"1.113.0\""
+    "value": "$MILESTONE=milestone:\"1.113.0\"\n\n$TPI_CREATION=2026-03-23 // Used to find fixes that need to be verified"
   },
   {
     "kind": 1,
@@ -47,6 +47,6 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "org:microsoft $MILESTONE is:issue is:closed label:bug reason:completed -label:verified created:>=2026-03-23"
+    "value": "org:microsoft $MILESTONE is:issue is:closed label:bug reason:completed -label:verified created:>=$TPI_CREATION"
   }
 ]
