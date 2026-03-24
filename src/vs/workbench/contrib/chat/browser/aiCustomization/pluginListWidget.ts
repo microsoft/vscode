@@ -710,27 +710,16 @@ export class PluginListWidget extends Disposable {
 	layout(height: number, width: number): void {
 		this.lastHeight = height;
 		this.lastWidth = width;
-		const sectionFooterHeight = this.sectionHeader.offsetHeight || 0;
-		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 52;
-		const backLinkHeight = this.browseMode ? (this.backLink.offsetHeight || 28) : 0;
-		const listHeight = height - sectionFooterHeight - searchBarHeight - backLinkHeight;
 
-		this.listContainer.style.height = `${Math.max(0, listHeight)}px`;
+		// Set widget height and let CSS flex layout distribute space.
+		// Remove any previously-set explicit height so flex can recompute.
+		this.element.style.height = `${height}px`;
+		this.listContainer.style.height = '';
+
+		// Reading clientHeight forces a synchronous reflow, giving us the
+		// flex-computed height that accounts for the actual chrome sizes.
+		const listHeight = this.listContainer.clientHeight;
 		this.list.layout(Math.max(0, listHeight), width);
-
-		if (sectionFooterHeight === 0) {
-			DOM.getWindow(this.listContainer).requestAnimationFrame(() => {
-				if (this._store.isDisposed) {
-					return;
-				}
-				const actualFooterHeight = this.sectionHeader.offsetHeight;
-				if (actualFooterHeight > 0) {
-					const correctedHeight = height - actualFooterHeight - searchBarHeight - backLinkHeight;
-					this.listContainer.style.height = `${Math.max(0, correctedHeight)}px`;
-					this.list.layout(Math.max(0, correctedHeight), width);
-				}
-			});
-		}
 	}
 
 	focusSearch(): void {

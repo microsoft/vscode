@@ -1707,33 +1707,21 @@ export class AICustomizationListWidget extends Disposable {
 	 * Layouts the widget.
 	 */
 	layout(height: number, width: number): void {
+		// Set the widget height and let CSS flex layout distribute space
+		// between search bar (flex-shrink: 0), list (flex: 1), and footer
+		// (flex-shrink: 0). Then read the computed list container height
+		// to tell the virtual-scroll WorkbenchList its available space.
 		this.element.style.height = `${height}px`;
 		this.searchInput.layout();
 
-		// Calculate list height by subtracting known chrome from total height.
-		// Use a reasonable footer fallback (80px) on first render before paint,
-		// so the list doesn't overlap the footer.
-		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 52;
-		const footerHeight = this.sectionHeader.offsetHeight || 80;
-		const listHeight = Math.max(0, height - searchBarHeight - footerHeight);
+		// Remove any previously-set explicit height so flex can recompute
+		this.listContainer.style.height = '';
 
-		this.listContainer.style.height = `${listHeight}px`;
-		this.list.layout(listHeight, width);
-
-		// Re-layout once after paint if the footer height was estimated
-		if (this.sectionHeader.offsetHeight === 0) {
-			DOM.getWindow(this.listContainer).requestAnimationFrame(() => {
-				if (this._store.isDisposed) {
-					return;
-				}
-				const actualFooterHeight = this.sectionHeader.offsetHeight;
-				if (actualFooterHeight > 0) {
-					const correctedHeight = Math.max(0, height - (this.searchAndButtonContainer.offsetHeight || 52) - actualFooterHeight);
-					this.listContainer.style.height = `${correctedHeight}px`;
-					this.list.layout(correctedHeight, width);
-				}
-			});
-		}
+		// Reading clientHeight forces a synchronous reflow, giving us the
+		// flex-computed height that accounts for the actual search bar and
+		// footer sizes — no hardcoded fallbacks needed.
+		const listHeight = this.listContainer.clientHeight;
+		this.list.layout(Math.max(0, listHeight), width);
 	}
 
 	/**
