@@ -1711,6 +1711,15 @@ suite('AgentHostChatContribution', () => {
 			const progress = session.progressObs?.get() ?? [];
 			const permInvocation = progress.find(p => p.kind === 'toolInvocation') as IChatToolInvocation | undefined;
 			assert.ok(permInvocation, 'Should have a live permission request in progress');
+
+			// Complete the turn so the awaitConfirmation promise and its internal
+			// DisposableStore are cleaned up before test teardown.
+			agentHostService.fireAction({
+				action: { type: 'session/turnComplete', session: sessionUri.toString(), turnId: 'turn-active' } as ISessionAction,
+				serverSeq: 1,
+				origin: undefined,
+			});
+			await timeout(10);
 		});
 
 		test('no active turn loads completed history only with isComplete true', async () => {

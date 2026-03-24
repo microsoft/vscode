@@ -248,7 +248,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// If reconnecting to an active turn, wire up an ongoing state listener
 		// to stream new progress into the session's progressObs.
-		if (activeTurnId && resolvedSession && initialProgress) {
+		if (activeTurnId && resolvedSession && initialProgress !== undefined) {
 			this._reconnectToActiveTurn(resolvedSession, activeTurnId, session, initialProgress);
 		}
 
@@ -620,6 +620,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Streaming || tc.status === ToolCallStatus.PendingConfirmation) {
 						const invocation = toolCallStateToInvocation(tc);
 						activeToolInvocations.set(toolCallId, invocation);
+						chatSession.appendProgress([invocation]);
+					} else if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
+						// Tool call started and finished between initial snapshot and
+						// first reconciliation. Synthesize a completed invocation so
+						// the user can see the tool results.
+						const invocation = toolCallStateToInvocation(tc);
+						finalizeToolInvocation(invocation, tc);
 						chatSession.appendProgress([invocation]);
 					}
 				} else if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
