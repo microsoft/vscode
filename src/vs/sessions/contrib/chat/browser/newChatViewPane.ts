@@ -268,14 +268,14 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		const welcomeElement = dom.append(wrapper, dom.$('.chat-full-welcome'));
 
-		// Bottom-docked controls area (folder picker, input, local mode controls)
-		const bottomDockedControls = dom.append(welcomeElement, dom.$('.chat-full-welcome-bottom-docked-controls'));
+		// Main empty-state content area (folder picker, input, local mode controls)
+		const welcomeContent = dom.append(welcomeElement, dom.$('.chat-full-welcome-content'));
 
 		// Option group pickers (above the input)
-		this._pickersContainer = dom.append(bottomDockedControls, dom.$('.chat-full-welcome-pickers-container'));
+		this._pickersContainer = dom.append(welcomeContent, dom.$('.chat-full-welcome-pickers-container'));
 
 		// Input slot
-		this._inputSlot = dom.append(bottomDockedControls, dom.$('.chat-full-welcome-inputSlot'));
+		this._inputSlot = dom.append(welcomeContent, dom.$('.chat-full-welcome-inputSlot'));
 
 		// Input area inside the input slot
 		const inputArea = dom.$('.sessions-chat-input-area');
@@ -292,7 +292,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._inputSlot.appendChild(inputArea);
 
 		// Isolation mode and branch pickers (below the input, shown when Local target is selected)
-		const isolationContainer = dom.append(bottomDockedControls, dom.$('.chat-full-welcome-local-mode'));
+		const isolationContainer = dom.append(welcomeContent, dom.$('.chat-full-welcome-local-mode'));
 		this._sessionTypePicker.render(isolationContainer);
 		this._permissionPicker.render(isolationContainer);
 		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));

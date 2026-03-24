@@ -21,7 +21,6 @@
 	justify-content: center;
 }
 
-/* Header */
 /* Input slot */
 .chat-full-welcome-inputSlot {
 	width: 100%;
@@ -68,7 +67,7 @@
 	margin-bottom: 0;
 }
 
-.chat-full-welcome-bottom-docked-controls {
+.chat-full-welcome-content {
 	width: 100%;
 	max-width: 800px;
 	display: flex;
