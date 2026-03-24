@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../nls.js';
-import { registerColor, transparent } from '../../platform/theme/common/colorUtils.js';
+import { getColorRegistry, registerColor, transparent } from '../../platform/theme/common/colorUtils.js';
 import { contrastBorder, iconForeground } from '../../platform/theme/common/colorRegistry.js';
 import { Color } from '../../base/common/color.js';
 import { buttonBackground } from '../../platform/theme/common/colors/inputColors.js';
-import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../workbench/common/theme.js';
+import { editorBackground } from '../../platform/theme/common/colors/editorColors.js';
+import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../workbench/common/theme.js';
 
 // Sessions sidebar background color
 export const sessionsSidebarBackground = registerColor(
@@ -69,3 +70,8 @@ export const sessionsUpdateButtonDownloadedBackground = registerColor(
 	transparent(buttonBackground, 0.7),
 	localize('sessionsUpdateButton.downloadedBackground', 'Background color of the update button when download is complete in the agent sessions window.')
 );
+
+const colorRegistry = getColorRegistry();
+
+// Override panel background to use editor background in sessions window
+colorRegistry.updateDefaultColor(PANEL_BACKGROUND, editorBackground);
