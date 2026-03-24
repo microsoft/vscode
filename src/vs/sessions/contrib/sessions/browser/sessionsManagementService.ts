@@ -67,7 +67,7 @@ export interface IActiveSessionItem {
 export interface ISessionsManagementService {
 	readonly _serviceBrand: undefined;
 
-	// ── Sessions ──
+	// -- Sessions --
 
 	/**
 	 * Get all sessions from all registered providers.
@@ -79,7 +79,7 @@ export interface ISessionsManagementService {
 	 */
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
 
-	// ── Active Session ──
+	// -- Active Session --
 
 	/**
 	 * Observable for the currently active session as {@link ISessionData}.
@@ -147,13 +147,13 @@ export interface ISessionsManagementService {
 	 * Commit files in a worktree and refresh the agent sessions model
 	 * so the Changes view reflects the update.
 	 */
-	commitWorktreeFiles(session: IActiveSessionItem, fileUris: URI[]): Promise<void>;
+	commitWorktreeFiles(session: ISessionData, fileUris: URI[]): Promise<void>;
 
 	/**
 	 * Derive a GitHub context (owner, repo, prNumber) from an active session.
 	 * Returns `undefined` if the session is not associated with a GitHub repository.
 	 */
-	getGitHubContext(session: IActiveSessionItem): IGitHubSessionContext | undefined;
+	getGitHubContext(session: ISessionData): IGitHubSessionContext | undefined;
 
 	/**
 	 * Derive a GitHub context from a session resource URI.
@@ -477,8 +477,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		);
 	}
 
-	async commitWorktreeFiles(session: IActiveSessionItem, fileUris: URI[]): Promise<void> {
-		const worktreeUri = session.worktree;
+	async commitWorktreeFiles(session: ISessionData, fileUris: URI[]): Promise<void> {
+		const worktreeUri = session.workspace.get()?.repositories[0]?.workingDirectory;
 		if (!worktreeUri) {
 			throw new Error('Cannot commit worktree files: active session has no associated worktree');
 		}
@@ -491,9 +491,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await this.agentSessionsService.model.resolve(AgentSessionProviders.Background);
 	}
 
-	getGitHubContext(session: IActiveSessionItem): IGitHubSessionContext | undefined {
+	getGitHubContext(session: ISessionData): IGitHubSessionContext | undefined {
 		// 1. Try parsing a github-remote-file URI (Cloud sessions)
-		const repoUri = session.repository;
+		const repoUri = session.workspace.get()?.repositories[0]?.uri;
 		if (repoUri && repoUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
 			const parts = repoUri.path.split('/').filter(Boolean);
 			if (parts.length >= 2) {
@@ -537,21 +537,25 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	getGitHubContextForSession(sessionResource: URI): IGitHubSessionContext | undefined {
+		// Try finding the ISessionData first (preferred path)
+		const sessionData = this.sessionsProvidersService.getSessions().find(s => s.resource.toString() === sessionResource.toString());
+		if (sessionData) {
+			return this.getGitHubContext(sessionData);
+		}
+
+		// Fallback: construct context directly from agent session metadata
 		const agentSession = this.agentSessionsService.model.getSession(sessionResource);
 		if (!agentSession) {
 			return undefined;
 		}
-		const [repository, worktree] = this.getRepositoryFromMetadata(agentSession);
-		return this.getGitHubContext({
-			resource: sessionResource,
-			isUntitled: false,
-			label: agentSession.label,
-			repository,
-			worktree,
-			worktreeBranchName: undefined,
-			worktreeBaseBranchProtected: undefined,
-			providerType: agentSession.providerType,
-		} satisfies IActiveSessionItem);
+		const [repository] = this.getRepositoryFromMetadata(agentSession);
+		if (repository && repository.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			const parts = repository.path.split('/').filter(Boolean);
+			if (parts.length >= 2) {
+				return { owner: decodeURIComponent(parts[0]), repo: decodeURIComponent(parts[1]), prNumber: undefined };
+			}
+		}
+		return undefined;
 	}
 
 	resolveSessionFileUri(sessionResource: URI, relativePath: string): URI | undefined {
@@ -567,7 +571,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return URI.joinPath(baseUri, relativePath);
 	}
 
-	private _parsePRNumberFromSession(session: IActiveSessionItem): number | undefined {
+	private _parsePRNumberFromSession(session: ISessionData): number | undefined {
 		const agentSession = this.agentSessionsService.model.getSession(session.resource);
 		const metadata = agentSession?.metadata;
 		if (!metadata) {

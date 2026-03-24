@@ -47,6 +47,8 @@
 .session-item {
 	display: flex;
 	flex-direction: row;
+	height: 100%;
+	box-sizing: border-box;
 	padding: 8px 6px;
 
 	.session-main,
@@ -121,6 +123,12 @@
 			.session-diff-removed {
 				color: var(--vscode-chat-linesRemovedForeground);
 			}
+		}
+
+		.session-badge {
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
 		}
 
 		.session-separator {

@@ -84,6 +84,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	static readonly TEMPLATE_ID = 'session-item';
 	readonly templateId = SessionItemRenderer.TEMPLATE_ID;
 
+	constructor(private readonly options: { grouping: () => SessionsGrouping }) { }
+
 	renderTemplate(container: HTMLElement): ISessionItemTemplate {
 		const disposables = new DisposableStore();
 		const elementDisposables = disposables.add(new DisposableStore());
@@ -126,16 +128,24 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.title.textContent = titleText;
 		}));
 
-		// Details row — reactive: diff stats · time
+		// Details row — reactive: badge · diff stats · time
 		const timeDisposable = template.elementDisposables.add(new MutableDisposable());
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = element.status.read(reader);
 			const changes = element.changes.read(reader);
 			const updatedAt = element.updatedAt.read(reader);
+			const workspace = element.workspace.read(reader);
 
 			// Clear and rebuild details row
 			DOM.clearNode(template.detailsRow);
 			const parts: HTMLElement[] = [];
+
+			// Workspace badge — show when not grouped by repository
+			if (workspace && this.options.grouping() !== SessionsGrouping.Repository) {
+				const badgeEl = DOM.append(template.detailsRow, $('span.session-badge'));
+				badgeEl.textContent = workspace.label;
+				parts.push(badgeEl);
+			}
 
 			// Diff stats
 			if (changes.length > 0 && sessionStatus !== SessionStatus.InProgress) {
@@ -146,6 +156,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 					deletions += change.deletions;
 				}
 				if (insertions > 0 || deletions > 0) {
+					if (parts.length > 0) {
+						DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
+					}
 					const diffEl = DOM.append(template.detailsRow, $('span.session-diff'));
 					DOM.append(diffEl, $('span.session-diff-added')).textContent = `+${insertions}`;
 					DOM.append(diffEl, $('span')).textContent = ' ';
@@ -320,7 +333,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 			this.listContainer,
 			new SessionsTreeDelegate(),
 			[
-				new SessionItemRenderer(),
+				new SessionItemRenderer({ grouping: this.options.grouping }),
 				new SessionSectionRenderer(),
 			],
 			{
