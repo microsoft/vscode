@@ -1716,10 +1716,12 @@ export class AICustomizationListWidget extends Disposable {
 		this.searchInput.layout();
 
 		// Measure sibling elements to calculate the remaining space for the list.
-		// When the widget is hidden (display:none) offsetHeight returns 0 —
-		// skip layout; selectSectionById will re-layout when visible.
+		// When offsetHeight returns 0 the container just became visible
+		// after display:none and the browser hasn't reflowed yet — defer
+		// layout to the next frame so measurements are accurate.
 		const searchBarHeight = this.searchAndButtonContainer.offsetHeight;
 		if (searchBarHeight === 0) {
+			DOM.getWindow(this.element).requestAnimationFrame(() => this.layout(height, width));
 			return;
 		}
 		const footerHeight = this.sectionHeader.offsetHeight;

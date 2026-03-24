@@ -713,11 +713,13 @@ export class PluginListWidget extends Disposable {
 
 		this.element.style.height = `${height}px`;
 
-		// Measure sibling elements. When the widget is hidden (display:none)
-		// offsetHeight returns 0 — skip layout; selectSectionById will
-		// re-layout when the container becomes visible.
+		// Measure sibling elements to calculate the list height.
+		// When offsetHeight returns 0 the container just became visible
+		// after display:none and the browser hasn't reflowed yet — defer
+		// layout to the next frame so measurements are accurate.
 		const searchBarHeight = this.searchAndButtonContainer.offsetHeight;
 		if (searchBarHeight === 0) {
+			DOM.getWindow(this.element).requestAnimationFrame(() => this.layout(this.lastHeight, this.lastWidth));
 			return;
 		}
 		const footerHeight = this.sectionHeader.offsetHeight;
