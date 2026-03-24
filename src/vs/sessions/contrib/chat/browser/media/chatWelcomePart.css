@@ -7,27 +7,33 @@
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	justify-content: center;
+	justify-content: flex-end;
 	width: 100%;
 	height: 100%;
 	box-sizing: border-box;
 	overflow: hidden;
-	padding: 0 16px 48px 16px;
+	padding: 16px 16px 20px 16px;
 	container-type: size;
+	position: relative;
 }
 
 .chat-full-welcome.revealed {
-	justify-content: center;
+	justify-content: flex-end;
 }
 
 /* Header */
 .chat-full-welcome-header {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	width: 100%;
 	max-width: 800px;
 	overflow: visible;
+	pointer-events: none;
 }
 
 /* Watermark letterpress */
@@ -73,7 +79,7 @@
 	display: none;
 	width: 100%;
 	max-width: 800px;
-	margin: 0 0 24px 0;
+	margin: 0 0 12px 0;
 	padding: 0;
 	box-sizing: border-box;
 }
@@ -98,6 +104,14 @@
 .chat-full-welcome-pickers-container:empty {
 	display: none;
 	margin-bottom: 0;
+}
+
+.chat-full-welcome-bottom-docked-controls {
+	width: 100%;
+	max-width: 800px;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
 }
 
 /* Local mode picker (Workspace / Worktree) below input */
@@ -167,7 +181,8 @@
 	flex-direction: row;
 	flex-wrap: nowrap;
 	align-items: center;
-	justify-content: center;
+	justify-content: flex-start;
+	gap: 6px;
 	width: 100%;
 	box-sizing: border-box;
 	padding: 0;
@@ -177,23 +192,30 @@
 	display: none;
 }
 
-/* Prominent project picker button */
+.chat-full-welcome-pickers-label {
+	font-size: 13px;
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+}
+
+/* Project picker in inline title row */
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label {
 	height: auto;
-	padding: 8px 20px;
-	font-size: 15px;
-	border: 1px solid var(--vscode-button-border);
-	background-color: var(--vscode-button-secondaryBackground);
-	color: var(--vscode-button-secondaryForeground);
-	border-radius: 6px;
+	padding: 3px 3px 3px 6px;
+	font-size: 13px;
+	border: none;
+	background-color: transparent;
+	color: var(--vscode-icon-foreground);
+	border-radius: 4px;
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label:hover {
-	background-color: var(--vscode-button-secondaryHoverBackground);
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .codicon {
-	font-size: 18px;
+	font-size: 14px;
 	margin-right: 2px;
 }
 
@@ -204,7 +226,7 @@
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label {
-	font-size: 15px;
+	font-size: 13px;
 }
 
 .sessions-chat-dropdown-label {

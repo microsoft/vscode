@@ -272,11 +272,14 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const header = dom.append(welcomeElement, dom.$('.chat-full-welcome-header'));
 		dom.append(header, dom.$('.chat-full-welcome-letterpress'));
 
+		// Bottom-docked controls area (folder picker, input, local mode controls)
+		const bottomDockedControls = dom.append(welcomeElement, dom.$('.chat-full-welcome-bottom-docked-controls'));
+
 		// Option group pickers (above the input)
-		this._pickersContainer = dom.append(welcomeElement, dom.$('.chat-full-welcome-pickers-container'));
+		this._pickersContainer = dom.append(bottomDockedControls, dom.$('.chat-full-welcome-pickers-container'));
 
 		// Input slot
-		this._inputSlot = dom.append(welcomeElement, dom.$('.chat-full-welcome-inputSlot'));
+		this._inputSlot = dom.append(bottomDockedControls, dom.$('.chat-full-welcome-inputSlot'));
 
 		// Input area inside the input slot
 		const inputArea = dom.$('.sessions-chat-input-area');
@@ -293,7 +296,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._inputSlot.appendChild(inputArea);
 
 		// Isolation mode and branch pickers (below the input, shown when Local target is selected)
-		const isolationContainer = dom.append(welcomeElement, dom.$('.chat-full-welcome-local-mode'));
+		const isolationContainer = dom.append(bottomDockedControls, dom.$('.chat-full-welcome-local-mode'));
 		this._sessionTypePicker.render(isolationContainer);
 		this._permissionPicker.render(isolationContainer);
 		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));
@@ -701,6 +704,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		dom.clearNode(this._pickersContainer);
 
 		const pickersRow = dom.append(this._pickersContainer, dom.$('.chat-full-welcome-pickers'));
+		const pickersLabel = dom.append(pickersRow, dom.$('.chat-full-welcome-pickers-label'));
+		pickersLabel.textContent = localize('newSessionIn', "New session in");
 
 		// Project picker (unified folder + repo picker)
 		this._workspacePicker.render(pickersRow);
