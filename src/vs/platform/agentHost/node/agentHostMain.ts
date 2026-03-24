@@ -173,6 +173,9 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 		handleBrowseDirectory(uri) {
 			return agentService.browseDirectory(URI.parse(uri));
 		},
+		async handleRestoreSession(session) {
+			return agentService.restoreSession(URI.parse(session));
+		},
 		handleFetchContent(uri) {
 			return agentService.fetchContent(URI.parse(uri));
 		},
