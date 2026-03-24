@@ -23,6 +23,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { SessionsListControl, SessionsGrouping, SessionsSorting } from '../sessionsListControl.js';
+import { SessionStatus } from '../../common/sessionData.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from '../sessionsManagementService.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -148,6 +149,9 @@ export class SessionsViewPane extends ViewPane {
 			this.registerSessionTypeFilters(sessionsControl);
 		}));
 
+		// Register status filter actions (static set, registered once)
+		this.registerStatusFilters(sessionsControl);
+
 		// Refresh sessions when window gets focus to compensate for missing events
 		this._register(this.hostService.onDidChangeFocus(hasFocus => {
 			if (hasFocus) {
@@ -225,6 +229,40 @@ export class SessionsViewPane extends ViewPane {
 					const isExcluded = sessionsControl.isSessionTypeExcluded(type.id);
 					sessionsControl.setSessionTypeExcluded(type.id, !isExcluded);
 					contextKeyInstance.set(isExcluded); // was excluded, now included (toggle)
+				}
+			}));
+		}
+	}
+
+	private registerStatusFilters(sessionsControl: SessionsListControl): void {
+		const statusFilters: { status: SessionStatus; label: string }[] = [
+			{ status: SessionStatus.Completed, label: localize('statusCompleted', "Completed") },
+			{ status: SessionStatus.InProgress, label: localize('statusInProgress', "In Progress") },
+			{ status: SessionStatus.NeedsInput, label: localize('statusNeedsInput', "Input Needed") },
+			{ status: SessionStatus.Error, label: localize('statusFailed', "Failed") },
+		];
+		for (let i = 0; i < statusFilters.length; i++) {
+			const { status, label } = statusFilters[i];
+			const contextKey = new RawContextKey<boolean>(`sessionsViewPane.filterStatus.${status}`, !sessionsControl.isStatusExcluded(status));
+			const contextKeyInstance = contextKey.bindTo(this.scopedContextKeyService);
+
+			this._register(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: `sessionsViewPane.filterStatus.${status}`,
+						title: label,
+						toggled: ContextKeyExpr.equals(contextKey.key, true),
+						menu: [{
+							id: SessionsViewFilterOptionsSubMenu,
+							group: '2_status',
+							order: i,
+						}]
+					});
+				}
+				override run() {
+					const isExcluded = sessionsControl.isStatusExcluded(status);
+					sessionsControl.setStatusExcluded(status, !isExcluded);
+					contextKeyInstance.set(isExcluded);
 				}
 			}));
 		}

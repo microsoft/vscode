@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { autorun, derived, derivedOpts, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts } from '../../../../base/common/observable.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -35,23 +35,17 @@ export class ChangesViewController extends Disposable {
 	) {
 		super();
 
-		const activeSessionChangedSignal = observableSignalFromEvent(this,
-			this.agentSessionsService.model.onDidChangeSessions);
-
 		const activeSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual, }, reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
 			return activeSession?.resource;
 		});
 
 		const activeSessionHasChangesObs = derived<boolean>(reader => {
-			const sessionResource = activeSessionResourceObs.read(reader);
-			if (!sessionResource) {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			if (!activeSession) {
 				return false;
 			}
-
-			activeSessionChangedSignal.read(reader);
-			const model = this.agentSessionsService.getSession(sessionResource);
-			const changes = model?.changes instanceof Array ? model.changes : [];
+			const changes = activeSession.changes.read(reader);
 			return changes.length > 0;
 		});
 
