@@ -172,7 +172,7 @@ export class WorkspacePicker extends Disposable {
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
-		trigger.setAttribute('aria-haspopup', 'dialog');
+		trigger.setAttribute('aria-haspopup', 'listbox');
 		trigger.setAttribute('aria-expanded', 'false');
 		this._triggerElement = trigger;
 
