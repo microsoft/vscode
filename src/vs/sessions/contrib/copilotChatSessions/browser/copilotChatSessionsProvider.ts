@@ -619,11 +619,7 @@ class AgentSessionAdapter implements ISessionData {
 			return undefined;
 		}
 
-		const metadata = session.metadata as Record<string, unknown> | undefined;
-		const repoUri = this._extractRepoUri(session);
-		const worktreeUri = metadata?.['worktree'] ? URI.parse(metadata['worktree'] as string) : undefined;
-		const branchName = metadata?.['branchName'] as string | undefined;
-		const baseBranchProtected = metadata?.['baseBranchProtected'] as boolean | undefined;
+		const [repoUri, worktreeUri, branchName, baseBranchProtected] = this._extractRepositoryFromMetadata(session);
 
 		const repository: ISessionRepository = {
 			uri: repoUri ?? URI.parse('unknown://'),
@@ -639,18 +635,48 @@ class AgentSessionAdapter implements ISessionData {
 		};
 	}
 
-	private _extractRepoUri(session: IAgentSession): URI | undefined {
-		const metadata = session.metadata as Record<string, unknown> | undefined;
+	/**
+	 * Extract repository/worktree information from session metadata.
+	 * Mirrors the logic in sessionsManagementService.getRepositoryFromMetadata().
+	 */
+	private _extractRepositoryFromMetadata(session: IAgentSession): [URI | undefined, URI | undefined, string | undefined, boolean | undefined] {
+		const metadata = session.metadata;
 		if (!metadata) {
-			return undefined;
+			return [undefined, undefined, undefined, undefined];
 		}
-		if (session.providerType === AgentSessionProviders.Background) {
-			const folder = metadata['folder'] as string | undefined;
-			return folder ? URI.parse(folder) : undefined;
+
+		if (session.providerType === AgentSessionProviders.Cloud) {
+			const branch = typeof metadata.branch === 'string' ? metadata.branch : 'HEAD';
+			const repositoryUri = URI.from({
+				scheme: GITHUB_REMOTE_FILE_SCHEME,
+				authority: 'github',
+				path: `/${metadata.owner}/${metadata.name}/${encodeURIComponent(branch)}`
+			});
+			return [repositoryUri, undefined, undefined, undefined];
 		}
-		// Cloud sessions: look for repository in metadata
-		const repo = metadata['repository'] as string | undefined;
-		return repo ? URI.parse(repo) : undefined;
+
+		// Background/CLI sessions: check workingDirectoryPath first
+		const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;
+		if (workingDirectoryPath) {
+			return [URI.file(workingDirectoryPath), undefined, undefined, undefined];
+		}
+
+		// Fall back to repositoryPath + worktreePath
+		const repositoryPath = metadata?.repositoryPath as string | undefined;
+		const repositoryPathUri = typeof repositoryPath === 'string' ? URI.file(repositoryPath) : undefined;
+
+		const worktreePath = metadata?.worktreePath as string | undefined;
+		const worktreePathUri = typeof worktreePath === 'string' ? URI.file(worktreePath) : undefined;
+
+		const worktreeBranchName = metadata?.branchName as string | undefined;
+		const worktreeBaseBranchProtected = metadata?.baseBranchProtected as boolean | undefined;
+
+		return [
+			URI.isUri(repositoryPathUri) ? repositoryPathUri : undefined,
+			URI.isUri(worktreePathUri) ? worktreePathUri : undefined,
+			worktreeBranchName,
+			worktreeBaseBranchProtected,
+		];
 	}
 }
 
@@ -709,7 +735,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}));
 	}
 
-	// ── Workspaces ──
+	// -- Workspaces --
 
 	getWorkspaces(): ISessionWorkspace[] {
 		const stored = this._getRecentWorkspaces();
@@ -732,7 +758,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			});
 	}
 
-	// ── Sessions ──
+	// -- Sessions --
 
 	getSessionTypes(session: ISessionData): ISessionType[] {
 		if (session instanceof CopilotCLISession) {
@@ -749,7 +775,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return Array.from(this._sessionCache.values());
 	}
 
-	// ── Session Lifecycle ──
+	// -- Session Lifecycle --
 
 	private _currentNewSession: (CopilotCLISession | RemoteNewSession) | undefined;
 
@@ -786,7 +812,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 	}
 
-	// ── Session Actions ──
+	// -- Session Actions --
 
 	async archiveSession(sessionId: string): Promise<void> {
 		const agentSession = this._findAgentSession(sessionId);
@@ -809,7 +835,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 	}
 
-	// ── Send ──
+	// -- Send --
 
 	async sendRequest(sessionId: string, options: ISendRequestOptions): Promise<ISessionData> {
 		const session = this._currentNewSession;
@@ -922,7 +948,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return adapter;
 	}
 
-	// ── Private ──
+	// -- Private --
 
 	private async _browseForFolder(): Promise<ISessionWorkspace | undefined> {
 		const result = await this.fileDialogService.showOpenDialog({
