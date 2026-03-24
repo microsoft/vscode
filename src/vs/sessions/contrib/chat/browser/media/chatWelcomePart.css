@@ -193,19 +193,21 @@
 }
 
 .chat-full-welcome-pickers-label {
-	font-size: 13px;
-	color: var(--vscode-foreground);
+	font-size: 24px;
+	line-height: 1.25;
+	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
 }
 
 /* Project picker in inline title row */
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label {
 	height: auto;
-	padding: 3px 3px 3px 6px;
-	font-size: 13px;
+	padding: 4px 4px 4px 6px;
+	font-size: 24px;
+	line-height: 1.25;
 	border: none;
 	background-color: transparent;
-	color: var(--vscode-icon-foreground);
+	color: var(--vscode-descriptionForeground);
 	border-radius: 4px;
 }
 
@@ -215,7 +217,7 @@
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .codicon {
-	font-size: 14px;
+	font-size: 20px;
 	margin-right: 2px;
 }
 
@@ -226,7 +228,7 @@
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label {
-	font-size: 13px;
+	font-size: 24px;
 }
 
 .sessions-chat-dropdown-label {
