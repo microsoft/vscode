@@ -7,8 +7,7 @@ import './media/sessionsList.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
-import { IObjectTreeElement, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
-import { ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
 import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -17,6 +16,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../base
 import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { fromNow } from '../../../../base/common/date.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
@@ -157,33 +157,38 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			// Status description or timestamp
 			if (sessionStatus === SessionStatus.InProgress) {
 				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator')).textContent = '·';
+					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
 				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
 				statusEl.textContent = localize('working', "Working...");
 			} else if (sessionStatus === SessionStatus.NeedsInput) {
 				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator')).textContent = '·';
+					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
 				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
 				statusEl.textContent = localize('needsInput', "Input needed");
 			} else if (sessionStatus === SessionStatus.Error) {
 				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator')).textContent = '·';
+					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
 				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
 				statusEl.textContent = localize('failed', "Failed");
 			} else {
 				// Relative timestamp
 				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator')).textContent = '·';
+					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
 				const timeEl = DOM.append(template.detailsRow, $('span.session-time'));
-				timeEl.textContent = this.formatRelativeTime(updatedAt);
-				const interval = setInterval(() => {
-					timeEl.textContent = this.formatRelativeTime(updatedAt);
+				const formatTime = () => {
+					const seconds = Math.round((Date.now() - updatedAt.getTime()) / 1000);
+					return seconds < 60 ? localize('secondsDuration', "now") : fromNow(updatedAt, true);
+				};
+				timeEl.textContent = formatTime();
+				const targetWindow = DOM.getWindow(timeEl);
+				const interval = targetWindow.setInterval(() => {
+					timeEl.textContent = formatTime();
 				}, 60_000);
-				timeDisposable.value = { dispose: () => clearInterval(interval) };
+				timeDisposable.value = { dispose: () => targetWindow.clearInterval(interval) };
 			}
 		}));
 	}
@@ -197,30 +202,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}
 	}
 
-	private formatRelativeTime(date: Date): string {
-		const now = Date.now();
-		const diff = now - date.getTime();
-		const seconds = Math.floor(diff / 1000);
-		const minutes = Math.floor(seconds / 60);
-		const hours = Math.floor(minutes / 60);
-		const days = Math.floor(hours / 24);
 
-		if (seconds < 60) {
-			return localize('justNow', "just now");
-		} else if (minutes < 60) {
-			return minutes === 1
-				? localize('oneMinuteAgo', "1 min ago")
-				: localize('minutesAgo', "{0} min ago", minutes);
-		} else if (hours < 24) {
-			return hours === 1
-				? localize('oneHourAgo', "1 hr ago")
-				: localize('hoursAgo', "{0} hr ago", hours);
-		} else {
-			return days === 1
-				? localize('oneDayAgo', "1 day ago")
-				: localize('daysAgo', "{0} days ago", days);
-		}
-	}
 
 	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
 		template.elementDisposables.clear();
@@ -444,7 +426,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 		this.tree.domFocus();
 	}
 
-	// ── Sorting ──
+	// -- Sorting --
 
 	private sortSessions(sessions: ISessionData[]): ISessionData[] {
 		const sorting = this.options.sorting();
@@ -456,7 +438,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 		});
 	}
 
-	// ── Grouping ──
+	// -- Grouping --
 
 	private groupByRepository(sessions: ISessionData[]): ISessionSection[] {
 		const groups = new Map<string, ISessionData[]>();
