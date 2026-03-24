@@ -249,7 +249,6 @@ registerQuickPickCommandAndKeybindingRule(
 			ContextKeyExpr.equals(quickInputTypeContextKeyValue, QuickInputType.QuickPick),
 		),
 		primary: KeyMod.Shift | KeyCode.Enter,
-		mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
 		weight: KeybindingWeight.WorkbenchContrib + 100,
 		handler: (accessor) => {
 			const currentQuickPick = accessor.get(IQuickInputService).currentQuickInput as IQuickPick<any>;
