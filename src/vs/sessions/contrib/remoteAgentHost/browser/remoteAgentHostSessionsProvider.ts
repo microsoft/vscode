@@ -9,11 +9,11 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ISessionData, SessionStatus } from '../../sessions/common/sessionData.js';
-import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
-import { ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
+import { ISessionData, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
+import { ISendRequestOptions, ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
 import { IChatSessionFileChange } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { agentHostAuthority } from './remoteAgentHost.contribution.js';
 import { AGENT_HOST_FS_SCHEME, agentHostUri } from './agentHostFileSystemProvider.js';
@@ -65,12 +65,16 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 
 	// ── Workspaces ──
 
-	getWorkspaces(): SessionWorkspace[] {
+	getWorkspaces(): ISessionWorkspace[] {
 		// Remote agent host workspaces are browsed on demand, not stored
 		return [];
 	}
 
 	// ── Sessions ──
+
+	getSessionTypes(_session: ISessionData): ISessionType[] {
+		return [...this.sessionTypes];
+	}
 
 	getSessions(): ISessionData[] {
 		// Sessions are managed by the existing AgentHostSessionListController
@@ -80,25 +84,41 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 
 	// ── Session Lifecycle ──
 
-	createNewSession(type: ISessionType, resource: URI, workspace?: SessionWorkspace): ISessionData {
+	createNewSession(workspace: ISessionWorkspace): ISessionData {
+		const workspaceUri = workspace.repositories[0]?.uri;
+		if (!workspaceUri) {
+			throw new Error('Workspace has no repository URI');
+		}
+		const resource = URI.from({ scheme: this.sessionTypes[0]?.id ?? 'agenthost', path: `/untitled-${generateUuid()}` });
 		// Create a minimal ISessionData for the new session
 		return {
 			sessionId: `${this.id}:${resource.toString()}`,
 			resource,
 			providerId: this.id,
-			sessionType: type.id,
+			sessionType: this.sessionTypes[0]?.id ?? 'agenthost',
 			icon: Codicon.remote,
 			createdAt: new Date(),
-			workspace: observableValue(this, workspace ? {
-				label: workspace.uri.path.split('/').pop() || workspace.uri.path,
+			workspace: observableValue(this, {
+				label: workspaceUri.path.split('/').pop() || workspaceUri.path,
 				icon: Codicon.remote,
-				repositories: [{ uri: workspace.uri, workingDirectory: undefined, detail: this.label, baseBranchProtected: undefined }],
-			} : undefined),
+				repositories: [{ uri: workspaceUri, workingDirectory: undefined, detail: this.label, baseBranchProtected: undefined }],
+			}),
 			title: observableValue(this, ''),
 			updatedAt: observableValue(this, new Date()),
 			status: observableValue(this, SessionStatus.Untitled),
 			changes: observableValue<readonly IChatSessionFileChange[]>(this, []),
+			modelId: observableValue(this, undefined),
+			mode: observableValue(this, undefined),
+			loading: observableValue(this, false),
 		};
+	}
+
+	setSessionType(_sessionId: string, _type: ISessionType): ISessionData {
+		throw new Error('Remote agent host sessions do not support changing session type');
+	}
+
+	setModel(_sessionId: string, _modelId: string): void {
+		// No-op for remote agent host sessions
 	}
 
 	// ── Session Actions ──
@@ -115,14 +135,14 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		// Agent host sessions don't support renaming
 	}
 
-	async sendRequest(_sessionId: string): Promise<ISessionData | undefined> {
+	async sendRequest(_sessionId: string, sendOptions: ISendRequestOptions): Promise<ISessionData> {
 		// Agent host session send is handled separately
-		return undefined;
+		throw new Error('Remote agent host sessions do not support sending requests through the sessions provider');
 	}
 
 	// ── Private ──
 
-	private async _browseForFolder(): Promise<SessionWorkspace | undefined> {
+	private async _browseForFolder(): Promise<ISessionWorkspace | undefined> {
 		const authority = agentHostAuthority(this._address);
 		const defaultUri = agentHostUri(authority, '/');
 
@@ -136,7 +156,13 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 				defaultUri,
 			});
 			if (selected?.[0]) {
-				return new SessionWorkspace(selected[0]);
+				const uri = selected[0];
+				const label = uri.path.split('/').pop() || uri.path;
+				return {
+					label,
+					icon: Codicon.remote,
+					repositories: [{ uri, workingDirectory: undefined, detail: this.label, baseBranchProtected: undefined }],
+				};
 			}
 		} catch {
 			// dialog was cancelled or failed

@@ -5,12 +5,10 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ISessionData } from '../common/sessionData.js';
 import { ISessionsChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
-import { SessionWorkspace } from '../common/sessionWorkspace.js';
 
 export const ISessionsProvidersService = createDecorator<ISessionsProvidersService>('sessionsProvidersService');
 
@@ -33,8 +31,10 @@ export interface ISessionsProvidersService {
 
 	// ── Session Types ──
 
-	/** Get available session types for a workspace, aggregated across all providers that offer it. */
-	getSessionTypesForWorkspace(workspace: SessionWorkspace): { provider: ISessionsProvider; type: ISessionType }[];
+	/** Get available session types for a provider. */
+	getSessionTypesForProvider(providerId: string): ISessionType[];
+	/** Get available session types for a session from its provider. */
+	getSessionTypes(session: ISessionData): ISessionType[];
 
 	// ── Aggregated Sessions ──
 
@@ -53,16 +53,6 @@ export interface ISessionsProvidersService {
 	deleteSession(sessionId: string): Promise<void>;
 	/** Rename a session. */
 	renameSession(sessionId: string, title: string): Promise<void>;
-
-	// ── Send ──
-
-	/** Send the initial request for a new session. Routes to the correct provider. */
-	sendRequest(sessionId: string): Promise<ISessionData | undefined>;
-
-	// ── New Session ──
-
-	/** Create a new session via the specified provider. */
-	createNewSession(providerId: string, type: ISessionType, resource: URI, workspace?: SessionWorkspace): ISessionData;
 }
 
 /**
@@ -114,16 +104,20 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 
 	// ── Session Types ──
 
-	getSessionTypesForWorkspace(workspace: SessionWorkspace): { provider: ISessionsProvider; type: ISessionType }[] {
-		const results: { provider: ISessionsProvider; type: ISessionType }[] = [];
-		for (const { provider } of this._providers.values()) {
-			// A provider's workspaces tell us which workspaces it supports
-			// Check if this workspace came from this provider's browse actions or known workspaces
-			for (const sessionType of provider.sessionTypes) {
-				results.push({ provider, type: sessionType });
-			}
+	getSessionTypesForProvider(providerId: string): ISessionType[] {
+		const entry = this._providers.get(providerId);
+		if (!entry) {
+			return [];
 		}
-		return results;
+		return [...entry.provider.sessionTypes];
+	}
+
+	getSessionTypes(session: ISessionData): ISessionType[] {
+		const entry = this._providers.get(session.providerId);
+		if (!entry) {
+			return [];
+		}
+		return entry.provider.getSessionTypes(session);
 	}
 
 	// ── Aggregated Sessions ──
@@ -165,26 +159,6 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		if (provider) {
 			await provider.renameSession(sessionId, title);
 		}
-	}
-
-	// ── Send ──
-
-	async sendRequest(sessionId: string): Promise<ISessionData | undefined> {
-		const { provider } = this._resolveProvider(sessionId);
-		if (provider) {
-			return provider.sendRequest(sessionId);
-		}
-		return undefined;
-	}
-
-	// ── New Session ──
-
-	createNewSession(providerId: string, type: ISessionType, resource: URI, workspace?: SessionWorkspace): ISessionData {
-		const entry = this._providers.get(providerId);
-		if (!entry) {
-			throw new Error(`Sessions provider '${providerId}' not found.`);
-		}
-		return entry.provider.createNewSession(type, resource, workspace);
 	}
 
 	// ── Private Helpers ──

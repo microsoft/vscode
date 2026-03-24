@@ -10,19 +10,17 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { AgenticSessionsViewPane, SessionsViewId } from './sessionsViewPane.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
+import { SessionsViewPane, SessionsViewPaneId } from './views/sessionsViewPane.js';
 import { SessionsManagementService, ISessionsManagementService } from './sessionsManagementService.js';
-import { ISessionsProvidersService } from './sessionsProvidersService.js';
-import { DefaultCopilotChatSessionsProvider } from './defaultCopilotSessionsProvider.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { AgentSessionSection, IAgentSessionSection, isAgentSessionSection } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { NewChatViewPane, SessionsViewId as NewChatViewId } from '../../chat/browser/newChatViewPane.js';
+import { SessionsViewId as NewChatViewId } from '../../chat/browser/newChatViewPane.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
@@ -39,21 +37,39 @@ const agentSessionsViewContainer: ViewContainer = Registry.as<IViewContainersReg
 	windowVisibility: WindowVisibility.Sessions
 }, ViewContainerLocation.Sidebar, { isDefault: true });
 
-const agentSessionsViewDescriptor: IViewDescriptor = {
-	id: SessionsViewId,
+// Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
+// 	id: SessionsViewId,
+// 	containerIcon: agentSessionsViewIcon,
+// 	containerTitle: AGENT_SESSIONS_VIEW_TITLE.value,
+// 	singleViewPaneContainerTitle: AGENT_SESSIONS_VIEW_TITLE.value,
+// 	name: AGENT_SESSIONS_VIEW_TITLE,
+// 	canToggleVisibility: false,
+// 	canMoveView: false,
+// 	ctorDescriptor: new SyncDescriptor(AgenticSessionsViewPane),
+// 	windowVisibility: WindowVisibility.Sessions
+// }], agentSessionsViewContainer);
+
+// ── New Sessions View Pane (sessions-data-model based) ──
+
+const sessionsViewPaneDescriptor: IViewDescriptor = {
+	id: SessionsViewPaneId,
 	containerIcon: agentSessionsViewIcon,
 	containerTitle: AGENT_SESSIONS_VIEW_TITLE.value,
 	singleViewPaneContainerTitle: AGENT_SESSIONS_VIEW_TITLE.value,
 	name: AGENT_SESSIONS_VIEW_TITLE,
-	canToggleVisibility: false,
+	canToggleVisibility: true,
 	canMoveView: false,
-	ctorDescriptor: new SyncDescriptor(AgenticSessionsViewPane),
+	ctorDescriptor: new SyncDescriptor(SessionsViewPane),
 	windowVisibility: WindowVisibility.Sessions
 };
 
-Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([agentSessionsViewDescriptor], agentSessionsViewContainer);
+Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([sessionsViewPaneDescriptor], agentSessionsViewContainer);
 
 registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);
+
+registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.AfterRestored);
+
+// ── Other Actions ──
 
 registerAction2(class NewSessionForRepositoryAction extends Action2 {
 
@@ -79,30 +95,7 @@ registerAction2(class NewSessionForRepositoryAction extends Action2 {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const viewsService = accessor.get(IViewsService);
 
-		const repositoryUri = sessionsManagementService.getSessionRepositoryUri(context.sessions[0]);
 		sessionsManagementService.openNewSessionView();
-
-		const view = await viewsService.openView(NewChatViewId, true);
-		if (view instanceof NewChatViewPane && repositoryUri) {
-			view.setProject(repositoryUri);
-		}
+		await viewsService.openView(NewChatViewId, true);
 	}
 });
-
-/**
- * Registers the {@link DefaultCopilotChatSessionsProvider} as a sessions provider.
- */
-class DefaultSessionsProviderContribution extends Disposable implements IWorkbenchContribution {
-	static readonly ID = 'sessions.defaultSessionsProvider';
-
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-	) {
-		super();
-		const provider = this._register(instantiationService.createInstance(DefaultCopilotChatSessionsProvider));
-		this._register(sessionsProvidersService.registerProvider(provider));
-	}
-}
-
-registerWorkbenchContribution2(DefaultSessionsProviderContribution.ID, DefaultSessionsProviderContribution, WorkbenchPhase.AfterRestored);

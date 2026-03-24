@@ -1,0 +1,119 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sessions-list {
+	flex: 1 1 auto;
+	overflow: hidden;
+}
+
+/* ── Session Item ── */
+
+.session-item {
+	display: flex;
+	align-items: flex-start;
+	padding: 8px 6px;
+	border-radius: 6px;
+	gap: 8px;
+	cursor: pointer;
+}
+
+.session-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 17px;
+	margin-top: 1px;
+}
+
+.session-icon-active {
+	color: var(--vscode-progressBar-background);
+}
+
+.session-icon-pulse {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+	animation: session-icon-pulse 2s ease-in-out infinite;
+}
+
+@keyframes session-icon-pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.session-icon-pulse {
+		animation: none;
+	}
+}
+
+.session-main {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.session-title-row {
+	display: flex;
+	align-items: center;
+	padding-bottom: 4px;
+}
+
+.session-title {
+	font-size: 13px;
+	line-height: 17px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex: 1;
+}
+
+.session-details-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 12px;
+	line-height: 15px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-details {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex-shrink: 1;
+}
+
+.session-status {
+	white-space: nowrap;
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
+/* ── Section Header ── */
+
+.session-section {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 6px 12px;
+	font-size: 11px;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--vscode-descriptionForeground);
+	user-select: none;
+}
+
+.session-section-label {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.session-section-count {
+	opacity: 0.7;
+}

@@ -7,11 +7,11 @@ import './media/chatWidget.css';
 import './media/chatWelcomePart.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
@@ -35,22 +35,16 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { ICopilotNewSessionData } from '../../sessions/browser/defaultCopilotSessionsProvider.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
-import { ChatSessionPosition, getResourceForNewChatSession } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
-import { SessionTypePicker } from './sessionTargetPicker.js';
-import { NewSessionChangeType } from './newSession.js';
-import { ExtensionToolbarPickers } from './extensionToolbarPickers.js';
-import { WorkspacePicker } from './workspacePicker.js';
-import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
+import { SessionTypePicker } from './sessionTypePicker.js';
+import { WorkspacePicker, IWorkspaceSelection } from './sessionWorkspacePicker.js';
 import { Menus } from '../../../browser/menus.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { SlashCommandHandler } from './slashCommands.js';
@@ -66,34 +60,12 @@ const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
 const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
 
-/**
- * Configuration properties available on new/pending sessions.
- * Not part of the public {@link ISessionData} contract but present on
- * concrete session implementations (CopilotCLISession, RemoteNewSession, AgentHostNewSession).
- */
-interface INewSessionConfig extends IDisposable {
-	readonly resource: URI;
-	readonly project: SessionWorkspace | undefined;
-	readonly disabled: boolean;
-	readonly onDidChange: Event<NewSessionChangeType>;
-	setProject(project: SessionWorkspace): void;
-	setQuery(query: string): void;
-	setAttachedContext(context: IChatRequestVariableEntry[] | undefined): void;
-}
-
-interface IDraftState extends IChatModelInputState {
-	branch?: string;
-	projectUri?: UriComponents;
+interface IDraftState {
+	inputText: string;
+	attachments: readonly IChatRequestVariableEntry[];
 }
 
 // #region --- Chat Welcome Widget ---
-
-/**
- * Options for creating a `NewChatWidget`.
- */
-interface INewChatWidgetOptions {
-	readonly sessionPosition?: ChatSessionPosition;
-}
 
 /**
  * A self-contained new-session chat widget with a welcome view (mascot, target
@@ -106,7 +78,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _sessionTypePicker: SessionTypePicker;
-	private readonly _options: INewChatWidgetOptions;
 
 	// IHistoryNavigationWidget
 	private readonly _onDidFocus = this._register(new Emitter<void>());
@@ -119,24 +90,17 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private _editor!: CodeEditorWidget;
 	private _editorContainer!: HTMLElement;
 
-	// Pending session
-	private readonly _newSession = this._register(new MutableDisposable<INewSessionConfig>());
-	private readonly _newSessionListener = this._register(new MutableDisposable());
-
 	// Send button
 	private _sendButton: Button | undefined;
 	private _sending = false;
 
 	// Loading state
-	private readonly _projectSelectionCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private _loadingSpinner: HTMLElement | undefined;
 	private readonly _loadingDelayDisposable = this._register(new MutableDisposable());
 
 	// Welcome part
 	private _pickersContainer: HTMLElement | undefined;
-	private _toolbarPickersContainer: HTMLElement | undefined;
 	private _inputSlot: HTMLElement | undefined;
-	private readonly _extensionToolbarPickers: ExtensionToolbarPickers;
 
 	// Attached context
 	private readonly _contextAttachments: NewChatContextAttachments;
@@ -148,10 +112,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private _draftState: IDraftState | undefined = {
 		inputText: '',
 		attachments: [],
-		mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent },
-		selectedModel: undefined,
-		selections: [],
-		contrib: {}
 	};
 
 	// Input history
@@ -160,7 +120,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private _historyNavigationForwardsEnablement!: IHistoryNavigationContext['historyNavigationForwardsEnablement'];
 
 	constructor(
-		options: INewChatWidgetOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -177,17 +136,20 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
 		this._workspacePicker = this._register(this.instantiationService.createInstance(WorkspacePicker));
 		this._sessionTypePicker = this._register(this.instantiationService.createInstance(SessionTypePicker));
-		this._extensionToolbarPickers = this._register(this.instantiationService.createInstance(ExtensionToolbarPickers));
-		this._options = options;
 
-		// When a project is selected, infer the target and create a new session
-		this._register(this._workspacePicker.onDidSelectProject(async (project) => {
-			await this._onProjectSelected(project);
-			this._updateDraftState();
+		// When a workspace is selected, create a new session
+		this._register(this._workspacePicker.onDidSelectWorkspace(async (workspace) => {
+			await this._onWorkspaceSelected(workspace);
 			this._focusEditor();
 		}));
 
-		// Update input state when attachments change
+		// Update send button and loading state when active session changes or loads
+		this._register(autorun(reader => {
+			const session = this.sessionsManagementService.activeSessionData.read(reader);
+			const isLoading = session?.loading.read(reader) ?? false;
+			this._loadingSpinner?.classList.toggle('visible', isLoading);
+			this._updateSendButtonState();
+		}));
 		this._register(this._contextAttachments.onDidChangeContext(() => {
 			this._updateDraftState();
 			this._focusEditor();
@@ -230,17 +192,15 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._createBottomToolbar(inputArea);
 		this._inputSlot.appendChild(inputArea);
 
-		// Isolation mode and branch pickers (below the input, shown when Local target is selected)
-		const isolationContainer = dom.append(welcomeElement, dom.$('.chat-full-welcome-local-mode'));
-		this._sessionTypePicker.render(isolationContainer);
-		// Permissions picker — rendered via MenuWorkbenchToolBar, visibility via context key
-		const permissionContainer = dom.append(isolationContainer, dom.$('.sessions-chat-permission-toolbar'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, permissionContainer, Menus.NewSessionControl, {
+		// Below-input row: session type picker, permission control, spacer, repository config (right)
+		const belowInputRow = dom.append(welcomeElement, dom.$('.chat-full-welcome-local-mode'));
+		this._sessionTypePicker.render(belowInputRow);
+		const controlContainer = dom.append(belowInputRow, dom.$('.sessions-chat-control-toolbar'));
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, controlContainer, Menus.NewSessionControl, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 		}));
-		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));
-		// Repository config pickers (isolation, branch) — rendered via MenuWorkbenchToolBar
-		const repoConfigContainer = dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-right'));
+		dom.append(belowInputRow, dom.$('.sessions-chat-local-mode-spacer'));
+		const repoConfigContainer = dom.append(belowInputRow, dom.$('.sessions-chat-local-mode-right'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, repoConfigContainer, Menus.NewSessionRepositoryConfig, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 		}));
@@ -253,23 +213,17 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Create initial session — wait for providers if none registered yet
 		const restoredProject = this._workspacePicker.selectedProject;
-		if (this.sessionsProvidersService.getProviders().length > 0) {
-			if (restoredProject) {
-				this._onProjectSelected(restoredProject);
+		if (restoredProject) {
+			if (this.sessionsProvidersService.getProviders().length > 0) {
+				this._createNewSession(restoredProject);
 			} else {
-				this._createNewSession();
+				// Providers not yet registered (startup race) — wait for first registration
+				const sub = this.sessionsProvidersService.onDidChangeProviders(() => {
+					sub.dispose();
+					this._createNewSession(restoredProject);
+				});
+				this._register(sub);
 			}
-		} else {
-			// Providers not yet registered (startup race) — wait for first registration
-			const sub = this.sessionsProvidersService.onDidChangeProviders(() => {
-				sub.dispose();
-				if (restoredProject) {
-					this._onProjectSelected(restoredProject);
-				} else {
-					this._createNewSession();
-				}
-			});
-			this._register(sub);
 		}
 
 		// Reveal
@@ -281,60 +235,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}, { once: true }));
 	}
 
-	private async _createNewSession(project?: SessionWorkspace): Promise<void> {
-		let sessionTypeId: string;
-
-		if (project) {
-			// Infer session type from workspace type
-			if (project.isRepo) {
-				sessionTypeId = AgentSessionProviders.Cloud;
-			} else if (project.isRemoteAgentHost) {
-				// Find the remote agent host provider's session type
-				const matches = this.sessionsProvidersService.getSessionTypesForWorkspace(project);
-				const match = matches.find(m => m.type.id.startsWith('remote-'));
-				sessionTypeId = match?.type.id ?? AgentSessionProviders.Background;
-			} else {
-				sessionTypeId = AgentSessionProviders.Background;
-			}
-		} else {
-			sessionTypeId = AgentSessionProviders.Background;
-		}
-
-		const resource = getResourceForNewChatSession({
-			type: sessionTypeId,
-			position: this._options.sessionPosition ?? ChatSessionPosition.Sidebar,
-			displayName: '',
-		});
-
-		try {
-			// Use sessionsManagementService which sets activeSessionData, context keys, and _newSession
-			const sessionData = await this.sessionsManagementService.createNewSessionForTarget(sessionTypeId, resource);
-			// Concrete implementations (CopilotCLISession, RemoteNewSession) satisfy INewSessionConfig
-			const session = sessionData as unknown as INewSessionConfig;
-			if (project && typeof session.setProject === 'function') {
-				session.setProject(project);
-			}
-			this._setNewSession(session);
-		} catch (e) {
-			this.logService.error('Failed to create new session:', e);
-		}
-	}
-
-	private _setNewSession(session: INewSessionConfig): void {
-		this._newSession.value = session;
-
-		// Listen for session changes
-		const listeners = new DisposableStore();
-		listeners.add(session.onDidChange((changeType) => {
-			if (changeType === 'disabled') {
-				this._updateSendButtonState();
-			}
-		}));
-
-		this._sessionTypePicker.setProject(session.project);
-
-		this._newSessionListener.value = listeners;
-		this._updateSendButtonState();
+	private _createNewSession(selection: IWorkspaceSelection): void {
+		this.sessionsManagementService.createNewSession(selection.providerId, selection.workspace);
 	}
 
 	private _updateInputLoadingState(): void {
@@ -492,10 +394,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	/**
-	 * Returns the folder URI for the context picker based on the current project selection.
+	 * Returns the workspace URI for the context picker based on the current workspace selection.
 	 */
 	private _getContextFolderUri(): URI | undefined {
-		return this._newSession.value?.project?.uri;
+		return this._workspacePicker.selectedProject?.workspace.repositories[0]?.uri;
 	}
 
 	private _createBottomToolbar(container: HTMLElement): void {
@@ -509,10 +411,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, configContainer, Menus.NewSessionConfig, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 		}));
-
-		// Extension toolbar pickers (self-managing — observes active session)
-		this._toolbarPickersContainer = dom.append(toolbar, dom.$('.sessions-chat-toolbar-pickers'));
-		this._extensionToolbarPickers.setContainer(this._toolbarPickersContainer);
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
 
@@ -552,7 +450,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			return;
 		}
 		if (this._draftState?.inputText || this._draftState?.attachments.length) {
-			this._history.overlay(this._draftState);
+			this._history.overlay(this._toHistoryEntry(this._draftState));
 		}
 		this._navigateHistory(true);
 	}
@@ -562,22 +460,25 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			return;
 		}
 		if (this._draftState?.inputText || this._draftState?.attachments.length) {
-			this._history.overlay(this._draftState);
+			this._history.overlay(this._toHistoryEntry(this._draftState));
 		}
 		this._navigateHistory(false);
 	}
 
 	private _updateDraftState(): void {
-		const attachments = [...this._contextAttachments.attachments];
 		this._draftState = {
 			inputText: this._editor?.getModel()?.getValue() ?? '',
-			attachments,
+			attachments: [...this._contextAttachments.attachments],
+		};
+	}
+
+	private _toHistoryEntry(draft: IDraftState): IChatModelInputState {
+		return {
+			...draft,
 			mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent },
 			selectedModel: undefined,
-			selections: this._editor?.getSelections() ?? [],
+			selections: [],
 			contrib: {},
-			branch: (this.sessionsManagementService.activeSessionData.get() as ICopilotNewSessionData | undefined)?.branchObservable?.get(),
-			projectUri: this._newSession.value?.project?.uri.toJSON(),
 		};
 	}
 
@@ -607,21 +508,21 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			return;
 		}
 		const hasText = !!this._editor?.getModel()?.getValue().trim();
-		this._sendButton.enabled = !this._sending && hasText && !(this._newSession.value?.disabled ?? true);
+		const session = this.sessionsManagementService.activeSessionData.get();
+		const hasActiveSession = !!session;
+		const isLoading = session?.loading.get() ?? false;
+		this._sendButton.enabled = !this._sending && hasText && hasActiveSession && !isLoading;
 	}
 
 	private async _send(): Promise<void> {
 		let query = this._editor.getModel()?.getValue().trim();
-		const session = this._newSession.value;
-		if (!query || !session || this._sending) {
+		if (!query || this._sending) {
 			return;
 		}
 
-		// If the session is disabled due to missing folder/repo, open the picker
-		if (session.disabled) {
-			if (!this._hasRequiredRepoOrFolderSelection()) {
-				this._openRepoOrFolderPicker();
-			}
+		// If no workspace is selected, open the picker
+		if (!this._hasRequiredRepoOrFolderSelection()) {
+			this._openRepoOrFolderPicker();
 			return;
 		}
 
@@ -637,13 +538,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			query = expanded;
 		}
 
-		session.setQuery(query);
-		session.setAttachedContext(
-			this._contextAttachments.attachments.length > 0 ? [...this._contextAttachments.attachments] : undefined
-		);
+		const attachedContext = this._contextAttachments.attachments.length > 0
+			? [...this._contextAttachments.attachments]
+			: undefined;
 
 		if (this._draftState) {
-			this._history.append(this._draftState);
+			this._history.append(this._toHistoryEntry(this._draftState));
 		}
 		this._clearDraftState();
 
@@ -652,16 +552,17 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._updateSendButtonState();
 		this._updateInputLoadingState();
 
-
 		try {
-			await this.sessionsManagementService.sendRequestForNewSession(session.resource);
-			this._newSessionListener.clear();
+			const session = this.sessionsManagementService.activeSessionData.get();
+			if (!session) {
+				return;
+			}
+			await this.sessionsManagementService.sendRequest(session, { query, attachedContext });
 			this._contextAttachments.clear();
 			this._editor.getModel()?.setValue('');
 		} catch (e) {
 			this.logService.error('Failed to send request:', e);
 		}
-
 
 		this._sending = false;
 		this._editor.updateOptions({ readOnly: false });
@@ -675,25 +576,20 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	 * For other targets, checks extension-contributed repo/folder option groups.
 	 */
 	private _hasRequiredRepoOrFolderSelection(): boolean {
-		return !!this._newSession.value?.project;
+		return !!this._workspacePicker.selectedProject;
 	}
 
 	private _openRepoOrFolderPicker(): void {
 		this._workspacePicker.showPicker();
 	}
 
-	private async _requestFolderTrust(folderUri: URI, previousProject?: SessionWorkspace): Promise<boolean> {
+	private async _requestFolderTrust(folderUri: URI): Promise<boolean> {
 		const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
 			uri: folderUri,
 			message: localize('trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
 		});
 		if (!trusted) {
 			this._workspacePicker.removeFromRecents(folderUri);
-			if (previousProject) {
-				this._workspacePicker.setSelectedProject(previousProject, false);
-			} else {
-				this._workspacePicker.clearSelection();
-			}
 		}
 		return !!trusted;
 	}
@@ -705,12 +601,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._editor?.getModel()?.setValue(draft.inputText);
 			if (draft.attachments?.length) {
 				this._contextAttachments.setAttachments(draft.attachments.map(IChatRequestVariableEntry.fromExport));
-			}
-			if (draft.projectUri) {
-				try {
-					const project = new SessionWorkspace(URI.revive(draft.projectUri));
-					this._workspacePicker.setSelectedProject(project, false);
-				} catch { /* ignore */ }
 			}
 		}
 	}
@@ -728,19 +618,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	private _clearDraftState(): void {
-		// Preserve picker preferences so they survive widget recreation
-		const preserved: IDraftState = {
-			inputText: '',
-			attachments: [],
-			mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent },
-			selectedModel: this._draftState?.selectedModel,
-			selections: [],
-			contrib: {},
-			branch: (this.sessionsManagementService.activeSessionData.get() as ICopilotNewSessionData | undefined)?.branchObservable?.get(),
-			projectUri: this._newSession.value?.project?.uri.toJSON(),
-		};
-		this._draftState = preserved;
-		this.storageService.store(STORAGE_KEY_DRAFT_STATE, JSON.stringify(preserved), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this._draftState = { inputText: '', attachments: [] };
+		this.storageService.store(STORAGE_KEY_DRAFT_STATE, JSON.stringify(this._draftState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	saveState(): void {
@@ -762,29 +641,21 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	/**
-	 * Handles a project selection from the unified project picker.
-	 * Infers the session target from the selection kind, creates a new session,
-	 * and shows/hides pickers accordingly.
+	 * Handles a workspace selection from the workspace picker.
+	 * Requests folder trust if needed and creates a new session.
 	 */
-	private async _onProjectSelected(project: SessionWorkspace): Promise<void> {
-		// Cancel any in-flight project selection
-		this._projectSelectionCts.value?.cancel();
-		const cts = this._projectSelectionCts.value = new CancellationTokenSource();
-
-		if (project.isFolder) {
-			// For folder selections, request trust
-			const trusted = await this._requestFolderTrust(project.uri, this._newSession.value?.project);
-			if (!trusted || cts.token.isCancellationRequested) {
+	private async _onWorkspaceSelected(selection: IWorkspaceSelection): Promise<void> {
+		// Check if the provider's session type requires workspace trust
+		const sessionTypes = this.sessionsProvidersService.getSessionTypesForProvider(selection.providerId);
+		const requiresTrust = sessionTypes.some(t => t.requiresWorkspaceTrust);
+		if (requiresTrust) {
+			const workspaceUri = selection.workspace.repositories[0]?.uri;
+			if (workspaceUri && !await this._requestFolderTrust(workspaceUri)) {
 				return;
 			}
 		}
 
-		if (cts.token.isCancellationRequested) {
-			return;
-		}
-
-		// Always create a new session when the project changes
-		await this._createNewSession(project);
+		this._createNewSession(selection);
 	}
 
 	prefillInput(text: string): void {
@@ -797,11 +668,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			editor.setPosition({ lineNumber: lastLine, column: maxColumn });
 			editor.focus();
 		}
-	}
-
-	setProject(projectUri: URI): void {
-		const project = new SessionWorkspace(projectUri);
-		this._workspacePicker.setSelectedProject(project, true);
 	}
 
 	sendQuery(text: string): void {
@@ -846,7 +712,6 @@ export class NewChatViewPane extends ViewPane {
 
 		this._widget = this._register(this.instantiationService.createInstance(
 			NewChatWidget,
-			{} satisfies INewChatWidgetOptions,
 		));
 
 		this._widget.render(container);
@@ -869,10 +734,6 @@ export class NewChatViewPane extends ViewPane {
 
 	sendQuery(text: string): void {
 		this._widget?.sendQuery(text);
-	}
-
-	setProject(projectUri: URI): void {
-		this._widget?.setProject(projectUri);
 	}
 
 	override setVisible(visible: boolean): void {

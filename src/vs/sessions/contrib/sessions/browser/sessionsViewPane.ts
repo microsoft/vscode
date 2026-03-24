@@ -160,7 +160,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 			getHoverPosition: () => this.getSessionHoverPosition(),
 			trackActiveEditorSession: () => true,
 			collapseOlderSections: () => true,
-			overrideSessionOpen: (resource, openOptions) => this.activeSessionService.openSession(resource, openOptions),
+			overrideSessionOpen: (resource, openOptions) => this.activeSessionService.openSession(resource),
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 

@@ -238,7 +238,7 @@ class ChatSessionHeaderContribution extends Disposable implements IWorkbenchCont
 
 	private showSessionsPicker(): void {
 		const picker = this.instantiationService.createInstance(AgentSessionsPicker, undefined, {
-			overrideSessionOpen: (session, openOptions) => this.sessionsManagementService.openSession(session.resource, openOptions)
+			overrideSessionOpen: (session, openOptions) => this.sessionsManagementService.openSession(session.resource)
 		});
 		picker.pickAgentSession();
 	}

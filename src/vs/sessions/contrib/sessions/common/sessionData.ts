@@ -81,4 +81,10 @@ export interface ISessionData {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the session. */
 	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
+	/** Currently selected model identifier. */
+	readonly modelId: IObservable<string | undefined>;
+	/** Currently selected mode identifier and kind. */
+	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
+	/** Whether the session is still initializing (e.g., resolving git repository). */
+	readonly loading: IObservable<boolean>;
 }

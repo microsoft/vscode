@@ -14,7 +14,7 @@ import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../.
 import { SearchableOptionPickerActionItem } from '../../../../workbench/contrib/chat/browser/chatSessions/searchableOptionPickerActionItem.js';
 import { IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionOptionGroup } from './newSession.js';
-import { RemoteNewSession } from '../../sessions/browser/defaultCopilotSessionsProvider.js';
+import { RemoteNewSession } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 

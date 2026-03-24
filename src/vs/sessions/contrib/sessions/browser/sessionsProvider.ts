@@ -5,9 +5,8 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI } from '../../../../base/common/uri.js';
-import { ISessionData } from '../common/sessionData.js';
-import { SessionWorkspace } from '../common/sessionWorkspace.js';
+import { ISessionData, ISessionWorkspace } from '../common/sessionData.js';
+import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
 /**
  * A platform-level session type identifying an agent backend.
@@ -20,6 +19,8 @@ export interface ISessionType {
 	readonly label: string;
 	/** Icon for this session type. */
 	readonly icon: ThemeIcon;
+	/** Whether this session type requires workspace trust before creating a session. */
+	readonly requiresWorkspaceTrust?: boolean;
 }
 
 /**
@@ -34,7 +35,7 @@ export interface ISessionsBrowseAction {
 	/** The provider that owns this action. */
 	readonly providerId: string;
 	/** Execute the browse action and return the selected workspace, or undefined if cancelled. */
-	execute(): Promise<SessionWorkspace | undefined>;
+	execute(): Promise<ISessionWorkspace | undefined>;
 }
 
 /**
@@ -44,6 +45,16 @@ export interface ISessionsChangeEvent {
 	readonly added: readonly ISessionData[];
 	readonly removed: readonly ISessionData[];
 	readonly changed: readonly ISessionData[];
+}
+
+/**
+ * Options for sending a request to a session.
+ */
+export interface ISendRequestOptions {
+	/** The query text to send. */
+	readonly query: string;
+	/** Optional attached context entries. */
+	readonly attachedContext?: IChatRequestVariableEntry[];
 }
 
 /**
@@ -66,7 +77,7 @@ export interface ISessionsProvider {
 	// ── Workspaces ──
 
 	/** Returns recent/known workspaces for the picker. */
-	getWorkspaces(): SessionWorkspace[];
+	getWorkspaces(): ISessionWorkspace[];
 	/** Browse actions shown in the workspace picker. */
 	readonly browseActions: readonly ISessionsBrowseAction[];
 
@@ -77,23 +88,25 @@ export interface ISessionsProvider {
 	/** Fires when sessions are added, removed, or changed. */
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
 
-	// ── Session Lifecycle ──
+	// ── Session Management ──
 
-	/** Create a new session for the given type and workspace. */
-	createNewSession(type: ISessionType, resource: URI, workspace?: SessionWorkspace): ISessionData;
-
-	// ── Session Actions ──
-
+	/** Create a new session for the given workspace. */
+	createNewSession(workspace: ISessionWorkspace): ISessionData;
+	/** Update the session type for a session. */
+	setSessionType(sessionId: string, type: ISessionType): ISessionData;
+	/** Returns session types available for the given session. */
+	getSessionTypes(session: ISessionData): ISessionType[];
+	/** Rename a session. */
+	renameSession(sessionId: string, title: string): Promise<void>;
+	/** Set the model for a session. */
+	setModel(sessionId: string, modelId: string): void;
 	/** Archive a session. */
 	archiveSession(sessionId: string): Promise<void>;
 	/** Delete a session. */
 	deleteSession(sessionId: string): Promise<void>;
-	/** Rename a session. */
-	renameSession(sessionId: string, title: string): Promise<void>;
 
 	// ── Send ──
 
 	/** Send the initial request for a new session. Returns the created session data. */
-	sendRequest(sessionId: string): Promise<ISessionData | undefined>;
-
+	sendRequest(sessionId: string, options: ISendRequestOptions): Promise<ISessionData>;
 }

@@ -1,0 +1,1059 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatSessionStatus, IChatSessionFileChange, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ISessionData, ISessionRepository, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionWorkspace.js';
+import { basename } from '../../../../base/common/resources.js';
+import { ISendRequestOptions, ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
+import { ISessionOptionGroup } from '../../chat/browser/newSession.js';
+import { IsolationMode } from './isolationPicker.js';
+import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { isBuiltinChatMode, IChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ResourceSet } from '../../../../base/common/map.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { IGitService, IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { Schemas } from '../../../../base/common/network.js';
+
+const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
+
+/** Provider ID for the Copilot Chat Sessions provider. */
+export const COPILOT_PROVIDER_ID = 'default-copilot';
+
+/** Session type ID for local Copilot CLI sessions. */
+export const COPILOT_CLI_SESSION_TYPE = AgentSessionProviders.Background;
+
+const STORAGE_KEY_RECENT_PROJECTS = 'sessions.recentlyPickedProjects';
+
+interface IStoredWorkspace {
+	readonly uri: UriComponents;
+}
+
+const CopilotCLISessionType: ISessionType = {
+	id: COPILOT_CLI_SESSION_TYPE,
+	label: 'Copilot CLI',
+	icon: Codicon.worktree,
+	requiresWorkspaceTrust: true,
+};
+
+const CopilotCloudSessionType: ISessionType = {
+	id: AgentSessionProviders.Cloud,
+	label: 'Cloud',
+	icon: Codicon.cloud,
+};
+
+const REPOSITORY_OPTION_ID = 'repository';
+const BRANCH_OPTION_ID = 'branch';
+const ISOLATION_OPTION_ID = 'isolation';
+const AGENT_OPTION_ID = 'agent';
+
+/**
+ * Provider-specific observable fields on new Copilot sessions.
+ * Used by pickers and contributions that need to read/write provider-internal state.
+ */
+export interface ICopilotNewSessionData extends ISessionData {
+	readonly permissionLevel: IObservable<ChatPermissionLevel>;
+	readonly branchObservable: IObservable<string | undefined>;
+	readonly isolationModeObservable: IObservable<string | undefined>;
+}
+
+/**
+ * Local new session for Background agent sessions.
+ * Implements {@link ISessionData} (session facade) and provides
+ * pre-send configuration methods for the new-session flow.
+ */
+export class CopilotCLISession extends Disposable implements ISessionData {
+
+	// -- ISessionData fields --
+
+	readonly sessionId: string;
+	readonly providerId: string;
+	readonly sessionType: string;
+	readonly icon: ThemeIcon;
+	readonly createdAt: Date;
+
+	private readonly _title = observableValue(this, '');
+	readonly title: IObservable<string> = this._title;
+
+	private readonly _updatedAt = observableValue(this, new Date());
+	readonly updatedAt: IObservable<Date> = this._updatedAt;
+
+	private readonly _status = observableValue(this, SessionStatus.Untitled);
+	readonly status: IObservable<SessionStatus> = this._status;
+
+	private readonly _permissionLevel = observableValue(this, ChatPermissionLevel.Default);
+	readonly permissionLevel: IObservable<ChatPermissionLevel> = this._permissionLevel;
+
+	private readonly _workspaceData = observableValue<ISessionWorkspace | undefined>(this, undefined);
+	readonly workspace: IObservable<ISessionWorkspace | undefined> = this._workspaceData;
+
+	private readonly _branchObservable = observableValue<string | undefined>(this, undefined);
+	readonly branchObservable: IObservable<string | undefined> = this._branchObservable;
+
+	private readonly _isolationModeObservable = observableValue<string | undefined>(this, undefined);
+	readonly isolationModeObservable: IObservable<string | undefined> = this._isolationModeObservable;
+
+	readonly changes: IObservable<readonly IChatSessionFileChange[]> = observableValue<readonly IChatSessionFileChange[]>(this, []);
+
+	private readonly _modelIdObservable = observableValue<string | undefined>(this, undefined);
+	readonly modelId: IObservable<string | undefined> = this._modelIdObservable;
+
+	private readonly _modeObservable = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, undefined);
+	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined> = this._modeObservable;
+
+	private readonly _loading = observableValue(this, true);
+	readonly loading: IObservable<boolean> = this._loading;
+
+	private _gitRepository: IGitRepository | undefined;
+
+	// -- New session configuration fields --
+
+	private _repoUri: URI | undefined;
+	private _isolationMode: IsolationMode;
+	private _branch: string | undefined;
+	private _modelId: string | undefined;
+	private _mode: IChatMode | undefined;
+	private _query: string | undefined;
+	private _attachedContext: IChatRequestVariableEntry[] | undefined;
+
+	readonly target = AgentSessionProviders.Background;
+	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
+
+	get isolationMode(): IsolationMode { return this._isolationMode; }
+	get branch(): string | undefined { return this._branch; }
+	get selectedModelId(): string | undefined { return this._modelId; }
+	get chatMode(): IChatMode | undefined { return this._mode; }
+	get query(): string | undefined { return this._query; }
+	get attachedContext(): IChatRequestVariableEntry[] | undefined { return this._attachedContext; }
+	get gitRepository(): IGitRepository | undefined { return this._gitRepository; }
+	get disabled(): boolean {
+		if (!this._repoUri) {
+			return true;
+		}
+		if (this._isolationMode === 'worktree' && !this._branch) {
+			return true;
+		}
+		return false;
+	}
+
+	constructor(
+		readonly resource: URI,
+		readonly sessionWorkspace: ISessionWorkspace,
+		providerId: string,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IGitService private readonly gitService: IGitService,
+	) {
+		super();
+		this.sessionId = `${providerId}:${resource.toString()}`;
+		this.providerId = providerId;
+		this.sessionType = AgentSessionProviders.Background;
+		this.icon = CopilotCLISessionType.icon;
+		this.createdAt = new Date();
+
+		const repoUri = sessionWorkspace.repositories[0]?.uri;
+		if (repoUri) {
+			this._repoUri = repoUri;
+			this.setOption(REPOSITORY_OPTION_ID, repoUri.fsPath);
+		}
+
+		// Set ISessionData workspace observable
+		this._workspaceData.set(sessionWorkspace, undefined);
+
+		this._isolationMode = 'worktree';
+		this.setOption(ISOLATION_OPTION_ID, 'worktree');
+
+		// Resolve git repository asynchronously
+		this._resolveGitRepository();
+	}
+
+	private async _resolveGitRepository(): Promise<void> {
+		const repoUri = this.sessionWorkspace.repositories[0]?.uri;
+		if (repoUri) {
+			try {
+				this._gitRepository = await this.gitService.openRepository(repoUri);
+			} catch {
+				// No git repository available
+			}
+		}
+		this._loading.set(false, undefined);
+	}
+
+	setIsolationMode(mode: IsolationMode): void {
+		if (this._isolationMode !== mode) {
+			this._isolationMode = mode;
+			this.setOption(ISOLATION_OPTION_ID, mode);
+		}
+	}
+
+	setBranch(branch: string | undefined): void {
+		if (this._branch !== branch) {
+			this._branch = branch;
+			this.setOption(BRANCH_OPTION_ID, branch ?? '');
+		}
+	}
+
+	setModelId(modelId: string | undefined): void {
+		this._modelId = modelId;
+		this._modelIdObservable.set(modelId, undefined);
+	}
+
+	setModeById(modeId: string, modeKind: string): void {
+		this._modeObservable.set({ id: modeId, kind: modeKind }, undefined);
+	}
+
+	setPermissionLevel(level: ChatPermissionLevel): void {
+		this._permissionLevel.set(level, undefined);
+	}
+
+	setMode(mode: IChatMode | undefined): void {
+		if (this._mode?.id !== mode?.id) {
+			this._mode = mode;
+			const modeName = mode?.isBuiltin ? undefined : mode?.name.get();
+			this.setOption(AGENT_OPTION_ID, modeName ?? '');
+		}
+	}
+
+	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void {
+		if (typeof value === 'string') {
+			this.selectedOptions.set(optionId, { id: value, name: value });
+		} else {
+			this.selectedOptions.set(optionId, value);
+		}
+		this.chatSessionsService.setSessionOption(this.resource, optionId, value);
+	}
+}
+
+function isModelOptionGroup(group: IChatSessionProviderOptionGroup): boolean {
+	if (group.id === 'models') {
+		return true;
+	}
+	const nameLower = group.name.toLowerCase();
+	return nameLower === 'model' || nameLower === 'models';
+}
+
+function isRepositoriesOptionGroup(group: IChatSessionProviderOptionGroup): boolean {
+	return group.id === 'repositories';
+}
+
+/**
+ * Remote new session for Cloud agent sessions.
+ * Implements {@link ISessionData} (session facade) and provides
+ * pre-send configuration methods for the new-session flow.
+ */
+export class RemoteNewSession extends Disposable implements ISessionData {
+
+	// -- ISessionData fields --
+
+	readonly sessionId: string;
+	readonly providerId: string;
+	readonly sessionType: string;
+	readonly icon: ThemeIcon;
+	readonly createdAt: Date;
+
+	private readonly _title = observableValue(this, '');
+	readonly title: IObservable<string> = this._title;
+
+	private readonly _updatedAt = observableValue(this, new Date());
+	readonly updatedAt: IObservable<Date> = this._updatedAt;
+
+	private readonly _status = observableValue(this, SessionStatus.Untitled);
+	readonly status: IObservable<SessionStatus> = this._status;
+
+	private readonly _permissionLevel = observableValue(this, ChatPermissionLevel.Default);
+	readonly permissionLevel: IObservable<ChatPermissionLevel> = this._permissionLevel;
+
+	private readonly _workspaceData = observableValue<ISessionWorkspace | undefined>(this, undefined);
+	readonly workspace: IObservable<ISessionWorkspace | undefined> = this._workspaceData;
+
+	readonly changes: IObservable<readonly IChatSessionFileChange[]> = observableValue<readonly IChatSessionFileChange[]>(this, []);
+
+	private readonly _modelIdObservable = observableValue<string | undefined>(this, undefined);
+	readonly modelId: IObservable<string | undefined> = this._modelIdObservable;
+
+	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined> = observableValue(this, undefined);
+
+	readonly loading: IObservable<boolean> = observableValue(this, false);
+
+	readonly _hasGitRepo = observableValue(this, false);
+	readonly hasGitRepo: IObservable<boolean> = this._hasGitRepo;
+
+	// -- New session configuration fields --
+
+	private _repoUri: URI | undefined;
+	private _project: ISessionWorkspace | undefined;
+	private _modelId: string | undefined;
+	private _query: string | undefined;
+	private _attachedContext: IChatRequestVariableEntry[] | undefined;
+
+	private readonly _onDidChangeOptionGroups = this._register(new Emitter<void>());
+	readonly onDidChangeOptionGroups: Event<void> = this._onDidChangeOptionGroups.event;
+
+	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
+
+	get project(): ISessionWorkspace | undefined { return this._project; }
+	get isolationMode(): undefined { return undefined; }
+	get branch(): string | undefined { return undefined; }
+	get selectedModelId(): string | undefined { return this._modelId; }
+	get chatMode(): IChatMode | undefined { return undefined; }
+	get query(): string | undefined { return this._query; }
+	get attachedContext(): IChatRequestVariableEntry[] | undefined { return this._attachedContext; }
+	get disabled(): boolean {
+		return !this._repoUri && !this.selectedOptions.has('repositories');
+	}
+
+	private readonly _whenClauseKeys = new Set<string>();
+
+	constructor(
+		readonly resource: URI,
+		readonly sessionWorkspace: ISessionWorkspace,
+		readonly target: AgentSessionTarget,
+		providerId: string,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+	) {
+		super();
+		this.sessionId = `${providerId}:${resource.toString()}`;
+		this.providerId = providerId;
+		this.sessionType = target;
+		this.icon = CopilotCloudSessionType.icon;
+		this.createdAt = new Date();
+
+		// Set workspace data
+		this._workspaceData.set(sessionWorkspace, undefined);
+		this._repoUri = sessionWorkspace.repositories[0]?.uri;
+
+		this._updateWhenClauseKeys();
+
+		this._register(this.chatSessionsService.onDidChangeOptionGroups(() => {
+			this._updateWhenClauseKeys();
+			this._onDidChangeOptionGroups.fire();
+		}));
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (this._whenClauseKeys.size > 0 && e.affectsSome(this._whenClauseKeys)) {
+				this._onDidChangeOptionGroups.fire();
+			}
+		}));
+	}
+
+	// -- ISessionData option routing --
+
+	setSessionDataOption(key: string, value: unknown): void {
+		switch (key) {
+			case 'modelId':
+				this.setModelId(value as string | undefined);
+				break;
+			case 'mode':
+				this.setMode(value as IChatMode | undefined);
+				break;
+			case 'project':
+				this.setProject(value as ISessionWorkspace);
+				break;
+			case 'permissionLevel':
+				this._permissionLevel.set(value as ChatPermissionLevel, undefined);
+				break;
+		}
+	}
+
+	// -- New session configuration methods --
+
+	setProject(project: ISessionWorkspace): void {
+		this._project = project;
+		this._repoUri = project.repositories[0]?.uri;
+		const id = project.repositories[0]?.uri.path.substring(1) ?? '';
+		this.setOption('repositories', { id, name: id });
+	}
+
+	setIsolationMode(_mode: IsolationMode): void {
+		// No-op for remote sessions
+	}
+
+	setBranch(_branch: string | undefined): void {
+		// No-op for remote sessions
+	}
+
+	setModelId(modelId: string | undefined): void {
+		this._modelId = modelId;
+	}
+
+	setMode(_mode: IChatMode | undefined): void {
+		// Intentionally a no-op: remote sessions do not support client-side mode selection.
+	}
+
+	setQuery(query: string): void {
+		this._query = query;
+	}
+
+	setAttachedContext(context: IChatRequestVariableEntry[] | undefined): void {
+		this._attachedContext = context;
+	}
+
+	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void {
+		if (typeof value !== 'string') {
+			this.selectedOptions.set(optionId, value);
+		}
+		this.chatSessionsService.setSessionOption(this.resource, optionId, value);
+	}
+
+	// --- Option group accessors ---
+
+	getModelOptionGroup(): ISessionOptionGroup | undefined {
+		const groups = this._getOptionGroups();
+		if (!groups) {
+			return undefined;
+		}
+		const group = groups.find(g => isModelOptionGroup(g));
+		if (!group) {
+			return undefined;
+		}
+		return { group, value: this._getValueForGroup(group) };
+	}
+
+	getOtherOptionGroups(): ISessionOptionGroup[] {
+		const groups = this._getOptionGroups();
+		if (!groups) {
+			return [];
+		}
+		return groups
+			.filter(g => !isModelOptionGroup(g) && !isRepositoriesOptionGroup(g) && this._isOptionGroupVisible(g))
+			.map(g => ({ group: g, value: this._getValueForGroup(g) }));
+	}
+
+	getOptionValue(groupId: string): IChatSessionProviderOptionItem | undefined {
+		return this.selectedOptions.get(groupId);
+	}
+
+	setOptionValue(groupId: string, value: IChatSessionProviderOptionItem): void {
+		this.setOption(groupId, value);
+	}
+
+	// --- Internals ---
+
+	private _getOptionGroups(): IChatSessionProviderOptionGroup[] | undefined {
+		return this.chatSessionsService.getOptionGroupsForSessionType(this.target);
+	}
+
+	private _isOptionGroupVisible(group: IChatSessionProviderOptionGroup): boolean {
+		if (!group.when) {
+			return true;
+		}
+		const expr = ContextKeyExpr.deserialize(group.when);
+		return !expr || this.contextKeyService.contextMatchesRules(expr);
+	}
+
+	private _updateWhenClauseKeys(): void {
+		this._whenClauseKeys.clear();
+		const groups = this._getOptionGroups();
+		if (!groups) {
+			return;
+		}
+		for (const group of groups) {
+			if (group.when) {
+				const expr = ContextKeyExpr.deserialize(group.when);
+				if (expr) {
+					for (const key of expr.keys()) {
+						this._whenClauseKeys.add(key);
+					}
+				}
+			}
+		}
+	}
+
+	private _getValueForGroup(group: IChatSessionProviderOptionGroup): IChatSessionProviderOptionItem | undefined {
+		const selected = this.selectedOptions.get(group.id);
+		if (selected) {
+			return selected;
+		}
+		// Check for extension-set session option
+		const sessionOption = this.chatSessionsService.getSessionOption(this.resource, group.id);
+		if (sessionOption && typeof sessionOption !== 'string') {
+			return sessionOption;
+		}
+		if (typeof sessionOption === 'string') {
+			const item = group.items.find(i => i.id === sessionOption.trim());
+			if (item) {
+				return item;
+			}
+		}
+		// Default to first item marked as default, or first item
+		return group.items.find(i => i.default === true) ?? group.items[0];
+	}
+}
+
+/**
+ * Maps the existing {@link ChatSessionStatus} to the new {@link SessionStatus}.
+ */
+function toSessionStatus(status: ChatSessionStatus): SessionStatus {
+	switch (status) {
+		case ChatSessionStatus.InProgress:
+		case ChatSessionStatus.NeedsInput:
+			return SessionStatus.InProgress;
+		case ChatSessionStatus.Completed:
+			return SessionStatus.Completed;
+		case ChatSessionStatus.Failed:
+			return SessionStatus.Error;
+	}
+}
+
+/**
+ * Adapts an existing {@link IAgentSession} from the chat layer into the new {@link ISessionData} facade.
+ */
+class AgentSessionAdapter implements ISessionData {
+
+	readonly sessionId: string;
+	readonly resource: URI;
+	readonly providerId: string;
+	readonly sessionType: string;
+	readonly icon: ThemeIcon;
+	readonly createdAt: Date;
+
+	private readonly _workspace: ReturnType<typeof observableValue<ISessionWorkspace | undefined>>;
+	readonly workspace: IObservable<ISessionWorkspace | undefined>;
+
+	private readonly _title: ReturnType<typeof observableValue<string>>;
+	readonly title: IObservable<string>;
+
+	private readonly _updatedAt: ReturnType<typeof observableValue<Date>>;
+	readonly updatedAt: IObservable<Date>;
+
+	private readonly _status: ReturnType<typeof observableValue<SessionStatus>>;
+	readonly status: IObservable<SessionStatus>;
+
+	private readonly _changes: ReturnType<typeof observableValue<readonly IChatSessionFileChange[]>>;
+	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
+
+	readonly modelId: IObservable<string | undefined>;
+	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
+	readonly loading: IObservable<boolean>;
+
+	constructor(
+		session: IAgentSession,
+		providerId: string,
+	) {
+		this.sessionId = `${providerId}:${session.resource.toString()}`;
+		this.resource = session.resource;
+		this.providerId = providerId;
+		this.sessionType = session.providerType;
+		this.icon = session.icon;
+		this.createdAt = new Date(session.timing.created);
+		this._workspace = observableValue(this, this._buildWorkspace(session));
+		this.workspace = this._workspace;
+
+		this._title = observableValue(this, session.label);
+		this.title = this._title;
+
+		const updatedTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
+		this._updatedAt = observableValue(this, new Date(updatedTime));
+		this.updatedAt = this._updatedAt;
+
+		this._status = observableValue(this, toSessionStatus(session.status));
+		this.status = this._status;
+
+		this._changes = observableValue<readonly IChatSessionFileChange[]>(this, this._extractChanges(session));
+		this.changes = this._changes;
+
+		this.modelId = observableValue(this, undefined);
+		this.mode = observableValue(this, undefined);
+		this.loading = observableValue(this, false);
+	}
+
+	/**
+	 * Update reactive properties from a refreshed agent session.
+	 */
+	update(session: IAgentSession): void {
+		transaction(tx => {
+			this._title.set(session.label, tx);
+			const updatedTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
+			this._updatedAt.set(new Date(updatedTime), tx);
+			this._status.set(toSessionStatus(session.status), tx);
+			this._changes.set(this._extractChanges(session), tx);
+		});
+	}
+
+	private _extractChanges(session: IAgentSession): readonly IChatSessionFileChange[] {
+		if (!session.changes) {
+			return [];
+		}
+		if (Array.isArray(session.changes)) {
+			return session.changes as IChatSessionFileChange[];
+		}
+		// Summary object — no individual file changes available
+		return [];
+	}
+
+	private _buildWorkspace(session: IAgentSession): ISessionWorkspace | undefined {
+		const metadata = session.metadata as Record<string, unknown> | undefined;
+		if (!metadata) {
+			return undefined;
+		}
+
+		const repoUri = this._extractRepoUri(session);
+		if (!repoUri) {
+			return undefined;
+		}
+
+		const worktreeUri = metadata['worktree'] ? URI.parse(metadata['worktree'] as string) : undefined;
+		const branchName = metadata['branchName'] as string | undefined;
+		const baseBranchProtected = metadata['baseBranchProtected'] as boolean | undefined;
+
+		const label = repoUri.scheme === GITHUB_REMOTE_FILE_SCHEME
+			? this._repoLabelFromUri(repoUri)
+			: repoUri.fsPath.split('/').pop() ?? repoUri.fsPath;
+
+		const repository: ISessionRepository = {
+			uri: repoUri,
+			workingDirectory: worktreeUri,
+			detail: branchName,
+			baseBranchProtected,
+		};
+
+		return {
+			label,
+			icon: repoUri.scheme === GITHUB_REMOTE_FILE_SCHEME ? Codicon.repo : Codicon.folder,
+			repositories: [repository],
+		};
+	}
+
+	private _extractRepoUri(session: IAgentSession): URI | undefined {
+		const metadata = session.metadata as Record<string, unknown> | undefined;
+		if (!metadata) {
+			return undefined;
+		}
+		if (session.providerType === AgentSessionProviders.Background) {
+			const folder = metadata['folder'] as string | undefined;
+			return folder ? URI.parse(folder) : undefined;
+		}
+		// Cloud sessions: look for repository in metadata
+		const repo = metadata['repository'] as string | undefined;
+		return repo ? URI.parse(repo) : undefined;
+	}
+
+	private _repoLabelFromUri(uri: URI): string {
+		// github-remote-file://github/{owner}/{repo}/HEAD → "owner/repo"
+		const parts = uri.path.split('/').filter(Boolean);
+		if (parts.length >= 2) {
+			return `${parts[0]}/${parts[1]}`;
+		}
+		return uri.path;
+	}
+}
+
+/**
+ * Default sessions provider for Copilot CLI and Cloud session types.
+ * Wraps the existing session infrastructure into the extensible provider model.
+ */
+export class CopilotChatSessionsProvider extends Disposable implements ISessionsProvider {
+
+	readonly id = COPILOT_PROVIDER_ID;
+	readonly label = 'Copilot';
+	readonly icon = Codicon.copilot;
+	readonly sessionTypes: readonly ISessionType[] = [CopilotCLISessionType, CopilotCloudSessionType];
+
+	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionsChangeEvent>());
+	readonly onDidChangeSessions: Event<ISessionsChangeEvent> = this._onDidChangeSessions.event;
+
+	/** Cache of adapted sessions, keyed by resource URI string. */
+	private readonly _sessionCache = new Map<string, AgentSessionAdapter>();
+
+	readonly browseActions: readonly ISessionsBrowseAction[];
+
+	constructor(
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@IChatService private readonly chatService: IChatService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+	) {
+		super();
+
+		this.browseActions = [
+			{
+				label: 'Browse Folders...',
+				icon: Codicon.folderOpened,
+				providerId: this.id,
+				execute: () => this._browseForFolder(),
+			},
+			{
+				label: 'Browse Repositories...',
+				icon: Codicon.repo,
+				providerId: this.id,
+				execute: () => this._browseForRepo(),
+			},
+		];
+
+		// Forward session changes from the underlying model
+		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
+			this._refreshSessionCache();
+		}));
+	}
+
+	// ── Workspaces ──
+
+	getWorkspaces(): ISessionWorkspace[] {
+		const stored = this._getRecentWorkspaces();
+		return stored
+			.map(p => {
+				const uri = URI.revive(p.uri);
+				return {
+					label: this._labelFromUri(uri),
+					icon: this._iconFromUri(uri),
+					repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
+				};
+			})
+			.sort((a, b) => {
+				const aIsLocal = a.repositories[0]?.uri.scheme === Schemas.file;
+				const bIsLocal = b.repositories[0]?.uri.scheme === Schemas.file;
+				if (aIsLocal !== bIsLocal) {
+					return aIsLocal ? -1 : 1;
+				}
+				return a.label.localeCompare(b.label);
+			});
+	}
+
+	// ── Sessions ──
+
+	getSessionTypes(session: ISessionData): ISessionType[] {
+		if (session instanceof CopilotCLISession) {
+			return [CopilotCLISessionType];
+		}
+		if (session instanceof RemoteNewSession) {
+			return [CopilotCloudSessionType];
+		}
+		return [];
+	}
+
+	getSessions(): ISessionData[] {
+		this._ensureSessionCache();
+		return Array.from(this._sessionCache.values());
+	}
+
+	// ── Session Lifecycle ──
+
+	private _currentNewSession: (CopilotCLISession | RemoteNewSession) | undefined;
+
+	createNewSession(workspace: ISessionWorkspace): ISessionData {
+		const workspaceUri = workspace.repositories[0]?.uri;
+		if (!workspaceUri) {
+			throw new Error('Workspace has no repository URI');
+		}
+
+		if (workspaceUri.scheme === Schemas.file) {
+			const resource = URI.from({ scheme: AgentSessionProviders.Background, path: `/untitled-${generateUuid()}` });
+			const session = this.instantiationService.createInstance(CopilotCLISession, resource, workspace, this.id);
+			this._currentNewSession = session;
+			return session;
+		}
+
+		if (workspaceUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: `/untitled-${generateUuid()}` });
+			const session = this.instantiationService.createInstance(RemoteNewSession, resource, workspace, AgentSessionProviders.Cloud, this.id);
+			this._currentNewSession = session;
+			return session;
+		}
+
+		throw new Error(`Unsupported workspace URI scheme: ${workspaceUri.scheme}`);
+	}
+
+	setSessionType(sessionId: string, type: ISessionType): ISessionData {
+		throw new Error('Session type cannot be changed');
+	}
+
+	setModel(sessionId: string, modelId: string): void {
+		if (this._currentNewSession?.sessionId === sessionId) {
+			this._currentNewSession.setModelId(modelId);
+		}
+	}
+
+	// ── Session Actions ──
+
+	async archiveSession(sessionId: string): Promise<void> {
+		const agentSession = this._findAgentSession(sessionId);
+		if (agentSession) {
+			agentSession.setArchived(true);
+		}
+	}
+
+	async deleteSession(sessionId: string): Promise<void> {
+		const agentSession = this._findAgentSession(sessionId);
+		if (agentSession) {
+			await this.chatService.removeHistoryEntry(agentSession.resource);
+		}
+	}
+
+	async renameSession(sessionId: string, title: string): Promise<void> {
+		const agentSession = this._findAgentSession(sessionId);
+		if (agentSession) {
+			this.chatService.setChatSessionTitle(agentSession.resource, title);
+		}
+	}
+
+	// ── Send ──
+
+	async sendRequest(sessionId: string, options: ISendRequestOptions): Promise<ISessionData> {
+		const session = this._currentNewSession;
+		if (!session || session.sessionId !== sessionId) {
+			throw new Error(`Session '${sessionId}' not found or not a new session`);
+		}
+
+		const { query, attachedContext } = options;
+
+		const contribution = this.chatSessionsService.getChatSessionContribution(session.target);
+
+		// Resolve mode
+		const modeKind = session.chatMode?.kind ?? ChatModeKind.Agent;
+		const modeIsBuiltin = session.chatMode ? isBuiltinChatMode(session.chatMode) : true;
+		const modeId: 'ask' | 'agent' | 'edit' | 'custom' | undefined = modeIsBuiltin ? modeKind : 'custom';
+
+		const rawModeInstructions = session.chatMode?.modeInstructions?.get();
+		const modeInstructions = rawModeInstructions ? {
+			name: session.chatMode!.name.get(),
+			content: rawModeInstructions.content,
+			toolReferences: this.toolsService.toToolReferences(rawModeInstructions.toolReferences),
+			metadata: rawModeInstructions.metadata,
+		} : undefined;
+
+		const permissionLevel = session.permissionLevel.get();
+
+		const sendOptions: IChatSendRequestOptions = {
+			location: ChatAgentLocation.Chat,
+			userSelectedModelId: session.selectedModelId,
+			modeInfo: {
+				kind: modeKind,
+				isBuiltin: modeIsBuiltin,
+				modeInstructions,
+				modeId,
+				applyCodeBlockSuggestionId: undefined,
+				permissionLevel,
+			},
+			agentIdSilent: contribution?.type,
+			attachedContext,
+		};
+
+		// Open chat widget and set permission level
+		await this.chatSessionsService.getOrCreateChatSession(session.resource, CancellationToken.None);
+		const chatWidget = await this.chatWidgetService.openSession(session.resource, ChatViewPaneTarget);
+		if (!chatWidget) {
+			throw new Error('[DefaultCopilotProvider] Failed to open chat widget');
+		}
+
+		if (permissionLevel) {
+			chatWidget.input.setPermissionLevel(permissionLevel);
+		}
+
+		// Load session model with selected options
+		const modelRef = await this.chatService.acquireOrLoadSession(session.resource, ChatAgentLocation.Chat, CancellationToken.None);
+		if (modelRef) {
+			const model = modelRef.object;
+			if (session.selectedModelId) {
+				const languageModel = this.languageModelsService.lookupLanguageModel(session.selectedModelId);
+				if (languageModel) {
+					model.inputModel.setState({ selectedModel: { identifier: session.selectedModelId, metadata: languageModel } });
+				}
+			}
+			if (session.chatMode) {
+				model.inputModel.setState({ mode: { id: session.chatMode.id, kind: session.chatMode.kind } });
+			}
+			if (session.selectedOptions.size > 0) {
+				const contributedSession = model.contributedChatSession;
+				if (contributedSession) {
+					model.setContributedChatSession({ ...contributedSession, initialSessionOptions: session.selectedOptions });
+				}
+			}
+			modelRef.dispose();
+		}
+
+		// Send request
+		const existingResources = new ResourceSet(this.agentSessionsService.model.sessions.map(s => s.resource));
+		const result = await this.chatService.sendRequest(session.resource, query, sendOptions);
+		if (result.kind === 'rejected') {
+			throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
+		}
+
+		// Wait for the agent session to appear
+		const newAgentSession = await this._waitForNewAgentSession(session.target, existingResources);
+		this._currentNewSession = undefined;
+		if (!newAgentSession) {
+			throw new Error('[DefaultCopilotProvider] Failed to create agent session');
+		}
+		return this._wrapAgentSession(newAgentSession);
+	}
+
+	private async _waitForNewAgentSession(target: AgentSessionTarget, existingSessions: ResourceSet): Promise<IAgentSession | undefined> {
+		const found = this.agentSessionsService.model.sessions.find(s => s.providerType === target && !existingSessions.has(s.resource));
+		if (found) {
+			return found;
+		}
+		return new Promise<IAgentSession | undefined>(resolve => {
+			const listener = this.agentSessionsService.model.onDidChangeSessions(() => {
+				const s = this.agentSessionsService.model.sessions.find(s => s.providerType === target && !existingSessions.has(s.resource));
+				if (s) {
+					listener.dispose();
+					resolve(s);
+				}
+			});
+		});
+	}
+
+	private _wrapAgentSession(agentSession: IAgentSession): ISessionData {
+		const adapter = new AgentSessionAdapter(agentSession, this.id);
+		this._sessionCache.set(agentSession.resource.toString(), adapter);
+		return adapter;
+	}
+
+	// ── Private ──
+
+	private async _browseForFolder(): Promise<ISessionWorkspace | undefined> {
+		const result = await this.fileDialogService.showOpenDialog({
+			canSelectFolders: true,
+			canSelectFiles: false,
+			canSelectMany: false,
+		});
+		if (result?.length) {
+			const uri = result[0];
+			const workspace: ISessionWorkspace = {
+				label: this._labelFromUri(uri),
+				icon: this._iconFromUri(uri),
+				repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
+			};
+			this._addToRecentWorkspaces({ uri: uri.toJSON() });
+			return workspace;
+		}
+		return undefined;
+	}
+
+	private async _browseForRepo(): Promise<ISessionWorkspace | undefined> {
+		const repoId = await this.commandService.executeCommand<string>(OPEN_REPO_COMMAND);
+		if (repoId) {
+			const uri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repoId}/HEAD` });
+			const workspace: ISessionWorkspace = {
+				label: this._labelFromUri(uri),
+				icon: this._iconFromUri(uri),
+				repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
+			};
+			this._addToRecentWorkspaces({ uri: uri.toJSON() });
+			return workspace;
+		}
+		return undefined;
+	}
+
+	private _addToRecentWorkspaces(workspace: IStoredWorkspace): void {
+		const recents = this._getRecentWorkspaces();
+		const workspaceUri = URI.revive(workspace.uri);
+		const filtered = recents.filter(p => !this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), workspaceUri));
+		const updated = [workspace, ...filtered].slice(0, 10);
+		this.storageService.store(STORAGE_KEY_RECENT_PROJECTS, JSON.stringify(updated), StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	private _labelFromUri(uri: URI): string {
+		if (uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			return uri.path.substring(1).replace(/\/HEAD$/, '');
+		}
+		return basename(uri);
+	}
+
+	private _iconFromUri(uri: URI): ThemeIcon {
+		if (uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			return Codicon.repo;
+		}
+		return Codicon.folder;
+	}
+
+	private _getRecentWorkspaces(): IStoredWorkspace[] {
+		const raw = this.storageService.get(STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE);
+		if (!raw) {
+			return [];
+		}
+		try {
+			return JSON.parse(raw) as IStoredWorkspace[];
+		} catch {
+			return [];
+		}
+	}
+
+	private _isOwnedSession(session: IAgentSession): boolean {
+		return session.providerType === AgentSessionProviders.Background
+			|| session.providerType === AgentSessionProviders.Cloud;
+	}
+
+	private _ensureSessionCache(): void {
+		if (this._sessionCache.size > 0) {
+			return;
+		}
+		this._refreshSessionCache();
+	}
+
+	private _refreshSessionCache(): void {
+		const currentSessions = this.agentSessionsService.model.sessions.filter(s => this._isOwnedSession(s));
+		const currentKeys = new Set<string>();
+		const added: ISessionData[] = [];
+		const changed: ISessionData[] = [];
+
+		for (const session of currentSessions) {
+			const key = session.resource.toString();
+			currentKeys.add(key);
+
+			const existing = this._sessionCache.get(key);
+			if (existing) {
+				existing.update(session);
+				changed.push(existing);
+			} else {
+				const adapter = new AgentSessionAdapter(session, this.id);
+				this._sessionCache.set(key, adapter);
+				added.push(adapter);
+			}
+		}
+
+		const removed: ISessionData[] = [];
+		for (const [key, adapter] of this._sessionCache) {
+			if (!currentKeys.has(key)) {
+				this._sessionCache.delete(key);
+				removed.push(adapter);
+			}
+		}
+
+		if (added.length > 0 || removed.length > 0 || changed.length > 0) {
+			this._onDidChangeSessions.fire({ added, removed, changed });
+		}
+	}
+
+	private _findAgentSession(sessionId: string): IAgentSession | undefined {
+		const adapter = this._sessionCache.get(this._localIdFromSessionId(sessionId));
+		if (!adapter) {
+			return undefined;
+		}
+		return this.agentSessionsService.getSession(adapter.resource);
+	}
+
+	private _localIdFromSessionId(sessionId: string): string {
+		const prefix = `${this.id}:`;
+		return sessionId.startsWith(prefix) ? sessionId.substring(prefix.length) : sessionId;
+	}
+}
