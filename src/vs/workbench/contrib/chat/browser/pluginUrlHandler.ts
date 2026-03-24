@@ -30,9 +30,9 @@ import { IPluginInstallService } from '../common/plugins/pluginInstallService.js
  *
  * The `source` / `ref` query parameter is a base64-encoded `owner/repo` or
  * git clone URL. When `plugin` is provided on the `/install` route, the handler
- * targets that specific plugin within the marketplace, opens its details in
- * a modal, and lets the user install it.
- * A confirmation dialog is always shown before any action.
+ * targets that specific plugin within the marketplace, installs it, and opens
+ * its details in the editor. Otherwise, a confirmation dialog is shown before
+ * any action.
  */
 export class PluginUrlHandler extends Disposable implements IWorkbenchContribution, IURLHandler {
 

@@ -37,7 +37,7 @@ export interface IInstallPluginFromSourceOptions {
 	/**
 	 * When set, targets a specific plugin by name within the marketplace
 	 * instead of installing all or prompting the user. The matched plugin
-	 * is returned in the result without being auto-installed.
+	 * is installed and returned in the result.
 	 */
 	readonly plugin?: string;
 }
@@ -68,7 +68,7 @@ export interface IPluginInstallService {
 	 * registers the selected plugin.
 	 *
 	 * When {@link IInstallPluginFromSourceOptions.plugin} is set, targets
-	 * a specific plugin and returns it without auto-installing.
+	 * a specific plugin, installs it, and returns it.
 	 */
 	installPluginFromSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<void>;
 
@@ -84,8 +84,8 @@ export interface IPluginInstallService {
 	 * with an optional error message (e.g. no plugins found).
 	 *
 	 * When {@link IInstallPluginFromSourceOptions.plugin} is set, targets
-	 * a specific plugin and returns it in {@link IInstallPluginFromSourceResult.matchedPlugin}
-	 * without auto-installing.
+	 * a specific plugin, installs it, and returns it in
+	 * {@link IInstallPluginFromSourceResult.matchedPlugin}.
 	 */
 	installPluginFromValidatedSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult>;
 
