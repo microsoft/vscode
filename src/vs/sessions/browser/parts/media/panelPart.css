@@ -23,7 +23,7 @@
 .agent-sessions-workbench .part.panel > .title {
 	padding-left: 6px;
 	padding-right: 6px;
-	background-color: var(--vscode-sideBar-background);
+	background-color: var(--vscode-sessionsPanel-background);
 }
 
 /* Active/checked state: background container instead of underline */
@@ -36,10 +36,10 @@
 .agent-sessions-workbench .part.panel > .content .monaco-editor,
 .agent-sessions-workbench .part.panel > .content .monaco-editor .margin,
 .agent-sessions-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-sideBar-background);
+	background-color: var(--vscode-sessionsPanel-background);
 }
 
 /* Terminal body background */
 .agent-sessions-workbench .part.panel .terminal-wrapper {
-	background-color: var(--vscode-sideBar-background);
+	background-color: var(--vscode-sessionsPanel-background);
 }
