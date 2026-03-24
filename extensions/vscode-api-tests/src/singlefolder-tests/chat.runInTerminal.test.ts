@@ -441,8 +441,6 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 
 				assert.strictEqual(output.trim(), marker);
 			});
-
-
 		});
 	}
 });
