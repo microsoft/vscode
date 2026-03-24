@@ -45,6 +45,7 @@ export interface ISessionsChangeEvent {
 	readonly added: readonly ISessionData[];
 	readonly removed: readonly ISessionData[];
 	readonly changed: readonly ISessionData[];
+	readonly archived: readonly ISessionData[];
 }
 
 /**
@@ -74,21 +75,21 @@ export interface ISessionsProvider {
 	/** Session types this provider supports. */
 	readonly sessionTypes: readonly ISessionType[];
 
-	// ── Workspaces ──
+	// -- Workspaces --
 
 	/** Returns recent/known workspaces for the picker. */
 	getWorkspaces(): ISessionWorkspace[];
 	/** Browse actions shown in the workspace picker. */
 	readonly browseActions: readonly ISessionsBrowseAction[];
 
-	// ── Sessions (existing) ──
+	// -- Sessions (existing) --
 
 	/** Returns all sessions owned by this provider. */
 	getSessions(): ISessionData[];
 	/** Fires when sessions are added, removed, or changed. */
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
 
-	// ── Session Management ──
+	// -- Session Management --
 
 	/** Create a new session for the given workspace. */
 	createNewSession(workspace: ISessionWorkspace): ISessionData;
@@ -104,8 +105,10 @@ export interface ISessionsProvider {
 	archiveSession(sessionId: string): Promise<void>;
 	/** Delete a session. */
 	deleteSession(sessionId: string): Promise<void>;
+	/** Mark a session as read or unread. */
+	setRead(sessionId: string, read: boolean): void;
 
-	// ── Send ──
+	// -- Send --
 
 	/** Send the initial request for a new session. Returns the created session data. */
 	sendRequest(sessionId: string, options: ISendRequestOptions): Promise<ISessionData>;

@@ -64,14 +64,14 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		}];
 	}
 
-	// ── Workspaces ──
+	// -- Workspaces --
 
 	getWorkspaces(): ISessionWorkspace[] {
 		// Remote agent host workspaces are browsed on demand, not stored
 		return [];
 	}
 
-	// ── Sessions ──
+	// -- Sessions --
 
 	getSessionTypes(_session: ISessionData): ISessionType[] {
 		return [...this.sessionTypes];
@@ -83,7 +83,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		return [];
 	}
 
-	// ── Session Lifecycle ──
+	// -- Session Lifecycle --
 
 	createNewSession(workspace: ISessionWorkspace): ISessionData {
 		const workspaceUri = workspace.repositories[0]?.uri;
@@ -111,6 +111,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			modelId: observableValue(this, undefined),
 			mode: observableValue(this, undefined),
 			loading: observableValue(this, false),
+			isArchived: observableValue(this, false),
+			isRead: observableValue(this, true),
 		};
 	}
 
@@ -122,7 +124,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		// No-op for remote agent host sessions
 	}
 
-	// ── Session Actions ──
+	// -- Session Actions --
 
 	async archiveSession(_sessionId: string): Promise<void> {
 		// Agent host sessions don't support archiving
@@ -136,12 +138,16 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		// Agent host sessions don't support renaming
 	}
 
+	setRead(_sessionId: string, _read: boolean): void {
+		// Agent host sessions don't track read state
+	}
+
 	async sendRequest(_sessionId: string, sendOptions: ISendRequestOptions): Promise<ISessionData> {
 		// Agent host session send is handled separately
 		throw new Error('Remote agent host sessions do not support sending requests through the sessions provider');
 	}
 
-	// ── Private ──
+	// -- Private --
 
 	private async _browseForFolder(): Promise<ISessionWorkspace | undefined> {
 		const authority = agentHostAuthority(this._address);

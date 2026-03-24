@@ -333,8 +333,8 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			for (const session of [...e.added, ...e.changed]) {
 				this._ensurePRReviewInitialized(session.resource);
 			}
-			// Dispose PR review for removed sessions
-			for (const session of e.removed) {
+			// Dispose PR review for removed/archived sessions
+			for (const session of [...e.removed, ...e.archived]) {
 				this._disposePRReview(session.resource);
 			}
 		}));
@@ -539,8 +539,8 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 	private _registerSessionListeners(): void {
 		// Clean up when sessions change (archived/removed sessions, stale review versions)
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
-			// Clean up reviews for removed sessions
-			for (const session of e.removed) {
+			// Clean up reviews for removed/archived sessions
+			for (const session of [...e.removed, ...e.archived]) {
 				const key = session.resource.toString();
 				const data = this._reviewsBySession.get(key);
 				if (data) {

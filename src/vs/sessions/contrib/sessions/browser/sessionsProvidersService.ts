@@ -20,7 +20,7 @@ export const ISessionsProvidersService = createDecorator<ISessionsProvidersServi
 export interface ISessionsProvidersService {
 	readonly _serviceBrand: undefined;
 
-	// ── Provider Registry ──
+	// -- Provider Registry --
 
 	/** Register a sessions provider. Returns a disposable to unregister. */
 	registerProvider(provider: ISessionsProvider): IDisposable;
@@ -29,14 +29,14 @@ export interface ISessionsProvidersService {
 	/** Fires when providers are added or removed. */
 	readonly onDidChangeProviders: Event<void>;
 
-	// ── Session Types ──
+	// -- Session Types --
 
 	/** Get available session types for a provider. */
 	getSessionTypesForProvider(providerId: string): ISessionType[];
 	/** Get available session types for a session from its provider. */
 	getSessionTypes(session: ISessionData): ISessionType[];
 
-	// ── Aggregated Sessions ──
+	// -- Aggregated Sessions --
 
 	/** Get all sessions from all providers. */
 	getSessions(): ISessionData[];
@@ -45,7 +45,7 @@ export interface ISessionsProvidersService {
 	/** Fires when sessions change across any provider. */
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
 
-	// ── Session Actions (routed to the correct provider via sessionId) ──
+	// -- Session Actions (routed to the correct provider via sessionId) --
 
 	/** Archive a session. */
 	archiveSession(sessionId: string): Promise<void>;
@@ -53,6 +53,8 @@ export interface ISessionsProvidersService {
 	deleteSession(sessionId: string): Promise<void>;
 	/** Rename a session. */
 	renameSession(sessionId: string, title: string): Promise<void>;
+	/** Mark a session as read or unread. */
+	setRead(sessionId: string, read: boolean): void;
 }
 
 /**
@@ -71,7 +73,7 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionsChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent> = this._onDidChangeSessions.event;
 
-	// ── Provider Registry ──
+	// -- Provider Registry --
 
 	registerProvider(provider: ISessionsProvider): IDisposable {
 		if (this._providers.has(provider.id)) {
@@ -102,7 +104,7 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		return Array.from(this._providers.values(), e => e.provider);
 	}
 
-	// ── Session Types ──
+	// -- Session Types --
 
 	getSessionTypesForProvider(providerId: string): ISessionType[] {
 		const entry = this._providers.get(providerId);
@@ -120,7 +122,7 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		return entry.provider.getSessionTypes(session);
 	}
 
-	// ── Aggregated Sessions ──
+	// -- Aggregated Sessions --
 
 	getSessions(): ISessionData[] {
 		const sessions: ISessionData[] = [];
@@ -138,7 +140,7 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		return provider.getSessions().find(s => s.sessionId === sessionId);
 	}
 
-	// ── Session Actions ──
+	// -- Session Actions --
 
 	async archiveSession(sessionId: string): Promise<void> {
 		const { provider } = this._resolveProvider(sessionId);
@@ -161,7 +163,14 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		}
 	}
 
-	// ── Private Helpers ──
+	setRead(sessionId: string, read: boolean): void {
+		const { provider } = this._resolveProvider(sessionId);
+		if (provider) {
+			provider.setRead(sessionId, read);
+		}
+	}
+
+	// -- Private Helpers --
 
 	/**
 	 * Extract provider ID from a globally unique session ID and look up the provider.

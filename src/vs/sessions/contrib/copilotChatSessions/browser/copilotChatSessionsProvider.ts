@@ -301,6 +301,9 @@ export class RemoteNewSession extends Disposable implements ISessionData {
 
 	readonly loading: IObservable<boolean> = observableValue(this, false);
 
+	readonly isArchived: IObservable<boolean> = observableValue(this, false);
+	readonly isRead: IObservable<boolean> = observableValue(this, true);
+
 	readonly _hasGitRepo = observableValue(this, false);
 	readonly hasGitRepo: IObservable<boolean> = this._hasGitRepo;
 
@@ -552,6 +555,12 @@ class AgentSessionAdapter implements ISessionData {
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	readonly loading: IObservable<boolean>;
 
+	private readonly _isArchived: ReturnType<typeof observableValue<boolean>>;
+	readonly isArchived: IObservable<boolean>;
+
+	private readonly _isRead: ReturnType<typeof observableValue<boolean>>;
+	readonly isRead: IObservable<boolean>;
+
 	constructor(
 		session: IAgentSession,
 		providerId: string,
@@ -581,6 +590,11 @@ class AgentSessionAdapter implements ISessionData {
 		this.modelId = observableValue(this, undefined);
 		this.mode = observableValue(this, undefined);
 		this.loading = observableValue(this, false);
+
+		this._isArchived = observableValue(this, session.isArchived());
+		this.isArchived = this._isArchived;
+		this._isRead = observableValue(this, session.isRead());
+		this.isRead = this._isRead;
 	}
 
 	/**
@@ -593,6 +607,8 @@ class AgentSessionAdapter implements ISessionData {
 			this._updatedAt.set(new Date(updatedTime), tx);
 			this._status.set(toSessionStatus(session.status), tx);
 			this._changes.set(this._extractChanges(session), tx);
+			this._isArchived.set(session.isArchived(), tx);
+			this._isRead.set(session.isRead(), tx);
 		});
 	}
 
@@ -838,6 +854,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 	}
 
+	setRead(sessionId: string, read: boolean): void {
+		const agentSession = this._findAgentSession(sessionId);
+		if (agentSession) {
+			agentSession.setRead(read);
+		}
+	}
+
 	// -- Send --
 
 	async sendRequest(sessionId: string, options: ISendRequestOptions): Promise<ISessionData> {
@@ -1063,7 +1086,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 
 		if (added.length > 0 || removed.length > 0 || changed.length > 0) {
-			this._onDidChangeSessions.fire({ added, removed, changed });
+			this._onDidChangeSessions.fire({ added, removed, changed, archived: [] });
 		}
 	}
 

@@ -71,6 +71,8 @@ function makeAgentSession(opts: {
 		modelId: observableValue('test.modelId', undefined),
 		mode: observableValue('test.mode', undefined),
 		loading: observableValue('test.loading', false),
+		isArchived: observableValue('test.isArchived', false),
+		isRead: observableValue('test.isRead', true),
 	};
 }
 
@@ -96,6 +98,8 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		modelId: observableValue('test.modelId', undefined),
 		mode: observableValue('test.mode', undefined),
 		loading: observableValue('test.loading', false),
+		isArchived: observableValue('test.isArchived', false),
+		isRead: observableValue('test.isRead', true),
 	};
 }
 

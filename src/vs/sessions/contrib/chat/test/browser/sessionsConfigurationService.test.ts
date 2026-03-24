@@ -49,6 +49,8 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISessionD
 		modelId: observableValue('modelId', undefined),
 		mode: observableValue('mode', undefined),
 		loading: observableValue('loading', false),
+		isArchived: observableValue('isArchived', false),
+		isRead: observableValue('isRead', true),
 	};
 }
 

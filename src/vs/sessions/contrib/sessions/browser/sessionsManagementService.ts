@@ -162,6 +162,8 @@ export interface ISessionsManagementService {
 	deleteSession(session: ISessionData): Promise<void>;
 	/** Rename a session. */
 	renameSession(session: ISessionData, title: string): Promise<void>;
+	/** Mark a session as read or unread. */
+	setRead(session: ISessionData, read: boolean): void;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');
@@ -218,6 +220,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._register(this.sessionsProvidersService.onDidChangeSessions(e => {
 			this._onDidChangeSessions.fire(e);
 			this.refreshActiveSessionFromModel();
+
+			// Clear active session if it was archived
+			const currentActive = this._activeSession.get();
+			if (currentActive && e.archived.some(s => s.resource.toString() === currentActive.resource.toString())) {
+				this.openNewSessionView();
+			}
 		}));
 
 		// Restore or auto-select active provider
@@ -225,16 +233,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
 			this._initActiveProvider();
 			this._updateSessionTypes();
-		}));
-
-		// Clear active session if the active session gets archived
-		this._register(this.agentSessionsService.model.onDidChangeSessionArchivedState(e => {
-			if (e.isArchived()) {
-				const currentActive = this._activeSession.get();
-				if (currentActive && currentActive.resource.toString() === e.resource.toString()) {
-					this.openNewSessionView();
-				}
-			}
 		}));
 	}
 
@@ -597,6 +595,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	async renameSession(session: ISessionData, title: string): Promise<void> {
 		await this.sessionsProvidersService.renameSession(session.sessionId, title);
+	}
+
+	setRead(session: ISessionData, read: boolean): void {
+		this.sessionsProvidersService.setRead(session.sessionId, read);
 	}
 }
 
