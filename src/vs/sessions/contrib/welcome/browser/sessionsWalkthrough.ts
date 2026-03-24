@@ -74,8 +74,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		// Horizontal layout: icon left, text + buttons right
 		const layout = append(this.contentContainer, $('.sessions-walkthrough-hero'));
 
-		const iconEl = append(layout, $('span.sessions-walkthrough-icon.sessions-walkthrough-icon-large'));
-		iconEl.appendChild(renderIcon(Codicon.agent));
+		append(layout, $('div.sessions-walkthrough-logo'));
 
 		const right = append(layout, $('.sessions-walkthrough-hero-text'));
 		const titleEl = append(right, $('h2', undefined, localize('walkthrough.step1.title', "Welcome to Sessions")));
