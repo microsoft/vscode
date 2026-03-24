@@ -155,9 +155,10 @@
  * (via split-view-view .visible class).
  *
  * Animated properties: opacity, margin, border-color, background, box-shadow.
- * Opacity transiently creates a stacking context during the 300ms animation
- * only — once settled, opacity is unset so no persistent stacking context
- * remains. Margin shifts are purely visual within the grid-allocated space.
+ * Opacity transiently creates a stacking context while it animates from 0 to 1
+ * over 250ms — once settled at opacity: 1, no additional stacking context is
+ * introduced by this animation. Margin shifts are purely visual within the
+ * grid-allocated space.
  */
 
 .agent-sessions-workbench .part.sidebar,
