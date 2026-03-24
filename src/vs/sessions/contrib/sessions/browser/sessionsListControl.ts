@@ -7,7 +7,7 @@ import './media/sessionsList.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
-import { IObjectTreeElement, ITreeNode, ITreeRenderer, ICollapseStateChangeEvent, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
 import { RenderIndentGuides, TreeFindMode } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -395,15 +395,10 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 			}
 		}));
 
-		this._register(this.tree.onDidCollapseElement((e: ICollapseStateChangeEvent<SessionListItem, FuzzyScore>) => {
-			if (isSessionSection(e.element)) {
-				this.saveSectionCollapseState(e.element.id, true);
-			}
-		}));
-
-		this._register(this.tree.onDidExpandElement((e: ICollapseStateChangeEvent<SessionListItem, FuzzyScore>) => {
-			if (isSessionSection(e.element)) {
-				this.saveSectionCollapseState(e.element.id, false);
+		this._register(this.tree.onDidChangeCollapseState(e => {
+			const element = e.node.element;
+			if (element && isSessionSection(element)) {
+				this.saveSectionCollapseState(element.id, e.node.collapsed);
 			}
 		}));
 
