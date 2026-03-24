@@ -47,9 +47,9 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	static readonly viewContainersWorkspaceStateKey = 'workbench.agentsession.auxiliarybar.viewContainersWorkspaceState';
 
 	/** Visual margin values for the card-like appearance */
-	static readonly MARGIN_TOP = 16;
+	static readonly MARGIN_TOP = 12;
 	static readonly MARGIN_BOTTOM = 2;
-	static readonly MARGIN_RIGHT = 16;
+	static readonly MARGIN_RIGHT = 12;
 
 	// Action ID for run script - defined here to avoid layering issues
 	private static readonly RUN_SCRIPT_ACTION_ID = 'workbench.action.agentSessions.runScript';
@@ -261,10 +261,11 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			return;
 		}
 
-		// Layout content with reduced dimensions to account for visual margins
+		// Layout content with reduced dimensions to account for visual margins and border
+		const borderTotal = 2; // 1px border on each side
 		super.layout(
-			width - AuxiliaryBarPart.MARGIN_RIGHT,
-			height - AuxiliaryBarPart.MARGIN_TOP - AuxiliaryBarPart.MARGIN_BOTTOM,
+			width - AuxiliaryBarPart.MARGIN_RIGHT - borderTotal,
+			height - AuxiliaryBarPart.MARGIN_TOP - AuxiliaryBarPart.MARGIN_BOTTOM - borderTotal,
 			top, left
 		);
 

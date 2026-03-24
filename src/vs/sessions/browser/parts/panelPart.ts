@@ -68,9 +68,9 @@ export class PanelPart extends AbstractPaneCompositePart {
 	static readonly activePanelSettingsKey = 'workbench.agentsession.panelpart.activepanelid';
 
 	/** Visual margin values for the card-like appearance */
-	static readonly MARGIN_BOTTOM = 18;
-	static readonly MARGIN_LEFT = 16;
-	static readonly MARGIN_RIGHT = 16;
+	static readonly MARGIN_BOTTOM = 14;
+	static readonly MARGIN_LEFT = 12;
+	static readonly MARGIN_RIGHT = 12;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -175,10 +175,11 @@ export class PanelPart extends AbstractPaneCompositePart {
 			return;
 		}
 
-		// Layout content with reduced dimensions to account for visual margins
+		// Layout content with reduced dimensions to account for visual margins and border
+		const borderTotal = 2; // 1px border on each side
 		super.layout(
-			width - PanelPart.MARGIN_LEFT - PanelPart.MARGIN_RIGHT,
-			height - PanelPart.MARGIN_BOTTOM,
+			width - PanelPart.MARGIN_LEFT - PanelPart.MARGIN_RIGHT - borderTotal,
+			height - PanelPart.MARGIN_BOTTOM - borderTotal,
 			top, left
 		);
 

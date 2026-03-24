@@ -24,7 +24,7 @@
 }
 
 .agent-sessions-workbench .part.chatbar {
-	margin: 0 16px 2px 16px;
+	margin: 0 12px 2px 12px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
@@ -32,17 +32,19 @@
 }
 
 .agent-sessions-workbench .part.auxiliarybar {
-	margin: 0 16px 2px 0;
+	margin: 0 12px 2px 0;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
+	box-sizing: border-box;
 }
 
 .agent-sessions-workbench .part.panel {
-	margin: 0 16px 18px 16px;
+	margin: 0 12px 14px 12px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
+	box-sizing: border-box;
 }
 
 /* Grid background matches the editor background */

@@ -42,9 +42,9 @@ export class ChatBarPart extends AbstractPaneCompositePart {
 	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
 	/** Visual margin values for the card-like appearance */
-	static readonly MARGIN_TOP = 16;
-	static readonly MARGIN_LEFT = 16;
-	static readonly MARGIN_RIGHT = 16;
+	static readonly MARGIN_TOP = 12;
+	static readonly MARGIN_LEFT = 12;
+	static readonly MARGIN_RIGHT = 12;
 	static readonly MARGIN_BOTTOM = 2;
 
 	/** Border width on the card (1px each side) */
