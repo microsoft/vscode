@@ -151,7 +151,7 @@
 }
 
 .sessions-walkthrough-provider-btn.provider-github::before {
-	background-image: url('./github.svg');
+	background-image: url('./github-mark.svg');
 }
 
 .sessions-walkthrough-provider-btn.provider-google::before {
