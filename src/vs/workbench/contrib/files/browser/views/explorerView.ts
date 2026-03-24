@@ -512,6 +512,15 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			paddingBottom: ExplorerDelegate.ITEM_HEIGHT,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			findProvider: this.findProvider,
+			twistieAdditionalCssClass: (e: unknown) => {
+				if (e instanceof ExplorerItem && e.hasNests) {
+					const theme = this.themeService.getFileIconTheme();
+					if (theme.hidesExplorerArrows) {
+						return 'force-twistie';
+					}
+				}
+				return undefined;
+			},
 		});
 		this._register(this.tree);
 		this._register(this.themeService.onDidColorThemeChange(() => this.tree.rerender()));
