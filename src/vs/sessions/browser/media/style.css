@@ -220,7 +220,7 @@
 		margin: 0 16px 2px 6px;
 	}
 
-	/* Chat bar (center-bottom): slides down from 6px above → margin: 0 16px 2px 16px */
+	/* Chat bar (center-bottom): slides up from 6px below → margin: 0 16px 2px 16px */
 	.agent-sessions-workbench .part.chatbar {
 		margin: 6px 16px 2px 16px;
 	}
