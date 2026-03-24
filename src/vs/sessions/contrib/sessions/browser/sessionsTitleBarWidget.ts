@@ -198,31 +198,33 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._container.appendChild(sessionPill);
 
 			// Session count widget (to the left of the pill) — toggles sidebar
-			const countWidget = $('span.agent-sessions-titlebar-count');
+			const countWidget = $('button.agent-sessions-titlebar-count') as HTMLButtonElement;
+			countWidget.type = 'button';
+			countWidget.tabIndex = 0;
 			const countIcon = $(ThemeIcon.asCSSSelector(Codicon.tasklist));
 			countWidget.appendChild(countIcon);
 			if (unreadCount > 0) {
 				const countLabel = $('span.agent-sessions-titlebar-count-label');
 				countLabel.textContent = `${unreadCount}`;
 				countWidget.appendChild(countLabel);
+				countWidget.setAttribute('aria-label', localize('showSidebarUnread', "Show Side Bar, {0} unread session(s)", unreadCount));
+			} else {
+				countWidget.setAttribute('aria-label', localize('showSidebar', "Show Side Bar"));
 			}
-			// Toggle visual state based on sidebar visibility
-			const updateToggleState = () => {
-				const sidebarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
-				countWidget.classList.toggle('toggled', sidebarVisible);
-				countWidget.style.display = sidebarVisible ? 'none' : '';
+			// Hide when sidebar is visible (only shown when sidebar is hidden)
+			const updateVisibility = () => {
+				countWidget.style.display = this.layoutService.isVisible(Parts.SIDEBAR_PART) ? 'none' : '';
 			};
-			updateToggleState();
+			updateVisibility();
 			this._dynamicDisposables.add(this.layoutService.onDidChangePartVisibility(e => {
 				if (e.partId === Parts.SIDEBAR_PART) {
-					updateToggleState();
+					updateVisibility();
 				}
 			}));
 			this._dynamicDisposables.add(addDisposableListener(countWidget, EventType.CLICK, (e) => {
 				e.preventDefault();
 				e.stopPropagation();
-				const isVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
-				this.layoutService.setPartHidden(isVisible, Parts.SIDEBAR_PART);
+				this.layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
 			}));
 			this._container.insertBefore(countWidget, sessionPill);
 

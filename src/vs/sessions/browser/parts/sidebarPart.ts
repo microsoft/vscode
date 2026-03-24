@@ -45,6 +45,7 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IAgentSessionsService } from '../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionStatus } from '../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { localize } from '../../../nls.js';
 
 /**
  * Sidebar part specifically for agent sessions workbench.
@@ -197,7 +198,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		const widget = append(titleArea, $('button.session-status-toggle')) as HTMLButtonElement;
 		widget.type = 'button';
 		widget.tabIndex = 0;
-		widget.setAttribute('role', 'button');
+		widget.setAttribute('aria-label', localize('hideSidebar', "Hide Side Bar"));
 		append(widget, $(ThemeIcon.asCSSSelector(Codicon.tasklist)));
 		const badge = append(widget, $('span.session-status-toggle-badge'));
 
@@ -220,6 +221,9 @@ export class SidebarPart extends AbstractPaneCompositePart {
 				}
 				badge.textContent = unread > 0 ? `${unread}` : '';
 				badge.style.display = unread > 0 ? '' : 'none';
+				widget.setAttribute('aria-label', unread > 0
+					? localize('hideSidebarUnread', "Hide Side Bar, {0} unread session(s)", unread)
+					: localize('hideSidebar', "Hide Side Bar"));
 			} catch {
 				badge.style.display = 'none';
 			}
