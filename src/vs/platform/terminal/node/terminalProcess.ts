@@ -453,7 +453,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		} else if (sanitizedTitle.toLowerCase().startsWith('julia')) {
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: GeneralShellType.Julia });
 		} else {
-			const shellTypeValue = posixShellTypeMap.get(sanitizedTitle) || generalShellTypeMap.get(sanitizedTitle);
+			const sanitizedTitleLower = sanitizedTitle.toLowerCase();
+			const shellTypeValue = posixShellTypeMap.get(sanitizedTitleLower) || generalShellTypeMap.get(sanitizedTitleLower);
+			this._logService.debug('Anthony_TerminalProcess#_sendProcessTitle', JSON.stringify({ raw: ptyProcess.process, currentTitle: this._currentTitle, sanitizedTitle, sanitizedTitleLower, shellTypeValue, hasInPosix: posixShellTypeMap.has(sanitizedTitleLower), hasInGeneral: generalShellTypeMap.has(sanitizedTitleLower) }));
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: shellTypeValue });
 		}
 	}
