@@ -663,7 +663,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 	}
 
-	async startExternalEdits(responseModel: IChatResponseModel, operationId: number, resources: URI[], undoStopId: string): Promise<IChatProgress[]> {
+	async startExternalEdits(responseModel: IChatResponseModel, operationId: number, resources: URI[], undoStopId: string, contentFor?: URI[]): Promise<IChatProgress[]> {
 		const snapshots = new ResourceMap<string | undefined>();
 		const acquiredLockPromises: DeferredPromise<void>[] = [];
 		const releaseLockPromises: DeferredPromise<void>[] = [];
@@ -673,7 +673,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		await chatEditingSessionIsReady(this);
 
 		// Acquire locks for each resource and take snapshots
-		for (const resource of resources) {
+		for (let i = 0; i < resources.length; i++) {
+			const resource = resources[i];
+			const contentSource = contentFor?.[i];
 			const releaseLock = new DeferredPromise<void>();
 			releaseLockPromises.push(releaseLock);
 
@@ -686,20 +688,37 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 					return;
 				}
 
-				const entry = await this._getOrCreateModifiedFileEntry(resource, NotExistBehavior.Abort, telemetryInfo);
+				let initialContent: string | undefined;
+				if (contentSource) {
+					// Read the before-content from the provided URI instead of disk
+					try {
+						const data = await this._fileService.readFile(contentSource);
+						initialContent = data.value.toString();
+					} catch {
+						initialContent = '';
+					}
+				}
+
+				const entry = await this._getOrCreateModifiedFileEntry(resource, NotExistBehavior.Abort, telemetryInfo, initialContent);
 				if (entry) {
 					await this._acceptStreamingEditsStart(responseModel, undoStopId, resource);
 				}
 
-
 				const notebookUri = CellUri.parse(resource)?.notebook || resource;
 				progress.push(...createOpeningEditCodeBlock(resource, this._notebookService.hasSupportedNotebooks(notebookUri), undoStopId));
 
-				// Save to disk to ensure disk state is current before external edits
-				await entry?.save();
-
-				// Take snapshot of current state
-				snapshots.set(resource, entry && this._getCurrentTextOrNotebookSnapshot(entry));
+				if (initialContent !== undefined) {
+					if (entry) {
+						entry.initialContent = initialContent;
+						await entry.resetEditTrackerToInitialContent(); // in case it's reused
+					}
+					snapshots.set(resource, initialContent);
+				} else {
+					// Save to disk to ensure disk state is current before external edits
+					await entry?.save();
+					// Take snapshot of current state
+					snapshots.set(resource, entry && this._getCurrentTextOrNotebookSnapshot(entry));
+				}
 				entry?.startExternalEdit();
 				acquiredLock.complete();
 
@@ -722,7 +741,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return progress;
 	}
 
-	async stopExternalEdits(responseModel: IChatResponseModel, operationId: number): Promise<IChatProgress[]> {
+	async stopExternalEdits(responseModel: IChatResponseModel, operationId: number, contentFor?: URI[]): Promise<IChatProgress[]> {
 		const operation = this._externalEditOperations.get(operationId);
 		if (!operation) {
 			this._logService.warn(`stopExternalEdits called for unknown operation ${operationId}`);
@@ -734,6 +753,18 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const progress: IChatProgress[] = [];
 
 		try {
+			// Build a map of resource -> contentFor URI
+			const contentForMap = new ResourceMap<URI>();
+			if (contentFor) {
+				let idx = 0;
+				for (const [resource] of operation.snapshots) {
+					if (idx < contentFor.length && contentFor[idx]) {
+						contentForMap.set(resource, contentFor[idx]);
+					}
+					idx++;
+				}
+			}
+
 			// For each resource, compute the diff and create edit parts
 			for (const [resource, beforeSnapshot] of operation.snapshots) {
 				let entry = this._getEntry(resource);
@@ -752,11 +783,21 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 					continue;
 				}
 
-				// Reload from disk to ensure in-memory model is in sync with file system
-				await entry.revertToDisk();
-
-				// Take new snapshot after external changes
-				const afterSnapshot = this._getCurrentTextOrNotebookSnapshot(entry);
+				let afterSnapshot: string;
+				const contentSource = contentForMap.get(resource);
+				if (contentSource) {
+					// Read after-content from the provided URI instead of disk
+					try {
+						const data = await this._fileService.readFile(contentSource);
+						afterSnapshot = data.value.toString();
+					} catch {
+						afterSnapshot = '';
+					}
+				} else {
+					// Reload from disk to ensure in-memory model is in sync with file system
+					await entry.revertToDisk();
+					afterSnapshot = this._getCurrentTextOrNotebookSnapshot(entry) ?? '';
+				}
 
 				// Compute edits from the snapshots
 				let edits: (TextEdit | ICellEditOperation)[] = [];

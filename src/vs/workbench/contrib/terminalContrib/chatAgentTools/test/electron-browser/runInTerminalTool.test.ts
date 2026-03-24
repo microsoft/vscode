@@ -31,6 +31,8 @@ import { TestContextService } from '../../../../../test/common/workbenchTestServ
 import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/workbenchTestServices.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
+import { IChatWidgetService } from '../../../../chat/browser/chat.js';
+import { ChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocationPreparationContext, ToolDataSource, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
@@ -289,7 +291,7 @@ suite('RunInTerminalTool', () => {
 			const preparedInvocation = await executeToolTest({ command: 'echo hello' });
 
 			ok(preparedInvocation, 'Expected prepared invocation to be defined');
-			strictEqual((preparedInvocation.invocationMessage as IMarkdownString).value, '$(lock) Running `echo hello` in sandbox');
+			strictEqual((preparedInvocation.invocationMessage as IMarkdownString).value, 'Running `echo hello` in sandbox');
 
 			const terminalData = preparedInvocation.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
@@ -1551,11 +1553,7 @@ suite('RunInTerminalTool', () => {
 	});
 
 	suite('session auto approval', () => {
-		setup(() => {
-			setAutoApprove({ rm: false });
-		});
-
-		test('should return policy denial details for denied commands when session has auto approval enabled', async () => {
+		test('should auto approve all commands when session has auto approval enabled', async () => {
 			const sessionId = 'test-session-123';
 			const sessionResource = LocalChatSessionUri.forSession(sessionId);
 			const terminalChatService = instantiationService.get(ITerminalChatService);
@@ -1579,61 +1577,62 @@ suite('RunInTerminalTool', () => {
 			assertAutoApproved(result);
 
 			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
-			ok(terminalData.alternativeRecommendation, 'Expected policy denial alternative recommendation');
-			ok(terminalData.alternativeRecommendation.includes('POLICY_DENIED'), 'Expected policy denial marker');
-			ok(terminalData.alternativeRecommendation.includes('rm dangerous-file.txt'), 'Expected denied command details');
+			ok(terminalData.autoApproveInfo, 'Expected autoApproveInfo to be defined');
+			ok(terminalData.autoApproveInfo.value.includes('Auto approved for this session'), 'Expected session approval message');
 		});
 
-		test('should still show confirmation when forceConfirmationReason is provided', async () => {
-			const sessionId = 'test-session-123-force';
-			const sessionResource = LocalChatSessionUri.forSession(sessionId);
-			const terminalChatService = instantiationService.get(ITerminalChatService);
+		test('should bypass terminal auto-approve feature in Autopilot mode', async () => {
+			setAutoApprove({
+				curl: false
+			});
 
-			terminalChatService.setChatSessionAutoApproval(sessionResource, true);
+			const sessionResource = LocalChatSessionUri.forSession('autopilot-session');
+			instantiationService.stub(IChatWidgetService, {
+				getWidgetBySessionResource: (() => ({ input: { currentModeInfo: { permissionLevel: ChatPermissionLevel.Autopilot } } })) as unknown as IChatWidgetService['getWidgetBySessionResource'],
+				lastFocusedWidget: undefined,
+			});
 
-			const context: IToolInvocationPreparationContext = {
+			const autopilotRunInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+			const result = await autopilotRunInTerminalTool.prepareToolInvocation({
 				parameters: {
-					command: 'rm dangerous-file.txt',
-					explanation: 'Remove a file',
-					goal: 'Remove a file',
-					isBackground: false
+					command: 'curl https://example.com',
+					explanation: 'Fetch a URL',
+					goal: 'Download content',
+					isBackground: false,
 				} as IRunInTerminalInputParams,
 				chatSessionResource: sessionResource,
-				forceConfirmationReason: 'test'
-			} as IToolInvocationPreparationContext;
+			} as IToolInvocationPreparationContext, CancellationToken.None);
 
-			const result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
-			assertConfirmationRequired(result);
+			assertAutoApproved(result);
+			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.autoApproveInfo, undefined, 'Expected no terminal auto-approve info in Autopilot mode');
 		});
 
-		test('should circuit break repeated denied command attempts in auto approval sessions', async () => {
-			const sessionId = 'test-session-123-circuit-break';
-			const sessionResource = LocalChatSessionUri.forSession(sessionId);
-			const terminalChatService = instantiationService.get(ITerminalChatService);
+		test('should bypass terminal auto-approve feature in Bypass Approvals mode', async () => {
+			setAutoApprove({
+				curl: false
+			});
 
-			terminalChatService.setChatSessionAutoApproval(sessionResource, true);
+			const sessionResource = LocalChatSessionUri.forSession('bypass-session');
+			instantiationService.stub(IChatWidgetService, {
+				getWidgetBySessionResource: (() => ({ input: { currentModeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove } } })) as unknown as IChatWidgetService['getWidgetBySessionResource'],
+				lastFocusedWidget: undefined,
+			});
 
-			const context: IToolInvocationPreparationContext = {
+			const bypassRunInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+			const result = await bypassRunInTerminalTool.prepareToolInvocation({
 				parameters: {
-					command: 'rm dangerous-file.txt',
-					explanation: 'Remove a file',
-					goal: 'Remove a file',
-					isBackground: false
+					command: 'curl https://example.com',
+					explanation: 'Fetch a URL',
+					goal: 'Download content',
+					isBackground: false,
 				} as IRunInTerminalInputParams,
-				chatSessionResource: sessionResource
-			} as IToolInvocationPreparationContext;
+				chatSessionResource: sessionResource,
+			} as IToolInvocationPreparationContext, CancellationToken.None);
 
-			const first = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
-			const second = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
-			const third = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
-
-			const firstData = first!.toolSpecificData as IChatTerminalToolInvocationData;
-			const secondData = second!.toolSpecificData as IChatTerminalToolInvocationData;
-			const thirdData = third!.toolSpecificData as IChatTerminalToolInvocationData;
-
-			ok(firstData.alternativeRecommendation?.includes('POLICY_DENIED'), 'Expected initial policy denial message');
-			ok(secondData.alternativeRecommendation?.includes('POLICY_DENIED'), 'Expected second policy denial message');
-			ok(thirdData.alternativeRecommendation?.includes('POLICY_DENIED_CIRCUIT_BREAKER'), 'Expected circuit breaker policy denial message');
+			assertAutoApproved(result);
+			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.autoApproveInfo, undefined, 'Expected no terminal auto-approve info in Bypass Approvals mode');
 		});
 	});
 
@@ -1754,6 +1753,47 @@ suite('RunInTerminalTool', () => {
 			if (disclaimerValue) {
 				ok(!disclaimerValue.includes('denied'), 'Should not mention denial for non-denied commands');
 			}
+		});
+	});
+
+	suite('ConfirmTerminalCommandTool', () => {
+		test('should require confirmation when sandbox is enabled but sandbox rewriting is disabled', async () => {
+			sandboxEnabled = true;
+
+			const { ConfirmTerminalCommandTool } = await import('../../browser/tools/runInTerminalConfirmationTool.js');
+			const confirmTool = store.add(instantiationService.createInstance(ConfirmTerminalCommandTool));
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'ping google.com',
+					explanation: 'Ping google.com',
+					goal: 'Ping google.com',
+					isBackground: false,
+				} as IRunInTerminalInputParams
+			} as IToolInvocationPreparationContext;
+
+			const result = await confirmTool.prepareToolInvocation(context, CancellationToken.None);
+			assertConfirmationRequired(result);
+		});
+
+		test('should require confirmation when sandbox is disabled', async () => {
+			sandboxEnabled = false;
+			setAutoApprove({});
+
+			const { ConfirmTerminalCommandTool } = await import('../../browser/tools/runInTerminalConfirmationTool.js');
+			const confirmTool = store.add(instantiationService.createInstance(ConfirmTerminalCommandTool));
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'echo hello',
+					explanation: 'Print hello',
+					goal: 'Print hello',
+					isBackground: false,
+				} as IRunInTerminalInputParams
+			} as IToolInvocationPreparationContext;
+
+			const result = await confirmTool.prepareToolInvocation(context, CancellationToken.None);
+			assertConfirmationRequired(result);
 		});
 	});
 });
@@ -1937,8 +1977,8 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 
 		// Fire network config change
 		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === TerminalChatAgentToolsSettingId.TerminalSandboxNetwork,
-			affectedKeys: new Set([TerminalChatAgentToolsSettingId.TerminalSandboxNetwork]),
+			affectsConfiguration: (key: string) => key === TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains,
+			affectedKeys: new Set([TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains]),
 			source: ConfigurationTarget.USER,
 			change: null!,
 		});

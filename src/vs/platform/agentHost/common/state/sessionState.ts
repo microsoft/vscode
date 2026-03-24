@@ -14,6 +14,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import {
 	SessionLifecycle,
 	ToolResultContentType,
+	IToolResultFileEditContent,
 	type IActiveTurn,
 	type IRootState,
 	type ISessionState,
@@ -54,6 +55,7 @@ export {
 	type IToolDefinition,
 	type IToolResultBinaryContent,
 	type IToolResultContent,
+	type IToolResultFileEditContent,
 	type IToolResultTextContent,
 	type ITurn,
 	type IUsageInfo,
@@ -112,6 +114,23 @@ export function getToolOutputText(result: IToolCallResult): string | undefined {
 		return undefined;
 	}
 	return textParts.map(p => p.text).join('\n');
+}
+
+/**
+ * Extracts file edit content entries from a tool call result's `content` array.
+ * Returns an empty array if there are no file edit content parts.
+ */
+export function getToolFileEdits(result: IToolCallResult): IToolResultFileEditContent[] {
+	if (!result.content || result.content.length === 0) {
+		return [];
+	}
+	const edits: IToolResultFileEditContent[] = [];
+	for (const c of result.content) {
+		if (hasKey(c, { type: true }) && c.type === ToolResultContentType.FileEdit) {
+			edits.push(c);
+		}
+	}
+	return edits;
 }
 
 // ---- Factory helpers --------------------------------------------------------

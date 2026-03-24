@@ -3530,6 +3530,7 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 		readonly editedFileEvents?: vscode.ChatRequestEditedFileEvent[],
 		readonly id?: string,
 		readonly modelId?: string,
+		readonly modeInstructions2?: vscode.ChatRequestModeInstructions,
 	) { }
 }
 

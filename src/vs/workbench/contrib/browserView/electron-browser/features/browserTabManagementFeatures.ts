@@ -114,6 +114,7 @@ class BrowserTabQuickPick extends Disposable {
 			}
 			if (selected === this._openNewTabPick) {
 				logBrowserOpen(telemetryService, 'quickOpenWithoutUrl');
+				this._quickPick.hide();
 				await this._editorService.openEditor({
 					resource: BrowserViewUri.forId(generateUuid()),
 				});
@@ -478,6 +479,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'workbench.browser.openLocalhostLinks': {
 			type: 'boolean',
 			default: false,
+			experiment: { mode: 'startup' },
 			markdownDescription: localize(
 				{ comment: ['This is the description for a setting.'], key: 'browser.openLocalhostLinks' },
 				'When enabled, localhost links from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
