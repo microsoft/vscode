@@ -35,7 +35,7 @@ const TOGGLE_CHANGES_VIEW_ID = 'workbench.action.agentSessions.toggleChangesView
 
 /**
  * Action view item that renders the diff stats indicator (file change counts)
- * in the titlebar right toolbar. Shows [diff icon] +insertions -deletions.
+ * in the titlebar session toolbar. Shows [diff icon] +insertions -deletions.
  * Clicking toggles the auxiliary bar with the Changes view.
  */
 class ChangesTitleBarActionViewItem extends BaseActionViewItem {
@@ -51,7 +51,6 @@ class ChangesTitleBarActionViewItem extends BaseActionViewItem {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 	) {
 		super(undefined, action, options);
 
@@ -85,11 +84,7 @@ class ChangesTitleBarActionViewItem extends BaseActionViewItem {
 	}
 
 	override onClick(): void {
-		const isVisible = !this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-		this.layoutService.setPartHidden(!isVisible, Parts.AUXILIARYBAR_PART);
-		if (isVisible) {
-			this.paneCompositeService.openPaneComposite(CHANGES_VIEW_CONTAINER_ID, ViewContainerLocation.AuxiliaryBar);
-		}
+		this._action.run();
 	}
 
 	private _updateActiveState(): void {
@@ -181,6 +176,7 @@ registerAction2(class extends Action2 {
 			id: TOGGLE_CHANGES_VIEW_ID,
 			title: localize('toggleChanges', "Toggle Changes"),
 			icon: Codicon.diffMultiple,
+			precondition: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
 		});
 	}
 
