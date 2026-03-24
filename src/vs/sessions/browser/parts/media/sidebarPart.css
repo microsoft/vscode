@@ -36,7 +36,7 @@
 	gap: 4px;
 	padding: 6px 0;
 	border-top: 1px solid var(--vscode-panel-border, transparent);
-	margin: 0 12px;
+	margin: 0 12px 12px 12px;
 	flex-shrink: 0;
 }
 
