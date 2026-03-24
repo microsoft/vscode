@@ -640,7 +640,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
-| 2026-03-24 | Updated new chat empty-state composition in sessions chat so controls are bottom-docked (folder picker/title row, input, and local mode controls) while the watermark remains centered; folder picker styling changed to inline "New session in {dropdown}" presentation aligned with chat input width. |
+| 2026-03-24 | Updated the sessions new-chat empty state: removed the watermark, vertically centered the empty-state controls block, restyled the workspace picker as an inline `New session in {dropdown}` title row aligned to the chat input, removed the leading dropdown icon, and tuned empty-state dropdown chevrons/local-mode spacing for the final visual polish. |
 | 2026-03-02 | Fixed macOS sidebar traffic light spacer to only render with custom titlebar; added `!hasNativeTitlebar()` guard to `SidebarPart.createTitleArea()` so the 70px spacer is not created when using native titlebar (traffic lights are in the OS title bar, not overlapping the sidebar) |
 | 2026-02-20 | Replaced custom `EditorModal` with standard `ModalEditorPart` via `MODAL_GROUP`; main editor part created but hidden; changed `workbench.editor.useModal` from boolean to enum (`off`/`some`/`all`); sessions config uses `all`; removed `editorModal.ts` and editor modal CSS |
 | 2026-02-17 | Added `-webkit-app-region: drag` to sidebar title area so it can be used to drag the window; interactive children (actions, composite bar, labels) marked `no-drag`; CSS rules scoped to `.agent-sessions-workbench` in `parts/media/sidebarPart.css` |
