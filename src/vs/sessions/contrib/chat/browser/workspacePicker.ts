@@ -220,14 +220,12 @@ export class WorkspacePicker extends Disposable {
 				}
 			},
 			onHide: () => {
-				triggerElement.classList.remove('expanded');
 				triggerElement.setAttribute('aria-expanded', 'false');
 				triggerElement.focus();
 			},
 		};
 
 		const listOptions = showFilter ? { showFilter: true, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces...") } : undefined;
-		triggerElement.classList.add('expanded');
 		triggerElement.setAttribute('aria-expanded', 'true');
 
 		this.actionWidgetService.show<IStoredProject>(
