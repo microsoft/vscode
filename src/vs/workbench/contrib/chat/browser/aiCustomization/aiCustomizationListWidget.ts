@@ -108,8 +108,6 @@ export interface IAICustomizationListItem {
 	readonly badgeTooltip?: string;
 	/** When set, overrides the default prompt-type icon. */
 	readonly typeIcon?: ThemeIcon;
-	/** Display label for the source extension (e.g. extension ID). */
-	readonly extensionLabel?: string;
 	nameMatches?: IMatch[];
 	descriptionMatches?: IMatch[];
 }
@@ -334,14 +332,9 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 
 		// Hover tooltip: name + path + badge context + plugin source
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => {
-			let content: string;
-			if (element.extensionLabel) {
-				content = `${element.name}\n${localize('fromExtension', "Extension: {0}", element.extensionLabel)}`;
-			} else {
-				const isWorkspaceItem = element.storage === PromptsStorage.local;
-				const uriLabel = this.labelService.getUriLabel(element.uri, { relative: isWorkspaceItem });
-				content = `${element.name}\n${uriLabel}`;
-			}
+			const isWorkspaceItem = element.storage === PromptsStorage.local;
+			const uriLabel = this.labelService.getUriLabel(element.uri, { relative: isWorkspaceItem });
+			let content = `${element.name}\n${uriLabel}`;
 			if (element.badgeTooltip) {
 				content += `\n\n${element.badgeTooltip}`;
 			}
@@ -1084,10 +1077,6 @@ export class AICustomizationListWidget extends Disposable {
 		return undefined;
 	}
 
-	private static extensionDisplayName(ext: { id: ExtensionIdentifier; displayName?: string }): string {
-		return ext.displayName || ext.id.value;
-	}
-
 	/**
 	 * Post-processes items to assign groupKey overrides for extension-sourced
 	 * items. Applies the built-in grouping consistently across all item types.
@@ -1096,7 +1085,7 @@ export class AICustomizationListWidget extends Disposable {
 	 * agent hooks) are left untouched — groupKey overrides are only applied to
 	 * items whose current groupKey is `undefined`.
 	 */
-	private applyBuiltinGroupKeys(items: IAICustomizationListItem[], extensionInfoByUri: ReadonlyMap<string, { id: ExtensionIdentifier; displayName?: string }>): void {
+	private applyBuiltinGroupKeys(items: IAICustomizationListItem[], extensionIdByUri: ReadonlyMap<string, ExtensionIdentifier>): void {
 		for (const item of items) {
 			if (item.groupKey !== undefined) {
 				continue; // respect explicit groupKey from upstream (e.g. instruction categories)
@@ -1104,16 +1093,12 @@ export class AICustomizationListWidget extends Disposable {
 			if (item.storage !== PromptsStorage.extension) {
 				continue;
 			}
-			const extInfo = extensionInfoByUri.get(item.uri.toString());
-			const override = this.resolveExtensionGroupKey(extInfo?.id);
+			const extId = extensionIdByUri.get(item.uri.toString());
+			const override = this.resolveExtensionGroupKey(extId);
 			if (override) {
 				// IAICustomizationListItem.groupKey is readonly for consumers but
 				// we own the items array here, so the mutation is safe.
 				(item as { groupKey?: string }).groupKey = override;
-			}
-			// Set extension display name for tooltip
-			if (extInfo) {
-				(item as { extensionLabel?: string }).extensionLabel = AICustomizationListWidget.extensionDisplayName(extInfo);
 			}
 		}
 	}
@@ -1126,7 +1111,7 @@ export class AICustomizationListWidget extends Disposable {
 		const promptType = sectionToPromptType(section);
 		const items: IAICustomizationListItem[] = [];
 		const disabledUris = this.promptsService.getDisabledPromptFiles(promptType);
-		const extensionInfoByUri = new Map<string, { id: ExtensionIdentifier; displayName?: string }>();
+		const extensionIdByUri = new Map<string, ExtensionIdentifier>();
 
 
 		if (promptType === PromptsType.agent) {
@@ -1145,9 +1130,9 @@ export class AICustomizationListWidget extends Disposable {
 					pluginUri: agent.source.storage === PromptsStorage.plugin ? agent.source.pluginUri : undefined,
 					disabled: disabledUris.has(agent.uri),
 				});
-				// Track extension info for built-in grouping and tooltip display
+				// Track extension ID for built-in grouping
 				if (agent.source.storage === PromptsStorage.extension) {
-					extensionInfoByUri.set(agent.uri.toString(), { id: agent.source.extensionId });
+					extensionIdByUri.set(agent.uri.toString(), agent.source.extensionId);
 				}
 			}
 		} else if (promptType === PromptsType.skill) {
@@ -1157,7 +1142,7 @@ export class AICustomizationListWidget extends Disposable {
 			const allSkillFiles = await this.promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None);
 			for (const file of allSkillFiles) {
 				if (file.extension) {
-					extensionInfoByUri.set(file.uri.toString(), { id: file.extension.identifier, displayName: file.extension.displayName });
+					extensionIdByUri.set(file.uri.toString(), file.extension.identifier);
 				}
 			}
 			const seenUris = new ResourceSet();
@@ -1216,7 +1201,7 @@ export class AICustomizationListWidget extends Disposable {
 					disabled: disabledUris.has(command.promptPath.uri),
 				});
 				if (command.promptPath.extension) {
-					extensionInfoByUri.set(command.promptPath.uri.toString(), { id: command.promptPath.extension.identifier, displayName: command.promptPath.extension.displayName });
+					extensionIdByUri.set(command.promptPath.uri.toString(), command.promptPath.extension.identifier);
 				}
 			}
 		} else if (promptType === PromptsType.hook) {
@@ -1326,7 +1311,7 @@ export class AICustomizationListWidget extends Disposable {
 			const promptFiles = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
 			for (const file of promptFiles) {
 				if (file.extension) {
-					extensionInfoByUri.set(file.uri.toString(), { id: file.extension.identifier, displayName: file.extension.displayName });
+					extensionIdByUri.set(file.uri.toString(), file.extension.identifier);
 				}
 			}
 			const agentInstructionFiles = await this.promptsService.listAgentInstructions(CancellationToken.None, undefined);
@@ -1422,7 +1407,7 @@ export class AICustomizationListWidget extends Disposable {
 		// are re-grouped under "Built-in" instead of "Extensions".
 		// This is a single-pass transformation applied after all items are
 		// collected, keeping the item-building code free of grouping logic.
-		this.applyBuiltinGroupKeys(items, extensionInfoByUri);
+		this.applyBuiltinGroupKeys(items, extensionIdByUri);
 
 		// Apply storage source filter (removes items not in visible sources or excluded user roots)
 		const filter = this.workspaceService.getStorageSourceFilter(promptType);
@@ -1722,25 +1707,30 @@ export class AICustomizationListWidget extends Disposable {
 	 * Layouts the widget.
 	 */
 	layout(height: number, width: number): void {
-		const sectionFooterHeight = this.sectionHeader.offsetHeight || 0;
-		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 52;
-		const listHeight = height - sectionFooterHeight - searchBarHeight;
-
+		this.element.style.height = `${height}px`;
 		this.searchInput.layout();
-		this.listContainer.style.height = `${Math.max(0, listHeight)}px`;
-		this.list.layout(Math.max(0, listHeight), width);
 
-		// Re-layout once after footer renders if we used a zero fallback
-		if (sectionFooterHeight === 0) {
+		// Calculate list height by subtracting known chrome from total height.
+		// Use a reasonable footer fallback (80px) on first render before paint,
+		// so the list doesn't overlap the footer.
+		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 52;
+		const footerHeight = this.sectionHeader.offsetHeight || 80;
+		const listHeight = Math.max(0, height - searchBarHeight - footerHeight);
+
+		this.listContainer.style.height = `${listHeight}px`;
+		this.list.layout(listHeight, width);
+
+		// Re-layout once after paint if the footer height was estimated
+		if (this.sectionHeader.offsetHeight === 0) {
 			DOM.getWindow(this.listContainer).requestAnimationFrame(() => {
 				if (this._store.isDisposed) {
 					return;
 				}
 				const actualFooterHeight = this.sectionHeader.offsetHeight;
 				if (actualFooterHeight > 0) {
-					const correctedHeight = height - actualFooterHeight - searchBarHeight;
-					this.listContainer.style.height = `${Math.max(0, correctedHeight)}px`;
-					this.list.layout(Math.max(0, correctedHeight), width);
+					const correctedHeight = Math.max(0, height - (this.searchAndButtonContainer.offsetHeight || 52) - actualFooterHeight);
+					this.listContainer.style.height = `${correctedHeight}px`;
+					this.list.layout(correctedHeight, width);
 				}
 			});
 		}

@@ -391,6 +391,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	if (options.selectedSection) {
 		editor.selectSectionById(options.selectedSection);
+		// Wait for the next animation frame so DOM layout/paint can settle
+		await new Promise(resolve => mainWindow.requestAnimationFrame(resolve));
 		editor.layout(new Dimension(width, height));
 	}
 }
