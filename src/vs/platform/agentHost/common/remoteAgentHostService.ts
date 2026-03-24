@@ -90,17 +90,6 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	}
 }
 
-/**
- * Strips the redundant `ws://` scheme from an address. The transport layer
- * already defaults to `ws://`, so only `wss://` needs to be preserved.
- */
-export function normalizeRemoteAgentHostAddress(address: string): string {
-	if (address.startsWith('ws://')) {
-		return address.slice('ws://'.length);
-	}
-	return address;
-}
-
 export function parseRemoteAgentHostInput(input: string): RemoteAgentHostInputParseResult {
 	const trimmedInput = input.trim();
 	if (!trimmedInput) {

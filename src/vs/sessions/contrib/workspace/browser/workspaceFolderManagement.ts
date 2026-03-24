@@ -16,7 +16,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { getGitHubRemoteFileDisplayName } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 import { Queue } from '../../../../base/common/async.js';
-import { AGENT_HOST_FS_SCHEME } from '../../remoteAgentHost/browser/agentHostFileSystemProvider.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {
 
@@ -76,7 +76,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		if (session.repository) {
 			// Remote agent host sessions use a read-only FS provider that
 			// should not be added as a workspace folder.
-			if (session.repository.scheme === AGENT_HOST_FS_SCHEME) {
+			if (session.repository.scheme === AGENT_HOST_SCHEME) {
 				return undefined;
 			}
 

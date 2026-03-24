@@ -10,8 +10,9 @@ import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgent, IAgentAttachment, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
+import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
-import { AHP_PROVIDER_NOT_FOUND, IBrowseDirectoryResult, ICreateSessionParams, IDirectoryEntry, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_PROVIDER_NOT_FOUND, ContentEncoding, IBrowseDirectoryResult, ICreateSessionParams, IDirectoryEntry, IFetchContentResult, ProtocolError } from '../common/state/sessionProtocol.js';
 import {
 	SessionStatus,
 	type ISessionModelInfo,
@@ -29,6 +30,8 @@ export interface IAgentSideEffectsOptions {
 	readonly getAgent: (session: ProtocolURI) => IAgent | undefined;
 	/** Observable set of registered agents. Triggers `root/agentsChanged` when it changes. */
 	readonly agents: IObservable<readonly IAgent[]>;
+	/** Session data service for cleaning up per-session data on disposal. */
+	readonly sessionDataService: ISessionDataService;
 }
 
 /**
@@ -209,6 +212,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		const agent = this._options.getAgent(session);
 		agent?.disposeSession(URI.parse(session)).catch(() => { });
 		this._stateManager.removeSession(session);
+		this._options.sessionDataService.deleteSessionData(URI.parse(session));
 	}
 
 	async handleListSessions(): Promise<ISessionSummary[]> {
@@ -253,11 +257,11 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		try {
 			stat = await this._fileService.resolve(URI.parse(uri));
 		} catch {
-			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Directory not found: ${uri.toString()}`);
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Directory not found: ${uri.toString()}`);
 		}
 
 		if (!stat.isDirectory) {
-			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Not a directory: ${uri.toString()}`);
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Not a directory: ${uri.toString()}`);
 		}
 
 		const entries: IDirectoryEntry[] = (stat.children ?? []).map(child => ({
@@ -269,6 +273,19 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 
 	getDefaultDirectory(): ProtocolURI {
 		return URI.file(os.homedir()).toString();
+	}
+
+	async handleFetchContent(uri: ProtocolURI): Promise<IFetchContentResult> {
+		try {
+			const content = await this._fileService.readFile(URI.parse(uri));
+			return {
+				data: content.value.toString(),
+				encoding: ContentEncoding.Utf8,
+				contentType: 'text/plain',
+			};
+		} catch (_e) {
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri}`);
+		}
 	}
 
 	override dispose(): void {
