@@ -94,7 +94,7 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	async addRemoteAgentHost(): Promise<IRemoteAgentHostConnectionInfo> {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}
-	async removeRemoteAgentHost(): Promise<void> { }
+	async removeRemoteAgentHost(_address: string): Promise<void> { }
 }
 
 export function parseRemoteAgentHostInput(input: string): RemoteAgentHostInputParseResult {

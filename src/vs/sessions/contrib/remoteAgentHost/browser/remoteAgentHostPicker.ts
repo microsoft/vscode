@@ -69,8 +69,12 @@ export async function pickRemoteAgentHostFolder(
 			matchOnDescription: true,
 			onDidTriggerItemButton: async context => {
 				if (context.button === removeButton && context.item.address) {
-					context.removeItem();
-					await remoteAgentHostService.removeRemoteAgentHost(context.item.address);
+					try {
+						await remoteAgentHostService.removeRemoteAgentHost(context.item.address);
+						context.removeItem();
+					} catch {
+						notificationService.error(localize('removeRemoteFailed', "Failed to remove remote agent host {0}.", context.item.address));
+					}
 				}
 			},
 		});
