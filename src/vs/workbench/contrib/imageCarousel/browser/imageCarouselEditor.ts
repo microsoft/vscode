@@ -284,10 +284,13 @@ export class ImageCarouselEditor extends EditorPane {
 
 				const btn = document.createElement('button');
 				btn.className = isItemVideo ? 'thumbnail video-thumbnail' : 'thumbnail';
-				btn.ariaLabel = localize('imageCarousel.thumbnailLabel', "Image {0} of {1}", currentFlatIndex + 1, this._flatImages.length);
+				btn.ariaLabel = isItemVideo
+					? localize('imageCarousel.thumbnailLabelVideo', "Video {0} of {1}", currentFlatIndex + 1, this._flatImages.length)
+					: localize('imageCarousel.thumbnailLabelImage', "Image {0} of {1}", currentFlatIndex + 1, this._flatImages.length);
 
 				if (isItemVideo) {
 					const icon = h('span.codicon.codicon-play.thumbnail-play-icon');
+					icon.root.setAttribute('aria-hidden', 'true');
 					btn.appendChild(icon.root);
 				} else {
 					const img = document.createElement('img');
@@ -362,11 +365,12 @@ export class ImageCarouselEditor extends EditorPane {
 			const videoHtml = `<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src blob: data:; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
 <style nonce="${nonce}">html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:transparent}
 video{width:100%;height:100%;object-fit:contain;outline:none}</style>
 </head><body>
 <video id="v" controls></video>
-<script>
+<script nonce="${nonce}">
 window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVideo"){var b=new Blob([m.data],{type:m.mimeType});document.getElementById("v").src=URL.createObjectURL(b);}});
 </script>
 </body></html>`;
