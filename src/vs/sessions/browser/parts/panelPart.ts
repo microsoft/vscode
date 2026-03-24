@@ -177,8 +177,9 @@ export class PanelPart extends AbstractPaneCompositePart {
 
 		// Layout content with reduced dimensions to account for visual margins and border
 		const borderTotal = 2; // 1px border on each side
+		const marginLeft = this.layoutService.isVisible(Parts.SIDEBAR_PART) ? 0 : PanelPart.MARGIN_LEFT;
 		super.layout(
-			width - PanelPart.MARGIN_LEFT - PanelPart.MARGIN_RIGHT - borderTotal,
+			width - marginLeft - PanelPart.MARGIN_RIGHT - borderTotal,
 			height - PanelPart.MARGIN_BOTTOM - borderTotal,
 			top, left
 		);

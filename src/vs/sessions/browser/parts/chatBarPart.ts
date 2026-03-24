@@ -122,8 +122,9 @@ export class ChatBarPart extends AbstractPaneCompositePart {
 
 		// Layout content with reduced dimensions to account for visual margins and border
 		const borderTotal = ChatBarPart.BORDER_WIDTH * 2;
+		const marginLeft = this.layoutService.isVisible(Parts.SIDEBAR_PART) ? 0 : ChatBarPart.MARGIN_LEFT;
 		super.layout(
-			width - ChatBarPart.MARGIN_LEFT - ChatBarPart.MARGIN_RIGHT - borderTotal,
+			width - marginLeft - ChatBarPart.MARGIN_RIGHT - borderTotal,
 			height - ChatBarPart.MARGIN_TOP - ChatBarPart.MARGIN_BOTTOM - borderTotal,
 			top, left
 		);

@@ -31,6 +31,10 @@
 	box-sizing: border-box;
 }
 
+.agent-sessions-workbench:not(.nosidebar) .part.chatbar {
+	margin-left: 0;
+}
+
 .agent-sessions-workbench .part.auxiliarybar {
 	margin: 0 12px 2px 0;
 	background: var(--part-background);
@@ -45,6 +49,10 @@
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
 	box-sizing: border-box;
+}
+
+.agent-sessions-workbench:not(.nosidebar) .part.panel {
+	margin-left: 0;
 }
 
 /* Grid background matches the editor background */

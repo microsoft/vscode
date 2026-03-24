@@ -34,9 +34,9 @@
 	display: flex;
 	align-items: stretch;
 	gap: 4px;
-	padding: 6px;
+	padding: 6px 0;
 	border-top: 1px solid var(--vscode-panel-border, transparent);
-	margin-left: 12px;
+	margin: 0 12px;
 	flex-shrink: 0;
 }
 
