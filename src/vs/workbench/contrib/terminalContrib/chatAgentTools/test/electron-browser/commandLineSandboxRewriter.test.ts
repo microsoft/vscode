@@ -22,7 +22,7 @@ suite('CommandLineSandboxRewriter', () => {
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
 			isEnabled: async () => false,
-			wrapCommand: command => command,
+			wrapCommand: (command, _requestUnsandboxedExecution) => command,
 			getSandboxConfigPath: async () => '/tmp/sandbox.json',
 			getTempDir: () => undefined,
 			setNeedsForceUpdateConfigFile: () => { },
@@ -62,7 +62,7 @@ suite('CommandLineSandboxRewriter', () => {
 		const calls: string[] = [];
 		stubSandboxService({
 			isEnabled: async () => true,
-			wrapCommand: command => {
+			wrapCommand: (command, _requestUnsandboxedExecution) => {
 				calls.push('wrapCommand');
 				return `wrapped:${command}`;
 			},
@@ -83,7 +83,7 @@ suite('CommandLineSandboxRewriter', () => {
 		const calls: string[] = [];
 		stubSandboxService({
 			isEnabled: async () => true,
-			wrapCommand: command => {
+			wrapCommand: (command, _requestUnsandboxedExecution) => {
 				calls.push(`wrap:${command}`);
 				return `wrapped:${command}`;
 			},
