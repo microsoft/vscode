@@ -38,7 +38,7 @@
 	margin: unset;
 }
 
-.agent-sessions-workbench.monaco-workbench:not(.windows) .part.titlebar > .sessions-titlebar-container > .titlebar-right {
+.agent-sessions-workbench.monaco-workbench.mac .part.titlebar > .sessions-titlebar-container > .titlebar-right {
 	order: 2;
 	width: fit-content;
 	flex-grow: 0;
