@@ -131,11 +131,13 @@ suite('RemoteAgentHostService', () => {
 	test('parses supported remote host inputs', () => {
 		assert.deepStrictEqual([
 			parseRemoteAgentHostInput('Listening on ws://127.0.0.1:8089'),
+			parseRemoteAgentHostInput('Agent host proxy listening on ws://127.0.0.1:8089'),
 			parseRemoteAgentHostInput('127.0.0.1:8089'),
 			parseRemoteAgentHostInput('ws://127.0.0.1:8089'),
 			parseRemoteAgentHostInput('ws://127.0.0.1:40147?tkn=c9d12867-da33-425e-8d39-0d071e851597'),
 			parseRemoteAgentHostInput('wss://secure.example.com:443'),
 		], [
+			{ parsed: { address: '127.0.0.1:8089', connectionToken: undefined, suggestedName: '127.0.0.1:8089' } },
 			{ parsed: { address: '127.0.0.1:8089', connectionToken: undefined, suggestedName: '127.0.0.1:8089' } },
 			{ parsed: { address: '127.0.0.1:8089', connectionToken: undefined, suggestedName: '127.0.0.1:8089' } },
 			{ parsed: { address: '127.0.0.1:8089', connectionToken: undefined, suggestedName: '127.0.0.1:8089' } },
