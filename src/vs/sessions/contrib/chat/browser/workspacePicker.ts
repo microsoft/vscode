@@ -172,6 +172,8 @@ export class WorkspacePicker extends Disposable {
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
+		trigger.setAttribute('aria-haspopup', 'dialog');
+		trigger.setAttribute('aria-expanded', 'false');
 		this._triggerElement = trigger;
 
 		this._updateTriggerLabel();
@@ -217,10 +219,16 @@ export class WorkspacePicker extends Disposable {
 					this._selectProject(this._fromStored(item));
 				}
 			},
-			onHide: () => { triggerElement.focus(); },
+			onHide: () => {
+				triggerElement.classList.remove('expanded');
+				triggerElement.setAttribute('aria-expanded', 'false');
+				triggerElement.focus();
+			},
 		};
 
 		const listOptions = showFilter ? { showFilter: true, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces...") } : undefined;
+		triggerElement.classList.add('expanded');
+		triggerElement.setAttribute('aria-expanded', 'true');
 
 		this.actionWidgetService.show<IStoredProject>(
 			'workspacePicker',
@@ -430,14 +438,9 @@ export class WorkspacePicker extends Disposable {
 		dom.clearNode(this._triggerElement);
 		const project = this._selectedProject;
 		const label = project ? this._getProjectLabel(project) : localize('pickWorkspace', "Pick a Workspace");
-		const icon = project
-			? (project.isRemoteAgentHost ? Codicon.remote : project.isFolder ? Codicon.folder : Codicon.repo)
-			: Codicon.project;
-
-		dom.append(this._triggerElement, renderIcon(icon));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
-		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown)).classList.add('sessions-chat-dropdown-chevron');
 	}
 
 	private _getProjectLabel(project: SessionWorkspace): string {
