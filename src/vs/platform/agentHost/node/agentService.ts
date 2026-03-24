@@ -206,6 +206,10 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._sideEffects.handleBrowseDirectory(uri.toString());
 	}
 
+	async restoreSession(session: URI): Promise<void> {
+		return this._sideEffects.handleRestoreSession(session.toString());
+	}
+
 	async fetchContent(uri: URI): Promise<IFetchContentResult> {
 		return this._sideEffects.handleFetchContent(uri.toString());
 	}
