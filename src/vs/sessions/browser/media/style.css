@@ -139,3 +139,10 @@
 	margin-bottom: 0;
 	flex-shrink: 0;
 }
+
+/* ---- Widget Customizations ---- */
+
+/* Badge */
+.agent-sessions-workbench .badge > .badge-content {
+	border-radius: 4px !important;
+}
