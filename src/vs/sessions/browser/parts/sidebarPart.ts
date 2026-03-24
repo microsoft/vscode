@@ -12,9 +12,8 @@ import { IContextMenuService } from '../../../platform/contextview/browser/conte
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER, SIDE_BAR_FOREGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER, PANEL_BORDER } from '../../../workbench/common/theme.js';
+import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER, SIDE_BAR_FOREGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER } from '../../../workbench/common/theme.js';
 import { editorBackground } from '../../../platform/theme/common/colors/editorColors.js';
-import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
 import { sessionsSidebarHeaderBackground, sessionsSidebarHeaderForeground } from '../../common/theme.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
