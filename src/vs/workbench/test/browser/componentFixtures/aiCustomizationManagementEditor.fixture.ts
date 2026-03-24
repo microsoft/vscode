@@ -349,6 +349,8 @@ interface IRenderEditorOptions {
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
 	readonly scrollToBottom?: boolean;
+	readonly width?: number;
+	readonly height?: number;
 }
 
 async function waitForAnimationFrames(count: number): Promise<void> {
@@ -413,8 +415,8 @@ async function waitForVisibleScrollbarsToFade(container: HTMLElement): Promise<v
 // ============================================================================
 
 async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditorOptions): Promise<void> {
-	const width = 900;
-	const height = 600;
+	const width = options.width ?? 900;
+	const height = options.height ?? 600;
 	ctx.container.style.width = `${width}px`;
 	ctx.container.style.height = `${height}px`;
 
@@ -903,6 +905,27 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			harness: CustomizationHarness.VSCode,
 			selectedSection: AICustomizationManagementSection.Plugins,
 			scrollToBottom: true,
+		}),
+	}),
+
+	// Narrow viewport — catches badge clipping and layout overflow at small sizes
+	McpServersTabNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			width: 550,
+			height: 400,
+		}),
+	}),
+
+	AgentsTabNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.Agents,
+			width: 550,
+			height: 400,
 		}),
 	}),
 });
