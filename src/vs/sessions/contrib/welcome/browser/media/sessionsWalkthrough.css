@@ -102,7 +102,7 @@
 
 .sessions-walkthrough-success-icon .codicon {
 	font-size: 64px;
-	color: #73c991;
+	color: var(--vscode-testing-iconPassed, #73c991);
 }
 
 .sessions-walkthrough-success-actions {

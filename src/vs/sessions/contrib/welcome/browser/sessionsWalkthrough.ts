@@ -82,7 +82,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 		// If already signed in, go straight to success
 		if (this._isAlreadySetUp()) {
-			this._showSignInSuccess();
+			this._showSignInSuccess().catch(err => this.logService.error('[sessions walkthrough] Failed to show sign-in success:', err));
 			return;
 		}
 
@@ -110,15 +110,16 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			ChatSetupStrategy.SetupWithAppleProvider,
 		];
 
-		// Spinner + error below providers
-		const spinnerContainer = append(this.footerContainer, $('.sessions-walkthrough-spinner'));
-		spinnerContainer.style.display = 'none';
+		// Error feedback below providers
 		const errorContainer = append(this.footerContainer, $('p.sessions-walkthrough-error'));
 		errorContainer.style.display = 'none';
 
+		// Focus the first provider button so keyboard users can interact immediately
+		setTimeout(() => githubBtn.focus(), 0);
+
 		for (let i = 0; i < providerButtons.length; i++) {
 			const strategy = providerStrategies[i];
-			this._register(addDisposableListener(providerButtons[i], EventType.CLICK, () => this._runSignIn(providerButtons, spinnerContainer, errorContainer, strategy, titleEl, subtitleEl, providerRow)));
+			this._register(addDisposableListener(providerButtons[i], EventType.CLICK, () => this._runSignIn(providerButtons, errorContainer, strategy, titleEl, subtitleEl, providerRow)));
 		}
 	}
 
@@ -132,14 +133,13 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		);
 	}
 
-	private async _runSignIn(providerButtons: HTMLButtonElement[], spinner: HTMLElement, error: HTMLElement, strategy: ChatSetupStrategy, titleEl: HTMLElement, subtitleEl: HTMLElement, providerRow: HTMLElement): Promise<void> {
+	private async _runSignIn(providerButtons: HTMLButtonElement[], error: HTMLElement, strategy: ChatSetupStrategy, titleEl: HTMLElement, subtitleEl: HTMLElement, providerRow: HTMLElement): Promise<void> {
 		// Disable all provider buttons
 		for (const btn of providerButtons) {
 			btn.disabled = true;
 		}
 
 		error.style.display = 'none';
-		spinner.style.display = 'none';
 
 		// Fade the content
 		this.contentContainer.classList.add('sessions-walkthrough-fade-out');
@@ -159,8 +159,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 		try {
 			const success = await this.commandService.executeCommand<boolean>(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, {
-				setupStrategy: strategy,
-				dialogHideSkip: true
+				setupStrategy: strategy
 			});
 
 			if (success) {
@@ -178,7 +177,12 @@ export class SessionsWalkthroughOverlay extends Disposable {
 				// Show personalized success state
 				await this._showSignInSuccess();
 			} else {
-				// Fade back to sign-in state
+				// Show cancellation feedback, then reset to sign-in
+				error.textContent = localize('walkthrough.canceledError', "Sign-in was canceled. Please try again.");
+				error.style.display = '';
+				await new Promise(resolve => setTimeout(resolve, 2000));
+				error.style.display = 'none';
+
 				this.contentContainer.classList.add('sessions-walkthrough-fade-out');
 				await new Promise(resolve => setTimeout(resolve, 200));
 				this.contentContainer.classList.remove('sessions-walkthrough-fade-out');
@@ -186,6 +190,13 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			}
 		} catch (err) {
 			this.logService.error('[sessions walkthrough] Sign-in failed:', err);
+
+			// Show error feedback, then reset to sign-in
+			error.textContent = localize('walkthrough.signInError', "Something went wrong. Please try again.");
+			error.style.display = '';
+			await new Promise(resolve => setTimeout(resolve, 2000));
+			error.style.display = 'none';
+
 			this.contentContainer.classList.add('sessions-walkthrough-fade-out');
 			await new Promise(resolve => setTimeout(resolve, 200));
 			this.contentContainer.classList.remove('sessions-walkthrough-fade-out');
