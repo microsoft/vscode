@@ -35,10 +35,7 @@ function _detailMatchesAny(entryDetail: unknown, filters?: Record<string, unknow
 	if (!filters || filters.length === 0) {
 		return true;
 	}
-	if (entryDetail === undefined || entryDetail === null) {
-		return true; // marks with no detail are always cleared when the prefix matches
-	}
-	if (typeof entryDetail !== 'object') {
+	if (entryDetail === undefined || entryDetail === null || typeof entryDetail !== 'object') {
 		return false;
 	}
 	const detail = entryDetail as Record<string, unknown>;
@@ -165,10 +162,52 @@ export interface PerformanceMark {
  */
 export const getMarks: () => PerformanceMark[] = perf.getMarks;
 
-const _tracers = new Map<string, PerfTracer>();
+const _tracers = new Map<string, IPerfTracer>();
 
 /**
- * Creates a new {@link PerfTracer} with the given prefix.
+ * A reusable performance tracer that manages mark lifecycle within a prefix namespace.
+ * Created via {@link createPerfTracer}.
+ */
+export interface IPerfTracer extends IDisposable {
+	/**
+	 * Starts a new trace. Clears marks from any previously completed traces.
+	 * Returns an {@link IPerfTrace} that can be used to emit marks and signal completion.
+	 */
+	start(detail?: Record<string, unknown>): IPerfTrace;
+
+	/**
+	 * Finds an active trace registered with the given key/value pair.
+	 * Returns `undefined` if no matching trace is found or if the value is not a string.
+	 */
+	findTraceByCorrelation(key: string, value: unknown): IPerfTrace | undefined;
+}
+
+/**
+ * A single performance trace within a {@link IPerfTracer}.
+ * Created via {@link IPerfTracer.start}.
+ */
+export interface IPerfTrace extends IDisposable {
+	/**
+	 * Registers this trace so downstream code can find it via
+	 * `tracer.findTraceByCorrelation(key, value)`.
+	 */
+	registerCorrelation(key: string, value: string): void;
+
+	/**
+	 * Emits a performance mark with the trace's prefix, traceId, and any additional detail.
+	 * No-op after {@link done} has been called.
+	 */
+	mark(name: string, detail?: Record<string, unknown>): void;
+
+	/**
+	 * Marks this trace as done. Its marks will be cleared when the next trace starts.
+	 * Also unregisters this trace from the lookup map. Idempotent.
+	 */
+	done(): void;
+}
+
+/**
+ * Creates a new {@link IPerfTracer} with the given prefix.
  * A trailing `/` is appended to the prefix automatically (e.g. `'code/chat'` → `'code/chat/'`).
  *
  * By default, the tracer is registered in the global registry so that downstream code can
@@ -178,7 +217,7 @@ const _tracers = new Map<string, PerfTracer>();
  * When `local` is `true`, the tracer is not registered globally. Use this for multi-instance
  * components (e.g. widgets) where multiple tracers may share the same prefix.
  */
-export function createPerfTracer(prefix: string, options?: { local?: boolean }): PerfTracer {
+export function createPerfTracer(prefix: string, options?: { local?: boolean }): IPerfTracer {
 	const normalizedPrefix = prefix.endsWith('/') ? prefix : prefix + '/';
 	const tracer = new PerfTracer(normalizedPrefix);
 	if (!options?.local) {
@@ -189,10 +228,10 @@ export function createPerfTracer(prefix: string, options?: { local?: boolean }):
 }
 
 /**
- * Returns the globally registered {@link PerfTracer} for the given prefix, or `undefined` if none exists.
+ * Returns the globally registered {@link IPerfTracer} for the given prefix, or `undefined` if none exists.
  * A trailing `/` is appended to the prefix automatically.
  */
-export function getPerfTracer(prefix: string): PerfTracer | undefined {
+export function getPerfTracer(prefix: string): IPerfTracer | undefined {
 	const normalizedPrefix = prefix.endsWith('/') ? prefix : prefix + '/';
 	return _tracers.get(normalizedPrefix);
 }
@@ -225,21 +264,17 @@ export function getPerfTracer(prefix: string): PerfTracer | undefined {
  * // NO .done() — doesn't own the lifecycle
  * ```
  */
-class PerfTracer implements IDisposable {
+class PerfTracer implements IPerfTracer {
 
 	private static _nextTraceId = 0;
 
 	private readonly _doneTraceIds = new Set<string>();
-	private readonly _activeTraces = new Map<string, PerfTrace>(); // "key:value" -> trace
+	private readonly _activeTraces = new Map<string, PerfTrace>();
 	private _disposed = false;
 
 	constructor(private readonly _prefix: string) { }
 
-	/**
-	 * Starts a new trace. Clears marks from any previously completed traces.
-	 * Returns a {@link PerfTrace} that can be used to emit marks and signal completion.
-	 */
-	start(detail?: Record<string, unknown>): PerfTrace {
+	start(detail?: Record<string, unknown>): IPerfTrace {
 		if (this._disposed) {
 			throw new Error('PerfTracer is disposed');
 		}
@@ -251,21 +286,13 @@ class PerfTracer implements IDisposable {
 		return new PerfTrace(this._prefix, traceId, detail, this._doneTraceIds, this._activeTraces);
 	}
 
-	/**
-	 * Finds an active trace registered with the given key/value pair.
-	 * Returns `undefined` if no matching trace is found or if the value is not a string.
-	 */
-	findTraceByCorrelation(key: string, value: unknown): PerfTrace | undefined {
+	findTraceByCorrelation(key: string, value: unknown): IPerfTrace | undefined {
 		if (this._disposed || typeof value !== 'string') {
 			return undefined;
 		}
-		return this._activeTraces.get(`${key}:${value}`);
+		return this._activeTraces.get(`${key}\0${value}`);
 	}
 
-	/**
-	 * Disposes this tracer: clears all marks with this prefix, unregisters all active traces,
-	 * and removes the tracer from the global registry (if registered via {@link createPerfTracer}).
-	 */
 	dispose(): void {
 		if (this._disposed) {
 			return;
@@ -280,9 +307,10 @@ class PerfTracer implements IDisposable {
 	}
 }
 
-export class PerfTrace implements IDisposable {
+class PerfTrace implements IPerfTrace {
 
 	private readonly _registrations: string[] = [];
+	private _isDone = false;
 
 	constructor(
 		private readonly _prefix: string,
@@ -292,27 +320,24 @@ export class PerfTrace implements IDisposable {
 		private readonly _activeTraces: Map<string, PerfTrace>,
 	) { }
 
-	/**
-	 * Registers this trace so downstream code can find it via `tracer.findTraceByCorrelation(key, value)`.
-	 */
 	registerCorrelation(key: string, value: string): void {
-		const registrationKey = `${key}:${value}`;
+		const registrationKey = `${key}\0${value}`;
 		this._registrations.push(registrationKey);
 		this._activeTraces.set(registrationKey, this);
 	}
 
-	/**
-	 * Emits a performance mark with the trace's prefix, traceId, and any additional detail.
-	 */
 	mark(name: string, detail?: Record<string, unknown>): void {
+		if (this._isDone) {
+			return;
+		}
 		mark(this._prefix + name, { detail: { traceId: this._traceId, ...this._detail, ...detail } });
 	}
 
-	/**
-	 * Marks this trace as done. Its marks will be cleared when the next trace starts.
-	 * Also unregisters this trace from the lookup map.
-	 */
 	done(): void {
+		if (this._isDone) {
+			return;
+		}
+		this._isDone = true;
 		this._doneTraceIds.add(this._traceId);
 		for (const key of this._registrations) {
 			this._activeTraces.delete(key);

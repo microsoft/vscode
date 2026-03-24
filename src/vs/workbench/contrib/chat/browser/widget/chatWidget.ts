@@ -2217,10 +2217,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		const trace = this._perfTracer.start();
 		trace.mark('willAcceptInput');
-		const result = await this._acceptInput(query ? { query } : undefined, options);
-		trace.mark('didAcceptInput');
-		trace.done();
-		return result;
+		try {
+			const result = await this._acceptInput(query ? { query } : undefined, options);
+			trace.mark('didAcceptInput');
+			return result;
+		} finally {
+			trace.done();
+		}
 	}
 
 	async rerunLastRequest(): Promise<void> {

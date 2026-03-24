@@ -182,7 +182,7 @@ suite('PerfTracer', () => {
 			assert.strictEqual(marksFor(p).length, 0);
 		});
 
-		test('marks without detail are cleared as fallback', () => {
+		test('marks without detail survive when detail filter is provided', () => {
 			const p = uniquePrefix();
 			mark(`${p}noDetail`);
 
@@ -191,9 +191,22 @@ suite('PerfTracer', () => {
 			t.mark('withDetail');
 			t.done();
 
-			tracer.start(); // clears done trace; noDetail also cleared (no traceId to filter against)
+			tracer.start(); // clears done trace by traceId filter; noDetail survives (has no traceId)
 
-			assert.strictEqual(marksFor(p).filter(m => m.name === `${p}noDetail`).length, 0);
+			assert.strictEqual(marksFor(p).filter(m => m.name === `${p}noDetail`).length, 1);
+			clearMarks(p);
+		});
+
+		test('mark() is a no-op after done()', () => {
+			const p = uniquePrefix();
+			const tracer = createPerfTracer(p);
+
+			const t = tracer.start();
+			t.mark('before');
+			t.done();
+			t.mark('after'); // should be silently ignored
+
+			assert.deepStrictEqual(markNames(p), [`${p}before`]);
 		});
 
 		test('marks from other prefixes are never touched', () => {
@@ -546,13 +559,16 @@ suite('clearMarks', () => {
 		assert.strictEqual(detailOf(remaining[0]).id, '2');
 	});
 
-	test('clears marks with no detail when details filter is provided (fallback)', () => {
+	test('clears marks with no detail only when no filter is provided', () => {
 		mark(`${prefix}noDetail`);
 		mark(`${prefix}withDetail`, { detail: { id: '1' } });
 
 		clearMarks(prefix, [{ id: '1' }]);
 
-		assert.strictEqual(marksFor(prefix).length, 0);
+		const remaining = marksFor(prefix);
+		assert.strictEqual(remaining.length, 1);
+		assert.strictEqual(remaining[0].name, `${prefix}noDetail`);
+		clearMarks(prefix);
 	});
 
 	test('does not clear marks whose detail does not match any filter', () => {
