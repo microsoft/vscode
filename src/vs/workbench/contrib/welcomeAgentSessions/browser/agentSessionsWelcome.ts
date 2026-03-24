@@ -243,7 +243,9 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 		// Header
 		const header = append(this.contentContainer, $('.agentSessionsWelcome-header'));
-		append(header, $('h1.product-name', {}, this.productService.nameLong));
+		const title = $('h1.product-name', {}, this.productService.nameLong);
+		title.style.lineHeight = '1.3';
+		append(header, title);
 
 		const startEntries = append(header, $('.agentSessionsWelcome-startEntries'));
 		await this.buildStartEntries(startEntries);
