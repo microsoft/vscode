@@ -517,8 +517,9 @@ export class RemoteNewSession extends Disposable implements ISessionData {
 function toSessionStatus(status: ChatSessionStatus): SessionStatus {
 	switch (status) {
 		case ChatSessionStatus.InProgress:
-		case ChatSessionStatus.NeedsInput:
 			return SessionStatus.InProgress;
+		case ChatSessionStatus.NeedsInput:
+			return SessionStatus.NeedsInput;
 		case ChatSessionStatus.Completed:
 			return SessionStatus.Completed;
 		case ChatSessionStatus.Failed:
