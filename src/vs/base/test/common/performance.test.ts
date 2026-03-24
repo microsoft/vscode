@@ -244,6 +244,96 @@ suite('PerfTracer', () => {
 		});
 	});
 
+	suite('maxDoneTraces retention', () => {
+		test('maxDoneTraces=0 (default) clears all done traces on next start', () => {
+			const p = uniquePrefix();
+			const tracer = createPerfTracer(p);
+
+			const t1 = tracer.start();
+			t1.mark('old');
+			t1.done();
+
+			tracer.start().mark('new');
+			assert.deepStrictEqual(markNames(p), [`${p}new`]);
+		});
+
+		test('maxDoneTraces=1 retains the most recent done trace', () => {
+			const p = uniquePrefix();
+			const tracer = createPerfTracer(p, { maxDoneTraces: 1 });
+
+			const t1 = tracer.start();
+			t1.mark('t1');
+			t1.done();
+
+			// Next start should keep t1's marks
+			const t2 = tracer.start();
+			t2.mark('t2');
+
+			const names = markNames(p);
+			assert.ok(names.includes(`${p}t1`), 't1 marks should be retained');
+			assert.ok(names.includes(`${p}t2`), 't2 marks should be present');
+		});
+
+		test('maxDoneTraces=1 evicts oldest when a second done trace exists', () => {
+			const p = uniquePrefix();
+			const tracer = createPerfTracer(p, { maxDoneTraces: 1 });
+
+			const t1 = tracer.start();
+			t1.mark('t1');
+			t1.done();
+
+			const t2 = tracer.start();
+			t2.mark('t2');
+			t2.done();
+
+			// t1 and t2 are both done. Starting t3 should evict t1 but keep t2.
+			tracer.start().mark('t3');
+
+			const names = markNames(p);
+			assert.ok(!names.includes(`${p}t1`), 't1 marks should be evicted');
+			assert.ok(names.includes(`${p}t2`), 't2 marks should be retained');
+			assert.ok(names.includes(`${p}t3`), 't3 marks should be present');
+		});
+
+		test('maxDoneTraces=2 retains two completed traces', () => {
+			const p = uniquePrefix();
+			const tracer = createPerfTracer(p, { maxDoneTraces: 2 });
+
+			const t1 = tracer.start();
+			t1.mark('t1');
+			t1.done();
+
+			const t2 = tracer.start();
+			t2.mark('t2');
+			t2.done();
+
+			const t3 = tracer.start();
+			t3.mark('t3');
+			t3.done();
+
+			// 3 done traces, limit is 2 → t1 evicted, t2+t3 kept
+			tracer.start().mark('t4');
+
+			const names = markNames(p);
+			assert.ok(!names.includes(`${p}t1`), 't1 should be evicted');
+			assert.ok(names.includes(`${p}t2`), 't2 should be retained');
+			assert.ok(names.includes(`${p}t3`), 't3 should be retained');
+			assert.ok(names.includes(`${p}t4`), 't4 should be present');
+		});
+
+		test('dispose clears all marks regardless of maxDoneTraces', () => {
+			const p = uniquePrefix();
+			const tracer = createPerfTracer(p, { maxDoneTraces: 5 });
+
+			const t1 = tracer.start();
+			t1.mark('t1');
+			t1.done();
+
+			tracer.dispose();
+			assert.strictEqual(marksFor(p).length, 0);
+		});
+	});
+
 	suite('registerCorrelation() and findTraceByCorrelation()', () => {
 		test('findTraceByCorrelation() returns undefined when no trace is registered', () => {
 			const p = uniquePrefix();

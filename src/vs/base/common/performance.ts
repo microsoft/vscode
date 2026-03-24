@@ -216,10 +216,13 @@ export interface IPerfTrace extends IDisposable {
  *
  * When `local` is `true`, the tracer is not registered globally. Use this for multi-instance
  * components (e.g. widgets) where multiple tracers may share the same prefix.
+ *
+ * `maxDoneTraces` controls how many completed traces' marks are retained (default `0`).
+ * When a new trace starts, only the oldest completed traces beyond this limit are cleared.
  */
-export function createPerfTracer(prefix: string, options?: { local?: boolean }): IPerfTracer {
+export function createPerfTracer(prefix: string, options?: { local?: boolean; maxDoneTraces?: number }): IPerfTracer {
 	const normalizedPrefix = prefix.endsWith('/') ? prefix : prefix + '/';
-	const tracer = new PerfTracer(normalizedPrefix);
+	const tracer = new PerfTracer(normalizedPrefix, options?.maxDoneTraces ?? 0);
 	if (!options?.local) {
 		_tracers.get(normalizedPrefix)?.dispose();
 		_tracers.set(normalizedPrefix, tracer);
@@ -268,19 +271,24 @@ class PerfTracer implements IPerfTracer {
 
 	private static _nextTraceId = 0;
 
-	private readonly _doneTraceIds = new Set<string>();
+	private readonly _doneTraceIds: string[] = [];
 	private readonly _activeTraces = new Map<string, PerfTrace>();
 	private _disposed = false;
 
-	constructor(private readonly _prefix: string) { }
+	constructor(
+		private readonly _prefix: string,
+		private readonly _maxDoneTraces: number,
+	) { }
 
 	start(detail?: Record<string, unknown>): IPerfTrace {
 		if (this._disposed) {
 			throw new Error('PerfTracer is disposed');
 		}
-		if (this._doneTraceIds.size > 0) {
-			clearMarks(this._prefix, [...this._doneTraceIds].map(traceId => ({ traceId })));
-			this._doneTraceIds.clear();
+		// Evict oldest completed traces beyond the retention limit
+		const evictCount = this._doneTraceIds.length - this._maxDoneTraces;
+		if (evictCount > 0) {
+			const toEvict = this._doneTraceIds.splice(0, evictCount);
+			clearMarks(this._prefix, toEvict.map(traceId => ({ traceId })));
 		}
 		const traceId = String(PerfTracer._nextTraceId++);
 		return new PerfTrace(this._prefix, traceId, detail, this._doneTraceIds, this._activeTraces);
@@ -299,7 +307,7 @@ class PerfTracer implements IPerfTracer {
 		}
 		this._disposed = true;
 		clearMarks(this._prefix);
-		this._doneTraceIds.clear();
+		this._doneTraceIds.length = 0;
 		this._activeTraces.clear();
 		if (_tracers.get(this._prefix) === this) {
 			_tracers.delete(this._prefix);
@@ -316,7 +324,7 @@ class PerfTrace implements IPerfTrace {
 		private readonly _prefix: string,
 		private readonly _traceId: string,
 		private readonly _detail: Record<string, unknown> | undefined,
-		private readonly _doneTraceIds: Set<string>,
+		private readonly _doneTraceIds: string[],
 		private readonly _activeTraces: Map<string, PerfTrace>,
 	) { }
 
@@ -338,7 +346,7 @@ class PerfTrace implements IPerfTrace {
 			return;
 		}
 		this._isDone = true;
-		this._doneTraceIds.add(this._traceId);
+		this._doneTraceIds.push(this._traceId);
 		for (const key of this._registrations) {
 			this._activeTraces.delete(key);
 		}
