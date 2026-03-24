@@ -5741,9 +5741,11 @@ export class CommandCenter {
 			return false;
 		}
 
-		const scopeItems: (QuickPickItem & { scope: 'local' | 'global' })[] = [
+		const scopeItems: (QuickPickItem & { scope: 'local' | 'global' })[] = repository ? [
 			{ label: l10n.t('Global'), description: l10n.t('Apply to all repositories'), scope: 'global' },
 			{ label: l10n.t('Local'), description: l10n.t('Apply to this repository only'), scope: 'local' }
+		] : [
+			{ label: l10n.t('Global'), description: l10n.t('Apply to all repositories'), scope: 'global' }
 		];
 
 		const scopeChoice = await window.showQuickPick(scopeItems, {
@@ -5765,6 +5767,7 @@ export class CommandCenter {
 			}
 			return true;
 		} catch {
+			await window.showWarningMessage(l10n.t('Git could not save your identity. Please check your Git configuration and try again.'));
 			return false;
 		}
 	}
