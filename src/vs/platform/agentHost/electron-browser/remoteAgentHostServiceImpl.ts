@@ -119,6 +119,14 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		return connection;
 	}
 
+	async removeRemoteAgentHost(address: string): Promise<void> {
+		const normalized = normalizeRemoteAgentHostAddress(address);
+		const entries = this._getConfiguredEntries().filter(
+			e => normalizeRemoteAgentHostAddress(e.address) !== normalized
+		);
+		await this._storeConfiguredEntries(entries);
+	}
+
 	private _removeConnection(address: string): void {
 		const entry = this._entries.get(address);
 		if (entry) {
