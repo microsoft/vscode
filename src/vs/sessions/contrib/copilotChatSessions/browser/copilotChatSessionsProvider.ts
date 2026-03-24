@@ -14,6 +14,7 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { getRepositoryName } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsViewer.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -612,26 +613,20 @@ class AgentSessionAdapter implements ISessionData {
 	}
 
 	private _buildWorkspace(session: IAgentSession): ISessionWorkspace | undefined {
+		// Use the same repository name extraction as the old agent sessions view
+		const label = getRepositoryName(session);
+		if (!label) {
+			return undefined;
+		}
+
 		const metadata = session.metadata as Record<string, unknown> | undefined;
-		if (!metadata) {
-			return undefined;
-		}
-
 		const repoUri = this._extractRepoUri(session);
-		if (!repoUri) {
-			return undefined;
-		}
-
-		const worktreeUri = metadata['worktree'] ? URI.parse(metadata['worktree'] as string) : undefined;
-		const branchName = metadata['branchName'] as string | undefined;
-		const baseBranchProtected = metadata['baseBranchProtected'] as boolean | undefined;
-
-		const label = repoUri.scheme === GITHUB_REMOTE_FILE_SCHEME
-			? this._repoLabelFromUri(repoUri)
-			: repoUri.fsPath.split('/').pop() ?? repoUri.fsPath;
+		const worktreeUri = metadata?.['worktree'] ? URI.parse(metadata['worktree'] as string) : undefined;
+		const branchName = metadata?.['branchName'] as string | undefined;
+		const baseBranchProtected = metadata?.['baseBranchProtected'] as boolean | undefined;
 
 		const repository: ISessionRepository = {
-			uri: repoUri,
+			uri: repoUri ?? URI.parse('unknown://'),
 			workingDirectory: worktreeUri,
 			detail: branchName,
 			baseBranchProtected,
@@ -639,7 +634,7 @@ class AgentSessionAdapter implements ISessionData {
 
 		return {
 			label,
-			icon: repoUri.scheme === GITHUB_REMOTE_FILE_SCHEME ? Codicon.repo : Codicon.folder,
+			icon: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? Codicon.repo : Codicon.folder,
 			repositories: [repository],
 		};
 	}

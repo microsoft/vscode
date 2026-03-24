@@ -8,6 +8,11 @@
 	overflow: hidden;
 }
 
+/* Add horizontal padding to the scrollable area */
+.sessions-list-control .monaco-scrollable-element {
+	padding: 0 6px;
+}
+
 /* Hide tree twisties — sections expand/collapse but we do not show arrows */
 .sessions-list-control .force-no-twistie {
 	display: none !important;
@@ -28,11 +33,12 @@
 	display: flex;
 	align-items: flex-start;
 	line-height: 17px;
+	font-size: 12px;
 }
 
-.session-icon .codicon {
+.session-icon > .codicon {
 	flex-shrink: 0;
-	font-size: 12px;
+	font-size: 12px !important;
 	height: 16px;
 	display: flex;
 	align-items: center;
