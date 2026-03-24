@@ -19,11 +19,11 @@ import {
 	IRemoteAgentHostService,
 	RemoteAgentHostsEnabledSettingId,
 	RemoteAgentHostsSettingId,
-	normalizeRemoteAgentHostAddress,
 	type IRemoteAgentHostConnectionInfo,
 	type IRemoteAgentHostEntry,
 } from '../common/remoteAgentHostService.js';
 import { RemoteAgentHostProtocolClient } from './remoteAgentHostProtocolClient.js';
+import { normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
 
 /** Tracks a single remote connection through its lifecycle. */
 interface IConnectionEntry {

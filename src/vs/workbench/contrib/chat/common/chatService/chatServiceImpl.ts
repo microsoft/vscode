@@ -36,7 +36,7 @@ import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from '../chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
 import { chatEditingSessionIsReady } from '../editing/chatEditingService.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from '../model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestModeInfo, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges, ISerializableChatModelInputState } from '../model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
@@ -56,6 +56,8 @@ import { IPromptsService } from '../promptSyntax/service/promptsService.js';
 import { AGENT_DEBUG_LOG_ENABLED_SETTING, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
 import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { findLast } from '../../../../../base/common/arraysFind.js';
+import { ChatMode } from '../chatModes.js';
 
 const serializedChatKey = 'interactive.sessions';
 
@@ -607,12 +609,44 @@ export class ChatService extends Disposable implements IChatService {
 				return existingRef;
 			}
 		}
-
 		const chatSessionType = getChatSessionType(sessionResource);
+		const contribution = this.chatSessionService.getChatSessionContribution(chatSessionType);
+		const modelId = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modelId)?.modelId;
+		const agentUri = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modeInstructions?.uri)?.modeInstructions?.uri;
+		let initialData: ISerializedChatDataReference | undefined = undefined;
+		if ((modelId || agentUri) && contribution?.useRequestToPopulateBuiltInPickers) {
+			const mode: ISerializableChatModelInputState['mode'] = agentUri ? { kind: ChatModeKind.Agent, id: agentUri.toString() } : { kind: ChatModeKind.Agent, id: ChatMode.Agent.id };
+			const modelMetadata = modelId ? this.languageModelsService.lookupLanguageModel(modelId) : undefined;
+			const selectedModel: ISerializableChatModelInputState['selectedModel'] = modelId && modelMetadata ? { identifier: modelId, metadata: modelMetadata } : undefined;
+			// This is used to initialize the state of the chat input box, with the selected model, mode, etc
+			initialData = {
+				serializer: new ChatSessionOperationLog(),
+				value: {
+					creationDate: Date.now(),
+					initialLocation: undefined,
+					customTitle: undefined,
+					requests: [],
+					responderUsername: '',
+					sessionId: '',
+					version: 3,
+					hasPendingEdits: undefined,
+					inputState: {
+						attachments: [],
+						contrib: {},
+						inputText: '',
+						mode,
+						selectedModel: selectedModel,
+						selections: []
+					},
+					pendingRequests: undefined,
+					repoData: undefined
+				}
+			};
+		}
 
 		// Contributed sessions do not use UI tools
 		const modelRef = this._sessionModels.acquireOrCreate({
-			initialData: undefined,
+			initialData,
 			location,
 			sessionResource: sessionResource,
 			canUseTools: false,
@@ -656,10 +690,17 @@ export class ChatService extends Disposable implements IChatService {
 					message.participant
 						? this.chatAgentService.getAgent(message.participant) // TODO(jospicer): Remove and always hardcode?
 						: this.chatAgentService.getAgent(chatSessionType);
+				const modeInfo = message.modeInstructions ? {
+					kind: ChatModeKind.Agent,
+					isBuiltin: message.modeInstructions.isBuiltin ?? false,
+					modeInstructions: message.modeInstructions,
+					modeId: 'custom',
+					applyCodeBlockSuggestionId: undefined,
+				} satisfies IChatRequestModeInfo : undefined;
 				lastRequest = model.addRequest(parsedRequest,
 					message.variableData ?? { variables: [] },
 					0, // attempt
-					undefined,
+					modeInfo,
 					agent,
 					undefined, // slashCommand
 					undefined, // confirmation
@@ -1129,7 +1170,6 @@ export class ChatService extends Disposable implements IChatService {
 							modeInstructions: options?.modeInfo?.modeInstructions,
 							permissionLevel: options?.modeInfo?.permissionLevel,
 							editedFileEvents: request.editedFileEvents,
-							sessionGrouping: options?.sessionGrouping,
 							hooks: collectedHooks,
 							hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
 						};
@@ -1510,6 +1550,7 @@ export class ChatService extends Disposable implements IChatService {
 				variables: updateRanges(request.variableData, promptTextResult.diff), // TODO bit of a hack
 				location: ChatAgentLocation.Chat,
 				editedFileEvents: request.editedFileEvents,
+				modeInstructions: request.modeInfo?.modeInstructions,
 			};
 			history.push({ request: historyRequest, response: toChatHistoryContent(request.response.response.value), result: request.response.result ?? {} });
 		}
