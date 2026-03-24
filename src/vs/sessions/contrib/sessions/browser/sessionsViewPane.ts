@@ -149,15 +149,33 @@ export class AgenticSessionsViewPane extends ViewPane {
 
 		// New Session Button
 		const newSessionButtonContainer = DOM.append(sessionsContent, $('.agent-sessions-new-button-container'));
-		const newSessionButton = this._register(new Button(newSessionButtonContainer, { ...defaultButtonStyles, secondary: true }));
-		newSessionButton.label = localize('newSession', "New Session");
+		const keybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_CHAT);
+		const keybindingLabel = keybinding?.getLabel();
+		const keybindingAriaLabel = keybinding?.getAriaLabel();
+		const newSessionButtonTitle = keybindingLabel
+			? localize('newSessionButtonTitle', "New Session ({0})", keybindingLabel)
+			: localize('newSessionButtonTitleWithoutKeybinding', "New Session");
+		const newSessionButtonAriaLabel = keybindingAriaLabel
+			? localize('newSessionButtonAriaLabel', "New Session ({0})", keybindingAriaLabel)
+			: localize('newSessionButtonAriaLabelWithoutKeybinding', "New Session");
+		const newSessionButton = this._register(new Button(newSessionButtonContainer, {
+			...defaultButtonStyles,
+			secondary: true,
+			supportIcons: true,
+			title: newSessionButtonTitle,
+			ariaLabel: newSessionButtonAriaLabel,
+		}));
+		newSessionButton.label = `$(${Codicon.plus.id}) ${localize('sessionLabel', "Session")}`;
 		this._register(newSessionButton.onDidClick(() => this.activeSessionService.openNewSessionView()));
 
-		// Keybinding hint inside the button
-		const keybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_CHAT);
-		if (keybinding) {
-			const keybindingHint = DOM.append(newSessionButton.element, $('span.new-session-keybinding-hint'));
-			keybindingHint.textContent = keybinding.getLabel() ?? '';
+		const buttonLabel = $('.new-session-button-label');
+		DOM.append(buttonLabel, ...Array.from(newSessionButton.element.childNodes));
+		for (const icon of buttonLabel.querySelectorAll('.codicon')) {
+			icon.setAttribute('aria-hidden', 'true');
+		}
+		DOM.reset(newSessionButton.element, buttonLabel);
+		if (keybindingLabel) {
+			DOM.append(newSessionButton.element, $('span.new-session-keybinding-hint', undefined, keybindingLabel));
 		}
 
 		// Sessions Control

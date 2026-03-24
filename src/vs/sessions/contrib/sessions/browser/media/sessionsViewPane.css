@@ -77,15 +77,23 @@
 	}
 
 	.agent-sessions-new-button-container .monaco-button {
-		position: relative;
 		display: flex;
 		align-items: center;
-		justify-content: center;
+		justify-content: space-between;
+		gap: 12px;
+		text-align: left;
+	}
+
+	.agent-sessions-new-button-container .monaco-button .new-session-button-label {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		min-width: 0;
 	}
 
 	.agent-sessions-new-button-container .monaco-button .new-session-keybinding-hint {
-		position: absolute;
-		right: 10px;
+		margin-left: auto;
+		flex-shrink: 0;
 		font-size: 11px;
 		opacity: 0.5;
 	}
