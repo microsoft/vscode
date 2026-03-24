@@ -1041,6 +1041,7 @@
 }
 
 .ai-customization-management-editor .editor-save-indicator.saved {
+	color: var(--vscode-testing-iconPassed, #73c991);
 	opacity: 1;
 }
 
