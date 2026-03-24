@@ -893,13 +893,20 @@ export class McpListWidget extends Disposable {
 		this.lastWidth = width;
 
 		this.element.style.height = `${height}px`;
-		this.listContainer.style.height = '';
 
-		// Read flex-computed height; when the container is hidden (display:none)
-		// clientHeight is 0, so fall back to the full height — the next layout
-		// call after the container becomes visible will correct it.
-		const listHeight = this.listContainer.clientHeight || height;
-		this.list.layout(Math.max(0, listHeight), width);
+		// Measure sibling elements. When the widget is hidden (display:none)
+		// offsetHeight returns 0 — skip layout; selectSectionById will
+		// re-layout when the container becomes visible.
+		const searchBarHeight = this.searchAndButtonContainer.offsetHeight;
+		if (searchBarHeight === 0) {
+			return;
+		}
+		const footerHeight = this.sectionHeader.offsetHeight;
+		const backLinkHeight = this.browseMode ? this.backLink.offsetHeight : 0;
+		const listHeight = Math.max(0, height - searchBarHeight - footerHeight - backLinkHeight);
+
+		this.listContainer.style.height = `${listHeight}px`;
+		this.list.layout(listHeight, width);
 	}
 
 	/**
@@ -907,6 +914,15 @@ export class McpListWidget extends Disposable {
 	 */
 	focusSearch(): void {
 		this.searchInput.focus();
+	}
+
+	/**
+	 * Scrolls the list so the last item is visible.
+	 */
+	revealLastItem(): void {
+		if (this.list.length > 0) {
+			this.list.reveal(this.list.length - 1);
+		}
 	}
 
 	/**

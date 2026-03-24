@@ -1298,6 +1298,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	/**
+	 * Scrolls the active list widget so the last item is visible.
+	 */
+	public revealLastItem(): void {
+		if (this.selectedSection === AICustomizationManagementSection.McpServers) {
+			this.mcpListWidget?.revealLastItem();
+		} else {
+			this.listWidget.revealLastItem();
+		}
+	}
+
+	/**
 	 * Generates a debug report for the current section.
 	 */
 	public async generateDebugReport(): Promise<string> {

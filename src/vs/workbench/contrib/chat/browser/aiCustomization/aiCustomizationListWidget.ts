@@ -1700,24 +1700,33 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
+	 * Scrolls the list so the last item is visible.
+	 */
+	revealLastItem(): void {
+		if (this.displayEntries.length > 0) {
+			this.list.reveal(this.displayEntries.length - 1);
+		}
+	}
+
+	/**
 	 * Layouts the widget.
 	 */
 	layout(height: number, width: number): void {
-		// Set the widget height and let CSS flex layout distribute space
-		// between search bar (flex-shrink: 0), list (flex: 1), and footer
-		// (flex-shrink: 0). Then read the computed list container height
-		// to tell the virtual-scroll WorkbenchList its available space.
 		this.element.style.height = `${height}px`;
 		this.searchInput.layout();
 
-		// Remove any previously-set explicit height so flex can recompute
-		this.listContainer.style.height = '';
+		// Measure sibling elements to calculate the remaining space for the list.
+		// When the widget is hidden (display:none) offsetHeight returns 0 —
+		// skip layout; selectSectionById will re-layout when visible.
+		const searchBarHeight = this.searchAndButtonContainer.offsetHeight;
+		if (searchBarHeight === 0) {
+			return;
+		}
+		const footerHeight = this.sectionHeader.offsetHeight;
+		const listHeight = Math.max(0, height - searchBarHeight - footerHeight);
 
-		// Reading clientHeight forces a synchronous reflow, giving us the
-		// flex-computed height. Falls back to the passed-in height when the
-		// container is hidden (display:none → clientHeight is 0).
-		const listHeight = this.listContainer.clientHeight || height;
-		this.list.layout(Math.max(0, listHeight), width);
+		this.listContainer.style.height = `${listHeight}px`;
+		this.list.layout(listHeight, width);
 	}
 
 	/**

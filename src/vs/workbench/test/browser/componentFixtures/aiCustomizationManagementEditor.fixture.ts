@@ -267,6 +267,7 @@ interface IRenderEditorOptions {
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
+	readonly scrollToBottom?: boolean;
 }
 
 // ============================================================================
@@ -391,9 +392,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	if (options.selectedSection) {
 		editor.selectSectionById(options.selectedSection);
-		// Wait for the next animation frame so DOM layout/paint can settle
-		await new Promise(resolve => mainWindow.requestAnimationFrame(resolve));
-		editor.layout(new Dimension(width, height));
+	}
+
+	if (options.scrollToBottom) {
+		editor.revealLastItem();
 	}
 }
 
@@ -719,5 +721,24 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginBrowseMode: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: renderPluginBrowseMode,
+	}),
+
+	// Scrolled-to-bottom variants — verify last items are fully visible above footer
+	PromptsTabScrolled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.Prompts,
+			scrollToBottom: true,
+		}),
+	}),
+
+	McpServersTabScrolled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			scrollToBottom: true,
+		}),
 	}),
 });
