@@ -85,14 +85,7 @@
 	font-size: 12px;
 	line-height: 15px;
 	color: var(--vscode-descriptionForeground);
-}
-
-/* Elements without has-detail are hidden */
-.session-workspace:not(.has-detail),
-.session-diff:not(.has-detail),
-.session-description:not(.has-detail),
-.session-time:not(.has-detail) {
-	display: none;
+	gap: 0;
 }
 
 /* Separator dots rendered by the renderer as inline spans */
