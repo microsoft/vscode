@@ -792,6 +792,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	async resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void> {
 		const trace = this._perfTracer.start({ requestId: request.id });
+		trace.registerCorrelation('sessionResource', request.session.sessionResource.toString());
 		trace.mark('willResendRequest');
 		try {
 			const model = this._sessionModels.get(request.session.sessionResource);
@@ -1491,7 +1492,8 @@ export class ChatService extends Disposable implements IChatService {
 		const agent = silentAgent ?? parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
 		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 
-		const trace = this._perfTracer.start();
+		const trace = this._perfTracer.start({ sessionResource: model.sessionResource.toString() });
+		trace.registerCorrelation('sessionResource', model.sessionResource.toString());
 		const responseState = this._sendRequestAsync(model, model.sessionResource, parsedRequest, firstRequest.request.attempt, !sendOptions.noCommandDetection, silentAgent ?? defaultAgent, location, sendOptions, trace);
 
 		const result: ChatSendResultSent = {

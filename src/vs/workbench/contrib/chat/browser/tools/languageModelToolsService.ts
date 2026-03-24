@@ -639,7 +639,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				throw new CancellationError();
 			}
 
-			const trace = getPerfTracer('code/chat')?.findTraceByCorrelation('requestId', dto.chatRequestId);
+			const tracer = getPerfTracer('code/chat');
+			const trace = tracer?.findTraceByCorrelation('requestId', requestId) ?? tracer?.findTraceByCorrelation('requestId', dto.chatRequestId);
 			trace?.mark('willInvokeTool');
 			invocationTimeWatch = StopWatch.create(true);
 			toolResult = await tool.impl.invoke(dto, countTokens, {

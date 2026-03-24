@@ -17,7 +17,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { createPerfTracer } from '../../../../../base/common/performance.js';
+import { createPerfTracer, IPerfTrace } from '../../../../../base/common/performance.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -2218,7 +2218,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const trace = this._perfTracer.start();
 		trace.mark('willAcceptInput');
 		try {
-			const result = await this._acceptInput(query ? { query } : undefined, options);
+			const result = await this._acceptInput(query ? { query } : undefined, options, trace);
 			trace.mark('didAcceptInput');
 			return result;
 		} finally {
@@ -2307,7 +2307,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}): Promise<IChatResponseModel | undefined> {
+	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}, trace?: IPerfTrace): Promise<IChatResponseModel | undefined> {
 		if (!query && this.input.generating) {
 			// if the user submits the input and generation finishes quickly, just submit it for them
 			const generatingAutoSubmitWindow = 500;
@@ -2382,7 +2382,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// process the prompt command
 		await this._applyPromptFileIfSet(requestInputs);
+		trace?.mark('willCollectInstructions');
 		await this._autoAttachInstructions(requestInputs);
+		trace?.mark('didCollectInstructions');
 
 		if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit) {
 			const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
