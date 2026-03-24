@@ -5,19 +5,26 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { agentHostUri } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IParsedRemoteAgentHostInput, IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostInputValidationError } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { agentHostAuthority } from './remoteAgentHost.contribution.js';
-import { AGENT_HOST_FS_SCHEME, agentHostUri } from './agentHostFileSystemProvider.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 interface IRemoteAgentHostPickItem extends IQuickPickItem {
 	readonly remoteType: 'existing' | 'add';
 	readonly address?: string;
 	readonly defaultDirectory?: string;
 }
+
+const removeButton: IQuickInputButton = {
+	iconClass: ThemeIcon.asClassName(Codicon.close),
+	tooltip: localize('removeRemote', "Remove Remote"),
+};
 
 /**
  * Drives the "Browse Remotes" flow: lets the user pick an existing configured
@@ -47,6 +54,7 @@ export async function pickRemoteAgentHostFolder(
 				description: entry.address,
 				address: entry.address,
 				defaultDirectory: connection?.defaultDirectory,
+				buttons: [removeButton],
 			};
 		});
 		picks.push({
@@ -59,6 +67,16 @@ export async function pickRemoteAgentHostFolder(
 			title: localize('selectRemote', "Select Remote"),
 			placeHolder: localize('selectRemotePlaceholder', "Choose a remote agent host or add a new one"),
 			matchOnDescription: true,
+			onDidTriggerItemButton: async context => {
+				if (context.button === removeButton && context.item.address) {
+					try {
+						await remoteAgentHostService.removeRemoteAgentHost(context.item.address);
+						context.removeItem();
+					} catch {
+						notificationService.error(localize('removeRemoteFailed', "Failed to remove remote agent host {0}.", context.item.address));
+					}
+				}
+			},
 		});
 		if (!picked) {
 			return undefined;
@@ -190,7 +208,7 @@ async function pickFolderOnRemote(
 			canSelectFolders: true,
 			canSelectMany: false,
 			title: localize('selectRemoteFolder', "Select Folder on {0}", selectedName),
-			availableFileSystems: [AGENT_HOST_FS_SCHEME],
+			availableFileSystems: [AGENT_HOST_SCHEME],
 			defaultUri,
 		});
 		return selected?.[0];

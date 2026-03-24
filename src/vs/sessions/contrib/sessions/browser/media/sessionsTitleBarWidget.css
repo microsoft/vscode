@@ -77,4 +77,33 @@
 	flex-shrink: 0;
 }
 
+/* Session count widget (tasklist icon + unread count, left of pill) */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count {
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	flex-shrink: 0;
+	cursor: pointer;
+	padding: 0 4px;
+	height: 22px;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	outline: none;
+}
 
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count .codicon {
+	font-size: 16px;
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count-label {
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+	line-height: 16px;
+}
