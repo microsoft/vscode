@@ -21,7 +21,8 @@ import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { IStyleOverride } from '../../../../platform/theme/browser/defaultStyles.js';
-import { ISessionData, SessionStatus } from '../common/sessionData.js';
+import { ISessionData, ISessionWorkspace, SessionStatus } from '../common/sessionData.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionWorkspace.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 
 const $ = DOM.$;
@@ -216,6 +217,19 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			case SessionStatus.Error: return Codicon.error;
 			default: return defaultIcon;
 		}
+	}
+
+	private getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefined {
+		// For GitHub remote sessions, extract owner/name from the repository URI path
+		const repo = workspace.repositories[0];
+		if (repo?.uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			const parts = repo.uri.path.split('/').filter(Boolean);
+			if (parts.length >= 2) {
+				return `${parts[0]}/${parts[1]}`;
+			}
+		}
+
+		return workspace.label;
 	}
 
 
