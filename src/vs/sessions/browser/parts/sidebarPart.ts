@@ -44,7 +44,7 @@ import { ThemeIcon } from '../../../base/common/themables.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IAgentSessionsService } from '../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { AgentSessionStatus } from '../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { countUnreadSessions } from '../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { localize } from '../../../nls.js';
 
 /**
@@ -210,32 +210,23 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}));
 
 		// Update badge on session changes (deferred to avoid service unavailability)
-		const updateBadge = () => {
-			try {
-				const svc = this.instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
-				let unread = 0;
-				for (const session of svc.model.sessions) {
-					if (!session.isArchived() && session.status === AgentSessionStatus.Completed && !session.isRead()) {
-						unread++;
-					}
-				}
-				badge.textContent = unread > 0 ? `${unread}` : '';
-				badge.style.display = unread > 0 ? '' : 'none';
-				widget.setAttribute('aria-label', unread > 0
-					? localize('hideSidebarUnread', "Hide Side Bar, {0} unread session(s)", unread)
-					: localize('hideSidebar', "Hide Side Bar"));
-			} catch {
-				badge.style.display = 'none';
-			}
+		const updateBadge = (svc: IAgentSessionsService) => {
+			const unread = countUnreadSessions(svc.model.sessions);
+			badge.textContent = unread > 0 ? `${unread}` : '';
+			badge.style.display = unread > 0 ? '' : 'none';
+			widget.setAttribute('aria-label', unread > 0
+				? localize('hideSidebarUnread', "Hide Side Bar, {0} unread session(s)", unread)
+				: localize('hideSidebar', "Hide Side Bar"));
 		};
 
 		setTimeout(() => {
-			updateBadge();
 			try {
 				const svc = this.instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
-				widgetDisposables.add(svc.model.onDidChangeSessions(() => updateBadge()));
+				updateBadge(svc);
+				widgetDisposables.add(svc.model.onDidChangeSessions(() => updateBadge(svc)));
 			} catch {
 				// Service not yet available
+				badge.style.display = 'none';
 			}
 		}, 0);
 	}

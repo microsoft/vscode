@@ -19,7 +19,7 @@ import { IMenuService, MenuId, MenuRegistry, SubmenuItemAction } from '../../../
 import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IMarshalledAgentSessionContext, AgentSessionStatus } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { IMarshalledAgentSessionContext, countUnreadSessions } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
@@ -340,13 +340,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	private _countUnreadSessions(): number {
-		let unread = 0;
-		for (const session of this.agentSessionsService.model.sessions) {
-			if (!session.isArchived() && session.status === AgentSessionStatus.Completed && !session.isRead()) {
-				unread++;
-			}
-		}
-		return unread;
+		return countUnreadSessions(this.agentSessionsService.model.sessions);
 	}
 
 	private _showContextMenu(e: MouseEvent): void {
