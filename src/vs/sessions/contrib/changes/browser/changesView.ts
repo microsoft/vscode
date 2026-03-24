@@ -210,7 +210,7 @@ class ChangesViewModel extends Disposable {
 	readonly sessionsChangedSignal: IObservable<void>;
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	readonly activeSessionRepositoryObs: IObservableWithChange<IGitRepository | undefined>;
-	readonly activeSessionChangesObs: IObservable<readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[]>;
+	readonly activeSessionChangesObs: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
 
 	readonly versionModeObs: ISettableObservable<ChangesVersionMode>;
 	setVersionMode(mode: ChangesVersionMode): void {
@@ -251,14 +251,11 @@ class ChangesViewModel extends Disposable {
 		this.activeSessionChangesObs = derivedOpts({
 			equalsFn: arrayEqualsC<IChatSessionFileChange | IChatSessionFileChange2>()
 		}, reader => {
-			const sessionResource = this.activeSessionResourceObs.read(reader);
-			if (!sessionResource) {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			if (!activeSession) {
 				return Iterable.empty();
 			}
-
-			this.sessionsChangedSignal.read(reader);
-			const model = this.agentSessionsService.getSession(sessionResource);
-			return model?.changes instanceof Array ? model.changes : Iterable.empty();
+			return activeSession.changes.read(reader) as readonly (IChatSessionFileChange | IChatSessionFileChange2)[];
 		});
 
 		// Active session repository
@@ -663,9 +660,10 @@ export class ChangesViewPane extends ViewPane {
 				if (sessionResource) {
 					const prReviewState = this.codeReviewService.getPRReviewState(sessionResource).read(reader);
 					const prReviewCommentCount = prReviewState.kind === PRReviewStateKind.Loaded ? prReviewState.comments.length : 0;
-					const sessionChanges = this.agentSessionsService.getSession(sessionResource)?.changes;
-					if (sessionChanges instanceof Array && sessionChanges.length > 0) {
-						const reviewFiles = getCodeReviewFilesFromSessionChanges(sessionChanges as readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[]);
+					const activeSession = this.sessionManagementService.activeSession.read(reader);
+					const sessionChanges = activeSession?.changes.read(reader);
+					if (sessionChanges && sessionChanges.length > 0) {
+						const reviewFiles = getCodeReviewFilesFromSessionChanges(sessionChanges);
 						const reviewVersion = getCodeReviewVersion(reviewFiles);
 						const reviewState = this.codeReviewService.getReviewState(sessionResource).read(reader);
 						if (reviewState.kind === CodeReviewStateKind.Loading && reviewState.version === reviewVersion) {

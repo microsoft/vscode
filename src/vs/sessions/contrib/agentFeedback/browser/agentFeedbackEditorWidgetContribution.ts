@@ -28,6 +28,7 @@ import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { createAgentFeedbackContext, getSessionForResource } from './agentFeedbackEditorUtils.js';
 import { ICodeReviewService, IPRReviewState } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments, groupNearbySessionEditorComments, ISessionEditorComment, SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
@@ -628,6 +629,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -733,6 +735,13 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			return undefined;
 		}
 
+		const sessionData = this._sessionsManagementService.getSessions().find(s => s.resource.toString() === this._sessionResource!.toString());
+		if (sessionData) {
+			const changes = sessionData.changes.get();
+			return changes.find(change => this._changeMatchesFsPath(change, resourceUri));
+		}
+
+		// Fallback to agent session model
 		const changes = this._agentSessionsService.getSession(this._sessionResource)?.changes;
 		if (!(changes instanceof Array)) {
 			return undefined;

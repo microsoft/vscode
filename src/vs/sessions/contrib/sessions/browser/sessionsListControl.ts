@@ -248,17 +248,14 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}));
 	}
 
-	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, sessionType: string, defaultIcon: ThemeIcon): ThemeIcon {
+	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, _sessionType: string, defaultIcon: ThemeIcon): ThemeIcon {
 		switch (status) {
-			case SessionStatus.InProgress: return Codicon.loading;
+			case SessionStatus.InProgress: return Codicon.sessionInProgress;
 			case SessionStatus.NeedsInput: return Codicon.circleFilled;
 			case SessionStatus.Error: return Codicon.error;
 			default:
 				if (!isRead && !isArchived) {
 					return Codicon.circleFilled;
-				}
-				if (sessionType === AgentSessionProviders.Background) {
-					return Codicon.circleSmallFilled;
 				}
 				return defaultIcon;
 		}
@@ -723,7 +720,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 		}
 	}
 
-	// ── Archived / Read filtering ──
+	// -- Archived / Read filtering --
 
 	setExcludeArchived(exclude: boolean): void {
 		this._excludeArchived = exclude;
