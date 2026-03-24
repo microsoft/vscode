@@ -69,13 +69,13 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 		this._logService.info('ServerAgentHostManager: agent host started');
 
 		// Connect logger channel so agent host logs appear in the output channel
-		this._register(new RemoteLoggerChannelClient(this._loggerService, connection.client.getChannel(AgentHostIpcChannels.Logger)));
+		connection.store.add(new RemoteLoggerChannelClient(this._loggerService, connection.client.getChannel(AgentHostIpcChannels.Logger)));
 
 		this._trackActiveSessions(connection);
 		this._trackClientConnections(connection);
 
 		// Handle unexpected exit
-		this._register(connection.onDidProcessExit(e => {
+		connection.store.add(connection.onDidProcessExit(e => {
 			if (!this._store.isDisposed) {
 				// Both signals are gone when the process exits
 				this._hasActiveSessions = false;
@@ -98,7 +98,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 
 	private _trackActiveSessions(connection: IAgentHostConnection): void {
 		const agentService = ProxyChannel.toService<IAgentService>(connection.client.getChannel(AgentHostIpcChannels.AgentHost));
-		this._register(agentService.onDidAction(envelope => {
+		connection.store.add(agentService.onDidAction(envelope => {
 			if (envelope.action.type === 'root/activeSessionsChanged') {
 				this._hasActiveSessions = envelope.action.activeSessions > 0;
 				this._updateLifetimeToken();
@@ -108,7 +108,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 
 	private _trackClientConnections(connection: IAgentHostConnection): void {
 		const connectionTracker = ProxyChannel.toService<IConnectionTrackerService>(connection.client.getChannel(AgentHostIpcChannels.ConnectionTracker));
-		this._register(connectionTracker.onDidChangeConnectionCount(count => {
+		connection.store.add(connectionTracker.onDidChangeConnectionCount(count => {
 			this._connectionCount = count;
 			this._updateLifetimeToken();
 		}));
