@@ -82,15 +82,15 @@
 .session-details-row {
 	display: flex;
 	align-items: center;
+	gap: 4px;
 	font-size: 12px;
 	line-height: 15px;
 	color: var(--vscode-descriptionForeground);
-	gap: 0;
 }
 
 /* Separator dots rendered by the renderer as inline spans */
 .session-separator {
-	margin: 0 4px;
+	margin: 0;
 	opacity: 0.7;
 }
 
@@ -100,6 +100,7 @@
 	gap: 4px;
 	white-space: nowrap;
 	flex-shrink: 0;
+	font-variant-numeric: tabular-nums;
 }
 
 .session-diff-added {
