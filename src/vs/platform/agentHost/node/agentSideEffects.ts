@@ -12,7 +12,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IAgent, IAgentAttachment, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
-import { AhpErrorCodes, AHP_PROVIDER_NOT_FOUND, AHP_SESSION_NOT_FOUND, ContentEncoding, IBrowseDirectoryResult, ICreateSessionParams, IDirectoryEntry, IFetchContentResult, ProtocolError } from '../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_PROVIDER_NOT_FOUND, AHP_SESSION_NOT_FOUND, ContentEncoding, IBrowseDirectoryResult, ICreateSessionParams, IDirectoryEntry, IFetchContentResult, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../common/state/sessionProtocol.js';
 import {
 	ResponsePartKind,
 	SessionStatus,
@@ -263,14 +263,32 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 
 		// Verify the session actually exists on the backend to avoid
 		// creating phantom sessions for made-up URIs.
-		const allSessions = await agent.listSessions();
+		let allSessions;
+		try {
+			allSessions = await agent.listSessions();
+		} catch (err) {
+			if (err instanceof ProtocolError) {
+				throw err;
+			}
+			const message = err instanceof Error ? err.message : String(err);
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to list sessions for ${session}: ${message}`);
+		}
 		const meta = allSessions.find(s => s.session.toString() === session);
 		if (!meta) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${session}`);
 		}
 
 		const sessionUri = URI.parse(session);
-		const messages = await agent.getSessionMessages(sessionUri);
+		let messages;
+		try {
+			messages = await agent.getSessionMessages(sessionUri);
+		} catch (err) {
+			if (err instanceof ProtocolError) {
+				throw err;
+			}
+			const message = err instanceof Error ? err.message : String(err);
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to restore session ${session}: ${message}`);
+		}
 		const turns = this._buildTurnsFromMessages(messages);
 
 		const summary: ISessionSummary = {
@@ -320,7 +338,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 						responseParts: currentTurn.responseParts,
 						toolCalls: currentTurn.toolCalls,
 						usage: undefined,
-						state: TurnState.Complete,
+						state: TurnState.Cancelled,
 					});
 				}
 				// Start a new turn
@@ -402,7 +420,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		}
 
 		// If there's a dangling turn (no final assistant message closed it),
-		// finalize it anyway so we don't lose history.
+		// finalize it as cancelled so we don't lose history.
 		if (currentTurn) {
 			turns.push({
 				id: currentTurn.id,
@@ -411,7 +429,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				responseParts: currentTurn.responseParts,
 				toolCalls: currentTurn.toolCalls,
 				usage: undefined,
-				state: TurnState.Complete,
+				state: TurnState.Cancelled,
 			});
 		}
 

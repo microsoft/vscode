@@ -399,8 +399,10 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state!.turns.length, 2);
 			assert.strictEqual(state!.turns[0].userMessage.text, 'Interrupted question');
 			assert.strictEqual(state!.turns[0].responseText, '');
+			assert.strictEqual(state!.turns[0].state, TurnState.Cancelled);
 			assert.strictEqual(state!.turns[1].userMessage.text, 'Retried question');
 			assert.strictEqual(state!.turns[1].responseText, 'Answer');
+			assert.strictEqual(state!.turns[1].state, TurnState.Complete);
 		});
 
 		test('is a no-op for a session already in the state manager', async () => {
