@@ -13,6 +13,15 @@
 		padding: 0 6px;
 	}
 
+	.agent-sessions-workbench .pane-body & .monaco-scrollable-element {
+		padding: 0 12px;
+	}
+
+	.agent-sessions-workbench .pane-body & .monaco-tree-sticky-container {
+		left: 12px;
+		width: calc(100% - 24px);
+	}
+
 	.monaco-list-row {
 		border-radius: 6px;
 	}

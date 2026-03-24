@@ -114,6 +114,7 @@ class BrowserTabQuickPick extends Disposable {
 			}
 			if (selected === this._openNewTabPick) {
 				logBrowserOpen(telemetryService, 'quickOpenWithoutUrl');
+				this._quickPick.hide();
 				await this._editorService.openEditor({
 					resource: BrowserViewUri.forId(generateUuid()),
 				});

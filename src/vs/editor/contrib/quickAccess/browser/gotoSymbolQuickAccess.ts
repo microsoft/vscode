@@ -165,14 +165,6 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			}
 		}));
 
-		// Attach the active symbol as context
-		disposables.add(picker.onDidAttach(() => {
-			const [item] = picker.activeItems;
-			if (typeof item?.attach === 'function') {
-				item.attach();
-			}
-		}));
-
 		// Resolve symbols from document once and reuse this
 		// request for all filtering and typing then on
 		const symbolsPromise = this.getDocumentSymbols(model, token);

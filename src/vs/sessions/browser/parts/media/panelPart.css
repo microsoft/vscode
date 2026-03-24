@@ -23,10 +23,23 @@
 .agent-sessions-workbench .part.panel > .title {
 	padding-left: 6px;
 	padding-right: 6px;
+	background-color: var(--vscode-sessionsPanel-background);
 }
 
 /* Active/checked state: background container instead of underline */
 .agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
 	background-color: var(--vscode-activityBarTop-activeBackground, color-mix(in srgb, var(--vscode-sideBarTitle-foreground) 5%, transparent)) !important;
 	border-radius: 4px;
+}
+
+/* Override base workbench panel content background for terminal */
+.agent-sessions-workbench .part.panel > .content .monaco-editor,
+.agent-sessions-workbench .part.panel > .content .monaco-editor .margin,
+.agent-sessions-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-sessionsPanel-background);
+}
+
+/* Terminal body background */
+.agent-sessions-workbench .part.panel .terminal-wrapper {
+	background-color: var(--vscode-sessionsPanel-background);
 }
