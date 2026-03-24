@@ -8,34 +8,45 @@
 
 .agent-sessions-workbench {
 
-	/* Show-more / show-less: centered text with horizontal line decoration */
+	/* Show-more / show-less: hidden by default, reveal on own row hover with line decoration */
 	.agent-session-show-more {
 		position: relative;
 		justify-content: center;
-		padding: 0;
+		padding: 0 6px;
+		opacity: 0;
+		transition: opacity 0.15s;
 
 		.agent-session-show-more-label {
-			position: relative;
-			z-index: 1;
-			padding: 0 6px;
-			background: var(--vscode-sideBar-background, var(--vscode-editor-background));
 			font-size: 11px;
 			color: var(--vscode-descriptionForeground);
+			flex-shrink: 0;
 		}
 
-		&::before {
+		/* Lines on both sides of the text */
+		&::before,
+		&::after {
 			content: '';
-			position: absolute;
-			left: 0;
-			right: 0;
-			top: 50%;
+			flex: 1;
 			height: 1px;
 			background: var(--vscode-widget-border, var(--vscode-contrastBorder));
 		}
+
+		&::before {
+			margin-right: 6px;
+		}
+
+		&::after {
+			margin-left: 6px;
+		}
+	}
+
+	/* Show on row hover */
+	.monaco-list-row:hover .agent-session-show-more {
+		opacity: 1;
 	}
 
 	/* Brighter text on direct hover */
-	.agent-session-show-more:hover .agent-session-show-more-label {
+	.monaco-list-row:hover .agent-session-show-more:hover .agent-session-show-more-label {
 		color: var(--vscode-foreground);
 	}
 
