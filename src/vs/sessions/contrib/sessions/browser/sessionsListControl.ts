@@ -115,9 +115,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const sessionStatus = element.status.read(reader);
 			DOM.clearNode(template.iconContainer);
 			const icon = this.getStatusIcon(sessionStatus, element.icon);
-			const iconEl = DOM.append(template.iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
-			iconEl.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
-			iconEl.classList.toggle('session-icon-active', sessionStatus === SessionStatus.InProgress);
+			DOM.append(template.iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
+			template.iconContainer.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
+			template.iconContainer.classList.toggle('session-icon-active', sessionStatus === SessionStatus.InProgress);
 		}));
 
 		// Title — reactive

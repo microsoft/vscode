@@ -17,27 +17,40 @@
 
 .session-item {
 	display: flex;
-	align-items: flex-start;
+	flex-direction: row;
 	padding: 8px 6px;
 	border-radius: 6px;
-	gap: 8px;
 	cursor: pointer;
 }
 
 .session-icon {
 	flex-shrink: 0;
 	display: flex;
-	align-items: center;
-	height: 16px;
-	font-size: 12px;
-	margin-top: 1px;
+	align-items: flex-start;
+	line-height: 17px;
 }
 
-.session-icon-active {
+.session-icon .codicon {
+	flex-shrink: 0;
+	font-size: 12px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+}
+
+.session-main {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	padding-left: 6px;
+}
+
+.session-icon-active .codicon {
 	color: var(--vscode-progressBar-background);
 }
 
-.session-icon-pulse {
+.session-icon-pulse .codicon {
 	color: var(--vscode-notificationsWarningIcon-foreground);
 	animation: session-icon-pulse 2s ease-in-out infinite;
 }
@@ -48,16 +61,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.session-icon-pulse {
+	.session-icon-pulse .codicon {
 		animation: none;
 	}
-}
-
-.session-main {
-	flex: 1;
-	min-width: 0;
-	display: flex;
-	flex-direction: column;
 }
 
 .session-title-row {
