@@ -599,7 +599,15 @@ class AgentSessionAdapter implements ISessionData {
 		if (Array.isArray(session.changes)) {
 			return session.changes as IChatSessionFileChange[];
 		}
-		// Summary object — no individual file changes available
+		// Summary object — create a synthetic entry for total insertions/deletions
+		const summary = session.changes as { readonly files: number; readonly insertions: number; readonly deletions: number };
+		if (summary.insertions > 0 || summary.deletions > 0) {
+			return [{
+				modifiedUri: URI.parse('summary://changes'),
+				insertions: summary.insertions,
+				deletions: summary.deletions,
+			}];
+		}
 		return [];
 	}
 
