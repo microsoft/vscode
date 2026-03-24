@@ -85,7 +85,11 @@ suite('PluginUrlHandler', () => {
 		} as unknown as IExtensionsWorkbenchService);
 
 		instantiationService.stub(IEditorService, {
-			openEditor: async (input: AgentPluginEditorInput) => { state.openedEditorInputs.push(input); return undefined; },
+			openEditor: async (input: AgentPluginEditorInput) => {
+				state.openedEditorInputs.push(input);
+				store.add(input);
+				return undefined;
+			},
 		} as unknown as IEditorService);
 
 		// IInstantiationService: delegate createInstance to the TestInstantiationService itself
