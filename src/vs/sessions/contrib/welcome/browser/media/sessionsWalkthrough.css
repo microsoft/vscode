@@ -74,7 +74,7 @@
 }
 
 .sessions-walkthrough-progress-bar-fill {
-	width: 40%;
+	width: 30%;
 	height: 100%;
 	background: var(--vscode-progressBar-background, #0078d4);
 	border-radius: 2px;
@@ -82,9 +82,9 @@
 }
 
 @keyframes sessions-walkthrough-progress {
-	0% { transform: translateX(-100%); }
-	50% { transform: translateX(150%); }
-	100% { transform: translateX(-100%); }
+	0% { transform: translateX(0%); }
+	50% { transform: translateX(233%); }
+	100% { transform: translateX(0%); }
 }
 
 /* ---- Fixed footer (always at bottom) ---- */
