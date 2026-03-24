@@ -352,6 +352,11 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		return (state !== undefined) ? getCommentThreadStateIconColor(state, theme) : undefined;
 	}
 
+	disposeElement(_node: ITreeNode<CommentNode>, _index: number, templateData: ICommentThreadTemplateData): void {
+		templateData.disposables.forEach(d => d.dispose());
+		templateData.disposables.length = 0;
+	}
+
 	disposeTemplate(templateData: ICommentThreadTemplateData): void {
 		templateData.disposables.forEach(disposeable => disposeable.dispose());
 		templateData.actionBar.dispose();
