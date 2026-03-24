@@ -14,7 +14,7 @@ import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compres
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionShowMore, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionShowMore, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
+import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionShowLess, IAgentSessionShowMore, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -50,7 +50,7 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 
-export type AgentSessionListItem = IAgentSession | IAgentSessionSection | IAgentSessionShowMore;
+export type AgentSessionListItem = IAgentSession | IAgentSessionSection | IAgentSessionShowMore | IAgentSessionShowLess;
 
 //#region Agent Session Renderer
 
@@ -656,7 +656,7 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 
 //#endregion
 
-//#region Show More Renderer
+//#region Show More / Show Less Renderer
 
 interface IAgentSessionShowMoreTemplate {
 	readonly container: HTMLElement;
@@ -703,6 +703,45 @@ export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<I
 	}
 }
 
+export class AgentSessionShowLessRenderer implements ICompressibleTreeRenderer<IAgentSessionShowLess, FuzzyScore, IAgentSessionShowMoreTemplate> {
+
+	static readonly TEMPLATE_ID = 'agent-session-show-less';
+	static readonly HEIGHT = AgentSessionShowMoreRenderer.HEIGHT;
+
+	readonly templateId = AgentSessionShowLessRenderer.TEMPLATE_ID;
+
+	renderTemplate(container: HTMLElement): IAgentSessionShowMoreTemplate {
+		const disposables = new DisposableStore();
+
+		const elements = h(
+			'div.agent-session-show-more@container',
+			[h('span.agent-session-show-more-label@label')]
+		);
+
+		container.appendChild(elements.container);
+
+		return {
+			container: elements.container,
+			label: elements.label,
+			disposables,
+		};
+	}
+
+	renderElement(element: ITreeNode<IAgentSessionShowLess, FuzzyScore>, _index: number, template: IAgentSessionShowMoreTemplate): void {
+		template.label.textContent = localize('agentSessions.showLess', "Show less");
+	}
+
+	renderCompressedElements(): void {
+		throw new Error('Should never happen since show-less is incompressible');
+	}
+
+	disposeElement(): void { }
+
+	disposeTemplate(templateData: IAgentSessionShowMoreTemplate): void {
+		templateData.disposables.dispose();
+	}
+}
+
 //#endregion
 
 export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSessionListItem> {
@@ -719,6 +758,10 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 
 		if (isAgentSessionShowMore(element)) {
 			return AgentSessionShowMoreRenderer.HEIGHT;
+		}
+
+		if (isAgentSessionShowLess(element)) {
+			return AgentSessionShowLessRenderer.HEIGHT;
 		}
 
 		let height = AgentSessionsListDelegate.ITEM_HEIGHT;
@@ -740,6 +783,10 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 
 		if (isAgentSessionShowMore(element)) {
 			return AgentSessionShowMoreRenderer.TEMPLATE_ID;
+		}
+
+		if (isAgentSessionShowLess(element)) {
+			return AgentSessionShowLessRenderer.TEMPLATE_ID;
 		}
 
 		return AgentSessionRenderer.TEMPLATE_ID;
@@ -767,6 +814,10 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 
 		if (isAgentSessionShowMore(element)) {
 			return localize('agentSessionShowMoreAriaLabel', "Show {0} more sessions", element.remainingCount);
+		}
+
+		if (isAgentSessionShowLess(element)) {
+			return localize('agentSessionShowLessAriaLabel', "Show less sessions");
 		}
 
 		return localize('agentSessionItemAriaLabel', "{0} session {1} ({2}), created {3}", element.providerLabel, element.label, toStatusLabel(element.status), new Date(element.timing.created).toLocaleString());
@@ -872,6 +923,11 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		this._onDidExpandRepositoryGroup.fire();
 	}
 
+	collapseRepositoryGroup(sectionLabel: string): void {
+		this.expandedRepositoryGroups.delete(sectionLabel);
+		this._onDidExpandRepositoryGroup.fire();
+	}
+
 	hasChildren(element: IAgentSessionsModel | AgentSessionListItem): boolean {
 
 		// Sessions model
@@ -925,10 +981,16 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		// Sessions	section
 		else if (isAgentSessionSection(element)) {
 			const isCappingEnabled = this.repositoryGroupLimit && this.filter?.getExcludes().repositoryGroupCapped;
-			if (isCappingEnabled && element.section === AgentSessionSection.Repository && !this.expandedRepositoryGroups.has(element.label) && element.sessions.length > this.repositoryGroupLimit) {
-				const visible = element.sessions.slice(0, this.repositoryGroupLimit);
-				const remainingCount = element.sessions.length - this.repositoryGroupLimit;
-				return [...visible, { showMore: true as const, sectionLabel: element.label, remainingCount }];
+			if (isCappingEnabled && element.section === AgentSessionSection.Repository && element.sessions.length > this.repositoryGroupLimit) {
+				if (!this.expandedRepositoryGroups.has(element.label)) {
+					// Collapsed: show limited sessions + "show more"
+					const visible = element.sessions.slice(0, this.repositoryGroupLimit);
+					const remainingCount = element.sessions.length - this.repositoryGroupLimit;
+					return [...visible, { showMore: true as const, sectionLabel: element.label, remainingCount }];
+				} else {
+					// Expanded: show all sessions + "show less"
+					return [...element.sessions, { showLess: true as const, sectionLabel: element.label }];
+				}
 			}
 			return element.sessions;
 		}
@@ -1328,6 +1390,10 @@ export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSe
 			return `show-more-${element.sectionLabel}`;
 		}
 
+		if (isAgentSessionShowLess(element)) {
+			return `show-less-${element.sectionLabel}`;
+		}
+
 		if (isAgentSession(element)) {
 			return element.resource.toString();
 		}
@@ -1422,6 +1488,10 @@ export class AgentSessionsKeyboardNavigationLabelProvider implements ICompressib
 			return element.sectionLabel;
 		}
 
+		if (isAgentSessionShowLess(element)) {
+			return element.sectionLabel;
+		}
+
 		return element.label;
 	}
 
@@ -1445,8 +1515,8 @@ export class AgentSessionsDragAndDrop extends Disposable implements ITreeDragAnd
 	}
 
 	getDragURI(element: AgentSessionListItem): string | null {
-		if (isAgentSessionSection(element) || isAgentSessionShowMore(element)) {
-			return null; // section headers and show-more items are not draggable
+		if (isAgentSessionSection(element) || isAgentSessionShowMore(element) || isAgentSessionShowLess(element)) {
+			return null; // section headers, show-more and show-less items are not draggable
 		}
 
 		return element.resource.toString();

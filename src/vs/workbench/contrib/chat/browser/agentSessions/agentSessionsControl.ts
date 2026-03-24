@@ -12,8 +12,8 @@ import { $, append, EventHelper, addDisposableListener, EventType, hide, setVisi
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
-import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection, isAgentSessionShowMore } from './agentSessionsModel.js';
-import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionSectionLabels, AgentSessionShowMoreRenderer, AgentSessionsSorter, getRepositoryName, IAgentSessionsFilter } from './agentSessionsViewer.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from './agentSessionsModel.js';
+import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionSectionLabels, AgentSessionShowLessRenderer, AgentSessionShowMoreRenderer, AgentSessionsSorter, getRepositoryName, IAgentSessionsFilter } from './agentSessionsViewer.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from './agentSessionsFilter.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
@@ -272,6 +272,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				sessionRenderer,
 				this.instantiationService.createInstance(AgentSessionSectionRenderer),
 				new AgentSessionShowMoreRenderer(),
+				new AgentSessionShowLessRenderer(),
 			],
 			sessionDataSource,
 			{
@@ -418,6 +419,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			return;
 		}
 
+		if (isAgentSessionShowLess(element)) {
+			this.sessionsDataSource?.collapseRepositoryGroup(element.sectionLabel);
+			return;
+		}
+
 		this.telemetryService.publicLog2<AgentSessionOpenedEvent, AgentSessionOpenedClassification>('agentSessionOpened', {
 			providerType: element.providerType,
 			source: this.options.source
@@ -435,7 +441,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	}
 
 	private async showContextMenu({ element, anchor, browserEvent }: ITreeContextMenuEvent<AgentSessionListItem>): Promise<void> {
-		if (!element || isAgentSessionShowMore(element)) {
+		if (!element || isAgentSessionShowMore(element) || isAgentSessionShowLess(element)) {
 			return;
 		}
 
