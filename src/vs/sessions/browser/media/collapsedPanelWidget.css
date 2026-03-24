@@ -34,11 +34,6 @@
 	padding-left: 0;
 }
 
-/* When inside the sidebar title area (panel open), no left padding */
-.agent-sessions-workbench .part.sidebar .collapsed-sidebar-widget {
-	padding-left: 0;
-}
-
 /* ---- Auxiliary Bar widget (in titlebar-right) ---- */
 
 .agent-sessions-workbench .collapsed-auxbar-widget {
@@ -100,11 +95,6 @@
 	line-height: 16px;
 	color: inherit;
 }
-
-.agent-sessions-workbench .collapsed-sidebar-count {
-	color: inherit;
-}
-
 
 /* ---- Auxiliary bar indicators ---- */
 
