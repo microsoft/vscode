@@ -711,14 +711,13 @@ export class PluginListWidget extends Disposable {
 		this.lastHeight = height;
 		this.lastWidth = width;
 
-		// Set widget height and let CSS flex layout distribute space.
-		// Remove any previously-set explicit height so flex can recompute.
 		this.element.style.height = `${height}px`;
 		this.listContainer.style.height = '';
 
-		// Reading clientHeight forces a synchronous reflow, giving us the
-		// flex-computed height that accounts for the actual chrome sizes.
-		const listHeight = this.listContainer.clientHeight;
+		// Read flex-computed height; when the container is hidden (display:none)
+		// clientHeight is 0, so fall back to the full height — the next layout
+		// call after the container becomes visible will correct it.
+		const listHeight = this.listContainer.clientHeight || height;
 		this.list.layout(Math.max(0, listHeight), width);
 	}
 

@@ -1281,6 +1281,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.isPromptsSection(sectionId)) {
 				void this.listWidget.setSection(sectionId);
 			}
+			// Re-layout after visibility change so the newly-visible widget
+			// can measure its flex-computed container height correctly.
+			if (this.dimension) {
+				this.layout(this.dimension);
+			}
 			this.ensureSectionsListReflectsActiveSection(sectionId);
 		}
 	}
