@@ -134,13 +134,15 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 			this.layoutService.mainContainer,
 		));
 
-		// When chat setup completes (observables flip), persist completion
+		// When chat setup completes (observables flip), persist completion and dismiss the overlay
 		this.overlayRef.value.add(autorun(reader => {
 			this.chatEntitlementService.sentimentObs.read(reader);
 			this.chatEntitlementService.entitlementObs.read(reader);
 
 			if (!this._needsChatSetup()) {
 				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				this.overlayRef.clear();
+				this.watchEntitlementState();
 			}
 		}));
 
@@ -190,10 +192,13 @@ registerAction2(class extends Action2 {
 			layoutService.mainContainer,
 		));
 
-		walkthrough.outcome.then(outcome => {
-			logService.info(`[sessions welcome] Developer reset walkthrough finished with outcome: ${outcome}`);
-			storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			store.dispose();
-		});
+		walkthrough.outcome
+			.then(outcome => {
+				logService.info(`[sessions welcome] Developer reset walkthrough finished with outcome: ${outcome}`);
+				storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			})
+			.finally(() => {
+				store.dispose();
+			});
 	}
 });
