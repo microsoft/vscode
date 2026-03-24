@@ -268,10 +268,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		const welcomeElement = dom.append(wrapper, dom.$('.chat-full-welcome'));
 
-		// Watermark letterpress
-		const header = dom.append(welcomeElement, dom.$('.chat-full-welcome-header'));
-		dom.append(header, dom.$('.chat-full-welcome-letterpress'));
-
 		// Bottom-docked controls area (folder picker, input, local mode controls)
 		const bottomDockedControls = dom.append(welcomeElement, dom.$('.chat-full-welcome-bottom-docked-controls'));
 
