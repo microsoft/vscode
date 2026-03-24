@@ -13,6 +13,10 @@
 		padding: 0 6px;
 	}
 
+	.agent-sessions-workbench .pane-body & .monaco-scrollable-element {
+		padding: 0 12px;
+	}
+
 	.monaco-list-row {
 		border-radius: 6px;
 	}
