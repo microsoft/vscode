@@ -5715,7 +5715,21 @@ export class CommandCenter {
 	}
 
 	private async promptConfigureIdentity(repository?: Repository): Promise<boolean> {
+		const cwd = repository?.root ?? os.homedir();
+
+		// Pre-populate with any already-configured values so the user only
+		// has to fill in what is actually missing.
+		let configuredName = '';
+		let configuredEmail = '';
+		try {
+			configuredName = (await this.git.exec(cwd, ['config', 'user.name'])).stdout.trim();
+		} catch { /* not yet configured */ }
+		try {
+			configuredEmail = (await this.git.exec(cwd, ['config', 'user.email'])).stdout.trim();
+		} catch { /* not yet configured */ }
+
 		const name = await window.showInputBox({
+			value: configuredName,
 			placeHolder: l10n.t('Your Name'),
 			prompt: l10n.t('Please enter your name for Git commits'),
 			ignoreFocusOut: true,
@@ -5728,12 +5742,21 @@ export class CommandCenter {
 			return false;
 		}
 
+		// Basic email format check: requires local-part, @, domain, and a TLD of at least two characters.
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 		const email = await window.showInputBox({
+			value: configuredEmail,
 			placeHolder: l10n.t('your@email.com'),
 			prompt: l10n.t('Please enter your email address for Git commits'),
 			ignoreFocusOut: true,
 			validateInput: (value: string) => {
-				return value.trim() ? null : l10n.t('Email cannot be empty');
+				if (!value.trim()) {
+					return l10n.t('Email cannot be empty');
+				}
+				if (!emailRegex.test(value.trim())) {
+					return l10n.t('Please enter a valid email address');
+				}
+				return null;
 			}
 		});
 
