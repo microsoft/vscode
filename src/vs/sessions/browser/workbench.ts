@@ -5,7 +5,7 @@
 
 import '../../workbench/browser/style.js';
 import './media/style.css';
-import { CollapsedSidebarWidget, CollapsedAuxiliaryBarWidget } from './collapsedPartWidgets.js';
+import { CollapsedSidebarWidget } from './collapsedPartWidgets.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
 import { getActiveDocument, getActiveElement, getClientArea, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
@@ -23,7 +23,7 @@ import { IEditorService } from '../../workbench/services/editor/common/editorSer
 import { IPaneCompositePartService } from '../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../workbench/common/views.js';
 import { ILogService } from '../../platform/log/common/log.js';
-import { IInstantiationService, ServicesAccessor, createDecorator } from '../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { ITitleService } from '../../workbench/services/title/browser/titleService.js';
 import { mainWindow, CodeWindow } from '../../base/browser/window.js';
 import { coalesce } from '../../base/common/arrays.js';
@@ -62,18 +62,6 @@ import { IMarkdownRendererService } from '../../platform/markdown/browser/markdo
 import { EditorMarkdownCodeBlockRenderer } from '../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { TitleService, TitlebarPart } from './parts/titlebarPart.js';
-import { URI } from '../../base/common/uri.js';
-import { IObservable } from '../../base/common/observable.js';
-
-/**
- * Minimal typing for ISessionsManagementService resolved dynamically to avoid
- * a layering import from vs/sessions/contrib/.
- */
-interface IMinimalSessionsManagementService {
-	getActiveSession(): { resource: URI } | undefined;
-	readonly activeSession: IObservable<unknown>;
-}
-const _ISessionsManagementService = createDecorator<IMinimalSessionsManagementService>('sessionsManagementService');
 
 //#region Workbench Options
 
@@ -245,7 +233,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private chatBarPartView!: ISerializableView;
 
 	private collapsedSidebarWidget: CollapsedSidebarWidget | undefined;
-	private collapsedAuxiliaryBarWidget: CollapsedAuxiliaryBarWidget | undefined;
 
 	private readonly partVisibility: IPartVisibilityState = {
 		sidebar: true,
@@ -391,28 +378,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 				if (!this.partVisibility.sidebar) {
 					this.collapsedSidebarWidget.show();
 				}
-
-				// Auxiliary bar changes widget (always visible, acts as a toggle)
-				this.collapsedAuxiliaryBarWidget = this._register(instantiationService.createInstance(CollapsedAuxiliaryBarWidget, titlebarPart.rightContainer, titlebarPart.rightWindowControlsContainer));
-				this.collapsedAuxiliaryBarWidget.updateActiveState(this.partVisibility.auxiliaryBar);
-
-				// Wire active session provider after restore, when ISessionsManagementService is available.
-				// Resolved via createDecorator to avoid a layering import from vs/sessions/contrib/.
-				// Note: whenRestored is a deferred promise that resolves inside restore() below.
-				const auxWidget = this.collapsedAuxiliaryBarWidget;
-				this.whenRestored.then(() => {
-					instantiationService.invokeFunction(accessor => {
-						try {
-							const svc = accessor.get(_ISessionsManagementService);
-							auxWidget.setActiveSessionProvider(
-								() => svc.getActiveSession()?.resource,
-								Event.fromObservableLight(svc.activeSession)
-							);
-						} catch {
-							// Service not registered — indicators will remain empty
-						}
-					});
-				});
 
 				// Restore
 				this.restore(lifecycleService);
@@ -1140,9 +1105,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			this.auxiliaryBarPartView,
 			!hidden,
 		);
-
-		// Update collapsed auxiliary bar widget active state
-		this.collapsedAuxiliaryBarWidget?.updateActiveState(!hidden);
 
 		// If auxiliary bar becomes hidden, also hide the current active pane composite
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)) {

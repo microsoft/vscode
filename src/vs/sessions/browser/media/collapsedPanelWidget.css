@@ -28,17 +28,6 @@
 	padding-left: 8px;
 }
 
-/* ---- Auxiliary Bar widget (in titlebar-right) ---- */
-
-.agent-sessions-workbench .collapsed-auxbar-widget {
-	order: 1;
-}
-
-.agent-sessions-workbench .collapsed-auxbar-widget.active .collapsed-panel-button {
-	background: var(--vscode-toolbar-activeBackground);
-	border-radius: var(--vscode-cornerRadius-medium);
-}
-
 /* ---- Buttons (match titlebar action-item sizing) ---- */
 
 .agent-sessions-workbench .collapsed-panel-widget .collapsed-panel-buttons {
@@ -92,8 +81,7 @@
 
 /* ---- Sidebar indicators ---- */
 
-.agent-sessions-workbench .collapsed-sidebar-count,
-.agent-sessions-workbench .collapsed-auxbar-count {
+.agent-sessions-workbench .collapsed-sidebar-count {
 	font-size: 11px;
 	font-variant-numeric: tabular-nums;
 	line-height: 16px;
@@ -143,19 +131,4 @@
 
 .agent-sessions-workbench .collapsed-sidebar-panel-toggle:hover {
 	opacity: 1;
-}
-
-/* ---- Auxiliary bar indicators ---- */
-
-.agent-sessions-workbench .collapsed-auxbar-insertions {
-	color: var(--vscode-gitDecoration-addedResourceForeground);
-}
-
-.agent-sessions-workbench .collapsed-auxbar-deletions {
-	color: var(--vscode-gitDecoration-deletedResourceForeground);
-}
-
-.agent-sessions-workbench span.collapsed-auxbar-count.collapsed-auxbar-insertions,
-.agent-sessions-workbench span.collapsed-auxbar-count.collapsed-auxbar-deletions {
-	font-weight: 600;
 }
