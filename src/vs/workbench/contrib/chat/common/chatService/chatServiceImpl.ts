@@ -861,6 +861,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			if (!request.trim() && !options?.slashCommand && !options?.agentId && !options?.agentIdSilent) {
 				this.trace('sendRequest', 'Rejected empty message');
+				trace.done();
 				return { kind: 'rejected', reason: 'Empty message' };
 			}
 
@@ -914,9 +915,11 @@ export class ChatService extends Disposable implements IChatService {
 				if (!options.pauseQueue) {
 					this.processPendingRequests(sessionResource);
 				}
+				trace.done();
 				return queued;
 			} else if (hasPendingRequest) {
 				this.trace('sendRequest', `Session ${sessionResource} already has a pending request`);
+				trace.done();
 				return { kind: 'rejected', reason: 'Request already in progress' };
 			}
 
@@ -941,7 +944,8 @@ export class ChatService extends Disposable implements IChatService {
 			const agent = silentAgent ?? parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
 			const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 
-			// This method is only returning whether the request was accepted - don't block on the actual request
+			// This method is only returning whether the request was accepted - don't block on the actual request.
+			// trace.done() is called in _sendRequestAsync's rawResponsePromise.finally() when the async work completes.
 			const result = {
 				kind: 'sent',
 				newSessionResource,
@@ -954,8 +958,9 @@ export class ChatService extends Disposable implements IChatService {
 
 			trace.mark('didSendRequest');
 			return result;
-		} finally {
+		} catch (e) {
 			trace.done();
+			throw e;
 		}
 	}
 
