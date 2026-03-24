@@ -79,6 +79,34 @@ Each customization type requires its own mock path in `createMockPromptsService`
 
 All test data lives in `allFiles` (prompt-based items) and the `mcpWorkspace/UserServers` arrays. Add enough items per category (8+) to invoke scrolling.
 
+### Exercising built-in grouping
+
+The list widget regroups items from the default chat extension under a "Built-in" header. Three things must be in place for fixtures to exercise this:
+1. Include `BUILTIN_STORAGE` in the harness descriptor's visible sources
+2. Mock `IProductService.defaultChatAgent.chatExtensionId` (e.g., `'GitHub.copilot-chat'`)
+3. Give mock items extension provenance via `extensionId` / `extensionDisplayName` matching that ID
+
+Without all three, built-in regrouping silently doesn't run and the fixture only shows flat lists.
+
+### Editor contribution service mocks
+
+The management editor embeds a `CodeEditorWidget`. Electron-side editor contributions (e.g., `AgentFeedbackEditorWidgetContribution`) are instantiated automatically and crash if their injected services aren't registered. The fixture must mock at minimum:
+- `IAgentFeedbackService` — needs `onDidChangeFeedback`, `onDidChangeNavigation` as `Event.None`
+- `ICodeReviewService` — needs `getReviewState()` / `getPRReviewState()` returning idle observables
+- `IChatEditingService` — needs `editingSessionsObs` as empty observable
+- `IAgentSessionsService` — needs `model.sessions` as empty array
+
+These are cross-layer imports from `vs/sessions/` — use `// eslint-disable-next-line local/code-import-patterns` on the import lines.
+
+### Screenshot stability
+
+Scrollbar fade transitions cause screenshot instability — the scrollbar shifts from `visible` to `invisible fade` class ~2 seconds after a programmatic scroll. After calling `revealLastItem()` or any scroll action, wait for the transition to complete before the fixture's render promise resolves:
+
+```typescript
+await new Promise(resolve => setTimeout(resolve, 2400));
+// Then optionally poll until .scrollbar.vertical loses the 'visible' class
+```
+
 ### Running unit tests
 
 ```bash
