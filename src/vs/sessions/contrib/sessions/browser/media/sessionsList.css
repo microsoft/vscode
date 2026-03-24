@@ -5,155 +5,201 @@
 
 .sessions-list-control {
 	flex: 1 1 auto;
-	overflow: hidden;
+	height: 100%;
+	min-height: 0;
+
+	.pane-body & .monaco-scrollable-element {
+		padding: 0 6px;
+	}
+
+	.monaco-list-row {
+		border-radius: 6px;
+	}
+
+	.monaco-list-row .force-no-twistie {
+		display: none !important;
+	}
+
+	.monaco-list-row.selected .session-details-row {
+		color: unset;
+	}
+
+	.monaco-list:focus .monaco-list-row.selected .session-details-row {
+		.session-diff {
+			.session-diff-added,
+			.session-diff-removed {
+				color: unset;
+			}
+		}
+	}
+
+	.monaco-list-row.selected .session-title {
+		color: unset;
+	}
+
+	.monaco-list:not(:focus) .monaco-list-row.selected .session-details-row {
+		color: var(--vscode-descriptionForeground);
+	}
 }
 
-/* Add horizontal padding to the scrollable area */
-.sessions-list-control .monaco-scrollable-element {
-	padding: 0 6px;
-}
-
-/* Hide tree twisties — sections expand/collapse but we do not show arrows */
-.sessions-list-control .force-no-twistie {
-	display: none !important;
-}
-
-/* ── Session Item ── */
+/* Session Item */
 
 .session-item {
 	display: flex;
 	flex-direction: row;
 	padding: 8px 6px;
-	border-radius: 6px;
-	cursor: pointer;
-}
 
-.session-icon {
-	flex-shrink: 0;
-	display: flex;
-	align-items: flex-start;
-	line-height: 17px;
-	font-size: 12px;
-}
+	.session-main,
+	.session-title-row,
+	.session-details-row {
+		flex: 1;
+		min-width: 0;
+	}
 
-.session-icon > .codicon {
-	flex-shrink: 0;
-	font-size: 12px !important;
-	height: 16px;
-	display: flex;
-	align-items: center;
-}
+	.session-icon {
+		display: flex;
+		align-items: flex-start;
+		line-height: 17px;
 
-.session-main {
-	flex: 1;
-	min-width: 0;
-	display: flex;
-	flex-direction: column;
-	padding-left: 6px;
-}
+		> .codicon {
+			flex-shrink: 0;
+			font-size: 12px;
+			height: 16px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
 
-.session-icon-active .codicon {
-	color: var(--vscode-progressBar-background);
-}
+		&.session-icon-active > .codicon {
+			color: var(--vscode-textLink-foreground);
+		}
 
-.session-icon-pulse .codicon {
-	color: var(--vscode-notificationsWarningIcon-foreground);
-	animation: session-icon-pulse 2s ease-in-out infinite;
-}
+		&.session-icon-pulse > .codicon {
+			color: var(--vscode-list-warningForeground);
+			animation: session-needs-input-pulse 2s ease-in-out infinite;
+		}
 
-@keyframes session-icon-pulse {
-	0%, 100% { opacity: 1; }
-	50% { opacity: 0.3; }
-}
+		@media (prefers-reduced-motion: reduce) {
+			&.session-icon-pulse > .codicon {
+				animation: none;
+			}
+		}
+	}
 
-@media (prefers-reduced-motion: reduce) {
-	.session-icon-pulse .codicon {
-		animation: none;
+	.session-main {
+		padding-left: 6px;
+	}
+
+	.session-title-row,
+	.session-details-row {
+		display: flex;
+		align-items: center;
+	}
+
+	.session-title-row {
+		line-height: 17px;
+		padding-bottom: 4px;
+	}
+
+	.session-details-row {
+		gap: 4px;
+		font-size: 12px;
+		line-height: 15px;
+		max-height: 15px;
+		color: var(--vscode-descriptionForeground);
+
+		.session-diff {
+			font-variant-numeric: tabular-nums;
+			overflow: hidden;
+			display: flex;
+			gap: 4px;
+
+			.session-diff-added {
+				color: var(--vscode-chat-linesAddedForeground);
+			}
+
+			.session-diff-removed {
+				color: var(--vscode-chat-linesRemovedForeground);
+			}
+		}
+
+		.session-separator {
+			display: none;
+
+			&.has-separator {
+				display: inline;
+
+				&::before {
+					content: '\00B7';
+				}
+			}
+		}
+	}
+
+	.session-title,
+	.session-description {
+		/* push other items to the end */
+		flex: 1;
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	.session-description:empty {
+		display: none;
+	}
+
+	.session-title {
+		font-size: 13px;
+	}
+
+	.session-time {
+		display: flex;
+		align-items: center;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
 	}
 }
 
-.session-title-row {
-	display: flex;
-	align-items: center;
-	padding-bottom: 4px;
-}
-
-.session-title {
-	font-size: 13px;
-	line-height: 17px;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	flex: 1;
-}
-
-/* ── Details row: +N -N · time ── */
-
-.session-details-row {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	font-size: 12px;
-	line-height: 15px;
-	color: var(--vscode-descriptionForeground);
-}
-
-/* Separator dots rendered by the renderer as inline spans */
-.session-separator {
-	margin: 0;
-	opacity: 0.7;
-}
-
-/* Diff stats */
-.session-diff {
-	display: inline-flex;
-	gap: 4px;
-	white-space: nowrap;
-	flex-shrink: 0;
-	font-variant-numeric: tabular-nums;
-}
-
-.session-diff-added {
-	color: var(--vscode-gitDecoration-addedResourceForeground);
-}
-
-.session-diff-removed {
-	color: var(--vscode-gitDecoration-deletedResourceForeground);
-}
-
-/* Status description */
-.session-description {
-	white-space: nowrap;
-	flex-shrink: 0;
-}
-
-/* Relative time */
-.session-time {
-	white-space: nowrap;
-	flex-shrink: 0;
-}
-
-/* ── Section Header ── */
+/* Section Header */
 
 .session-section {
 	display: flex;
 	align-items: center;
-	gap: 4px;
-	padding: 6px 12px;
 	font-size: 11px;
 	font-weight: 500;
-	text-transform: uppercase;
-	letter-spacing: 0.05em;
 	color: var(--vscode-descriptionForeground);
-	user-select: none;
+	text-transform: uppercase;
+	/* align with session item padding */
+	padding: 0 6px;
+
+	.session-section-label {
+		flex: 1;
+	}
+
+	.session-section-count {
+		opacity: 0.7;
+		margin-right: 4px;
+	}
 }
 
-.session-section-label {
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+.sessions-list-control {
+
+	.monaco-list:focus .monaco-list-row.focused.selected .session-section-label,
+	.monaco-list:focus .monaco-list-row.selected .session-section-label {
+		color: var(--vscode-list-activeSelectionForeground);
+	}
+
+	.monaco-list:not(:focus) .monaco-list-row.selected .session-section-label {
+		color: var(--vscode-list-inactiveSelectionForeground);
+	}
 }
 
-.session-section-count {
-	opacity: 0.7;
+@keyframes session-needs-input-pulse {
+	0%, 100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.4;
+	}
 }
