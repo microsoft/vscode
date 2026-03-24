@@ -1303,6 +1303,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	public revealLastItem(): void {
 		if (this.selectedSection === AICustomizationManagementSection.McpServers) {
 			this.mcpListWidget?.revealLastItem();
+		} else if (this.selectedSection === AICustomizationManagementSection.Plugins) {
+			this.pluginListWidget?.revealLastItem();
 		} else {
 			this.listWidget.revealLastItem();
 		}

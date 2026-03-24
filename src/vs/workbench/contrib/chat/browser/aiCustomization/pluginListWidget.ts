@@ -732,6 +732,12 @@ export class PluginListWidget extends Disposable {
 		this.searchInput.focus();
 	}
 
+	revealLastItem(): void {
+		if (this.list.length > 0) {
+			this.list.reveal(this.list.length - 1);
+		}
+	}
+
 	focus(): void {
 		this.list.domFocus();
 		if (this.list.length > 0) {
