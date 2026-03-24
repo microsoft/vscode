@@ -407,9 +407,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[RemoteAgentHostsEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.remoteAgentHosts.enabled', "Enable connecting to remote agent hosts."),
+			description: nls.localize('chat.remoteAgentHostsEnabled', "Enable connecting to remote agent hosts."),
 			default: false,
-			tags: ['experimental'],
+			tags: ['experimental', 'advanced'],
 		},
 		[RemoteAgentHostsSettingId]: {
 			type: 'array',
