@@ -7,7 +7,7 @@
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	justify-content: flex-end;
+	justify-content: center;
 	width: 100%;
 	height: 100%;
 	box-sizing: border-box;
@@ -18,7 +18,7 @@
 }
 
 .chat-full-welcome.revealed {
-	justify-content: flex-end;
+	justify-content: center;
 }
 
 /* Header */
@@ -73,7 +73,7 @@
 	max-width: 800px;
 	display: flex;
 	flex-direction: column;
-	align-items: center;
+	align-items: stretch;
 }
 
 /* Local mode picker (Workspace / Worktree) below input */
@@ -141,7 +141,7 @@
 	flex-direction: row;
 	flex-wrap: nowrap;
 	align-items: center;
-	justify-content: center;
+	justify-content: flex-start;
 	gap: 6px;
 	width: 100%;
 	box-sizing: border-box;
