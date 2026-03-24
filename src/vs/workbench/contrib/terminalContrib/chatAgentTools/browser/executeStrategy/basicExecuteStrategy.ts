@@ -11,7 +11,7 @@ import { isNumber } from '../../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
-import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
+import { shouldForceBracketedPasteModeForRunInTerminal, trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
@@ -129,7 +129,8 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			// occurs.
 			this._log(`Executing command line \`${commandLine}\``);
 			markerRecreation.dispose();
-			this._instance.sendText(commandLine, true, true);
+			const forceBracketedPasteMode = shouldForceBracketedPasteModeForRunInTerminal(this._instance);
+			this._instance.sendText(commandLine, true, forceBracketedPasteMode);
 
 			// Wait for the next end execution event - note that this may not correspond to the actual
 			// execution requested

@@ -13,7 +13,7 @@ import { isCI } from '../../../../../../base/common/platform.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
+import { shouldForceBracketedPasteModeForRunInTerminal, trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
@@ -85,7 +85,8 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 			// Execute the command
 			this._log(`Executing command line \`${commandLine}\``);
 			markerRecreation.dispose();
-			this._instance.runCommand(commandLine, true, commandId, true);
+			const forceBracketedPasteMode = shouldForceBracketedPasteModeForRunInTerminal(this._instance);
+			this._instance.runCommand(commandLine, true, commandId, forceBracketedPasteMode);
 
 			// Wait for the terminal to idle
 			this._log('Waiting for done event');
