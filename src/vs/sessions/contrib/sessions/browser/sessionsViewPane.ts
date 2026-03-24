@@ -432,7 +432,7 @@ registerAction2(class ShowTopSessionsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.showTopSessions',
-			title: localize2('showTopSessions', "Show Top {0} Sessions", AgentSessionsDataSource.REPOSITORY_GROUP_LIMIT),
+			title: localize2('showRecentSessions', "Show Recent Sessions"),
 			category: SessionsCategories.Sessions,
 			toggled: IsRepositoryGroupCappedContext,
 			menu: [{
