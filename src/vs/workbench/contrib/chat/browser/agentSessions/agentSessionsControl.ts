@@ -12,8 +12,8 @@ import { $, append, EventHelper, addDisposableListener, EventType, hide, setVisi
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
-import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection } from './agentSessionsModel.js';
-import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionSectionLabels, AgentSessionsSorter, getRepositoryName, IAgentSessionsFilter } from './agentSessionsViewer.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection, isAgentSessionShowMore } from './agentSessionsModel.js';
+import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionSectionLabels, AgentSessionShowMoreRenderer, AgentSessionsSorter, getRepositoryName, IAgentSessionsFilter } from './agentSessionsViewer.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from './agentSessionsFilter.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
@@ -49,6 +49,7 @@ export interface IAgentSessionsControlOptions {
 	readonly source: string;
 	readonly disableHover?: boolean;
 	readonly enableApprovalRow?: boolean;
+	readonly repositoryGroupLimit?: number;
 
 	getHoverPosition(): HoverPosition;
 	trackActiveEditorSession(): boolean;
@@ -79,6 +80,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	private emptyFilterMessage: HTMLElement | undefined;
 
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore> | undefined;
+	private sessionsDataSource: AgentSessionsDataSource | undefined;
 	private static readonly RECENT_SESSIONS_FOR_EXPAND = 5;
 
 	private sessionsListFindIsOpen = false;
@@ -260,7 +262,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			isGroupedByRepository: () => this.options.filter.groupResults?.() === AgentSessionsGrouping.Repository,
 			isSortedByUpdated: () => this.options.filter.sortResults?.() === AgentSessionsSorting.Updated,
 		}, approvalModel, activeSessionResource));
-		const sessionFilter = this._register(new AgentSessionsDataSource(this.options.filter, sorter));
+		const sessionDataSource = this.sessionsDataSource = this._register(new AgentSessionsDataSource(this.options.filter, sorter, this.options.repositoryGroupLimit));
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
 			container,
@@ -269,8 +271,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			[
 				sessionRenderer,
 				this.instantiationService.createInstance(AgentSessionSectionRenderer),
+				new AgentSessionShowMoreRenderer(),
 			],
-			sessionFilter,
+			sessionDataSource,
 			{
 				accessibilityProvider: new AgentSessionsAccessibilityProvider(),
 				dnd: this.instantiationService.createInstance(AgentSessionsDragAndDrop),
@@ -295,8 +298,12 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			}
 		}));
 
-		this._register(sessionFilter.onDidGetChildren(count => {
+		this._register(sessionDataSource.onDidGetChildren(count => {
 			this.updateEmpty(count === 0);
+		}));
+
+		this._register(sessionDataSource.onDidExpandRepositoryGroup(() => {
+			this.update();
 		}));
 
 		const model = this.agentSessionsService.model;
@@ -406,6 +413,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			return; // Section headers are not openable
 		}
 
+		if (isAgentSessionShowMore(element)) {
+			this.sessionsDataSource?.expandRepositoryGroup(element.sectionLabel);
+			return;
+		}
+
 		this.telemetryService.publicLog2<AgentSessionOpenedEvent, AgentSessionOpenedClassification>('agentSessionOpened', {
 			providerType: element.providerType,
 			source: this.options.source
@@ -423,7 +435,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	}
 
 	private async showContextMenu({ element, anchor, browserEvent }: ITreeContextMenuEvent<AgentSessionListItem>): Promise<void> {
-		if (!element) {
+		if (!element || isAgentSessionShowMore(element)) {
 			return;
 		}
 

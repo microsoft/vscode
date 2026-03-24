@@ -13,6 +13,15 @@
 		padding: 0 6px;
 	}
 
+	.agent-sessions-workbench .pane-body & .monaco-scrollable-element {
+		padding: 0 12px;
+	}
+
+	.agent-sessions-workbench .pane-body & .monaco-tree-sticky-container {
+		left: 12px;
+		width: calc(100% - 24px);
+	}
+
 	.monaco-list-row {
 		border-radius: 6px;
 	}
@@ -319,6 +328,17 @@
 				}
 			}
 		}
+	}
+
+	.agent-session-show-more {
+		display: flex;
+		align-items: center;
+		font-size: 12px;
+		color: var(--vscode-foreground);
+		/* align with session item text: 6px item padding + 16px icon + 6px main-col padding */
+		padding: 0 6px 0 24px;
+		cursor: pointer;
+		text-decoration: none !important;
 	}
 
 	.agent-session-section {

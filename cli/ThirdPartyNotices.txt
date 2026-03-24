@@ -722,9 +722,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -1922,9 +1922,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5287,9 +5287,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5328,9 +5328,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5369,9 +5369,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5410,9 +5410,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5451,9 +5451,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5492,9 +5492,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5533,9 +5533,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5574,9 +5574,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5615,9 +5615,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5656,9 +5656,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5697,9 +5697,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5738,9 +5738,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5779,9 +5779,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5820,9 +5820,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -10137,7 +10137,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-tar 0.4.44 - MIT OR Apache-2.0
+tar 0.4.45 - MIT OR Apache-2.0
 https://github.com/alexcrichton/tar-rs
 
 Copyright (c) The tar-rs Project Contributors
@@ -14089,9 +14089,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-Some files in the "tests/data" subdirectory of this repository are under other
-licences; see files named LICENSE.*.txt for details.
 ---------------------------------------------------------
 
 ---------------------------------------------------------

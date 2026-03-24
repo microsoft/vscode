@@ -3447,7 +3447,6 @@ export namespace ChatAgentRequest {
 			subAgentInvocationId: request.subAgentInvocationId,
 			subAgentName: request.subAgentName,
 			parentRequestId: request.parentRequestId,
-			sessionGrouping: request.sessionGrouping,
 			hasHooksEnabled: request.hasHooksEnabled ?? false,
 			hooks: request.hooks ? ChatRequestHooksConverter.to(request.hooks) : undefined,
 		};
@@ -3475,8 +3474,6 @@ export namespace ChatAgentRequest {
 			delete (requestWithAllProps as any).subAgentName;
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).parentRequestId;
-			// eslint-disable-next-line local/code-no-any-casts
-			delete (requestWithAllProps as any).sessionGrouping;
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).hasHooksEnabled;
 			// eslint-disable-next-line local/code-no-any-casts
@@ -3610,13 +3607,33 @@ namespace ChatLanguageModelToolReferences {
 }
 
 export namespace ChatRequestModeInstructions {
-	export function to(mode: IChatRequestModeInstructions | undefined): vscode.ChatRequestModeInstructions | undefined {
+	export function to(mode: IChatRequestModeInstructions | Dto<IChatRequestModeInstructions> | undefined): vscode.ChatRequestModeInstructions | undefined {
 		if (mode) {
 			return {
 				uri: URI.revive(mode.uri),
 				name: mode.name,
 				content: mode.content,
-				toolReferences: ChatLanguageModelToolReferences.to(mode.toolReferences),
+				toolReferences: ChatLanguageModelToolReferences.to(revive(mode.toolReferences)),
+				metadata: mode.metadata,
+				isBuiltin: mode.isBuiltin,
+			};
+		}
+		return undefined;
+	}
+
+	export function from(mode: vscode.ChatRequestModeInstructions | undefined): IChatRequestModeInstructions | undefined {
+		if (mode) {
+			return {
+				uri: mode.uri,
+				name: mode.name,
+				content: mode.content,
+				toolReferences: mode.toolReferences?.map(ref => ({
+					kind: 'tool' as const,
+					id: ref.name,
+					name: ref.name,
+					value: undefined,
+					range: ref.range ? { start: ref.range[0], endExclusive: ref.range[1] } : undefined,
+				})) ?? [],
 				metadata: mode.metadata,
 				isBuiltin: mode.isBuiltin,
 			};
