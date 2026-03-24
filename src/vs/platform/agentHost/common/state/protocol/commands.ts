@@ -245,6 +245,8 @@ export const enum ContentEncoding {
  * @direction Client → Server
  * @messageType Request
  * @version 1
+ * @throws `NotFound` (`-32008`) if the URI does not exist.
+ * @throws `PermissionDenied` (`-32009`) if the client is not permitted to read the URI.
  * @example
  * ```jsonc
  * // Client → Server
@@ -299,6 +301,8 @@ export interface IFetchContentResult {
  * @direction Client → Server
  * @messageType Request
  * @version 1
+ * @throws `NotFound` (`-32008`) if the directory does not exist.
+ * @throws `PermissionDenied` (`-32009`) if the client is not permitted to browse the directory.
  */
 export interface IBrowseDirectoryParams {
 	/** Directory URI on the server filesystem */

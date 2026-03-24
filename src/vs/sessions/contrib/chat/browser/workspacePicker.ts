@@ -21,9 +21,8 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { GITHUB_REMOTE_FILE_SCHEME, SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { agentHostAuthority } from '../../remoteAgentHost/browser/remoteAgentHost.contribution.js';
-import { AGENT_HOST_FS_SCHEME } from '../../remoteAgentHost/browser/agentHostFileSystemProvider.js';
 import { pickRemoteAgentHostFolder } from '../../remoteAgentHost/browser/remoteAgentHostPicker.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 
 const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
 const STORAGE_KEY_LAST_PROJECT = 'sessions.lastPickedProject';
@@ -344,9 +343,9 @@ export class WorkspacePicker extends Disposable {
 		// Split into folders, repos, and remotes, sort each group alphabetically
 		const isStoredFolder = (p: IStoredProject) => {
 			const scheme = URI.revive(p.uri).scheme;
-			return scheme !== GITHUB_REMOTE_FILE_SCHEME && scheme !== AGENT_HOST_FS_SCHEME;
+			return scheme !== GITHUB_REMOTE_FILE_SCHEME && scheme !== AGENT_HOST_SCHEME;
 		};
-		const isStoredRemote = (p: IStoredProject) => URI.revive(p.uri).scheme === AGENT_HOST_FS_SCHEME;
+		const isStoredRemote = (p: IStoredProject) => URI.revive(p.uri).scheme === AGENT_HOST_SCHEME;
 		const folders = allProjects.filter(p => isStoredFolder(p)).sort((a, b) => this._getStoredProjectLabel(a).localeCompare(this._getStoredProjectLabel(b)));
 		const repos = allProjects.filter(p => !isStoredFolder(p) && !isStoredRemote(p)).sort((a, b) => this._getStoredProjectLabel(a).localeCompare(this._getStoredProjectLabel(b)));
 		const remotes = allProjects.filter(p => isStoredRemote(p)).sort((a, b) => this._getStoredProjectLabel(a).localeCompare(this._getStoredProjectLabel(b)));
@@ -448,7 +447,7 @@ export class WorkspacePicker extends Disposable {
 	private _getStoredProjectLabel(project: IStoredProject): string {
 		const uri = URI.revive(project.uri);
 		// TODO@roblourens HACK
-		if (uri.scheme === AGENT_HOST_FS_SCHEME) {
+		if (uri.scheme === AGENT_HOST_SCHEME) {
 			const folderName = basename(uri) || uri.path || '/';
 			const remoteName = this._getRemoteName(uri.authority) ?? project.remoteName ?? uri.authority;
 			return `${folderName} [${remoteName}]`;
@@ -475,7 +474,7 @@ export class WorkspacePicker extends Disposable {
 	private _toStored(project: SessionWorkspace): IStoredProject {
 		const uri = project.uri;
 		const stored: IStoredProject = { uri: uri.toJSON() };
-		if (uri.scheme === AGENT_HOST_FS_SCHEME) {
+		if (uri.scheme === AGENT_HOST_SCHEME) {
 			const remoteName = this._getRemoteName(uri.authority);
 			if (remoteName) {
 				return { ...stored, remoteName };
@@ -493,7 +492,7 @@ export class WorkspacePicker extends Disposable {
 	 * it from the recents list so labels remain stable across restarts.
 	 */
 	private _withCachedRemoteName(stored: IStoredProject): IStoredProject {
-		if (!stored.remoteName && URI.revive(stored.uri).scheme === AGENT_HOST_FS_SCHEME) {
+		if (!stored.remoteName && URI.revive(stored.uri).scheme === AGENT_HOST_SCHEME) {
 			const cached = this._recentProjects.find(p => this._isSameProject(p, stored));
 			if (cached?.remoteName) {
 				return { ...stored, remoteName: cached.remoteName };

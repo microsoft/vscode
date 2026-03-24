@@ -9,7 +9,7 @@ import { URI, UriComponents } from '../../../../../../base/common/uri.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IAgentConnection, IAgentCreateSessionConfig, IAgentDescriptor, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata, AgentHostIpcLoggingSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import type { IBrowseDirectoryResult, IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../../services/output/common/output.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
@@ -149,6 +149,10 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 
 	async browseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
 		return this._logCall('browseDirectory', uri, () => this._inner.browseDirectory(uri));
+	}
+
+	async fetchContent(uri: URI): Promise<IFetchContentResult> {
+		return this._logCall('fetchContent', uri, () => this._inner.fetchContent(uri));
 	}
 
 	// ---- Public logging API for callers' catch blocks -----------------------
