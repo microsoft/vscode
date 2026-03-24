@@ -18,7 +18,8 @@ import { ITerminalInstance, ITerminalService } from '../../../../workbench/contr
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { Menus } from '../../../browser/menus.js';
-import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionData } from '../../sessions/common/sessionData.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
@@ -33,11 +34,12 @@ const SessionsTerminalViewVisibleContext = new RawContextKey<boolean>('sessionsT
  * background sessions only. Returns `undefined` for non-background sessions
  * (Cloud, Local, etc.) which have no local worktree, or when no path is available.
  */
-function getSessionCwd(session: IActiveSessionItem | undefined): URI | undefined {
-	if (session?.providerType !== AgentSessionProviders.Background) {
+function getSessionCwd(session: ISessionData | undefined): URI | undefined {
+	if (session?.sessionType !== AgentSessionProviders.Background) {
 		return undefined;
 	}
-	return session.worktree ?? session.repository;
+	const repo = session.workspace.get()?.repositories[0];
+	return repo?.workingDirectory ?? repo?.uri;
 }
 
 /**
@@ -75,7 +77,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 		// React to active session changes — use worktree/repo for background sessions, home dir otherwise
 		this._register(autorun(reader => {
-			const session = this._sessionsManagementService.activeSession.read(reader);
+			const session = this._sessionsManagementService.activeSessionData.read(reader);
 			this._onActiveSessionChanged(session);
 		}));
 
@@ -139,7 +141,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		return existing;
 	}
 
-	private async _onActiveSessionChanged(session: IActiveSessionItem | undefined): Promise<void> {
+	private async _onActiveSessionChanged(session: ISessionData | undefined): Promise<void> {
 		if (!session) {
 			return;
 		}
@@ -330,7 +332,7 @@ class OpenSessionInTerminalAction extends Action2 {
 		const sessionsManagementService = _accessor.get(ISessionsManagementService);
 		const pathService = _accessor.get(IPathService);
 
-		const activeSession = sessionsManagementService.activeSession.get();
+		const activeSession = sessionsManagementService.activeSessionData.get();
 		const cwd = getSessionCwd(activeSession) ?? await pathService.userHome();
 		await contribution.ensureTerminal(cwd, true);
 		viewsService.openView(TERMINAL_VIEW_ID);

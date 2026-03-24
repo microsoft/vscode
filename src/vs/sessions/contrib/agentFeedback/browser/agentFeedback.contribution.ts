@@ -51,7 +51,7 @@ class ActiveSessionFeedbackContextContribution extends Disposable implements IWo
 
 		this._register(autorun(reader => {
 			feedbackChanged.read(reader);
-			const activeSession = sessionManagementService.activeSession.read(reader);
+			const activeSession = sessionManagementService.activeSessionData.read(reader);
 			menuRegistration.clear();
 			if (!activeSession) {
 				contextKey.set(false);

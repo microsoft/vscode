@@ -39,7 +39,7 @@ export class ChangesViewController extends Disposable {
 			this.agentSessionsService.model.onDidChangeSessions);
 
 		const activeSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual, }, reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionManagementService.activeSessionData.read(reader);
 			return activeSession?.resource;
 		});
 

@@ -214,7 +214,7 @@ class SubmitActiveSessionFeedbackAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const logService = accessor.get(ILogService);
 
-		const activeSession = sessionManagementService.getActiveSession();
+		const activeSession = sessionManagementService.activeSessionData.get();
 		if (!activeSession) {
 			return;
 		}

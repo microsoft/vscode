@@ -24,6 +24,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { SessionsListControl, SessionsGrouping, SessionsSorting } from '../sessionsListControl.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from '../sessionsManagementService.js';
+import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -156,7 +157,7 @@ export class SessionsViewPane extends ViewPane {
 
 		// When the active session changes, select it in the list
 		this._register(autorun(reader => {
-			const activeSession = this.sessionsManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsManagementService.activeSessionData.read(reader);
 			if (activeSession) {
 				if (!sessionsControl.reveal(activeSession.resource)) {
 					sessionsControl.clearFocus();
@@ -165,10 +166,20 @@ export class SessionsViewPane extends ViewPane {
 				sessionsControl.clearFocus();
 			}
 		}));
+
+		// AI Customization toolbar (bottom, fixed height)
+		this._register(this.instantiationService.createInstance(AICustomizationShortcutsWidget, sessionsContainer, {
+			onDidToggleCollapse: () => {
+				if (this.viewPaneContainer) {
+					const { offsetHeight, offsetWidth } = this.viewPaneContainer;
+					this.layoutBody(offsetHeight, offsetWidth);
+				}
+			},
+		}));
 	}
 
 	private restoreLastSelectedSession(): void {
-		const activeSession = this.sessionsManagementService.getActiveSession();
+		const activeSession = this.sessionsManagementService.activeSessionData.get();
 		if (activeSession && this.sessionsControl) {
 			this.sessionsControl.reveal(activeSession.resource);
 		}
@@ -194,6 +205,10 @@ export class SessionsViewPane extends ViewPane {
 		this.sessionsControl?.refresh();
 	}
 
+	openFind(): void {
+		this.sessionsControl?.openFind();
+	}
+
 	setGrouping(grouping: SessionsGrouping): void {
 		if (this.currentGrouping === grouping) {
 			return;
@@ -202,6 +217,7 @@ export class SessionsViewPane extends ViewPane {
 		this.currentGrouping = grouping;
 		this.storageService.store(GROUPING_STORAGE_KEY, this.currentGrouping, StorageScope.PROFILE, StorageTarget.USER);
 		this.groupingContextKey?.set(this.currentGrouping);
+		this.sessionsControl?.resetSectionCollapseState();
 		this.sessionsControl?.update();
 	}
 
@@ -217,7 +233,7 @@ export class SessionsViewPane extends ViewPane {
 	}
 }
 
-// ── Keybindings ──
+// -- Keybindings --
 
 KeybindingsRegistry.registerKeybindingRule({
 	id: ACTION_ID_NEW_SESSION,
@@ -250,7 +266,7 @@ KeybindingsRegistry.registerKeybindingRule({
 	win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 });
 
-// ── Sort / Group Menus ──
+// -- Sort / Group Menus --
 
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	submenu: SessionsViewFilterSubMenu,
@@ -343,5 +359,27 @@ registerAction2(class RefreshSessionsAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
 		return view?.sessionsControl?.refresh();
+	}
+});
+
+registerAction2(class FindSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.find',
+			title: localize2('find', "Find Session"),
+			icon: Codicon.search,
+			category: SessionsCategories.Sessions,
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 2,
+				when: ContextKeyExpr.equals('view', SessionsViewPaneId),
+			}]
+		});
+	}
+	override run(accessor: ServicesAccessor) {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
+		return view?.openFind();
 	}
 });

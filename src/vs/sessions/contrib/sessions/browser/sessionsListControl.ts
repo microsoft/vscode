@@ -7,8 +7,8 @@ import './media/sessionsList.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
-import { IObjectTreeElement, ITreeNode, ITreeRenderer, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
-import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer, ICollapseStateChangeEvent, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
+import { RenderIndentGuides, TreeFindMode } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
@@ -21,6 +21,7 @@ import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { IStyleOverride } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionData, ISessionWorkspace, SessionStatus } from '../common/sessionData.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionWorkspace.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
@@ -320,9 +321,13 @@ export interface ISessionsListControl {
 	layout(height: number, width: number): void;
 	focus(): void;
 	update(): void;
+	openFind(): void;
+	resetSectionCollapseState(): void;
 }
 
 export class SessionsListControl extends Disposable implements ISessionsListControl {
+
+	private static readonly SECTION_COLLAPSE_STATE_KEY = 'sessionsListControl.sectionCollapseState';
 
 	private readonly listContainer: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
@@ -339,6 +344,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 		private readonly options: ISessionsListControlOptions,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
@@ -364,8 +370,18 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 					}
 				},
 				horizontalScrolling: false,
-				multipleSelectionSupport: false,
+				multipleSelectionSupport: true,
 				indent: 0,
+				findWidgetEnabled: true,
+				defaultFindMode: TreeFindMode.Filter,
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: (element: SessionListItem) => {
+						if (isSessionSection(element)) {
+							return element.label;
+						}
+						return element.title.get();
+					}
+				},
 				overrideStyles: this.options.overrideStyles,
 				renderIndentGuides: RenderIndentGuides.None,
 				twistieAdditionalCssClass: () => 'force-no-twistie',
@@ -376,6 +392,18 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 			const element = e.element;
 			if (element && !isSessionSection(element)) {
 				this.options.onSessionOpen(element.resource);
+			}
+		}));
+
+		this._register(this.tree.onDidCollapseElement((e: ICollapseStateChangeEvent<SessionListItem, FuzzyScore>) => {
+			if (isSessionSection(e.element)) {
+				this.saveSectionCollapseState(e.element.id, true);
+			}
+		}));
+
+		this._register(this.tree.onDidExpandElement((e: ICollapseStateChangeEvent<SessionListItem, FuzzyScore>) => {
+			if (isSessionSection(e.element)) {
+				this.saveSectionCollapseState(e.element.id, false);
 			}
 		}));
 
@@ -403,7 +431,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 		const children: IObjectTreeElement<SessionListItem>[] = sections.map(section => ({
 			element: section,
 			collapsible: true,
-			collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+			collapsed: this.getSavedCollapseState(section.id) ?? ObjectTreeElementCollapseState.PreserveOrExpanded,
 			children: section.sessions.map(session => ({
 				element: session,
 			})),
@@ -455,6 +483,48 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 	focus(): void {
 		this.tree.domFocus();
+	}
+
+	openFind(): void {
+		this.tree.openFind();
+	}
+
+	resetSectionCollapseState(): void {
+		this.storageService.remove(SessionsListControl.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+	}
+
+	// -- Section collapse persistence --
+
+	private getSavedCollapseState(sectionId: string): boolean | undefined {
+		const raw = this.storageService.get(SessionsListControl.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+		if (raw) {
+			try {
+				const state: Record<string, boolean> = JSON.parse(raw);
+				if (typeof state[sectionId] === 'boolean') {
+					return state[sectionId];
+				}
+			} catch {
+				// ignore corrupt data
+			}
+		}
+		return undefined;
+	}
+
+	private saveSectionCollapseState(sectionId: string, collapsed: boolean): void {
+		let state: Record<string, boolean> = {};
+		const raw = this.storageService.get(SessionsListControl.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+		if (raw) {
+			try {
+				const parsed = JSON.parse(raw);
+				if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+					state = parsed;
+				}
+			} catch {
+				// ignore corrupt data
+			}
+		}
+		state[sectionId] = collapsed;
+		this.storageService.store(SessionsListControl.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	// -- Sorting --

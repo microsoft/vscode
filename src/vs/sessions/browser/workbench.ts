@@ -70,8 +70,7 @@ import { IObservable } from '../../base/common/observable.js';
  * a layering import from vs/sessions/contrib/.
  */
 interface IMinimalSessionsManagementService {
-	getActiveSession(): { resource: URI } | undefined;
-	readonly activeSession: IObservable<unknown>;
+	readonly activeSessionData: IObservable<{ resource: URI } | undefined>;
 }
 const _ISessionsManagementService = createDecorator<IMinimalSessionsManagementService>('sessionsManagementService');
 
@@ -398,8 +397,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 						try {
 							const svc = accessor.get(_ISessionsManagementService);
 							auxWidget.setActiveSessionProvider(
-								() => svc.getActiveSession()?.resource,
-								Event.fromObservableLight(svc.activeSession)
+								() => svc.activeSessionData.get()?.resource,
+								Event.fromObservableLight(svc.activeSessionData)
 							);
 						} catch {
 							// Service not registered — indicators will remain empty
