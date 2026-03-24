@@ -87,3 +87,72 @@ npm run compile-check-ts-native && npm run valid-layers-check
 ```
 
 See the `sessions` skill for sessions-window specific guidance.
+
+## Debugging Layout in the Real Product
+
+Component fixtures use mock data and a fixed container size. Layout bugs caused by reflow timing, real data shapes, or narrow window sizes often **don't reproduce in fixtures**. When a user reports a broken layout, debug in the live Code OSS product using `agent-browser`.
+
+### Launching Code OSS for debugging
+
+If another Code OSS instance is already running from a different worktree, `scripts/code.sh` will just activate it instead of launching a new one. Use `--user-data-dir` to force an isolated instance:
+
+```bash
+VSCODE_SKIP_PRELAUNCH=1 ./scripts/code.sh --user-data-dir /tmp/code-oss-debug --remote-debugging-port=9225 &
+sleep 8 && npx agent-browser connect 9225
+```
+
+### Opening the Chat Customizations editor
+
+```bash
+# Screenshot to see current state
+npx agent-browser screenshot "$SCREENSHOT_DIR/01-initial.png"
+
+# Find and click "Open Customizations" in the Chat panel header
+npx agent-browser snapshot -i 2>&1 | grep -i "customiz"
+npx agent-browser click <ref>
+
+# Navigate to a specific section via DOM click
+npx agent-browser eval "const items = [...document.querySelectorAll('.section-list-item')]; const target = items.find(el => el.textContent?.includes('MCP')); target?.click();"
+```
+
+### Inspecting widget layout via eval
+
+`agent-browser eval` doesn't always print return values. Use `document.title` as a return channel:
+
+```bash
+# Set diagnostic data into the page title
+npx agent-browser eval "const w = document.querySelector('.mcp-list-widget'); \
+  const lc = w?.querySelector('.mcp-list-container'); \
+  const se = lc?.querySelector('.monaco-scrollable-element'); \
+  const rows = lc?.querySelectorAll('.monaco-list-row'); \
+  document.title = 'DBG:listD=' + (lc?.style?.display ?? 'X') \
+    + ',rows=' + (rows?.length ?? -1) \
+    + ',listH=' + (lc?.offsetHeight ?? -1) \
+    + ',seStH=' + (se?.style?.height ?? '') \
+    + ',wH=' + (w?.offsetHeight ?? -1);"
+
+# Then read it back
+npx agent-browser eval "document.title" 2>&1
+```
+
+Key things to check:
+- **`rows` count** — if the virtual list has fewer rows than expected, `list.layout()` was never called with the correct viewport height.
+- **`seStH` (scrollable element style.height)** — if empty, the list was never properly laid out.
+- **`listD` (list container display)** — confirms the container is visible.
+- **`listH` vs `wH`** — the list container height should be widget height minus search bar minus footer.
+
+### Common layout issues
+
+| Symptom | Root cause | Fix pattern |
+|---------|-----------|-------------|
+| List shows 0-1 rows in a tall container | `layout()` bailed out because `offsetHeight` returned 0 during `display:none → visible` transition | Defer layout to next animation frame: `DOM.getWindow(this.element).requestAnimationFrame(() => this.layout(...))` |
+| Badge or row content clips at the right edge | Widget container missing `overflow: hidden` | Add `overflow: hidden` to the widget's CSS class |
+| Footer not visible despite space | Footer `offsetHeight` measured before reflow, subtracted too much from list height | Same deferred-layout fix |
+| Items visible in fixture but not in product | Fixture uses many mock items; real product may have few items from only extension/builtin sources | Add fixture variants with fewer items or narrower dimensions |
+
+### Fixture vs real product differences
+
+The fixture always renders at a fixed size (default 900×600) with many mock items. Real-product issues that won't reproduce in fixtures:
+- **Narrow or squished windows** — add fixture variants with `width`/`height` options (e.g., `width: 550, height: 400`)
+- **Reflow timing** — fixtures set dimensions synchronously; the real product's `display:none → visible` transition may not have reflowed before `layout()` fires
+- **Real data counts** — a user with 1 MCP server sees very different layout than a fixture with 12
