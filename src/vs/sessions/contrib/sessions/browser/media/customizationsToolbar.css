@@ -7,8 +7,9 @@
 	display: flex;
 	flex-direction: column;
 	flex-shrink: 0;
-	border-top: 1px solid var(--vscode-widget-border);
-	padding: 6px;
+	border-top: 1px solid var(--vscode-panel-border, transparent);
+	margin: 0 12px;
+	padding: 6px 0;
 }
 
 /* Make the toolbar, action bar, and items fill full width and stack vertically */
