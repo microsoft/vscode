@@ -7,6 +7,7 @@ import './media/sessionsViewPane.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorsVisibleContext } from '../../../../workbench/common/contextkeys.js';
@@ -150,8 +151,10 @@ export class AgenticSessionsViewPane extends ViewPane {
 		// New Session Button
 		const newSessionButtonContainer = DOM.append(sessionsContent, $('.agent-sessions-new-button-container'));
 		const keybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_CHAT);
-		const keybindingLabel = keybinding?.getLabel();
-		const keybindingAriaLabel = keybinding?.getAriaLabel();
+		const fallbackKeybindingLabel = isMacintosh ? 'Cmd+N' : 'Ctrl+N';
+		const fallbackKeybindingAriaLabel = isMacintosh ? 'Command+N' : 'Control+N';
+		const keybindingLabel = keybinding?.getLabel() ?? fallbackKeybindingLabel;
+		const keybindingAriaLabel = keybinding?.getAriaLabel() ?? fallbackKeybindingAriaLabel;
 		const newSessionButtonTitle = keybindingLabel
 			? localize('newSessionButtonTitle', "New Session ({0})", keybindingLabel)
 			: localize('newSessionButtonTitleWithoutKeybinding', "New Session");

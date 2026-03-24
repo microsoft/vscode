@@ -91,6 +91,13 @@
 		min-width: 0;
 	}
 
+	.agent-sessions-new-button-container .monaco-button .new-session-button-label > .codicon {
+		margin: 0;
+		font-size: 14px;
+		line-height: 14px;
+		transform: translateY(1px);
+	}
+
 	.agent-sessions-new-button-container .monaco-button .new-session-keybinding-hint {
 		margin-left: auto;
 		flex-shrink: 0;
