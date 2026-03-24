@@ -1472,9 +1472,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 					this.logger.debug(`[computeSkillDiscoveryInfo] Agent skill file missing name attribute, using folder name "${folderName}": ${uri}`);
 					name = folderName;
 				}
-				const sanitizedName = this.truncateAgentSkillName(name, uri);
+				let sanitizedName = this.truncateAgentSkillName(name, uri);
 				if (sanitizedName !== folderName) {
 					this.logger.debug(`[computeSkillDiscoveryInfo] Agent skill name "${sanitizedName}" does not match folder name "${folderName}", using folder name: ${uri}`);
+					sanitizedName = folderName;
 				}
 
 				if (seenNames.has(sanitizedName)) {
