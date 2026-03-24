@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../base/common/async.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
 import { IPlaywrightService, playwrightSessionName } from '../common/playwrightService.js';
@@ -45,6 +46,12 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 	private readonly _pages: PlaywrightPageManager;
 	readonly onDidChangeTrackedPages: Event<readonly string[]>;
+
+	private readonly _onDidChangeSessionName = this._register(new Emitter<string>());
+	readonly onDidChangeSessionName: Event<string> = this._onDidChangeSessionName.event;
+
+	private _sessionName: string | undefined;
+	get sessionName(): string | undefined { return this._sessionName; }
 
 	private _browser: Browser | undefined;
 	private _initPromise: Promise<void> | undefined;
@@ -136,8 +143,13 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 				// Register the browser with Playwright so that external CLI tools
 				// (e.g. `npx playwright@next cli`) can discover it via the
 				// PLAYWRIGHT_CLI_SESSION environment variable.
-				browser._register(playwrightSessionName).then(
-					({ pipeName }) => this.logService.debug('[PlaywrightService] Registered browser as', playwrightSessionName, 'with pipe name', pipeName),
+				const sessionName = `${playwrightSessionName}-${generateUuid().substring(0, 9)}`;
+				browser._register(sessionName).then(
+					({ pipeName }) => {
+						this.logService.debug('[PlaywrightService] Registered browser as', sessionName, 'with pipe name', pipeName);
+						this._sessionName = sessionName;
+						this._onDidChangeSessionName.fire(sessionName);
+					},
 					(err) => this.logService.warn('[PlaywrightService] Failed to register browser for CLI discovery:', err),
 				);
 			} catch (e) {

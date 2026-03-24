@@ -30,6 +30,18 @@ export interface IPlaywrightService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * The current session name used to register the browser with Playwright CLI,
+	 * or `undefined` if not yet registered.
+	 */
+	readonly sessionName: string | undefined;
+
+	/**
+	 * Fires when the session name changes (i.e. when the browser is registered
+	 * with Playwright CLI). The event value is the new session name.
+	 */
+	readonly onDidChangeSessionName: Event<string>;
+
+	/**
 	 * Fires when the set of tracked pages changes.
 	 * The event value is the full list of currently tracked view IDs.
 	 */

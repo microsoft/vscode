@@ -39,7 +39,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 import { EnvironmentVariableMutatorType } from '../../../../platform/terminal/common/environmentVariable.js';
 import { IEnvironmentVariableCollectionWithPersistence, IEnvironmentVariableService } from '../../terminal/common/environmentVariable.js';
-import { playwrightSessionName, playwrightSessionEnvVar } from '../../../../platform/browserView/common/playwrightService.js';
+import { IPlaywrightService, playwrightSessionName, playwrightSessionEnvVar } from '../../../../platform/browserView/common/playwrightService.js';
 
 // Register actions and browser tools
 import './browserViewActions.js';
@@ -184,22 +184,26 @@ class PlaywrightTerminalEnvironmentContribution extends Disposable implements IW
 
 	constructor(
 		@IEnvironmentVariableService environmentVariableService: IEnvironmentVariableService,
+		@IPlaywrightService playwrightService: IPlaywrightService,
 	) {
 		super();
-		this._setCollection(environmentVariableService);
+		this._setCollection(environmentVariableService, playwrightService.sessionName ?? playwrightSessionName);
+		this._register(playwrightService.onDidChangeSessionName(name => {
+			this._setCollection(environmentVariableService, name);
+		}));
 		this._register(environmentVariableService.onDidChangeCollections(() => {
 			if (!environmentVariableService.collections.has(PlaywrightTerminalEnvironmentContribution._collectionKey)) {
-				this._setCollection(environmentVariableService);
+				this._setCollection(environmentVariableService, playwrightService.sessionName ?? playwrightSessionName);
 			}
 		}));
 	}
 
-	private _setCollection(environmentVariableService: IEnvironmentVariableService): void {
+	private _setCollection(environmentVariableService: IEnvironmentVariableService, sessionName: string): void {
 		const collection: IEnvironmentVariableCollectionWithPersistence = {
 			persistent: false,
 			map: new Map([[playwrightSessionEnvVar, {
 				variable: playwrightSessionEnvVar,
-				value: playwrightSessionName,
+				value: sessionName,
 				type: EnvironmentVariableMutatorType.Replace,
 				options: { applyAtProcessCreation: true, applyAtShellIntegration: false },
 			}]]),
