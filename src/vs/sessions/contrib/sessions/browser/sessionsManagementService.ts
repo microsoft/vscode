@@ -217,16 +217,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._register(this.storageService.onWillSaveState(() => this.saveLastSelectedSession()));
 
 		// Forward session change events from providers and update active session
-		this._register(this.sessionsProvidersService.onDidChangeSessions(e => {
-			this._onDidChangeSessions.fire(e);
-			this.refreshActiveSessionFromModel();
-
-			// Clear active session if it was archived
-			const currentActive = this._activeSession.get();
-			if (currentActive && e.archived.some(s => s.resource.toString() === currentActive.resource.toString())) {
-				this.openNewSessionView();
-			}
-		}));
+		this._register(this.sessionsProvidersService.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
 
 		// Restore or auto-select active provider
 		this._initActiveProvider();
@@ -264,17 +255,33 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.storageService.store(ACTIVE_PROVIDER_KEY, providerId, StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
-	private refreshActiveSessionFromModel(): void {
+	private onDidChangeSessionsFromSessionsProviders(e: ISessionsChangeEvent): void {
+		this._onDidChangeSessions.fire(e);
 		const currentActive = this._activeSession.get();
 		if (!currentActive) {
 			return;
 		}
 
-		const session = this.sessionsProvidersService.getSession(currentActive.sessionId);
-		if (session) {
-			this.setActiveSession(session);
-		} else {
-			this.openNewSessionView();
+		if (e.removed.length) {
+			if (e.removed.some(r => r.sessionId === currentActive.sessionId)) {
+				this.openNewSessionView();
+				return;
+			}
+		}
+
+		if (e.archived.length) {
+			if (e.archived.some(r => r.sessionId === currentActive.sessionId)) {
+				this.openNewSessionView();
+				return;
+			}
+		}
+
+		if (e.changed.length) {
+			const updated = e.changed.find(s => s.sessionId === currentActive.sessionId);
+			if (updated) {
+				this._activeSession.set(updated, undefined);
+				return;
+			}
 		}
 	}
 
