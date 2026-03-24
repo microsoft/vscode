@@ -64,12 +64,14 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 		const productService = accessor.get(IProductService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 
-		const activeSession = sessionsManagementService.activeSession.get();
+		const activeSession = sessionsManagementService.activeSessionData.get();
 		if (!activeSession) {
 			return;
 		}
 
-		const folderUri = activeSession.providerType === AgentSessionProviders.Background ? activeSession?.worktree ?? activeSession?.repository : undefined;
+		const workspace = activeSession.workspace.get();
+		const repo = workspace?.repositories[0];
+		const folderUri = activeSession.sessionType === AgentSessionProviders.Background ? repo?.workingDirectory ?? repo?.uri : undefined;
 
 		if (!folderUri) {
 			return;
