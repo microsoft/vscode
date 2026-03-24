@@ -33,6 +33,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	private readonly contentContainer: HTMLElement;
 	private readonly footerContainer: HTMLElement;
 	private _resolveOutcome!: (outcome: WalkthroughOutcome) => void;
+	private _outcomeResolved = false;
 
 	/** Resolves when the user completes or dismisses the walkthrough. */
 	readonly outcome: Promise<WalkthroughOutcome> = new Promise(resolve => { this._resolveOutcome = resolve; });
@@ -255,10 +256,24 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		this.overlay.classList.add('sessions-walkthrough-dismissed');
 		const handle = setTimeout(() => this.dispose(), 250);
 		this._register(toDisposable(() => clearTimeout(handle)));
-		this._resolveOutcome(outcome);
+		if (!this._outcomeResolved) {
+			this._outcomeResolved = true;
+			this._resolveOutcome(outcome);
+		}
 	}
 
 	dismiss(): void {
 		this._finish('dismissed');
+	}
+
+	override dispose(): void {
+		// If the overlay is disposed without an explicit finish (e.g. cleared by
+		// the owner's DisposableStore), treat it as a dismissal so that `outcome`
+		// always resolves and callers are never left waiting on a pending promise.
+		if (!this._outcomeResolved) {
+			this._outcomeResolved = true;
+			this._resolveOutcome('dismissed');
+		}
+		super.dispose();
 	}
 }
