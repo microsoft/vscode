@@ -594,7 +594,7 @@ suite('ChatResponseAccessibleView', () => {
 			store.add(provider);
 			const content = provider.provideContent();
 			assert.ok(content.includes('main.ts'));
-			assert.ok(content.includes('/src/app/main.ts:42'));
+			assert.ok(content.replaceAll('\\', '/').includes('src/app/main.ts:42'));
 		});
 
 		test('uses basename as name for URI inline references without explicit name', () => {
@@ -643,7 +643,7 @@ suite('ChatResponseAccessibleView', () => {
 			store.add(provider);
 			const content = provider.provideContent();
 			assert.ok(content.includes('utils.ts'));
-			assert.ok(content.includes('/workspace/src/utils.ts'));
+			assert.ok(content.replaceAll('\\', '/').includes('workspace/src/utils.ts'));
 		});
 	});
 });
