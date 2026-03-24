@@ -344,10 +344,6 @@ export class ImageCarouselEditor extends EditorPane {
 		const currentImage = entry.image;
 		const isVideo = isVideoMimeType(currentImage.mimeType);
 
-		// Dispose previous video webview
-		this._videoWebview?.dispose();
-		this._videoWebview = undefined;
-
 		if (isVideo) {
 			// Show video container, hide image
 			this._elements.mainImage.style.display = 'none';
@@ -375,16 +371,22 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 </script>
 </body></html>`;
 
-			clearNode(this._elements.videoContainer);
-			const webview = this._contentDisposables.add(this._webviewService.createWebviewElement({
-				title: currentImage.name,
-				options: { disableServiceWorker: true },
-				contentOptions: { allowScripts: true },
-				extension: undefined,
-			}));
-			webview.mountTo(this._elements.videoContainer, this.window);
+			// Reuse existing webview or create one on first video navigation
+			let webview: IWebviewElement;
+			if (!this._videoWebview) {
+				webview = this._contentDisposables.add(this._webviewService.createWebviewElement({
+					title: currentImage.name,
+					options: { disableServiceWorker: true },
+					contentOptions: { allowScripts: true },
+					extension: undefined,
+				}));
+				webview.mountTo(this._elements.videoContainer, this.window);
+				this._videoWebview = webview;
+			} else {
+				webview = this._videoWebview;
+			}
+
 			webview.setHtml(videoHtml);
-			this._videoWebview = webview;
 
 			// Send the video data to the webview via postMessage
 			const buffer = (rawData as Uint8Array<ArrayBuffer>).buffer;
@@ -392,7 +394,6 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 		} else {
 			// Show image, hide video container
 			this._elements.videoContainer.style.display = 'none';
-			clearNode(this._elements.videoContainer);
 			this._elements.mainImage.style.display = '';
 			this._elements.mainImageContainer.style.cursor = '';
 
