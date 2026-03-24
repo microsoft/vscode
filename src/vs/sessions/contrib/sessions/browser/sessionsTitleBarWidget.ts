@@ -197,6 +197,37 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 			this._container.appendChild(sessionPill);
 
+			// "Mark as Done" button — archives the active session and opens a new one
+			const activeSession = this.activeSessionService.getActiveSession();
+			if (activeSession && !activeSession.isUntitled) {
+				const agentSession = this.agentSessionsService.getSession(activeSession.resource);
+				if (agentSession && !agentSession.isArchived()) {
+					const doneButton = $('button.agent-sessions-titlebar-done') as HTMLButtonElement;
+					doneButton.type = 'button';
+					doneButton.tabIndex = 0;
+					const doneIcon = $(ThemeIcon.asCSSSelector(Codicon.check));
+					doneButton.appendChild(doneIcon);
+					const doneLabel = $('span.agent-sessions-titlebar-done-label');
+					doneLabel.textContent = localize('markAsDone', "Mark as Done");
+					doneButton.appendChild(doneLabel);
+					doneButton.setAttribute('aria-label', localize('markAsDoneAriaLabel', "Mark session as done"));
+
+					this._dynamicDisposables.add(this.hoverService.setupManagedHover(
+						getDefaultHoverDelegate('mouse'),
+						doneButton,
+						localize('markAsDoneTooltip', "Archive this session and start a new one")
+					));
+
+					this._dynamicDisposables.add(addDisposableListener(doneButton, EventType.CLICK, (e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						agentSession.setArchived(true);
+					}));
+
+					this._container.appendChild(doneButton);
+				}
+			}
+
 			// Session count widget (to the left of the pill) — toggles sidebar
 			const countWidget = $('button.agent-sessions-titlebar-count') as HTMLButtonElement;
 			countWidget.type = 'button';
