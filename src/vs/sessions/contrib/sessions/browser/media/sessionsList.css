@@ -202,6 +202,54 @@
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
 	}
+
+	.session-approval-row {
+		display: none;
+		align-items: flex-end;
+		gap: 8px;
+		margin-top: 4px;
+		padding: 4px 8px;
+		box-sizing: border-box;
+		border: 1px solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
+		border-radius: 4px;
+		background-color: var(--vscode-editor-background);
+		color: var(--vscode-editor-foreground);
+
+		&.visible {
+			display: flex;
+		}
+
+		.session-approval-label {
+			flex: 1;
+			overflow: hidden;
+			min-width: 0;
+
+			& > .rendered-markdown,
+			& > .rendered-markdown > .code,
+			& > .rendered-markdown > .code > span {
+				display: block;
+				overflow: hidden;
+			}
+
+			.monaco-tokenized-source {
+				display: block;
+				overflow: hidden;
+				white-space: nowrap;
+				text-overflow: ellipsis;
+				font-size: 12px;
+			}
+		}
+
+		.session-approval-button {
+			flex-shrink: 0;
+
+			.monaco-button {
+				padding: 2px 10px;
+				font-size: 12px;
+				white-space: nowrap;
+			}
+		}
+	}
 }
 
 /* Section Header */
