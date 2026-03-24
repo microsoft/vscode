@@ -137,7 +137,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 					}
 					const entry: ISymbolVariableEntry = {
 						kind: 'symbol',
-						id: `${modelUri.toString()}_${symbolPick.symbolName}`,
+						id: JSON.stringify({ uri: modelUri.toString(), range: symbolPick.range!.decoration }),
 						name: symbolPick.symbolName ?? symbolPick.label,
 						value: { uri: modelUri, range: symbolPick.range!.decoration },
 						symbolKind: symbolPick.kind,

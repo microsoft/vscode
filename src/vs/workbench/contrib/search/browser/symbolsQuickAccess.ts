@@ -219,7 +219,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					if (widget) {
 						const entry: ISymbolVariableEntry = {
 							kind: 'symbol',
-							id: `${symbolUri.toString()}_${symbol.name}`,
+							id: JSON.stringify({ uri: symbolUri.toString(), range: symbol.location.range }),
 							name: symbol.name,
 							value: symbol.location,
 							symbolKind: symbol.kind,
