@@ -69,6 +69,11 @@ export interface ISessionsManagementService {
 	getAllSessionTypes(): ISessionType[];
 
 	/**
+	 * Fires when available session types change (providers added/removed).
+	 */
+	readonly onDidChangeSessionTypes: Event<void>;
+
+	/**
 	 * Fires when sessions change across any provider.
 	 */
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
@@ -168,6 +173,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionsChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent> = this._onDidChangeSessions.event;
 
+	private readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
+	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
+
 	private readonly _activeSession = observableValue<ISessionData | undefined>(this, undefined);
 	readonly activeSession: IObservable<ISessionData | undefined> = this._activeSession;
 	private readonly _newSessionObservable = observableValue<ISessionData | undefined>(this, undefined);
@@ -212,7 +220,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		// Restore or auto-select active provider
 		this._initActiveProvider();
-		this._register(this.sessionsProvidersService.onDidChangeProviders(() => this._initActiveProvider()));
+		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
+			this._initActiveProvider();
+			this._onDidChangeSessionTypes.fire();
+		}));
 
 		// Clear active session if the active session gets archived
 		this._register(this.agentSessionsService.model.onDidChangeSessionArchivedState(e => {

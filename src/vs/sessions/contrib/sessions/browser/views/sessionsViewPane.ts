@@ -33,7 +33,6 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/k
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
-import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 
 const $ = DOM.$;
 export const SessionsViewPaneId = 'agentic.workbench.view.sessionsViewPane';
@@ -70,7 +69,6 @@ export class SessionsViewPane extends ViewPane {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IHostService private readonly hostService: IHostService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -146,9 +144,9 @@ export class SessionsViewPane extends ViewPane {
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 
-		// Register session type filter actions (re-register when providers change)
+		// Register session type filter actions (re-register when session types change)
 		this.registerSessionTypeFilters(sessionsControl);
-		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
+		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => {
 			this.registerSessionTypeFilters(sessionsControl);
 		}));
 
