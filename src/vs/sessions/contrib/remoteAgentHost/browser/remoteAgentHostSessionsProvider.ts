@@ -16,7 +16,8 @@ import { ISessionData, ISessionWorkspace, SessionStatus } from '../../sessions/c
 import { ISendRequestOptions, ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
 import { IChatSessionFileChange } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { agentHostAuthority } from './remoteAgentHost.contribution.js';
-import { AGENT_HOST_FS_SCHEME, agentHostUri } from './agentHostFileSystemProvider.js';
+import { agentHostUri } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 
 /**
  * A sessions provider for a single agent on a remote agent host connection.
@@ -152,7 +153,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 				canSelectFolders: true,
 				canSelectMany: false,
 				title: localize('selectRemoteFolder', "Select Folder on {0}", this.label),
-				availableFileSystems: [AGENT_HOST_FS_SCHEME],
+				availableFileSystems: [AGENT_HOST_SCHEME],
 				defaultUri,
 			});
 			if (selected?.[0]) {

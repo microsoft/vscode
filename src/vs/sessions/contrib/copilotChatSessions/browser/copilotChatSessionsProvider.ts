@@ -652,15 +652,6 @@ class AgentSessionAdapter implements ISessionData {
 		const repo = metadata['repository'] as string | undefined;
 		return repo ? URI.parse(repo) : undefined;
 	}
-
-	private _repoLabelFromUri(uri: URI): string {
-		// github-remote-file://github/{owner}/{repo}/HEAD → "owner/repo"
-		const parts = uri.path.split('/').filter(Boolean);
-		if (parts.length >= 2) {
-			return `${parts[0]}/${parts[1]}`;
-		}
-		return uri.path;
-	}
 }
 
 /**
