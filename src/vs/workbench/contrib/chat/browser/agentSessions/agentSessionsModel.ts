@@ -158,6 +158,16 @@ export function isAgentSessionsModel(obj: unknown): obj is IAgentSessionsModel {
 	return Array.isArray(sessionsModel?.sessions) && typeof sessionsModel?.getSession === 'function';
 }
 
+export function countUnreadSessions(sessions: IAgentSession[]): number {
+	let unread = 0;
+	for (const session of sessions) {
+		if (!session.isArchived() && session.status === AgentSessionStatus.Completed && !session.isRead()) {
+			unread++;
+		}
+	}
+	return unread;
+}
+
 interface IAgentSessionState {
 	readonly archived?: boolean;
 	readonly pinned?: boolean;
