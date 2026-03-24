@@ -150,7 +150,9 @@ export class AgenticSessionsViewPane extends ViewPane {
 
 		// New Session Button
 		const newSessionButtonContainer = DOM.append(sessionsContent, $('.agent-sessions-new-button-container'));
-		const keybindingLabel = isMacintosh ? '\u2318N' : 'Ctrl+N';
+		const keybindingModifierLabel = isMacintosh ? '\u2318' : 'Ctrl';
+		const keybindingKeyLabel = 'N';
+		const keybindingLabel = `${keybindingModifierLabel} ${keybindingKeyLabel}`;
 		const keybindingAriaLabel = isMacintosh ? 'Command+N' : 'Control+N';
 		const newSessionButtonTitle = keybindingLabel
 			? localize('newSessionButtonTitle', "New Session ({0})", keybindingLabel)
@@ -175,7 +177,12 @@ export class AgenticSessionsViewPane extends ViewPane {
 		}
 		DOM.reset(newSessionButton.element, buttonLabel);
 		if (keybindingLabel) {
-			DOM.append(newSessionButton.element, $('kbd.new-session-keybinding-hint', undefined, keybindingLabel));
+			const keybindingHint = $('span.new-session-keybinding-hint');
+			DOM.append(keybindingHint,
+				$(`span.new-session-keybinding-modifier${isMacintosh ? '.mac' : ''}`, undefined, keybindingModifierLabel),
+				$('span.new-session-keybinding-key', undefined, keybindingKeyLabel)
+			);
+			DOM.append(newSessionButton.element, keybindingHint);
 		}
 
 		// Sessions Control
