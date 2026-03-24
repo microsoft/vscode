@@ -162,7 +162,7 @@
 /* Project picker in inline title row */
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label {
 	height: auto;
-	padding: 4px 4px 4px 6px;
+	padding: 4px;
 	font-size: 18px;
 	line-height: 1.25;
 	border: none;
@@ -179,6 +179,7 @@
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label {
 	font-size: 18px;
+	margin-left: 0;
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-chevron {
@@ -274,8 +275,13 @@
 }
 
 .sessions-chat-picker-slot .action-label .codicon-chevron-down {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 	font-size: 12px;
 	margin-left: 6px;
+	line-height: 1;
+	transform: translateY(1px);
 }
 
 .sessions-chat-picker-slot .action-label .chat-session-option-label {
