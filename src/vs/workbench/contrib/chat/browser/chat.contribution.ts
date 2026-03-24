@@ -1309,8 +1309,8 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.SubagentsAllowInvocationsFromSubagents]: {
 			type: 'boolean',
-			description: nls.localize('chat.subagents.allowInvocationsFromSubagents', "Allow subagents to invoke subagents."),
-			markdownDescription: nls.localize('chat.subagents.allowInvocationsFromSubagents.md', "Controls whether subagents can invoke other subagents. When enabled, nesting is limited to a maximum depth of 5."),
+			description: nls.localize('chat.subagents.allowSubagentInvocation', "Allow subagents to invoke subagents."),
+			markdownDescription: nls.localize('chat.subagents.allowSubagentInvocation.md', "Controls whether subagents can invoke other subagents. When enabled, nesting is limited to a maximum depth of 5."),
 			default: false,
 			experiment: {
 				mode: 'auto'
