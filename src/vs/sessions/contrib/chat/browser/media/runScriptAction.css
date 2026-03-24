@@ -8,7 +8,7 @@
 	flex-direction: column;
 	gap: 12px;
 	background-color: var(--vscode-quickInput-background);
-	padding: 8px 8px 12px;
+	padding: 8px 12px 12px;
 }
 
 .run-script-action-section {
@@ -54,4 +54,8 @@
 	justify-content: flex-end;
 	gap: 8px;
 	padding-top: 4px;
+}
+
+.run-script-action-buttons .monaco-text-button {
+	width: fit-content;
 }

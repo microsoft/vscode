@@ -17,8 +17,13 @@
 	cursor: grab;
 	display: flex;
 	align-items: center;
+	gap: 8px;
+	min-height: 40px;
+	padding: 4px 8px 4px 12px;
 	border-top-right-radius: 5px;
 	border-top-left-radius: 5px;
+	border-bottom: 1px solid var(--vscode-titleBar-border, var(--vscode-widget-border, transparent));
+	box-sizing: border-box;
 }
 
 .quick-input-widget.no-drag .quick-input-titlebar,
@@ -38,7 +43,7 @@
 
 .quick-input-left-action-bar {
 	display: flex;
-	margin-left: 4px;
+	margin-left: 0;
 }
 
 /* give some space between input and action bar */
@@ -53,16 +58,18 @@
 
 .quick-input-title {
 	cursor: grab;
-	padding: 3px 0px;
-	text-align: center;
+	padding: 4px 0;
+	text-align: left;
 	text-overflow: ellipsis;
 	overflow: hidden;
 	flex: 1;
+	font-size: 12px;
+	font-weight: 600;
 }
 
 .quick-input-right-action-bar {
 	display: flex;
-	margin-right: 4px;
+	margin-right: 0;
 }
 
 .quick-input-right-action-bar .actions-container {
@@ -95,7 +102,7 @@
 .quick-input-header {
 	cursor: grab;
 	display: flex;
-	padding: 6px 6px 4px 6px;
+	padding: 6px 12px 4px;
 }
 
 .quick-input-widget .quick-input-filter .monaco-inputbox {

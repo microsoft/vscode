@@ -23,7 +23,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -46,6 +46,11 @@ export const RunScriptDropdownMenuId = MenuId.for('AgentSessionsRunScriptDropdow
 const RUN_SCRIPT_ACTION_PRIMARY_ID = 'workbench.action.agentSessions.runScriptPrimary';
 const CONFIGURE_DEFAULT_RUN_ACTION_ID = 'workbench.action.agentSessions.configureDefaultRunAction';
 const GENERATE_RUN_ACTION_ID = 'workbench.action.agentSessions.generateRunAction';
+const closeQuickWidgetButton: IQuickInputButton = {
+	iconClass: ThemeIcon.asClassName(Codicon.close),
+	tooltip: localize('closeQuickWidget', "Close"),
+	alwaysVisible: true,
+};
 
 function getTaskDisplayLabel(task: ITaskEntry): string {
 	if (task.label && task.label.length > 0) {
@@ -392,6 +397,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					? localize('addExistingActionWidgetDescription', "Enable an existing task for sessions and configure when it should run")
 					: localize('addActionWidgetDescription', "Create a shell task and configure how it should be saved and run");
 			quickWidget.ignoreFocusOut = true;
+			quickWidget.buttons = [closeQuickWidgetButton];
 			const widget = disposables.add(new RunScriptCustomTaskWidget({
 				label: existingTask?.task.label,
 				labelDisabledReason: existingTask && !isConfigureMode ? localize('existingTaskLabelLocked', "This name comes from an existing task and cannot be changed here.") : undefined,
@@ -415,6 +421,11 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 			disposables.add(widget.onDidSubmit(result => complete(result)));
 			disposables.add(widget.onDidCancel(() => complete(undefined)));
+			disposables.add(quickWidget.onDidTriggerButton(button => {
+				if (button === closeQuickWidgetButton) {
+					complete(undefined);
+				}
+			}));
 			disposables.add(quickWidget.onDidHide(() => {
 				if (!settled) {
 					settled = true;
