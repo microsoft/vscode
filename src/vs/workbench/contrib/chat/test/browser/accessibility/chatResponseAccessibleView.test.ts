@@ -536,7 +536,8 @@ suite('ChatResponseAccessibleView', () => {
 			store.add(provider);
 			const content = provider.provideContent();
 			assert.ok(content.includes('index.ts'));
-			assert.ok(content.includes(inlineReferenceUri.path));
+			const expectedPath = inlineReferenceUri.fsPath || inlineReferenceUri.path;
+			assert.ok(content.includes(expectedPath));
 			assert.ok(content.includes('See file'));
 			assert.ok(content.includes('for details'));
 		});
