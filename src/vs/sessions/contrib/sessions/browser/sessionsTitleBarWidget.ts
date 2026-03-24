@@ -19,7 +19,7 @@ import { IMenuService, MenuId, MenuRegistry, SubmenuItemAction } from '../../../
 import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IMarshalledAgentSessionContext, countUnreadSessions } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { IMarshalledAgentSessionContext } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
@@ -100,7 +100,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		}));
 
 		// Re-render when sessions data changes (e.g., changes info updated)
-		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
+		this._register(this.activeSessionService.onDidChangeSessions(() => {
 			this._lastRenderState = undefined;
 			this._render();
 		}));
@@ -364,7 +364,13 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	private _countUnreadSessions(): number {
-		return countUnreadSessions(this.agentSessionsService.model.sessions);
+		let unread = 0;
+		for (const session of this.activeSessionService.getSessions()) {
+			if (!session.isArchived.get() && session.status.get() === SessionStatus.Completed && !session.isRead.get()) {
+				unread++;
+			}
+		}
+		return unread;
 	}
 
 	private _showContextMenu(e: MouseEvent): void {
