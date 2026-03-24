@@ -577,6 +577,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private registerControlsListeners(sessionsControl: AgentSessionsControl, chatWidget: ChatWidget, welcomeController: ChatViewWelcomeController): void {
 
+		// Keep the title control in sync when the widget's model changes
+		// (e.g. untitled session replaced by a real contributed session in _acceptInput)
+		this._register(chatWidget.onDidChangeViewModel(() => {
+			this.titleControl?.update(chatWidget.viewModel?.model);
+		}));
+
 		// Sessions control visibility is impacted by multiple things:
 		// - chat widget being in empty state or showing a chat
 		// - extensions provided welcome view showing or not
