@@ -77,7 +77,7 @@
 	flex: 1;
 }
 
-/* ── Details row: workspace · +N -N · description · time ── */
+/* ── Details row: +N -N · time ── */
 
 .session-details-row {
 	display: flex;
@@ -87,27 +87,18 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-/* Inline separator dot between visible detail parts */
-.session-workspace.has-detail::after,
-.session-diff.has-detail::after,
-.session-description.has-detail::after {
-	content: '\00b7';
-	margin: 0 4px;
-	opacity: 0.7;
-}
-
-.session-workspace {
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	flex-shrink: 1;
-}
-
+/* Elements without has-detail are hidden */
 .session-workspace:not(.has-detail),
 .session-diff:not(.has-detail),
 .session-description:not(.has-detail),
 .session-time:not(.has-detail) {
 	display: none;
+}
+
+/* Separator dots rendered by the renderer as inline spans */
+.session-separator {
+	margin: 0 4px;
+	opacity: 0.7;
 }
 
 /* Diff stats */
@@ -135,7 +126,6 @@
 /* Relative time */
 .session-time {
 	white-space: nowrap;
-	margin-left: auto;
 	flex-shrink: 0;
 }
 

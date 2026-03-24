@@ -76,12 +76,6 @@ interface ISessionItemTemplate {
 	readonly iconContainer: HTMLElement;
 	readonly title: HTMLElement;
 	readonly detailsRow: HTMLElement;
-	readonly workspace: HTMLElement;
-	readonly diffContainer: HTMLElement;
-	readonly diffAdded: HTMLSpanElement;
-	readonly diffRemoved: HTMLSpanElement;
-	readonly description: HTMLElement;
-	readonly time: HTMLElement;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 }
@@ -101,14 +95,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const titleRow = DOM.append(mainCol, $('.session-title-row'));
 		const title = DOM.append(titleRow, $('.session-title'));
 		const detailsRow = DOM.append(mainCol, $('.session-details-row'));
-		const workspace = DOM.append(detailsRow, $('span.session-workspace'));
-		const diffContainer = DOM.append(detailsRow, $('span.session-diff'));
-		const diffAdded = DOM.append(diffContainer, $('span.session-diff-added'));
-		const diffRemoved = DOM.append(diffContainer, $('span.session-diff-removed'));
-		const description = DOM.append(detailsRow, $('span.session-description'));
-		const time = DOM.append(detailsRow, $('span.session-time'));
 
-		return { container, iconContainer, title, detailsRow, workspace, diffContainer, diffAdded, diffRemoved, description, time, disposables, elementDisposables };
+		return { container, iconContainer, title, detailsRow, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -138,27 +126,19 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.title.textContent = titleText;
 		}));
 
-		// Details row — reactive: workspace, diff stats, description, time
+		// Details row — reactive: diff stats · time
 		const timeDisposable = template.elementDisposables.add(new MutableDisposable());
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = element.status.read(reader);
-			const workspace = element.workspace.read(reader);
 			const changes = element.changes.read(reader);
 			const updatedAt = element.updatedAt.read(reader);
 
-			const parts: string[] = [];
-
-			// Workspace label
-			const workspaceLabel = workspace?.label ?? '';
-			template.workspace.textContent = workspaceLabel;
-			template.workspace.classList.toggle('has-detail', workspaceLabel.length > 0);
-			if (workspaceLabel) {
-				parts.push('workspace');
-			}
+			// Clear and rebuild details row
+			DOM.clearNode(template.detailsRow);
+			const parts: HTMLElement[] = [];
 
 			// Diff stats
-			let hasDiff = false;
-			if (changes.length > 0) {
+			if (changes.length > 0 && sessionStatus !== SessionStatus.InProgress) {
 				let insertions = 0;
 				let deletions = 0;
 				for (const change of changes) {
@@ -166,44 +146,45 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 					deletions += change.deletions;
 				}
 				if (insertions > 0 || deletions > 0) {
-					template.diffAdded.textContent = `+${insertions}`;
-					template.diffRemoved.textContent = `-${deletions}`;
-					hasDiff = true;
-					parts.push('diff');
+					const diffEl = DOM.append(template.detailsRow, $('span.session-diff'));
+					DOM.append(diffEl, $('span.session-diff-added')).textContent = `+${insertions}`;
+					DOM.append(diffEl, $('span')).textContent = ' ';
+					DOM.append(diffEl, $('span.session-diff-removed')).textContent = `-${deletions}`;
+					parts.push(diffEl);
 				}
 			}
-			template.diffContainer.classList.toggle('has-detail', hasDiff);
 
-			// Status description
-			let statusText = '';
+			// Status description or timestamp
 			if (sessionStatus === SessionStatus.InProgress) {
-				statusText = localize('working', "Working...");
+				if (parts.length > 0) {
+					DOM.append(template.detailsRow, $('span.session-separator')).textContent = '·';
+				}
+				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
+				statusEl.textContent = localize('working', "Working...");
 			} else if (sessionStatus === SessionStatus.NeedsInput) {
-				statusText = localize('needsInput', "Input needed");
+				if (parts.length > 0) {
+					DOM.append(template.detailsRow, $('span.session-separator')).textContent = '·';
+				}
+				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
+				statusEl.textContent = localize('needsInput', "Input needed");
 			} else if (sessionStatus === SessionStatus.Error) {
-				statusText = localize('failed', "Failed");
-			}
-			template.description.textContent = statusText;
-			template.description.classList.toggle('has-detail', statusText.length > 0);
-			if (statusText) {
-				parts.push('status');
-			}
-
-			// Relative timestamp
-			if (!statusText) {
-				template.time.textContent = this.formatRelativeTime(updatedAt);
+				if (parts.length > 0) {
+					DOM.append(template.detailsRow, $('span.session-separator')).textContent = '·';
+				}
+				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
+				statusEl.textContent = localize('failed', "Failed");
+			} else {
+				// Relative timestamp
+				if (parts.length > 0) {
+					DOM.append(template.detailsRow, $('span.session-separator')).textContent = '·';
+				}
+				const timeEl = DOM.append(template.detailsRow, $('span.session-time'));
+				timeEl.textContent = this.formatRelativeTime(updatedAt);
 				const interval = setInterval(() => {
-					template.time.textContent = this.formatRelativeTime(updatedAt);
+					timeEl.textContent = this.formatRelativeTime(updatedAt);
 				}, 60_000);
 				timeDisposable.value = { dispose: () => clearInterval(interval) };
-			} else {
-				template.time.textContent = '';
-				timeDisposable.clear();
 			}
-			template.time.classList.toggle('has-detail', template.time.textContent.length > 0);
-
-			// Toggle separator visibility based on how many parts are shown
-			template.detailsRow.classList.toggle('has-multiple', parts.length > 0 || template.time.textContent.length > 0);
 		}));
 	}
 
