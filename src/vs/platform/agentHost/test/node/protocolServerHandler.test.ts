@@ -128,6 +128,7 @@ suite('ProtocolServerHandler', () => {
 	let stateManager: SessionStateManager;
 	let server: MockProtocolServer;
 	let sideEffects: MockSideEffectHandler;
+	let handler: ProtocolServerHandler;
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 
@@ -158,7 +159,7 @@ suite('ProtocolServerHandler', () => {
 		stateManager = disposables.add(new SessionStateManager(new NullLogService()));
 		server = disposables.add(new MockProtocolServer());
 		sideEffects = new MockSideEffectHandler();
-		disposables.add(new ProtocolServerHandler(
+		disposables.add(handler = new ProtocolServerHandler(
 			stateManager,
 			server,
 			sideEffects,
@@ -430,5 +431,46 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(resp.error!.data, { hint: 'sign in' });
 
 		sideEffects.handleAuthenticate = origHandler;
+	});
+
+	// ---- Connection count event -----------------------------------------
+
+	test('onDidChangeConnectionCount fires on connect and disconnect', () => {
+		const counts: number[] = [];
+		disposables.add(handler.onDidChangeConnectionCount(c => counts.push(c)));
+
+		const transport = connectClient('client-count-1');
+		connectClient('client-count-2');
+		transport.simulateClose();
+
+		assert.deepStrictEqual(counts, [1, 2, 1]);
+	});
+
+	test('onDidChangeConnectionCount is not decremented by stale reconnect close', () => {
+		const counts: number[] = [];
+		disposables.add(handler.onDidChangeConnectionCount(c => counts.push(c)));
+
+		// Connect
+		const transport1 = connectClient('client-rc');
+		assert.deepStrictEqual(counts, [1]);
+
+		// Reconnect with same clientId (new transport)
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		transport2.simulateMessage(request(1, 'reconnect', {
+			clientId: 'client-rc',
+			lastSeenServerSeq: 0,
+			subscriptions: [],
+		}));
+		// Count is unchanged because same clientId was overwritten
+		assert.deepStrictEqual(counts, [1, 1]);
+
+		// Old transport closes - should NOT decrement since it's stale
+		transport1.simulateClose();
+		assert.deepStrictEqual(counts, [1, 1]);
+
+		// New transport closes - should decrement
+		transport2.simulateClose();
+		assert.deepStrictEqual(counts, [1, 1, 0]);
 	});
 });
