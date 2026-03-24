@@ -87,4 +87,8 @@ export interface ISessionData {
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
 	readonly loading: IObservable<boolean>;
+	/** Whether the session is archived. */
+	readonly isArchived: IObservable<boolean>;
+	/** Whether the session has been read. */
+	readonly isRead: IObservable<boolean>;
 }

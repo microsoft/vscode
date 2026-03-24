@@ -128,6 +128,9 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 	private readonly _loading = observableValue(this, true);
 	readonly loading: IObservable<boolean> = this._loading;
 
+	readonly isArchived: IObservable<boolean> = observableValue(this, false);
+	readonly isRead: IObservable<boolean> = observableValue(this, true);
+
 	private _gitRepository: IGitRepository | undefined;
 
 	// -- New session configuration fields --
