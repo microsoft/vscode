@@ -19,6 +19,7 @@ import { ICDPTarget, ICDPConnection, CDPTargetInfo } from '../common/cdp/types.j
 import { BrowserSession } from './browserSession.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { hasKey } from '../../../base/common/types.js';
+import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 
 /**
  * Represents a single browser view instance with its WebContentsView and all associated logic.
@@ -293,6 +294,38 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		// Forward key down events that weren't handled by the page to the workbench for shortcut handling.
 		webContents.ipc.on('vscode:browserView:keydown', (_event, keyEvent: IBrowserViewKeyDownEvent) => {
 			this._onDidKeyCommand.fire(keyEvent);
+		});
+		// If the page won't be able to handle events, forward key down events directly.
+		webContents.on('before-input-event', (event, input) => {
+			if (input.type !== 'keyDown') {
+				return;
+			}
+
+			const pageIsAvailable = this._view.getVisible()
+				&& !webContents.isCrashed()
+				&& !this._debugger.isPaused;
+			if (pageIsAvailable) {
+				return;
+			}
+
+			// This logic should mirror that in preload-browserView.ts.
+			if (!(input.control || input.alt || input.meta) && input.key.length === 1) {
+				return;
+			}
+
+			event.preventDefault();
+
+			const eventKeyCode = SCAN_CODE_STR_TO_EVENT_KEY_CODE[input.code] || 0;
+			this._onDidKeyCommand.fire({
+				key: input.key,
+				keyCode: eventKeyCode,
+				code: input.code,
+				ctrlKey: input.control,
+				shiftKey: input.shift,
+				altKey: input.alt,
+				metaKey: input.meta,
+				repeat: input.isAutoRepeat
+			});
 		});
 
 		// Track user gestures for popup blocking logic.
