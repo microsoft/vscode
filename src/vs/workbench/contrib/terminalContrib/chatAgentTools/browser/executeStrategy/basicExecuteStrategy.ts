@@ -129,7 +129,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			// occurs.
 			this._log(`Executing command line \`${commandLine}\``);
 			markerRecreation.dispose();
-			this._instance.sendText(commandLine, true);
+			this._instance.sendText(commandLine, true, true);
 
 			// Wait for the next end execution event - note that this may not correspond to the actual
 			// execution requested

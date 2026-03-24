@@ -167,11 +167,9 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 
 		// Setup default configuration
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled, true);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
-			allowedDomains: [],
-			deniedDomains: [],
-			allowTrustedDomains: false
-		});
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains, []);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkDeniedDomains, []);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowTrustedDomains, false);
 
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, fileService);
@@ -191,11 +189,9 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 
 	test('should filter out sole wildcard (*) from trusted domains', async () => {
 		// Setup: Enable allowTrustedDomains and add * to trusted domains
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
-			allowedDomains: [],
-			deniedDomains: [],
-			allowTrustedDomains: true
-		});
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains, []);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkDeniedDomains, []);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowTrustedDomains, true);
 		trustedDomainService.trustedDomains = ['*'];
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
@@ -211,11 +207,9 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 
 	test('should allow wildcards with domains like *.github.com', async () => {
 		// Setup: Enable allowTrustedDomains and add *.github.com
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
-			allowedDomains: [],
-			deniedDomains: [],
-			allowTrustedDomains: true
-		});
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains, []);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkDeniedDomains, []);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowTrustedDomains, true);
 		trustedDomainService.trustedDomains = ['*.github.com'];
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
@@ -232,11 +226,9 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 
 	test('should combine trusted domains with configured allowedDomains, filtering out *', async () => {
 		// Setup: Enable allowTrustedDomains with multiple domains including *
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
-			allowedDomains: ['example.com'],
-			deniedDomains: [],
-			allowTrustedDomains: true
-		});
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains, ['example.com']);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkDeniedDomains, []);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowTrustedDomains, true);
 		trustedDomainService.trustedDomains = ['*', '*.github.com', 'microsoft.com'];
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
@@ -256,11 +248,9 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 
 	test('should not include trusted domains when allowTrustedDomains is false', async () => {
 		// Setup: Disable allowTrustedDomains
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
-			allowedDomains: ['example.com'],
-			deniedDomains: [],
-			allowTrustedDomains: false
-		});
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains, ['example.com']);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkDeniedDomains, []);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowTrustedDomains, false);
 		trustedDomainService.trustedDomains = ['*', '*.github.com'];
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
@@ -277,11 +267,9 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 
 	test('should deduplicate domains when combining sources', async () => {
 		// Setup: Same domain in both sources
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
-			allowedDomains: ['github.com', '*.github.com'],
-			deniedDomains: [],
-			allowTrustedDomains: true
-		});
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains, ['github.com', '*.github.com']);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkDeniedDomains, []);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowTrustedDomains, true);
 		trustedDomainService.trustedDomains = ['*.github.com', 'github.com'];
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
@@ -299,11 +287,9 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 
 	test('should handle empty trusted domains list', async () => {
 		// Setup: Empty trusted domains
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
-			allowedDomains: ['example.com'],
-			deniedDomains: [],
-			allowTrustedDomains: true
-		});
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains, ['example.com']);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkDeniedDomains, []);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowTrustedDomains, true);
 		trustedDomainService.trustedDomains = [];
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
@@ -320,11 +306,9 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 
 	test('should handle only * in trusted domains', async () => {
 		// Setup: Only * in trusted domains (edge case)
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
-			allowedDomains: [],
-			deniedDomains: [],
-			allowTrustedDomains: true
-		});
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains, []);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkDeniedDomains, []);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowTrustedDomains, true);
 		trustedDomainService.trustedDomains = ['*'];
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
