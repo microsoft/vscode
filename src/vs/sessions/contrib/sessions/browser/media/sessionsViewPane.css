@@ -80,7 +80,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 12px;
+		column-gap: 12px;
 		text-align: left;
 	}
 
@@ -88,6 +88,7 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
+		flex: 1;
 		min-width: 0;
 	}
 
@@ -99,7 +100,6 @@
 	}
 
 	.agent-sessions-new-button-container .monaco-button .new-session-keybinding-hint {
-		margin-left: auto;
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
@@ -108,7 +108,7 @@
 		font-size: 11px;
 		line-height: 1;
 		padding: 2px 6px;
-		border: 1px solid var(--vscode-keybindingLabel-border);
+		border: 1px solid var(--vscode-keybindingLabel-background);
 		border-radius: 4px;
 		background-color: var(--vscode-keybindingLabel-background);
 		color: var(--vscode-keybindingLabel-foreground);
