@@ -16,7 +16,9 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServerInstallState, IMcpService } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServerInstallState, IMcpService, IMcpServer } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { isContributionDisabled } from '../../common/enablement.js';
 import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -31,23 +33,36 @@ import { getContextMenuActions } from '../../../../contrib/mcp/browser/mcpServer
 import { LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { workspaceIcon, userIcon, mcpServerIcon, builtinIcon, extensionIcon } from './aiCustomizationIcons.js';
-import { formatDisplayName, truncateToFirstSentence } from './aiCustomizationListWidget.js';
+import { workspaceIcon, userIcon, mcpServerIcon, builtinIcon, pluginIcon, extensionIcon } from './aiCustomizationIcons.js';
+import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, CustomizationHarness } from '../../common/customizationHarnessService.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
+import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 
 const $ = DOM.$;
 
 const MCP_ITEM_HEIGHT = 36;
 
+const PLUGIN_COLLECTION_PREFIX = 'plugin.';
+
+const COPILOT_EXTENSION_IDS = ['github.copilot', 'github.copilot-chat'];
+
+function isCopilotExtension(id: ExtensionIdentifier): boolean {
+	return COPILOT_EXTENSION_IDS.some(copilotId => ExtensionIdentifier.equals(id, copilotId));
+}
+
+function getPluginUriFromCollectionId(collectionId: string | undefined): string | undefined {
+	return collectionId?.startsWith(PLUGIN_COLLECTION_PREFIX) ? collectionId.slice(PLUGIN_COLLECTION_PREFIX.length) : undefined;
+}
+
 /**
  * Represents a collapsible group header in the MCP server list.
  */
 interface IMcpGroupHeaderEntry extends ICustomizationGroupHeaderEntry {
-	readonly scope: LocalMcpServerScope | 'builtin' | 'extension';
+	readonly scope: LocalMcpServerScope | 'builtin' | 'plugin' | 'extension';
 }
 
 /**
@@ -116,6 +131,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 	constructor(
 		@IMcpService private readonly mcpService: IMcpService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
+		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) { }
@@ -130,7 +146,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 		const nameRow = DOM.append(details, $('.mcp-server-name-row'));
 		const name = DOM.append(nameRow, $('.mcp-server-name'));
 
-		const bridgedBadge = DOM.append(nameRow, $('.mcp-bridged-badge'));
+		const bridgedBadge = DOM.append(nameRow, $('.inline-badge.mcp-bridged-badge'));
 		bridgedBadge.textContent = localize('bridged', "Bridged");
 
 		const description = DOM.append(details, $('.mcp-server-description'));
@@ -158,19 +174,34 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 			templateData.container.classList.add('builtin');
 			templateData.name.textContent = formatDisplayName(element.label);
 			if (element.description) {
-				templateData.description.textContent = truncateToFirstSentence(element.description);
+				templateData.description.textContent = truncateToFirstLine(element.description);
 				templateData.description.style.display = '';
 			} else {
 				templateData.description.style.display = 'none';
 			}
 			templateData.status.style.display = 'none';
+
+			// Add hover with plugin provenance for plugin-sourced builtin items
+			const pluginUriStr = getPluginUriFromCollectionId(element.collectionId);
+			if (pluginUriStr) {
+				templateData.disposables.add(this.hoverService.setupDelayedHover(templateData.container, () => {
+					const plugin = this.agentPluginService.plugins.get().find(p => p.uri.toString() === pluginUriStr);
+					if (plugin) {
+						return {
+							content: `${element.label}\n${localize('fromPlugin', "Plugin: {0}", plugin.label)}`,
+							appearance: { compact: true, skipFadeInAnimation: true },
+						};
+					}
+					return { content: element.label, appearance: { compact: true, skipFadeInAnimation: true } };
+				}));
+			}
 			return;
 		}
 
 		templateData.container.classList.remove('builtin');
 		templateData.name.textContent = formatDisplayName(element.server.label);
 		if (element.server.description) {
-			templateData.description.textContent = truncateToFirstSentence(element.server.description);
+			templateData.description.textContent = truncateToFirstLine(element.server.description);
 			templateData.description.style.display = '';
 		} else {
 			templateData.description.style.display = 'none';
@@ -328,6 +359,9 @@ export class McpListWidget extends Disposable {
 	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
 	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
 
+	private readonly _onDidRequestShowPlugin = this._register(new Emitter<IAgentPluginItem>());
+	readonly onDidRequestShowPlugin = this._onDidRequestShowPlugin.event;
+
 	private sectionHeader!: HTMLElement;
 	private sectionDescription!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
@@ -348,6 +382,8 @@ export class McpListWidget extends Disposable {
 	private galleryServers: IWorkbenchMcpServer[] = [];
 	private searchQuery: string = '';
 	private browseMode: boolean = false;
+	private lastHeight: number = 0;
+	private lastWidth: number = 0;
 	private readonly collapsedGroups = new Set<string>();
 	private galleryCts: CancellationTokenSource | undefined;
 	private readonly delayedFilter = new Delayer<void>(200);
@@ -357,6 +393,7 @@ export class McpListWidget extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IMcpService private readonly mcpService: IMcpService,
+		@IMcpRegistry private readonly mcpRegistry: IMcpRegistry,
 		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
@@ -573,6 +610,11 @@ export class McpListWidget extends Disposable {
 			this.galleryServers = [];
 			this.filterServers();
 		}
+
+		// Re-layout to account for the back link height change
+		if (this.lastHeight > 0) {
+			this.layout(this.lastHeight, this.lastWidth);
+		}
 	}
 
 	private async queryGallery(): Promise<void> {
@@ -708,64 +750,103 @@ export class McpListWidget extends Disposable {
 			isFirst = false;
 		}
 
-		// Add extension-provided and built-in servers
-		if (builtinServers.length > 0) {
-			const extensionServers = builtinServers.filter(s => s.collection.id.startsWith('ext.'));
-			const otherBuiltinServers = builtinServers.filter(s => !s.collection.id.startsWith('ext.'));
-
-			if (extensionServers.length > 0) {
-				const collapsed = this.collapsedGroups.has('extension');
-				entries.push({
-					type: 'group-header',
-					id: 'mcp-group-extension',
-					scope: 'extension',
-					label: localize('extensionGroup', "Extensions"),
-					icon: extensionIcon,
-					count: extensionServers.length,
-					isFirst,
-					description: localize('extensionGroupDescription', "MCP servers contributed by installed VS Code extensions."),
-					collapsed,
-				});
-				if (!collapsed) {
-					for (const server of extensionServers) {
-						entries.push({
-							type: 'builtin-item',
-							id: `builtin-${server.definition.id}`,
-							label: server.definition.label,
-							description: '',
-							collectionId: server.collection.id,
-						});
-					}
-				}
-				isFirst = false;
+		// Add plugin-provided, extension-provided, and built-in servers.
+		// Servers from the Copilot extension (github.copilot / github.copilot-chat)
+		// are treated as built-in; servers from other extensions go under "Extensions".
+		const collectionSources = new Map(this.mcpRegistry.collections.get().map(c => [c.id, c.source]));
+		const pluginServers: IMcpServer[] = [];
+		const extensionServers: IMcpServer[] = [];
+		const otherBuiltinServers: IMcpServer[] = [];
+		for (const server of builtinServers) {
+			const source = collectionSources.get(server.collection.id);
+			if (server.collection.id.startsWith(PLUGIN_COLLECTION_PREFIX)) {
+				pluginServers.push(server);
+			} else if (source instanceof ExtensionIdentifier && !isCopilotExtension(source)) {
+				extensionServers.push(server);
+			} else {
+				otherBuiltinServers.push(server);
 			}
+		}
 
-			if (otherBuiltinServers.length > 0) {
-				const collapsed = this.collapsedGroups.has('builtin');
-				entries.push({
-					type: 'group-header',
-					id: 'mcp-group-builtin',
-					scope: 'builtin',
-					label: localize('builtInGroup', "Built-in"),
-					icon: builtinIcon,
-					count: otherBuiltinServers.length,
-					isFirst,
-					description: localize('builtInGroupDescription', "MCP servers built into VS Code. These are available automatically."),
-					collapsed,
-				});
-				if (!collapsed) {
-					for (const server of otherBuiltinServers) {
-						entries.push({
-							type: 'builtin-item',
-							id: `builtin-${server.definition.id}`,
-							label: server.definition.label,
-							description: '',
-							collectionId: server.collection.id,
-						});
-					}
+		if (pluginServers.length > 0) {
+			const collapsed = this.collapsedGroups.has('plugin');
+			entries.push({
+				type: 'group-header',
+				id: 'mcp-group-plugin',
+				scope: 'plugin',
+				label: localize('pluginGroup', "Plugins"),
+				icon: pluginIcon,
+				count: pluginServers.length,
+				isFirst,
+				description: localize('pluginGroupDescription', "MCP servers provided by installed plugins."),
+				collapsed,
+			});
+			if (!collapsed) {
+				for (const server of pluginServers) {
+					entries.push({
+						type: 'builtin-item',
+						id: `builtin-${server.definition.id}`,
+						label: server.definition.label,
+						description: '',
+						collectionId: server.collection.id,
+					});
 				}
-				isFirst = false;
 			}
+			isFirst = false;
+		}
+
+		if (extensionServers.length > 0) {
+			const collapsed = this.collapsedGroups.has('extension');
+			entries.push({
+				type: 'group-header',
+				id: 'mcp-group-extension',
+				scope: 'extension',
+				label: localize('extensionGroup', "Extensions"),
+				icon: extensionIcon,
+				count: extensionServers.length,
+				isFirst,
+				description: localize('extensionGroupDescription', "MCP servers contributed by installed VS Code extensions."),
+				collapsed,
+			});
+			if (!collapsed) {
+				for (const server of extensionServers) {
+					entries.push({
+						type: 'builtin-item',
+						id: `builtin-${server.definition.id}`,
+						label: server.definition.label,
+						description: '',
+						collectionId: server.collection.id,
+					});
+				}
+			}
+			isFirst = false;
+		}
+
+		if (otherBuiltinServers.length > 0) {
+			const collapsed = this.collapsedGroups.has('builtin');
+			entries.push({
+				type: 'group-header',
+				id: 'mcp-group-builtin',
+				scope: 'builtin',
+				label: localize('builtInGroup', "Built-in"),
+				icon: builtinIcon,
+				count: otherBuiltinServers.length,
+				isFirst,
+				description: localize('builtInGroupDescription', "MCP servers built into VS Code. These are available automatically."),
+				collapsed,
+			});
+			if (!collapsed) {
+				for (const server of otherBuiltinServers) {
+					entries.push({
+						type: 'builtin-item',
+						id: `builtin-${server.definition.id}`,
+						label: server.definition.label,
+						description: '',
+						collectionId: server.collection.id,
+					});
+				}
+			}
+			isFirst = false;
 		}
 
 		this.displayEntries = entries;
@@ -808,6 +889,8 @@ export class McpListWidget extends Disposable {
 	 * Layouts the widget.
 	 */
 	layout(height: number, width: number): void {
+		this.lastHeight = height;
+		this.lastWidth = width;
 		const sectionFooterHeight = this.sectionHeader.offsetHeight || 0;
 		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 52;
 		const backLinkHeight = this.browseMode ? (this.backLink.offsetHeight || 28) : 0;
@@ -861,16 +944,32 @@ export class McpListWidget extends Disposable {
 		// Plugin-provided builtin items get an "Uninstall Plugin" context menu
 		if (e.element.type === 'builtin-item') {
 			const collectionId = e.element.collectionId;
-			if (!collectionId?.startsWith('plugin.')) {
+			const pluginUriStr = getPluginUriFromCollectionId(collectionId);
+			if (!pluginUriStr) {
 				return;
 			}
-			const pluginUriStr = collectionId.slice('plugin.'.length);
 			const plugin = this.agentPluginService.plugins.get().find(p => p.uri.toString() === pluginUriStr);
 			if (!plugin) {
 				return;
 			}
 
 			const disposables = new DisposableStore();
+			const showPluginAction = disposables.add(new Action(
+				'mcpServer.showPlugin',
+				localize('showPlugin', "Show Plugin"),
+				undefined,
+				true,
+				async () => {
+					const item = {
+						kind: AgentPluginItemKind.Installed as const,
+						name: plugin.label,
+						description: plugin.fromMarketplace?.description ?? '',
+						marketplace: plugin.fromMarketplace?.marketplace,
+						plugin,
+					};
+					this._onDidRequestShowPlugin.fire(item);
+				}
+			));
 			const uninstallAction = disposables.add(new Action(
 				'mcpServer.uninstallPlugin',
 				localize('uninstallPlugin', "Uninstall Plugin"),
@@ -891,7 +990,7 @@ export class McpListWidget extends Disposable {
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => [uninstallAction],
+				getActions: () => [showPluginAction, uninstallAction],
 				onHide: () => disposables.dispose(),
 			});
 			return;

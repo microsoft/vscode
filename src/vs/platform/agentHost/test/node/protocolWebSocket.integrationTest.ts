@@ -26,6 +26,7 @@ import {
 	type IReconnectResult
 } from '../../common/state/sessionProtocol.js';
 import type { ISessionState } from '../../common/state/sessionState.js';
+import { PRE_EXISTING_SESSION_URI } from './mockAgent.js';
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
@@ -648,6 +649,48 @@ suite('Protocol WebSocket E2E', function () {
 		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
 		const state = snapshot.snapshot.state as ISessionState;
 		assert.strictEqual(state.summary.model, 'new-mock-model');
+	});
+
+	// ---- Session restore: subscribe to a session from a previous server lifetime
+
+	test('subscribe to a pre-existing session restores turns from agent history', async function () {
+		this.timeout(10_000);
+
+		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-restore' });
+
+		// The mock agent seeds a pre-existing session that was never created
+		// through the server's handleCreateSession -- simulating a session
+		// from a previous server lifetime.
+		const preExistingUri = PRE_EXISTING_SESSION_URI.toString();
+		const list = await client.call<IListSessionsResult>('listSessions');
+		const preExisting = list.items.find(s => s.resource === preExistingUri);
+		assert.ok(preExisting, 'listSessions should include the pre-existing session');
+
+		// Clear notifications so we can verify no duplicate sessionAdded fires.
+		client.clearReceived();
+
+		// Subscribing to this session should trigger the restore path: the
+		// server fetches message history from the agent and reconstructs turns.
+		const result = await client.call<ISubscribeResult>('subscribe', { resource: preExistingUri });
+		const state = result.snapshot.state as ISessionState;
+
+		assert.strictEqual(state.lifecycle, 'ready', 'restored session should be in ready state');
+		assert.ok(state.turns.length >= 1, `expected at least 1 restored turn but got ${state.turns.length}`);
+
+		const turn = state.turns[0];
+		assert.strictEqual(turn.userMessage.text, 'What files are here?');
+		assert.strictEqual(turn.state, 'complete');
+		assert.ok(turn.toolCalls.length >= 1, 'turn should have tool calls');
+		assert.strictEqual(turn.toolCalls[0].toolName, 'list_files');
+		assert.ok(turn.responseText.includes('file1.ts'));
+
+		// Restoring should NOT emit a duplicate sessionAdded notification
+		// (the session is already known to clients via listSessions).
+		await new Promise(resolve => setTimeout(resolve, 200));
+		const sessionAddedNotifs = client.receivedNotifications(n =>
+			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+		);
+		assert.strictEqual(sessionAddedNotifs.length, 0, 'restore should not emit sessionAdded');
 	});
 
 	test('malformed JSON message returns parse error', async function () {

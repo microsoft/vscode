@@ -32,6 +32,7 @@ export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	uri?: URI;
 	symbolName?: string;
 	range?: { decoration: IRange; selection: IRange };
+	attach?(): void;
 }
 
 export interface IGotoSymbolQuickAccessProviderOptions extends IEditorNavigationQuickAccessOptions {

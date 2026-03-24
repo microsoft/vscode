@@ -1294,6 +1294,15 @@ Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValu
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValueName}"; ValueType: expandsz; ValueName: "Icon"; ValueData: "{app}\{#ExeBasename}.exe"; Check: ShouldInstallLegacyFolderContextMenu
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValueName}\command"; ValueType: expandsz; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%V"""; Check: ShouldInstallLegacyFolderContextMenu
 
+; URL Protocol handler for proxy executable
+#ifdef ProxyExeBasename
+#ifdef ProxyExeUrlProtocol
+Root: HKCU; Subkey: "Software\Classes\{#ProxyExeUrlProtocol}"; ValueType: string; ValueName: ""; ValueData: "URL:{#ProxyExeUrlProtocol}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\{#ProxyExeUrlProtocol}"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\{#ProxyExeUrlProtocol}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#ProxyExeBasename}.exe"" --open-url -- ""%1"""; Flags: uninsdeletekey
+#endif
+#endif
+
 ; Environment
 #if "user" == InstallTarget
 #define EnvironmentRootKey "HKCU"

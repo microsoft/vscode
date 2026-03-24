@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IActionEnvelope, INotification, ISessionAction } from './state/sessionActions.js';
-import type { IBrowseDirectoryResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { AttachmentType, PermissionKind, type PolicyState } from './state/sessionState.js';
+import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot } from './state/sessionProtocol.js';
+import { AttachmentType, PermissionKind, type IToolCallResult, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -19,10 +20,15 @@ export const enum AgentHostIpcChannels {
 	AgentHost = 'agentHost',
 	/** Channel for log forwarding from the agent host process */
 	Logger = 'agentHostLogger',
+	/** Channel for WebSocket client connection count (server process management only) */
+	ConnectionTracker = 'agentHostConnectionTracker',
 }
 
 /** Configuration key that controls whether the agent host process is spawned. */
 export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
+
+/** Configuration key that controls whether per-host IPC traffic output channels are created. */
+export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
 
 // ---- IPC data types (serializable across MessagePort) -----------------------
 
@@ -31,6 +37,7 @@ export interface IAgentSessionMetadata {
 	readonly startTime: number;
 	readonly modifiedTime: number;
 	readonly summary?: string;
+	readonly workingDirectory?: string;
 }
 
 export type AgentProvider = string;
@@ -40,8 +47,53 @@ export interface IAgentDescriptor {
 	readonly provider: AgentProvider;
 	readonly displayName: string;
 	readonly description: string;
-	/** Whether the renderer should push a GitHub auth token for this agent. */
+	/**
+	 * Whether the renderer should push a GitHub auth token for this agent.
+	 * @deprecated Use {@link IResourceMetadata.resources} from {@link IAgentService.getResourceMetadata} instead.
+	 */
 	readonly requiresAuth: boolean;
+}
+
+// ---- Auth types (RFC 9728 / RFC 6750 inspired) -----------------------------
+
+/**
+ * Describes the agent host as an OAuth 2.0 protected resource.
+ * Uses {@link IAuthorizationProtectedResourceMetadata} from RFC 9728
+ * to describe auth requirements, enabling clients to resolve tokens
+ * using the standard VS Code authentication service.
+ *
+ * Returned from the server via {@link IAgentService.getResourceMetadata}.
+ */
+export interface IResourceMetadata {
+	/**
+	 * Protected resources the agent host requires authentication for.
+	 * Each entry uses the standard RFC 9728 shape so clients can resolve
+	 * tokens via {@link IAuthenticationService.getOrActivateProviderIdForServer}.
+	 */
+	readonly resources: readonly IAuthorizationProtectedResourceMetadata[];
+}
+
+/**
+ * Parameters for the `authenticate` command.
+ * Analogous to sending `Authorization: Bearer <token>` (RFC 6750 section 2.1).
+ */
+export interface IAuthenticateParams {
+	/**
+	 * The `resource` identifier from the server's
+	 * {@link IAuthorizationProtectedResourceMetadata} that this token targets.
+	 */
+	readonly resource: string;
+
+	/** The bearer token value (RFC 6750). */
+	readonly token: string;
+}
+
+/**
+ * Result of the `authenticate` command.
+ */
+export interface IAuthenticateResult {
+	/** Whether the token was accepted. */
+	readonly authenticated: boolean;
 }
 
 export interface IAgentCreateSessionConfig {
@@ -143,20 +195,9 @@ export interface IAgentToolStartEvent extends IAgentProgressEventBase {
 export interface IAgentToolCompleteEvent extends IAgentProgressEventBase {
 	readonly type: 'tool_complete';
 	readonly toolCallId: string;
-	readonly success: boolean;
-	/** Message describing the completed tool invocation (e.g., "Ran `echo hello`"). */
-	readonly pastTenseMessage: string;
-	/** Tool output content for display in the UI. */
-	readonly toolOutput?: string;
+	/** Tool execution result, matching the protocol {@link IToolCallResult} shape. */
+	readonly result: IToolCallResult;
 	readonly isUserRequested?: boolean;
-	readonly result?: {
-		readonly content: string;
-		readonly detailedContent?: string;
-	};
-	readonly error?: {
-		readonly message: string;
-		readonly code?: string;
-	};
 	/** Serialized JSON of tool-specific telemetry data. */
 	readonly toolTelemetry?: string;
 	readonly parentToolCallId?: string;
@@ -301,8 +342,14 @@ export interface IAgent {
 	/** List persisted sessions from this provider. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
-	/** Set the authentication token for this provider. */
-	setAuthToken(token: string): Promise<void>;
+	/** Declare protected resources this agent requires auth for (RFC 9728). */
+	getProtectedResources(): IAuthorizationProtectedResourceMetadata[];
+
+	/**
+	 * Authenticate for a specific resource. Returns true if accepted.
+	 * The `resource` matches {@link IAuthorizationProtectedResourceMetadata.resource}.
+	 */
+	authenticate(resource: string, token: string): Promise<boolean>;
 
 	/** Gracefully shut down all sessions. */
 	shutdown(): Promise<void>;
@@ -329,8 +376,18 @@ export interface IAgentService {
 	/** Discover available agent backends from the agent host. */
 	listAgents(): Promise<IAgentDescriptor[]>;
 
-	/** Set the GitHub auth token used by the Copilot SDK. */
-	setAuthToken(token: string): Promise<void>;
+	/**
+	 * Retrieve the resource metadata describing auth requirements.
+	 * Modeled on RFC 9728 (OAuth 2.0 Protected Resource Metadata).
+	 */
+	getResourceMetadata(): Promise<IResourceMetadata>;
+
+	/**
+	 * Authenticate for a protected resource on the server.
+	 * The {@link IAuthenticateParams.resource} must match a resource from
+	 * {@link getResourceMetadata}. Analogous to RFC 6750 bearer token delivery.
+	 */
+	authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult>;
 
 	/**
 	 * Refresh the model list from all providers, publishing updated
@@ -387,6 +444,12 @@ export interface IAgentService {
 	 * Used by the client to drive a remote folder picker before session creation.
 	 */
 	browseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
+
+	/**
+	 * Fetch stored content by URI from the agent host (e.g. file edit snapshots,
+	 * or reading files from the remote filesystem).
+	 */
+	fetchContent(uri: URI): Promise<IFetchContentResult>;
 }
 
 /**

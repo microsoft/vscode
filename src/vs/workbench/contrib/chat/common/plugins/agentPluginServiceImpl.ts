@@ -22,14 +22,23 @@ import {
 import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { localize } from '../../../../../nls.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { ExtensionIdentifier, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../../services/extensionManagement/common/extensionFeatures.js';
+import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ChatConfiguration } from '../constants.js';
 import { EnablementModel, IEnablementModel } from '../enablement.js';
@@ -57,11 +66,11 @@ interface IAgentPluginFormatAdapter {
 	readonly hookConfigPath: string;
 	readonly pluginRootToken: string | undefined;
 	readonly pluginRootEnvVar: string | undefined;
-	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[];
+	parseHooks(hookURI: URI, json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[];
 }
 
-function mapParsedHooks(parsed: Map<IAgentPluginHook['type'], { hooks: IAgentPluginHook['hooks']; originalId: string }>): IAgentPluginHook[] {
-	return [...parsed.entries()].map(([type, { hooks, originalId }]) => ({ type, hooks, originalId }));
+function mapParsedHooks(uri: URI, parsed: Map<IAgentPluginHook['type'], { hooks: IAgentPluginHook['hooks']; originalId: string }>): IAgentPluginHook[] {
+	return [...parsed.entries()].map(([type, { hooks, originalId }]) => ({ type, uri, hooks, originalId }));
 }
 
 /**
@@ -85,9 +94,9 @@ class CopilotPluginFormatAdapter implements IAgentPluginFormatAdapter {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) { }
 
-	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
+	parseHooks(hookURI: URI, json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
 		const workspaceRoot = resolveWorkspaceRoot(pluginUri, this._workspaceContextService);
-		return mapParsedHooks(parseCopilotHooks(json, workspaceRoot, userHome));
+		return mapParsedHooks(hookURI, parseCopilotHooks(json, workspaceRoot, userHome));
 	}
 }
 
@@ -201,7 +210,47 @@ function interpolateMcpPluginRoot(
 		interpolated = remote;
 	}
 
-	return { name: def.name, configuration: interpolated };
+	return { name: def.name, configuration: interpolated, uri: def.uri };
+}
+
+/**
+ * Regular expression matching bare `${VAR_NAME}` references that are NOT
+ * already using VS Code's `${env:VAR}` colon-delimited syntax. Only matches
+ * uppercase letters, digits, and underscores — the characters valid in POSIX
+ * environment variable names.
+ *
+ * Negative lookbehind ensures we skip tokens that already carry a namespace
+ * prefix (e.g. `${env:HOME}`, `${config:editor.fontSize}`).
+ */
+const BARE_ENV_VAR_RE = /\$\{(?![A-Za-z]+:)([A-Z_][A-Z0-9_]*)\}/g;
+
+/**
+ * Converts bare `${VAR}` environment-variable references found in MCP server
+ * definition strings to the VS Code `${env:VAR}` syntax so that the
+ * `configurationResolverService` can resolve them later in the pipeline.
+ *
+ * The MCP ecosystem (Claude Desktop, Copilot CLI) uses bare `${VAR}` to
+ * reference environment variables, while VS Code's resolver expects the
+ * `${env:VAR}` form. This function bridges that gap for all plugin-provided
+ * MCP server definitions.
+ *
+ * Only references whose name consists of uppercase letters, digits, and
+ * underscores are converted — this avoids transforming VS Code's own variable
+ * tokens (e.g. `${workspaceFolder}`) which use lowercase/camelCase names.
+ */
+export function convertBareEnvVarsToVsCodeSyntax(
+	def: IAgentPluginMcpServerDefinition,
+): IAgentPluginMcpServerDefinition {
+	return cloneAndChange(def, (value) => {
+		if (URI.isUri(value)) {
+			return value;
+		}
+		if (typeof value === 'string') {
+			const replaced = value.replace(BARE_ENV_VAR_RE, '${env:$1}');
+			return replaced !== value ? replaced : undefined;
+		}
+		return undefined;
+	});
 }
 
 /**
@@ -211,6 +260,7 @@ function interpolateMcpPluginRoot(
  * delegates to {@link parseClaudeHooks} for the actual hook resolution.
  */
 function parsePluginRootHooks(
+	hookURI: URI,
 	json: unknown,
 	pluginUri: URI,
 	userHome: string,
@@ -265,7 +315,7 @@ function parsePluginRootHooks(
 		return [];
 	}
 
-	return mapParsedHooks(hooks);
+	return mapParsedHooks(hookURI, hooks);
 }
 
 class ClaudePluginFormatAdapter implements IAgentPluginFormatAdapter {
@@ -279,8 +329,8 @@ class ClaudePluginFormatAdapter implements IAgentPluginFormatAdapter {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) { }
 
-	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
-		return parsePluginRootHooks(json, pluginUri, userHome, this._workspaceContextService, '${CLAUDE_PLUGIN_ROOT}', 'CLAUDE_PLUGIN_ROOT');
+	parseHooks(hookURI: URI, json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
+		return parsePluginRootHooks(hookURI, json, pluginUri, userHome, this._workspaceContextService, '${CLAUDE_PLUGIN_ROOT}', 'CLAUDE_PLUGIN_ROOT');
 	}
 }
 
@@ -295,8 +345,8 @@ class OpenPluginFormatAdapter implements IAgentPluginFormatAdapter {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) { }
 
-	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
-		return parsePluginRootHooks(json, pluginUri, userHome, this._workspaceContextService, '${PLUGIN_ROOT}', 'PLUGIN_ROOT');
+	parseHooks(hookURI: URI, json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
+		return parsePluginRootHooks(hookURI, json, pluginUri, userHome, this._workspaceContextService, '${PLUGIN_ROOT}', 'PLUGIN_ROOT');
 	}
 }
 
@@ -584,6 +634,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			return result.recomputeInitiallyAndOnChange(store);
 		};
 
+		const manifestUri = joinPath(uri, adapter.manifestPath);
 		const commands = observeComponent('commands', d => this._readMarkdownComponents(d));
 		const skills = observeComponent('skills', d => this._readSkills(uri, d));
 		const agents = observeComponent('agents', d => this._readMarkdownComponents(d));
@@ -593,7 +644,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			paths => this._readHooksFromPaths(uri, paths, adapter),
 			async section => {
 				const userHome = (await this._pathService.userHome()).fsPath;
-				return adapter.parseHooks(section, uri, userHome);
+				return adapter.parseHooks(manifestUri, section, uri, userHome);
 			},
 			adapter.hookConfigPath,
 		);
@@ -601,7 +652,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		const mcpServerDefinitions = observeComponent(
 			'mcpServers',
 			paths => this._readMcpDefinitionsFromPaths(paths, uri.fsPath, adapter),
-			async section => this._parseMcpServerDefinitionMap({ mcpServers: section }, uri.fsPath, adapter),
+			async section => this._parseMcpServerDefinitionMap(manifestUri, { mcpServers: section }, uri.fsPath, adapter),
 			'.mcp.json',
 		);
 
@@ -611,7 +662,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		};
 
 		const manifestWatcher = this._fileService.createWatcher(
-			joinPath(uri, adapter.manifestPath),
+			manifestUri,
 			{ recursive: false, excludes: [] },
 		);
 		store.add(manifestWatcher);
@@ -657,7 +708,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			const json = await this._readJsonFile(hookPath);
 			if (json) {
 				try {
-					return adapter.parseHooks(json, pluginUri, userHome);
+					return adapter.parseHooks(hookPath, json, pluginUri, userHome);
 				} catch (e) {
 					this._logService.info(`[AgentPluginDiscovery] Failed to parse hooks from ${hookPath.toString()}:`, e);
 				}
@@ -672,21 +723,19 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 	 * server name wins.
 	 */
 	private async _readMcpDefinitionsFromPaths(paths: readonly URI[], pluginFsPath: string, adapter: IAgentPluginFormatAdapter): Promise<readonly IAgentPluginMcpServerDefinition[]> {
-		const merged = new Map<string, IMcpServerConfiguration>();
+		const merged = new Map<string, IAgentPluginMcpServerDefinition>();
 		for (const mcpPath of paths) {
 			const json = await this._readJsonFile(mcpPath);
-			for (const def of this._parseMcpServerDefinitionMap(json, pluginFsPath, adapter)) {
+			for (const def of this._parseMcpServerDefinitionMap(mcpPath, json, pluginFsPath, adapter)) {
 				if (!merged.has(def.name)) {
-					merged.set(def.name, def.configuration);
+					merged.set(def.name, def);
 				}
 			}
 		}
-		return [...merged.entries()]
-			.map(([name, configuration]) => ({ name, configuration } satisfies IAgentPluginMcpServerDefinition))
-			.sort((a, b) => a.name.localeCompare(b.name));
+		return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name));
 	}
 
-	private _parseMcpServerDefinitionMap(raw: unknown, pluginFsPath: string, adapter: IAgentPluginFormatAdapter): IAgentPluginMcpServerDefinition[] {
+	private _parseMcpServerDefinitionMap(definitionURI: URI, raw: unknown, pluginFsPath: string, adapter: IAgentPluginFormatAdapter): IAgentPluginMcpServerDefinition[] {
 		const mcpServers = resolveMcpServersMap(raw);
 		if (!mcpServers) {
 			return [];
@@ -699,10 +748,11 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 				continue;
 			}
 
-			let def: IAgentPluginMcpServerDefinition = { name, configuration };
+			let def: IAgentPluginMcpServerDefinition = { name, configuration, uri: definitionURI };
 			if (adapter.pluginRootToken && adapter.pluginRootEnvVar) {
 				def = interpolateMcpPluginRoot(def, pluginFsPath, adapter.pluginRootToken, adapter.pluginRootEnvVar);
 			}
+			def = convertBareEnvVarsToVsCodeSyntax(def);
 			definitions.push(def);
 		}
 
@@ -1120,7 +1170,14 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 				remove: () => {
 					this._enablementModel.remove(stat.resource.toString());
 					this._pluginMarketplaceService.removeInstalledPlugin(entry.pluginUri);
-					this._pluginRepositoryService.cleanupPluginSource(entry.plugin).catch(error => {
+
+					// Pass remaining installed descriptors so the repository service
+					// can skip deletion when other plugins share the same cache dir.
+					const remaining = this._pluginMarketplaceService.installedPlugins.get();
+					this._pluginRepositoryService.cleanupPluginSource(
+						entry.plugin,
+						remaining.map(e => e.plugin.sourceDescriptor),
+					).catch(error => {
 						this._logService.error('[MarketplaceAgentPluginDiscovery] Failed to clean up plugin source', error);
 					});
 				},
@@ -1130,3 +1187,188 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 		return sources;
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Extension-contributed plugin discovery
+// ---------------------------------------------------------------------------
+
+interface IRawChatPluginContribution {
+	readonly path: string;
+	readonly when?: string;
+}
+
+const epPlugins = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatPluginContribution[]>({
+	extensionPoint: 'chatPlugins',
+	jsonSchema: {
+		description: localize('chatPlugins.schema.description', 'Contributes agent plugins for chat.'),
+		type: 'array',
+		items: {
+			additionalProperties: false,
+			type: 'object',
+			defaultSnippets: [{
+				body: {
+					path: './relative/path/to/plugin/',
+				}
+			}],
+			required: ['path'],
+			properties: {
+				path: {
+					description: localize('chatPlugins.property.path', 'Path to the agent plugin root directory relative to the extension root.'),
+					type: 'string'
+				},
+				when: {
+					description: localize('chatPlugins.property.when', '(Optional) A condition which must be true to enable this plugin.'),
+					type: 'string'
+				}
+			}
+		}
+	}
+});
+
+export class ExtensionAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
+
+	private readonly _extensionPlugins = new Map<string, { uri: URI; when: ContextKeyExpression | undefined; extensionId: string }>();
+	private readonly _whenKeys = new Set<string>();
+
+	constructor(
+		@ICommandService private readonly _commandService: ICommandService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IFileService fileService: IFileService,
+		@IPathService pathService: IPathService,
+		@ILogService logService: ILogService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super(fileService, pathService, logService, instantiationService);
+	}
+
+	public override start(enablementModel: IEnablementModel): void {
+		this._enablementModel = enablementModel;
+		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
+		this._register(this._contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(this._whenKeys)) {
+				scheduler.schedule();
+			}
+		}));
+		epPlugins.setHandler((_extensions, delta) => {
+			for (const ext of delta.added) {
+				for (const raw of ext.value) {
+					if (!raw.path) {
+						ext.collector.error(localize('extension.plugin.missing.path', "Extension '{0}' cannot register a chatPlugins entry without a path.", ext.description.identifier.value));
+						continue;
+					}
+					const pluginUri = joinPath(ext.description.extensionLocation, raw.path);
+					if (!isEqualOrParent(pluginUri, ext.description.extensionLocation)) {
+						ext.collector.error(localize('extension.plugin.invalid.path', "Extension '{0}' chatPlugins entry '{1}' resolves outside the extension.", ext.description.identifier.value, raw.path));
+						continue;
+					}
+					let whenExpr: ContextKeyExpression | undefined;
+					if (raw.when) {
+						whenExpr = ContextKeyExpr.deserialize(raw.when);
+						if (!whenExpr) {
+							ext.collector.error(localize('extension.plugin.invalid.when', "Extension '{0}' chatPlugins entry '{1}' has an invalid when clause: '{2}'.", ext.description.identifier.value, raw.path, raw.when));
+							continue;
+						}
+					}
+					this._extensionPlugins.set(extensionPluginKey(ext.description.identifier, raw.path), { uri: pluginUri, when: whenExpr, extensionId: ext.description.identifier.value });
+				}
+			}
+			for (const ext of delta.removed) {
+				for (const raw of ext.value) {
+					this._extensionPlugins.delete(extensionPluginKey(ext.description.identifier, raw.path));
+				}
+			}
+			this._rebuildWhenKeys();
+			scheduler.schedule();
+		});
+	}
+
+	private _rebuildWhenKeys(): void {
+		this._whenKeys.clear();
+		for (const { when } of this._extensionPlugins.values()) {
+			if (when) {
+				for (const key of when.keys()) {
+					this._whenKeys.add(key);
+				}
+			}
+		}
+	}
+
+	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
+		const sources: IPluginSource[] = [];
+		for (const [, entry] of this._extensionPlugins) {
+			if (entry.when && !this._contextKeyService.contextMatchesRules(entry.when)) {
+				continue;
+			}
+			let stat;
+			try {
+				stat = await this._fileService.resolve(entry.uri);
+			} catch {
+				this._logService.debug(`[ExtensionAgentPluginDiscovery] Could not resolve extension plugin path: ${entry.uri.toString()}`);
+				continue;
+			}
+			if (!stat.isDirectory) {
+				this._logService.debug(`[ExtensionAgentPluginDiscovery] Extension plugin path is not a directory: ${entry.uri.toString()}`);
+				continue;
+			}
+			sources.push({
+				uri: stat.resource,
+				fromMarketplace: undefined,
+				remove: () => this._promptUninstallExtension(entry.extensionId),
+			});
+		}
+		return sources;
+	}
+
+	private async _promptUninstallExtension(extensionId: string): Promise<void> {
+		const { confirmed } = await this._dialogService.confirm({
+			message: localize('uninstallExtensionForPlugin', "This plugin is provided by the extension '{0}'. Do you want to uninstall the extension?", extensionId),
+		});
+		if (confirmed) {
+			await this._commandService.executeCommand('workbench.extensions.uninstallExtension', extensionId);
+		}
+	}
+}
+
+function extensionPluginKey(extensionId: ExtensionIdentifier, path: string): string {
+	return `${extensionId.value}/${path}`;
+}
+
+class ChatPluginsDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+	readonly type = 'table' as const;
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.chatPlugins?.length;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const contributions = manifest.contributes?.chatPlugins ?? [];
+		if (!contributions.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			localize('chatPluginsPath', "Path"),
+			localize('chatPluginsWhen', "When"),
+		];
+
+		const rows: IRowData[][] = contributions.map(d => [
+			d.path,
+			d.when ?? '-',
+		]);
+
+		return {
+			data: { headers, rows },
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'chatPlugins',
+	label: localize('chatPlugins', "Chat Plugins"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ChatPluginsDataRenderer),
+});

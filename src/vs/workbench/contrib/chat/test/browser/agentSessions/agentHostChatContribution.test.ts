@@ -31,6 +31,10 @@ import { IOutputService } from '../../../../../services/output/common/output.js'
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { AgentHostContribution, AgentHostSessionListController, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -48,8 +52,6 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public createSessionCalls: IAgentCreateSessionConfig[] = [];
 	public agents = [{ provider: 'copilot' as const, displayName: 'Agent Host - Copilot', description: 'test', requiresAuth: true }];
-
-	override async setAuthToken(_token: string): Promise<void> { }
 
 	override async listSessions(): Promise<IAgentSessionMetadata[]> {
 		return [...this._sessions.values()];
@@ -157,6 +159,8 @@ function createTestServices(disposables: DisposableStore) {
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IProductService, { quality: 'insider' });
 	instantiationService.stub(IChatAgentService, chatAgentService);
+	instantiationService.stub(IFileService, TestFileService);
+	instantiationService.stub(ILabelService, MockLabelService);
 	instantiationService.stub(IChatSessionsService, {
 		registerChatSessionItemController: () => toDisposable(() => { }),
 		registerChatSessionContentProvider: () => toDisposable(() => { }),
@@ -186,6 +190,7 @@ function createContribution(disposables: DisposableStore) {
 		fullName: 'Agent Host - Copilot',
 		description: 'Copilot SDK agent running in a dedicated process',
 		connection: agentHostService,
+		connectionAuthority: 'local',
 	}));
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
@@ -1382,6 +1387,7 @@ suite('AgentHostChatContribution', () => {
 				fullName: 'Remote Copilot',
 				description: 'Remote agent',
 				connection: agentHostService,
+				connectionAuthority: 'local',
 				extensionId: 'vscode.remote-agent-host',
 				extensionDisplayName: 'Remote Agent Host',
 			}));
@@ -1402,6 +1408,7 @@ suite('AgentHostChatContribution', () => {
 				fullName: 'Test',
 				description: 'test',
 				connection: agentHostService,
+				connectionAuthority: 'local',
 			}));
 
 			const registered = chatAgentService.registeredAgents.get('default-ext-test');
@@ -1420,6 +1427,7 @@ suite('AgentHostChatContribution', () => {
 				fullName: 'Test',
 				description: 'test',
 				connection: agentHostService,
+				connectionAuthority: 'local',
 				resolveWorkingDirectory: () => '/custom/working/dir',
 			}));
 
@@ -1468,6 +1476,7 @@ suite('AgentHostChatContribution', () => {
 				fullName: 'Connection Test',
 				description: 'test',
 				connection: agentHostService,
+				connectionAuthority: 'local',
 			}));
 
 			// Verify it registered an agent

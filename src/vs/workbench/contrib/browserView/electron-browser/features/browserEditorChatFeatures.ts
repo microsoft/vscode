@@ -45,7 +45,7 @@ import { BrowserActionCategory } from '../browserViewActions.js';
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditorInput.EDITOR_ID);
 const BrowserCategory = localize2('browserCategory', "Browser");
 
-export const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('browserElementSelectionActive', false, localize('browser.elementSelectionActive', "Whether element selection is currently active"));
+const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('browserElementSelectionActive', false, localize('browser.elementSelectionActive', "Whether element selection is currently active"));
 
 const canShareBrowserWithAgentContext = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
@@ -464,7 +464,7 @@ class AddFocusedElementToChatAction extends Action2 {
 			precondition: CONTEXT_BROWSER_FOCUSED,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 50,
-				primary: KeyCode.Enter,
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 				when: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE
 			}
 		});

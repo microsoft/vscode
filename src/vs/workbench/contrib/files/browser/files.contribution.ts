@@ -459,7 +459,7 @@ configurationRegistry.registerConfiguration({
 								type: 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
 								pattern: '\\w*\\$\\(basename\\)\\w*',
 								default: '$(basename).ext',
-								description: nls.localize('explorer.autoRevealExclude.when', 'Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.')
+								description: nls.localize('explorer.autoRevealExclude.when', 'Additional check on the siblings of a matching file. Use {0} as variable for the matching file name.', '$(basename)')
 							}
 						}
 					}
