@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as http from 'http';
 import 'mocha';
 import * as vscode from 'vscode';
 import { DeferredPromise, assertNoRpc, closeAllEditors, disposeAll } from '../utils';
@@ -322,6 +323,64 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				assert.ok(acceptable.includes(output.trim()), `Unexpected output: ${JSON.stringify(output.trim())}`);
 			});
 
+			test('blocked download can retry outside sandbox and write to $TMPDIR', async function () {
+				this.timeout(60000);
+
+				const marker = `SANDBOX_DOWNLOAD_${Date.now()}`;
+				const server = http.createServer((_request, response) => {
+					response.writeHead(200, { 'Content-Type': 'text/plain' });
+					response.end(marker);
+				});
+				await new Promise<void>((resolve, reject) => {
+					server.once('error', reject);
+					server.listen(0, '127.0.0.1', () => resolve());
+				});
+
+				const address = server.address();
+				if (!address || typeof address === 'string') {
+					throw new Error('Expected local HTTP server address information');
+				}
+
+				const sandboxConfig = vscode.workspace.getConfiguration('chat.tools.terminal.sandbox');
+				const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri;
+				assert.ok(workspaceFolder, 'Expected a workspace folder for the download test');
+				const tmpDirName = `.sandbox-download-${marker}`;
+				const tmpDir = vscode.Uri.joinPath(workspaceFolder, tmpDirName);
+				await vscode.workspace.fs.createDirectory(tmpDir);
+				const command = `TMPDIR="${tmpDirName}" && export TMPDIR && curl -sSfL --max-time 20 http://127.0.0.1:${address.port}/${marker}.txt -o "$TMPDIR/${marker}.html" && test -s "$TMPDIR/${marker}.html" && rm "$TMPDIR/${marker}.html" && echo ${marker}`;
+
+				try {
+					const blockedOutput = await invokeRunInTerminal(command);
+					const blockedTrimmed = blockedOutput.trim();
+
+					if (hasShellIntegration) {
+						assert.ok(blockedTrimmed.includes('Command failed while running in sandboxed mode. If the command failed due to sandboxing:'), `Unexpected blocked output: ${JSON.stringify(blockedTrimmed)}`);
+						assert.ok(blockedTrimmed.includes('chat.tools.terminal.sandbox.network.allowedDomains'), `Unexpected blocked output: ${JSON.stringify(blockedTrimmed)}`);
+						assert.ok(/Command exited with code \d+/.test(blockedTrimmed), `Unexpected blocked output: ${JSON.stringify(blockedTrimmed)}`);
+					} else {
+						assert.ok(
+							blockedTrimmed === 'Command produced no output'
+							|| blockedTrimmed.includes('Command failed while running in sandboxed mode. If the command failed due to sandboxing:')
+							|| blockedTrimmed.includes('Command ran in sandboxed mode and may have been blocked by the sandbox. If the command failed due to sandboxing:'),
+							`Unexpected blocked output: ${JSON.stringify(blockedTrimmed)}`
+						);
+					}
+
+					await sandboxConfig.update('enabled', false, vscode.ConfigurationTarget.Global);
+					try {
+						const unsandboxedOutput = await invokeRunInTerminal(command, 30000);
+						assert.strictEqual(unsandboxedOutput.trim(), marker);
+					} finally {
+						await sandboxConfig.update('enabled', true, vscode.ConfigurationTarget.Global);
+					}
+				} finally {
+					await vscode.workspace.fs.delete(tmpDir, { recursive: true, useTrash: false });
+					await new Promise<void>((resolve, reject) => {
+						server.close(error => error ? reject(error) : resolve());
+					});
+				}
+			});
+
 			test('cannot write to /tmp', async function () {
 				this.timeout(60000);
 
@@ -382,6 +441,8 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 
 				assert.strictEqual(output.trim(), marker);
 			});
+
+
 		});
 	}
 });
