@@ -53,6 +53,10 @@
 		color: unset;
 	}
 
+	.monaco-list:focus .monaco-list-row.selected .agent-session-item.archived {
+		color: unset;
+	}
+
 	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-details-row {
 		color: var(--vscode-descriptionForeground);
 	}
