@@ -64,8 +64,9 @@ export interface IPickerQuickAccessItem extends IQuickPickItem {
 	 * open and allow multiple picks.
 	 *
 	 * @param keyMods the state of modifier keys when the item was accepted.
+	 * @param event the underlying event that caused this to trigger.
 	 */
-	attach?(keyMods: IKeyMods): void;
+	attach?(keyMods: IKeyMods, event: IQuickPickDidAcceptEvent): void;
 }
 
 export interface IPickerQuickAccessSeparator extends IQuickPickSeparator {
@@ -348,7 +349,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			if (typeof item?.accept === 'function') {
 				const isAttachAction = isKeyModified(picker.keyMods) && !!item.attach;
 				if (isAttachAction) {
-					item.attach!(picker.keyMods);
+					item.attach!(picker.keyMods, event);
 					return;
 				}
 				if (!event.inBackground) {

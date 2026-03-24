@@ -214,18 +214,25 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					return TriggerAction.CLOSE_PICKER;
 				},
 				accept: async (keyMods, event) => this.openSymbol(provider, symbol, token, { keyMods, preserveFocus: event.inBackground, forcePinned: event.inBackground }),
-				attach: () => {
-					const widget = this.chatWidgetService.lastFocusedWidget;
-					if (widget) {
-						const entry: ISymbolVariableEntry = {
-							kind: 'symbol',
-							id: JSON.stringify({ uri: symbolUri.toString(), range: symbol.location.range }),
-							name: symbol.name,
-							value: symbol.location,
-							symbolKind: symbol.kind,
-						};
-						widget.attachmentModel.addContext(entry);
+				attach: (keyMods, event) => {
+					// Only support adding context to chat when cmd/ctrl is pressed
+					if (keyMods.ctrlCmd) {
+						const widget = this.chatWidgetService.lastFocusedWidget;
+						if (widget) {
+							const entry: ISymbolVariableEntry = {
+								kind: 'symbol',
+								id: JSON.stringify({ uri: symbolUri.toString(), range: symbol.location.range }),
+								name: symbol.name,
+								value: symbol.location,
+								symbolKind: symbol.kind,
+							};
+							widget.attachmentModel.addContext(entry);
+						}
+						return;
 					}
+
+					// Fallback to accept behavior.
+					this.openSymbol(provider, symbol, token, { keyMods, preserveFocus: event.inBackground, forcePinned: event.inBackground });
 				},
 			});
 

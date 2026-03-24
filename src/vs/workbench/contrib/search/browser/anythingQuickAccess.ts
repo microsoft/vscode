@@ -1086,11 +1086,18 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				return TriggerAction.NO_ACTION;
 			},
 			accept: (keyMods, event) => this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, preserveFocus: event.inBackground, forcePinned: event.inBackground }),
-			attach: () => {
-				const widget = this.chatWidgetService.lastFocusedWidget;
-				if (widget && resource) {
-					widget.attachmentModel.addContext(widget.attachmentModel.asFileVariableEntry(resource));
+			attach: (keyMods, event) => {
+				// Only support adding context to chat when ctrl/cmd is pressed
+				if (keyMods.ctrlCmd) {
+					const widget = this.chatWidgetService.lastFocusedWidget;
+					if (widget && resource) {
+						widget.attachmentModel.addContext(widget.attachmentModel.asFileVariableEntry(resource));
+					}
+					return;
 				}
+
+				// Fallback to accept behavior.
+				this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, preserveFocus: event.inBackground, forcePinned: event.inBackground });
 			}
 		};
 	}
