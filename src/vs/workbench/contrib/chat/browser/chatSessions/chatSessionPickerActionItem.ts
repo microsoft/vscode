@@ -205,7 +205,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 	 * Returns the CSS class to add to the container. Can be overridden by subclasses.
 	 */
 	protected getContainerClass(): string {
-		return 'chat-sessionPicker-item';
+		return 'chat-input-picker-item';
 	}
 
 	protected override updateEnabled(): void {

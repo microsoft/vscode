@@ -17,6 +17,7 @@ import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IRelaxedExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -46,13 +47,18 @@ import { BugIndicatingError, isCancellationError } from '../../../../../base/com
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { assertNever } from '../../../../../base/common/assert.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 import { slashReg } from '../../common/requestParser/chatRequestParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { IChatModel } from '../../common/model/chatModel.js';
+
+/**
+ * Prefix for dynamically registered session picker action IDs.
+ * Format: `${CHAT_SESSION_PICKER_ACTION_PREFIX}${sessionType}/${groupId}`
+ */
+export const CHAT_SESSION_PICKER_ACTION_PREFIX = 'workbench.action.chat.chatSessionPicker.';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -307,6 +313,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly inProgressMap = new Map</* chatSessionType */ string, number>();
 	private readonly _sessionTypeOptions = new Map<string, IChatSessionProviderOptionGroup[]>();
+	private readonly _sessionPickerMenuRegistrations = this._register(new DisposableMap</* sessionType */ string>());
 
 	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
 	private readonly _resourceAliases = new ResourceMap<URI>(); // real resource -> untitled resource
@@ -1159,6 +1166,49 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		} else {
 			this._sessionTypeOptions.delete(chatSessionType);
 		}
+
+		// Register/unregister individual menu items for each option group
+		this._sessionPickerMenuRegistrations.deleteAndDispose(chatSessionType);
+		if (optionGroups && optionGroups.length > 0) {
+			const disposables = new DisposableStore();
+
+			const baseWhen = ContextKeyExpr.and(
+				ChatContextKeys.chatSessionHasModels,
+				ChatContextKeys.agentSessionType.isEqualTo(chatSessionType),
+				ContextKeyExpr.or(
+					ChatContextKeys.lockedToCodingAgent,
+					ContextKeyExpr.and(
+						ChatContextKeys.inAgentSessionsWelcome,
+						ChatContextKeys.chatSessionType.notEqualsTo('local')
+					)
+				)
+			);
+
+			for (let i = 0; i < optionGroups.length; i++) {
+				const group = optionGroups[i];
+				const actionId = `${CHAT_SESSION_PICKER_ACTION_PREFIX}${chatSessionType}/${group.id}`;
+
+				// Combine base when clause with per-group visibility context key
+				const groupWhen = ContextKeyExpr.and(
+					baseWhen,
+					ContextKeyExpr.has(`chatSessionPickerGroup.${group.id}`)
+				);
+
+				disposables.add(CommandsRegistry.registerCommand(actionId, () => { /* Picker is opened via the action view item */ }));
+				disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatInput, {
+					command: {
+						id: actionId,
+						title: group.name,
+					},
+					group: 'navigation',
+					order: 4 + i * 0.01,
+					when: groupWhen
+				}));
+			}
+
+			this._sessionPickerMenuRegistrations.set(chatSessionType, disposables);
+		}
+
 		this._onDidChangeOptionGroups.fire(chatSessionType);
 	}
 

@@ -667,43 +667,6 @@ export class OpenWorkspacePickerAction extends Action2 {
 	}
 }
 
-export class ChatSessionPrimaryPickerAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.chatSessionPrimaryPicker';
-	constructor() {
-		super({
-			id: ChatSessionPrimaryPickerAction.ID,
-			title: localize2('interactive.openChatSessionPrimaryPicker.label', "Open Primary Session Picker"),
-			category: CHAT_CATEGORY,
-			f1: false,
-			precondition: ChatContextKeys.enabled,
-			menu: {
-				id: MenuId.ChatInput,
-				order: 4,
-				group: 'navigation',
-				when:
-					ContextKeyExpr.and(
-						ChatContextKeys.chatSessionHasModels,
-						ContextKeyExpr.or(
-							ChatContextKeys.lockedToCodingAgent,
-							ContextKeyExpr.and(
-								ChatContextKeys.inAgentSessionsWelcome,
-								ChatContextKeys.chatSessionType.notEqualsTo('local')
-							)
-						)
-					)
-			}
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		const widgetService = accessor.get(IChatWidgetService);
-		const widget = widgetService.lastFocusedWidget;
-		if (widget) {
-			widget.input.openChatSessionPicker();
-		}
-	}
-}
-
 export const ChangeChatModelActionId = 'workbench.action.chat.changeModel';
 class ChangeChatModelAction extends Action2 {
 	static readonly ID = ChangeChatModelActionId;
@@ -1195,7 +1158,6 @@ export function registerChatExecuteActions() {
 	registerAction2(OpenSessionTargetPickerAction);
 	registerAction2(OpenDelegationPickerAction);
 	registerAction2(OpenWorkspacePickerAction);
-	registerAction2(ChatSessionPrimaryPickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);
 	registerAction2(GetHandoffsAction);
