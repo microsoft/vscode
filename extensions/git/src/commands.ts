@@ -5719,17 +5719,17 @@ export class CommandCenter {
 
 		// Pre-populate with any already-configured values so the user only
 		// has to fill in what is actually missing.
-		let existingName = '';
-		let existingEmail = '';
+		let configuredName = '';
+		let configuredEmail = '';
 		try {
-			existingName = (await this.git.exec(cwd, ['config', 'user.name'])).stdout.trim();
+			configuredName = (await this.git.exec(cwd, ['config', 'user.name'])).stdout.trim();
 		} catch { /* not yet configured */ }
 		try {
-			existingEmail = (await this.git.exec(cwd, ['config', 'user.email'])).stdout.trim();
+			configuredEmail = (await this.git.exec(cwd, ['config', 'user.email'])).stdout.trim();
 		} catch { /* not yet configured */ }
 
 		const name = await window.showInputBox({
-			value: existingName,
+			value: configuredName,
 			placeHolder: l10n.t('Your Name'),
 			prompt: l10n.t('Please enter your name for Git commits'),
 			ignoreFocusOut: true,
@@ -5742,9 +5742,10 @@ export class CommandCenter {
 			return false;
 		}
 
-		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		// Basic email format check: requires local-part, @, domain, and a TLD of at least two characters.
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 		const email = await window.showInputBox({
-			value: existingEmail,
+			value: configuredEmail,
 			placeHolder: l10n.t('your@email.com'),
 			prompt: l10n.t('Please enter your email address for Git commits'),
 			ignoreFocusOut: true,
