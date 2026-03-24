@@ -16,6 +16,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { ModelService } from '../../../../../../editor/common/services/modelService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -47,7 +48,7 @@ import { match } from '../../../../../../base/common/glob.js';
 import { ChatModeKind } from '../../../common/constants.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 
 suite('ComputeAutomaticInstructions', () => {
@@ -1287,10 +1288,10 @@ suite('ComputeAutomaticInstructions', () => {
 					description: 'An extension skill',
 					disableModelInvocation: false,
 					userInvocable: true,
-					provenance: {
-						extensionId: 'publisher.my-extension',
-						extensionVersion: '1.2.3',
-					},
+					extension: {
+						identifier: new ExtensionIdentifier('publisher.my-extension'),
+						version: '1.2.3',
+					} as IExtensionDescription,
 				},
 				{
 					uri: URI.file(`${rootFolder}/plugin-skills/plugin-skill/SKILL.md`),
@@ -1299,13 +1300,20 @@ suite('ComputeAutomaticInstructions', () => {
 					description: 'A plugin skill',
 					disableModelInvocation: false,
 					userInvocable: true,
-					provenance: {
-						pluginName: 'My Plugin',
-						pluginVersion: '4.5.6',
-					},
+					pluginUri: URI.parse('plugin://my-plugin/4.5.6'),
 				},
 			];
 			sinon.stub(service, 'findAgentSkills').resolves(stubSkills);
+
+			// Override the plugin service mock so the plugin skill can be resolved
+			const pluginUri = URI.parse('plugin://my-plugin/4.5.6');
+			instaService.stub(IAgentPluginService, {
+				plugins: observableValue('testPlugins', [{
+					uri: pluginUri,
+					label: 'my-plugin',
+					fromMarketplace: { version: '4.5.6' },
+				}] as unknown as readonly IAgentPlugin[]),
+			});
 
 			const telemetryEvents: { eventName: string; data: Record<string, unknown> }[] = [];
 			const mockTelemetryService = {

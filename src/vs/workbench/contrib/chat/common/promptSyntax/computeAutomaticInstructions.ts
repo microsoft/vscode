@@ -29,7 +29,8 @@ import { AGENT_DEBUG_LOG_ENABLED_SETTING, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_S
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ChatConfiguration, ChatModeKind } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
-import { hashAsync } from '../../../../../base/common/hash.js';
+import { StringSHA1 } from '../../../../../base/common/hash.js';
+import { IAgentPlugin, IAgentPluginService } from '../plugins/agentPluginService.js';
 
 export type InstructionsCollectionEvent = {
 	applyingInstructionsCount: number;
@@ -77,6 +78,7 @@ export class ComputeAutomaticInstructions {
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
+		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 	) {
 	}
 
@@ -150,20 +152,33 @@ export class ComputeAutomaticInstructions {
 		};
 
 		try {
+			// Build map of plugin URI to plugin metadata for provenance
+			const pluginByUri = new ResourceMap<IAgentPlugin>();
+			const allPlugins = this._agentPluginService.plugins.get();
+			for (const plugin of allPlugins) {
+				pluginByUri.set(plugin.uri, plugin);
+			}
+
+			const hash = (value: string | undefined) => {
+				if (value !== undefined) {
+					const sha = new StringSHA1();
+					sha.update(value);
+					return sha.digest();
+				}
+				return '';
+			};
+
 			for (const skill of skills) {
 
-				const provenance = skill.provenance;
-				const nameHash = await hashAsync(skill.name);
-				const extensionIdHash = provenance?.extensionId ? await hashAsync(provenance.extensionId) : '';
-				const pluginNameHash = provenance?.pluginName ? await hashAsync(provenance.pluginName) : '';
-
+				const nameHash = hash(skill.name);
+				const skillPlugin = skill.pluginUri ? pluginByUri.get(skill.pluginUri) : undefined;
 				this._telemetryService.publicLog2<SkillLoadedIntoContextEvent, SkillLoadedIntoContextClassification>('skillLoadedIntoContext', {
 					skillNameHash: nameHash,
 					skillStorage: skill.storage,
-					extensionIdHash,
-					extensionVersion: provenance?.extensionVersion ?? '',
-					pluginNameHash,
-					pluginVersion: provenance?.pluginVersion ?? '',
+					extensionIdHash: hash(skill.extension?.identifier.value),
+					extensionVersion: skill.extension?.version ?? '',
+					pluginNameHash: hash(skillPlugin?.label),
+					pluginVersion: skillPlugin?.fromMarketplace?.version ?? '',
 				});
 			}
 		} catch (err) {

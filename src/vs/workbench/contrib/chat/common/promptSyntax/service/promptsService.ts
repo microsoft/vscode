@@ -114,6 +114,11 @@ export interface IPromptPathBase {
 	 */
 	readonly extension?: IExtensionDescription;
 
+	/**
+	 * Identifier of the contributing plugin (only when storage === PromptsStorage.plugin).
+	 */
+	readonly pluginUri?: URI;
+
 	readonly name?: string;
 
 	readonly description?: string;
@@ -127,6 +132,11 @@ export interface IExtensionPromptPath extends IPromptPathBase {
 	readonly description?: string;
 	readonly when?: string;
 }
+
+export function isExtensionPromptPath(obj: IPromptPath): obj is IExtensionPromptPath {
+	return obj.storage === PromptsStorage.extension;
+}
+
 export interface ILocalPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.local;
 }
@@ -262,16 +272,6 @@ export interface IChatPromptSlashCommand {
 /**
  * Supply-chain metadata describing where a skill originated.
  */
-export interface IAgentSkillProvenance {
-	/** Extension identifier that contributed this skill (if any). */
-	readonly extensionId?: string;
-	/** Version of the contributing extension (if any). */
-	readonly extensionVersion?: string;
-	/** Display name of the plugin that contributed this skill (if any). */
-	readonly pluginName?: string;
-	/** Marketplace version of the plugin (if from a marketplace install). */
-	readonly pluginVersion?: string;
-}
 
 export interface IAgentSkill {
 	readonly uri: URI;
@@ -294,9 +294,13 @@ export interface IAgentSkill {
 	 */
 	readonly when?: ContextKeyExpression;
 	/**
-	 * Optional provenance metadata describing where this skill originated.
+	 * Optional plugin URI describing where this skill originated.
 	 */
-	readonly provenance?: IAgentSkillProvenance;
+	readonly pluginUri?: URI;
+	/**
+	 * Optional extension metadata describing where this skill originated.
+	 */
+	readonly extension?: IExtensionDescription;
 }
 
 /**
@@ -353,7 +357,9 @@ export interface IPromptFileDiscoveryResult {
 	/** For duplicates, the URI of the file that took precedence */
 	readonly duplicateOf?: URI;
 	/** Extension ID if from extension */
-	readonly extensionId?: string;
+	readonly extension?: IExtensionDescription;
+	/** Uri of the plugin, if from a plugin */
+	readonly pluginUri?: URI;
 	/** Whether the skill is user-invocable in the / menu (set user-invocable: false to hide it) */
 	readonly userInvocable?: boolean;
 	/** If true, the skill won't be automatically loaded by the agent (disable-model-invocation: true) */
