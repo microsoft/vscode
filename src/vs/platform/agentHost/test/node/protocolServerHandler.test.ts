@@ -75,6 +75,7 @@ class MockSideEffectHandler implements IProtocolSideEffectHandler {
 	async handleCreateSession(_command: ICreateSessionParams): Promise<void> { /* session created via state manager */ }
 	handleDisposeSession(_session: string): void { }
 	async handleListSessions(): Promise<ISessionSummary[]> { return []; }
+	async handleRestoreSession(_session: string): Promise<void> { }
 	handleGetResourceMetadata() { return { resources: [] }; }
 	async handleAuthenticate(_params: { resource: string; token: string }) { return { authenticated: true }; }
 	async handleBrowseDirectory(uri: string): Promise<{ entries: { name: string; type: 'file' | 'directory' }[] }> {
