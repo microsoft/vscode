@@ -45,6 +45,7 @@ import { ExtHostLanguageModels } from '../../common/extHostLanguageModels.js';
 import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
 import * as extHostTypes from '../../common/extHostTypes.js';
 import { AnyCallRPCProtocol } from '../common/testRPCProtocol.js';
+import { timeout } from '../../../../base/common/async.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -230,6 +231,11 @@ suite('ObservableChatSession', function () {
 			resource: URI.file('/tmp/forked.md'),
 			label: 'Forked',
 			changes: [],
+			timing: {
+				created: 123,
+				lastRequestStarted: 234,
+				lastRequestEnded: 345,
+			},
 		};
 		asSinonMethodStub(proxy.$forkChatSession).resolves(forkedItem);
 		await session.forkSession?.(request, CancellationToken.None);
