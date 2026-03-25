@@ -9,14 +9,13 @@
 .agent-sessions-workbench {
 
 	/*
-	 * Show-more / show-less: content always rendered but lines hidden
-	 * by default. At 1px row height the row clips everything.
-	 * At 26px (expanded) lines and text become visible.
-	 * We hide the lines with opacity:0 and only show when the
-	 * container has enough height to be visible.
+	 * Show-more / show-less: content always rendered, list row height
+	 * controls visibility (1px = clipped, 26px = visible).
+	 * Lines are flex siblings — at 1px row height they're clipped by overflow:hidden.
 	 */
 	.agent-session-show-more {
 		justify-content: center;
+		align-items: center;
 		padding: 0 6px;
 		font-size: 11px;
 		color: var(--vscode-descriptionForeground);
@@ -28,18 +27,14 @@
 			white-space: nowrap;
 		}
 
-		/* Lines on both sides — no pseudo-elements by default to avoid
-		   the line bleeding through the 1px clipped row */
-	}
-
-	/* Show lines only when the row is hovered (which means it's expanded
-	   because at 1px height there's nothing to hover) */
-	.monaco-list-row:hover .agent-session-show-more::before,
-	.monaco-list-row:hover .agent-session-show-more::after {
-		content: '';
-		flex: 1;
-		height: 1px;
-		background: var(--vscode-widget-border, var(--vscode-contrastBorder));
+		/* Lines on both sides of the text as flex items */
+		&::before,
+		&::after {
+			content: '';
+			flex: 1;
+			height: 1px;
+			background: var(--vscode-widget-border, var(--vscode-contrastBorder));
+		}
 	}
 
 	/* Brighter text on direct hover */
