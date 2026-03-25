@@ -10,6 +10,7 @@ import { Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchDataTreeOptions } from '../../../../platform/list/browser/listService.js';
@@ -71,6 +72,8 @@ export interface IOutlineListConfig<E> {
 	readonly comparator: IOutlineComparator<E>;
 	readonly options: IWorkbenchDataTreeOptions<E, FuzzyScore>;
 	readonly quickPickDataSource: IQuickPickDataSource<E>;
+	readonly contextMenuId?: MenuId;
+	readonly getContextKeyOverlay?: (element: E) => [string, unknown][];
 }
 
 export interface OutlineChangeEvent {
