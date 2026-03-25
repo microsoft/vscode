@@ -38,6 +38,7 @@ import { ITerminalSandboxService } from '../../common/terminalSandboxService.js'
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocationPreparationContext, ToolDataSource, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
+import type { ICommandLinePresenter } from '../../browser/tools/commandLinePresenter/commandLinePresenter.js';
 import { createRunInTerminalToolData, RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
@@ -58,6 +59,7 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
 	get sessionTerminalInstances() { return this._sessionTerminalInstances; }
 	get profileFetcher() { return this._profileFetcher; }
+	get commandLinePresenters(): ICommandLinePresenter[] { return (this as unknown as Record<string, ICommandLinePresenter[]>)['_commandLinePresenters']; }
 
 	setBackendOs(os: OperatingSystem) {
 		this._osBackend = Promise.resolve(os);
@@ -724,6 +726,106 @@ suite('RunInTerminalTool', () => {
 
 			const result2 = await executeToolTest({ command: 'foo bar' });
 			assertAutoApproved(result2);
+		});
+	});
+
+	suite('confirmation title with presentation overrides', () => {
+		function injectMockPresenter(tool: TestRunInTerminalTool, languageDisplayName?: string) {
+			// Inject a mock presenter at the start that always returns a result
+			tool.commandLinePresenters.unshift({
+				present: (options) => ({
+					commandLine: options.commandLine.forDisplay,
+					processOtherPresenters: false,
+					languageDisplayName,
+				}),
+			});
+		}
+
+		test('should use withoutLanguage title when presenter returns no languageDisplayName', async () => {
+			injectMockPresenter(runInTerminalTool);
+
+			const result = await executeToolTest({
+				command: 'rm file.txt',
+				explanation: 'Remove a file',
+				goal: 'Remove a file'
+			});
+			assertConfirmationRequired(result, 'Run command in `bash`?');
+		});
+
+		test('should use withoutLanguage background title when presenter returns no languageDisplayName', async () => {
+			injectMockPresenter(runInTerminalTool);
+
+			const result = await executeToolTest({
+				command: 'npm run watch',
+				explanation: 'Start watching',
+				goal: 'Start watching',
+				isBackground: true
+			});
+			assertConfirmationRequired(result, 'Run command in `bash` in background?');
+		});
+
+		test('should use withLanguage title when presenter returns languageDisplayName', async () => {
+			const result = await executeToolTest({
+				command: 'node -e "console.log(1)"',
+				explanation: 'Run node command',
+				goal: 'Run node command'
+			});
+			assertConfirmationRequired(result, 'Run `Node.js` command in `bash`?');
+		});
+
+		test('should use withLanguage background title when presenter returns languageDisplayName', async () => {
+			const result = await executeToolTest({
+				command: 'node -e "console.log(1)"',
+				explanation: 'Run node command',
+				goal: 'Run node command',
+				isBackground: true
+			});
+			assertConfirmationRequired(result, 'Run `Node.js` command in `bash` in background?');
+		});
+
+		test('should use withoutLanguage inDirectory title when presenter returns no languageDisplayName with cd prefix', async () => {
+			const workspaceFolder = URI.file(isWindows ? 'C:\\workspace\\project' : '/workspace/project');
+			const workspace = new Workspace('test', [toWorkspaceFolder(workspaceFolder)]);
+			workspaceContextService.setWorkspace(workspace);
+			instantiationService.stub(IHistoryService, {
+				getLastActiveWorkspaceRoot: () => workspaceFolder
+			});
+
+			const toolWithWorkspace = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+			injectMockPresenter(toolWithWorkspace);
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'cd /tmp && rm file.txt',
+					explanation: 'Remove a file in /tmp',
+					goal: 'Remove a file in /tmp',
+					isBackground: false,
+				} as IRunInTerminalInputParams
+			} as IToolInvocationPreparationContext;
+			const result = await toolWithWorkspace.prepareToolInvocation(context, CancellationToken.None);
+			assertConfirmationRequired(result, 'Run command in `bash` within `~/tmp`?');
+		});
+
+		test('should use withLanguage inDirectory title when presenter returns languageDisplayName with cd prefix', async () => {
+			const workspaceFolder = URI.file(isWindows ? 'C:\\workspace\\project' : '/workspace/project');
+			const workspace = new Workspace('test', [toWorkspaceFolder(workspaceFolder)]);
+			workspaceContextService.setWorkspace(workspace);
+			instantiationService.stub(IHistoryService, {
+				getLastActiveWorkspaceRoot: () => workspaceFolder
+			});
+
+			const toolWithWorkspace = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'cd /tmp && node -e "console.log(1)"',
+					explanation: 'Run node command in /tmp',
+					goal: 'Run node command in /tmp',
+					isBackground: false,
+				} as IRunInTerminalInputParams
+			} as IToolInvocationPreparationContext;
+			const result = await toolWithWorkspace.prepareToolInvocation(context, CancellationToken.None);
+			assertConfirmationRequired(result, 'Run `Node.js` command in `bash` within `~/tmp`?');
 		});
 	});
 
