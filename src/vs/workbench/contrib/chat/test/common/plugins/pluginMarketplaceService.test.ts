@@ -269,6 +269,10 @@ suite('parsePluginSource', () => {
 		assert.deepStrictEqual(parsePluginSource('', undefined, logContext), { kind: PluginSourceKind.RelativePath, path: '' });
 	});
 
+	test('returns base dir for undefined source without pluginRoot', () => {
+		assert.deepStrictEqual(parsePluginSource(undefined, undefined, logContext), { kind: PluginSourceKind.RelativePath, path: '' });
+	});
+
 	test('parses github object source', () => {
 		const result = parsePluginSource({ source: 'github', repo: 'owner/repo' }, undefined, logContext);
 		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: undefined, sha: undefined, path: undefined });
