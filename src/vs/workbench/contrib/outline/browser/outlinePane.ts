@@ -293,7 +293,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 					menuActionOptions: { shouldForwardArgs: true },
 					contextKeyService,
 					getAnchor: () => e.anchor,
-					getActionsContext: () => e.element,
+					getActionsContext: () => newOutline.config.getActionsContext?.(e.element) ?? e.element,
 				});
 			}));
 		}
