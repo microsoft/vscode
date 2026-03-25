@@ -29,7 +29,7 @@ import { AGENT_DEBUG_LOG_ENABLED_SETTING, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_S
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ChatConfiguration, ChatModeKind } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
-import { StringSHA1 } from '../../../../../base/common/hash.js';
+import { hash } from '../../../../../base/common/hash.js';
 import { IAgentPlugin, IAgentPluginService } from '../plugins/agentPluginService.js';
 
 export type InstructionsCollectionEvent = {
@@ -159,25 +159,18 @@ export class ComputeAutomaticInstructions {
 				pluginByUri.set(plugin.uri, plugin);
 			}
 
-			const hash = (value: string | undefined) => {
-				if (value !== undefined) {
-					const sha = new StringSHA1();
-					sha.update(value);
-					return sha.digest();
-				}
-				return '';
+			const hashOrEmpty = (value: string | undefined) => {
+				return value !== undefined ? String(hash(value)) : '';
 			};
 
 			for (const skill of skills) {
-
-				const nameHash = hash(skill.name);
 				const skillPlugin = skill.pluginUri ? pluginByUri.get(skill.pluginUri) : undefined;
 				this._telemetryService.publicLog2<SkillLoadedIntoContextEvent, SkillLoadedIntoContextClassification>('skillLoadedIntoContext', {
-					skillNameHash: nameHash,
+					skillNameHash: hashOrEmpty(skill.name),
 					skillStorage: skill.storage,
-					extensionIdHash: hash(skill.extension?.identifier.value),
+					extensionIdHash: hashOrEmpty(skill.extension?.identifier.value),
 					extensionVersion: skill.extension?.version ?? '',
-					pluginNameHash: hash(skillPlugin?.label),
+					pluginNameHash: hashOrEmpty(skillPlugin?.label),
 					pluginVersion: skillPlugin?.fromMarketplace?.version ?? '',
 				});
 			}
