@@ -235,30 +235,29 @@
 				"command": ".\\scripts\\code.bat"
 			},
 			"args": [
-				"--sessions"
+				"--sessions",
+				"--user-data-dir=${userHome}/.vscode-oss-sessions-dev",
+				"--extensions-dir=${userHome}/.vscode-oss-sessions-dev/extensions"
 			],
 			"problemMatcher": []
 		},
 		{
+			"label": "Transpile Client",
+			"type": "npm",
+			"script": "transpile-client",
+			"problemMatcher": []
+		},
+		{
 			"label": "Run and Compile Sessions - OSS",
-			"type": "shell",
-			"command": "npm run transpile-client && ./scripts/code.sh",
-			"windows": {
-				"command": "npm run transpile-client && .\\scripts\\code.bat"
-			},
-			"args": [
-				"--sessions"
-			],
+			"dependsOn": ["Transpile Client", "Run Dev Sessions"],
+			"dependsOrder": "sequence",
 			"inSessions": true,
 			"problemMatcher": []
 		},
 		{
 			"label": "Run and Compile Code - OSS",
-			"type": "shell",
-			"command": "npm run transpile-client && ./scripts/code.sh",
-			"windows": {
-				"command": "npm run transpile-client && .\\scripts\\code.bat"
-			},
+			"dependsOn": ["Transpile Client", "Run Dev"],
+			"dependsOrder": "sequence",
 			"inSessions": true,
 			"problemMatcher": []
 		},
