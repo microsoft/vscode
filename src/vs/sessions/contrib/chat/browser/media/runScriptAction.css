@@ -93,6 +93,20 @@
 	outline-offset: 0 !important;
 }
 
+.run-script-action-section .monaco-custom-radio.run-script-action-radio-disabled {
+	opacity: 0.75;
+}
+
+.run-script-action-section .monaco-custom-radio.run-script-action-radio-disabled > .monaco-button,
+.run-script-action-section .monaco-custom-radio.run-script-action-radio-disabled > .monaco-button.active,
+.run-script-action-section .monaco-custom-radio.run-script-action-radio-disabled > .monaco-button.active:hover,
+.run-script-action-section .monaco-custom-radio.run-script-action-radio-disabled > .monaco-button:hover:not(.active) {
+	background-color: transparent;
+	border-color: transparent;
+	color: var(--vscode-disabledForeground);
+	opacity: 1;
+}
+
 .run-script-action-hint {
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
