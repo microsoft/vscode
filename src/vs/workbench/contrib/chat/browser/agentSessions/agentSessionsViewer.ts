@@ -736,13 +736,7 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 interface IAgentSessionShowMoreTemplate {
 	readonly container: HTMLElement;
 	readonly label: HTMLElement;
-	readonly elementDisposable: DisposableStore;
 	readonly disposables: DisposableStore;
-}
-
-export interface IShowMoreHeightChangeEvent {
-	readonly element: IAgentSessionShowMore | IAgentSessionShowLess;
-	readonly height: number;
 }
 
 export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<IAgentSessionShowMore, FuzzyScore, IAgentSessionShowMoreTemplate> {
@@ -753,12 +747,8 @@ export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<I
 
 	readonly templateId = AgentSessionShowMoreRenderer.TEMPLATE_ID;
 
-	private readonly _onDidChangeItemHeight = new Emitter<IShowMoreHeightChangeEvent>();
-	readonly onDidChangeItemHeight: Event<IShowMoreHeightChangeEvent> = this._onDidChangeItemHeight.event;
-
 	renderTemplate(container: HTMLElement): IAgentSessionShowMoreTemplate {
 		const disposables = new DisposableStore();
-		const elementDisposable = disposables.add(new DisposableStore());
 
 		const elements = h(
 			'div.agent-session-show-more@container',
@@ -770,13 +760,11 @@ export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<I
 		return {
 			container: elements.container,
 			label: elements.label,
-			elementDisposable,
 			disposables,
 		};
 	}
 
 	renderElement(element: ITreeNode<IAgentSessionShowMore, FuzzyScore>, _index: number, template: IAgentSessionShowMoreTemplate): void {
-		template.elementDisposable.clear();
 		template.label.textContent = localize('agentSessions.showMore', "+{0} more", element.element.remainingCount);
 		template.container.setAttribute('data-section-label', element.element.sectionLabel);
 	}
@@ -785,16 +773,10 @@ export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<I
 		throw new Error('Should never happen since show-more is incompressible');
 	}
 
-	disposeElement(_element: ITreeNode<IAgentSessionShowMore, FuzzyScore>, _index: number, template: IAgentSessionShowMoreTemplate): void {
-		template.elementDisposable.clear();
-	}
+	disposeElement(): void { }
 
 	disposeTemplate(templateData: IAgentSessionShowMoreTemplate): void {
 		templateData.disposables.dispose();
-	}
-
-	dispose(): void {
-		this._onDidChangeItemHeight.dispose();
 	}
 }
 
@@ -805,12 +787,8 @@ export class AgentSessionShowLessRenderer implements ICompressibleTreeRenderer<I
 
 	readonly templateId = AgentSessionShowLessRenderer.TEMPLATE_ID;
 
-	private readonly _onDidChangeItemHeight = new Emitter<IShowMoreHeightChangeEvent>();
-	readonly onDidChangeItemHeight: Event<IShowMoreHeightChangeEvent> = this._onDidChangeItemHeight.event;
-
 	renderTemplate(container: HTMLElement): IAgentSessionShowMoreTemplate {
 		const disposables = new DisposableStore();
-		const elementDisposable = disposables.add(new DisposableStore());
 
 		const elements = h(
 			'div.agent-session-show-more@container',
@@ -822,13 +800,11 @@ export class AgentSessionShowLessRenderer implements ICompressibleTreeRenderer<I
 		return {
 			container: elements.container,
 			label: elements.label,
-			elementDisposable,
 			disposables,
 		};
 	}
 
 	renderElement(element: ITreeNode<IAgentSessionShowLess, FuzzyScore>, _index: number, template: IAgentSessionShowMoreTemplate): void {
-		template.elementDisposable.clear();
 		template.label.textContent = localize('agentSessions.showLess', "Show less");
 		template.container.setAttribute('data-section-label', element.element.sectionLabel);
 	}
@@ -837,16 +813,10 @@ export class AgentSessionShowLessRenderer implements ICompressibleTreeRenderer<I
 		throw new Error('Should never happen since show-less is incompressible');
 	}
 
-	disposeElement(_element: ITreeNode<IAgentSessionShowLess, FuzzyScore>, _index: number, template: IAgentSessionShowMoreTemplate): void {
-		template.elementDisposable.clear();
-	}
+	disposeElement(): void { }
 
 	disposeTemplate(templateData: IAgentSessionShowMoreTemplate): void {
 		templateData.disposables.dispose();
-	}
-
-	dispose(): void {
-		this._onDidChangeItemHeight.dispose();
 	}
 }
 

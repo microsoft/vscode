@@ -267,8 +267,6 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			isSortedByUpdated: () => this.options.filter.sortResults?.() === AgentSessionsSorting.Updated,
 		}, approvalModel, activeSessionResource));
 		const compact = this.options.compactShowMore;
-		const showMoreRenderer = new AgentSessionShowMoreRenderer();
-		const showLessRenderer = new AgentSessionShowLessRenderer();
 		const sessionDataSource = this.sessionsDataSource = this._register(new AgentSessionsDataSource(this.options.filter, sorter, this.options.repositoryGroupLimit));
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
@@ -278,8 +276,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			[
 				sessionRenderer,
 				this.instantiationService.createInstance(AgentSessionSectionRenderer, { hideSectionCount: this.options.hideSectionCount }),
-				showMoreRenderer,
-				showLessRenderer,
+				new AgentSessionShowMoreRenderer(),
+				new AgentSessionShowLessRenderer(),
 			],
 			sessionDataSource,
 			{
@@ -303,18 +301,6 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this._register(sessionRenderer.onDidChangeItemHeight(session => {
 			if (list.hasNode(session)) {
 				list.updateElementHeight(session, undefined);
-			}
-		}));
-
-		this._register(showMoreRenderer.onDidChangeItemHeight(({ element, height }) => {
-			if (list.hasNode(element)) {
-				list.updateElementHeight(element, height);
-			}
-		}));
-
-		this._register(showLessRenderer.onDidChangeItemHeight(({ element, height }) => {
-			if (list.hasNode(element)) {
-				list.updateElementHeight(element, height);
 			}
 		}));
 
@@ -418,18 +404,6 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				);
 			};
 
-			// Stamp data-section-label on session items after rendering
-			const stampSectionLabels = () => {
-				rebuildSectionMap();
-				// Stamp each rendered session item with its section label
-				container.querySelectorAll('.agent-session-item').forEach(item => {
-					// Find the session title text and match against our map
-					// Simpler: we'll set data-section-label on the item via the tree node iteration
-				});
-				// Alternative: stamp via session resource URI stored on the item
-				// We'll use a different approach: store the section label on each session renderer
-			};
-
 			// Listen to tree model changes
 			this._register(list.onDidChangeModel(() => {
 				rebuildSectionMap();
@@ -490,7 +464,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				collapseCurrentShowMore();
 			}));
 
-			stampSectionLabels();
+			rebuildSectionMap();
 		}
 
 		this._register(sessionDataSource.onDidGetChildren(count => {
