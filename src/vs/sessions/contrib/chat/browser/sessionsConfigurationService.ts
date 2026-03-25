@@ -11,7 +11,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionData } from '../../sessions/common/sessionData.js';
 import { IJSONEditingService } from '../../../../workbench/services/configuration/common/jsonEditing.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
@@ -70,42 +71,42 @@ export interface ISessionsConfigurationService {
 	 * updated when the tasks.json file changes. Each entry includes the
 	 * storage target the task was loaded from.
 	 */
-	getSessionTasks(session: IActiveSessionItem): IObservable<readonly ISessionTaskWithTarget[]>;
+	getSessionTasks(session: ISessionData): IObservable<readonly ISessionTaskWithTarget[]>;
 
 	/**
 	 * Returns tasks that do NOT have `inSessions: true` — used as
 	 * suggestions in the "Add Run Action" picker.
 	 */
-	getNonSessionTasks(session: IActiveSessionItem): Promise<readonly INonSessionTaskEntry[]>;
+	getNonSessionTasks(session: ISessionData): Promise<readonly INonSessionTaskEntry[]>;
 
 	/**
 	 * Sets `inSessions: true` on an existing task (identified by label),
 	 * updating it in place in its tasks.json.
 	 */
-	addTaskToSessions(task: ITaskEntry, session: IActiveSessionItem, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<void>;
+	addTaskToSessions(task: ITaskEntry, session: ISessionData, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<void>;
 
 	/**
 	 * Creates a new shell task with `inSessions: true` and writes it to
 	 * the appropriate tasks.json (user or workspace).
 	 */
-	createAndAddTask(label: string | undefined, command: string, session: IActiveSessionItem, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<ITaskEntry | undefined>;
+	createAndAddTask(label: string | undefined, command: string, session: ISessionData, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<ITaskEntry | undefined>;
 
 	/**
 	 * Updates an existing task entry, optionally moving it between user and
 	 * workspace storage.
 	 */
-	updateTask(originalTaskLabel: string, updatedTask: ITaskEntry, session: IActiveSessionItem, currentTarget: TaskStorageTarget, newTarget: TaskStorageTarget): Promise<void>;
+	updateTask(originalTaskLabel: string, updatedTask: ITaskEntry, session: ISessionData, currentTarget: TaskStorageTarget, newTarget: TaskStorageTarget): Promise<void>;
 
 	/**
 	 * Removes an existing task entry from its tasks.json.
 	 */
-	removeTask(taskLabel: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<void>;
+	removeTask(taskLabel: string, session: ISessionData, target: TaskStorageTarget): Promise<void>;
 
 	/**
 	 * Runs a task via the task service, looking it up by label in the
 	 * workspace folder corresponding to the session worktree.
 	 */
-	runTask(task: ITaskEntry, session: IActiveSessionItem): Promise<void>;
+	runTask(task: ITaskEntry, session: ISessionData): Promise<void>;
 
 	/**
 	 * Observable label of the pinned task for the given repository.
@@ -146,8 +147,9 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		this._pinnedTaskLabels = this._loadPinnedTaskLabels();
 	}
 
-	getSessionTasks(session: IActiveSessionItem): IObservable<readonly ISessionTaskWithTarget[]> {
-		const folder = session.worktree ?? session.repository;
+	getSessionTasks(session: ISessionData): IObservable<readonly ISessionTaskWithTarget[]> {
+		const repo = this._getSessionRepo(session);
+		const folder = repo?.workingDirectory ?? repo?.uri;
 		if (folder) {
 			this._ensureFileWatch(folder);
 		}
@@ -159,7 +161,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		return this._sessionTasks;
 	}
 
-	async getNonSessionTasks(session: IActiveSessionItem): Promise<readonly INonSessionTaskEntry[]> {
+	async getNonSessionTasks(session: ISessionData): Promise<readonly INonSessionTaskEntry[]> {
 		const result: INonSessionTaskEntry[] = [];
 
 		const workspaceUri = this._getTasksJsonUri(session, 'workspace');
@@ -185,7 +187,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		return result;
 	}
 
-	async addTaskToSessions(task: ITaskEntry, session: IActiveSessionItem, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<void> {
+	async addTaskToSessions(task: ITaskEntry, session: ISessionData, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<void> {
 		const tasksJsonUri = this._getTasksJsonUri(session, target);
 		if (!tasksJsonUri) {
 			return;
@@ -216,7 +218,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		}
 	}
 
-	async createAndAddTask(label: string | undefined, command: string, session: IActiveSessionItem, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<ITaskEntry | undefined> {
+	async createAndAddTask(label: string | undefined, command: string, session: ISessionData, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<ITaskEntry | undefined> {
 		const tasksJsonUri = this._getTasksJsonUri(session, target);
 		if (!tasksJsonUri) {
 			return undefined;
@@ -245,7 +247,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		return newTask;
 	}
 
-	async updateTask(originalTaskLabel: string, updatedTask: ITaskEntry, session: IActiveSessionItem, currentTarget: TaskStorageTarget, newTarget: TaskStorageTarget): Promise<void> {
+	async updateTask(originalTaskLabel: string, updatedTask: ITaskEntry, session: ISessionData, currentTarget: TaskStorageTarget, newTarget: TaskStorageTarget): Promise<void> {
 		const currentTasksJsonUri = this._getTasksJsonUri(session, currentTarget);
 		const newTasksJsonUri = this._getTasksJsonUri(session, newTarget);
 		if (!currentTasksJsonUri || !newTasksJsonUri) {
@@ -281,15 +283,16 @@ export class SessionsConfigurationService extends Disposable implements ISession
 			await this._commitTasksFile(session);
 		}
 
-		if (session.repository) {
-			const key = session.repository.toString();
+		const repoUri = this._getSessionRepo(session)?.uri;
+		if (repoUri) {
+			const key = repoUri.toString();
 			if (this._pinnedTaskLabels.get(key) === originalTaskLabel) {
 				this._setPinnedTaskLabelForKey(key, updatedTask.label);
 			}
 		}
 	}
 
-	async removeTask(taskLabel: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<void> {
+	async removeTask(taskLabel: string, session: ISessionData, target: TaskStorageTarget): Promise<void> {
 		const tasksJsonUri = this._getTasksJsonUri(session, target);
 		if (!tasksJsonUri) {
 			return;
@@ -310,16 +313,18 @@ export class SessionsConfigurationService extends Disposable implements ISession
 			await this._commitTasksFile(session);
 		}
 
-		if (session.repository) {
-			const key = session.repository.toString();
+		const repoUri = this._getSessionRepo(session)?.uri;
+		if (repoUri) {
+			const key = repoUri.toString();
 			if (this._pinnedTaskLabels.get(key) === taskLabel) {
 				this._setPinnedTaskLabelForKey(key, undefined);
 			}
 		}
 	}
 
-	async runTask(task: ITaskEntry, session: IActiveSessionItem): Promise<void> {
-		const cwd = session.worktree ?? session.repository;
+	async runTask(task: ITaskEntry, session: ISessionData): Promise<void> {
+		const repo = this._getSessionRepo(session);
+		const cwd = repo?.workingDirectory ?? repo?.uri;
 		if (!cwd) {
 			return;
 		}
@@ -361,9 +366,14 @@ export class SessionsConfigurationService extends Disposable implements ISession
 
 	// --- private helpers ---
 
-	private _getTasksJsonUri(session: IActiveSessionItem, target: TaskStorageTarget): URI | undefined {
+	private _getSessionRepo(session: ISessionData) {
+		return session.workspace.get()?.repositories[0];
+	}
+
+	private _getTasksJsonUri(session: ISessionData, target: TaskStorageTarget): URI | undefined {
 		if (target === 'workspace') {
-			const folder = session.worktree ?? session.repository;
+			const repo = this._getSessionRepo(session);
+			const folder = repo?.workingDirectory ?? repo?.uri;
 			return folder ? joinPath(folder, '.vscode', 'tasks.json') : undefined;
 		}
 		return joinPath(dirname(this._preferencesService.userSettingsResource), 'tasks.json');
@@ -429,8 +439,8 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		transaction(tx => this._sessionTasks.set([...sessionTasks, ...userSessionTasks], tx));
 	}
 
-	private async _commitTasksFile(session: IActiveSessionItem): Promise<void> {
-		const worktree = session.worktree; // Only commit if there's a worktree. The local scenario does not need it
+	private async _commitTasksFile(session: ISessionData): Promise<void> {
+		const worktree = this._getSessionRepo(session)?.workingDirectory; // Only commit if there's a worktree. The local scenario does not need it
 		if (!worktree) {
 			return;
 		}

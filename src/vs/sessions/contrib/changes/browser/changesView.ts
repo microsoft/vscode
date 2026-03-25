@@ -56,12 +56,12 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionWorkspace.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { CIStatusWidget } from './ciStatusWidget.js';
 import { arrayEqualsC } from '../../../../base/common/equals.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionData.js';
 
 const $ = dom.$;
 
@@ -209,7 +209,7 @@ class ChangesViewModel extends Disposable {
 	readonly sessionsChangedSignal: IObservable<void>;
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	readonly activeSessionRepositoryObs: IObservableWithChange<IGitRepository | undefined>;
-	readonly activeSessionChangesObs: IObservable<readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[]>;
+	readonly activeSessionChangesObs: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
 
 	readonly versionModeObs: ISettableObservable<ChangesVersionMode>;
 	setVersionMode(mode: ChangesVersionMode): void {
@@ -250,14 +250,11 @@ class ChangesViewModel extends Disposable {
 		this.activeSessionChangesObs = derivedOpts({
 			equalsFn: arrayEqualsC<IChatSessionFileChange | IChatSessionFileChange2>()
 		}, reader => {
-			const sessionResource = this.activeSessionResourceObs.read(reader);
-			if (!sessionResource) {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			if (!activeSession) {
 				return Iterable.empty();
 			}
-
-			this.sessionsChangedSignal.read(reader);
-			const model = this.agentSessionsService.getSession(sessionResource);
-			return model?.changes instanceof Array ? model.changes : Iterable.empty();
+			return activeSession.changes.read(reader) as readonly (IChatSessionFileChange | IChatSessionFileChange2)[];
 		});
 
 		// Active session repository
@@ -267,12 +264,13 @@ class ChangesViewModel extends Disposable {
 				return constObservable(undefined);
 			}
 
-			const activeSession = this.sessionManagementService.getActiveSession();
-			if (!activeSession?.worktree) {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const worktree = activeSession?.workspace.read(reader)?.repositories[0]?.workingDirectory;
+			if (!worktree) {
 				return constObservable(undefined);
 			}
 
-			return new ObservablePromise(this.gitService.openRepository(activeSession.worktree)).resolvedValue;
+			return new ObservablePromise(this.gitService.openRepository(worktree)).resolvedValue;
 		});
 
 		this.activeSessionRepositoryObs = derived<IGitRepository | undefined>(reader => {
@@ -341,10 +339,7 @@ export class ChangesViewPane extends ViewPane {
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 	) {
-		super({
-			...options,
-			titleMenuId: MenuId.ChatEditingSessionTitleToolbar,
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.viewModel = this.instantiationService.createInstance(ChangesViewModel);
 		this._register(this.viewModel);
@@ -364,7 +359,7 @@ export class ChangesViewPane extends ViewPane {
 		// changes.
 		this._register(bindContextKey(ChatContextKeys.agentSessionType, this.scopedContextKeyService, reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
-			return activeSession?.providerType ?? '';
+			return activeSession?.sessionType ?? '';
 		}));
 
 		// Badge
@@ -622,7 +617,7 @@ export class ChangesViewPane extends ViewPane {
 
 			this.renderDisposables.add(bindContextKey(isMergeBaseBranchProtectedContextKey, this.scopedContextKeyService, reader => {
 				const activeSession = this.sessionManagementService.activeSession.read(reader);
-				return activeSession?.worktreeBaseBranchProtected === true;
+				return activeSession?.workspace.read(reader)?.repositories[0]?.baseBranchProtected === true;
 			}));
 
 			this.renderDisposables.add(bindContextKey(hasOpenPullRequestContextKey, this.scopedContextKeyService, reader => {
@@ -667,9 +662,10 @@ export class ChangesViewPane extends ViewPane {
 				if (sessionResource) {
 					const prReviewState = this.codeReviewService.getPRReviewState(sessionResource).read(reader);
 					const prReviewCommentCount = prReviewState.kind === PRReviewStateKind.Loaded ? prReviewState.comments.length : 0;
-					const sessionChanges = this.agentSessionsService.getSession(sessionResource)?.changes;
-					if (sessionChanges instanceof Array && sessionChanges.length > 0) {
-						const reviewFiles = getCodeReviewFilesFromSessionChanges(sessionChanges as readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[]);
+					const activeSession = this.sessionManagementService.activeSession.read(reader);
+					const sessionChanges = activeSession?.changes.read(reader);
+					if (sessionChanges && sessionChanges.length > 0) {
+						const reviewFiles = getCodeReviewFilesFromSessionChanges(sessionChanges);
 						const reviewVersion = getCodeReviewVersion(reviewFiles);
 						const reviewState = this.codeReviewService.getReviewState(sessionResource).read(reader);
 						if (reviewState.kind === CodeReviewStateKind.Loading && reviewState.version === reviewVersion) {
