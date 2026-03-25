@@ -848,7 +848,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	$registerChatSessionCustomizationsProvider(handle: number, chatSessionType: string): void {
 		// Kill switch: when disabled, ignore all extension customizations providers
-		if (!this._configurationService.getValue<boolean>(ChatConfiguration.UseCustomizationsProvider)) {
+		if (!this._configurationService.getValue<boolean>(ChatConfiguration.CustomizationsProviderApi)) {
 			return;
 		}
 
