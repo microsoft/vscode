@@ -336,7 +336,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			return undefined;
 		}
 
-		return basename(uri);
+		return decodeURIComponent(basename(uri));
 	}
 
 	private _countUnreadSessions(): number {
