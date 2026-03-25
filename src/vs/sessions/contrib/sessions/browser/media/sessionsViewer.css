@@ -13,6 +13,10 @@
 	 * controls visibility (1px = clipped, 26px = visible).
 	 * Lines are flex siblings — at 1px row height they're clipped by overflow:hidden.
 	 */
+	.monaco-list-row:has(.agent-session-show-more) {
+		transition: height 0.15s ease;
+	}
+
 	.agent-session-show-more {
 		justify-content: center;
 		align-items: center;
