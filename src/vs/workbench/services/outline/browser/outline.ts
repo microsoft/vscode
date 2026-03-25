@@ -11,6 +11,7 @@ import { FuzzyScore } from '../../../../base/common/filters.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyValue } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchDataTreeOptions } from '../../../../platform/list/browser/listService.js';
@@ -73,7 +74,8 @@ export interface IOutlineListConfig<E> {
 	readonly options: IWorkbenchDataTreeOptions<E, FuzzyScore>;
 	readonly quickPickDataSource: IQuickPickDataSource<E>;
 	readonly contextMenuId?: MenuId;
-	readonly getContextKeyOverlay?: (element: E) => [string, unknown][];
+	readonly getContextKeyOverlay?: (element: E) => [string, ContextKeyValue][];
+	readonly getActionsContext?: (element: E) => unknown;
 }
 
 export interface OutlineChangeEvent {

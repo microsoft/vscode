@@ -288,6 +288,9 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 			getContextKeyOverlay: (entry: CustomEditorOutlineEntry) => {
 				return [['customEditorOutlineItem', entry.contextValue ?? '']];
 			},
+			getActionsContext: (entry: CustomEditorOutlineEntry) => {
+				return { id: entry.id };
+			},
 		};
 
 		// Listen for outline data changes from the extension provider
