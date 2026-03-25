@@ -143,6 +143,90 @@
 	flex-shrink: 0;
 }
 
+/* ---- Part Appear Transitions ---- */
+
+/*
+ * Subtle appear animation when parts transition from display:none → visible
+ * (via split-view-view .visible class).
+ *
+ * Animated properties: opacity, margin, border-color, background.
+ * Opacity transiently creates a stacking context while it animates from 0 to 1
+ * over 250ms — once settled at opacity: 1, no additional stacking context is
+ * introduced by this animation. Margin shifts are purely visual within the
+ * grid-allocated space.
+ */
+
+.agent-sessions-workbench .part.sidebar,
+.agent-sessions-workbench .part.auxiliarybar,
+.agent-sessions-workbench .part.panel,
+.agent-sessions-workbench .part.chatbar {
+	transition:
+		opacity 250ms ease-out,
+		margin-top 250ms ease-out,
+		margin-right 250ms ease-out,
+		margin-bottom 250ms ease-out,
+		border-color 250ms ease-out,
+		background 250ms ease-out;
+}
+
+/* Sidebar & auxiliary bar also transition margin-left */
+.agent-sessions-workbench .part.sidebar,
+.agent-sessions-workbench .part.auxiliarybar {
+	transition:
+		opacity 250ms ease-out,
+		margin 250ms ease-out,
+		border-color 250ms ease-out,
+		background 250ms ease-out;
+}
+
+@starting-style {
+	/* Shared starting values */
+	.agent-sessions-workbench .part.sidebar,
+	.agent-sessions-workbench .part.auxiliarybar,
+	.agent-sessions-workbench .part.panel,
+	.agent-sessions-workbench .part.chatbar {
+		opacity: 0;
+		border-color: transparent;
+	}
+
+	/* Card parts: blend from surrounding background */
+	.agent-sessions-workbench .part.auxiliarybar,
+	.agent-sessions-workbench .part.panel,
+	.agent-sessions-workbench .part.chatbar {
+		background: color-mix(in srgb, var(--part-background) 60%, var(--vscode-sideBar-background));
+	}
+
+	/* Per-part margin shifts — each part settles into its resting margin */
+	/* Sidebar (left): slides in from 6px left → margin: 0 */
+	.agent-sessions-workbench .part.sidebar {
+		margin-left: -6px;
+	}
+
+	/* Panel (bottom): slides down from 6px above → margin: 0 16px 18px 16px */
+	.agent-sessions-workbench .part.panel {
+		margin: 6px 16px 18px 16px;
+	}
+
+	/* Auxiliary bar (right): slides in from 6px right → margin: 0 16px 2px 0 */
+	.agent-sessions-workbench .part.auxiliarybar {
+		margin: 0 16px 2px 6px;
+	}
+
+	/* Chat bar (center-bottom): slides up from 6px below → margin: 0 16px 2px 16px */
+	.agent-sessions-workbench .part.chatbar {
+		margin: 6px 16px 2px 16px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.agent-sessions-workbench .part.sidebar,
+	.agent-sessions-workbench .part.auxiliarybar,
+	.agent-sessions-workbench .part.panel,
+	.agent-sessions-workbench .part.chatbar {
+		transition: none;
+	}
+}
+
 /* ---- Widget Customizations ---- */
 
 /* Badge */
