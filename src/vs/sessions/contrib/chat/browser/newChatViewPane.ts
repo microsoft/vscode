@@ -65,7 +65,7 @@ import { getErrorMessage } from '../../../../base/common/errors.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { NewChatPermissionPicker } from './newChatPermissionPicker.js';
@@ -980,6 +980,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._newSessionListener.clear();
 			this._contextAttachments.clear();
 			this._editor.getModel()?.setValue('');
+			this._permissionPicker.permissionLevel = ChatPermissionLevel.Default;
 		} catch (e) {
 			this.logService.error('Failed to send request:', e);
 		}

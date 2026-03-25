@@ -636,7 +636,8 @@ export class ChatService extends Disposable implements IChatService {
 						inputText: '',
 						mode,
 						selectedModel: selectedModel,
-						selections: []
+						selections: [],
+						permissionLevel: this._chatSessionStore.getMetadataForSessionSync(sessionResource)?.permissionLevel,
 					},
 					pendingRequests: undefined,
 					repoData: undefined
