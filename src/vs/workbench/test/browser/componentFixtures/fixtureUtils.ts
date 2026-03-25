@@ -198,6 +198,11 @@ export const darkTheme = ColorThemeData.createUnloadedThemeForThemeType(
 	COLOR_THEME_DARK_INITIAL_COLORS
 );
 
+export const darkThemeHighContrast = ColorThemeData.createUnloadedThemeForThemeType(
+	ColorScheme.HIGH_CONTRAST_DARK,
+	COLOR_THEME_DARK_INITIAL_COLORS
+);
+
 export const lightTheme = ColorThemeData.createUnloadedThemeForThemeType(
 	ColorScheme.LIGHT,
 	COLOR_THEME_LIGHT_INITIAL_COLORS
@@ -205,8 +210,7 @@ export const lightTheme = ColorThemeData.createUnloadedThemeForThemeType(
 
 let globalStyleSheet: CSSStyleSheet | undefined;
 let iconsStyleSheetCache: CSSStyleSheet | undefined;
-let darkThemeStyleSheet: CSSStyleSheet | undefined;
-let lightThemeStyleSheet: CSSStyleSheet | undefined;
+const themeStyleSheetCache = new Map<ColorScheme, CSSStyleSheet>();
 
 function getGlobalStyleSheet(): CSSStyleSheet {
 	if (!globalStyleSheet) {
@@ -237,12 +241,9 @@ function getIconsStyleSheetCached(): CSSStyleSheet {
 }
 
 function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
-	const isDark = theme.type === ColorScheme.DARK;
-	if (isDark && darkThemeStyleSheet) {
-		return darkThemeStyleSheet;
-	}
-	if (!isDark && lightThemeStyleSheet) {
-		return lightThemeStyleSheet;
+	const cached = themeStyleSheetCache.get(theme.type);
+	if (cached) {
+		return cached;
 	}
 
 	const scopeSelector = '.' + theme.classNames[0];
@@ -254,12 +255,7 @@ function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
 		mockEnvironmentService
 	);
 	sheet.replaceSync(css.code);
-
-	if (isDark) {
-		darkThemeStyleSheet = sheet;
-	} else {
-		lightThemeStyleSheet = sheet;
-	}
+	themeStyleSheetCache.set(theme.type, sheet);
 	return sheet;
 }
 
@@ -275,6 +271,7 @@ function installGlobalStyles(): void {
 		getGlobalStyleSheet(),
 		getIconsStyleSheetCached(),
 		getThemeStyleSheet(darkTheme),
+		getThemeStyleSheet(darkThemeHighContrast),
 		getThemeStyleSheet(lightTheme),
 	];
 }
@@ -540,7 +537,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		isolation: 'none',
 		displayMode: { type: 'component' },
 		properties: [],
-		background: theme === darkTheme ? 'dark' : 'light',
+		background: theme.type === ColorScheme.LIGHT ? 'light' : 'dark',
 		render: (container: HTMLElement) => {
 			const disposableStore = new DisposableStore();
 			setupTheme(container, theme);
@@ -553,6 +550,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 	const labels = resolveLabels(options.labels);
 	return defineFixtureVariants(labels.length > 0 ? { labels } : {}, {
 		Dark: createFixture(darkTheme),
+		DarkHc: createFixture(darkThemeHighContrast),
 		Light: createFixture(lightTheme),
 	});
 }
