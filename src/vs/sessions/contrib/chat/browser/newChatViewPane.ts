@@ -59,6 +59,7 @@ import { BranchPicker } from './branchPicker.js';
 import { AgentHostNewSession, INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { WorkspacePicker } from './workspacePicker.js';
+import { WorkspacePickerCallout } from './workspacePickerCallout.js';
 import { SessionWorkspace } from '../../sessions/common/sessionWorkspace.js';
 import { ModePicker } from './modePicker.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
@@ -101,6 +102,7 @@ interface INewChatWidgetOptions {
 class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private readonly _workspacePicker: WorkspacePicker;
+	private readonly _workspacePickerCallout: WorkspacePickerCallout;
 	private readonly _sessionTypePicker: SessionTypePicker;
 	private readonly _branchPicker: BranchPicker;
 	private readonly _isolationPicker: IsolationPicker;
@@ -188,6 +190,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
 		this._workspacePicker = this._register(this.instantiationService.createInstance(WorkspacePicker));
+		this._workspacePickerCallout = this._register(this.instantiationService.createInstance(WorkspacePickerCallout));
 		this._permissionPicker = this._register(this.instantiationService.createInstance(NewChatPermissionPicker));
 		this._cloudModelPicker = this._register(this.instantiationService.createInstance(CloudModelPicker));
 		this._modePicker = this._register(this.instantiationService.createInstance(ModePicker));
@@ -703,7 +706,20 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const pickersRow = dom.append(this._pickersContainer, dom.$('.chat-full-welcome-pickers'));
 
 		// Project picker (unified folder + repo picker)
-		this._workspacePicker.render(pickersRow);
+		const pickerSlot = this._workspacePicker.render(pickersRow);
+
+		// First-time-use callout (shown when dropdown opens, hidden when it closes)
+		if (this._workspacePickerCallout.shouldShow) {
+			this._workspacePickerCallout.render(pickerSlot);
+			this._register(this._workspacePicker.onDidShowPicker(() => {
+				if (this._workspacePickerCallout.shouldShow) {
+					this._workspacePickerCallout.show();
+				}
+			}));
+			this._register(this._workspacePicker.onDidHidePicker(() => {
+				this._workspacePickerCallout.hide();
+			}));
+		}
 	}
 
 	// --- Agent Host session pickers ---

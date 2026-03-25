@@ -64,6 +64,12 @@ export class WorkspacePicker extends Disposable {
 	private readonly _onDidSelectProject = this._register(new Emitter<SessionWorkspace>());
 	readonly onDidSelectProject: Event<SessionWorkspace> = this._onDidSelectProject.event;
 
+	private readonly _onDidShowPicker = this._register(new Emitter<void>());
+	readonly onDidShowPicker: Event<void> = this._onDidShowPicker.event;
+
+	private readonly _onDidHidePicker = this._register(new Emitter<void>());
+	readonly onDidHidePicker: Event<void> = this._onDidHidePicker.event;
+
 	private _selectedProject: SessionWorkspace | undefined;
 	private _recentProjects: IStoredProject[] = [];
 
@@ -217,7 +223,10 @@ export class WorkspacePicker extends Disposable {
 					this._selectProject(this._fromStored(item));
 				}
 			},
-			onHide: () => { triggerElement.focus(); },
+			onHide: () => {
+				triggerElement.focus();
+				this._onDidHidePicker.fire();
+			},
 		};
 
 		const listOptions = showFilter ? { showFilter: true, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces...") } : undefined;
@@ -236,6 +245,8 @@ export class WorkspacePicker extends Disposable {
 			},
 			listOptions,
 		);
+
+		this._onDidShowPicker.fire();
 	}
 
 	/**

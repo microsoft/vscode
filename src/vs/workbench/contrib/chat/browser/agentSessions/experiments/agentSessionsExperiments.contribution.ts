@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerSingleton, InstantiationType } from '../../../../../../platform/instantiation/common/extensions.js';
-import { MenuId, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { MenuId, MenuRegistry, registerAction2, Action2 } from '../../../../../../platform/actions/common/actions.js';
 import { IAgentSessionProjectionService, AgentSessionProjectionService, AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS } from './agentSessionProjectionService.js';
 import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, ToggleUnifiedAgentsBarAction } from './agentSessionProjectionActions.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { AgentTitleBarStatusRendering } from './agentTitleBarStatusWidget.js';
 import { AgentTitleBarStatusService, IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { localize } from '../../../../../../nls.js';
+import { localize, localize2 } from '../../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ProductQualityContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
@@ -298,5 +298,69 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 	group: 'z_experimental',
 	order: 10
 });
+
+// #region ============================================================
+// TESTING ONLY — Reset Agent Sessions First-Time Use
+// ============================================================
+
+import { IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
+import { IHostService } from '../../../../../services/host/browser/host.js';
+import { Categories } from '../../../../../../platform/action/common/actionCommonCategories.js';
+import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+
+registerAction2(class ResetAgentSessionsFirstTimeUse extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.resetAgentSessionsFirstTimeUse',
+			title: localize2('resetAgentSessionsFTU', "Reset Agent Sessions First-Time Use (Testing)"),
+			category: Categories.Developer,
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const storageService = accessor.get(IStorageService);
+		const hostService = accessor.get(IHostService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+
+		// APPLICATION-scoped keys
+		storageService.remove('workbench.agentsession.welcomeComplete', StorageScope.APPLICATION);
+		storageService.remove('agentSessionsWelcome.privacyNoticeDismissed', StorageScope.APPLICATION);
+		storageService.remove('chat.welcomeViewPrefill', StorageScope.APPLICATION);
+		storageService.remove('agentSessions.pinnedTaskLabels', StorageScope.APPLICATION);
+
+		// WORKSPACE-scoped keys
+		storageService.remove('agentSessions.model.cache', StorageScope.WORKSPACE);
+		storageService.remove('agentSessions.state.cache', StorageScope.WORKSPACE);
+		storageService.remove('agentSessions.readDateBaseline2', StorageScope.WORKSPACE);
+		storageService.remove('sessions.draftState', StorageScope.WORKSPACE);
+		storageService.remove('workbench.agentsession.projectbar.folders', StorageScope.WORKSPACE);
+
+		// PROFILE-scoped keys
+		storageService.remove('agentSessions.sectionCollapseState', StorageScope.PROFILE);
+		storageService.remove('agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu', StorageScope.PROFILE);
+		storageService.remove('agentSessions.filterExcludes.previousUserFilter', StorageScope.PROFILE);
+		storageService.remove('agentSessions.lastPickedRepo', StorageScope.PROFILE);
+		storageService.remove('agentSessions.recentlyPickedRepos', StorageScope.PROFILE);
+		storageService.remove('sessions.lastPickedProject', StorageScope.PROFILE);
+		storageService.remove('sessions.recentlyPickedProjects', StorageScope.PROFILE);
+		storageService.remove('agentSessions.lastPickedFolder', StorageScope.PROFILE);
+		storageService.remove('agentSessions.recentlyPickedFolders', StorageScope.PROFILE);
+
+		// Callout / tutorial state
+		storageService.remove('sessions.workspaceCallout.dismissed', StorageScope.PROFILE);
+		storageService.remove('sessions.workspaceCallout.snoozed', StorageScope.PROFILE);
+		storageService.remove('sessions.workspaceCallout.snoozeUntil', StorageScope.PROFILE);
+
+		// Close all editors so the welcome page runner sees no active editor on reload
+		await Promise.all(editorGroupsService.groups.map(g => g.closeAllEditors()));
+
+		// Reload the window so the first-time-use experience triggers fresh
+		hostService.reload();
+	}
+});
+
+// #endregion TESTING ONLY — Reset Agent Sessions First-Time Use
 
 //#endregion

@@ -1,0 +1,184 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Callout container */
+.workspace-picker-callout {
+	position: absolute;
+	top: 100%;
+	left: calc(100% + 14px);
+	width: 280px;
+	z-index: 100;
+
+	background-color: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder, transparent));
+	border-radius: 8px;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16);
+
+	animation: workspace-callout-fade-in 0.2s ease both;
+}
+
+.workspace-picker-callout.hiding {
+	animation: workspace-callout-fade-out 0.15s ease both;
+}
+
+@keyframes workspace-callout-fade-in {
+	from {
+		opacity: 0;
+		transform: translateX(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+@keyframes workspace-callout-fade-out {
+	from {
+		opacity: 1;
+		transform: translateX(0);
+	}
+	to {
+		opacity: 0;
+		transform: translateX(4px);
+	}
+}
+
+/* Pointer arrow (left-pointing) */
+.workspace-picker-callout-pointer {
+	position: absolute;
+	left: -6px;
+	top: 24px;
+	transform: rotate(45deg);
+	width: 10px;
+	height: 10px;
+	background-color: var(--vscode-editorWidget-background);
+	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder, transparent));
+	border-left: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder, transparent));
+}
+
+/* Header bar (dismiss + snooze) */
+.workspace-picker-callout-header {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	gap: 2px;
+	padding: 6px 6px 0 6px;
+}
+
+.workspace-picker-callout-header button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	border: none;
+	border-radius: 4px;
+	background-color: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+}
+
+.workspace-picker-callout-header button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.workspace-picker-callout-header button .codicon {
+	font-size: 14px;
+}
+
+/* Body */
+.workspace-picker-callout-body {
+	padding: 4px 14px 12px 14px;
+}
+
+/* Description lines */
+.workspace-picker-callout-description {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.workspace-picker-callout-line {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	font-size: 13px;
+	line-height: 1.45;
+	color: var(--vscode-foreground);
+}
+
+.workspace-picker-callout-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 19px; /* align with first line of text */
+}
+
+.workspace-picker-callout-icon .codicon {
+	font-size: 14px;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* FAQ */
+.workspace-picker-callout-faq {
+	margin-top: 12px;
+	border-top: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder, transparent));
+	padding-top: 8px;
+}
+
+.workspace-picker-callout-faq-item {
+	margin: 0;
+}
+
+.workspace-picker-callout-faq-item + .workspace-picker-callout-faq-item {
+	margin-top: 2px;
+}
+
+.workspace-picker-callout-faq-question {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	list-style: none;
+	padding: 4px 4px;
+	border-radius: 4px;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.workspace-picker-callout-faq-question::-webkit-details-marker {
+	display: none;
+}
+
+.workspace-picker-callout-faq-question::before {
+	content: '';
+	display: inline-block;
+	width: 0;
+	height: 0;
+	border-style: solid;
+	border-width: 4px 0 4px 6px;
+	border-color: transparent transparent transparent var(--vscode-descriptionForeground);
+	margin-right: 6px;
+	vertical-align: middle;
+	transition: transform 0.15s ease;
+}
+
+details[open].workspace-picker-callout-faq-item > .workspace-picker-callout-faq-question::before {
+	transform: rotate(90deg);
+}
+
+.workspace-picker-callout-faq-question:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.workspace-picker-callout-faq-answer {
+	font-size: 12px;
+	line-height: 1.5;
+	color: var(--vscode-descriptionForeground);
+	padding: 4px 4px 8px 16px;
+}

@@ -69,7 +69,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 			getAnchor: () => anchor,
 			render: (container: HTMLElement) => {
 				visibleContext.set(true);
-				return this._renderWidget(container, list, actionBarActions ?? []);
+				return this._renderWidget(container, list, actionBarActions ?? [], user);
 			},
 			onHide: (didCancel) => {
 				visibleContext.reset();
@@ -116,7 +116,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		this._list.clear();
 	}
 
-	private _renderWidget(element: HTMLElement, list: ActionList<unknown>, actionBarActions: readonly IAction[]): IDisposable {
+	private _renderWidget(element: HTMLElement, list: ActionList<unknown>, actionBarActions: readonly IAction[], user: string): IDisposable {
 		const widget = document.createElement('div');
 		widget.classList.add('action-widget');
 		element.appendChild(widget);
@@ -136,7 +136,14 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		const menuBlock = document.createElement('div');
 		const block = element.appendChild(menuBlock);
 		block.classList.add('context-view-block');
-		renderDisposables.add(dom.addDisposableListener(block, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
+
+		if (user === 'workspacePicker') {
+			// Allow interactions with the sessions workspace tutorial callout,
+			// which is rendered alongside the action widget while this picker is open.
+			block.style.pointerEvents = 'none';
+		} else {
+			renderDisposables.add(dom.addDisposableListener(block, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
+		}
 
 		// Invisible div to block mouse interaction with the menu
 		const pointerBlockDiv = document.createElement('div');
@@ -174,9 +181,10 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
 		renderDisposables.add(focusTracker.onDidBlur(() => {
-			// Don't hide if focus moved to a hover or submenu that belongs to this action widget
+			// Don't hide if focus moved to a hover or submenu that belongs to this action widget,
+			// or to a companion callout widget (e.g. workspace picker tutorial callout).
 			const activeElement = dom.getActiveElement();
-			if (activeElement?.closest('.action-widget-hover') || activeElement?.closest('.action-list-submenu-panel')) {
+			if (activeElement?.closest('.action-widget-hover') || activeElement?.closest('.action-list-submenu-panel') || activeElement?.closest('.workspace-picker-callout')) {
 				return;
 			}
 			this.hide(true);
