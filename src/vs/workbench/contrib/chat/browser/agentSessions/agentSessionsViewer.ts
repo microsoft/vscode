@@ -1190,7 +1190,11 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			});
 		}
 
-		for (const [, { label, sessions }] of repoMap) {
+		const sortedRepoGroups = [...repoMap.values()].sort((a, b) =>
+			a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
+		);
+
+		for (const { label, sessions } of sortedRepoGroups) {
 			result.push({
 				section: AgentSessionSection.Repository,
 				label,
