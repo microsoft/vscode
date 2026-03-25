@@ -916,6 +916,7 @@ export class CodeApplication extends Disposable {
 			// Ensure sessions window is open to receive the URL
 			const windows = await windowsMainService.openSessionsWindow({ context: OpenContext.LINK, contextWindowId: undefined });
 			const window = windows.at(0);
+			window?.focus();
 			await window?.ready();
 
 			// Return false to let subsequent handlers (e.g., URLHandlerChannelClient) forward the URL
