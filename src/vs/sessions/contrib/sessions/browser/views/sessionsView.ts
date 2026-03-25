@@ -34,7 +34,7 @@ import { IHostService } from '../../../../../workbench/services/host/browser/hos
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
-const ACTION_ID_NEW_SESSION = 'workbench.action.chat.newChat';
+const ACTION_ID_NEW_SESSION = 'workbench.action.sessions.newChat';
 const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
 
