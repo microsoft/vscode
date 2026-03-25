@@ -13,6 +13,10 @@ declare module 'vscode' {
 	 * Extensions may use these as the {@link ChatSessionCustomizationItemGroup.id id}
 	 * of a {@link ChatSessionCustomizationItemGroup} to place items into standard
 	 * sections in the management UI.
+	 *
+	 * TODO: How granular should we be? Consider removing the sub-instruction
+	 * types (ContextInstructions, OnDemandInstructions) and collapsing to a
+	 * single 'instructions' type.
 	 */
 	export enum ChatSessionCustomizationType {
 		Agents = 'agents',
@@ -27,6 +31,9 @@ declare module 'vscode' {
 	 * Where a customization item originates from.
 	 *
 	 * Controls default behaviour in the management UI (grouping, delete-ability).
+	 *
+	 * TODO: Should this be inferred by core itself depending on the URI
+	 * scheme/path rather than declared by the extension?
 	 */
 	export enum ChatSessionCustomizationStorageLocation {
 		/** From the current workspace (`.github/` folder, workspace root, etc.) */
