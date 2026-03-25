@@ -8,6 +8,7 @@ import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabe
 import { raceCancellationError } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import * as nls from '../../../../../../nls.js';
@@ -129,6 +130,14 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 				}));
 		this._register(this.widget.onDidSubmitAgent(() => {
 			this.group.pinEditor(this.input);
+		}));
+		this._register(this.widget.onDidChangeViewModel(({ currentSessionResource }) => {
+			const input = this.input;
+			if (!(input instanceof ChatEditorInput) || !currentSessionResource || isEqual(input.sessionResource, currentSessionResource)) {
+				return;
+			}
+
+			void input.updateSessionResource(currentSessionResource);
 		}));
 		this.widget.render(parent);
 		this.widget.setVisible(true);

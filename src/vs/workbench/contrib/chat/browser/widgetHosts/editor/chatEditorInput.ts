@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -46,6 +46,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	private cachedIcon: ThemeIcon | URI | undefined;
 
 	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
+	private readonly modelDisposables = this._register(new MutableDisposable<IDisposable>());
 
 	private get model(): IChatModel | undefined {
 		return this.modelRef.value?.object;
@@ -211,19 +212,22 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		const searchParams = new URLSearchParams(this.resource.query);
 		const chatSessionType = searchParams.get('chatSessionType');
 		const inputType = chatSessionType ?? this.resource.authority;
+		let modelRef: IChatModelReference | undefined;
 
 		if (this._sessionResource) {
-			this.modelRef.value = await this.chatService.acquireOrLoadSession(this._sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+			modelRef = await this.chatService.acquireOrLoadSession(this._sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 
 			// For local session only, if we find no existing session, create a new one
-			if (!this.model && LocalChatSessionUri.parseLocalSessionId(this._sessionResource)) {
-				this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: true });
+			if (!modelRef && LocalChatSessionUri.parseLocalSessionId(this._sessionResource)) {
+				modelRef = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: true });
 			}
 		} else if (!this.options.target) {
-			this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType });
+			modelRef = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType });
 		} else if (this.options.target.data) {
-			this.modelRef.value = this.chatService.loadSessionFromData(this.options.target.data);
+			modelRef = this.chatService.loadSessionFromData(this.options.target.data);
 		}
+
+		this.bindModelRef(modelRef);
 
 		if (!this.model || this.isDisposed()) {
 			return null;
@@ -231,19 +235,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 		this._sessionResource = this.model.sessionResource;
 
-		this._register(this.model.onDidChange((e) => {
-			// Invalidate icon cache when label changes
-			this.cachedIcon = undefined;
-			this._onDidChangeLabel.fire();
-		}));
-
 		// Check if icon has changed after model resolution
 		const newIcon = this.resolveIcon();
 		if (newIcon && (!this.cachedIcon || !this.iconsEqual(this.cachedIcon, newIcon))) {
 			this.cachedIcon = newIcon;
 		}
-
-		this._onDidChangeLabel.fire();
 
 		return this._register(new ChatEditorModel(this.model));
 	}
@@ -256,6 +252,37 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			return a.toString() === b.toString();
 		}
 		return false;
+	}
+
+	private bindModelRef(modelRef: IChatModelReference | undefined): void {
+		this.modelRef.value = modelRef;
+		this.modelDisposables.clear();
+
+		if (modelRef) {
+			this._sessionResource = modelRef.object.sessionResource;
+			this.modelDisposables.value = modelRef.object.onDidChange(() => {
+				this.cachedIcon = undefined;
+				this._onDidChangeLabel.fire();
+			});
+		}
+
+		this.cachedIcon = undefined;
+		this._onDidChangeLabel.fire();
+	}
+
+	async updateSessionResource(sessionResource: URI): Promise<void> {
+		if (this.isDisposed() || isEqual(this._sessionResource, sessionResource)) {
+			return;
+		}
+
+		const modelRef = this.chatService.acquireExistingSession(sessionResource)
+			?? await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+
+		if (!modelRef || this.isDisposed()) {
+			return;
+		}
+
+		this.bindModelRef(modelRef);
 	}
 
 }
