@@ -371,6 +371,15 @@ class AgentSessionsLogger extends Disposable {
 				}
 			}
 
+			// Metadata
+			if (session.metadata && Object.keys(session.metadata).length > 0) {
+				lines.push(`  Metadata:`);
+				for (const [key, value] of Object.entries(session.metadata)) {
+					const renderedValue = typeof value === 'string' ? value : safeStringify(value);
+					lines.push(`    ${key}: ${renderedValue}`);
+				}
+			}
+
 			// Our state (read/unread, archived)
 			lines.push(`  State:`);
 			lines.push(`    Archived (provider): ${session.archived ?? 'N/A'}`);
