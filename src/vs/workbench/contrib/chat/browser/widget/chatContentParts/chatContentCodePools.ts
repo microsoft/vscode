@@ -39,11 +39,11 @@ export class EditorPool extends Disposable {
 		return {
 			object: codeBlock,
 			isStale: () => stale,
-			dispose: () => {
+			dispose: createSingleCallFunction(() => {
 				codeBlock.reset();
 				stale = true;
 				this._pool.release(codeBlock);
-			}
+			})
 		};
 	}
 
