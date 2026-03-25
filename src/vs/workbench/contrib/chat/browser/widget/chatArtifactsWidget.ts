@@ -22,6 +22,7 @@ import { WorkbenchList } from '../../../../../platform/list/browser/listService.
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IChatArtifact, IChatArtifactsService } from '../../common/tools/chatArtifactsService.js';
+import { getEditorOverrideForChatResource } from './chatContentParts/chatInlineAnchorWidget.js';
 
 const ARTIFACT_TYPE_ICONS: Record<string, ThemeIcon> = {
 	devServer: Codicon.globe,
@@ -114,7 +115,12 @@ export class ChatArtifactsWidget extends Disposable {
 				if (e.element.type === 'screenshot' && this._configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
 					this._openScreenshotInCarousel(e.element);
 				} else {
-					this._openerService.open(URI.parse(e.element.uri));
+					const uri = URI.parse(e.element.uri);
+					const editorOverride = getEditorOverrideForChatResource(uri, this._configurationService);
+					this._openerService.open(uri, {
+						fromUserGesture: true,
+						editorOptions: { override: editorOverride },
+					});
 				}
 			}
 		}));
