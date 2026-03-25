@@ -16,7 +16,7 @@ import { addStandardDisposableListener, getWindow, ModifierKeyEmitter } from '..
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { createAgentFeedbackContext, getSessionForResource } from './agentFeedbackEditorUtils.js';
 import { localize } from '../../../../nls.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -205,7 +205,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		private readonly _editor: ICodeEditor,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 	) {
 		super();
@@ -291,7 +291,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return;
 		}
 
-		const sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._agentSessionsService);
+		const sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._sessionsManagementService);
 		if (!sessionResource) {
 			this._hide();
 			return;
