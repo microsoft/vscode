@@ -7,11 +7,12 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import { ILogService } from '../../log/common/log.js';
 import { IFileService } from '../../files/common/files.js';
-import { AgentProvider, IAgentCreateSessionConfig, IAgent, IAgentService, IAgentSessionMetadata, AgentSession, IAgentDescriptor } from '../common/agentService.js';
-import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
-import type { IBrowseDirectoryResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { ILogService } from '../../log/common/log.js';
+import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentDescriptor, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
+import { ISessionDataService } from '../common/sessionDataService.js';
+import { ActionType, IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
+import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionSummary } from '../common/state/sessionState.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { SessionStateManager } from './sessionStateManager.js';
@@ -54,6 +55,7 @@ export class AgentService extends Disposable implements IAgentService {
 	constructor(
 		private readonly _logService: ILogService,
 		private readonly _fileService: IFileService,
+		private readonly _sessionDataService: ISessionDataService,
 	) {
 		super();
 		this._logService.info('AgentService initialized');
@@ -62,6 +64,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._register(this._stateManager.onDidEmitNotification(e => this._onDidNotification.fire(e)));
 		this._sideEffects = this._register(new AgentSideEffects(this._stateManager, {
 			getAgent: session => this._findProviderForSession(session),
+			sessionDataService: this._sessionDataService,
 			agents: this._agents,
 		}, this._logService, this._fileService));
 	}
@@ -89,13 +92,28 @@ export class AgentService extends Disposable implements IAgentService {
 		return [...this._providers.values()].map(p => p.getDescriptor());
 	}
 
-	async setAuthToken(token: string): Promise<void> {
-		this._logService.trace('[AgentService] setAuthToken called');
-		const promises: Promise<void>[] = [];
+	async getResourceMetadata(): Promise<IResourceMetadata> {
+		const resources = [...this._providers.values()].flatMap(p => p.getProtectedResources());
+		return { resources };
+	}
+
+	getResourceMetadataSync(): IResourceMetadata {
+		const resources = [...this._providers.values()].flatMap(p => p.getProtectedResources());
+		return { resources };
+	}
+
+	async authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult> {
+		this._logService.trace(`[AgentService] authenticate called: resource=${params.resource}`);
 		for (const provider of this._providers.values()) {
-			promises.push(provider.setAuthToken(token));
+			const resources = provider.getProtectedResources();
+			if (resources.some(r => r.resource === params.resource)) {
+				const accepted = await provider.authenticate(params.resource, params.token);
+				if (accepted) {
+					return { authenticated: true };
+				}
+			}
 		}
-		await Promise.all(promises);
+		return { authenticated: false };
 	}
 
 	// ---- session management -------------------------------------------------
@@ -138,9 +156,10 @@ export class AgentService extends Disposable implements IAgentService {
 			status: SessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
+			workingDirectory: config?.workingDirectory,
 		};
 		this._stateManager.createSession(summary);
-		this._stateManager.dispatchServerAction({ type: 'session/ready', session: session.toString() });
+		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: session.toString() });
 
 		return session;
 	}
@@ -153,6 +172,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._sessionToProvider.delete(session.toString());
 		}
 		this._stateManager.removeSession(session.toString());
+		this._sessionDataService.deleteSessionData(session);
 	}
 
 	// ---- Protocol methods ---------------------------------------------------
@@ -184,6 +204,14 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async browseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
 		return this._sideEffects.handleBrowseDirectory(uri.toString());
+	}
+
+	async restoreSession(session: URI): Promise<void> {
+		return this._sideEffects.handleRestoreSession(session.toString());
+	}
+
+	async fetchContent(uri: URI): Promise<IFetchContentResult> {
+		return this._sideEffects.handleFetchContent(uri.toString());
 	}
 
 	async shutdown(): Promise<void> {

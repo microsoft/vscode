@@ -19,6 +19,11 @@
 	min-width: 0;
 }
 
+/* Hide the default action-label rendered by the toolbar — the account widget provides its own button */
+.account-widget > .action-label {
+	display: none;
+}
+
 /* Account Button */
 .monaco-workbench .part.sidebar > .sidebar-footer .account-widget-account {
 	overflow: hidden;
@@ -106,6 +111,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	min-width: 0;
+	font-weight: 500;
 }
 
 .account-widget-account .account-widget-account-button {

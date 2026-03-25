@@ -143,6 +143,7 @@ import '../workbench/contrib/issue/browser/issue.contribution.js';
 import '../workbench/contrib/splash/browser/splash.contribution.js';
 import '../workbench/contrib/remote/browser/remoteStartEntry.contribution.js';
 import '../workbench/contrib/processExplorer/browser/processExplorer.web.contribution.js';
+import '../workbench/contrib/browserView/browser/browserView.contribution.js';
 
 //#endregion
 

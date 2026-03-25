@@ -9,10 +9,11 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { ISessionAction } from '../../common/state/sessionActions.js';
-import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type ICreateSessionParams, type IInitializeResult, type IProtocolMessage, type IAhpNotification, type IReconnectResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
+import { IFetchContentResult } from '../../common/state/protocol/commands.js';
+import { ActionType, type ISessionAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
+import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IAhpNotification, type ICreateSessionParams, type IInitializeResult, type IProtocolMessage, type IReconnectResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler, type IProtocolSideEffectHandler } from '../../node/protocolServerHandler.js';
 import { SessionStateManager } from '../../node/sessionStateManager.js';
@@ -74,7 +75,9 @@ class MockSideEffectHandler implements IProtocolSideEffectHandler {
 	async handleCreateSession(_command: ICreateSessionParams): Promise<void> { /* session created via state manager */ }
 	handleDisposeSession(_session: string): void { }
 	async handleListSessions(): Promise<ISessionSummary[]> { return []; }
-	handleSetAuthToken(_token: string): void { }
+	async handleRestoreSession(_session: string): Promise<void> { }
+	handleGetResourceMetadata() { return { resources: [] }; }
+	async handleAuthenticate(_params: { resource: string; token: string }) { return { authenticated: true }; }
 	async handleBrowseDirectory(uri: string): Promise<{ entries: { name: string; type: 'file' | 'directory' }[] }> {
 		this.browsedUris.push(URI.parse(uri));
 		const error = this.browseErrors.get(uri);
@@ -90,6 +93,9 @@ class MockSideEffectHandler implements IProtocolSideEffectHandler {
 	}
 	getDefaultDirectory(): string {
 		return URI.file('/home/testuser').toString();
+	}
+	async handleFetchContent(_uri: string): Promise<IFetchContentResult> {
+		throw new Error('Not implemented');
 	}
 }
 
@@ -123,6 +129,7 @@ suite('ProtocolServerHandler', () => {
 	let stateManager: SessionStateManager;
 	let server: MockProtocolServer;
 	let sideEffects: MockSideEffectHandler;
+	let handler: ProtocolServerHandler;
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 
@@ -153,7 +160,7 @@ suite('ProtocolServerHandler', () => {
 		stateManager = disposables.add(new SessionStateManager(new NullLogService()));
 		server = disposables.add(new MockProtocolServer());
 		sideEffects = new MockSideEffectHandler();
-		disposables.add(new ProtocolServerHandler(
+		disposables.add(handler = new ProtocolServerHandler(
 			stateManager,
 			server,
 			sideEffects,
@@ -206,7 +213,7 @@ suite('ProtocolServerHandler', () => {
 
 	test('client action is dispatched and echoed', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
 
 		const transport = connectClient('client-1', [sessionUri]);
 		transport.sent.length = 0;
@@ -214,7 +221,7 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateMessage(notification('dispatchAction', {
 			clientSeq: 1,
 			action: {
-				type: 'session/turnStarted',
+				type: ActionType.SessionTurnStarted,
 				session: sessionUri,
 				turnId: 'turn-1',
 				userMessage: { text: 'hello' },
@@ -224,7 +231,7 @@ suite('ProtocolServerHandler', () => {
 		const actionMsgs = findNotifications(transport.sent, 'action');
 		const turnStarted = actionMsgs.find(m => {
 			const envelope = m.params as unknown as { action: { type: string } };
-			return envelope.action.type === 'session/turnStarted';
+			return envelope.action.type === ActionType.SessionTurnStarted;
 		});
 		assert.ok(turnStarted, 'should have echoed turnStarted');
 		const envelope = turnStarted!.params as unknown as { origin: { clientId: string; clientSeq: number } };
@@ -234,7 +241,7 @@ suite('ProtocolServerHandler', () => {
 
 	test('actions are scoped to subscribed sessions', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
 
 		const transportA = connectClient('client-a', [sessionUri]);
 		const transportB = connectClient('client-b');
@@ -243,7 +250,7 @@ suite('ProtocolServerHandler', () => {
 		transportB.sent.length = 0;
 
 		stateManager.dispatchServerAction({
-			type: 'session/titleChanged',
+			type: ActionType.SessionTitleChanged,
 			session: sessionUri,
 			title: 'New Title',
 		});
@@ -267,15 +274,15 @@ suite('ProtocolServerHandler', () => {
 
 	test('reconnect replays missed actions', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
 
 		const transport1 = connectClient('client-r', [sessionUri]);
 		const resp = findResponse(transport1.sent, 1);
 		const initSeq = (resp as { result: IInitializeResult }).result.serverSeq;
 		transport1.simulateClose();
 
-		stateManager.dispatchServerAction({ type: 'session/titleChanged', session: sessionUri, title: 'Title A' });
-		stateManager.dispatchServerAction({ type: 'session/titleChanged', session: sessionUri, title: 'Title B' });
+		stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'Title A' });
+		stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'Title B' });
 
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
@@ -296,13 +303,13 @@ suite('ProtocolServerHandler', () => {
 
 	test('reconnect sends fresh snapshots when gap too large', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
 
 		const transport1 = connectClient('client-g', [sessionUri]);
 		transport1.simulateClose();
 
 		for (let i = 0; i < 1100; i++) {
-			stateManager.dispatchServerAction({ type: 'session/titleChanged', session: sessionUri, title: `Title ${i}` });
+			stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: `Title ${i}` });
 		}
 
 		const transport2 = new MockProtocolTransport();
@@ -324,14 +331,14 @@ suite('ProtocolServerHandler', () => {
 
 	test('client disconnect cleans up', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
 
 		const transport = connectClient('client-d', [sessionUri]);
 		transport.sent.length = 0;
 
 		transport.simulateClose();
 
-		stateManager.dispatchServerAction({ type: 'session/titleChanged', session: sessionUri, title: 'After Disconnect' });
+		stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'After Disconnect' });
 
 		assert.strictEqual(transport.sent.length, 0);
 	});
@@ -379,5 +386,92 @@ suite('ProtocolServerHandler', () => {
 		assert.ok(resp?.error);
 		assert.strictEqual(resp.error!.code, JSON_RPC_INTERNAL_ERROR);
 		assert.match(resp.error!.message, /Directory not found/);
+	});
+
+	// ---- Extension methods: auth ----------------------------------------
+
+	test('getResourceMetadata returns resource metadata via extension request', async () => {
+		const transport = connectClient('client-metadata');
+		transport.sent.length = 0;
+
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'getResourceMetadata'));
+		const resp = await responsePromise as { result?: { resources: unknown[] } };
+
+		assert.ok(resp?.result);
+		assert.ok(Array.isArray(resp.result!.resources));
+	});
+
+	test('authenticate returns result via extension request', async () => {
+		const transport = connectClient('client-auth');
+		transport.sent.length = 0;
+
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'authenticate', { resource: 'https://api.github.com', token: 'test-token' }));
+		const resp = await responsePromise as { result?: { authenticated: boolean } };
+
+		assert.ok(resp?.result);
+		assert.strictEqual(resp.result!.authenticated, true);
+	});
+
+	test('extension request preserves ProtocolError code and data', async () => {
+		// Override handleAuthenticate to throw a ProtocolError with data
+		const origHandler = sideEffects.handleAuthenticate;
+		sideEffects.handleAuthenticate = async () => { throw new ProtocolError(-32007, 'Auth required', { hint: 'sign in' }); };
+
+		const transport = connectClient('client-auth-error');
+		transport.sent.length = 0;
+
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'authenticate', { resource: 'test', token: 'bad' }));
+		const resp = await responsePromise as { error?: { code: number; message: string; data?: unknown } };
+
+		assert.ok(resp?.error);
+		assert.strictEqual(resp.error!.code, -32007);
+		assert.strictEqual(resp.error!.message, 'Auth required');
+		assert.deepStrictEqual(resp.error!.data, { hint: 'sign in' });
+
+		sideEffects.handleAuthenticate = origHandler;
+	});
+
+	// ---- Connection count event -----------------------------------------
+
+	test('onDidChangeConnectionCount fires on connect and disconnect', () => {
+		const counts: number[] = [];
+		disposables.add(handler.onDidChangeConnectionCount(c => counts.push(c)));
+
+		const transport = connectClient('client-count-1');
+		connectClient('client-count-2');
+		transport.simulateClose();
+
+		assert.deepStrictEqual(counts, [1, 2, 1]);
+	});
+
+	test('onDidChangeConnectionCount is not decremented by stale reconnect close', () => {
+		const counts: number[] = [];
+		disposables.add(handler.onDidChangeConnectionCount(c => counts.push(c)));
+
+		// Connect
+		const transport1 = connectClient('client-rc');
+		assert.deepStrictEqual(counts, [1]);
+
+		// Reconnect with same clientId (new transport)
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		transport2.simulateMessage(request(1, 'reconnect', {
+			clientId: 'client-rc',
+			lastSeenServerSeq: 0,
+			subscriptions: [],
+		}));
+		// Count is unchanged because same clientId was overwritten
+		assert.deepStrictEqual(counts, [1, 1]);
+
+		// Old transport closes - should NOT decrement since it's stale
+		transport1.simulateClose();
+		assert.deepStrictEqual(counts, [1, 1]);
+
+		// New transport closes - should decrement
+		transport2.simulateClose();
+		assert.deepStrictEqual(counts, [1, 1, 0]);
 	});
 });

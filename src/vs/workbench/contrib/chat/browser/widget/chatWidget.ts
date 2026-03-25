@@ -17,7 +17,6 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { mark } from '../../../../../base/common/performance.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -66,7 +65,7 @@ import { IChatTodoListService } from '../../common/tools/chatTodoListService.js'
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ThinkingDisplayMode } from '../../common/constants.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../../common/promptSyntax/computeAutomaticInstructions.js';
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
@@ -174,6 +173,20 @@ type ChatPromptRunClassification = {
 	promptNameHash?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hashed name of local or user prompt for privacy.' };
 };
 
+type ChatThinkingStyleUsageEvent = {
+	thinkingStyle: ThinkingDisplayMode;
+	location: ChatAgentLocation;
+	requestKind: 'submit' | 'rerun';
+};
+
+type ChatThinkingStyleUsageClassification = {
+	owner: 'justschen';
+	comment: 'Event fired when a chat request uses the configured thinking style rendering mode.';
+	thinkingStyle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The configured rendering mode for thinking content.' };
+	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location where the request was made.' };
+	requestKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the request was a new submit or a rerun.' };
+};
+
 const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
 	supportsFileAttachments: true,
 	supportsToolAttachments: true,
@@ -247,6 +260,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private listWidget!: ChatListWidget;
 	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
+	private inputPartMaxHeightOverride: number | undefined;
 
 	private readonly visibilityTimeoutDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private readonly visibilityAnimationFrameDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
@@ -289,6 +303,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	};
 	private readonly _lockedToCodingAgentContextKey: IContextKey<boolean>;
 	private readonly _lockedCodingAgentIdContextKey: IContextKey<string>;
+	private readonly _chatSessionSupportsForkContextKey: IContextKey<boolean>;
 	private readonly _agentSupportsAttachmentsContextKey: IContextKey<boolean>;
 	private readonly _sessionIsEmptyContextKey: IContextKey<boolean>;
 	private readonly _hasPendingRequestsContextKey: IContextKey<boolean>;
@@ -405,6 +420,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
 		this._lockedCodingAgentIdContextKey = ChatContextKeys.lockedCodingAgentId.bindTo(this.contextKeyService);
+		this._chatSessionSupportsForkContextKey = ChatContextKeys.chatSessionSupportsFork.bindTo(this.contextKeyService);
 		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
 		this._sessionIsEmptyContextKey = ChatContextKeys.chatSessionIsEmpty.bindTo(this.contextKeyService);
 		this._hasPendingRequestsContextKey = ChatContextKeys.hasPendingRequests.bindTo(this.contextKeyService);
@@ -912,6 +928,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, true);
+		this.inputPart.clearArtifactsWidget();
 		this.chatSuggestNextWidget.hide();
 		await this.viewOptions.clear?.();
 	}
@@ -1820,7 +1837,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 
 				if (this.bodyDimension) {
-					this.layout(this.bodyDimension.height, this.bodyDimension.width);
+					// Only re-layout the list/containers to match the new input
+					// height. Do NOT re-call this.layout() here: the input part
+					// has already laid itself out and re-entering inputPart.layout
+					// creates a layout loop when the viewPane also reacts.
+					this._layoutListForInputHeight();
 				}
 
 				this._onDidChangeContentHeight.fire();
@@ -1970,6 +1991,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.finishedEditing();
 		}
 		this.inputPart.clearTodoListWidget(model.sessionResource, false);
+		this.inputPart.clearArtifactsWidget();
 		this.chatSuggestNextWidget.hide();
 		this.chatTipService.resetSession();
 
@@ -2033,6 +2055,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.onDidChangeItems();
 		}));
 		this._sessionIsEmptyContextKey.set(model.getRequests().length === 0);
+		const supportsFork = this.chatSessionsService.sessionSupportsFork(model.sessionResource);
+		this._chatSessionSupportsForkContextKey.set(supportsFork);
+		this.listWidget?.updateRendererOptions({ supportsFork });
 		this._sessionHasDebugDataContextKey.set(this.chatDebugService.getEvents(model.sessionResource).length > 0);
 		let lastSteeringCount = 0;
 		const updatePendingRequestKeys = (announceSteering: boolean) => {
@@ -2157,6 +2182,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._lockedAgent = undefined;
 		this._lockedToCodingAgentContextKey.set(false);
 		this._lockedCodingAgentIdContextKey.set('');
+		this._chatSessionSupportsForkContextKey.set(false);
 		this._updateAgentCapabilitiesContextKeys(undefined);
 
 		// Explicitly update the DOM to reflect unlocked state
@@ -2186,10 +2212,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
-		mark('code/chat/willAcceptInput');
-		const result = await this._acceptInput(query ? { query } : undefined, options);
-		mark('code/chat/didAcceptInput');
-		return result;
+		return this._acceptInput(query ? { query } : undefined, options);
 	}
 
 	async rerunLastRequest(): Promise<void> {
@@ -2209,7 +2232,29 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			userSelectedModelId: this.input.currentLanguageModel,
 			modeInfo: this.input.currentModeInfo,
 		};
-		return await this.chatService.resendRequest(lastRequest, options);
+		const result = await this.chatService.resendRequest(lastRequest, options);
+		this.logThinkingStyleUsage('rerun');
+		return result;
+	}
+
+	private getConfiguredThinkingStyle(): ThinkingDisplayMode {
+		const thinkingStyle = this.configurationService.getValue<ThinkingDisplayMode>(ChatConfiguration.ThinkingStyle);
+		switch (thinkingStyle) {
+			case ThinkingDisplayMode.Collapsed:
+			case ThinkingDisplayMode.CollapsedPreview:
+			case ThinkingDisplayMode.FixedScrolling:
+				return thinkingStyle;
+			default:
+				return ThinkingDisplayMode.FixedScrolling;
+		}
+	}
+
+	private logThinkingStyleUsage(requestKind: ChatThinkingStyleUsageEvent['requestKind']): void {
+		this.telemetryService.publicLog2<ChatThinkingStyleUsageEvent, ChatThinkingStyleUsageClassification>('chat.thinkingStyleUsage', {
+			thinkingStyle: this.getConfiguredThinkingStyle(),
+			location: this.location,
+			requestKind,
+		});
 	}
 
 	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions): Promise<void> {
@@ -2394,6 +2439,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		this.logThinkingStyleUsage('submit');
+
 		// visibility sync before firing events to hide the welcome view
 		this.updateChatViewVisibility();
 		this.input.acceptInput(options?.storeToHistory ?? isUserQuery);
@@ -2540,6 +2587,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.focusLastItem(lastFocused);
 	}
 
+	setInputPartMaxHeightOverride(maxHeight: number | undefined): void {
+		this.inputPartMaxHeightOverride = maxHeight;
+	}
+
 	layout(height: number, width: number): void {
 		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950); // no min width of inline chat
 
@@ -2549,10 +2600,33 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.inlineInputPart?.layout(width);
 		}
 
+		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
+		const inputMaxHeight = this._dynamicMessageLayoutData || this.location !== ChatAgentLocation.Chat
+			? undefined
+			: this.inputPartMaxHeightOverride !== undefined
+				? Math.max(0, this.inputPartMaxHeightOverride - chatSuggestNextWidgetHeight - MIN_LIST_HEIGHT)
+				: Math.max(0, height - chatSuggestNextWidgetHeight - MIN_LIST_HEIGHT);
+		this.inputPart.setMaxHeight(inputMaxHeight);
 		this.inputPart.layout(width);
 
-		const inputHeight = this.inputPart.height.get();
+		this._layoutListForInputHeight();
+	}
+
+	/**
+	 * Re-layout just the list, welcome container, and list container to match
+	 * the current input-part height. Called both from {@link layout} and from
+	 * the inputPart.height autorun so we never re-enter inputPart.layout when
+	 * only the input height changed.
+	 */
+	private _layoutListForInputHeight(): void {
+		if (!this.bodyDimension) {
+			return;
+		}
+
+		const { height, width } = this.bodyDimension;
 		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
+
+		const inputHeight = this.inputPart.height.get();
 		const lastElementVisible = this.listWidget.isScrolledToBottom;
 		const lastItem = this.listWidget.lastItem;
 
@@ -2736,11 +2810,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 */
 	private async _autoAttachInstructions({ attachedContext }: IChatRequestInputOptions): Promise<void> {
 		const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
-		if (!contribution?.autoAttachReferences) {
+
+		// For contributed session types, default to false for autoAttachReferences.
+		const isContributedSession = !!contribution;
+		const autoAttachEnabled = isContributedSession ?
+			contribution.autoAttachReferences === true : true;
+
+		if (!autoAttachEnabled) {
 			this.logService.debug(`ChatWidget#_autoAttachInstructions: skipped, autoAttachReferences is disabled`);
 			return;
 		}
-		this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are always enabled`);
+
+		this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are enabled`);
 		const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined;
 		const enabledSubAgents = this.input.currentModeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined;
 		const sessionResource = this._viewModel?.model.sessionResource;
@@ -2752,3 +2833,5 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
 }
+
+const MIN_LIST_HEIGHT = 50;

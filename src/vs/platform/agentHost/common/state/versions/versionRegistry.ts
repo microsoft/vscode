@@ -32,9 +32,6 @@ export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: numbe
 	'session/toolCallConfirmed': 1,
 	'session/toolCallComplete': 1,
 	'session/toolCallResultConfirmed': 1,
-	// Permissions (v1)
-	'session/permissionRequest': 1,
-	'session/permissionResolved': 1,
 	// Turn completion (v1)
 	'session/turnComplete': 1,
 	'session/turnCancelled': 1,
@@ -54,6 +51,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: numbe
 export const NOTIFICATION_INTRODUCED_IN: { readonly [K in INotification['type']]: number } = {
 	'notify/sessionAdded': 1,
 	'notify/sessionRemoved': 1,
+	'notify/authRequired': 1,
 };
 
 // ---- Runtime filtering helpers ----------------------------------------------

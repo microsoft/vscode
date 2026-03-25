@@ -11,17 +11,20 @@
 // helpers and re-exports.
 
 import { hasKey } from '../../../../base/common/types.js';
-import type {
-	IActiveTurn,
-	IRootState,
-	ISessionState,
-	ISessionSummary,
-	IToolCallCancelledState,
-	IToolCallCompletedState,
-	IToolCallResult,
-	IToolCallState,
-	IToolResultTextContent,
-	IUserMessage,
+import {
+	SessionLifecycle,
+	ToolResultContentType,
+	IToolResultFileEditContent,
+	type IActiveTurn,
+	type IRootState,
+	type ISessionState,
+	type ISessionSummary,
+	type IToolCallCancelledState,
+	type IToolCallCompletedState,
+	type IToolCallResult,
+	type IToolCallState,
+	type IToolResultTextContent,
+	type IUserMessage,
 } from './protocol/state.js';
 
 // Re-export everything from the protocol state module
@@ -32,7 +35,7 @@ export {
 	type IErrorInfo,
 	type IMarkdownResponsePart,
 	type IMessageAttachment,
-	type IPermissionRequest,
+	type IReasoningResponsePart,
 	type IResponsePart,
 	type IRootState,
 	type ISessionActiveClient,
@@ -45,6 +48,7 @@ export {
 	type IToolCallCompletedState,
 	type IToolCallPendingConfirmationState,
 	type IToolCallPendingResultConfirmationState,
+	type IToolCallResponsePart,
 	type IToolCallResult,
 	type IToolCallRunningState,
 	type IToolCallState,
@@ -52,12 +56,14 @@ export {
 	type IToolDefinition,
 	type IToolResultBinaryContent,
 	type IToolResultContent,
+	type IToolResultFileEditContent,
 	type IToolResultTextContent,
 	type ITurn,
 	type IUsageInfo,
 	type IUserMessage,
 	type StringOrMarkdown,
 	type URI,
+	AttachmentType,
 	PolicyState,
 	ResponsePartKind,
 	SessionLifecycle,
@@ -100,7 +106,7 @@ export function getToolOutputText(result: IToolCallResult): string | undefined {
 	}
 	const textParts: IToolResultTextContent[] = [];
 	for (const c of result.content) {
-		if (hasKey(c, { type: true }) && c.type === 'text') {
+		if (hasKey(c, { type: true }) && c.type === ToolResultContentType.Text) {
 			textParts.push(c);
 		}
 	}
@@ -108,6 +114,23 @@ export function getToolOutputText(result: IToolCallResult): string | undefined {
 		return undefined;
 	}
 	return textParts.map(p => p.text).join('\n');
+}
+
+/**
+ * Extracts file edit content entries from a tool call result's `content` array.
+ * Returns an empty array if there are no file edit content parts.
+ */
+export function getToolFileEdits(result: IToolCallResult): IToolResultFileEditContent[] {
+	if (!result.content || result.content.length === 0) {
+		return [];
+	}
+	const edits: IToolResultFileEditContent[] = [];
+	for (const c of result.content) {
+		if (hasKey(c, { type: true }) && c.type === ToolResultContentType.FileEdit) {
+			edits.push(c);
+		}
+	}
+	return edits;
 }
 
 // ---- Factory helpers --------------------------------------------------------
@@ -122,7 +145,7 @@ export function createRootState(): IRootState {
 export function createSessionState(summary: ISessionSummary): ISessionState {
 	return {
 		summary,
-		lifecycle: 'creating',
+		lifecycle: SessionLifecycle.Creating,
 		turns: [],
 		activeTurn: undefined,
 	};
@@ -132,11 +155,7 @@ export function createActiveTurn(id: string, userMessage: IUserMessage): IActive
 	return {
 		id,
 		userMessage,
-		streamingText: '',
 		responseParts: [],
-		toolCalls: {},
-		pendingPermissions: {},
-		reasoning: '',
 		usage: undefined,
 	};
 }

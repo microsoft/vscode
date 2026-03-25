@@ -10,21 +10,37 @@ import { localize } from '../../../nls.js';
 
 const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
+	// Tab management
 	Open = `${commandPrefix}.open`,
 	NewTab = `${commandPrefix}.newTab`,
+	QuickOpen = `${commandPrefix}.quickOpen`,
+	CloseAll = `${commandPrefix}.closeAll`,
+	CloseAllInGroup = `${commandPrefix}.closeAllInGroup`,
+
+	// Navigation
 	GoBack = `${commandPrefix}.goBack`,
 	GoForward = `${commandPrefix}.goForward`,
 	Reload = `${commandPrefix}.reload`,
 	HardReload = `${commandPrefix}.hardReload`,
+
+	// Editor actions
 	FocusUrlInput = `${commandPrefix}.focusUrlInput`,
+	OpenExternal = `${commandPrefix}.openExternal`,
+	OpenSettings = `${commandPrefix}.openSettings`,
+
+	// Chat actions
 	AddElementToChat = `${commandPrefix}.addElementToChat`,
 	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
+
+	// Dev Tools
 	ToggleDevTools = `${commandPrefix}.toggleDevTools`,
-	OpenExternal = `${commandPrefix}.openExternal`,
+
+	// Storage
 	ClearGlobalStorage = `${commandPrefix}.clearGlobalStorage`,
 	ClearWorkspaceStorage = `${commandPrefix}.clearWorkspaceStorage`,
 	ClearEphemeralStorage = `${commandPrefix}.clearEphemeralStorage`,
-	OpenSettings = `${commandPrefix}.openSettings`,
+
+	// Find in page
 	ShowFind = `${commandPrefix}.showFind`,
 	HideFind = `${commandPrefix}.hideFind`,
 	FindNext = `${commandPrefix}.findNext`,
@@ -287,13 +303,6 @@ export interface IBrowserViewService {
 	 * @returns Screenshot as a buffer
 	 */
 	captureScreenshot(id: string, options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer>;
-
-	/**
-	 * Dispatch a key event to the browser view
-	 * @param id The browser view identifier
-	 * @param keyEvent The key event data
-	 */
-	dispatchKeyEvent(id: string, keyEvent: IBrowserViewKeyDownEvent): Promise<void>;
 
 	/**
 	 * Focus the browser view

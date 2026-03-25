@@ -104,9 +104,6 @@ class SlashCommandCompletions extends Disposable {
 
 				let customAgentTarget: Target | undefined = undefined;
 				if (widget.lockedAgentId) {
-					if (!widget.attachmentCapabilities.supportsPromptAttachments) {
-						return null;
-					}
 					const sessionResource = widget.viewModel.model.sessionResource;
 					const ctx = sessionResource && chatService.getChatSessionFromInternalUri(sessionResource);
 					customAgentTarget = (ctx ? chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource)) : undefined) ?? Target.Undefined;
@@ -137,13 +134,22 @@ class SlashCommandCompletions extends Disposable {
 				return {
 					suggestions: slashCommands
 						.filter(c => {
+							// silent commands are client-side only... so they're not "attaching anything"
+							// so this check can be scoped to when the command _does_ attach something before
+							// checking if the widget supports attachments at all
+							if (!c.silent && !widget.attachmentCapabilities.supportsPromptAttachments) {
+								return false;
+							}
+							if (c.when && !widget.scopedContextKeyService.contextMatchesRules(c.when)) {
+								return false;
+							}
 							if (!widget.lockedAgentId) {
 								return true;
 							}
 							if (c.modes && c.modes.length && !c.modes.includes(ChatModeKind.Agent)) {
 								return false;
 							}
-							if (c.target && customAgentTarget && c.target !== customAgentTarget) {
+							if (c.targets && customAgentTarget && !c.targets.includes(customAgentTarget)) {
 								return false;
 							}
 							return true;
@@ -192,19 +198,21 @@ class SlashCommandCompletions extends Disposable {
 				}
 
 				return {
-					suggestions: slashCommands.map((c, i): CompletionItem => {
-						const withSlash = `${chatSubcommandLeader}${c.command}`;
-						return {
-							label: { label: withSlash, description: c.detail },
-							insertText: c.executeImmediately ? '' : `${withSlash} `,
-							documentation: c.detail,
-							range,
-							filterText: `${chatAgentLeader}${c.command}`,
-							sortText: c.sortText ?? 'z'.repeat(i + 1),
-							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-							command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` } satisfies IChatExecuteActionContext] } : undefined,
-						};
-					})
+					suggestions: slashCommands
+						.filter(c => !c.when || widget.scopedContextKeyService.contextMatchesRules(c.when))
+						.map((c, i): CompletionItem => {
+							const withSlash = `${chatSubcommandLeader}${c.command}`;
+							return {
+								label: { label: withSlash, description: c.detail },
+								insertText: c.executeImmediately ? '' : `${withSlash} `,
+								documentation: c.detail,
+								range,
+								filterText: `${chatAgentLeader}${c.command}`,
+								sortText: c.sortText ?? 'z'.repeat(i + 1),
+								kind: CompletionItemKind.Text, // The icons are disabled here anyway,
+								command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` } satisfies IChatExecuteActionContext] } : undefined,
+							};
+						})
 				};
 			}
 		}));

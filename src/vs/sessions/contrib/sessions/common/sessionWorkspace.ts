@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
+
+export { AGENT_HOST_SCHEME };
 
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
 
 /**
  * Represents a workspace (folder or repository) for a session.
- * The workspace type (folder vs repo) is derived from the URI scheme.
+ * The workspace type (folder vs repo vs remote agent host) is derived from the URI scheme.
  */
 export class SessionWorkspace {
 
@@ -24,12 +27,17 @@ export class SessionWorkspace {
 
 	/** Whether this is a local folder workspace. */
 	get isFolder(): boolean {
-		return this.uri.scheme !== GITHUB_REMOTE_FILE_SCHEME;
+		return this.uri.scheme !== GITHUB_REMOTE_FILE_SCHEME && this.uri.scheme !== AGENT_HOST_SCHEME;
 	}
 
 	/** Whether this is a remote repository workspace. */
 	get isRepo(): boolean {
 		return this.uri.scheme === GITHUB_REMOTE_FILE_SCHEME;
+	}
+
+	/** Whether this is a remote agent host workspace. */
+	get isRemoteAgentHost(): boolean {
+		return this.uri.scheme === AGENT_HOST_SCHEME;
 	}
 
 	/** Returns a new SessionWorkspace with the repository updated. */

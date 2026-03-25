@@ -26,8 +26,6 @@ export {
 	type ISessionReadyAction,
 	type ISessionReasoningAction,
 	type ISessionResponsePartAction,
-	type ISessionPermissionRequestAction,
-	type ISessionPermissionResolvedAction,
 	type ISessionToolCallCompleteAction,
 	type ISessionToolCallConfirmedAction,
 	type ISessionToolCallApprovedAction,
@@ -49,26 +47,22 @@ export {
 
 export {
 	NotificationType,
+	AuthRequiredReason,
 	type ISessionAddedNotification,
 	type ISessionRemovedNotification,
+	type IAuthRequiredNotification,
 } from './protocol/notifications.js';
 
 // ---- Local aliases for short names ------------------------------------------
 // Consumers use these shorter names; they're type-only aliases.
 
 import type {
-	IActionEnvelope as _IActionEnvelope,
 	IRootAgentsChangedAction,
 	IRootActiveSessionsChangedAction,
-	ISessionCreationFailedAction,
 	ISessionDeltaAction,
-	ISessionErrorAction,
 	ISessionModelChangedAction,
-	ISessionReadyAction,
 	ISessionReasoningAction,
 	ISessionResponsePartAction,
-	ISessionPermissionRequestAction,
-	ISessionPermissionResolvedAction,
 	ISessionToolCallCompleteAction,
 	ISessionToolCallConfirmedAction,
 	ISessionToolCallDeltaAction,
@@ -80,18 +74,20 @@ import type {
 	ISessionTurnCompleteAction,
 	ISessionTurnStartedAction,
 	ISessionUsageAction,
-	ISessionServerToolsChangedAction,
-	ISessionActiveClientChangedAction,
-	ISessionActiveClientToolsChangedAction,
 	IStateAction,
 } from './protocol/actions.js';
 
 import type { IProtocolNotification } from './protocol/notifications.js';
+import type { IRootAction as IRootAction_, ISessionAction as ISessionAction_, IClientSessionAction as IClientSessionAction_, IServerSessionAction as IServerSessionAction_ } from './protocol/action-origin.generated.js';
+
+export type IRootAction = IRootAction_;
+export type ISessionAction = ISessionAction_;
+export type IClientSessionAction = IClientSessionAction_;
+export type IServerSessionAction = IServerSessionAction_;
 
 // Root actions
 export type IAgentsChangedAction = IRootAgentsChangedAction;
 export type IActiveSessionsChangedAction = IRootActiveSessionsChangedAction;
-export type IRootAction = IAgentsChangedAction | IActiveSessionsChangedAction;
 
 // Session actions — short aliases
 export type ITurnStartedAction = ISessionTurnStartedAction;
@@ -105,40 +101,12 @@ export type IToolCallDeniedAction = import('./protocol/actions.js').ISessionTool
 export type IToolCallConfirmedAction = ISessionToolCallConfirmedAction;
 export type IToolCallCompleteAction = ISessionToolCallCompleteAction;
 export type IToolCallResultConfirmedAction = ISessionToolCallResultConfirmedAction;
-export type IPermissionRequestAction = ISessionPermissionRequestAction;
-export type IPermissionResolvedAction = ISessionPermissionResolvedAction;
 export type ITurnCompleteAction = ISessionTurnCompleteAction;
 export type ITurnCancelledAction = ISessionTurnCancelledAction;
 export type ITitleChangedAction = ISessionTitleChangedAction;
 export type IUsageAction = ISessionUsageAction;
 export type IReasoningAction = ISessionReasoningAction;
 export type IModelChangedAction = ISessionModelChangedAction;
-
-/** Union of all session-scoped actions. */
-export type ISessionAction =
-	| ISessionReadyAction
-	| ISessionCreationFailedAction
-	| ISessionTurnStartedAction
-	| ISessionDeltaAction
-	| ISessionResponsePartAction
-	| ISessionToolCallStartAction
-	| ISessionToolCallDeltaAction
-	| ISessionToolCallReadyAction
-	| ISessionToolCallConfirmedAction
-	| ISessionToolCallCompleteAction
-	| ISessionToolCallResultConfirmedAction
-	| ISessionPermissionRequestAction
-	| ISessionPermissionResolvedAction
-	| ISessionTurnCompleteAction
-	| ISessionTurnCancelledAction
-	| ISessionErrorAction
-	| ISessionTitleChangedAction
-	| ISessionUsageAction
-	| ISessionReasoningAction
-	| ISessionModelChangedAction
-	| ISessionServerToolsChangedAction
-	| ISessionActiveClientChangedAction
-	| ISessionActiveClientToolsChangedAction;
 
 // Notifications
 export type INotification = IProtocolNotification;

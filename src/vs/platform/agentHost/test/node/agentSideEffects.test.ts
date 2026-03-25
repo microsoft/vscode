@@ -14,8 +14,9 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
-import { IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
-import { SessionStatus } from '../../common/state/sessionState.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
+import { ActionType, IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
+import { ResponsePartKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type IMarkdownResponsePart, type IToolCallCompletedState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { SessionStateManager } from '../../node/sessionStateManager.js';
 import { MockAgent } from './mockAgent.js';
@@ -42,12 +43,12 @@ suite('AgentSideEffects', () => {
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
 		});
-		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri.toString() });
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri.toString() });
 	}
 
 	function startTurn(turnId: string): void {
 		stateManager.dispatchClientAction(
-			{ type: 'session/turnStarted', session: sessionUri.toString(), turnId, userMessage: { text: 'hello' } },
+			{ type: ActionType.SessionTurnStarted, session: sessionUri.toString(), turnId, userMessage: { text: 'hello' } },
 			{ clientId: 'test', clientSeq: 1 },
 		);
 	}
@@ -69,6 +70,13 @@ suite('AgentSideEffects', () => {
 		sideEffects = disposables.add(new AgentSideEffects(stateManager, {
 			getAgent: () => agent,
 			agents: agentList,
+			sessionDataService: {
+				_serviceBrand: undefined,
+				getSessionDataDir: () => URI.from({ scheme: Schemas.inMemory, path: '/session-data' }),
+				getSessionDataDirById: () => URI.from({ scheme: Schemas.inMemory, path: '/session-data' }),
+				deleteSessionData: async () => { },
+				cleanupOrphanedData: async () => { },
+			} satisfies ISessionDataService,
 		}, new NullLogService(), fileService));
 	});
 
@@ -84,7 +92,7 @@ suite('AgentSideEffects', () => {
 		test('calls sendMessage on the agent', async () => {
 			setupSession();
 			const action: ISessionAction = {
-				type: 'session/turnStarted',
+				type: ActionType.SessionTurnStarted,
 				session: sessionUri.toString(),
 				turnId: 'turn-1',
 				userMessage: { text: 'hello world' },
@@ -103,19 +111,20 @@ suite('AgentSideEffects', () => {
 			const noAgentSideEffects = disposables.add(new AgentSideEffects(stateManager, {
 				getAgent: () => undefined,
 				agents: emptyAgents,
+				sessionDataService: {} as ISessionDataService,
 			}, new NullLogService(), fileService));
 
 			const envelopes: IActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			noAgentSideEffects.handleAction({
-				type: 'session/turnStarted',
+				type: ActionType.SessionTurnStarted,
 				session: sessionUri.toString(),
 				turnId: 'turn-1',
 				userMessage: { text: 'hello' },
 			});
 
-			const errorAction = envelopes.find(e => e.action.type === 'session/error');
+			const errorAction = envelopes.find(e => e.action.type === ActionType.SessionError);
 			assert.ok(errorAction, 'should dispatch session/error');
 		});
 	});
@@ -127,7 +136,7 @@ suite('AgentSideEffects', () => {
 		test('calls abortSession on the agent', async () => {
 			setupSession();
 			sideEffects.handleAction({
-				type: 'session/turnCancelled',
+				type: ActionType.SessionTurnCancelled,
 				session: sessionUri.toString(),
 				turnId: 'turn-1',
 			});
@@ -138,38 +147,6 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
-	// ---- handleAction: session/permissionResolved -----------------------
-
-	suite('handleAction — session/permissionResolved', () => {
-
-		test('routes permission response to the correct agent', () => {
-			setupSession();
-			startTurn('turn-1');
-
-			// Simulate a permission_request progress event to populate the pending map
-			disposables.add(sideEffects.registerProgressListener(agent));
-			agent.fireProgress({
-				session: sessionUri,
-				type: 'permission_request',
-				requestId: 'perm-1',
-				permissionKind: 'write',
-				path: 'file.ts',
-				rawRequest: '{}',
-			});
-
-			// Now resolve it
-			sideEffects.handleAction({
-				type: 'session/permissionResolved',
-				session: sessionUri.toString(),
-				turnId: 'turn-1',
-				requestId: 'perm-1',
-				approved: true,
-			});
-
-			assert.deepStrictEqual(agent.respondToPermissionCalls, [{ requestId: 'perm-1', approved: true }]);
-		});
-	});
-
 	// ---- handleAction: session/modelChanged -----------------------------
 
 	suite('handleAction — session/modelChanged', () => {
@@ -177,7 +154,7 @@ suite('AgentSideEffects', () => {
 		test('calls changeModel on the agent', async () => {
 			setupSession();
 			sideEffects.handleAction({
-				type: 'session/modelChanged',
+				type: ActionType.SessionModelChanged,
 				session: sessionUri.toString(),
 				model: 'gpt-5',
 			});
@@ -202,7 +179,8 @@ suite('AgentSideEffects', () => {
 
 			agent.fireProgress({ session: sessionUri, type: 'delta', messageId: 'msg-1', content: 'hi' });
 
-			assert.ok(envelopes.some(e => e.action.type === 'session/delta'));
+			// First delta creates a response part (not a delta action)
+			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionResponsePart));
 		});
 
 		test('returns a disposable that stops listening', () => {
@@ -214,11 +192,11 @@ suite('AgentSideEffects', () => {
 			const listener = sideEffects.registerProgressListener(agent);
 
 			agent.fireProgress({ session: sessionUri, type: 'delta', messageId: 'msg-1', content: 'before' });
-			assert.strictEqual(envelopes.filter(e => e.action.type === 'session/delta').length, 1);
+			assert.strictEqual(envelopes.filter(e => e.action.type === ActionType.SessionResponsePart).length, 1);
 
 			listener.dispose();
 			agent.fireProgress({ session: sessionUri, type: 'delta', messageId: 'msg-2', content: 'after' });
-			assert.strictEqual(envelopes.filter(e => e.action.type === 'session/delta').length, 1);
+			assert.strictEqual(envelopes.filter(e => e.action.type === ActionType.SessionResponsePart).length, 1);
 		});
 	});
 
@@ -232,7 +210,7 @@ suite('AgentSideEffects', () => {
 
 			await sideEffects.handleCreateSession({ session: sessionUri.toString(), provider: 'mock' });
 
-			const ready = envelopes.find(e => e.action.type === 'session/ready');
+			const ready = envelopes.find(e => e.action.type === ActionType.SessionReady);
 			assert.ok(ready, 'should dispatch session/ready');
 		});
 
@@ -248,6 +226,7 @@ suite('AgentSideEffects', () => {
 			const noAgentSideEffects = disposables.add(new AgentSideEffects(stateManager, {
 				getAgent: () => undefined,
 				agents: emptyAgents,
+				sessionDataService: {} as ISessionDataService,
 			}, new NullLogService(), fileService));
 
 			await assert.rejects(
@@ -286,6 +265,188 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
+	// ---- handleRestoreSession -----------------------------------------------
+
+	suite('handleRestoreSession', () => {
+
+		test('restores a session with message history into the state manager', async () => {
+			// Create a session on the agent backend (not in the state manager)
+			const session = await agent.createSession();
+			const sessions = await agent.listSessions();
+			const sessionResource = sessions[0].session.toString();
+
+			// Set up the agent's stored messages
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi there!', toolRequests: [] },
+			];
+
+			// Before restore, state manager shouldn't have it
+			assert.strictEqual(stateManager.getSessionState(sessionResource), undefined);
+
+			await sideEffects.handleRestoreSession(sessionResource);
+
+			// After restore, state manager should have it
+			const state = stateManager.getSessionState(sessionResource);
+			assert.ok(state, 'session should be in state manager');
+			assert.strictEqual(state!.lifecycle, SessionLifecycle.Ready);
+			assert.strictEqual(state!.turns.length, 1);
+			assert.strictEqual(state!.turns[0].userMessage.text, 'Hello');
+			const mdPart = state!.turns[0].responseParts.find((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			assert.ok(mdPart, 'should have a markdown response part');
+			assert.strictEqual(mdPart.content, 'Hi there!');
+			assert.strictEqual(state!.turns[0].state, TurnState.Complete);
+		});
+
+		test('restores a session with tool calls', async () => {
+			const session = await agent.createSession();
+			const sessions = await agent.listSessions();
+			const sessionResource = sessions[0].session.toString();
+
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Run a command', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'I will run a command.', toolRequests: [{ toolCallId: 'tc-1', name: 'shell' }] },
+				{ type: 'tool_start', session, toolCallId: 'tc-1', toolName: 'shell', displayName: 'Shell', invocationMessage: 'Running command...' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-1', result: { success: true, pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Text, text: 'output' }] } },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-3', content: 'Done!', toolRequests: [] },
+			];
+
+			await sideEffects.handleRestoreSession(sessionResource);
+
+			const state = stateManager.getSessionState(sessionResource);
+			assert.ok(state);
+			assert.strictEqual(state!.turns.length, 1);
+
+			const turn = state!.turns[0];
+			const toolCallParts = turn.responseParts.filter((p): p is IToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			assert.strictEqual(toolCallParts.length, 1);
+			const tc = toolCallParts[0].toolCall as IToolCallCompletedState;
+			assert.strictEqual(tc.status, ToolCallStatus.Completed);
+			assert.strictEqual(tc.toolCallId, 'tc-1');
+			assert.strictEqual(tc.toolName, 'shell');
+			assert.strictEqual(tc.displayName, 'Shell');
+			assert.strictEqual(tc.success, true);
+			assert.strictEqual(tc.confirmed, ToolCallConfirmationReason.NotNeeded);
+		});
+
+		test('restores a session with multiple turns', async () => {
+			const session = await agent.createSession();
+			const sessions = await agent.listSessions();
+			const sessionResource = sessions[0].session.toString();
+
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'First question', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'First answer', toolRequests: [] },
+				{ type: 'message', session, role: 'user', messageId: 'msg-3', content: 'Second question', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-4', content: 'Second answer', toolRequests: [] },
+			];
+
+			await sideEffects.handleRestoreSession(sessionResource);
+
+			const state = stateManager.getSessionState(sessionResource);
+			assert.ok(state);
+			assert.strictEqual(state!.turns.length, 2);
+			assert.strictEqual(state!.turns[0].userMessage.text, 'First question');
+			const mdPart0 = state!.turns[0].responseParts.find((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			assert.strictEqual(mdPart0?.content, 'First answer');
+			assert.strictEqual(state!.turns[1].userMessage.text, 'Second question');
+			const mdPart1 = state!.turns[1].responseParts.find((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			assert.strictEqual(mdPart1?.content, 'Second answer');
+		});
+
+		test('flushes interrupted turns when user message arrives without closing assistant message', async () => {
+			const session = await agent.createSession();
+			const sessions = await agent.listSessions();
+			const sessionResource = sessions[0].session.toString();
+
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Interrupted question', toolRequests: [] },
+				// No assistant message - the turn was interrupted
+				{ type: 'message', session, role: 'user', messageId: 'msg-2', content: 'Retried question', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-3', content: 'Answer', toolRequests: [] },
+			];
+
+			await sideEffects.handleRestoreSession(sessionResource);
+
+			const state = stateManager.getSessionState(sessionResource);
+			assert.ok(state);
+			assert.strictEqual(state!.turns.length, 2);
+			assert.strictEqual(state!.turns[0].userMessage.text, 'Interrupted question');
+			const mdPart0 = state!.turns[0].responseParts.find((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			assert.ok(!mdPart0 || mdPart0.content === '', 'interrupted turn should have empty response');
+			assert.strictEqual(state!.turns[0].state, TurnState.Cancelled);
+			assert.strictEqual(state!.turns[1].userMessage.text, 'Retried question');
+			const mdPart1 = state!.turns[1].responseParts.find((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			assert.strictEqual(mdPart1?.content, 'Answer');
+			assert.strictEqual(state!.turns[1].state, TurnState.Complete);
+		});
+
+		test('is a no-op for a session already in the state manager', async () => {
+			setupSession();
+			// Should not throw or create a duplicate
+			await sideEffects.handleRestoreSession(sessionUri.toString());
+			assert.ok(stateManager.getSessionState(sessionUri.toString()));
+		});
+
+		test('throws when no agent found for session', async () => {
+			const noAgentSideEffects = disposables.add(new AgentSideEffects(stateManager, {
+				getAgent: () => undefined,
+				agents: observableValue<readonly IAgent[]>('agents', []),
+				sessionDataService: {} as ISessionDataService,
+			}, new NullLogService(), fileService));
+
+			await assert.rejects(
+				() => noAgentSideEffects.handleRestoreSession('unknown://session-1'),
+				/No agent for session/,
+			);
+		});
+
+		test('response parts include markdown segments', async () => {
+			const session = await agent.createSession();
+			const sessions = await agent.listSessions();
+			const sessionResource = sessions[0].session.toString();
+
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'response text', toolRequests: [] },
+			];
+
+			await sideEffects.handleRestoreSession(sessionResource);
+
+			const state = stateManager.getSessionState(sessionResource);
+			assert.ok(state);
+			assert.strictEqual(state!.turns[0].responseParts.length, 1);
+			assert.strictEqual(state!.turns[0].responseParts[0].kind, ResponsePartKind.Markdown);
+			assert.strictEqual(state!.turns[0].responseParts[0].content, 'response text');
+		});
+
+		test('throws when session is not found on backend', async () => {
+			// Agent exists but session is not in listSessions
+			await assert.rejects(
+				() => sideEffects.handleRestoreSession(AgentSession.uri('mock', 'nonexistent').toString()),
+				/Session not found on backend/,
+			);
+		});
+
+		test('preserves workingDirectory from agent metadata', async () => {
+			agent.sessionMetadataOverrides = { workingDirectory: '/home/user/project' };
+			const session = await agent.createSession();
+			const sessions = await agent.listSessions();
+			const sessionResource = sessions[0].session.toString();
+
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'hi', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'hello', toolRequests: [] },
+			];
+
+			await sideEffects.handleRestoreSession(sessionResource);
+
+			const state = stateManager.getSessionState(sessionResource);
+			assert.ok(state);
+			assert.strictEqual(state!.summary.workingDirectory, '/home/user/project');
+		});
+	});
+
 	// ---- handleBrowseDirectory ------------------------------------------
 
 	suite('handleBrowseDirectory', () => {
@@ -318,8 +479,47 @@ suite('AgentSideEffects', () => {
 			// Model fetch is async — wait for it
 			await new Promise(r => setTimeout(r, 50));
 
-			const action = envelopes.find(e => e.action.type === 'root/agentsChanged');
+			const action = envelopes.find(e => e.action.type === ActionType.RootAgentsChanged);
 			assert.ok(action, 'should dispatch root/agentsChanged');
+		});
+	});
+
+	// ---- handleGetResourceMetadata / handleAuthenticate -----------------
+
+	suite('auth', () => {
+
+		test('handleGetResourceMetadata aggregates resources from agents', () => {
+			agentList.set([agent], undefined);
+
+			const metadata = sideEffects.handleGetResourceMetadata();
+			assert.strictEqual(metadata.resources.length, 0, 'mock agent has no protected resources');
+		});
+
+		test('handleGetResourceMetadata returns resources when agent declares them', () => {
+			const copilotAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => copilotAgent.dispose()));
+			agentList.set([copilotAgent], undefined);
+
+			const metadata = sideEffects.handleGetResourceMetadata();
+			assert.strictEqual(metadata.resources.length, 1);
+			assert.strictEqual(metadata.resources[0].resource, 'https://api.github.com');
+		});
+
+		test('handleAuthenticate returns authenticated for matching resource', async () => {
+			const copilotAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => copilotAgent.dispose()));
+			agentList.set([copilotAgent], undefined);
+
+			const result = await sideEffects.handleAuthenticate({ resource: 'https://api.github.com', token: 'test-token' });
+			assert.deepStrictEqual(result, { authenticated: true });
+			assert.deepStrictEqual(copilotAgent.authenticateCalls, [{ resource: 'https://api.github.com', token: 'test-token' }]);
+		});
+
+		test('handleAuthenticate returns not authenticated for non-matching resource', async () => {
+			agentList.set([agent], undefined);
+
+			const result = await sideEffects.handleAuthenticate({ resource: 'https://unknown.example.com', token: 'test-token' });
+			assert.deepStrictEqual(result, { authenticated: false });
 		});
 	});
 });

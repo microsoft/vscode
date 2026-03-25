@@ -155,6 +155,8 @@ export class AgenticPromptsService extends PromptsService {
 			uri: s.uri,
 			storage: BUILTIN_STORAGE,
 			type: PromptsType.skill,
+			name: s.name,
+			description: s.description,
 		}));
 	}
 
@@ -175,7 +177,8 @@ export class AgenticPromptsService extends PromptsService {
 
 		// Collect names already present from other sources
 		const existingNames = new Set(baseResult.map(s => s.name));
-		const nonOverridden = builtinSkills.filter(s => !existingNames.has(s.name));
+		const disabledSkills = this.getDisabledPromptFiles(PromptsType.skill);
+		const nonOverridden = builtinSkills.filter(s => !existingNames.has(s.name) && !disabledSkills.has(s.uri));
 		if (nonOverridden.length === 0) {
 			return baseResult;
 		}
