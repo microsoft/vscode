@@ -7,24 +7,24 @@ import { Throttler } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentProvider, AgentSession, IAgentAttachment, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ActionType, isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, isSessionAction, type ISessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { getToolKind, getToolLanguage } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
-import { AttachmentType, ResponsePartKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type IMessageAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AttachmentType, PendingMessageKind, ResponsePartKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type IMessageAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind, ChatRequestQueueKind } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -115,6 +115,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _activeSessions = new Map<string, AgentHostChatSession>();
 	/** Maps UI resource keys to resolved backend session URIs. */
 	private readonly _sessionToBackend = new Map<string, URI>();
+	/** Per-session subscription to chat model pending request changes. */
+	private readonly _pendingMessageSubscriptions = this._register(new DisposableMap<string>());
 	private readonly _config: IAgentHostSessionHandlerConfig;
 
 	/** Client state manager shared across all sessions for this handler. */
@@ -176,13 +178,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			history,
 			async (request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, token: CancellationToken) => {
 				const backendSession = resolvedSession ?? await this._createAndSubscribe(sessionResource, request.userSelectedModelId);
-				resolvedSession = backendSession;
-				this._sessionToBackend.set(resourceKey, backendSession);
+				if (!resolvedSession) {
+					resolvedSession = backendSession;
+					this._sessionToBackend.set(resourceKey, backendSession);
+				}
 				return this._handleTurn(backendSession, request, progress, token);
 			},
 			() => {
 				this._activeSessions.delete(resourceKey);
 				this._sessionToBackend.delete(resourceKey);
+				this._pendingMessageSubscriptions.deleteAndDispose(resourceKey);
 				if (resolvedSession) {
 					this._clientState.unsubscribe(resolvedSession.toString());
 					this._config.connection.unsubscribe(resolvedSession);
@@ -248,6 +253,103 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		return {};
+	}
+
+	// ---- Pending message sync -----------------------------------------------
+
+	/**
+	 * Diffs the chat model's pending requests against the protocol state in
+	 * `_clientState` and dispatches Set/Removed/Reordered actions as needed.
+	 */
+	private _syncPendingMessages(sessionResource: URI, backendSession: URI): void {
+		const chatModel = this._chatService.getSession(sessionResource);
+		if (!chatModel) {
+			return;
+		}
+		const session = backendSession.toString();
+		const pending = chatModel.getPendingRequests();
+		const protocolState = this._clientState.getSessionState(session);
+		const prevSteering = protocolState?.steeringMessage;
+		const prevQueued = protocolState?.queuedMessages ?? [];
+
+		// Compute current state from chat model
+		let currentSteering: { id: string; text: string } | undefined;
+		const currentQueued: { id: string; text: string }[] = [];
+		for (const p of pending) {
+			if (p.kind === ChatRequestQueueKind.Steering) {
+				currentSteering = { id: p.request.id, text: p.request.message.text };
+			} else {
+				currentQueued.push({ id: p.request.id, text: p.request.message.text });
+			}
+		}
+
+		// --- Steering ---
+		if (currentSteering) {
+			if (currentSteering.id !== prevSteering?.id) {
+				this._dispatchAction({
+					type: ActionType.SessionPendingMessageSet,
+					session,
+					kind: PendingMessageKind.Steering,
+					id: currentSteering.id,
+					userMessage: { text: currentSteering.text },
+				});
+			}
+		} else if (prevSteering) {
+			this._dispatchAction({
+				type: ActionType.SessionPendingMessageRemoved,
+				session,
+				kind: PendingMessageKind.Steering,
+				id: prevSteering.id,
+			});
+		}
+
+		// --- Queued: removals ---
+		const currentQueuedIds = new Set(currentQueued.map(q => q.id));
+		for (const prev of prevQueued) {
+			if (!currentQueuedIds.has(prev.id)) {
+				this._dispatchAction({
+					type: ActionType.SessionPendingMessageRemoved,
+					session,
+					kind: PendingMessageKind.Queued,
+					id: prev.id,
+				});
+			}
+		}
+
+		// --- Queued: additions ---
+		const prevQueuedIds = new Set(prevQueued.map(q => q.id));
+		for (const q of currentQueued) {
+			if (!prevQueuedIds.has(q.id)) {
+				this._dispatchAction({
+					type: ActionType.SessionPendingMessageSet,
+					session,
+					kind: PendingMessageKind.Queued,
+					id: q.id,
+					userMessage: { text: q.text },
+				});
+			}
+		}
+
+		// --- Queued: reordering ---
+		// After additions/removals, check if the remaining common items changed order.
+		// Re-read protocol state since dispatches above may have mutated it.
+		const updatedProtocol = this._clientState.getSessionState(session);
+		const updatedQueued = updatedProtocol?.queuedMessages ?? [];
+		if (updatedQueued.length > 1 && currentQueued.length === updatedQueued.length) {
+			const needsReorder = currentQueued.some((q, i) => q.id !== updatedQueued[i].id);
+			if (needsReorder) {
+				this._dispatchAction({
+					type: ActionType.SessionQueuedMessagesReordered,
+					session,
+					order: currentQueued.map(q => q.id),
+				});
+			}
+		}
+	}
+
+	private _dispatchAction(action: ISessionAction): void {
+		const seq = this._clientState.applyOptimistic(action);
+		this._config.connection.dispatchAction(action, this._clientState.clientId, seq);
 	}
 
 	// ---- Turn handling (state-driven) ---------------------------------------
@@ -588,6 +690,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._clientState.handleSnapshot(session.toString(), snapshot.state, snapshot.fromSeq);
 		} catch (err) {
 			this._logService.error(`[AgentHost] Failed to subscribe to new session: ${session.toString()}`, err);
+		}
+
+		// Start syncing the chat model's pending requests to the protocol
+		const chatModel = this._chatService?.getSession(sessionResource);
+		if (chatModel) {
+			this._pendingMessageSubscriptions.set(resourceKey, chatModel.onDidChangePendingRequests(() => {
+				this._syncPendingMessages(sessionResource, session);
+			}));
 		}
 
 		return session;
