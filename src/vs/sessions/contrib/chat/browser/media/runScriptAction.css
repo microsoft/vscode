@@ -166,15 +166,6 @@
 	box-shadow: var(--vscode-shadow-xl);
 }
 
-.quick-input-widget.run-script-action-quick-widget::before {
-	content: '';
-	position: fixed;
-	inset: 0;
-	background: rgba(0, 0, 0, 0.3);
-	pointer-events: none;
-	z-index: -1;
-}
-
 .quick-input-widget.run-script-action-quick-widget .quick-input-html-widget {
 	border-bottom-left-radius: 8px;
 	border-bottom-right-radius: 8px;
@@ -184,4 +175,11 @@
 .quick-input-widget.run-script-action-quick-widget .quick-input-header,
 .quick-input-widget.run-script-action-quick-widget .run-script-action-widget {
 	background-color: var(--vscode-editor-background);
+}
+
+.run-script-action-modal-backdrop {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.3);
+	z-index: 2549;
 }

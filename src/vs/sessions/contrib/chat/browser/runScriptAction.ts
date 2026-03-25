@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
@@ -419,6 +419,16 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				mode: isConfigureMode ? 'configure' : existingTask ? 'add-existing' : 'add',
 			}));
 			quickWidget.widget = widget.domNode;
+			const targetWindow = getWindow(widget.domNode);
+			const backdrop = targetWindow.document.createElement('div');
+			backdrop.classList.add('run-script-action-modal-backdrop');
+			targetWindow.document.body.appendChild(backdrop);
+			disposables.add(addDisposableListener(backdrop, EventType.MOUSE_DOWN, e => {
+				e.preventDefault();
+				e.stopPropagation();
+				complete(undefined);
+			}));
+			disposables.add({ dispose: () => backdrop.remove() });
 
 			const complete = (result: IRunScriptCustomTaskWidgetResult | undefined) => {
 				if (settled) {
