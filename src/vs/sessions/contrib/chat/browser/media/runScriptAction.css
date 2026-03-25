@@ -142,7 +142,7 @@
 .quick-input-widget.run-script-action-quick-widget .quick-input-titlebar {
 	gap: 8px;
 	height: 32px;
-	padding: 0 6px;
+	padding: 0 6px 0 0;
 	border-top-left-radius: 8px;
 	border-top-right-radius: 8px;
 	border-bottom: 1px solid var(--vscode-titleBar-border, var(--vscode-widget-border, transparent));
@@ -151,14 +151,6 @@
 
 .quick-input-widget.run-script-action-quick-widget .quick-input-right-action-bar {
 	margin-right: 0;
-}
-
-.quick-input-widget.run-script-action-quick-widget .quick-input-right-action-bar .actions-container > .action-item {
-	margin-left: 0;
-}
-
-.quick-input-widget.run-script-action-quick-widget .quick-input-titlebar .monaco-action-bar .action-label.codicon {
-	padding: 0;
 }
 
 .quick-input-widget.run-script-action-quick-widget .quick-input-title {
