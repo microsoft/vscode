@@ -392,10 +392,10 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					? localize('addExistingActionWidgetTitle', "Add Existing Task...")
 					: localize('addActionWidgetTitle', "Add Task");
 			quickWidget.description = isConfigureMode
-				? localize('configureActionWidgetDescription', "Update how this task is named, saved, and run")
+				? localize('configureActionWidgetDescription', "Update how this task is named, saved, and run.")
 				: existingTask
-					? localize('addExistingActionWidgetDescription', "Enable an existing task for sessions and configure when it should run")
-					: localize('addActionWidgetDescription', "Create a shell task and configure how it should be saved and run");
+					? localize('addExistingActionWidgetDescription', "Enable an existing task for sessions and configure when it should run.")
+					: localize('addActionWidgetDescription', "Create a shell task and configure how it should be saved and run.");
 			quickWidget.ignoreFocusOut = true;
 			quickWidget.buttons = [closeQuickWidgetButton];
 			const widget = disposables.add(new RunScriptCustomTaskWidget({
