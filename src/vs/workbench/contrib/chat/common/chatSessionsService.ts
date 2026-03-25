@@ -292,6 +292,8 @@ export interface IChatSessionCustomizationItem {
 export interface IChatSessionCustomizationItemGroup {
 	readonly id: string;
 	readonly items: IChatSessionCustomizationItem[];
+	readonly commands?: readonly { readonly id: string; readonly title: string; readonly arguments?: readonly unknown[] }[];
+	readonly itemCommands?: readonly { readonly id: string; readonly title: string; readonly arguments?: readonly unknown[] }[];
 }
 
 export interface IChatSessionCustomizationsProvider {

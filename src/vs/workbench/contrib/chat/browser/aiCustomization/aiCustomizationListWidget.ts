@@ -60,7 +60,7 @@ import { evaluateApplyToPattern } from '../../common/promptSyntax/computeAutomat
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IChatSessionsService, IChatSessionCustomizationItem } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, IChatSessionCustomizationItem, IChatSessionCustomizationItemGroup } from '../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
@@ -604,6 +604,7 @@ export class AICustomizationListWidget extends Disposable {
 	private displayEntries: IListEntry[] = [];
 	private searchQuery: string = '';
 	private readonly collapsedGroups = new Set<string>();
+	private _currentGroupCommands: IChatSessionCustomizationItemGroup['commands'];
 	private readonly dropdownActionDisposables = this._register(new DisposableStore());
 
 	private readonly delayedFilter = new Delayer<void>(200);
@@ -953,6 +954,19 @@ export class AICustomizationListWidget extends Disposable {
 		const override = descriptor.sectionOverrides?.get(this.currentSection);
 		const hasWorkspace = this.hasActiveWorkspace();
 
+		// Extension-contributed harness: use commands from the provider group
+		const activeHarness = this.harnessService.activeHarness.get();
+		const isBuiltInHarness = activeHarness === CustomizationHarness.VSCode ||
+			activeHarness === CustomizationHarness.CLI ||
+			activeHarness === CustomizationHarness.Claude;
+		if (!isBuiltInHarness && this._currentGroupCommands?.length) {
+			return this._currentGroupCommands.map(cmd => ({
+				label: `$(${Codicon.add.id}) ${cmd.title}`,
+				enabled: true,
+				run: () => { this.commandService.executeCommand(cmd.id, ...(cmd.arguments ?? [])); },
+			}));
+		}
+
 		// Full command override (e.g. Claude hooks) — single action, no dropdown
 		if (override?.commandId) {
 			return [{
@@ -1128,6 +1142,7 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	private async loadItems(): Promise<void> {
 		const section = this.currentSection;
+		this._currentGroupCommands = undefined;
 		const items = await this.fetchItemsForSection(section);
 
 		if (this.currentSection !== section) {
@@ -1585,6 +1600,11 @@ export class AICustomizationListWidget extends Disposable {
 		// Filter groups to only those matching the current section
 		const matchingGroupIds = sectionToCustomizationGroupIds(section);
 		const filteredGroups = groups.filter(g => matchingGroupIds.includes(g.id));
+
+		// Save group commands for the active section so buildCreateActions can use them
+		if (section === this.currentSection) {
+			this._currentGroupCommands = filteredGroups.flatMap(g => g.commands ?? []);
+		}
 
 		const items: IAICustomizationListItem[] = [];
 		for (const group of filteredGroups) {
