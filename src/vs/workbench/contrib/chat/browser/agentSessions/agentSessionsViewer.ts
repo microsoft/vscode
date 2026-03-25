@@ -420,6 +420,15 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return Codicon.error;
 		}
 
+		// PR status icons
+		const metadata = session.metadata;
+		if (metadata?.pullRequestUrl || metadata?.pullRequestNumber) {
+			if (metadata.pullRequestMerged === true) {
+				return Codicon.gitMerge;
+			}
+			return Codicon.gitPullRequest;
+		}
+
 		if (!session.isRead() && !session.isArchived()) {
 			return Codicon.circleFilled;
 		}
