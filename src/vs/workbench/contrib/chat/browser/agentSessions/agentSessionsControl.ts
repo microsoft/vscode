@@ -404,12 +404,22 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				);
 			};
 
-			// Listen to tree model changes — collapse any expanded show-more
-			// since element references are invalidated after refresh
+			// Listen to tree model changes — rebuild the section map
+			// and re-acquire the expanded element reference if still valid
 			this._register(list.onDidChangeModel(() => {
-				expandedShowMoreElement = undefined;
-				expandedSectionLabel = undefined;
+				const previousSectionLabel = expandedSectionLabel;
 				rebuildSectionMap();
+
+				// Re-acquire the show-more reference for the previously expanded section
+				if (previousSectionLabel) {
+					const newShowMoreItem = sectionToShowMore.get(previousSectionLabel);
+					if (newShowMoreItem && list.hasNode(newShowMoreItem)) {
+						expandedShowMoreElement = newShowMoreItem;
+					} else {
+						expandedShowMoreElement = undefined;
+						expandedSectionLabel = undefined;
+					}
+				}
 			}));
 
 			// On mouseover, determine section from the hovered element
