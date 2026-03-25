@@ -13,10 +13,11 @@ import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHos
 import { isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../platform/agentHost/common/state/sessionClientState.js';
 import { ROOT_STATE_URI, type IAgentInfo, type IRootState } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -31,6 +32,7 @@ import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { ISessionsManagementService } from '../../../contrib/sessions/browser/sessionsManagementService.js';
+import { promptToConnectViaSSH } from './remoteAgentHostPicker.js';
 
 /**
  * Given a sanitized URI authority, resolves the corresponding agent host
@@ -402,6 +404,21 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 }
 
 registerWorkbenchContribution2(RemoteAgentHostContribution.ID, RemoteAgentHostContribution, WorkbenchPhase.AfterRestored);
+
+class ConnectViaSSHAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.sessions.connectViaSSH',
+			title: nls.localize2('connectViaSSH', "Connect to Remote Agent Host via SSH"),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await promptToConnectViaSSH(accessor);
+	}
+}
+
+registerAction2(ConnectViaSSHAction);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	properties: {

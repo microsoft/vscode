@@ -8,6 +8,7 @@ import { localize } from '../../../../nls.js';
 import { agentHostUri } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IParsedRemoteAgentHostInput, IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostInputValidationError } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig } from '../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -16,7 +17,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 
 interface IRemoteAgentHostPickItem extends IQuickPickItem {
-	readonly remoteType: 'existing' | 'add';
+	readonly remoteType: 'existing' | 'add' | 'ssh';
 	readonly address?: string;
 	readonly defaultDirectory?: string;
 }
@@ -58,6 +59,11 @@ export async function pickRemoteAgentHostFolder(
 			};
 		});
 		picks.push({
+			remoteType: 'ssh',
+			label: localize('connectSSH', "Connect via SSH..."),
+			description: localize('connectSSHDescription', "Bootstrap a remote agent host over SSH"),
+		});
+		picks.push({
 			remoteType: 'add',
 			label: localize('addRemote', "Add Remote..."),
 			description: localize('addRemoteDescription', "Connect to a new remote agent host"),
@@ -96,6 +102,14 @@ export async function pickRemoteAgentHostFolder(
 				notificationService.error(localize('connectRemoteFailed', "Failed to connect to remote agent host {0}.", configuredEntry.address));
 				return undefined;
 			}
+		} else if (picked.remoteType === 'ssh') {
+			const sshResult = await promptToConnectViaSSH(accessor);
+			if (!sshResult) {
+				return undefined;
+			}
+			selectedAddress = sshResult.address;
+			selectedName = sshResult.name;
+			defaultDirectory = sshResult.defaultDirectory;
 		} else {
 			const addedRemote = await promptToAddRemoteAgentHost(remoteAgentHostService, quickInputService, notificationService);
 			if (!addedRemote) {
@@ -106,13 +120,45 @@ export async function pickRemoteAgentHostFolder(
 			defaultDirectory = addedRemote.defaultDirectory;
 		}
 	} else {
-		const addedRemote = await promptToAddRemoteAgentHost(remoteAgentHostService, quickInputService, notificationService);
-		if (!addedRemote) {
+		// No configured entries — show both SSH and direct WebSocket options
+		const picks: IRemoteAgentHostPickItem[] = [
+			{
+				remoteType: 'ssh',
+				label: localize('connectSSH', "Connect via SSH..."),
+				description: localize('connectSSHDescription', "Bootstrap a remote agent host over SSH"),
+			},
+			{
+				remoteType: 'add',
+				label: localize('addRemote', "Add Remote..."),
+				description: localize('addRemoteDescription', "Connect to a new remote agent host"),
+			},
+		];
+
+		const picked = await quickInputService.pick(picks, {
+			title: localize('selectRemote', "Select Remote"),
+			placeHolder: localize('selectRemoteMethodPlaceholder', "Choose how to connect to a remote agent host"),
+		});
+		if (!picked) {
 			return undefined;
 		}
-		selectedAddress = addedRemote.address;
-		selectedName = addedRemote.name;
-		defaultDirectory = addedRemote.defaultDirectory;
+
+		if (picked.remoteType === 'ssh') {
+			const sshResult = await promptToConnectViaSSH(accessor);
+			if (!sshResult) {
+				return undefined;
+			}
+			selectedAddress = sshResult.address;
+			selectedName = sshResult.name;
+			defaultDirectory = sshResult.defaultDirectory;
+		} else {
+			const addedRemote = await promptToAddRemoteAgentHost(remoteAgentHostService, quickInputService, notificationService);
+			if (!addedRemote) {
+				return undefined;
+			}
+			selectedAddress = addedRemote.address;
+			selectedName = addedRemote.name;
+			defaultDirectory = addedRemote.defaultDirectory;
+		}
 	}
 
 	if (!selectedAddress || !selectedName) {
@@ -214,6 +260,155 @@ async function pickFolderOnRemote(
 		return selected?.[0];
 	} catch {
 		// dialog was cancelled or failed
+		return undefined;
+	}
+}
+
+// ---- SSH connection flow -------------------------------------------------------
+
+interface ISSHAuthMethodPickItem extends IQuickPickItem {
+	readonly method: SSHAuthMethod;
+}
+
+/**
+ * Multi-step quick input flow for connecting to a remote agent host via SSH.
+ * Prompts for host, username, auth method, and display name.
+ *
+ * Exported so it can be invoked from the standalone "Connect via SSH" command.
+ */
+export async function promptToConnectViaSSH(
+	accessor: ServicesAccessor,
+): Promise<{ readonly address: string; readonly name: string; readonly defaultDirectory?: string } | undefined> {
+	const sshService = accessor.get(ISSHRemoteAgentHostService);
+	const quickInputService = accessor.get(IQuickInputService);
+	const notificationService = accessor.get(INotificationService);
+	// Step 1: SSH host
+	const hostInput = await quickInputService.input({
+		title: localize('sshHostTitle', "Connect via SSH"),
+		prompt: localize('sshHostPrompt', "Enter the SSH host (e.g. user@hostname or hostname)."),
+		placeHolder: 'user@myserver.example.com',
+		ignoreFocusLost: true,
+		validateInput: async value => value.trim() ? undefined : localize('sshHostEmpty', "Enter an SSH host."),
+	});
+	if (!hostInput) {
+		return undefined;
+	}
+
+	// Parse user@host format
+	const trimmed = hostInput.trim();
+	let username: string;
+	let host: string;
+	const atIndex = trimmed.indexOf('@');
+	if (atIndex !== -1) {
+		username = trimmed.substring(0, atIndex);
+		host = trimmed.substring(atIndex + 1);
+	} else {
+		host = trimmed;
+
+		// Step 2: Username (only if not provided in host string)
+		const usernameInput = await quickInputService.input({
+			title: localize('sshUsernameTitle', "SSH Username"),
+			prompt: localize('sshUsernamePrompt', "Enter the username for {0}.", host),
+			placeHolder: 'root',
+			ignoreFocusLost: true,
+			validateInput: async value => value.trim() ? undefined : localize('sshUsernameEmpty', "Enter a username."),
+		});
+		if (!usernameInput) {
+			return undefined;
+		}
+		username = usernameInput.trim();
+	}
+
+	// Step 3: Auth method
+	const authPicks: ISSHAuthMethodPickItem[] = [
+		{
+			method: SSHAuthMethod.Agent,
+			label: localize('sshAuthAgent', "SSH Agent"),
+			description: localize('sshAuthAgentDesc', "Use the running SSH agent for authentication"),
+		},
+		{
+			method: SSHAuthMethod.KeyFile,
+			label: localize('sshAuthKey', "Private Key File"),
+			description: localize('sshAuthKeyDesc', "Authenticate with a private key file"),
+		},
+		{
+			method: SSHAuthMethod.Password,
+			label: localize('sshAuthPassword', "Password"),
+			description: localize('sshAuthPasswordDesc', "Authenticate with a password"),
+		},
+	];
+
+	const authPicked = await quickInputService.pick(authPicks, {
+		title: localize('sshAuthTitle', "Authentication Method"),
+		placeHolder: localize('sshAuthPlaceholder', "Choose how to authenticate with {0}", host),
+	});
+	if (!authPicked) {
+		return undefined;
+	}
+
+	let privateKeyPath: string | undefined;
+	let password: string | undefined;
+
+	if (authPicked.method === SSHAuthMethod.KeyFile) {
+		const keyPath = await quickInputService.input({
+			title: localize('sshKeyTitle', "Private Key Path"),
+			prompt: localize('sshKeyPrompt', "Enter the path to your SSH private key."),
+			placeHolder: '~/.ssh/id_rsa',
+			value: '~/.ssh/id_rsa',
+			ignoreFocusLost: true,
+			validateInput: async value => value.trim() ? undefined : localize('sshKeyEmpty', "Enter a key file path."),
+		});
+		if (!keyPath) {
+			return undefined;
+		}
+		privateKeyPath = keyPath.trim();
+	} else if (authPicked.method === SSHAuthMethod.Password) {
+		const pw = await quickInputService.input({
+			title: localize('sshPasswordTitle', "SSH Password"),
+			prompt: localize('sshPasswordPrompt', "Enter the password for {0}@{1}.", username, host),
+			password: true,
+			ignoreFocusLost: true,
+			validateInput: async value => value ? undefined : localize('sshPasswordEmpty', "Enter a password."),
+		});
+		if (!pw) {
+			return undefined;
+		}
+		password = pw;
+	}
+
+	// Step 4: Display name
+	const suggestedName = `${username}@${host}`;
+	const name = await quickInputService.input({
+		title: localize('sshNameTitle', "Name Remote"),
+		prompt: localize('sshNamePrompt', "Enter a display name for this SSH remote."),
+		placeHolder: localize('sshNamePlaceholder', "My Remote"),
+		value: suggestedName,
+		valueSelection: [0, suggestedName.length],
+		ignoreFocusLost: true,
+		validateInput: async value => value.trim() ? undefined : localize('sshNameEmpty', "Enter a name."),
+	});
+	if (!name) {
+		return undefined;
+	}
+
+	// Connect via SSH
+	const config: ISSHAgentHostConfig = {
+		host,
+		username,
+		authMethod: authPicked.method,
+		privateKeyPath,
+		password,
+		name: name.trim(),
+	};
+
+	try {
+		const connection = await sshService.connect(config);
+		return {
+			address: connection.localAddress,
+			name: connection.name,
+		};
+	} catch (err) {
+		notificationService.error(localize('sshConnectFailed', "Failed to connect via SSH to {0}: {1}", host, String(err)));
 		return undefined;
 	}
 }
