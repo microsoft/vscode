@@ -147,6 +147,7 @@
 .quick-input-widget.run-script-action-quick-widget .quick-input-html-widget {
 	border-bottom-left-radius: 8px;
 	border-bottom-right-radius: 8px;
+	overflow: hidden;
 }
 
 .quick-input-widget.run-script-action-quick-widget .quick-input-header,
