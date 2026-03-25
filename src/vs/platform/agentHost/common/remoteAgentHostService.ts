@@ -12,7 +12,7 @@ import type { IAgentConnection } from './agentService.js';
 export const RemoteAgentHostsSettingId = 'chat.remoteAgentHosts';
 
 /** Configuration key to enable remote agent host connections. */
-export const RemoteAgentHostsEnabledSettingId = 'chat.remoteAgentHosts.enabled';
+export const RemoteAgentHostsEnabledSettingId = 'chat.remoteAgentHostsEnabled';
 
 /** An entry in the {@link RemoteAgentHostsSettingId} setting. */
 export interface IRemoteAgentHostEntry {
@@ -69,6 +69,12 @@ export interface IRemoteAgentHostService {
 	 * to that host is available.
 	 */
 	addRemoteAgentHost(entry: IRemoteAgentHostEntry): Promise<IRemoteAgentHostConnectionInfo>;
+
+	/**
+	 * Removes a configured remote host entry by address.
+	 * Disconnects any active connection and removes the entry from settings.
+	 */
+	removeRemoteAgentHost(address: string): Promise<void>;
 }
 
 /** Metadata about a single remote connection. */
@@ -88,6 +94,7 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	async addRemoteAgentHost(): Promise<IRemoteAgentHostConnectionInfo> {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}
+	async removeRemoteAgentHost(_address: string): Promise<void> { }
 }
 
 export function parseRemoteAgentHostInput(input: string): RemoteAgentHostInputParseResult {
