@@ -7,7 +7,7 @@ import './media/chatEditorController.css';
 
 import { getTotalWidth } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
@@ -41,7 +41,7 @@ import { isTextDiffEditorForEntry } from './chatEditing.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ctxCursorInChangeRange } from './chatEditingEditorContextKeys.js';
-
+import { LinkedList } from '../../../../../base/common/linkedList.js';
 import { ChatEditingExplanationWidgetManager } from './chatEditingExplanationWidget.js';
 import { IChatEditingExplanationModelManager } from './chatEditingExplanationModelManager.js';
 import { IChatWidgetService } from '../chat.js';
@@ -56,6 +56,27 @@ export interface IDocumentDiff2 extends IDocumentDiff {
 	undo(changes: DetailedLineRangeMapping): Promise<boolean>;
 }
 
+class ObjectPool<T extends IDisposable> {
+
+	private readonly _free = new LinkedList<T>();
+
+	dispose(): void {
+		dispose(this._free);
+	}
+
+	get(): T | undefined {
+		return this._free.shift();
+	}
+
+	putBack(obj: T): void {
+		this._free.push(obj);
+	}
+
+	get free(): Iterable<T> {
+		return this._free;
+	}
+}
+
 export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEditorIntegration {
 
 	private static readonly _diffLineDecorationData = ModelDecorationOptions.register({ description: 'diff-line-decoration' });
@@ -67,6 +88,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 	private readonly _diffLineDecorations: IEditorDecorationsCollection;
 	private readonly _diffVisualDecorations: IEditorDecorationsCollection;
 	private readonly _diffHunksRenderStore = this._store.add(new DisposableStore());
+	private readonly _diffHunkWidgetPool = this._store.add(new ObjectPool<DiffHunkWidget>());
 	private readonly _diffHunkWidgets: DiffHunkWidget[] = [];
 	private _viewZones: string[] = [];
 
@@ -296,7 +318,9 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		});
 		this._viewZones = [];
 		this._diffHunksRenderStore.clear();
-		this._diffHunkWidgets.length = 0;
+		for (const widget of this._diffHunkWidgetPool.free) {
+			widget.remove();
+		}
 		this._diffVisualDecorations.clear();
 	}
 
@@ -418,11 +442,19 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 				if (reviewMode || diffMode) {
 
 					// Add content widget for each diff change
-					const widget = this._editor.invokeWithinContext(accessor => {
-						const instaService = accessor.get(IInstantiationService);
-						return instaService.createInstance(DiffHunkWidget, this._editor, diff, diffEntry, this._editor.getModel()!.getVersionId(), isCreatedContent ? 0 : extraLines);
-					});
-					this._diffHunksRenderStore.add(widget);
+					let widget = this._diffHunkWidgetPool.get();
+					if (!widget) {
+						// make a new one
+						widget = this._editor.invokeWithinContext(accessor => {
+							const instaService = accessor.get(IInstantiationService);
+							return instaService.createInstance(DiffHunkWidget, this._editor, diff, diffEntry, this._editor.getModel()!.getVersionId(), isCreatedContent ? 0 : extraLines);
+						});
+					} else {
+						widget.update(diff, diffEntry, this._editor.getModel()!.getVersionId(), isCreatedContent ? 0 : extraLines);
+					}
+					this._diffHunksRenderStore.add(toDisposable(() => {
+						this._diffHunkWidgetPool.putBack(widget);
+					}));
 
 					widget.layout(diffEntry.modified.startLineNumber);
 
@@ -445,6 +477,11 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		this._diffHunksRenderStore.add(toDisposable(() => {
 			diffHunkDecoCollection.clear();
 		}));
+
+		// HIDE pooled widgets that are not used
+		for (const extraWidget of this._diffHunkWidgetPool.free) {
+			extraWidget.remove();
+		}
 
 		const positionObs = observableFromEvent(this._editor.onDidChangeCursorPosition, _ => this._editor.getPosition());
 
