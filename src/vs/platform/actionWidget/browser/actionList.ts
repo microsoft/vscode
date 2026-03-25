@@ -1215,7 +1215,7 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private _showSubmenuForItem(item: IActionListItem<T>): void {
-		const index = this._allMenuItems.indexOf(item);
+		const index = this._list.indexOf(item);
 		if (index >= 0) {
 			const rowElement = this._getRowElement(index);
 			if (rowElement) {

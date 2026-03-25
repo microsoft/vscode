@@ -380,8 +380,12 @@ export class WorkspacePicker extends Disposable {
 		if (!this._selectedWorkspace) {
 			return false;
 		}
-		return this._selectedWorkspace.providerId === selection.providerId
-			&& this._selectedWorkspace.workspace.label === selection.workspace.label;
+		if (this._selectedWorkspace.providerId !== selection.providerId) {
+			return false;
+		}
+		const selectedUri = this._selectedWorkspace.workspace.repositories[0]?.uri;
+		const candidateUri = selection.workspace.repositories[0]?.uri;
+		return this.uriIdentityService.extUri.isEqual(selectedUri, candidateUri);
 	}
 
 	private _persistSelectedWorkspace(selection: IWorkspaceSelection): void {
