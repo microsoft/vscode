@@ -510,9 +510,18 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private preseedFolder(): void {
-		const mockFolderUri = URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/mock-repo' }).toString();
-		this.storageService.store('agentSessions.lastPickedFolder', mockFolderUri, StorageScope.PROFILE, StorageTarget.MACHINE);
-		console.log(`[Sessions Web Test] Pre-seeded folder: ${mockFolderUri}`);
+		const mockFolderUri = URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/mock-repo' });
+		const providerId = 'default-copilot';
+
+		// Seed per-provider selected workspace (new picker reads this key)
+		const byProvider = JSON.stringify({ [providerId]: mockFolderUri.toJSON() });
+		this.storageService.store('sessions.selectedWorkspaceByProvider', byProvider, StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		// Seed recent workspaces so resolveWorkspace() can hydrate the selection
+		const recentWorkspaces = JSON.stringify([{ uri: mockFolderUri.toJSON(), providerId }]);
+		this.storageService.store('sessions.recentlyPickedProjects', recentWorkspaces, StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		console.log(`[Sessions Web Test] Pre-seeded folder: ${mockFolderUri.toString()}`);
 	}
 }
 

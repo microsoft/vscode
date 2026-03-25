@@ -431,6 +431,10 @@ export class ChangesViewPane extends ViewPane {
 		}
 	}
 
+	override getActionsContext(): URI | undefined {
+		return this.viewModel.activeSessionResourceObs.get();
+	}
+
 	private onVisible(): void {
 		this.renderDisposables.clear();
 
@@ -769,7 +773,7 @@ export class ChangesViewPane extends ViewPane {
 				'ChangesViewTree',
 				this.listContainer,
 				new ChangesTreeDelegate(),
-				[this.instantiationService.createInstance(ChangesTreeRenderer, resourceLabels, MenuId.ChatEditingWidgetModifiedFilesToolbar)],
+				[this.instantiationService.createInstance(ChangesTreeRenderer, resourceLabels, MenuId.ChatEditingSessionChangesToolbar)],
 				{
 					alwaysConsumeMouseWheel: false,
 					accessibilityProvider: {
@@ -1239,8 +1243,7 @@ class SetChangesListViewModeAction extends ViewAction<ChangesViewPane> {
 			icon: Codicon.listTree,
 			toggled: changesViewModeContextKey.isEqualTo(ChangesViewMode.List),
 			menu: {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', CHANGES_VIEW_ID),
+				id: MenuId.ChatEditingSessionTitleToolbar,
 				group: '1_viewmode',
 				order: 1
 			}
@@ -1262,8 +1265,7 @@ class SetChangesTreeViewModeAction extends ViewAction<ChangesViewPane> {
 			icon: Codicon.listFlat,
 			toggled: changesViewModeContextKey.isEqualTo(ChangesViewMode.Tree),
 			menu: {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', CHANGES_VIEW_ID),
+				id: MenuId.ChatEditingSessionTitleToolbar,
 				group: '1_viewmode',
 				order: 2
 			}
@@ -1280,7 +1282,7 @@ registerAction2(SetChangesTreeViewModeAction);
 
 // --- Versions Submenu
 
-MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+MenuRegistry.appendMenuItem(MenuId.ChatEditingSessionTitleToolbar, {
 	submenu: MenuId.ChatEditingSessionChangesVersionsSubmenu,
 	title: localize2('versionsActions', 'Versions'),
 	icon: Codicon.versions,

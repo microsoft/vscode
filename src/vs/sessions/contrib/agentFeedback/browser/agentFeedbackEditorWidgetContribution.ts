@@ -733,13 +733,6 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			return undefined;
 		}
 
-		const sessionData = this._sessionsManagementService.getSession(this._sessionResource);
-		if (sessionData) {
-			const changes = sessionData.changes.get();
-			return changes.find(change => this._changeMatchesFsPath(change, resourceUri));
-		}
-
-		// Fallback to agent session model
 		const changes = this._sessionsManagementService.getSession(this._sessionResource)?.changes.get();
 		if (!changes) {
 			return undefined;
