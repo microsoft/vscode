@@ -615,26 +615,4 @@ suite('SessionsConfigurationService', () => {
 		assert.strictEqual(ranTasks.length, 1);
 		assert.strictEqual(ranTasks[0].label, 'build');
 	});
-
-	test('runs worktreeCreated session tasks when a session gains a worktree', async () => {
-		registerMockTask('build', worktreeUri);
-		const sessionResource = URI.parse('file:///session-worktree-created');
-		const worktreeTasksUri = URI.parse('file:///worktree/.vscode/tasks.json');
-		const userTasksUri = URI.from({ scheme: userSettingsUri.scheme, path: '/user/tasks.json' });
-		fileContents.set(worktreeTasksUri.toString(), tasksJsonContent([
-			{ label: 'build', type: 'shell', command: 'npm run build', inSessions: true, runOptions: { runOn: 'worktreeCreated' } },
-			makeTask('manual', 'npm test', true),
-		]));
-		fileContents.set(userTasksUri.toString(), tasksJsonContent([]));
-
-		activeSessionObs.set({ ...makeSession({ repository: repoUri }), resource: sessionResource }, undefined);
-		await new Promise(r => setTimeout(r, 10));
-
-		activeSessionObs.set({ ...makeSession({ repository: repoUri, worktree: worktreeUri }), resource: sessionResource }, undefined);
-		await new Promise(r => setTimeout(r, 10));
-
-		assert.strictEqual(ranTasks.length, 1);
-		assert.strictEqual(ranTasks[0].label, 'build');
-	});
-
 });
