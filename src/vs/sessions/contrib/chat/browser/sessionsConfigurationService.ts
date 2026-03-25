@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { joinPath, dirname, isEqual } from '../../../../base/common/resources.js';
 import { parse } from '../../../../base/common/jsonc.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -128,7 +128,6 @@ export class SessionsConfigurationService extends Disposable implements ISession
 	private static readonly _PINNED_TASK_LABELS_KEY = 'agentSessions.pinnedTaskLabels';
 	private readonly _sessionTasks = observableValue<readonly ISessionTaskWithTarget[]>(this, []);
 	private readonly _fileWatcher = this._register(new MutableDisposable());
-	private readonly _knownSessionWorktrees = new Map<string, string | undefined>();
 	private readonly _pinnedTaskLabels: Map<string, string>;
 	private readonly _pinnedTaskObservables = new Map<string, ReturnType<typeof observableValue<string | undefined>>>();
 
@@ -146,11 +145,6 @@ export class SessionsConfigurationService extends Disposable implements ISession
 	) {
 		super();
 		this._pinnedTaskLabels = this._loadPinnedTaskLabels();
-
-		this._register(autorun(reader => {
-			const activeSession = this._sessionsManagementService.activeSession.read(reader);
-			this._handleActiveSessionChange(activeSession);
-		}));
 	}
 
 	getSessionTasks(session: ISessionData): IObservable<readonly ISessionTaskWithTarget[]> {
@@ -394,63 +388,8 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		}
 	}
 
-	private async _readAllTasks(session: ISessionData): Promise<readonly ITaskEntry[]> {
-		const result: ITaskEntry[] = [];
-
-		// Read workspace tasks
-		const workspaceUri = this._getTasksJsonUri(session, 'workspace');
-		if (workspaceUri) {
-			const workspaceJson = await this._readTasksJson(workspaceUri);
-			if (workspaceJson.tasks) {
-				result.push(...workspaceJson.tasks.filter(t => this._isSupportedTask(t)));
-			}
-		}
-
-		// Read user tasks
-		const userUri = this._getTasksJsonUri(session, 'user');
-		if (userUri) {
-			const userJson = await this._readTasksJson(userUri);
-			if (userJson.tasks) {
-				result.push(...userJson.tasks.filter(t => this._isSupportedTask(t)));
-			}
-		}
-
-		return result;
-	}
-
 	private _isSupportedTask(task: ITaskEntry): boolean {
 		return !!task.label;
-	}
-
-	private _handleActiveSessionChange(session: ISessionData | undefined): void {
-		if (!session) {
-			return;
-		}
-
-		const sessionKey = session.resource.toString();
-		const currentWorktree = this._getSessionRepo(session)?.workingDirectory?.toString();
-		if (!this._knownSessionWorktrees.has(sessionKey)) {
-			this._knownSessionWorktrees.set(sessionKey, currentWorktree);
-			return;
-		}
-
-		const previousWorktree = this._knownSessionWorktrees.get(sessionKey);
-		this._knownSessionWorktrees.set(sessionKey, currentWorktree);
-		if (!currentWorktree || previousWorktree === currentWorktree) {
-			return;
-		}
-
-		void this._runWorktreeCreatedTasks(session);
-	}
-
-	private async _runWorktreeCreatedTasks(session: ISessionData): Promise<void> {
-		const tasks = await this._readAllTasks(session);
-		for (const task of tasks) {
-			if (!task.inSessions || task.runOptions?.runOn !== 'worktreeCreated') {
-				continue;
-			}
-			await this.runTask(task, session);
-		}
 	}
 
 	private _ensureFileWatch(folder: URI): void {
