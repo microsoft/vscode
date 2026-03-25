@@ -336,7 +336,22 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			return undefined;
 		}
 
-		return decodeURIComponent(basename(uri));
+		const name = basename(uri);
+
+		// For local repositories (file scheme), the basename is not URI-encoded and may
+		// legitimately contain '%' characters. Decoding in that case can throw or
+		// incorrectly transform sequences like '%20' into spaces, so return it as-is.
+		if (uri.scheme === 'file') {
+			return name;
+		}
+
+		// For non-file schemes where the basename may be encodeURIComponent-encoded,
+		// attempt to decode but fall back to the raw name on any error.
+		try {
+			return decodeURIComponent(name);
+		} catch {
+			return name;
+		}
 	}
 
 	private _countUnreadSessions(): number {
