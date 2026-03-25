@@ -375,7 +375,8 @@ class AgentSessionsLogger extends Disposable {
 			if (session.metadata && Object.keys(session.metadata).length > 0) {
 				lines.push(`  Metadata:`);
 				for (const [key, value] of Object.entries(session.metadata)) {
-					lines.push(`    ${key}: ${JSON.stringify(value)}`);
+					const renderedValue = typeof value === 'string' ? value : safeStringify(value);
+					lines.push(`    ${key}: ${renderedValue}`);
 				}
 			}
 
