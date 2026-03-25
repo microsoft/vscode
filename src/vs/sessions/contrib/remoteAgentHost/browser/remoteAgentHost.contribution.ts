@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { AgentHostFileSystemProvider } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
-import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { type AgentProvider, type IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
@@ -34,28 +33,6 @@ import { IAuthenticationService } from '../../../../workbench/services/authentic
 import { ISessionsManagementService } from '../../../contrib/sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
-
-/**
- * Encode a remote address into an identifier that is safe for use in
- * both URI schemes and URI authorities, and is collision-free.
- *
- * Three tiers:
- * 1. Purely alphanumeric addresses are returned as-is.
- * 2. "Normal" addresses containing only `[a-zA-Z0-9.:-]` get colons
- *    replaced with `__` (double underscore) for human readability.
- *    Addresses containing `_` skip this tier to keep the encoding
- *    collision-free (`__` can only appear from colon replacement).
- * 3. Everything else is url-safe base64-encoded with a `b64-` prefix.
- */
-export function agentHostAuthority(address: string): string {
-	if (/^[a-zA-Z0-9]+$/.test(address)) {
-		return address;
-	}
-	if (/^[a-zA-Z0-9.:\-]+$/.test(address)) {
-		return address.replaceAll(':', '__');
-	}
-	return 'b64-' + encodeBase64(VSBuffer.fromString(address), false, true);
-}
 
 /**
  * Given a sanitized URI authority, resolves the corresponding agent host

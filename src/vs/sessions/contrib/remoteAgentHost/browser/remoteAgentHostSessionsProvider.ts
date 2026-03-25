@@ -15,9 +15,8 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { ISessionData, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
 import { ISendRequestOptions, ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
 import { IChatSessionFileChange } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { agentHostAuthority } from './remoteAgentHost.contribution.js';
 import { agentHostUri } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
-import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 
 const CopilotCLISessionType: ISessionType = {
