@@ -390,7 +390,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				? localize('configureActionWidgetTitle', "Configure Task...")
 				: existingTask
 					? localize('addExistingActionWidgetTitle', "Add Existing Task...")
-					: localize('addActionWidgetTitle', "Add Task...");
+					: localize('addActionWidgetTitle', "Add Task");
 			quickWidget.description = isConfigureMode
 				? localize('configureActionWidgetDescription', "Update how this task is named, saved, and run")
 				: existingTask

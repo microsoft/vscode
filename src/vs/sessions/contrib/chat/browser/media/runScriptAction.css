@@ -42,31 +42,31 @@
 	display: inline-flex;
 	width: fit-content;
 	max-width: 100%;
-	gap: 4px;
-	padding: 3px;
+	gap: 2px;
+	padding: 2px;
 	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
-	border-radius: 9px;
+	border-radius: 8px;
 	background-color: rgba(255, 255, 255, 0.03);
 }
 
 .run-script-action-section .monaco-custom-radio > .monaco-button {
 	width: fit-content;
-	min-width: 88px;
-	padding: 6px 12px;
+	min-width: 76px;
+	padding: 4px 10px;
 	border: 1px solid transparent;
-	border-radius: 6px;
+	border-radius: 5px;
 	background: transparent;
 	color: var(--vscode-foreground);
 	font-size: 12px;
 	font-weight: 500;
-	line-height: 16px;
+	line-height: 14px;
 	opacity: 0.9;
 	transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease;
 }
 
 .run-script-action-section .monaco-custom-radio > .monaco-button:first-child,
 .run-script-action-section .monaco-custom-radio > .monaco-button:last-child {
-	border-radius: 6px;
+	border-radius: 5px;
 }
 
 .run-script-action-section .monaco-custom-radio > .monaco-button:not(.active):not(:last-child),

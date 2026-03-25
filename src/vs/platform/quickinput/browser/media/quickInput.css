@@ -26,6 +26,12 @@
 	box-sizing: border-box;
 }
 
+.quick-input-html-widget {
+	border-bottom-left-radius: var(--vscode-cornerRadius-xLarge);
+	border-bottom-right-radius: var(--vscode-cornerRadius-xLarge);
+	overflow: hidden;
+}
+
 .quick-input-widget.no-drag .quick-input-titlebar,
 .quick-input-widget.no-drag .quick-input-title,
 .quick-input-widget.no-drag .quick-input-header {
