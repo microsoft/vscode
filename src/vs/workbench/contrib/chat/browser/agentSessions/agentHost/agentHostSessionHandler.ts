@@ -240,10 +240,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._sessionToBackend.set(resourceKey, resolvedSession);
 		}
 
-		await this._handleTurn(resolvedSession, request, p => {
-			console.log('progress', p);
-			progress(p);
-		}, cancellationToken);
+		await this._handleTurn(resolvedSession, request, progress, cancellationToken);
 
 		const activeSession = this._activeSessions.get(resourceKey);
 		if (activeSession) {
@@ -410,7 +407,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								}
 
 								// Finalize terminal-state tools (whether just created or pre-existing)
-								if (existing && (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled)) {
+								if (existing && (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(existing)) {
 									activeToolInvocations.delete(toolCallId);
 									const fileEdits = finalizeToolInvocation(existing, tc);
 									if (fileEdits.length > 0) {

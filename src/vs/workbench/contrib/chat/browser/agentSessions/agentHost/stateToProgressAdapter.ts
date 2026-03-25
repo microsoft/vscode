@@ -57,6 +57,10 @@ export function turnsToHistory(turns: readonly ITurn[], participantId: string): 
 						parts.push({ kind: 'thinking', value: rp.content });
 					}
 					break;
+				case ResponsePartKind.ContentRef:
+					// Content references are not restored into history;
+					// they are handled separately by the content provider.
+					break;
 			}
 		}
 

@@ -14,6 +14,7 @@ import { delimiter, dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
+import { localize } from '../../../../nls.js';
 import { AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentDescriptor, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ToolResultContentType, type IToolResultContent, type PolicyState } from '../../common/state/sessionState.js';
@@ -369,18 +370,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		switch (request.kind) {
 			case 'shell':
 				return {
-					confirmationTitle: 'Run in terminal',
-					invocationMessage: intention ?? 'Run command',
+					confirmationTitle: localize('copilot.permission.shell.title', "Run in terminal"),
+					invocationMessage: intention ?? localize('copilot.permission.shell.message', "Run command"),
 					toolInput: fullCommandText,
 				};
 			case 'write':
 				return {
-					confirmationTitle: 'Write file',
-					invocationMessage: path ? `Edit ${path}` : 'Edit file',
+					confirmationTitle: localize('copilot.permission.write.title', "Write file"),
+					invocationMessage: path ? localize('copilot.permission.write.message', "Edit {0}", path) : localize('copilot.permission.write.messageGeneric', "Edit file"),
 					toolInput: tryStringify(path ? { path } : request) ?? undefined,
 				};
 			case 'mcp': {
-				const title = toolName ?? 'MCP Tool';
+				const title = toolName ?? localize('copilot.permission.mcp.defaultTool', "MCP Tool");
 				return {
 					confirmationTitle: serverName ? `${serverName}: ${title}` : title,
 					invocationMessage: serverName ? `${serverName}: ${title}` : title,
@@ -389,14 +390,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			case 'read':
 				return {
-					confirmationTitle: 'Read file',
-					invocationMessage: intention ?? 'Read file',
+					confirmationTitle: localize('copilot.permission.read.title', "Read file"),
+					invocationMessage: intention ?? localize('copilot.permission.read.message', "Read file"),
 					toolInput: tryStringify(path ? { path, intention } : request) ?? undefined,
 				};
 			default:
 				return {
-					confirmationTitle: 'Permission request',
-					invocationMessage: 'Permission request',
+					confirmationTitle: localize('copilot.permission.default.title', "Permission request"),
+					invocationMessage: localize('copilot.permission.default.message', "Permission request"),
 					toolInput: tryStringify(request) ?? undefined,
 				};
 		}

@@ -116,7 +116,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		disposables.add(agent.onDidSessionProgress(e => {
 			// Track tool calls so handleAction can route confirmations
 			if (e.type === 'tool_start') {
-				this._toolCallAgents.set(e.toolCallId, agent.id);
+				this._toolCallAgents.set(`${e.session.toString()}:${e.toolCallId}`, agent.id);
 			}
 
 			const sessionKey = e.session.toString();
@@ -173,8 +173,10 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				break;
 			}
 			case ActionType.SessionToolCallConfirmed: {
-				const agentId = this._toolCallAgents.get(action.toolCallId);
+				const toolCallKey = `${action.session}:${action.toolCallId}`;
+				const agentId = this._toolCallAgents.get(toolCallKey);
 				if (agentId) {
+					this._toolCallAgents.delete(toolCallKey);
 					const agent = this._options.agents.get().find(a => a.id === agentId);
 					agent?.respondToPermissionRequest(action.toolCallId, action.approved);
 				} else {
