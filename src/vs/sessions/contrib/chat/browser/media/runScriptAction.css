@@ -149,6 +149,14 @@
 	box-sizing: border-box;
 }
 
+.quick-input-widget.run-script-action-quick-widget .quick-input-left-action-bar {
+	margin-left: 0;
+}
+
+.quick-input-widget.run-script-action-quick-widget .quick-input-right-action-bar {
+	margin-right: 0;
+}
+
 .quick-input-widget.run-script-action-quick-widget .quick-input-title {
 	padding: 0;
 	text-align: left;

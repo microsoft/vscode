@@ -314,17 +314,20 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 		const pickedItem = picked as ITaskPickItem;
 		if (pickedItem.task) {
-			return this._showCustomCommandInput(session, { task: pickedItem.task, target: pickedItem.source ?? 'workspace' });
+			return this._showCustomCommandInput(session, { task: pickedItem.task, target: pickedItem.source ?? 'workspace' }, 'add', true);
 		} else {
 			// Custom command path
-			return this._showCustomCommandInput(session);
+			return this._showCustomCommandInput(session, undefined, 'add', true);
 		}
 	}
 
-	private async _showCustomCommandInput(session: IActiveSessionItem, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add'): Promise<ITaskEntry | undefined> {
-		const taskConfiguration = await this._showCustomCommandWidget(session, existingTask, mode);
+	private async _showCustomCommandInput(session: IActiveSessionItem, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add', allowBackNavigation = false): Promise<ITaskEntry | undefined> {
+		const taskConfiguration = await this._showCustomCommandWidget(session, existingTask, mode, allowBackNavigation);
 		if (!taskConfiguration) {
 			return undefined;
+		}
+		if (taskConfiguration === 'back') {
+			return this._showConfigureQuickPick(session);
 		}
 
 		if (existingTask) {
@@ -375,13 +378,13 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		);
 	}
 
-	private _showCustomCommandWidget(session: IActiveSessionItem, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add'): Promise<IRunScriptCustomTaskWidgetResult | undefined> {
+	private _showCustomCommandWidget(session: IActiveSessionItem, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add', allowBackNavigation = false): Promise<IRunScriptCustomTaskWidgetResult | 'back' | undefined> {
 		const workspaceTargetDisabledReason = !(session.worktree ?? session.repository)
 			? localize('workspaceStorageUnavailableTooltip', "Workspace storage is unavailable for this session")
 			: undefined;
 		const isConfigureMode = mode === 'configure';
 
-		return new Promise<IRunScriptCustomTaskWidgetResult | undefined>(resolve => {
+		return new Promise<IRunScriptCustomTaskWidgetResult | 'back' | undefined>(resolve => {
 			const disposables = new DisposableStore();
 			let settled = false;
 
@@ -397,7 +400,9 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					? localize('addExistingActionWidgetDescription', "Enable an existing task for sessions and configure when it should run.")
 					: localize('addActionWidgetDescription', "Create a shell task and configure how it should be saved and run.");
 			quickWidget.ignoreFocusOut = true;
-			quickWidget.buttons = [closeQuickWidgetButton];
+			quickWidget.buttons = allowBackNavigation
+				? [this._quickInputService.backButton, closeQuickWidgetButton]
+				: [closeQuickWidgetButton];
 			const widget = disposables.add(new RunScriptCustomTaskWidget({
 				label: existingTask?.task.label,
 				labelDisabledReason: existingTask && !isConfigureMode ? localize('existingTaskLabelLocked', "This name comes from an existing task and cannot be changed here.") : undefined,
@@ -422,6 +427,12 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			disposables.add(widget.onDidSubmit(result => complete(result)));
 			disposables.add(widget.onDidCancel(() => complete(undefined)));
 			disposables.add(quickWidget.onDidTriggerButton(button => {
+				if (allowBackNavigation && button === this._quickInputService.backButton) {
+					settled = true;
+					resolve('back');
+					quickWidget.hide();
+					return;
+				}
 				if (button === closeQuickWidgetButton) {
 					complete(undefined);
 				}

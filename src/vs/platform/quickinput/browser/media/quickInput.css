@@ -38,7 +38,7 @@
 
 .quick-input-left-action-bar {
 	display: flex;
-	margin-left: 0;
+	margin-left: 4px;
 }
 
 /* give some space between input and action bar */
@@ -62,7 +62,7 @@
 
 .quick-input-right-action-bar {
 	display: flex;
-	margin-right: 0;
+	margin-right: 4px;
 }
 
 .quick-input-right-action-bar .actions-container {
