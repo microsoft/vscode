@@ -10,7 +10,6 @@ import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressed
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { IObjectTreeElement, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IObservableWithChange, ISettableObservable, ObservablePromise, observableSignalFromEvent, observableValue, runOnChange } from '../../../../base/common/observable.js';
@@ -659,7 +658,6 @@ export class ChangesViewPane extends ViewPane {
 			this.renderDisposables.add(scopedInstantiationService);
 
 			this.renderDisposables.add(autorun(reader => {
-				const { added, removed } = topLevelStats.read(reader);
 				const outgoingChanges = outgoingChangesObs.read(reader);
 				const sessionResource = this.viewModel.activeSessionResourceObs.read(reader);
 
@@ -700,11 +698,7 @@ export class ChangesViewPane extends ViewPane {
 							: { shouldForwardArgs: true },
 						buttonConfigProvider: (action) => {
 							if (action.id === 'chatEditing.viewChanges' || action.id === 'chatEditing.viewPreviousEdits' || action.id === 'chatEditing.viewAllSessionChanges' || action.id === 'chat.openSessionWorktreeInVSCode') {
-								const diffStatsLabel = new MarkdownString(
-									`<span class="working-set-lines-added">+${added}</span>&nbsp;<span class="working-set-lines-removed">-${removed}</span>`,
-									{ supportHtml: true }
-								);
-								return { showIcon: true, showLabel: true, isSecondary: true, customClass: 'working-set-diff-stats', customLabel: diffStatsLabel };
+								return { showIcon: true, showLabel: false, isSecondary: true };
 							}
 							if (action.id === RUN_SESSION_CODE_REVIEW_ACTION_ID) {
 								if (codeReviewLoading) {
