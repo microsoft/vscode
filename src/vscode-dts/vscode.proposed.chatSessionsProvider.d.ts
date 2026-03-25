@@ -123,12 +123,7 @@ declare module 'vscode' {
 	 *
 	 * @return A new chat session input state. This should be created using {@link ChatSessionItemController.createChatSessionInputState}.
 	 */
-	export type ChatSessionControllerProvideInputState = (sessionResource: Uri | undefined, context: {
-		/**
-		 * The previous options for the session.
-		 */
-		readonly previousOptions: readonly ChatSessionProviderOptionGroup[] | undefined;
-	}, token: CancellationToken) => ProviderResult<ChatSessionInputState>;
+	export type ChatSessionControllerGetInputState = (sessionResource: Uri | undefined, context: {}, token: CancellationToken) => ProviderResult<ChatSessionInputState>;
 
 	/**
 	 * Extension callback invoked to fork an existing chat session item managed by a {@linkcode ChatSessionItemController}.
@@ -197,12 +192,12 @@ declare module 'vscode' {
 		/**
 		 * Gets the input state for a chat session.
 		 */
-		provideChatSessionInputState?: ChatSessionControllerProvideInputState;
+		getChatSessionInputState?: ChatSessionControllerGetInputState;
 
 		/**
 		 * Create a new managed ChatSessionInputState object.
 		 */
-		createChatSessionInputState(options: ChatSessionProviderOptionItem[]): ChatSessionInputState;
+		createChatSessionInputState(groups: ChatSessionProviderOptionGroup[]): ChatSessionInputState;
 	}
 
 	/**
@@ -730,6 +725,6 @@ declare module 'vscode' {
 	 * Represents the current state of user inputs for a chat session.
 	 */
 	export interface ChatSessionInputState {
-		options: readonly ChatSessionProviderOptionGroup[];
+		groups: readonly ChatSessionProviderOptionGroup[];
 	}
 }
