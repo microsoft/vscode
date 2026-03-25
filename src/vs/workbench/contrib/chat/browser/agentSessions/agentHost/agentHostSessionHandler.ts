@@ -356,7 +356,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (activeTurn.streamingText.length > lastStreamedTextLen) {
 				const delta = activeTurn.streamingText.substring(lastStreamedTextLen);
 				lastStreamedTextLen = activeTurn.streamingText.length;
-				progress([{ kind: 'markdownContent', content: new MarkdownString(delta) }]);
+				// Note: supportHtml is load bearing here. Otherwise it gets merged with the code block here
+				// https://github.com/microsoft/vscode/blob/d4160e89d0109c82a8911998c5ca09b1024dce00/src/vs/workbench/contrib/chat/common/model/chatModel.ts#L732-L735
+				// and then subsequent content is never rendered
+				progress([{ kind: 'markdownContent', content: new MarkdownString(delta, { supportHtml: true }) }]);
 			}
 
 			// Stream reasoning deltas
