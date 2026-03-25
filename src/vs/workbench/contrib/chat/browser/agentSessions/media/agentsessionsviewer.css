@@ -50,7 +50,7 @@
 	}
 
 	.monaco-list-row.selected .agent-session-title {
-		color: unset;
+		color: unset !important;
 	}
 
 	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-details-row {
@@ -105,10 +105,6 @@
 		display: flex;
 		flex-direction: row;
 		padding: 8px 6px;
-
-		&.archived {
-			color: var(--vscode-descriptionForeground);
-		}
 
 		.agent-session-main-col,
 		.agent-session-title-row,
@@ -270,6 +266,10 @@
 			overflow: hidden;
 			white-space: nowrap;
 			text-overflow: ellipsis;
+		}
+
+		&.archived .agent-session-title {
+			color: var(--vscode-descriptionForeground);
 		}
 
 		.agent-session-description:empty {
