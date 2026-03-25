@@ -178,7 +178,7 @@ export class ArchiveAllAgentSessionsAction extends Action2 {
 		if (sessionsToArchive.length > 1) {
 			const confirmed = await dialogService.confirm({
 				message: localize('archiveAllSessions.confirm', "Are you sure you want to archive {0} agent sessions?", sessionsToArchive.length),
-				detail: localize('archiveAllSessions.detail', "You can unarchive sessions later if needed from the Chat view."),
+				detail: localize('archiveAllSessions.detail', "You can unarchive sessions later if needed from the Sessions view."),
 				primaryButton: localize('archiveAllSessions.archive', "Archive")
 			});
 
