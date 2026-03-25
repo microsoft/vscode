@@ -115,7 +115,7 @@
 .quick-input-widget.run-script-action-quick-widget .quick-input-titlebar {
 	gap: 8px;
 	height: 32px;
-	padding: 0 8px 0 0;
+	padding: 0 6px 0 0;
 	border-top-left-radius: var(--vscode-cornerRadius-xLarge);
 	border-top-right-radius: var(--vscode-cornerRadius-xLarge);
 	border-bottom: 1px solid var(--vscode-titleBar-border, var(--vscode-widget-border, transparent));
