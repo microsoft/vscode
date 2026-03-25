@@ -157,6 +157,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();
 		for (const contribution of contributions) {
+			// TODO: Remove hardcoded providers from core
 			const agentSessionType = getAgentSessionProvider(contribution.type);
 			if (agentSessionType) {
 				// Well-known session type — use hardcoded metadata
@@ -196,6 +197,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected _getSessionCategory(sessionTypeItem: ISessionTypeItem) {
+		// TODO: Remove hardcoded providers from core
 		const knownType = getAgentSessionProvider(sessionTypeItem.type);
 		return knownType && isFirstPartyAgentSessionProvider(knownType) ? firstPartyCategory : otherCategory;
 	}
@@ -205,6 +207,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	private _getSessionIcon(sessionTypeItem: ISessionTypeItem): ThemeIcon {
+		// TODO: Remove hardcoded providers from core
 		const knownType = getAgentSessionProvider(sessionTypeItem.type);
 		if (knownType) {
 			return getAgentSessionProviderIcon(knownType);
@@ -226,6 +229,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		this.setAriaLabelAttributes(element);
 		const currentType = this._getSelectedSessionType() ?? AgentSessionProviders.Local;
 
+		// TODO: Remove hardcoded providers from core
 		const knownType = getAgentSessionProvider(currentType);
 		const label = knownType
 			? getAgentSessionProviderName(knownType)

@@ -364,6 +364,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 
 			for (const type of activatedProviders) {
+				// TODO: Remove hardcoded providers from core
 				const knownProvider = getAgentSessionProvider(type);
 				if (knownProvider) {
 					// Well-known provider — use hardcoded name

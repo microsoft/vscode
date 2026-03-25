@@ -2269,6 +2269,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					// Use provided delegate if available, otherwise create default delegate
 					const getActiveSessionType = () => {
 						const sessionResource = this._widget?.viewModel?.sessionResource;
+						// TODO: Remove hardcoded providers from core
 						return sessionResource ? (getAgentSessionProvider(sessionResource) ?? getChatSessionType(sessionResource)) : undefined;
 					};
 					const delegate: ISessionTypePickerDelegate = this.options.sessionTypePickerDelegate ?? {
@@ -2367,6 +2368,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if ((action.id === OpenSessionTargetPickerAction.ID || action.id === OpenDelegationPickerAction.ID) && action instanceof MenuItemAction) {
 					const getActiveSessionType = () => {
 						const sessionResource = this._widget?.viewModel?.sessionResource;
+						// TODO: Remove hardcoded providers from core
 						return sessionResource ? (getAgentSessionProvider(sessionResource) ?? getChatSessionType(sessionResource)) : undefined;
 					};
 					const delegate: ISessionTypePickerDelegate = this.options.sessionTypePickerDelegate ?? {
