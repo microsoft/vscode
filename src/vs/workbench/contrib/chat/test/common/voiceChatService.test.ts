@@ -49,7 +49,7 @@ suite('VoiceChat', () => {
 		}
 		setRequestTools(requestId: string, tools: UserSelectedTools): void {
 		}
-		setYieldRequested(requestId: string): void {
+		setYieldRequested(requestId: string, value: boolean): void {
 		}
 		invoke(request: IChatAgentRequest, progress: (part: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error('Method not implemented.'); }
 		metadata = {};
@@ -72,7 +72,7 @@ suite('VoiceChat', () => {
 		registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable { throw new Error('Method not implemented.'); }
 		invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error(); }
 		setRequestTools(agent: string, requestId: string, tools: UserSelectedTools): void { }
-		setYieldRequested(agent: string, requestId: string): void { }
+		setYieldRequested(agent: string, requestId: string, value: boolean): void { }
 		getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> { throw new Error(); }
 		getActivatedAgents(): IChatAgent[] { return agents; }
 		getAgents(): IChatAgent[] { return agents; }

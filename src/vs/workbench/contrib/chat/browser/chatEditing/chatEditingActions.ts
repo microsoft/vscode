@@ -357,12 +357,6 @@ export class ViewAllSessionChangesAction extends Action2 {
 					group: 'navigation',
 					order: 10,
 					when: ChatContextKeys.hasAgentSessionChanges
-				},
-				{
-					id: MenuId.AgentSessionItemToolbar,
-					group: 'navigation',
-					order: 0,
-					when: ChatContextKeys.hasAgentSessionChanges
 				}
 			],
 		});
@@ -514,7 +508,7 @@ registerAction2(class RemoveAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				},
-				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), ChatContextKeys.inChatQuestionCarousel.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -563,7 +557,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				},
-				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), ChatContextKeys.inChatQuestionCarousel.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -611,15 +605,7 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 				ChatContextKeys.inChatSession,
 				ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true),
 				ChatContextKeys.lockedToCodingAgent.negate()
-			),
-			menu: [
-				{
-					id: MenuId.ChatMessageFooter,
-					group: 'navigation',
-					order: 1,
-					when: ContextKeyExpr.and(ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true), ChatContextKeys.lockedToCodingAgent.negate()),
-				}
-			]
+			)
 		});
 	}
 

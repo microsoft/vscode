@@ -18,7 +18,3 @@ export interface ITerminalSandboxRuntimeConfig {
 		denyWrite?: string[];
 	};
 }
-
-export interface ITerminalSandboxSettings extends ITerminalSandboxRuntimeConfig {
-	enabled?: boolean;
-}

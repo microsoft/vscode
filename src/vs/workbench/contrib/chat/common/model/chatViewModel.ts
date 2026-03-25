@@ -7,12 +7,13 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, dispose } from '../../../../../base/common/lifecycle.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatRequestQueueKind, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatRequestQueueKind, IChatCodeCitation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService/chatService.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../participants/chatAgents.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { CodeBlockModelCollection } from '../widget/codeBlockModelCollection.js';
@@ -182,7 +183,7 @@ export interface IChatChangesSummaryPart {
 /**
  * Type for content parts rendered by IChatListRenderer (not necessarily in the model)
  */
-export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting | IChatQuestionCarousel;
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting | IChatQuestionCarousel | IChatDisabledClaudeHooksPart;
 
 export interface IChatResponseViewModel {
 	readonly model: IChatResponseModel;
@@ -645,11 +646,13 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			this.liveUpdateTracker = this.instantiationService.createInstance(ChatStreamStatsTracker);
 		}
 
+		const wordCountScheduler = this.liveUpdateTracker ? this._register(new RunOnceScheduler(() => {
+			const wordCount = countWords(_model.entireResponse.getMarkdown());
+			this.liveUpdateTracker!.update({ totalWordCount: wordCount });
+		}, 0)) : undefined;
+
 		this._register(_model.onDidChange(() => {
-			if (this.liveUpdateTracker) {
-				const wordCount = countWords(_model.entireResponse.getMarkdown());
-				this.liveUpdateTracker.update({ totalWordCount: wordCount });
-			}
+			wordCountScheduler?.schedule();
 
 			// new data -> new id, new content to render
 			this._modelChangeCount++;

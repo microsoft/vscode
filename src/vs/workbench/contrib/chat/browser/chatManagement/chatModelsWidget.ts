@@ -71,18 +71,9 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 	}
 
 	if (model.metadata.maxInputTokens || model.metadata.maxOutputTokens) {
+		const totalTokens = (model.metadata.maxInputTokens ?? 0) + (model.metadata.maxOutputTokens ?? 0);
 		markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
-		let addSeparator = false;
-		if (model.metadata.maxInputTokens) {
-			markdown.appendMarkdown(`$(arrow-down) ${formatTokenCount(model.metadata.maxInputTokens)} (${localize('models.input', 'Input')})`);
-			addSeparator = true;
-		}
-		if (model.metadata.maxOutputTokens) {
-			if (addSeparator) {
-				markdown.appendText(`  |  `);
-			}
-			markdown.appendMarkdown(`$(arrow-up) ${formatTokenCount(model.metadata.maxOutputTokens)} (${localize('models.output', 'Output')})`);
-		}
+		markdown.appendMarkdown(`${formatTokenCount(totalTokens)}`);
 		markdown.appendText(`\n`);
 	}
 
@@ -617,27 +608,13 @@ class TokenLimitsColumnRenderer extends ModelsTableColumnRenderer<ITokenLimitsCo
 		const { model: modelEntry } = entry;
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 		if (modelEntry.metadata.maxInputTokens || modelEntry.metadata.maxOutputTokens) {
-			let addSeparator = false;
-			markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
-			if (modelEntry.metadata.maxInputTokens) {
-				const inputDiv = DOM.append(templateData.tokenLimitsElement, $('.token-limit-item'));
-				DOM.append(inputDiv, $('span.codicon.codicon-arrow-down'));
-				const inputText = DOM.append(inputDiv, $('span'));
-				inputText.textContent = formatTokenCount(modelEntry.metadata.maxInputTokens);
+			const totalTokens = (modelEntry.metadata.maxInputTokens ?? 0) + (modelEntry.metadata.maxOutputTokens ?? 0);
+			const tokenDiv = DOM.append(templateData.tokenLimitsElement, $('.token-limit-item'));
+			const tokenText = DOM.append(tokenDiv, $('span'));
+			tokenText.textContent = formatTokenCount(totalTokens);
 
-				markdown.appendMarkdown(`$(arrow-down) ${modelEntry.metadata.maxInputTokens} (${localize('models.input', 'Input')})`);
-				addSeparator = true;
-			}
-			if (modelEntry.metadata.maxOutputTokens) {
-				const outputDiv = DOM.append(templateData.tokenLimitsElement, $('.token-limit-item'));
-				DOM.append(outputDiv, $('span.codicon.codicon-arrow-up'));
-				const outputText = DOM.append(outputDiv, $('span'));
-				outputText.textContent = formatTokenCount(modelEntry.metadata.maxOutputTokens);
-				if (addSeparator) {
-					markdown.appendText(`  |  `);
-				}
-				markdown.appendMarkdown(`$(arrow-up) ${modelEntry.metadata.maxOutputTokens} (${localize('models.output', 'Output')})`);
-			}
+			markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
+			markdown.appendMarkdown(`${formatTokenCount(totalTokens)}`);
 		}
 
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
@@ -654,13 +631,17 @@ interface ICapabilitiesColumnTemplateData extends IModelTableColumnTemplateData 
 	readonly metadataRow: HTMLElement;
 }
 
-class CapabilitiesColumnRenderer extends ModelsTableColumnRenderer<ICapabilitiesColumnTemplateData> {
+class CapabilitiesColumnRenderer extends ModelsTableColumnRenderer<ICapabilitiesColumnTemplateData> implements IDisposable {
 	static readonly TEMPLATE_ID = 'capabilities';
 
 	readonly templateId: string = CapabilitiesColumnRenderer.TEMPLATE_ID;
 
 	private readonly _onDidClickCapability = new Emitter<string>();
 	readonly onDidClickCapability = this._onDidClickCapability.event;
+
+	dispose(): void {
+		this._onDidClickCapability.dispose();
+	}
 
 	renderTemplate(container: HTMLElement): ICapabilitiesColumnTemplateData {
 		const disposables = new DisposableStore();
@@ -811,6 +792,21 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IActionsColumnTemplateData): void {
+		const configActions = this.languageModelsService.getModelConfigurationActions(entry.model.identifier);
+		if (configActions.length === 0 && !entry.model.metadata.configurationSchema) {
+			return;
+		}
+
+		const secondaryActions: IAction[] = [...configActions];
+
+		// Always add "Configure..." as fallback for complex properties
+		secondaryActions.push(toAction({
+			id: 'configureModel',
+			label: localize('models.configureModel', 'Configure...'),
+			run: () => this.languageModelsService.configureModel(entry.model.identifier)
+		}));
+
+		templateData.actionBar.setActions([], secondaryActions);
 	}
 }
 
@@ -864,6 +860,10 @@ export class ChatModelsWidget extends Disposable {
 	private static NUM_INSTANCES: number = 0;
 
 	readonly element: HTMLElement;
+
+	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
+	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
+
 	private searchWidget!: SuggestEnabledInput;
 	private searchActionsContainer!: HTMLElement;
 	private table!: WorkbenchTable<IViewModelEntry>;
@@ -891,7 +891,7 @@ export class ChatModelsWidget extends Disposable {
 		super();
 
 		this.searchFocusContextKey = CONTEXT_MODELS_SEARCH_FOCUS.bindTo(contextKeyService);
-		this.delayedFiltering = new Delayer<void>(200);
+		this.delayedFiltering = this._register(new Delayer<void>(200));
 		this.viewModel = this._register(this.instantiationService.createInstance(ChatModelsViewModel));
 		this.element = DOM.$('.models-widget');
 		this.create(this.element);
@@ -1030,6 +1030,7 @@ export class ChatModelsWidget extends Disposable {
 		const actionsColumnRenderer = this.instantiationService.createInstance(ActionsColumnRenderer, this.viewModel);
 		const providerColumnRenderer = this.instantiationService.createInstance(ProviderColumnRenderer);
 
+		this.tableDisposables.add(capabilitiesColumnRenderer);
 		this.tableDisposables.add(capabilitiesColumnRenderer.onDidClickCapability(capability => {
 			const currentQuery = this.searchWidget.getValue();
 			const query = `@capability:${capability}`;
@@ -1133,8 +1134,9 @@ export class ChatModelsWidget extends Disposable {
 						}
 						const ariaLabels = [];
 						ariaLabels.push(localize('model.name', '{0} from {1}', e.model.metadata.name, e.model.provider.vendor.displayName));
-						if (e.model.metadata.maxInputTokens && e.model.metadata.maxOutputTokens) {
-							ariaLabels.push(localize('model.contextSize', 'Context size: {0} input tokens and {1} output tokens', formatTokenCount(e.model.metadata.maxInputTokens), formatTokenCount(e.model.metadata.maxOutputTokens)));
+						if (e.model.metadata.maxInputTokens || e.model.metadata.maxOutputTokens) {
+							const totalTokens = (e.model.metadata.maxInputTokens ?? 0) + (e.model.metadata.maxOutputTokens ?? 0);
+							ariaLabels.push(localize('model.contextSize.totalTokens', 'Context size: {0} tokens', formatTokenCount(totalTokens)));
 						}
 						if (e.model.metadata.capabilities) {
 							ariaLabels.push(localize('model.capabilities', 'Capabilities: {0}', Object.keys(e.model.metadata.capabilities).join(', ')));
@@ -1193,6 +1195,15 @@ export class ChatModelsWidget extends Disposable {
 					enabled: hiddenModels.length > 0,
 					run: () => this.viewModel.setModelsVisibility(selectedModelEntries, true)
 				}));
+
+				// Show per-model configuration actions for a single model
+				if (selectedModelEntries.length === 1) {
+					const configActions = this.languageModelsService.getModelConfigurationActions(selectedModelEntries[0].model.identifier);
+					if (configActions.length) {
+						actions.push(new Separator());
+						actions.push(...configActions);
+					}
+				}
 
 				// Show configure action if all models are from the same group
 				configureGroup = selectedModelEntries[0].model.provider.group.name;
@@ -1254,8 +1265,10 @@ export class ChatModelsWidget extends Disposable {
 		}));
 
 		this.table.splice(0, this.table.length, this.viewModel.viewModelEntries);
+		this._onDidChangeItemCount.fire(this.itemCount);
 		this.tableDisposables.add(this.viewModel.onDidChange(({ at, removed, added }) => {
 			this.table.splice(at, removed, added);
+			this._onDidChangeItemCount.fire(this.itemCount);
 			if (this.viewModel.selectedEntry) {
 				const selectedEntryIndex = this.viewModel.viewModelEntries.indexOf(this.viewModel.selectedEntry);
 				this.table.setFocus([selectedEntryIndex]);
@@ -1347,6 +1360,23 @@ export class ChatModelsWidget extends Disposable {
 		if (this.viewModel.shouldRefilter()) {
 			this.viewModel.filter(this.searchWidget.getValue());
 		}
+	}
+
+	/**
+	 * Gets the total model count (excluding vendor/group/status headers).
+	 */
+	get itemCount(): number {
+		return this.viewModel.viewModelEntries
+			.filter(e => !isLanguageModelProviderEntry(e) && !isLanguageModelGroupEntry(e) && !isStatusEntry(e))
+			.length;
+	}
+
+	/**
+	 * Re-fires the current item count. Call after subscribing to onDidChangeItemCount
+	 * to ensure the subscriber receives the latest count.
+	 */
+	fireItemCount(): void {
+		this._onDidChangeItemCount.fire(this.itemCount);
 	}
 
 }

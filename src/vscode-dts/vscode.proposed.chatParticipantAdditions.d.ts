@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 1
+// version: 3
 
 declare module 'vscode' {
 
@@ -224,6 +224,16 @@ declare module 'vscode' {
 		language: string;
 
 		/**
+		 * Overrides for how the command is presented in the UI.
+		 * For example, when a `cd <dir> && <command>` prefix is detected,
+		 * the presentation can show only the actual command.
+		 */
+		presentationOverrides?: {
+			commandLine: string;
+			language?: string;
+		};
+
+		/**
 		 * Terminal command output. Displayed when the terminal is no longer available.
 		 */
 		output?: {
@@ -302,6 +312,30 @@ declare module 'vscode' {
 		values: Array<Uri | Location>;
 	}
 
+	export class ChatSubagentToolInvocationData {
+		/**
+		 * A description of the subagent's purpose or task.
+		 */
+		description?: string;
+
+		/**
+		 * The name of the subagent being invoked.
+		 */
+		agentName?: string;
+
+		/**
+		 * The prompt given to the subagent.
+		 */
+		prompt?: string;
+
+		/**
+		 * The result text from the subagent after completion.
+		 */
+		result?: string;
+
+		constructor(description?: string, agentName?: string, prompt?: string, result?: string);
+	}
+
 	export class ChatToolInvocationPart {
 		toolName: string;
 		toolCallId: string;
@@ -311,11 +345,16 @@ declare module 'vscode' {
 		pastTenseMessage?: string | MarkdownString;
 		isConfirmed?: boolean;
 		isComplete?: boolean;
-		toolSpecificData?: ChatTerminalToolInvocationData | ChatMcpToolInvocationData | ChatTodoToolInvocationData | ChatSimpleToolResultData | ChatToolResourcesInvocationData;
+		toolSpecificData?: ChatTerminalToolInvocationData | ChatMcpToolInvocationData | ChatTodoToolInvocationData | ChatSimpleToolResultData | ChatToolResourcesInvocationData | ChatSubagentToolInvocationData;
 		subAgentInvocationId?: string;
 		presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
-		constructor(toolName: string, toolCallId: string, isError?: boolean);
+		/**
+		 * If this flag is set, this will be treated as an update to any previous tool call with the same id.
+		 */
+		enablePartialUpdate?: boolean;
+
+		constructor(toolName: string, toolCallId: string, errorMessage?: string);
 	}
 
 	/**
@@ -384,7 +423,31 @@ declare module 'vscode' {
 		constructor(uris: Uri[], callback: () => Thenable<unknown>);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseWorkspaceEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseExternalEditPart | ChatResponseQuestionCarouselPart;
+	/**
+	 * Internal type that lists all the proposed chat response parts. This is used to generate `ExtendedChatResponsePart`
+	 * which is the actual type used in this API. This is done so that other proposals can easily add their own response parts
+	 * without having to modify this file.
+	 */
+	export interface ExtendedChatResponseParts {
+		ChatResponsePart: ChatResponsePart;
+		ChatResponseTextEditPart: ChatResponseTextEditPart;
+		ChatResponseNotebookEditPart: ChatResponseNotebookEditPart;
+		ChatResponseWorkspaceEditPart: ChatResponseWorkspaceEditPart;
+		ChatResponseConfirmationPart: ChatResponseConfirmationPart;
+		ChatResponseCodeCitationPart: ChatResponseCodeCitationPart;
+		ChatResponseReferencePart2: ChatResponseReferencePart2;
+		ChatResponseMovePart: ChatResponseMovePart;
+		ChatResponseExtensionsPart: ChatResponseExtensionsPart;
+		ChatResponsePullRequestPart: ChatResponsePullRequestPart;
+		ChatToolInvocationPart: ChatToolInvocationPart;
+		ChatResponseMultiDiffPart: ChatResponseMultiDiffPart;
+		ChatResponseThinkingProgressPart: ChatResponseThinkingProgressPart;
+		ChatResponseExternalEditPart: ChatResponseExternalEditPart;
+		ChatResponseQuestionCarouselPart: ChatResponseQuestionCarouselPart;
+	}
+
+	export type ExtendedChatResponsePart = ExtendedChatResponseParts[keyof ExtendedChatResponseParts];
+
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
@@ -488,12 +551,16 @@ declare module 'vscode' {
 	}
 
 	export class ChatResponsePullRequestPart {
-		readonly uri: Uri;
+		/**
+		 * @deprecated use `command` instead
+		 */
+		readonly uri?: Uri;
+		readonly command: Command;
 		readonly linkTag: string;
 		readonly title: string;
 		readonly description: string;
 		readonly author: string;
-		constructor(uri: Uri, title: string, description: string, author: string, linkTag: string);
+		constructor(uriOrCommand: Uri | Command, title: string, description: string, author: string, linkTag: string);
 	}
 
 	export interface ChatResponseStream {
@@ -773,6 +840,12 @@ declare module 'vscode' {
 		readonly completionTokens: number;
 
 		/**
+		 * The number of tokens reserved for the response.
+		 * This is rendered specially in the UI to indicate that these tokens aren't used but are reserved.
+		 */
+		readonly outputBuffer?: number;
+
+		/**
 		 * Optional breakdown of prompt token usage by category and label.
 		 * If the percentages do not sum to 100%, the remaining will be shown as "Uncategorized".
 		 */
@@ -963,8 +1036,6 @@ declare module 'vscode' {
 		readonly rawInput?: unknown;
 
 		readonly chatRequestId?: string;
-		/** @deprecated Use {@link chatSessionResource} instead */
-		readonly chatSessionId?: string;
 		readonly chatSessionResource?: Uri;
 		readonly chatInteractionId?: string;
 	}
@@ -994,9 +1065,15 @@ declare module 'vscode' {
 	}
 
 	export interface ChatRequestModeInstructions {
+		/** set when the mode a custom agent (not built-in), to be used as identifier */
+		readonly uri?: Uri;
 		readonly name: string;
 		readonly content: string;
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
 		readonly metadata?: Record<string, boolean | string | number>;
+		/**
+		 * Whether the mode is a builtin mode (e.g. Ask, Edit, Agent) rather than a user or extension-defined custom mode.
+		 */
+		readonly isBuiltin?: boolean;
 	}
 }

@@ -14,6 +14,7 @@ import { ServiceConfigurationProvider } from './configuration/configuration';
 import { DiagnosticLanguage, LanguageDescription } from './configuration/languageDescription';
 import { IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { DiagnosticKind } from './languageFeatures/diagnostics';
+import { readUnifiedConfig } from './utils/configuration';
 import FileConfigurationManager from './languageFeatures/fileConfigurationManager';
 import LanguageProvider from './languageProvider';
 import { LogLevelMonitor } from './logging/logLevelMonitor';
@@ -193,9 +194,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	}
 
 	private configurationChanged(): void {
-		const typescriptConfig = vscode.workspace.getConfiguration('typescript');
-
-		this.reportStyleCheckAsWarnings = typescriptConfig.get('reportStyleChecksAsWarnings', true);
+		this.reportStyleCheckAsWarnings = readUnifiedConfig<boolean>('reportStyleChecksAsWarnings', true, { scope: null, fallbackSection: 'typescript' });
 	}
 
 	private async findLanguage(resource: vscode.Uri): Promise<LanguageProvider | undefined> {

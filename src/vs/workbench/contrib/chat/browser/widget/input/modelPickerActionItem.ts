@@ -29,6 +29,10 @@ export interface IModelPickerDelegate {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
+	useGroupedModelPicker(): boolean;
+	showManageModelsAction(): boolean;
+	showUnavailableFeatured(): boolean;
+	showFeatured(): boolean;
 }
 
 type ChatModelChangeClassification = {
@@ -165,9 +169,10 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 			run: () => { }
 		};
 
+		const baseActionBarActionProvider = getModelPickerActionBarActionProvider(commandService, chatEntitlementService, productService);
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService, pickerOptions),
-			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService, productService),
+			actionBarActionProvider: { getActions: () => baseActionBarActionProvider.getActions() },
 			reporter: { id: 'ChatModelPicker', name: 'ChatModelPicker', includeOptions: true },
 		};
 

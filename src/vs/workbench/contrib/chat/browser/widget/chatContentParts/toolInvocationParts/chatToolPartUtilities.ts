@@ -7,6 +7,24 @@ import { createMarkdownCommandLink, IMarkdownString, MarkdownString } from '../.
 import { localize } from '../../../../../../../nls.js';
 import { ConfirmedReason, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 
+export function isMcpToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+	return toolInvocation.source?.type === 'mcp' || toolInvocation.toolId.toLowerCase().includes('mcp');
+}
+
+/**
+ * Determines whether a tool invocation's progress text should shimmer.
+ * MCP tools shimmer; askQuestions defers to the caller's default; all others opt out.
+ */
+export function shouldShimmerForTool(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+	if (isMcpToolInvocation(toolInvocation)) {
+		return !IChatToolInvocation.isComplete(toolInvocation);
+	}
+	if (toolInvocation.toolId === 'copilot_askQuestions' || toolInvocation.toolId === 'vscode_askQuestions') {
+		return false;
+	}
+	return false;
+}
+
 /**
  * Creates a markdown message explaining why a tool was auto-approved.
  * @param toolInvocation The tool invocation to get the approval message for
@@ -30,7 +48,7 @@ export function getApprovalMessageFromReason(reason: ConfirmedReason): IMarkdown
 	let md: string;
 	switch (reason.type) {
 		case ToolConfirmKind.Setting:
-			md = localize('chat.autoapprove.setting', 'Auto approved by {0}', createMarkdownCommandLink({ title: '`' + reason.id + '`', id: 'workbench.action.openSettings', arguments: [reason.id] }, false));
+			md = localize('chat.autoapprove.setting', 'Auto approved by {0}', createMarkdownCommandLink({ text: '`' + reason.id + '`', id: 'workbench.action.openSettings', arguments: [reason.id], tooltip: localize('openSettings.tooltip', 'Open settings') }, false));
 			break;
 		case ToolConfirmKind.LmServicePerTool:
 			md = reason.scope === 'session'
@@ -38,7 +56,7 @@ export function getApprovalMessageFromReason(reason: ConfirmedReason): IMarkdown
 				: reason.scope === 'workspace'
 					? localize('chat.autoapprove.lmServicePerTool.workspace', 'Auto approved for this workspace')
 					: localize('chat.autoapprove.lmServicePerTool.profile', 'Auto approved for this profile');
-			md += ' (' + createMarkdownCommandLink({ title: localize('edit', 'Edit'), id: 'workbench.action.chat.editToolApproval', arguments: [reason.scope] }) + ')';
+			md += ' (' + createMarkdownCommandLink({ text: localize('edit', 'Edit'), id: 'workbench.action.chat.editToolApproval', arguments: [reason.scope], tooltip: localize('editToolApproval.tooltip', 'Edit tool approval settings') }) + ')';
 			break;
 		case ToolConfirmKind.ConfirmationNotNeeded:
 			if (reason.reason) {

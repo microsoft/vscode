@@ -29,7 +29,7 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, buttonSecondaryBorder, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator } from '../../../../platform/theme/common/colorRegistry.js';
+import { buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator, buttonBorder, contrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
 import { ITextEditorSelection } from '../../../../platform/editor/common/editor.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -435,7 +435,7 @@ export class InstallAction extends ExtensionAction {
 		this.updateLabel();
 	}
 
-	private readonly updateThrottler = new Throttler();
+	private readonly updateThrottler = this._register(new Throttler());
 	public readonly options: InstallOptions;
 
 	constructor(
@@ -954,7 +954,7 @@ export class UpdateAction extends ExtensionAction {
 	private static readonly EnabledClass = `${this.LABEL_ACTION_CLASS} update`;
 	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
 
-	private readonly updateThrottler = new Throttler();
+	private readonly updateThrottler = this._register(new Throttler());
 
 	constructor(
 		private readonly verbose: boolean,
@@ -1793,7 +1793,7 @@ export class DisableDropDownAction extends ButtonWithDropDownExtensionAction {
 
 export class ExtensionRuntimeStateAction extends ExtensionAction {
 
-	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} reload`;
+	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} prominent reload`;
 	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
@@ -1870,7 +1870,7 @@ export class ExtensionRuntimeStateAction extends ExtensionAction {
 		}
 
 		else if (runtimeState?.action === ExtensionRuntimeActionType.DownloadUpdate) {
-			return this.updateService.downloadUpdate();
+			return this.updateService.downloadUpdate(true);
 		}
 
 		else if (runtimeState?.action === ExtensionRuntimeActionType.ApplyUpdate) {
@@ -2542,7 +2542,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 	private readonly _onDidChangeStatus = this._register(new Emitter<void>());
 	readonly onDidChangeStatus = this._onDidChangeStatus.event;
 
-	private readonly updateThrottler = new Throttler();
+	private readonly updateThrottler = this._register(new Throttler());
 
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
@@ -3197,10 +3197,10 @@ registerColor('extensionButton.hoverBackground', {
 }, localize('extensionButtonHoverBackground', "Button background hover color for extension actions."));
 
 registerColor('extensionButton.border', {
-	dark: buttonSecondaryBorder,
-	light: buttonSecondaryBorder,
-	hcDark: null,
-	hcLight: null
+	dark: buttonBorder,
+	light: buttonBorder,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
 }, localize('extensionButtonBorder', "Button border color for extension actions."));
 
 registerColor('extensionButton.separator', buttonSeparator, localize('extensionButtonSeparator', "Button separator color for extension actions"));

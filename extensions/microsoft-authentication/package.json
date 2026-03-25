@@ -16,8 +16,7 @@
   "enabledApiProposals": [
     "nativeWindowHandle",
     "authIssuers",
-    "authenticationChallenges",
-    "envIsAppPortable"
+    "authenticationChallenges"
   ],
   "capabilities": {
     "virtualWorkspaces": true,

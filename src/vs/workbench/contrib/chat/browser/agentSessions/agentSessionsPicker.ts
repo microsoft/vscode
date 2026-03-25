@@ -11,11 +11,11 @@ import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
-import { openSession } from './agentSessionsOpener.js';
+import { ISessionOpenOptions, openSession } from './agentSessionsOpener.js';
 import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { AgentSessionsSorter, groupAgentSessionsByDate, sessionDateFromNow } from './agentSessionsViewer.js';
-import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, getAgentSessionTime } from './agentSessions.js';
+import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
 import { AgentSessionsFilter } from './agentSessionsFilter.js';
 
 interface ISessionPickItem extends IQuickPickItem {
@@ -44,7 +44,7 @@ export const deleteButton: IQuickInputButton = {
 
 export function getSessionDescription(session: IAgentSession): string {
 	const descriptionText = typeof session.description === 'string' ? session.description : session.description ? renderAsPlaintext(session.description) : undefined;
-	const timeAgo = sessionDateFromNow(getAgentSessionTime(session.timing));
+	const timeAgo = sessionDateFromNow(session.timing.created);
 	const descriptionParts = [descriptionText, session.providerLabel, timeAgo].filter(part => !!part);
 
 	return descriptionParts.join(' • ');
@@ -62,11 +62,17 @@ export function getSessionButtons(session: IAgentSession): IQuickInputButton[] {
 	return buttons;
 }
 
+export interface IAgentSessionsPickerOptions {
+	overrideSessionOpen?(session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<void>;
+}
+
 export class AgentSessionsPicker {
 
 	private readonly sorter = new AgentSessionsSorter();
 
 	constructor(
+		private readonly anchor: HTMLElement | undefined,
+		private readonly options: IAgentSessionsPickerOptions | undefined,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -78,6 +84,7 @@ export class AgentSessionsPicker {
 		const picker = disposables.add(this.quickInputService.createQuickPick<ISessionPickItem>({ useSeparators: true }));
 		const filter = disposables.add(this.instantiationService.createInstance(AgentSessionsFilter, {}));
 
+		picker.anchor = this.anchor;
 		picker.items = this.createPickerItems(filter);
 		picker.canAcceptInBackground = true;
 		picker.placeholder = localize('chatAgentPickerPlaceholder', "Search agent sessions by name");
@@ -85,13 +92,19 @@ export class AgentSessionsPicker {
 		disposables.add(picker.onDidAccept(e => {
 			const pick = picker.selectedItems[0];
 			if (pick) {
-				this.instantiationService.invokeFunction(openSession, pick.session, {
+				const openOptions: ISessionOpenOptions = {
 					sideBySide: e.inBackground,
 					editorOptions: {
 						preserveFocus: e.inBackground,
 						pinned: e.inBackground
 					}
-				});
+				};
+
+				if (this.options?.overrideSessionOpen) {
+					this.options.overrideSessionOpen(pick.session, openOptions);
+				} else {
+					this.instantiationService.invokeFunction(openSession, pick.session, openOptions);
+				}
 			}
 
 			if (!e.inBackground) {

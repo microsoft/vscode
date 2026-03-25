@@ -339,7 +339,7 @@ export interface IPtyService {
 	shutdown(id: number, immediate: boolean): Promise<void>;
 	input(id: number, data: string): Promise<void>;
 	sendSignal(id: number, signal: string): Promise<void>;
-	resize(id: number, cols: number, rows: number): Promise<void>;
+	resize(id: number, cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): Promise<void>;
 	clearBuffer(id: number): Promise<void>;
 	getInitialCwd(id: number): Promise<string>;
 	getCwd(id: number): Promise<string>;
@@ -391,7 +391,7 @@ export interface IPtyServiceContribution {
 	handleProcessReady(persistentProcessId: number, process: ITerminalChildProcess): void;
 	handleProcessDispose(persistentProcessId: number): void;
 	handleProcessInput(persistentProcessId: number, data: string): void;
-	handleProcessResize(persistentProcessId: number, cols: number, rows: number): void;
+	handleProcessResize(persistentProcessId: number, cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): void;
 }
 
 export interface IPtyHostController {
@@ -671,6 +671,13 @@ export interface IShellLaunchConfig {
 	 * This allows extensions to control shell integration for terminals they create.
 	 */
 	shellIntegrationNonce?: string;
+
+	/**
+	 * A title template string that supports the same variables as the
+	 * `terminal.integrated.tabs.title` setting. When set, this overrides the config-based
+	 * title template for this terminal instance.
+	 */
+	titleTemplate?: string;
 }
 
 export interface ITerminalTabAction {
@@ -686,6 +693,7 @@ export interface ICreateContributedTerminalProfileOptions {
 	color?: string;
 	location?: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean };
 	cwd?: string | URI;
+	titleTemplate?: string;
 }
 
 export enum TerminalLocation {
@@ -713,6 +721,7 @@ export interface IShellLaunchConfigDto {
 	isFeatureTerminal?: boolean;
 	tabActions?: ITerminalTabAction[];
 	shellIntegrationEnvironmentReporting?: boolean;
+	titleTemplate?: string;
 }
 
 /**
@@ -810,7 +819,7 @@ export interface ITerminalChildProcess {
 	input(data: string): void;
 	sendSignal(signal: string): void;
 	processBinary(data: string): Promise<void>;
-	resize(cols: number, rows: number): void;
+	resize(cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): void;
 	clearBuffer(): void | Promise<void>;
 
 	/**
@@ -962,6 +971,7 @@ export interface ITerminalProfileContribution {
 	id: string;
 	icon?: URI | { light: URI; dark: URI } | string;
 	color?: string;
+	titleTemplate?: string;
 }
 
 export interface IExtensionTerminalProfile extends ITerminalProfileContribution {

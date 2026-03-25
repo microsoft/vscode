@@ -44,10 +44,12 @@ import { ExplorerFolderContext } from '../../../../files/common/files.js';
 import { IWorkspaceSymbol } from '../../../../search/common/search.js';
 import { IChatContentInlineReference } from '../../../common/chatService/chatService.js';
 import { IChatWidgetService } from '../../chat.js';
+import { IChatImageCarouselService } from '../../chatImageCarouselService.js';
 import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from '../../attachments/chatAttachmentWidgets.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { getMediaMime } from '../../../../../../base/common/mime.js';
 
 /**
  * Returns the editor ID to use when opening a resource from chat pills (inline anchors), based on the
@@ -110,6 +112,11 @@ export function renderFileWidgets(element: HTMLElement, instantiationService: II
 					linkText
 				};
 				shouldRenderWidget = true;
+
+				// Strip vscodeLinkType from the URI once we've extracted the metadata for better compatibility with different FS
+				searchParams.delete('vscodeLinkType');
+				const remainingQuery = searchParams.toString();
+				uri = uri.with({ query: remainingQuery });
 			}
 		}
 
@@ -125,14 +132,13 @@ export class InlineAnchorWidget extends Disposable {
 
 	public static readonly className = 'chat-inline-anchor-widget';
 
-	private readonly _chatResourceContext: IContextKey<string>;
-
 	readonly data: ContentRefData;
 
 	constructor(
 		private readonly element: HTMLAnchorElement | HTMLElement,
 		public readonly inlineReference: IChatContentInlineReference,
 		private readonly metadata: InlineAnchorWidgetMetadata | undefined,
+		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService originalContextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -158,9 +164,6 @@ export class InlineAnchorWidget extends Disposable {
 				? { kind: 'symbol', symbol: inlineReference.inlineReference }
 				: { uri: inlineReference.inlineReference };
 
-		const contextKeyService = this._register(originalContextKeyService.createScoped(element));
-		this._chatResourceContext = chatAttachmentResourceContextKey.bindTo(contextKeyService);
-
 		element.classList.add(InlineAnchorWidget.className, 'show-file-icons');
 
 		let iconText: Array<string | HTMLElement>;
@@ -168,7 +171,6 @@ export class InlineAnchorWidget extends Disposable {
 
 		let location: { readonly uri: URI; readonly range?: IRange };
 
-		let updateContextKeys: (() => Promise<void>) | undefined;
 		if (this.data.kind === 'symbol') {
 			const symbol = this.data.symbol;
 
@@ -176,7 +178,7 @@ export class InlineAnchorWidget extends Disposable {
 			iconText = [this.data.symbol.name];
 			iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(symbol.kind))];
 
-			this._store.add(instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, element, contextKeyService, { value: symbol.location, name: symbol.name, kind: symbol.kind }, MenuId.ChatInlineSymbolAnchorContext)));
+			this._store.add(instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, element, originalContextKeyService, { value: symbol.location, name: symbol.name, kind: symbol.kind }, MenuId.ChatInlineSymbolAnchorContext)));
 		} else {
 			location = this.data;
 
@@ -205,14 +207,10 @@ export class InlineAnchorWidget extends Disposable {
 				iconEl.classList.add(...iconClasses);
 			};
 
-			this._register(themeService.onDidFileIconThemeChange(() => {
-				refreshIconClasses();
-			}));
-
-			const isFolderContext = ExplorerFolderContext.bindTo(contextKeyService);
+			let isDirectory = false;
 			fileService.stat(location.uri)
 				.then(stat => {
-					isFolderContext.set(stat.isDirectory);
+					isDirectory = stat.isDirectory;
 					if (stat.isDirectory) {
 						fileKind = FileKind.FOLDER;
 						refreshIconClasses();
@@ -220,26 +218,42 @@ export class InlineAnchorWidget extends Disposable {
 				})
 				.catch(() => { });
 
-			// Context menu
+			// Context menu (context key service created lazily on first context menu open)
+			let contextKeyService: IContextKeyService | undefined;
+			let isFolderContext: IContextKey<boolean> | undefined;
+			let contextMenuInitialized = false;
+
+			const ensureContextKeyService = () => {
+				if (!contextKeyService) {
+					contextKeyService = this._register(originalContextKeyService.createScoped(element));
+					chatAttachmentResourceContextKey.bindTo(contextKeyService).set(location.uri.toString());
+					isFolderContext = ExplorerFolderContext.bindTo(contextKeyService);
+				}
+				return contextKeyService;
+			};
+
 			this._register(dom.addDisposableListener(element, dom.EventType.CONTEXT_MENU, async domEvent => {
 				const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
 				dom.EventHelper.stop(domEvent, true);
 
-				try {
-					await updateContextKeys?.();
-				} catch (e) {
-					console.error(e);
+				const cks = ensureContextKeyService();
+
+				if (!contextMenuInitialized) {
+					contextMenuInitialized = true;
+					const resourceContextKey = new StaticResourceContextKey(cks, fileService, languageService, modelService);
+					resourceContextKey.set(location.uri);
 				}
+				isFolderContext!.set(isDirectory);
 
 				if (this._store.isDisposed) {
 					return;
 				}
 
 				contextMenuService.showContextMenu({
-					contextKeyService,
+					contextKeyService: cks,
 					getAnchor: () => event,
 					getActions: () => {
-						const menu = menuService.getMenuActions(MenuId.ChatInlineResourceAnchorContext, contextKeyService, { arg: location.uri });
+						const menu = menuService.getMenuActions(MenuId.ChatInlineResourceAnchorContext, cks, { arg: location.uri });
 						return getFlatContextMenuActions(menu);
 					},
 				});
@@ -255,10 +269,6 @@ export class InlineAnchorWidget extends Disposable {
 			}
 		}
 
-		const resourceContextKey = new StaticResourceContextKey(contextKeyService, fileService, languageService, modelService);
-		resourceContextKey.set(location.uri);
-		this._chatResourceContext.set(location.uri.toString());
-
 		const iconEl = dom.$('span.icon');
 		iconEl.classList.add(...iconClasses);
 		element.replaceChildren(iconEl, dom.$('span.icon-label', {}, ...iconText));
@@ -269,14 +279,6 @@ export class InlineAnchorWidget extends Disposable {
 		// Hover
 		const relativeLabel = labelService.getUriLabel(location.uri, { relative: true });
 		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, relativeLabel));
-
-		// Apply link-style if configured
-		this.updateAppearance();
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.InlineReferencesStyle)) {
-				this.updateAppearance();
-			}
-		}));
 
 		// Drag and drop
 		if (this.data.kind !== 'symbol') {
@@ -296,6 +298,14 @@ export class InlineAnchorWidget extends Disposable {
 		// Click handler to open with custom editor association from chat.editorAssociations setting
 		this._register(dom.addDisposableListener(element, 'click', async (e) => {
 			dom.EventHelper.stop(e, true);
+
+			// If the reference is an image file and the carousel is enabled, open the carousel
+			const mimeType = getMediaMime(location.uri.path);
+			if (mimeType?.startsWith('image/') && this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
+				await this.chatImageCarouselService.openCarouselAtResource(location.uri);
+				return;
+			}
+
 			const editorOverride = getEditorOverrideForChatResource(location.uri, this.configurationService);
 			const editorOptions: { override: string | undefined; selection?: IRange } = {
 				override: editorOverride,
@@ -312,12 +322,6 @@ export class InlineAnchorWidget extends Disposable {
 
 	getHTMLElement(): HTMLElement {
 		return this.element;
-	}
-
-	private updateAppearance(): void {
-		const style = this.configurationService.getValue<string>(ChatConfiguration.InlineReferencesStyle);
-		const useLinkStyle = style === 'link';
-		this.element.classList.toggle('link-style', useLinkStyle);
 	}
 
 	private getCellIndex(location: URI) {

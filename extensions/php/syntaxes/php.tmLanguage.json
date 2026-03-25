@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/KapitanOczywisty/language-php/commit/6941b924add3b2587a5be789248176edf5f14595",
+	"version": "https://github.com/KapitanOczywisty/language-php/commit/a0f3d9a3b0d017181455ed515e48a36607a90e3b",
 	"scopeName": "source.php",
 	"patterns": [
 		{
@@ -2464,7 +2464,7 @@
 							"name": "punctuation.definition.arguments.begin.bracket.round.php"
 						}
 					},
-					"end": "\\)",
+					"end": "\\)|(?=\\?>)",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.definition.arguments.end.bracket.round.php"
@@ -2536,16 +2536,33 @@
 			]
 		},
 		"invoke-call": {
-			"captures": {
+			"begin": "(?i)((\\$+)[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)\\s*(\\()",
+			"beginCaptures": {
 				"1": {
 					"name": "variable.other.php"
 				},
 				"2": {
 					"name": "punctuation.definition.variable.php"
+				},
+				"3": {
+					"name": "punctuation.definition.arguments.begin.bracket.round.php"
 				}
 			},
-			"match": "(?i)((\\$+)[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)(?=\\s*\\()",
-			"name": "meta.function-call.invoke.php"
+			"end": "\\)|(?=\\?>)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.arguments.end.bracket.round.php"
+				}
+			},
+			"name": "meta.function-call.invoke.php",
+			"patterns": [
+				{
+					"include": "#named-arguments"
+				},
+				{
+					"include": "$self"
+				}
+			]
 		},
 		"namespace": {
 			"begin": "(?i)(?:(namespace)|[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)?(\\\\)",

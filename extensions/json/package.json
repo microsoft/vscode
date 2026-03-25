@@ -2,7 +2,7 @@
   "name": "json",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -69,6 +69,9 @@
           ".babelrc.json",
           ".ember-cli",
           "typedoc.json"
+        ],
+        "filenamePatterns": [
+          "**/.github/hooks/*.json"
         ],
         "configuration": "./language-configuration.json"
       },

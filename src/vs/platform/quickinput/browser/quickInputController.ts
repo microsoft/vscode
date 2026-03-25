@@ -37,6 +37,8 @@ import { TriStateCheckbox, createToggleActionViewItemProvider } from '../../../b
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
 import { QuickInputTreeController } from './tree/quickInputTreeController.js';
 import { QuickTree } from './tree/quickTree.js';
+import { AnchorAlignment, AnchorPosition, layout2d } from '../../../base/common/layout.js';
+import { getAnchorRect } from '../../../base/browser/ui/contextview/contextview.js';
 
 const $ = dom.$;
 
@@ -58,7 +60,7 @@ export class QuickInputController extends Disposable {
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
 	private readonly onDidCustomEmitter = this._register(new Emitter<void>());
 	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
-	private keyMods: Writeable<IKeyMods> = { ctrlCmd: false, alt: false };
+	private keyMods: Writeable<IKeyMods> = { ctrlCmd: false, alt: false, shift: false };
 
 	private controller: IQuickInput | null = null;
 	get currentQuickInput() { return this.controller ?? undefined; }
@@ -118,6 +120,7 @@ export class QuickInputController extends Disposable {
 		const listener = (e: KeyboardEvent | MouseEvent) => {
 			this.keyMods.ctrlCmd = e.ctrlKey || e.metaKey;
 			this.keyMods.alt = e.altKey;
+			this.keyMods.shift = e.shiftKey;
 		};
 
 		for (const event of [dom.EventType.KEY_DOWN, dom.EventType.KEY_UP, dom.EventType.MOUSE_DOWN]) {
@@ -541,6 +544,7 @@ export class QuickInputController extends Disposable {
 			input.quickNavigate = options.quickNavigate;
 			input.hideInput = !!options.hideInput;
 			input.contextKey = options.contextKey;
+			input.anchor = options.anchor;
 			input.busy = true;
 			Promise.all([picks, options.activeItem])
 				.then(([items, _activeItem]) => {
@@ -710,6 +714,7 @@ export class QuickInputController extends Disposable {
 
 		ui.container.style.display = '';
 		this.updateLayout();
+		this.dndController?.setEnabled(!controller.anchor);
 		this.dndController?.layoutContainer();
 		ui.inputBox.setFocus();
 		this.quickInputTypeContext.set(controller.type);
@@ -833,13 +838,14 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	async accept(keyMods: IKeyMods = { alt: false, ctrlCmd: false }) {
+	async accept(keyMods: IKeyMods = { alt: false, ctrlCmd: false, shift: false }) {
 		// When accepting the item programmatically, it is important that
 		// we update `keyMods` either from the provided set or unset it
 		// because the accept did not happen from mouse or keyboard
 		// interaction on the list itself
 		this.keyMods.alt = keyMods.alt;
 		this.keyMods.ctrlCmd = keyMods.ctrlCmd;
+		this.keyMods.shift = keyMods.shift;
 
 		this.onDidAcceptEmitter.fire();
 	}
@@ -861,16 +867,52 @@ export class QuickInputController extends Disposable {
 	private updateLayout() {
 		if (this.ui && this.isVisible()) {
 			const style = this.ui.container.style;
-			const width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
+			let width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
 			style.width = width + 'px';
 
+			let listHeight = this.dimension && this.dimension.height * 0.4;
+
 			// Position
-			style.top = `${this.viewState?.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
-			style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
+			if (this.controller?.anchor) {
+				const container = this.layoutService.getContainer(dom.getActiveWindow()).getBoundingClientRect();
+				const anchor = getAnchorRect(this.controller.anchor);
+				width = 380;
+				listHeight = this.dimension ? Math.min(this.dimension.height * 0.2, 200) : 200;
+
+				// Beware:
+				// We need to add some extra pixels to the height to account for the input and padding.
+				const containerHeight = Math.floor(listHeight) + 6 + 26 + 16;
+				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: AnchorPosition.ABOVE });
+
+				if (anchorAlignment === AnchorAlignment.RIGHT) {
+					style.right = `${right}px`;
+					style.left = 'initial';
+				} else {
+					style.left = `${left}px`;
+					style.right = 'initial';
+				}
+
+				if (anchorPosition === AnchorPosition.ABOVE) {
+					style.bottom = `${bottom}px`;
+					style.top = 'initial';
+				} else {
+					style.top = `${top}px`;
+					style.bottom = 'initial';
+				}
+
+				style.width = `${width}px`;
+				style.height = '';
+			} else {
+				style.top = `${this.viewState?.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
+				style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
+				style.right = '';
+				style.bottom = '';
+				style.height = '';
+			}
 
 			this.ui.inputBox.layout();
-			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);
-			this.ui.tree.layout(this.dimension && this.dimension.height * 0.4);
+			this.ui.list.layout(listHeight);
+			this.ui.tree.layout(listHeight);
 		}
 	}
 
@@ -882,13 +924,12 @@ export class QuickInputController extends Disposable {
 	private updateStyles() {
 		if (this.ui) {
 			const {
-				quickInputTitleBackground, quickInputBackground, quickInputForeground, widgetBorder, widgetShadow,
+				quickInputTitleBackground, quickInputBackground, quickInputForeground, widgetBorder,
 			} = this.styles.widget;
 			this.ui.titleBar.style.backgroundColor = quickInputTitleBackground ?? '';
 			this.ui.container.style.backgroundColor = quickInputBackground ?? '';
 			this.ui.container.style.color = quickInputForeground ?? '';
 			this.ui.container.style.border = widgetBorder ? `1px solid ${widgetBorder}` : '';
-			this.ui.container.style.boxShadow = widgetShadow ? `0 0 8px 2px ${widgetShadow}` : '';
 			this.ui.list.style(this.styles.list);
 			this.ui.tree.tree.style(this.styles.list);
 
@@ -965,6 +1006,8 @@ export interface IQuickInputControllerHost extends ILayoutService { }
 class QuickInputDragAndDropController extends Disposable {
 	readonly dndViewState = observableValue<{ top?: number; left?: number; done: boolean } | undefined>(this, undefined);
 
+	private _enabled = true;
+
 	private readonly _snapThreshold = 20;
 	private readonly _snapLineHorizontalRatio = 0.25;
 
@@ -1000,6 +1043,10 @@ class QuickInputDragAndDropController extends Disposable {
 	}
 
 	layoutContainer(dimension = this._layoutService.activeContainerDimension): void {
+		if (!this._enabled) {
+			return;
+		}
+
 		const state = this.dndViewState.get();
 		const dragAreaRect = this._quickInputContainer.getBoundingClientRect();
 		if (state?.top && state?.left) {
@@ -1009,6 +1056,11 @@ class QuickInputDragAndDropController extends Disposable {
 			const d = a * b - c / 2;
 			this._layout(state.top * dimension.height, d);
 		}
+	}
+
+	setEnabled(enabled: boolean): void {
+		this._enabled = enabled;
+		this._quickInputContainer.classList.toggle('no-drag', !enabled);
 	}
 
 	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }, done = true): void {
@@ -1041,6 +1093,10 @@ class QuickInputDragAndDropController extends Disposable {
 
 		// Double click
 		this._register(dom.addDisposableGenericMouseUpListener(dragArea, (event: MouseEvent) => {
+			if (!this._enabled) {
+				return;
+			}
+
 			const originEvent = new StandardMouseEvent(dom.getWindow(dragArea), event);
 			if (originEvent.detail !== 2) {
 				return;
@@ -1057,6 +1113,10 @@ class QuickInputDragAndDropController extends Disposable {
 
 		// Mouse down
 		this._register(dom.addDisposableGenericMouseDownListener(dragArea, (e: MouseEvent) => {
+			if (!this._enabled) {
+				return;
+			}
+
 			const activeWindow = dom.getWindow(this._layoutService.activeContainer);
 			const originEvent = new StandardMouseEvent(activeWindow, e);
 
