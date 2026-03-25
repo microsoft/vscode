@@ -753,8 +753,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							: localize('runInTerminal.presentationOverride.inDirectory', "Run `{0}` command in `{1}` within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel);
 					} else {
 						confirmationTitle = args.isBackground
-							? localize('runInTerminal.presentationOverride.background.inDirectory.withoutLangauge', "Run command in `{0}` in background within `{1}`?", shellType, toolSpecificData.confirmation.cwdLabel)
-							: localize('runInTerminal.presentationOverride.inDirectory.withoutLangauge', "Run command in `{0}` within `{1}`?", shellType, toolSpecificData.confirmation.cwdLabel);
+							? localize('runInTerminal.presentationOverride.background.inDirectory.withoutLanguage', "Run command in `{0}` in background within `{1}`?", shellType, toolSpecificData.confirmation.cwdLabel)
+							: localize('runInTerminal.presentationOverride.inDirectory.withoutLanguage', "Run command in `{0}` within `{1}`?", shellType, toolSpecificData.confirmation.cwdLabel);
 					}
 				} else {
 					if (presenterResult.languageDisplayName) {
@@ -763,8 +763,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							: localize('runInTerminal.presentationOverride', "Run `{0}` command in `{1}`?", presenterResult.languageDisplayName, shellType);
 					} else {
 						confirmationTitle = args.isBackground
-							? localize('runInTerminal.presentationOverride.background.withoutLangauge', "Run command in `{0}` in background?", shellType)
-							: localize('runInTerminal.presentationOverride.withoutLangauge', "Run command in `{0}`?", shellType);
+							? localize('runInTerminal.presentationOverride.background.withoutLanguage', "Run command in `{0}` in background?", shellType)
+							: localize('runInTerminal.presentationOverride.withoutLanguage', "Run command in `{0}`?", shellType);
 					}
 				}
 				if (!presenterResult.processOtherPresenters) {
