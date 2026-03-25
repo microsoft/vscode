@@ -168,7 +168,6 @@
 	background-color: transparent;
 	color: var(--vscode-foreground);
 	border-radius: 4px;
-	gap: 0;
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label:hover {
@@ -178,6 +177,10 @@
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label {
 	font-size: 18px;
+}
+
+.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron) {
+	font-size: 16px;
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-chevron {

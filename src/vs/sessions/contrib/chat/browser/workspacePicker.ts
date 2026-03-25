@@ -436,6 +436,10 @@ export class WorkspacePicker extends Disposable {
 		dom.clearNode(this._triggerElement);
 		const project = this._selectedProject;
 		const label = project ? this._getProjectLabel(project) : localize('pickWorkspace', "Pick a Workspace");
+		const icon = project
+			? (project.isRemoteAgentHost ? Codicon.remote : project.isFolder ? Codicon.folder : Codicon.repo)
+			: Codicon.project;
+		dom.append(this._triggerElement, renderIcon(icon));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown)).classList.add('sessions-chat-dropdown-chevron');
