@@ -356,6 +356,10 @@ export class RemoteNewSession extends Disposable implements ISessionData {
 		// Set workspace data
 		this._workspaceData.set(sessionWorkspace, undefined);
 		this._repoUri = sessionWorkspace.repositories[0]?.uri;
+		if (this._repoUri) {
+			const id = this._repoUri.path.substring(1);
+			this.setOption('repositories', { id, name: id });
+		}
 
 		this._updateWhenClauseKeys();
 
