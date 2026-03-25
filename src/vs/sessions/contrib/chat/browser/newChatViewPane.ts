@@ -50,7 +50,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/a
 import { SlashCommandHandler } from './slashCommands.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
@@ -560,7 +560,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			await this.sessionsManagementService.sendRequest(session, { query, attachedContext });
 			this._contextAttachments.clear();
 			this._editor.getModel()?.setValue('');
-			this._permissionPicker.permissionLevel = ChatPermissionLevel.Default;
 		} catch (e) {
 			this.logService.error('Failed to send request:', e);
 		}

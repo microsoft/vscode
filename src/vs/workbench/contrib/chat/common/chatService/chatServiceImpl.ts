@@ -613,6 +613,7 @@ export class ChatService extends Disposable implements IChatService {
 		const contribution = this.chatSessionService.getChatSessionContribution(chatSessionType);
 		const modelId = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modelId)?.modelId;
 		const agentUri = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modeInstructions?.uri)?.modeInstructions?.uri;
+		const storedPermissionLevel = this._chatSessionStore.getMetadataForSessionSync(sessionResource)?.permissionLevel;
 		let initialData: ISerializedChatDataReference | undefined = undefined;
 		if ((modelId || agentUri) && contribution?.useRequestToPopulateBuiltInPickers) {
 			const mode: ISerializableChatModelInputState['mode'] = agentUri ? { kind: ChatModeKind.Agent, id: agentUri.toString() } : { kind: ChatModeKind.Agent, id: ChatMode.Agent.id };
@@ -637,7 +638,7 @@ export class ChatService extends Disposable implements IChatService {
 						mode,
 						selectedModel: selectedModel,
 						selections: [],
-						permissionLevel: this._chatSessionStore.getMetadataForSessionSync(sessionResource)?.permissionLevel,
+						permissionLevel: storedPermissionLevel,
 					},
 					pendingRequests: undefined,
 					repoData: undefined
@@ -654,6 +655,11 @@ export class ChatService extends Disposable implements IChatService {
 			transferEditingSession: providedSession.transferredState?.editingSession,
 			inputState: providedSession.transferredState?.inputState,
 		});
+
+		// Restore permission level from metadata even when initialData was not constructed
+		if (storedPermissionLevel && !initialData) {
+			modelRef.object.inputModel.setState({ permissionLevel: storedPermissionLevel });
+		}
 
 		modelRef.object.setContributedChatSession({
 			chatSessionResource: sessionResource,

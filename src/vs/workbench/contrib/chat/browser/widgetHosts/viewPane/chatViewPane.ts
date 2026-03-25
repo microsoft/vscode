@@ -10,7 +10,7 @@ import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { Orientation, Sash } from '../../../../../../base/browser/ui/sash/sash.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { MutableDisposable, toDisposable, DisposableStore, DisposableMap } from '../../../../../../base/common/lifecycle.js';
+import { MutableDisposable, toDisposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { autorun, IReader } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -100,7 +100,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private restoringSession: Promise<void> | undefined;
 	private readonly loadSessionCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
-	private readonly _cachedModelRefs = this._register(new DisposableMap<string, IChatModelReference>());
+	private readonly _previousModelRef = this._register(new MutableDisposable<IChatModelReference>());
 
 	private readonly activityBadge = this._register(new MutableDisposable());
 
@@ -706,12 +706,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true): Promise<IChatModel | undefined> {
 		const oldModelResource = this.modelRef.value?.object.sessionResource;
 
-		// Keep the old model reference alive so its InputModel state (permission level, etc.)
-		// survives while the user switches between sessions.
-		const oldRef = this.modelRef.value;
-		if (oldRef && oldModelResource) {
-			this._cachedModelRefs.set(oldModelResource.toString(), oldRef);
-		}
+		// Keep the previous model reference alive so its InputModel state (permission level, etc.)
+		// survives until the next session switch. Only the most recent previous session is kept.
+		this._previousModelRef.value = this.modelRef.value;
 		this.modelRef.value = undefined;
 
 		let ref: IChatModelReference | undefined;
@@ -732,9 +729,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.modelRef.value = ref;
 		const model = ref?.object;
 
-		// Remove this model from the cache since it's now the active one
-		if (model) {
-			this._cachedModelRefs.deleteAndDispose(model.sessionResource.toString());
+		// If we're switching back to the previously cached model, clear the cache
+		if (model && this._previousModelRef.value?.object.sessionResource.toString() === model.sessionResource.toString()) {
+			this._previousModelRef.value = undefined;
 		}
 
 		if (model) {

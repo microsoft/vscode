@@ -2411,8 +2411,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const delegate: IPermissionPickerDelegate = {
 						currentPermissionLevel: this._currentPermissionLevel,
 						setPermissionLevel: (level: ChatPermissionLevel) => {
-							this._currentPermissionLevel.set(level, undefined);
-							this.permissionLevelKey.set(level);
+							this.setPermissionLevel(level);
 						},
 					};
 					return this.permissionWidget = this.instantiationService.createInstance(PermissionPickerActionItem, action, delegate, pickerOptions);
