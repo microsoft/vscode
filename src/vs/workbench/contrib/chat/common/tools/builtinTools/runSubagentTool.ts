@@ -58,6 +58,8 @@ export interface IRunSubagentToolInputParams {
 	agentName?: string;
 }
 
+export const RUN_SUBAGENT_MAX_NESTING_DEPTH = 5;
+
 export class RunSubagentTool extends Disposable implements IToolImpl {
 
 	static readonly Id = 'runSubagent';
@@ -250,7 +252,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			};
 
 			// Determine whether the subagent should be allowed to spawn its own subagents.
-			const maxDepth = this.configurationService.getValue<number>(ChatConfiguration.SubagentsMaxDepth) ?? 0;
+			const allowInvocationsFromSubagents = this.configurationService.getValue<boolean>(ChatConfiguration.SubagentsAllowInvocationsFromSubagents) ?? false;
+			const maxDepth = allowInvocationsFromSubagents ? RUN_SUBAGENT_MAX_NESTING_DEPTH : 0;
 			const sessionKey = invocation.context.sessionResource.toString();
 			const currentDepth = this._sessionDepth.get(sessionKey) ?? 0;
 			const depthAllowed = currentDepth + 1 <= maxDepth;
@@ -270,7 +273,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			modeTools['copilot_askQuestions'] = false;
 
 			if (maxDepth > 0) {
-				this.logService.debug(`RunSubagentTool: Nested subagents enabling ${modeTools[RunSubagentTool.Id]}: session ${sessionKey}, currentDepth: ${currentDepth}, maxDepth: ${maxDepth}`);
+				this.logService.debug(`RunSubagentTool: Nested subagents enabling ${modeTools[RunSubagentTool.Id]}: session ${sessionKey}, currentDepth: ${currentDepth}, maxDepth: ${maxDepth}, allowInvocationsFromSubagents: ${allowInvocationsFromSubagents}`);
 			}
 
 			const variableSet = new ChatRequestVariableSet();
@@ -316,7 +319,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				modeInstructions,
 				parentRequestId: invocation.chatRequestId,
 				hooks: collectedHooks,
-				hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
+				hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr && arr.length > 0),
 			};
 
 			// Subscribe to tool invocations to clear markdown parts when a tool is invoked

@@ -14,9 +14,9 @@ import { IContextMenuService } from '../../../platform/contextview/browser/conte
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { PANEL_BACKGROUND, PANEL_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BORDER, PANEL_TITLE_BADGE_BACKGROUND, PANEL_TITLE_BADGE_FOREGROUND } from '../../../workbench/common/theme.js';
+import { PANEL_BORDER, PANEL_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BORDER, PANEL_TITLE_BADGE_BACKGROUND, PANEL_TITLE_BADGE_FOREGROUND } from '../../../workbench/common/theme.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
-import { sessionsSidebarBorder } from '../../common/theme.js';
+import { sessionsPanelBackground } from '../../common/theme.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
@@ -69,9 +69,9 @@ export class PanelPart extends AbstractPaneCompositePart {
 	static readonly activePanelSettingsKey = 'workbench.agentsession.panelpart.activepanelid';
 
 	/** Visual margin values for the card-like appearance */
-	static readonly MARGIN_BOTTOM = 18;
-	static readonly MARGIN_LEFT = 16;
-	static readonly MARGIN_RIGHT = 16;
+	static readonly MARGIN_BOTTOM = 14;
+	static readonly MARGIN_LEFT = 12;
+	static readonly MARGIN_RIGHT = 12;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -129,9 +129,9 @@ export class PanelPart extends AbstractPaneCompositePart {
 		const container = assertReturnsDefined(this.getContainer());
 
 		// Store background and border as CSS variables for the card styling on .part
-		container.style.setProperty('--part-background', this.getColor(PANEL_BACKGROUND) || '');
-		container.style.setProperty('--part-border-color', this.getColor(sessionsSidebarBorder) || this.getColor(contrastBorder) || 'transparent');
-		container.style.backgroundColor = 'transparent';
+		container.style.setProperty('--part-background', this.getColor(sessionsPanelBackground) || '');
+		container.style.setProperty('--part-border-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || 'transparent');
+		container.style.backgroundColor = this.getColor(sessionsPanelBackground) || '';
 
 		// Clear inline borders - the card appearance uses CSS border-radius instead
 		container.style.borderTopColor = '';
@@ -157,8 +157,8 @@ export class PanelPart extends AbstractPaneCompositePart {
 			compact: true,
 			overflowActionSize: 44,
 			colors: theme => ({
-				activeBackgroundColor: theme.getColor(PANEL_BACKGROUND),
-				inactiveBackgroundColor: theme.getColor(PANEL_BACKGROUND),
+				activeBackgroundColor: theme.getColor(sessionsPanelBackground),
+				inactiveBackgroundColor: theme.getColor(sessionsPanelBackground),
 				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
 				activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
 				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
@@ -176,10 +176,12 @@ export class PanelPart extends AbstractPaneCompositePart {
 			return;
 		}
 
-		// Layout content with reduced dimensions to account for visual margins
+		// Layout content with reduced dimensions to account for visual margins and border
+		const borderTotal = 2; // 1px border on each side
+		const marginLeft = this.layoutService.isVisible(Parts.SIDEBAR_PART) ? 0 : PanelPart.MARGIN_LEFT;
 		super.layout(
-			width - PanelPart.MARGIN_LEFT - PanelPart.MARGIN_RIGHT,
-			height - PanelPart.MARGIN_BOTTOM,
+			width - marginLeft - PanelPart.MARGIN_RIGHT - borderTotal,
+			height - PanelPart.MARGIN_BOTTOM - borderTotal,
 			top, left
 		);
 
