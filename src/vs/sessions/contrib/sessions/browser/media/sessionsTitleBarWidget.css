@@ -11,7 +11,7 @@
 	flex-wrap: nowrap;
 	align-items: center;
 	justify-content: flex-start;
-	padding: 0 32px;
+	padding-left: 32px;
 	height: 22px;
 	border-radius: 4px;
 	-webkit-app-region: no-drag;
