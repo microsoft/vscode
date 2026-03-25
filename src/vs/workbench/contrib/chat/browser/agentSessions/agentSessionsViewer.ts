@@ -868,7 +868,7 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 		}
 
 		if (isAgentSessionShowMore(element) || isAgentSessionShowLess(element)) {
-			return this._compactShowMore ? 0 : AgentSessionShowMoreRenderer.HEIGHT;
+			return this._compactShowMore ? 1 : AgentSessionShowMoreRenderer.HEIGHT;
 		}
 
 		let height = AgentSessionsListDelegate.ITEM_HEIGHT;
