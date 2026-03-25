@@ -23,9 +23,13 @@ steps:
           -OutFile $ArchivePath `
           -Headers @{ "Accept" = "application/vnd.github+json"; "Authorization" = "Bearer $(github-distro-mixin-password)"; "X-GitHub-Api-Version" = "2022-11-28" }
       } catch {
-        Write-Error "Network error while downloading distro: $_"
+        Write-Error "Error while downloading distro: $_"
         throw
       }
+
+      $ArchiveFile = Get-Item -Path $ArchivePath
+      Write-Host "Archive file type: $($ArchiveFile.Extension)"
+      Write-Host "Archive file size: $($ArchiveFile.Length) bytes"
 
       New-Item -ItemType Directory -Path .build -Force
       Expand-Archive -Path $ArchivePath -DestinationPath .build
