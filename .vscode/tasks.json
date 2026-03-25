@@ -235,7 +235,9 @@
 				"command": ".\\scripts\\code.bat"
 			},
 			"args": [
-				"--sessions"
+				"--sessions",
+				"--user-data-dir=${userHome}/.vscode-oss-sessions-dev",
+				"--extensions-dir=${userHome}/.vscode-oss-sessions-dev/extensions"
 			],
 			"problemMatcher": []
 		},
