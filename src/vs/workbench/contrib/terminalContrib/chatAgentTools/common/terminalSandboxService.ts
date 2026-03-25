@@ -133,7 +133,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}
 		// If requestUnsandboxedExecution is true, need to ensure env variables set during sandbox still apply.
 		if (requestUnsandboxedExecution) {
-			return `TMPDIR="${this._tempDir.path}" ${command}`;
+			return `(TMPDIR="${this._tempDir.path}"; export TMPDIR; ${command})`;
 		}
 
 		if (!this._execPath) {

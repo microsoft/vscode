@@ -79,12 +79,12 @@ suite('CommandLineSandboxRewriter', () => {
 		deepStrictEqual(calls, ['getSandboxConfigPath', 'wrapCommand']);
 	});
 
-	test('does not wrap command when sandbox bypass was explicitly requested', async () => {
+	test('wraps command and forwards sandbox bypass flag when explicitly requested', async () => {
 		const calls: string[] = [];
 		stubSandboxService({
 			isEnabled: async () => true,
-			wrapCommand: (command, _requestUnsandboxedExecution) => {
-				calls.push(`wrap:${command}`);
+			wrapCommand: (command, requestUnsandboxedExecution) => {
+				calls.push(`wrap:${command}:${String(requestUnsandboxedExecution)}`);
 				return `wrapped:${command}`;
 			},
 			getSandboxConfigPath: async () => {
@@ -99,7 +99,8 @@ suite('CommandLineSandboxRewriter', () => {
 			requestUnsandboxedExecution: true,
 		});
 
-		strictEqual(result, undefined);
-		deepStrictEqual(calls, []);
+		strictEqual(result?.rewritten, 'wrapped:echo hello');
+		strictEqual(result?.reasoning, 'Wrapped command for sandbox execution');
+		deepStrictEqual(calls, ['config', 'wrap:echo hello:true']);
 	});
 });

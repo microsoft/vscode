@@ -392,7 +392,14 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		strictEqual(sandboxService.wrapCommand('echo test', true), `TMPDIR="${sandboxService.getTempDir()?.path}" echo test`);
+		strictEqual(sandboxService.wrapCommand('echo test', true), `(TMPDIR="${sandboxService.getTempDir()?.path}"; export TMPDIR; echo test)`);
+	});
+
+	test('should preserve TMPDIR for piped unsandboxed commands', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		strictEqual(sandboxService.wrapCommand('echo test | cat', true), `(TMPDIR="${sandboxService.getTempDir()?.path}"; export TMPDIR; echo test | cat)`);
 	});
 
 	test('should pass wrapped command as a single quoted argument', async () => {
