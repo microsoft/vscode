@@ -71,7 +71,6 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 	private state!: State;
 	private entry: UpdateTitleBarEntry | undefined;
 	private tooltipVisible = false;
-	private pendingPostInstall: { buttonLabel?: string; autoShowTooltip?: boolean; markdown?: string; actionLabel?: string; actionCommand?: string; actionArgs?: unknown[] } | undefined;
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
@@ -113,13 +112,9 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			(action, options) => {
 				this.entry = instantiationService.createInstance(UpdateTitleBarEntry, action, options, this.tooltip, () => {
 					this.tooltipVisible = false;
-					this.pendingPostInstall = undefined;
 					this.updateContext();
 				});
-				if (this.pendingPostInstall) {
-					this.entry.showPostInstall(this.pendingPostInstall);
-					this.pendingPostInstall = undefined;
-				} else if (this.tooltipVisible) {
+				if (this.tooltipVisible) {
 					this.entry.showTooltip();
 				}
 				return this.entry;
@@ -203,16 +198,6 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		return false;
 	}
 
-	testShowPostInstall(options?: { buttonLabel?: string; autoShowTooltip?: boolean; markdown?: string; actionLabel?: string; actionCommand?: string; actionArgs?: unknown[] }) {
-		this.tooltipVisible = true;
-		this.context.set(true);
-		if (this.entry) {
-			this.entry.showPostInstall(options);
-		} else {
-			this.pendingPostInstall = options ?? {};
-		}
-	}
-
 	private trackVersionChange(from: ILastKnownVersion, to: ILastKnownVersion) {
 		type VersionChangeEvent = {
 			fromVersion: string | undefined;
@@ -259,8 +244,6 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 	private showTooltipOnRender = false;
 	private hintTimer: ReturnType<typeof setTimeout> | undefined;
 	private hintInterval: ReturnType<typeof setInterval> | undefined;
-	private postInstallTimer: ReturnType<typeof setTimeout> | undefined;
-	private postInstallOptions: { markdown?: string; actionLabel?: string; actionCommand?: string; actionArgs?: unknown[] } | undefined;
 
 	constructor(
 		action: IAction,
@@ -299,12 +282,6 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 
 		this.content.classList.add('hint-visible');
 
-		// Keep post-install button visible while tooltip is open
-		if (this.postInstallTimer !== undefined) {
-			clearTimeout(this.postInstallTimer);
-			this.postInstallTimer = undefined;
-		}
-
 		this.hoverService.showInstantHover({
 			content: this.tooltip.domNode,
 			target: {
@@ -312,7 +289,6 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 				dispose: () => {
 					if (!!this.content?.isConnected) {
 						this.content.classList.remove('hint-visible');
-						this.dismissPostInstall();
 						this.onUserDismissedTooltip();
 					}
 				}
@@ -404,9 +380,6 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 			case StateType.Ready: {
 				label.textContent = localize('updateIndicator.update', "Update");
 				this.content.classList.add('prominent');
-				const hint = dom.append(this.content, dom.$('.indicator-hint'));
-				hint.textContent = localize('updateIndicator.readyHint', "Installed. Restart?");
-				this.startPeriodicHint();
 				break;
 			}
 
@@ -465,66 +438,4 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		}
 	}
 
-	public showPostInstall(options?: { buttonLabel?: string; autoShowTooltip?: boolean; markdown?: string; actionLabel?: string; actionCommand?: string; actionArgs?: unknown[] }) {
-		if (!this.content) {
-			this.postInstallOptions = options;
-			return;
-		}
-
-		// Clear any existing state
-		if (this.hintTimer !== undefined) {
-			clearTimeout(this.hintTimer);
-			this.hintTimer = undefined;
-		}
-		if (this.hintInterval !== undefined) {
-			mainWindow.clearInterval(this.hintInterval);
-			this.hintInterval = undefined;
-		}
-		if (this.postInstallTimer !== undefined) {
-			clearTimeout(this.postInstallTimer);
-			this.postInstallTimer = undefined;
-		}
-		dom.clearNode(this.content);
-		this.content.classList.remove('prominent', 'progress-indefinite', 'progress-percent', 'update-disabled', 'hint-visible');
-		this.content.style.removeProperty('--update-progress');
-
-		// Show post-install text as plain text (no prominent background)
-		this.content.classList.add('post-install');
-		const label = dom.append(this.content, dom.$('.indicator-label'));
-		label.textContent = options?.buttonLabel ?? localize('updateIndicator.postInstall', "Update Complete");
-
-		// Prepare tooltip content
-		this.tooltip.renderPostInstall(options);
-
-		// Auto-show tooltip if requested
-		if (options?.autoShowTooltip) {
-			dom.scheduleAtNextAnimationFrame(dom.getWindow(this.content), () => this.showTooltip());
-		}
-
-		// Fade away after 6 seconds
-		this.postInstallTimer = setTimeout(() => {
-			this.dismissPostInstall();
-			this.postInstallTimer = undefined;
-		}, 6000);
-	}
-
-	private dismissPostInstall() {
-		if (!this.content?.classList.contains('post-install')) {
-			return;
-		}
-		if (this.postInstallTimer !== undefined) {
-			clearTimeout(this.postInstallTimer);
-			this.postInstallTimer = undefined;
-		}
-		this.content.classList.add('post-install-fade');
-		setTimeout(() => {
-			this.content?.classList.remove('post-install', 'post-install-fade');
-			if (this.content) {
-				dom.clearNode(this.content);
-				const label = dom.append(this.content, dom.$('.indicator-label'));
-				label.textContent = localize('updateIndicator.update', "Update");
-			}
-			this.onUserDismissedTooltip();
-		}, 500);
-	}
 }
