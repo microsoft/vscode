@@ -19,7 +19,7 @@ import { IMenuService, MenuId, MenuRegistry, SubmenuItemAction } from '../../../
 import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IMarshalledAgentSessionContext, countUnreadSessions } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { IMarshalledAgentSessionContext } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
@@ -33,11 +33,11 @@ import { AgentSessionsPicker } from '../../../../workbench/contrib/chat/browser/
 import { autorun } from '../../../../base/common/observable.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { basename } from '../../../../base/common/resources.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { ISessionsProvidersService } from './sessionsProvidersService.js';
+import { SessionStatus } from '../common/sessionData.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 /**
  * Sessions Title Bar Widget - renders the active chat session title
@@ -77,20 +77,33 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super(undefined, action, options);
 
-		// Re-render when the active session changes
+
+		// Re-render when the active session, its data, or the active provider changes
 		this._register(autorun(reader => {
-			const activeSession = this.activeSessionService.activeSession.read(reader);
-			this._trackModelTitleChanges(activeSession?.resource);
+			const sessionData = this.activeSessionService.activeSession.read(reader);
+			this._trackModelTitleChanges(sessionData?.resource);
+			if (sessionData) {
+				sessionData.title.read(reader);
+				sessionData.status.read(reader);
+			}
+			this.activeSessionService.activeProviderId.read(reader);
 			this._lastRenderState = undefined;
 			this._render();
 		}));
 
 		// Re-render when sessions data changes (e.g., changes info updated)
-		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
+		this._register(this.activeSessionService.onDidChangeSessions(() => {
+			this._lastRenderState = undefined;
+			this._render();
+		}));
+
+		// Re-render when providers change (affects provider picker visibility)
+		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
 			this._lastRenderState = undefined;
 			this._render();
 		}));
@@ -179,7 +192,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 			sessionPill.appendChild(centerGroup);
 
-			// Click handler on pill - show sessions picker
+			// Click handler on pill
 			this._dynamicDisposables.add(addDisposableListener(sessionPill, EventType.MOUSE_DOWN, (e) => {
 				e.preventDefault();
 				e.stopPropagation();
@@ -276,49 +289,21 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 * Get the label of the active chat session.
 	 */
 	private _getActiveSessionLabel(): string {
-		const activeSession = this.activeSessionService.getActiveSession();
-		const label = activeSession?.label;
-		if (label) {
-			return label; // prefer session label to support renamed sessions
+		const sessionData = this.activeSessionService.activeSession.get();
+		if (sessionData) {
+			return sessionData.title.get() || localize('agentSessions.newSession', "New Session");
 		}
-
-		if (activeSession) {
-			const activeModel = this.chatService.getSession(activeSession.resource);
-			if (activeModel?.title) {
-				return activeModel.title; // fall back to chat model title if available
-			}
-		}
-
 		return localize('agentSessions.newSession', "New Session");
 	}
 
 	/**
-	 * Get the icon for the active session's kind/provider.
+	 * Get the icon for the active session's type.
 	 */
 	private _getActiveSessionIcon(): ThemeIcon | undefined {
-		const activeSession = this.activeSessionService.getActiveSession();
-		if (!activeSession) {
-			return undefined;
+		const sessionData = this.activeSessionService.activeSession.get();
+		if (sessionData) {
+			return sessionData.icon;
 		}
-
-		// Try to get icon from the agent session model (has provider-resolved icon)
-		const agentSession = this.agentSessionsService.getSession(activeSession.resource);
-		if (agentSession) {
-			// For background sessions, distinguish worktree vs folder based on metadata
-			if (agentSession.providerType === AgentSessionProviders.Background) {
-				const hasWorktree = typeof agentSession.metadata?.worktreePath === 'string';
-				return hasWorktree ? Codicon.worktree : Codicon.folder;
-			}
-
-			return agentSession.icon;
-		}
-
-		// Fall back to provider icon from the resource
-		const provider = getAgentSessionProvider(activeSession.resource);
-		if (provider !== undefined) {
-			return getAgentSessionProviderIcon(provider);
-		}
-
 		return undefined;
 	}
 
@@ -326,30 +311,33 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 * Get the repository label for the active session.
 	 */
 	private _getRepositoryLabel(): string | undefined {
-		const activeSession = this.activeSessionService.getActiveSession();
-		if (!activeSession) {
-			return undefined;
+		const sessionData = this.activeSessionService.activeSession.get();
+		if (sessionData) {
+			const workspace = sessionData.workspace.get();
+			if (workspace) {
+				return workspace.label;
+			}
 		}
-
-		const uri = activeSession.repository;
-		if (!uri) {
-			return undefined;
-		}
-
-		return basename(uri);
+		return undefined;
 	}
 
 	private _countUnreadSessions(): number {
-		return countUnreadSessions(this.agentSessionsService.model.sessions);
+		let unread = 0;
+		for (const session of this.activeSessionService.getSessions()) {
+			if (!session.isArchived.get() && session.status.get() === SessionStatus.Completed && !session.isRead.get()) {
+				unread++;
+			}
+		}
+		return unread;
 	}
 
 	private _showContextMenu(e: MouseEvent): void {
-		const activeSession = this.activeSessionService.getActiveSession();
-		if (!activeSession) {
+		const sessionData = this.activeSessionService.activeSession.get();
+		if (!sessionData) {
 			return;
 		}
 
-		const agentSession = this.agentSessionsService.getSession(activeSession.resource);
+		const agentSession = this.agentSessionsService.getSession(sessionData.resource);
 		if (!agentSession) {
 			return;
 		}
@@ -382,7 +370,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 	private _showSessionsPicker(): void {
 		const picker = this.instantiationService.createInstance(AgentSessionsPicker, undefined, {
-			overrideSessionOpen: (session, openOptions) => this.activeSessionService.openSession(session.resource, openOptions)
+			overrideSessionOpen: (session, openOptions) => this.activeSessionService.openSession(session.resource)
 		});
 		picker.pickAgentSession();
 	}

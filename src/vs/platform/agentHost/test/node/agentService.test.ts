@@ -67,7 +67,7 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(service.onDidAction(e => envelopes.push(e)));
 
 			copilotAgent.fireProgress({ session, type: 'delta', messageId: 'msg-1', content: 'hello' });
-			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionDelta));
+			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionResponsePart));
 		});
 	});
 

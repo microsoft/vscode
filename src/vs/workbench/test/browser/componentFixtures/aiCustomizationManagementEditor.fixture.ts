@@ -24,6 +24,7 @@ import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../.
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../contrib/webview/browser/webview.js';
@@ -45,6 +46,12 @@ import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../services
 import { McpListWidget } from '../../../contrib/chat/browser/aiCustomization/mcpListWidget.js';
 import { PluginListWidget } from '../../../contrib/chat/browser/aiCustomization/pluginListWidget.js';
 import { IIterativePager } from '../../../../base/common/paging.js';
+// eslint-disable-next-line local/code-import-patterns
+import { IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
+// eslint-disable-next-line local/code-import-patterns
+import { CodeReviewStateKind, ICodeReviewService, ICodeReviewState, IPRReviewState, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
+import { IAgentSessionsService } from '../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
 
 // Ensure theme colors & widget CSS are loaded
@@ -66,12 +73,25 @@ interface IFixtureFile {
 	readonly name?: string;
 	readonly description?: string;
 	readonly applyTo?: string;
+	readonly extensionId?: string;
+	readonly extensionDisplayName?: string;
 }
 
 function createMockEditorGroup(): IEditorGroup {
 	return new class extends mock<IEditorGroup>() {
 		override windowId = mainWindow.vscodeWindowId;
 	}();
+}
+
+function toExtensionInfo(file: IFixtureFile): { identifier: ExtensionIdentifier; displayName?: string } | undefined {
+	if (!file.extensionId) {
+		return undefined;
+	}
+
+	return {
+		identifier: new ExtensionIdentifier(file.extensionId),
+		displayName: file.extensionDisplayName,
+	};
 }
 
 function createMockPromptsService(files: IFixtureFile[], agentInstructions: IResolvedAgentFile[]): IPromptsService {
@@ -84,16 +104,24 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IRes
 		override readonly onDidChangeSkills = Event.None;
 		override readonly onDidChangeInstructions = Event.None;
 		override getDisabledPromptFiles(): ResourceSet { return new ResourceSet(); }
-		override async listPromptFiles(type: PromptsType) {
+		override async listPromptFiles(type: PromptsType, _token: CancellationToken) {
 			return files.filter(f => f.type === type).map(f => ({
-				uri: f.uri, storage: f.storage as PromptsStorage.local, type: f.type, name: f.name, description: f.description,
+				uri: f.uri,
+				storage: f.storage as PromptsStorage.local,
+				type: f.type,
+				name: f.name,
+				description: f.description,
+				extension: toExtensionInfo(f) as never,
 			}));
 		}
 		override async listAgentInstructions() { return agentInstructions; }
 		override async getCustomAgents() {
 			return files.filter(f => f.type === PromptsType.agent).map(a => ({
 				uri: a.uri, name: a.name ?? 'agent', description: a.description, storage: a.storage,
-				source: { storage: a.storage },
+				source: {
+					storage: a.storage,
+					extensionId: a.extensionId ? new ExtensionIdentifier(a.extensionId) : undefined,
+				},
 			})) as never[];
 		}
 		override async parseNew(uri: URI, _token: CancellationToken): Promise<ParsedPromptFile> {
@@ -118,7 +146,7 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IRes
 		override async getPromptSlashCommands(): Promise<readonly IChatPromptSlashCommand[]> {
 			const promptFiles = files.filter(f => f.type === PromptsType.prompt);
 			const commands = await Promise.all(promptFiles.map(async f => {
-				const promptPath = { uri: f.uri, storage: f.storage, type: f.type };
+				const promptPath = { uri: f.uri, storage: f.storage, type: f.type, extension: toExtensionInfo(f) as never };
 				const parsedPromptFile = await this.parseNew(f.uri, CancellationToken.None);
 				return {
 					name: f.name ?? 'prompt',
@@ -164,11 +192,55 @@ function makeLocalMcpServer(id: string, label: string, scope: LocalMcpServerScop
 	}();
 }
 
+function createMockAgentFeedbackService(): IAgentFeedbackService {
+	return new class extends mock<IAgentFeedbackService>() {
+		override readonly onDidChangeFeedback = Event.None;
+		override readonly onDidChangeNavigation = Event.None;
+		override getFeedback() { return []; }
+		override getMostRecentSessionForResource() { return undefined; }
+		override async revealFeedback(): Promise<void> { }
+		override getNextFeedback() { return undefined; }
+		override getNavigationBearing() { return { activeIdx: -1, totalCount: 0 }; }
+		override getNextNavigableItem() { return undefined; }
+		override setNavigationAnchor(): void { }
+		override clearFeedback(): void { }
+		override removeFeedback(): void { }
+		override async addFeedbackAndSubmit(): Promise<void> { }
+	}();
+}
+
+function createMockCodeReviewService(): ICodeReviewService {
+	return new class extends mock<ICodeReviewService>() {
+		private readonly reviewState = observableValue<ICodeReviewState>('fixture.reviewState', { kind: CodeReviewStateKind.Idle });
+		private readonly prReviewState = observableValue<IPRReviewState>('fixture.prReviewState', { kind: PRReviewStateKind.None });
+
+		override getReviewState() {
+			return this.reviewState;
+		}
+
+		override getPRReviewState() {
+			return this.prReviewState;
+		}
+
+		override hasReview(): boolean {
+			return false;
+		}
+
+		override requestReview(): void { }
+		override removeComment(): void { }
+		override dismissReview(): void { }
+		override async resolvePRReviewThread(): Promise<void> { }
+	}();
+}
+
 // ============================================================================
 // Realistic test data — a project that has Copilot + Claude customizations
 // ============================================================================
 
 const allFiles: IFixtureFile[] = [
+	// Instructions - extension (built-in + third-party)
+	{ uri: URI.file('/extensions/github.copilot-chat/instructions/coding.instructions.md'), storage: PromptsStorage.extension, type: PromptsType.instructions, name: 'Copilot Coding', description: 'Built-in coding guidance', extensionId: 'GitHub.copilot-chat', extensionDisplayName: 'GitHub Copilot Chat' },
+	{ uri: URI.file('/extensions/acme.tools/instructions/team.instructions.md'), storage: PromptsStorage.extension, type: PromptsType.instructions, name: 'Team Conventions', description: 'Third-party extension instructions', extensionId: 'acme.tools', extensionDisplayName: 'Acme Tools' },
 	// Instructions — workspace
 	{ uri: URI.file('/workspace/.github/instructions/coding-standards.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Coding Standards', description: 'Repository-wide coding standards' },
 	{ uri: URI.file('/workspace/.github/instructions/testing.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Testing', description: 'Testing best practices', applyTo: '**/*.test.ts' },
@@ -198,6 +270,9 @@ const allFiles: IFixtureFile[] = [
 	{ uri: URI.file('/home/dev/.copilot/agents/planner.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, name: 'Planner', description: 'Project planning agent' },
 	{ uri: URI.file('/home/dev/.copilot/agents/debugger.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, name: 'Debugger', description: 'Interactive debugging assistant' },
 	{ uri: URI.file('/home/dev/.copilot/agents/nls-helper.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, name: 'NLS Helper', description: 'Natural language searching code for clarity' },
+	// Agents - extension (built-in + third-party)
+	{ uri: URI.file('/extensions/github.copilot-chat/agents/workspace-guide.agent.md'), storage: PromptsStorage.extension, type: PromptsType.agent, name: 'Workspace Guide', description: 'Built-in workspace exploration agent', extensionId: 'GitHub.copilot-chat', extensionDisplayName: 'GitHub Copilot Chat' },
+	{ uri: URI.file('/extensions/acme.tools/agents/api-helper.agent.md'), storage: PromptsStorage.extension, type: PromptsType.agent, name: 'API Helper', description: 'Third-party API agent', extensionId: 'acme.tools', extensionDisplayName: 'Acme Tools' },
 	// Skills — workspace
 	{ uri: URI.file('/workspace/.github/skills/deploy/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, name: 'Deploy', description: 'Deployment automation' },
 	{ uri: URI.file('/workspace/.github/skills/refactor/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, name: 'Refactor', description: 'Code refactoring patterns' },
@@ -210,6 +285,9 @@ const allFiles: IFixtureFile[] = [
 	// Skills — user
 	{ uri: URI.file('/home/dev/.copilot/skills/git-workflow/SKILL.md'), storage: PromptsStorage.user, type: PromptsType.skill, name: 'Git Workflow', description: 'Branch and PR workflows' },
 	{ uri: URI.file('/home/dev/.copilot/skills/code-review/SKILL.md'), storage: PromptsStorage.user, type: PromptsType.skill, name: 'Code Review', description: 'Structured code review checklist' },
+	// Skills - extension (built-in + third-party)
+	{ uri: URI.file('/extensions/github.copilot-chat/skills/workspace/SKILL.md'), storage: PromptsStorage.extension, type: PromptsType.skill, name: 'Workspace Search', description: 'Built-in workspace search skill', extensionId: 'GitHub.copilot-chat', extensionDisplayName: 'GitHub Copilot Chat' },
+	{ uri: URI.file('/extensions/acme.tools/skills/audit/SKILL.md'), storage: PromptsStorage.extension, type: PromptsType.skill, name: 'Audit', description: 'Third-party audit skill', extensionId: 'acme.tools', extensionDisplayName: 'Acme Tools' },
 	// Prompts — workspace
 	{ uri: URI.file('/workspace/.github/prompts/explain.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, name: 'Explain', description: 'Explain selected code' },
 	{ uri: URI.file('/workspace/.github/prompts/review.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, name: 'Review', description: 'Review changes' },
@@ -222,6 +300,9 @@ const allFiles: IFixtureFile[] = [
 	// Prompts — user
 	{ uri: URI.file('/home/dev/.copilot/prompts/translate.prompt.md'), storage: PromptsStorage.user, type: PromptsType.prompt, name: 'Translate', description: 'Translate strings for i18n' },
 	{ uri: URI.file('/home/dev/.copilot/prompts/commit-msg.prompt.md'), storage: PromptsStorage.user, type: PromptsType.prompt, name: 'Commit Message', description: 'Generate conventional commit' },
+	// Prompts - extension (built-in + third-party)
+	{ uri: URI.file('/extensions/github.copilot-chat/prompts/trace.prompt.md'), storage: PromptsStorage.extension, type: PromptsType.prompt, name: 'Trace', description: 'Built-in tracing prompt', extensionId: 'GitHub.copilot-chat', extensionDisplayName: 'GitHub Copilot Chat' },
+	{ uri: URI.file('/extensions/acme.tools/prompts/lint.prompt.md'), storage: PromptsStorage.extension, type: PromptsType.prompt, name: 'Lint', description: 'Third-party lint prompt', extensionId: 'acme.tools', extensionDisplayName: 'Acme Tools' },
 	// Hooks — workspace
 	{ uri: URI.file('/workspace/.github/hooks/pre-commit.json'), storage: PromptsStorage.local, type: PromptsType.hook, name: 'Pre-Commit Lint', description: 'Run linting before commit' },
 	{ uri: URI.file('/workspace/.github/hooks/post-save.json'), storage: PromptsStorage.local, type: PromptsType.hook, name: 'Post-Save Format', description: 'Auto-format on save' },
@@ -267,6 +348,66 @@ interface IRenderEditorOptions {
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
+	readonly scrollToBottom?: boolean;
+	readonly width?: number;
+	readonly height?: number;
+}
+
+async function waitForAnimationFrames(count: number): Promise<void> {
+	for (let i = 0; i < count; i++) {
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+	}
+}
+
+function getVisibleEditorSignature(container: HTMLElement): string {
+	const sectionCounts = [...container.querySelectorAll('.section-list-item')].map(item => item.textContent?.replace(/\s+/g, ' ').trim() ?? '').join('|');
+	const visibleContent = [...container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container')]
+		.find(node => node instanceof HTMLElement && node.style.display !== 'none');
+	const visibleRows = visibleContent
+		? [...visibleContent.querySelectorAll('.monaco-list-row')].map(row => row.textContent?.replace(/\s+/g, ' ').trim() ?? '').join('|')
+		: '';
+
+	return `${sectionCounts}@@${visibleRows}`;
+}
+
+async function waitForEditorToSettle(container: HTMLElement): Promise<void> {
+	let previousSignature = '';
+	let stableIterations = 0;
+
+	await new Promise(resolve => setTimeout(resolve, 150));
+
+	for (let i = 0; i < 20; i++) {
+		await waitForAnimationFrames(2);
+		await new Promise(resolve => setTimeout(resolve, 25));
+
+		const signature = getVisibleEditorSignature(container);
+		if (signature && signature === previousSignature) {
+			stableIterations++;
+			if (stableIterations >= 2) {
+				return;
+			}
+		} else {
+			stableIterations = 0;
+			previousSignature = signature;
+		}
+	}
+}
+
+async function waitForVisibleScrollbarsToFade(container: HTMLElement): Promise<void> {
+	const deadline = Date.now() + 4000;
+
+	while (Date.now() < deadline) {
+		const hasVisibleScrollbar = [...container.querySelectorAll<HTMLElement>('.scrollbar.vertical')].some(scrollbar => {
+			const style = mainWindow.getComputedStyle(scrollbar);
+			return scrollbar.classList.contains('visible') && style.opacity !== '0';
+		});
+
+		if (!hasVisibleScrollbar) {
+			return;
+		}
+
+		await new Promise(resolve => setTimeout(resolve, 100));
+	}
 }
 
 // ============================================================================
@@ -274,8 +415,8 @@ interface IRenderEditorOptions {
 // ============================================================================
 
 async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditorOptions): Promise<void> {
-	const width = 900;
-	const height = 600;
+	const width = options.width ?? 900;
+	const height = options.height ?? 600;
 	ctx.container.style.width = `${width}px`;
 	ctx.container.style.height = `${height}px`;
 
@@ -290,7 +431,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		AICustomizationManagementSection.Plugins,
 	];
 	const availableHarnesses = options.availableHarnesses ?? [
-		createVSCodeHarnessDescriptor([PromptsStorage.extension]),
+		createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]),
 		createCliHarnessDescriptor(getCliUserRoots(userHome), []),
 		createClaudeHarnessDescriptor(getClaudeUserRoots(userHome), []),
 	];
@@ -301,8 +442,21 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
 			const harnessService = createMockHarnessService(options.harness, availableHarnesses);
+			const agentFeedbackService = createMockAgentFeedbackService();
+			const codeReviewService = createMockCodeReviewService();
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
+			reg.defineInstance(IAgentFeedbackService, agentFeedbackService);
+			reg.defineInstance(ICodeReviewService, codeReviewService);
+			reg.defineInstance(IChatEditingService, new class extends mock<IChatEditingService>() {
+				override readonly editingSessionsObs = constObservable([]);
+			}());
+			reg.defineInstance(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override readonly model = new class extends mock<IAgentSessionsService['model']>() {
+					override readonly sessions = [];
+				}();
+				override getSession() { return undefined; }
+			}());
 			reg.defineInstance(IPromptsService, createMockPromptsService(allFiles, agentInstructions));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
@@ -372,7 +526,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly onDidChangeMarketplaces = Event.None;
 			}());
 			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
-			reg.defineInstance(IProductService, new class extends mock<IProductService>() { }());
+			reg.defineInstance(IProductService, new class extends mock<IProductService>() {
+				override readonly defaultChatAgent = new class extends mock<NonNullable<IProductService['defaultChatAgent']>>() {
+					override readonly chatExtensionId = 'GitHub.copilot-chat';
+				}();
+			}());
 		},
 	});
 
@@ -382,16 +540,19 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	editor.create(ctx.container);
 	editor.layout(new Dimension(width, height));
 
-	// setInput may fail on unmocked service calls — catch to still show the editor shell
-	try {
-		await editor.setInput(AICustomizationManagementEditorInput.getOrCreate(), undefined, {}, CancellationToken.None);
-	} catch {
-		// Expected in fixture — some services are partially mocked
-	}
+	await editor.setInput(AICustomizationManagementEditorInput.getOrCreate(), undefined, {}, CancellationToken.None);
 
 	if (options.selectedSection) {
 		editor.selectSectionById(options.selectedSection);
-		editor.layout(new Dimension(width, height));
+	}
+
+	await waitForEditorToSettle(ctx.container);
+
+	if (options.scrollToBottom) {
+		editor.revealLastItem();
+		await waitForAnimationFrames(2);
+		await new Promise(resolve => setTimeout(resolve, 2400));
+		await waitForVisibleScrollbarsToFade(ctx.container);
 	}
 }
 
@@ -475,7 +636,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly activeHarness = observableValue('activeHarness', CustomizationHarness.VSCode);
-				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension]); }
+				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
 			}());
 		},
 	});
@@ -603,7 +764,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,
 	// Generate buttons, AGENTS.md shortcut, all storage groups
 	LocalHarness: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
 		render: ctx => renderEditor(ctx, { harness: CustomizationHarness.VSCode }),
 	}),
 
@@ -645,7 +806,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// MCP Servers tab with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
 		render: ctx => renderEditor(ctx, {
 			harness: CustomizationHarness.VSCode,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -717,5 +878,54 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginBrowseMode: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: renderPluginBrowseMode,
+	}),
+
+	// Scrolled-to-bottom variants — verify last items are fully visible above footer
+	PromptsTabScrolled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.Prompts,
+			scrollToBottom: true,
+		}),
+	}),
+
+	McpServersTabScrolled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			scrollToBottom: true,
+		}),
+	}),
+
+	PluginsTabScrolled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.Plugins,
+			scrollToBottom: true,
+		}),
+	}),
+
+	// Narrow viewport — catches badge clipping and layout overflow at small sizes
+	McpServersTabNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			width: 550,
+			height: 400,
+		}),
+	}),
+
+	AgentsTabNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.Agents,
+			width: 550,
+			height: 400,
+		}),
 	}),
 });
