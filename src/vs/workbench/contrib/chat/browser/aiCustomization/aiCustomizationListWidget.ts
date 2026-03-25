@@ -605,6 +605,7 @@ export class AICustomizationListWidget extends Disposable {
 	private searchQuery: string = '';
 	private readonly collapsedGroups = new Set<string>();
 	private _currentGroupCommands: IChatSessionCustomizationItemGroup['commands'];
+	private _currentGroupItemCommands: IChatSessionCustomizationItemGroup['itemCommands'];
 	private readonly dropdownActionDisposables = this._register(new DisposableStore());
 
 	private readonly delayedFilter = new Delayer<void>(200);
@@ -856,9 +857,27 @@ export class AICustomizationListWidget extends Disposable {
 			}),
 		];
 
+		// Add extension-provided item commands for non-built-in harnesses
+		const activeHarness = this.harnessService.activeHarness.get();
+		const isBuiltInHarness = activeHarness === CustomizationHarness.VSCode ||
+			activeHarness === CustomizationHarness.CLI ||
+			activeHarness === CustomizationHarness.Claude;
+		const extensionItemActions = (!isBuiltInHarness && this._currentGroupItemCommands?.length)
+			? [
+				new Separator(),
+				...this._currentGroupItemCommands.map(cmd => new Action(
+					cmd.id,
+					cmd.title,
+					undefined,
+					true,
+					async () => { this.commandService.executeCommand(cmd.id, item.id, item.uri.toString()); },
+				)),
+			]
+			: [];
+
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => [...secondary, ...copyActions],
+			getActions: () => [...secondary, ...extensionItemActions, ...copyActions],
 		});
 	}
 
@@ -1143,6 +1162,7 @@ export class AICustomizationListWidget extends Disposable {
 	private async loadItems(): Promise<void> {
 		const section = this.currentSection;
 		this._currentGroupCommands = undefined;
+		this._currentGroupItemCommands = undefined;
 		const items = await this.fetchItemsForSection(section);
 
 		if (this.currentSection !== section) {
@@ -1161,6 +1181,7 @@ export class AICustomizationListWidget extends Disposable {
 			if (groups) {
 				const matchingIds = sectionToCustomizationGroupIds(section);
 				this._currentGroupCommands = groups.filter(g => matchingIds.includes(g.id)).flatMap(g => g.commands ?? []);
+				this._currentGroupItemCommands = groups.filter(g => matchingIds.includes(g.id)).flatMap(g => g.itemCommands ?? []);
 			}
 		}
 
