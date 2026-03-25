@@ -97,4 +97,6 @@ export interface ISessionData {
 	readonly description: IObservable<string | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
+	/** URI of the pull request associated with this session, if any. */
+	readonly pullRequestUri: IObservable<URI | undefined>;
 }

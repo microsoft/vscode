@@ -125,6 +125,7 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 	readonly isRead: IObservable<boolean> = observableValue(this, true);
 	readonly description: IObservable<string | undefined> = observableValue(this, undefined);
 	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
+	readonly pullRequestUri: IObservable<URI | undefined> = observableValue(this, undefined);
 
 	private _gitRepository: IGitRepository | undefined;
 
@@ -300,6 +301,7 @@ export class RemoteNewSession extends Disposable implements ISessionData {
 	readonly isRead: IObservable<boolean> = observableValue(this, true);
 	readonly description: IObservable<string | undefined> = observableValue(this, undefined);
 	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
+	readonly pullRequestUri: IObservable<URI | undefined> = observableValue(this, undefined);
 
 	readonly _hasGitRepo = observableValue(this, false);
 	readonly hasGitRepo: IObservable<boolean> = this._hasGitRepo;
@@ -535,6 +537,9 @@ class AgentSessionAdapter implements ISessionData {
 	private readonly _lastTurnEnd: ReturnType<typeof observableValue<Date | undefined>>;
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 
+	private readonly _pullRequestUri: ReturnType<typeof observableValue<URI | undefined>>;
+	readonly pullRequestUri: IObservable<URI | undefined>;
+
 	constructor(
 		session: IAgentSession,
 		providerId: string,
@@ -573,6 +578,8 @@ class AgentSessionAdapter implements ISessionData {
 		this.description = this._description;
 		this._lastTurnEnd = observableValue(this, session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined);
 		this.lastTurnEnd = this._lastTurnEnd;
+		this._pullRequestUri = observableValue(this, this._extractPullRequestUri(session));
+		this.pullRequestUri = this._pullRequestUri;
 	}
 
 	/**
@@ -589,6 +596,7 @@ class AgentSessionAdapter implements ISessionData {
 			this._isRead.set(session.isRead(), tx);
 			this._description.set(this._extractDescription(session), tx);
 			this._lastTurnEnd.set(session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx);
+			this._pullRequestUri.set(this._extractPullRequestUri(session), tx);
 		});
 	}
 
@@ -597,6 +605,40 @@ class AgentSessionAdapter implements ISessionData {
 			return undefined;
 		}
 		return typeof session.description === 'string' ? session.description : session.description.value;
+	}
+
+	private _extractPullRequestUri(session: IAgentSession): URI | undefined {
+		const metadata = session.metadata;
+		if (!metadata) {
+			return undefined;
+		}
+
+		// Direct pullRequestUrl
+		const url = metadata.pullRequestUrl as string | undefined;
+		if (url) {
+			try {
+				return URI.parse(url);
+			} catch {
+				// fall through
+			}
+		}
+
+		// Construct from pullRequestNumber + owner/repo
+		const prNumber = metadata.pullRequestNumber as number | undefined;
+		if (typeof prNumber === 'number') {
+			const owner = metadata.owner as string | undefined;
+			const name = metadata.name as string | undefined;
+			if (owner && name) {
+				return URI.parse(`https://github.com/${owner}/${name}/pull/${prNumber}`);
+			}
+
+			const nwo = metadata.repositoryNwo as string | undefined;
+			if (nwo) {
+				return URI.parse(`https://github.com/${nwo}/pull/${prNumber}`);
+			}
+		}
+
+		return undefined;
 	}
 
 	private _extractChanges(session: IAgentSession): readonly IChatSessionFileChange[] {
