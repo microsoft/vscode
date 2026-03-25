@@ -398,8 +398,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	override dispose(): void {
 		super.dispose();
-
-		dispose(this.allRefs);
 		this.allRefs.length = 0;
 	}
 
