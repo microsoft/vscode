@@ -422,11 +422,24 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		// PR status icons
 		const metadata = session.metadata;
-		if (metadata?.pullRequestUrl || metadata?.pullRequestNumber) {
-			if (metadata.pullRequestMerged === true) {
+		const hasPR = metadata?.pullRequestUrl || metadata?.pullRequestNumber;
+		if (hasPR) {
+			if (metadata?.pullRequestMerged === true) {
 				return Codicon.gitMerge;
 			}
 			return Codicon.gitPullRequest;
+		}
+
+		// Fallback: check badge text for PR indicators
+		const badge = session.badge;
+		if (badge) {
+			const badgeText = typeof badge === 'string' ? badge : badge.value;
+			if (/\bmerged\b/i.test(badgeText) || /\$\(git-merge\)/.test(badgeText)) {
+				return Codicon.gitMerge;
+			}
+			if (/\bPR\s*#\d+/i.test(badgeText) || /\$\(git-pull-request\)/.test(badgeText)) {
+				return Codicon.gitPullRequest;
+			}
 		}
 
 		if (!session.isRead() && !session.isArchived()) {
