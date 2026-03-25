@@ -53,7 +53,7 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { CustomizationHarness, ICustomizationHarnessService, matchesWorkspaceSubpath, matchesInstructionFileFilter } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, matchesWorkspaceSubpath, matchesInstructionFileFilter } from '../../common/customizationHarnessService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { getCleanPromptName, isInClaudeRulesFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { evaluateApplyToPattern } from '../../common/promptSyntax/computeAutomaticInstructions.js';
@@ -859,10 +859,8 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Add extension-provided item commands for non-built-in harnesses
 		const activeHarness = this.harnessService.activeHarness.get();
-		const isBuiltInHarness = activeHarness === CustomizationHarness.VSCode ||
-			activeHarness === CustomizationHarness.CLI ||
-			activeHarness === CustomizationHarness.Claude;
-		const extensionItemActions = (!isBuiltInHarness && this._currentGroupItemCommands?.length)
+		const hasProvider = this.chatSessionsService.hasCustomizationsProvider(activeHarness);
+		const extensionItemActions = (hasProvider && this._currentGroupItemCommands?.length)
 			? [
 				new Separator(),
 				...this._currentGroupItemCommands.map(cmd => new Action(
@@ -975,10 +973,8 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Extension-contributed harness: use commands from the provider group
 		const activeHarness = this.harnessService.activeHarness.get();
-		const isBuiltInHarness = activeHarness === CustomizationHarness.VSCode ||
-			activeHarness === CustomizationHarness.CLI ||
-			activeHarness === CustomizationHarness.Claude;
-		if (!isBuiltInHarness && this._currentGroupCommands?.length) {
+		const hasProvider = this.chatSessionsService.hasCustomizationsProvider(activeHarness);
+		if (hasProvider && this._currentGroupCommands?.length) {
 			return this._currentGroupCommands.map(cmd => ({
 				label: `$(${Codicon.add.id}) ${cmd.title}`,
 				enabled: true,
@@ -1173,10 +1169,8 @@ export class AICustomizationListWidget extends Disposable {
 		// race conditions when _fetchItemsFromProvider is also called for count
 		// computation on other sections.
 		const activeHarness = this.harnessService.activeHarness.get();
-		const isBuiltInHarness = activeHarness === CustomizationHarness.VSCode ||
-			activeHarness === CustomizationHarness.CLI ||
-			activeHarness === CustomizationHarness.Claude;
-		if (!isBuiltInHarness) {
+		const hasProvider = this.chatSessionsService.hasCustomizationsProvider(activeHarness);
+		if (hasProvider) {
 			const groups = await this.chatSessionsService.getCustomizations(activeHarness, CancellationToken.None);
 			if (groups) {
 				const matchingIds = sectionToCustomizationGroupIds(section);
@@ -1249,11 +1243,9 @@ export class AICustomizationListWidget extends Disposable {
 	private async fetchItemsForSection(section: AICustomizationManagementSection): Promise<IAICustomizationListItem[]> {
 		// Extension-contributed harnesses always use the provider path
 		const activeHarness = this.harnessService.activeHarness.get();
-		const isBuiltInHarness = activeHarness === CustomizationHarness.VSCode ||
-			activeHarness === CustomizationHarness.CLI ||
-			activeHarness === CustomizationHarness.Claude;
+		const hasProvider = this.chatSessionsService.hasCustomizationsProvider(activeHarness);
 
-		if (!isBuiltInHarness) {
+		if (hasProvider) {
 			return this._fetchItemsFromProvider(section);
 		}
 

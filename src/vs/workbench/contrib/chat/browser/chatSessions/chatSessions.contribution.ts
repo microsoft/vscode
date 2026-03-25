@@ -986,6 +986,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		});
 	}
 
+	hasCustomizationsProvider(chatSessionType: string): boolean {
+		return this._customizationsProviders.has(chatSessionType);
+	}
+
 	async getCustomizations(chatSessionType: string, token: CancellationToken): Promise<IChatSessionCustomizationItemGroup[] | undefined> {
 		const provider = this._customizationsProviders.get(chatSessionType);
 		if (!provider) {

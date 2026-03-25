@@ -265,6 +265,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return { dispose: () => { } };
 	}
 
+	hasCustomizationsProvider(_chatSessionType: string): boolean {
+		return false;
+	}
+
 	async getCustomizations(_chatSessionType: string, _token: CancellationToken): Promise<IChatSessionCustomizationItemGroup[] | undefined> {
 		return undefined;
 	}

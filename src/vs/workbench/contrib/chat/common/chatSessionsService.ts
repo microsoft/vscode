@@ -426,6 +426,7 @@ export interface IChatSessionsService {
 	// #region Customizations provider support
 	readonly onDidChangeCustomizations: Event<{ readonly chatSessionType: string }>;
 	registerCustomizationsProvider(chatSessionType: string, provider: IChatSessionCustomizationsProvider): IDisposable;
+	hasCustomizationsProvider(chatSessionType: string): boolean;
 	getCustomizations(chatSessionType: string, token: CancellationToken): Promise<IChatSessionCustomizationItemGroup[] | undefined>;
 	// #endregion
 }
