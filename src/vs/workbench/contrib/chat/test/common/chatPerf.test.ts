@@ -6,7 +6,7 @@ import assert from 'assert';
 import { getMarks } from '../../../../../base/common/performance.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { clearChatMarks, markChat } from '../../common/chatPerf.js';
+import { ChatPerfMark, clearChatMarks, markChat } from '../../common/chatPerf.js';
 
 suite('chatPerf', () => {
 
@@ -23,17 +23,17 @@ suite('chatPerf', () => {
 	});
 
 	test('markChat emits a mark with the expected prefix', () => {
-		markChat(sessionResource, 'willSendRequest');
+		markChat(sessionResource, ChatPerfMark.RequestStart);
 
 		const marks = getMarks().filter(m => m.name.includes(sessionResource.toString()));
 		assert.strictEqual(marks.length, 1);
 		assert.ok(marks[0].name.startsWith('code/chat/'));
-		assert.ok(marks[0].name.endsWith('/willSendRequest'));
+		assert.ok(marks[0].name.endsWith('/request/start'));
 	});
 
 	test('clearChatMarks removes all marks for the session', () => {
-		markChat(sessionResource, 'a');
-		markChat(sessionResource, 'b');
+		markChat(sessionResource, ChatPerfMark.RequestStart);
+		markChat(sessionResource, ChatPerfMark.FirstToken);
 
 		clearChatMarks(sessionResource);
 
@@ -43,8 +43,8 @@ suite('chatPerf', () => {
 
 	test('clearChatMarks does not affect marks from a different session', () => {
 		const otherSession = URI.parse(`test://session/other-${Date.now()}`);
-		markChat(sessionResource, 'a');
-		markChat(otherSession, 'b');
+		markChat(sessionResource, ChatPerfMark.RequestStart);
+		markChat(otherSession, ChatPerfMark.FirstToken);
 
 		clearChatMarks(sessionResource);
 

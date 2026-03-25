@@ -9,6 +9,54 @@ import { URI } from '../../../../base/common/uri.js';
 const chatPerfPrefix = 'code/chat/';
 
 /**
+ * Well-defined perf scenarios for chat request lifecycle.
+ * Each mark is a boundary of a measurable scenario — don't add marks
+ * without defining what scenario they belong to.
+ *
+ * ## Scenarios
+ *
+ * **Time to UI Feedback** (perceived input lag):
+ *   `request/start` → `request/uiUpdated`
+ *
+ * **Instruction Collection Overhead**:
+ *   `request/willCollectInstructions` → `request/didCollectInstructions`
+ *
+ * **Extension Activation Wait** (first-request cold start):
+ *   `request/willWaitForActivation` → `request/didWaitForActivation`
+ *
+ * **Time to First Token** (the headline metric):
+ *   `request/start` → `request/firstToken`
+ *
+ * **Total Request Duration**:
+ *   `request/start` → `request/complete`
+ *
+ * **Agent Invocation Time** (LLM round-trip):
+ *   `agent/willInvoke` → `agent/didInvoke`
+ */
+export const ChatPerfMark = {
+	/** User pressed Enter / request initiated */
+	RequestStart: 'request/start',
+	/** Request added to model → UI shows the message */
+	RequestUiUpdated: 'request/uiUpdated',
+	/** Begin collecting .instructions.md / skills / hooks */
+	WillCollectInstructions: 'request/willCollectInstructions',
+	/** Done collecting instructions */
+	DidCollectInstructions: 'request/didCollectInstructions',
+	/** Begin waiting for chat extension activation (SetupAgent) */
+	WillWaitForActivation: 'request/willWaitForActivation',
+	/** Extension activation + readiness complete (SetupAgent) */
+	DidWaitForActivation: 'request/didWaitForActivation',
+	/** First streamed response content received */
+	FirstToken: 'request/firstToken',
+	/** Response fully complete */
+	RequestComplete: 'request/complete',
+	/** Agent invoke begins (LLM round-trip start) */
+	AgentWillInvoke: 'agent/willInvoke',
+	/** Agent invoke returns (LLM round-trip end) */
+	AgentDidInvoke: 'agent/didInvoke',
+} as const;
+
+/**
  * Emits a performance mark scoped to a chat session:
  * `code/chat/<sessionResource>/<name>`
  *
