@@ -526,6 +526,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			contextKeyService,
 			telemetryService,
 		));
+
 	}
 
 	override render(container: HTMLElement): void {
@@ -623,6 +624,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 					enabled: !!repo?.uri,
 					run: async () => {
 						this._sessionsConfigService.setPinnedTaskLabel(repo?.uri, isPinned ? undefined : task.label);
+						this._refreshDropdownMenuIfVisible();
 					}
 				},
 				{
@@ -633,6 +635,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 					enabled: true,
 					run: async () => {
 						await this._showCustomCommandInput(session, { task, target: entry.target }, 'configure');
+						this._refreshDropdownMenuIfVisible();
 					}
 				},
 				{
@@ -643,6 +646,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 					enabled: true,
 					run: async () => {
 						await this._sessionsConfigService.removeTask(task.label, session, entry.target);
+						this._refreshDropdownMenuIfVisible();
 					}
 				}
 			];
@@ -715,6 +719,15 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		});
 
 		return actions;
+	}
+
+	private _refreshDropdownMenuIfVisible(): void {
+		if (!this._actionWidgetService.isVisible) {
+			return;
+		}
+
+		this._actionWidgetService.hide();
+		this._dropdown.show();
 	}
 }
 
