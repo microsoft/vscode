@@ -76,6 +76,13 @@ export interface IOutlineListConfig<E> {
 	readonly contextMenuId?: MenuId;
 	readonly getContextKeyOverlay?: (element: E) => [string, ContextKeyValue][];
 	readonly getActionsContext?: (element: E) => unknown;
+	/**
+	 * When true, the outline pane always reveals the active element regardless
+	 * of the "follow cursor" setting.  Useful for custom editors where the
+	 * extension explicitly sets the active item rather than deriving it from
+	 * cursor position.
+	 */
+	readonly alwaysRevealActiveElement?: boolean;
 }
 
 export interface OutlineChangeEvent {

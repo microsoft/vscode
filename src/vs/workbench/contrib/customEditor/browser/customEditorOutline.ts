@@ -291,6 +291,7 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 			getActionsContext: (entry: CustomEditorOutlineEntry) => {
 				return { id: entry.id };
 			},
+			alwaysRevealActiveElement: true,
 		};
 
 		// Listen for outline data changes from the extension provider
