@@ -151,6 +151,14 @@
 					color: var(--vscode-agentSessionReadIndicator-foreground);
 				}
 
+				&.codicon.codicon-git-pull-request {
+					color: var(--vscode-charts-green);
+				}
+
+				&.codicon.codicon-git-merge {
+					color: var(--vscode-charts-purple);
+				}
+
 				@media (prefers-reduced-motion: reduce) {
 					&.codicon.codicon-circle-filled.needs-input {
 						animation: none;
@@ -180,6 +188,18 @@
 			line-height: 15px;
 			max-height: 15px;
 			color: var(--vscode-descriptionForeground);
+
+			.agent-session-details-icon {
+				display: none;
+				font-size: 11px;
+				line-height: 1;
+				flex-shrink: 0;
+
+				&.visible {
+					display: flex;
+					align-items: center;
+				}
+			}
 
 			.rendered-markdown {
 				p {
