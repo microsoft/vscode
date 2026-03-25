@@ -28,6 +28,7 @@
 .agent-sessions-workbench .part.auxiliarybar > .title {
 	padding-left: 4px;
 	padding-right: 2px;
+	background-color: var(--vscode-sessionsAuxiliaryBar-background);
 }
 
 /* Hide the underline indicator entirely */
@@ -39,4 +40,11 @@
 .agent-sessions-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
 	background-color: var(--vscode-activityBarTop-activeBackground, color-mix(in srgb, var(--vscode-sideBarTitle-foreground) 5%, transparent)) !important;
 	border-radius: 4px;
+}
+
+/* Override base workbench monaco editor background in auxiliary bar content */
+.agent-sessions-workbench .part.auxiliarybar > .content .monaco-editor,
+.agent-sessions-workbench .part.auxiliarybar > .content .monaco-editor .margin,
+.agent-sessions-workbench .part.auxiliarybar > .content .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-sessionsAuxiliaryBar-background);
 }

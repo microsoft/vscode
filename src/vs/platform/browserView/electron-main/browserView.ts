@@ -4,16 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WebContentsView, webContents } from 'electron';
-import { FileAccess } from '../../../base/common/network.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex } from '../common/browserView.js';
-import { EVENT_KEY_CODE_MAP, KeyCode, KeyMod, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
-import { isMacintosh } from '../../../base/common/platform.js';
 import { BrowserViewUri } from '../common/browserViewUri.js';
 import { BrowserViewDebugger } from './browserViewDebugger.js';
 import { ILogService } from '../../log/common/log.js';
@@ -21,18 +18,7 @@ import { ICDPTarget, ICDPConnection, CDPTargetInfo } from '../common/cdp/types.j
 import { BrowserSession } from './browserSession.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { hasKey } from '../../../base/common/types.js';
-
-/** Key combinations that are used in system-level shortcuts. */
-const nativeShortcuts = new Set([
-	KeyMod.CtrlCmd | KeyCode.KeyA,
-	KeyMod.CtrlCmd | KeyCode.KeyC,
-	KeyMod.CtrlCmd | KeyCode.KeyV,
-	KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV,
-	KeyMod.CtrlCmd | KeyCode.KeyX,
-	...(isMacintosh ? [] : [KeyMod.CtrlCmd | KeyCode.KeyY]),
-	KeyMod.CtrlCmd | KeyCode.KeyZ,
-	KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyZ
-]);
+import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 
 /**
  * Represents a single browser view instance with its WebContentsView and all associated logic.
@@ -50,7 +36,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 	private _debugger: BrowserViewDebugger;
 	private _window: ICodeWindow | IAuxiliaryWindow | undefined;
-	private _isSendingKeyEvent = false;
 	private _isDisposed = false;
 
 	private readonly _onDidNavigate = this._register(new Emitter<IBrowserViewNavigationEvent>());
@@ -106,7 +91,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			sandbox: true,
 			webviewTag: false,
 			session: this.session.electronSession,
-			preload: FileAccess.asFileUri('vs/platform/browserView/electron-browser/preload-browserView.js').fsPath,
 
 			// TODO@kycutler: Remove this once https://github.com/electron/electron/issues/42578 is fixed
 			type: 'browserView'
@@ -300,13 +284,41 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			this._onDidChangeFocus.fire({ focused: false });
 		});
 
-		// Key down events - listen for raw key input events
-		webContents.on('before-input-event', async (event, input) => {
-			if (input.type === 'keyDown' && !this._isSendingKeyEvent) {
-				if (this.tryHandleCommand(input)) {
-					event.preventDefault();
-				}
+		// Forward key down events that weren't handled by the page to the workbench for shortcut handling.
+		webContents.ipc.on('vscode:browserView:keydown', (_event, keyEvent: IBrowserViewKeyDownEvent) => {
+			this._onDidKeyCommand.fire(keyEvent);
+		});
+		// If the page won't be able to handle events, forward key down events directly.
+		webContents.on('before-input-event', (event, input) => {
+			if (input.type !== 'keyDown') {
+				return;
 			}
+
+			const pageIsAvailable = this._view.getVisible()
+				&& !webContents.isCrashed()
+				&& !this._debugger.isPaused;
+			if (pageIsAvailable) {
+				return;
+			}
+
+			// This logic should mirror that in preload-browserView.ts.
+			if (!(input.control || input.alt || input.meta) && input.key.length === 1) {
+				return;
+			}
+
+			event.preventDefault();
+
+			const eventKeyCode = SCAN_CODE_STR_TO_EVENT_KEY_CODE[input.code] || 0;
+			this._onDidKeyCommand.fire({
+				key: input.key,
+				keyCode: eventKeyCode,
+				code: input.code,
+				ctrlKey: input.control,
+				shiftKey: input.shift,
+				altKey: input.alt,
+				metaKey: input.meta,
+				repeat: input.isAutoRepeat
+			});
 		});
 
 		// Track user gestures for popup blocking logic.
@@ -513,35 +525,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	}
 
 	/**
-	 * Dispatch a keyboard event to this view
-	 */
-	async dispatchKeyEvent(keyEvent: IBrowserViewKeyDownEvent): Promise<void> {
-		const event: Electron.KeyboardInputEvent = {
-			type: 'keyDown',
-			keyCode: keyEvent.key,
-			modifiers: []
-		};
-		if (keyEvent.ctrlKey) {
-			event.modifiers!.push('control');
-		}
-		if (keyEvent.shiftKey) {
-			event.modifiers!.push('shift');
-		}
-		if (keyEvent.altKey) {
-			event.modifiers!.push('alt');
-		}
-		if (keyEvent.metaKey) {
-			event.modifiers!.push('meta');
-		}
-		this._isSendingKeyEvent = true;
-		try {
-			await this._view.webContents.sendInputEvent(event);
-		} finally {
-			this._isSendingKeyEvent = false;
-		}
-	}
-
-	/**
 	 * Focus this view
 	 */
 	async focus(): Promise<void> {
@@ -671,55 +654,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		}
 
 		super.dispose();
-	}
-
-	/**
-	 * Potentially handle an input event as a VS Code command.
-	 * Returns `true` if the event was forwarded to VS Code and should not be handled natively.
-	 */
-	private tryHandleCommand(input: Electron.Input): boolean {
-		const eventKeyCode = SCAN_CODE_STR_TO_EVENT_KEY_CODE[input.code] || 0;
-		const keyCode = EVENT_KEY_CODE_MAP[eventKeyCode] || KeyCode.Unknown;
-
-		const isArrowKey = keyCode >= KeyCode.LeftArrow && keyCode <= KeyCode.DownArrow;
-		const isNonEditingKey =
-			keyCode === KeyCode.Escape ||
-			keyCode >= KeyCode.F1 && keyCode <= KeyCode.F24 ||
-			keyCode >= KeyCode.AudioVolumeMute;
-
-		// Ignore most Alt-only inputs (often used for accented characters or menu accelerators)
-		const isAltOnlyInput = input.alt && !input.control && !input.meta;
-		if (isAltOnlyInput && !isNonEditingKey && !isArrowKey) {
-			return false;
-		}
-
-		// Only reroute if there's a command modifier or it's a non-editing key
-		const hasCommandModifier = input.control || input.alt || input.meta;
-		if (!hasCommandModifier && !isNonEditingKey) {
-			return false;
-		}
-
-		// Ignore Ctrl/Cmd + [A,C,V,X,Z] shortcuts to allow native handling (e.g. copy/paste)
-		const isControlInput = isMacintosh ? input.meta : input.control;
-		const modifiedKeyCode = keyCode |
-			(isControlInput ? KeyMod.CtrlCmd : 0) |
-			(input.shift ? KeyMod.Shift : 0) |
-			(input.alt ? KeyMod.Alt : 0);
-		if (nativeShortcuts.has(modifiedKeyCode)) {
-			return false;
-		}
-
-		this._onDidKeyCommand.fire({
-			key: input.key,
-			keyCode: eventKeyCode,
-			code: input.code,
-			ctrlKey: input.control || false,
-			shiftKey: input.shift || false,
-			altKey: input.alt || false,
-			metaKey: input.meta || false,
-			repeat: input.isAutoRepeat || false
-		});
-		return true;
 	}
 
 	private _windowById(windowId: number | undefined): ICodeWindow | IAuxiliaryWindow | undefined {

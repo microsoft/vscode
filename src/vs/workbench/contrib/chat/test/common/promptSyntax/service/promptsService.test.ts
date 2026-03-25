@@ -2789,7 +2789,7 @@ suite('PromptsService', () => {
 			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
 			assert.strictEqual(result.length, 2, 'Should find both skills');
 
-			const mismatchedSkill = result.find(s => s.name === 'Correct Skill Name');
+			const mismatchedSkill = result.find(s => s.name === 'wrong-folder-name');
 			assert.ok(mismatchedSkill, 'Should find skill with folder name as fallback');
 			assert.strictEqual(mismatchedSkill.description, 'This skill should use folder name as fallback');
 

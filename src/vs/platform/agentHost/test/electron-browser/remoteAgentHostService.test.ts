@@ -393,4 +393,36 @@ suite('RemoteAgentHostService', () => {
 		await Event.toPromise(service.onDidChangeConnections);
 		assert.strictEqual(service.connections.length, 1);
 	});
+
+	test('removeRemoteAgentHost removes entry and disconnects', async () => {
+		configService.setEntries([
+			{ address: 'ws://host1:8080', name: 'Host 1' },
+			{ address: 'ws://host2:9090', name: 'Host 2' },
+		]);
+		createdClients[0].connectDeferred.complete();
+		await Event.toPromise(service.onDidChangeConnections);
+		createdClients[1].connectDeferred.complete();
+		await Event.toPromise(service.onDidChangeConnections);
+		assert.strictEqual(service.connections.length, 2);
+
+		await service.removeRemoteAgentHost('ws://host1:8080');
+
+		assert.deepStrictEqual(configService.entries, [
+			{ address: 'ws://host2:9090', name: 'Host 2' },
+		]);
+		assert.strictEqual(service.connections.length, 1);
+		assert.strictEqual(service.getConnection('ws://host1:8080'), undefined);
+		assert.ok(service.getConnection('ws://host2:9090'));
+	});
+
+	test('removeRemoteAgentHost normalizes address before removing', async () => {
+		configService.setEntries([{ address: 'host1:8080', name: 'Host 1' }]);
+		createdClients[0].connectDeferred.complete();
+		await Event.toPromise(service.onDidChangeConnections);
+
+		await service.removeRemoteAgentHost('ws://host1:8080');
+
+		assert.deepStrictEqual(configService.entries, []);
+		assert.strictEqual(service.connections.length, 0);
+	});
 });

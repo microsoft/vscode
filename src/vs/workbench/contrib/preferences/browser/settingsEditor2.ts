@@ -192,8 +192,6 @@ export class SettingsEditor2 extends EditorPane {
 	private searchInProgress: CancellationTokenSource | null = null;
 	private aiSearchPromise: CancelablePromise<void> | null = null;
 
-	private stopWatch: StopWatch;
-
 	private showAiResultsAction: Action | null = null;
 
 	private searchInputDelayer: Delayer<void>;
@@ -283,7 +281,6 @@ export class SettingsEditor2 extends EditorPane {
 		this.aiResultsAvailable = CONTEXT_AI_SETTING_RESULTS_AVAILABLE.bindTo(contextKeyService);
 
 		this.scheduledRefreshes = new Map<string, DisposableStore>();
-		this.stopWatch = new StopWatch(false);
 
 		this.editorMemento = this.getEditorMemento<ISettingsEditor2State>(editorGroupService, textResourceConfigurationService, SETTINGS_EDITOR_STATE_KEY);
 
@@ -1966,9 +1963,9 @@ export class SettingsEditor2 extends EditorPane {
 			return null;
 		}
 
-		this.stopWatch.reset();
+		const stopWatch = new StopWatch(false);
 		const result = await aiSearchProvider.getLLMRankedResults(token);
-		this.stopWatch.stop();
+		stopWatch.stop();
 
 		if (token.isCancellationRequested) {
 			return null;
@@ -1976,7 +1973,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		// Only log the elapsed time if there are actual results.
 		if (result && result.filterMatches.length > 0) {
-			const elapsed = this.stopWatch.elapsed();
+			const elapsed = stopWatch.elapsed();
 			this.logSearchPerformance(LLM_RANKED_SEARCH_PROVIDER_NAME, elapsed);
 		}
 
@@ -1985,9 +1982,9 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private async searchWithProvider(type: SearchResultIdx, searchProvider: ISearchProvider, providerName: string, token: CancellationToken): Promise<ISearchResult | null> {
-		this.stopWatch.reset();
+		const stopWatch = new StopWatch(false);
 		const result = await this._searchPreferencesModel(this.defaultSettingsEditorModel, searchProvider, token);
-		this.stopWatch.stop();
+		stopWatch.stop();
 
 		if (token.isCancellationRequested) {
 			// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
@@ -2001,7 +1998,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		// Only log the elapsed time if there are actual results.
 		if (result && result.filterMatches.length > 0) {
-			const elapsed = this.stopWatch.elapsed();
+			const elapsed = stopWatch.elapsed();
 			this.logSearchPerformance(providerName, elapsed);
 		}
 

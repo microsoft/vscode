@@ -1281,6 +1281,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.isPromptsSection(sectionId)) {
 				void this.listWidget.setSection(sectionId);
 			}
+			// Re-layout after visibility change so the newly-visible widget
+			// can measure its flex-computed container height correctly.
+			if (this.dimension) {
+				this.layout(this.dimension);
+			}
 			this.ensureSectionsListReflectsActiveSection(sectionId);
 		}
 	}
@@ -1290,6 +1295,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 */
 	public refreshList(): void {
 		void this.listWidget.refresh();
+	}
+
+	/**
+	 * Scrolls the active list widget so the last item is visible.
+	 */
+	public revealLastItem(): void {
+		if (this.selectedSection === AICustomizationManagementSection.McpServers) {
+			this.mcpListWidget?.revealLastItem();
+		} else if (this.selectedSection === AICustomizationManagementSection.Plugins) {
+			this.pluginListWidget?.revealLastItem();
+		} else {
+			this.listWidget.revealLastItem();
+		}
 	}
 
 	/**

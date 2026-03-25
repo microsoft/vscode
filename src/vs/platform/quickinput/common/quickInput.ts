@@ -115,9 +115,14 @@ export interface IQuickPickSeparator {
 export interface IKeyMods {
 	readonly ctrlCmd: boolean;
 	readonly alt: boolean;
+	readonly shift: boolean;
 }
 
-export const NO_KEY_MODS: IKeyMods = { ctrlCmd: false, alt: false };
+export function isKeyModified(keyMods: IKeyMods): boolean {
+	return keyMods.ctrlCmd || keyMods.alt || keyMods.shift;
+}
+
+export const NO_KEY_MODS: IKeyMods = { ctrlCmd: false, alt: false, shift: false };
 
 export interface IQuickNavigateConfiguration {
 	keybindings: readonly ResolvedKeybinding[];
@@ -713,16 +718,6 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	 * @param inBackground Whether you are accepting an item in the background and keeping the picker open.
 	 */
 	accept(inBackground?: boolean): void;
-
-	/**
-	 * An event that is fired when an item should be attached as context.
-	 */
-	readonly onDidAttach: Event<void>;
-
-	/**
-	 * Programmatically triggers the attach action for the active item.
-	 */
-	attach(): void;
 }
 
 /**

@@ -85,7 +85,7 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			terminalSessionId: string;
 		};
 		type TerminalCreationTelemetryClassification = {
-			owner: 'tyriar';
+			owner: 'anthonykim1';
 			comment: 'Track details about terminal creation, such as the shell type';
 
 			location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location of the terminal.' };

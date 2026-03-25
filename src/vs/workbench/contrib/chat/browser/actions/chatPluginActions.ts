@@ -17,7 +17,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
-import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReferences } from '../../common/plugins/pluginMarketplaceService.js';
+import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences } from '../../common/plugins/pluginMarketplaceService.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { InstalledAgentPluginsViewId } from '../agentPluginsView.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
@@ -112,6 +112,11 @@ class InstallFromSourceAction extends Action2 {
 						inputBox.validationMessage = result.message;
 					}
 					inputBox.show();
+				} else {
+					const ref = parseMarketplaceReference(source);
+					if (ref) {
+						accessor.get(IExtensionsWorkbenchService).openSearch(`@agentPlugins ${ref.displayLabel}`);
+					}
 				}
 			} finally {
 				inputBox.busy = false;

@@ -6,7 +6,7 @@
 import { timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { IKeyMods, IQuickPickDidAcceptEvent, IQuickPickSeparator, IQuickPick, IQuickPickItem, IQuickInputButton } from '../common/quickInput.js';
+import { IKeyMods, IQuickPickDidAcceptEvent, IQuickPickSeparator, IQuickPick, IQuickPickItem, IQuickInputButton, isKeyModified } from '../common/quickInput.js';
 import { IQuickAccessProvider, IQuickAccessProviderRunOptions } from '../common/quickAccess.js';
 import { isFunction } from '../../../base/common/types.js';
 
@@ -51,7 +51,7 @@ export interface IPickerQuickAccessItem extends IQuickPickItem {
 	 * @param buttonIndex index of the button of the item that
 	 * was clicked.
 	 *
-	 * @param the state of modifier keys when the button was triggered.
+	 * @param keyMods the state of modifier keys when the button was triggered.
 	 *
 	 * @returns a value that indicates what should happen after the trigger
 	 * which can be a `Promise` for long running operations.
@@ -59,10 +59,14 @@ export interface IPickerQuickAccessItem extends IQuickPickItem {
 	trigger?(buttonIndex: number, keyMods: IKeyMods): TriggerAction | Promise<TriggerAction>;
 
 	/**
-	 * A method that will be executed when the pick item should be attached
-	 * as context, e.g. to a chat conversation.
+	 * When set, this will be invoked instead of `accept` if modifier keys are held down.
+	 * This is useful for actions like "attach to context" where you want to keep the picker
+	 * open and allow multiple picks.
+	 *
+	 * @param keyMods the state of modifier keys when the item was accepted.
+	 * @param event the underlying event that caused this to trigger.
 	 */
-	attach?(): void;
+	attach?(keyMods: IKeyMods, event: IQuickPickDidAcceptEvent): void;
 }
 
 export interface IPickerQuickAccessSeparator extends IQuickPickSeparator {
@@ -73,7 +77,7 @@ export interface IPickerQuickAccessSeparator extends IQuickPickSeparator {
 	 * @param buttonIndex index of the button of the item that
 	 * was clicked.
 	 *
-	 * @param the state of modifier keys when the button was triggered.
+	 * @param keyMods the state of modifier keys when the button was triggered.
 	 *
 	 * @returns a value that indicates what should happen after the trigger
 	 * which can be a `Promise` for long running operations.
@@ -343,19 +347,16 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 
 			const [item] = picker.selectedItems;
 			if (typeof item?.accept === 'function') {
+				const isAttachAction = isKeyModified(picker.keyMods) && !!item.attach;
+				if (isAttachAction) {
+					item.attach!(picker.keyMods, event);
+					return;
+				}
 				if (!event.inBackground) {
 					picker.hide(); // hide picker unless we accept in background
 				}
 
 				item.accept(picker.keyMods, event);
-			}
-		}));
-
-		// Attach the active pick item as context
-		disposables.add(picker.onDidAttach(() => {
-			const [item] = picker.activeItems;
-			if (typeof item?.attach === 'function') {
-				item.attach();
 			}
 		}));
 

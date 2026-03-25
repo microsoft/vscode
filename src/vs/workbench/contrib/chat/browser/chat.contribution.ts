@@ -323,11 +323,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
 			description: nls.localize('chat.tips.enabled', "Controls whether tips are shown above user messages in chat. New tips are added frequently, so this is a helpful way to stay up to date with the latest features."),
-			default: false,
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			}
+			default: true,
 		},
 		'chat.upvoteAnimation': {
 			type: 'string',
@@ -1314,12 +1310,11 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		[ChatConfiguration.SubagentsMaxDepth]: {
-			type: 'number',
-			description: nls.localize('chat.subagents.maxDepth', "Maximum nesting depth for subagents. Set to 0 to disable nested subagents. A subagent at this depth will not be able to launch further subagents."),
-			default: 0,
-			minimum: 0,
-			maximum: 20,
+		[ChatConfiguration.SubagentsAllowInvocationsFromSubagents]: {
+			type: 'boolean',
+			description: nls.localize('chat.subagents.allowInvocationsFromSubagents', "Allow subagents to invoke subagents."),
+			markdownDescription: nls.localize('chat.subagents.allowInvocationsFromSubagents.md', "Controls whether subagents can invoke other subagents. When enabled, nesting is limited to a maximum depth of 5."),
+			default: false,
 			experiment: {
 				mode: 'auto'
 			}

@@ -532,7 +532,6 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 	private readonly onWillAcceptEmitter = this._register(new Emitter<IQuickPickWillAcceptEvent>());
 	private readonly onDidAcceptEmitter = this._register(new Emitter<IQuickPickDidAcceptEvent>());
 	private readonly onDidCustomEmitter = this._register(new Emitter<void>());
-	private readonly onDidAttachEmitter = this._register(new Emitter<void>());
 	private _items: O extends { useSeparators: true } ? Array<T | IQuickPickSeparator> : Array<T> = [];
 	private itemsUpdated = false;
 	private _canSelectMany = false;
@@ -643,8 +642,6 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 	onDidAccept = this.onDidAcceptEmitter.event;
 
 	onDidCustom = this.onDidCustomEmitter.event;
-
-	onDidAttach = this.onDidAttachEmitter.event;
 
 	get items() {
 		return this._items;
@@ -1179,10 +1176,6 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 			this.onDidChangeSelectionEmitter.fire(this.selectedItems);
 		}
 		this.handleAccept(inBackground ?? false);
-	}
-
-	attach(): void {
-		this.onDidAttachEmitter.fire();
 	}
 }
 

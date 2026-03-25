@@ -10,13 +10,18 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IURLService } from '../../../../../../platform/url/common/url.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
+import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
+import { AgentPluginEditorInput } from '../../../browser/agentPluginEditor/agentPluginEditorInput.js';
 import { PluginUrlHandler } from '../../../browser/pluginUrlHandler.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
+import { IInstallPluginFromSourceOptions, IInstallPluginFromSourceResult, IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
+import { IMarketplacePlugin, MarketplaceReferenceKind, MarketplaceType, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 
 function toBase64(value: string): string {
 	return encodeBase64(VSBuffer.fromString(value));
@@ -29,6 +34,9 @@ suite('PluginUrlHandler', () => {
 		dialogConfirmResult: boolean;
 		installedSources: string[];
 		configUpdates: { key: string; value: unknown; target: ConfigurationTarget }[];
+		openedEditorInputs: AgentPluginEditorInput[];
+		openSearchQueries: string[];
+		installFromValidatedSourceResult: IInstallPluginFromSourceResult;
 	}
 
 	function createHandler(stateOverrides?: Partial<MockState>): { handler: PluginUrlHandler; state: MockState } {
@@ -36,6 +44,9 @@ suite('PluginUrlHandler', () => {
 			dialogConfirmResult: true,
 			installedSources: [],
 			configUpdates: [],
+			openedEditorInputs: [],
+			openSearchQueries: [],
+			installFromValidatedSourceResult: { success: false },
 			...stateOverrides,
 		};
 
@@ -47,6 +58,7 @@ suite('PluginUrlHandler', () => {
 
 		instantiationService.stub(IPluginInstallService, {
 			installPluginFromSource: async (source: string) => { state.installedSources.push(source); },
+			installPluginFromValidatedSource: async (_source: string, _options?: IInstallPluginFromSourceOptions) => state.installFromValidatedSourceResult,
 		} as unknown as IPluginInstallService);
 
 		instantiationService.stub(IDialogService, {
@@ -67,6 +79,21 @@ suite('PluginUrlHandler', () => {
 		instantiationService.stub(IHostService, {
 			focus: async () => { },
 		} as unknown as IHostService);
+
+		instantiationService.stub(IExtensionsWorkbenchService, {
+			openSearch: (query: string) => { state.openSearchQueries.push(query); },
+		} as unknown as IExtensionsWorkbenchService);
+
+		instantiationService.stub(IEditorService, {
+			openEditor: async (input: AgentPluginEditorInput) => {
+				state.openedEditorInputs.push(input);
+				store.add(input);
+				return undefined;
+			},
+		} as unknown as IEditorService);
+
+		// IInstantiationService: delegate createInstance to the TestInstantiationService itself
+		instantiationService.stub(IInstantiationService, instantiationService);
 
 		instantiationService.stub(ILogService, new NullLogService());
 
@@ -203,5 +230,77 @@ suite('PluginUrlHandler', () => {
 		const result = await handler.handleURL(uri('/add-marketplace', 'ref=not-valid'));
 		assert.strictEqual(result, true);
 		assert.strictEqual(state.configUpdates.length, 0);
+	});
+
+	// --- install with plugin targeting ---
+
+	function makeMarketplacePlugin(name: string, marketplace: string): IMarketplacePlugin {
+		const [owner, repo] = marketplace.split('/');
+		const ref = {
+			kind: MarketplaceReferenceKind.GitHubShorthand as const,
+			rawValue: marketplace,
+			displayLabel: marketplace,
+			canonicalId: `github:${owner.toLowerCase()}/${repo.toLowerCase()}`,
+			cloneUrl: `https://github.com/${marketplace}.git`,
+			githubRepo: marketplace,
+			cacheSegments: ['github.com', owner, repo],
+		};
+		return {
+			name,
+			description: `${name} description`,
+			version: '1.0.0',
+			source: name,
+			sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: name },
+			marketplace,
+			marketplaceReference: ref,
+			marketplaceType: MarketplaceType.OpenPlugin,
+		};
+	}
+
+	test('install with plugin param delegates to installPluginFromValidatedSource and opens editor', async () => {
+		const plugin = makeMarketplacePlugin('my-plugin', 'acme/plugins');
+		const { handler, state } = createHandler({
+			installFromValidatedSourceResult: { success: true, matchedPlugin: plugin },
+		});
+		const result = await handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin'));
+		assert.strictEqual(result, true);
+		// Should not show the install confirmation dialog (trust handled by install service)
+		assert.deepStrictEqual(state.installedSources, []);
+		// Plugin editor was opened
+		assert.strictEqual(state.openedEditorInputs.length, 1);
+		assert.strictEqual(state.openedEditorInputs[0].item.name, 'my-plugin');
+	});
+
+	test('install with base64-encoded plugin param opens editor', async () => {
+		const plugin = makeMarketplacePlugin('my-plugin', 'acme/plugins');
+		const { handler, state } = createHandler({
+			installFromValidatedSourceResult: { success: true, matchedPlugin: plugin },
+		});
+		const encodedPlugin = toBase64('my-plugin');
+		const result = await handler.handleURL(uri('/install', `source=acme/plugins&plugin=${encodedPlugin}`));
+		assert.strictEqual(result, true);
+		assert.strictEqual(state.openedEditorInputs.length, 1);
+		assert.strictEqual(state.openedEditorInputs[0].item.name, 'my-plugin');
+	});
+
+	test('install with plugin param falls back to search on failure', async () => {
+		const { handler, state } = createHandler({
+			installFromValidatedSourceResult: { success: false, message: 'Plugin not found' },
+		});
+		const result = await handler.handleURL(uri('/install', 'source=acme/plugins&plugin=nonexistent'));
+		assert.strictEqual(result, true);
+		assert.strictEqual(state.openedEditorInputs.length, 0);
+		assert.strictEqual(state.openSearchQueries.length, 1);
+		assert.ok(state.openSearchQueries[0].includes('acme/plugins'));
+	});
+
+	test('install with plugin param falls back to search when no matchedPlugin', async () => {
+		const { handler, state } = createHandler({
+			installFromValidatedSourceResult: { success: true },
+		});
+		const result = await handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin'));
+		assert.strictEqual(result, true);
+		assert.strictEqual(state.openedEditorInputs.length, 0);
+		assert.strictEqual(state.openSearchQueries.length, 1);
 	});
 });

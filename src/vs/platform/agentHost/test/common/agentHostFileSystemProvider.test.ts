@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { agentHostRemotePath, agentHostUri } from '../../common/agentHostFileSystemProvider.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../common/agentHostUri.js';
 
 suite('AgentHostFileSystemProvider - URI helpers', () => {
 
@@ -121,10 +121,58 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		assert.strictEqual(result.toString(), original.toString());
 	});
 
+	test('agentHostUri for root path produces valid encoded URI', () => {
+		const authority = agentHostAuthority('localhost:8089');
+		const uri = agentHostUri(authority, '/');
+		assert.strictEqual(uri.scheme, AGENT_HOST_SCHEME);
+		assert.strictEqual(uri.authority, authority);
+		// The decoded path should be root
+		assert.strictEqual(fromAgentHostUri(uri).path, '/');
+	});
+
 	test('fromAgentHostUri handles malformed path gracefully', () => {
 		const uri = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'host', path: '/file' });
 		const result = fromAgentHostUri(uri);
-		// Should not throw — falls back to extracting scheme only
+		// Should not throw - falls back to extracting scheme only
 		assert.strictEqual(result.scheme, 'file');
+	});
+});
+
+suite('AGENT_HOST_LABEL_FORMATTER', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	/**
+	 * Replicates the stripPathSegments logic from the label service to
+	 * verify that the formatter's configuration is consistent with the
+	 * URI encoding.
+	 */
+	function stripPath(path: string, segments: number): string {
+		let pos = 0;
+		for (let i = 0; i < segments; i++) {
+			const next = path.indexOf('/', pos + 1);
+			if (next === -1) {
+				break;
+			}
+			pos = next;
+		}
+		return path.substring(pos);
+	}
+
+	test('stripPathSegments matches URI encoding for file URIs', () => {
+		const authority = agentHostAuthority('localhost:8089');
+		const originalPath = '/Users/roblou/code/vscode';
+		const encodedUri = agentHostUri(authority, originalPath);
+
+		const stripped = stripPath(encodedUri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
+		assert.strictEqual(stripped, originalPath);
+	});
+
+	test('stripPathSegments matches URI encoding with authority', () => {
+		const originalUri = URI.from({ scheme: 'agenthost-content', authority: 'myhost', path: '/snap/before' });
+		const encodedUri = toAgentHostUri(originalUri, 'remote-host');
+
+		const stripped = stripPath(encodedUri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
+		assert.strictEqual(stripped, '/snap/before');
 	});
 });

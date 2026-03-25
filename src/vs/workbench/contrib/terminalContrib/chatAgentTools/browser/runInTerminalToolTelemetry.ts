@@ -65,7 +65,7 @@ export class RunInTerminalToolTelemetry {
 			autoApproveDefault: boolean | undefined;
 		};
 		type TelemetryClassification = {
-			owner: 'tyriar';
+			owner: 'meganrogge';
 			comment: 'Understanding the auto approve behavior of the runInTerminal tool';
 
 			terminalToolSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID for this particular terminal tool invocation.' };
@@ -139,7 +139,7 @@ export class RunInTerminalToolTelemetry {
 			inputToolFreeFormInputCount: number;
 		};
 		type TelemetryClassification = {
-			owner: 'tyriar';
+			owner: 'meganrogge';
 			comment: 'Understanding the usage of the runInTerminal tool';
 
 			terminalSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID of the terminal instance.' };

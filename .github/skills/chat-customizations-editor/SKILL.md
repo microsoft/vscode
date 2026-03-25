@@ -79,6 +79,49 @@ Each customization type requires its own mock path in `createMockPromptsService`
 
 All test data lives in `allFiles` (prompt-based items) and the `mcpWorkspace/UserServers` arrays. Add enough items per category (8+) to invoke scrolling.
 
+### Exercising built-in grouping
+
+The list widget regroups items from the default chat extension under a "Built-in" header. Three things must be in place for fixtures to exercise this:
+1. Include `BUILTIN_STORAGE` in the harness descriptor's visible sources
+2. Mock `IProductService.defaultChatAgent.chatExtensionId` (e.g., `'GitHub.copilot-chat'`)
+3. Give mock items extension provenance via `extensionId` / `extensionDisplayName` matching that ID
+
+Without all three, built-in regrouping silently doesn't run and the fixture only shows flat lists.
+
+### Editor contribution service mocks
+
+The management editor embeds a `CodeEditorWidget`. Electron-side editor contributions (e.g., `AgentFeedbackEditorWidgetContribution`) are instantiated automatically and crash if their injected services aren't registered. The fixture must mock at minimum:
+- `IAgentFeedbackService` — needs `onDidChangeFeedback`, `onDidChangeNavigation` as `Event.None`
+- `ICodeReviewService` — needs `getReviewState()` / `getPRReviewState()` returning idle observables
+- `IChatEditingService` — needs `editingSessionsObs` as empty observable
+- `IAgentSessionsService` — needs `model.sessions` as empty array
+
+These are cross-layer imports from `vs/sessions/` — use `// eslint-disable-next-line local/code-import-patterns` on the import lines.
+
+### CI regression gates
+
+Key fixtures have `blocksCi: true` in their labels. The `screenshot-test.yml` GitHub Action captures screenshots on every PR to `main` and **fails the CI status check** if any `blocks-ci`-labeled fixture's screenshot changes. This catches layout regressions automatically.
+
+Currently gated fixtures: `LocalHarness`, `McpServersTab`, `McpServersTabNarrow`, `AgentsTabNarrow`. When adding a new section or layout-critical fixture, add `blocksCi: true`:
+
+```typescript
+MyFixture: defineComponentFixture({
+    labels: { kind: 'screenshot', blocksCi: true },
+    render: ctx => renderEditor(ctx, { ... }),
+}),
+```
+
+Don't add `blocksCi` to every fixture — only ones that cover critical layout paths (default view, section with list + footer, narrow viewport). Too many gated fixtures creates noisy CI.
+
+### Screenshot stability
+
+Scrollbar fade transitions cause screenshot instability — the scrollbar shifts from `visible` to `invisible fade` class ~2 seconds after a programmatic scroll. After calling `revealLastItem()` or any scroll action, wait for the transition to complete before the fixture's render promise resolves:
+
+```typescript
+await new Promise(resolve => setTimeout(resolve, 2400));
+// Then optionally poll until .scrollbar.vertical loses the 'visible' class
+```
+
 ### Running unit tests
 
 ```bash
@@ -87,3 +130,53 @@ npm run compile-check-ts-native && npm run valid-layers-check
 ```
 
 See the `sessions` skill for sessions-window specific guidance.
+
+## Debugging Layout in the Real Product
+
+Component fixtures use mock data and a fixed container size. Layout bugs caused by reflow timing, real data shapes, or narrow window sizes often **don't reproduce in fixtures**. When a user reports a broken layout, debug in the live Code OSS product.
+
+For launching Code OSS with CDP and connecting `agent-browser`, see the **`launch` skill**. Use `--user-data-dir /tmp/code-oss-debug` to avoid colliding with an already-running instance from another worktree.
+
+### Navigating to the customizations editor
+
+After connecting, use `snapshot -i` to find the "Open Customizations" button (in the Chat panel header), then click it. To switch sections, use `eval` with a DOM click since sidebar items aren't interactive refs:
+
+```bash
+npx agent-browser eval "const items = [...document.querySelectorAll('.section-list-item')]; \
+  items.find(el => el.textContent?.includes('MCP'))?.click();"
+```
+
+### Inspecting widget layout
+
+`agent-browser eval` doesn't always print return values. Use `document.title` as a return channel:
+
+```bash
+npx agent-browser eval "const w = document.querySelector('.mcp-list-widget'); \
+  const lc = w?.querySelector('.mcp-list-container'); \
+  const rows = lc?.querySelectorAll('.monaco-list-row'); \
+  document.title = 'DBG:rows=' + (rows?.length ?? -1) \
+    + ',listH=' + (lc?.offsetHeight ?? -1) \
+    + ',seStH=' + (lc?.querySelector('.monaco-scrollable-element')?.style?.height ?? '') \
+    + ',wH=' + (w?.offsetHeight ?? -1);"
+npx agent-browser eval "document.title" 2>&1
+```
+
+Key diagnostics:
+- **`rows`** — fewer than expected means `list.layout()` never received the correct viewport height.
+- **`seStH`** — empty means the list was never properly laid out.
+- **`listH` vs `wH`** — list container height should be widget height minus search bar minus footer.
+
+### Common layout issues
+
+| Symptom | Root cause | Fix pattern |
+|---------|-----------|-------------|
+| List shows 0-1 rows in a tall container | `layout()` bailed out because `offsetHeight` returned 0 during `display:none → visible` transition | Defer layout via `DOM.getWindow(this.element).requestAnimationFrame(...)` |
+| Badge or row content clips at right edge | Widget container missing `overflow: hidden` | Add `overflow: hidden` to the widget's CSS class |
+| Items visible in fixture but not in product | Fixture uses many mock items; real product has few | Add fixture variants with fewer items or narrower dimensions (`width`/`height` options) |
+
+### Fixture vs real product gaps
+
+Fixtures render at a fixed size (default 900×600) with many mock items. They won't catch:
+- **Reflow timing** — the real product's `display:none → visible` transition may not have reflowed before `layout()` fires
+- **Narrow windows** — add narrow fixture variants (e.g., `width: 550, height: 400`)
+- **Real data counts** — a user with 1 MCP server sees very different layout than a fixture with 12

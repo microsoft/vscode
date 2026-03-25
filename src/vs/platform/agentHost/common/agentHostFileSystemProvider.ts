@@ -75,8 +75,13 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 	async stat(resource: URI): Promise<IStat> {
 		const path = resource.path;
 
-		// Root directory
+		// Root directory - either the bare scheme root or the root of the
+		// decoded remote filesystem (e.g. `/file/-/` decodes to `file:///`).
 		if (path === '/' || path === '') {
+			return { type: FileType.Directory, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
+		}
+		const decodedPath = fromAgentHostUri(resource).path;
+		if (decodedPath === '/' || decodedPath === '') {
 			return { type: FileType.Directory, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
 		}
 

@@ -136,8 +136,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// If @vscode/ripgrep is in an .asar file, the binary is unpacked.
 			const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 			const rgDir = dirname(rgDiskPath);
-			const currentPath = env['PATH'];
-			env['PATH'] = currentPath ? `${currentPath}${delimiter}${rgDir}` : rgDir;
+			// On Windows the env key is typically "Path" (not "PATH"). Since we copied
+			// process.env into a plain (case-sensitive) object, we must find the actual key.
+			const pathKey = Object.keys(env).find(k => k.toUpperCase() === 'PATH') ?? 'PATH';
+			const currentPath = env[pathKey];
+			env[pathKey] = currentPath ? `${currentPath}${delimiter}${rgDir}` : rgDir;
 			this._logService.info(`[Copilot] Resolved CLI path: ${cliPath}`);
 
 			const client = new CopilotClient({

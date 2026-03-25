@@ -159,11 +159,11 @@ registerAction2(OpenImageInCarouselAction);
 
 // --- Explorer Context Menu Integration ---
 
-/** Supported image extensions for the carousel explorer context menu. */
-const IMAGE_EXTENSION_REGEX = /^\.(png|jpg|jpeg|jpe|gif|webp|svg|bmp|ico)$/i;
+/** Supported media (image + video) extensions for the carousel explorer context menu. */
+const MEDIA_EXTENSION_REGEX = /^\.(png|jpg|jpeg|jpe|gif|webp|svg|bmp|ico|mp4|webm)$/i;
 
-function isImageResource(uri: URI): boolean {
-	return IMAGE_EXTENSION_REGEX.test(extname(uri));
+function isMediaResource(uri: URI): boolean {
+	return MEDIA_EXTENSION_REGEX.test(extname(uri));
 }
 
 async function collectImageFilesFromFolder(fileService: IFileService, folderUri: URI): Promise<URI[]> {
@@ -171,7 +171,7 @@ async function collectImageFilesFromFolder(fileService: IFileService, folderUri:
 	const imageUris: URI[] = [];
 	if (stat.children) {
 		for (const child of stat.children) {
-			if (child.isFile && isImageResource(child.resource)) {
+			if (child.isFile && isMediaResource(child.resource)) {
 				imageUris.push(child.resource);
 			}
 		}
@@ -203,7 +203,7 @@ class OpenImagesInCarouselFromExplorerAction extends Action2 {
 					ContextKeyExpr.has('config.imageCarousel.explorerContextMenu.enabled'),
 					ContextKeyExpr.or(
 						ExplorerFolderContext,
-						ContextKeyExpr.regex(ResourceContextKey.Extension.key, IMAGE_EXTENSION_REGEX),
+						ContextKeyExpr.regex(ResourceContextKey.Extension.key, MEDIA_EXTENSION_REGEX),
 					),
 				),
 			}],
@@ -241,7 +241,7 @@ class OpenImagesInCarouselFromExplorerAction extends Action2 {
 					imageUris = await collectImageFilesFromFolder(fileService, folderUri);
 				}
 			} else {
-				const hasSingleImageFile = context.length === 1 && !context[0].isDirectory && isImageResource(context[0].resource);
+				const hasSingleImageFile = context.length === 1 && !context[0].isDirectory && isMediaResource(context[0].resource);
 
 				if (hasSingleImageFile) {
 					// Single image: show all sibling images in the same folder with
@@ -262,7 +262,7 @@ class OpenImagesInCarouselFromExplorerAction extends Action2 {
 									imageUris.push(uri);
 								}
 							}
-						} else if (isImageResource(item.resource)) {
+						} else if (isMediaResource(item.resource)) {
 							if (!seen.has(item.resource)) {
 								seen.add(item.resource);
 								imageUris.push(item.resource);

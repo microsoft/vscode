@@ -17,7 +17,7 @@
  */
 (function () {
 
-	const { contextBridge } = require('electron');
+	const { contextBridge, ipcRenderer } = require('electron');
 
 	// #######################################################################
 	// ###                                                                 ###
@@ -26,6 +26,37 @@
 	// ###       (https://github.com/electron/electron/issues/25516)       ###
 	// ###                                                                 ###
 	// #######################################################################
+
+	// Listen for keydown events that the page did not handle and forward them for shortcut handling.
+	window.addEventListener('keydown', (event) => {
+		// Require that the event is trusted -- i.e. user-initiated.
+		// eslint-disable-next-line no-restricted-syntax
+		if (!(event instanceof KeyboardEvent) || !event.isTrusted) {
+			return;
+		}
+
+		// If the event was already handled by the page, do not forward it.
+		if (event.defaultPrevented) {
+			return;
+		}
+
+		// filter to events that either have modifiers or do not have a character representation.
+		if (!(event.ctrlKey || event.altKey || event.metaKey) && event.key.length === 1) {
+			return;
+		}
+
+		ipcRenderer.send('vscode:browserView:keydown', {
+			key: event.key,
+			keyCode: event.keyCode,
+			code: event.code,
+			ctrlKey: event.ctrlKey,
+			shiftKey: event.shiftKey,
+			altKey: event.altKey,
+			metaKey: event.metaKey,
+			repeat: event.repeat
+		});
+	});
+
 	const globals = {
 		/**
 		 * Get the currently selected text in the page.

@@ -135,7 +135,7 @@ function renderSectionItem(ctx: ComponentFixtureContext, section: IAgentSessionS
 		},
 	});
 
-	const renderer = instantiationService.createInstance(AgentSessionSectionRenderer);
+	const renderer = instantiationService.createInstance(AgentSessionSectionRenderer, {});
 
 	container.style.width = '350px';
 	container.style.height = 'auto';

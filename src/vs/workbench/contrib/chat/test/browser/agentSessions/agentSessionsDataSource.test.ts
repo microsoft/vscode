@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName, AgentSessionsSorter, groupAgentSessionsByDate } from '../../../browser/agentSessions/agentSessionsViewer.js';
-import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSessionSection, isAgentSessionShowMore } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { ChatSessionStatus } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -1025,7 +1025,7 @@ suite('AgentSessionsDataSource', () => {
 			assert.ok(!children.some(isAgentSessionShowMore));
 		});
 
-		test('expanding a group removes the cap', () => {
+		test('expanding a group removes the cap and appends show-less item', () => {
 			const now = Date.now();
 			const sessions = Array.from({ length: 8 }, (_, i) =>
 				createMockSession({ id: `s${i}`, metadata: { repositoryNwo: 'owner/vscode' }, startTime: now - i * 1000 })
@@ -1039,8 +1039,11 @@ suite('AgentSessionsDataSource', () => {
 
 			dataSource.expandRepositoryGroup('vscode');
 			const children = Array.from(dataSource.getChildren(section));
-			assert.strictEqual(children.length, 8);
+			assert.strictEqual(children.length, 9); // 8 sessions + 1 show-less
 			assert.ok(!children.some(isAgentSessionShowMore));
+			const showLess = children[8];
+			assert.ok(isAgentSessionShowLess(showLess));
+			assert.strictEqual(showLess.sectionLabel, 'vscode');
 		});
 
 		test('does not cap non-repository sections', () => {

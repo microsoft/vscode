@@ -52,7 +52,7 @@ export class InputLatencyContrib extends Disposable implements IWorkbenchContrib
 		}
 
 		type InputLatencyStatisticFragment = {
-			owner: 'tyriar';
+			owner: 'hediet';
 			comment: 'Represents a set of statistics collected about input latencies';
 			average: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The average time it took to execute.' };
 			max: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The maximum time it took to execute.' };
@@ -60,7 +60,7 @@ export class InputLatencyContrib extends Disposable implements IWorkbenchContrib
 		};
 
 		type PerformanceInputLatencyClassification = {
-			owner: 'tyriar';
+			owner: 'hediet';
 			comment: 'This is a set of samples of the time (in milliseconds) that various events took when typing in the editor';
 			keydown: InputLatencyStatisticFragment;
 			input: InputLatencyStatisticFragment;

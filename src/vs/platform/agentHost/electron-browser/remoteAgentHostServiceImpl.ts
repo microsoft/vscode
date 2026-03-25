@@ -119,6 +119,21 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		return connection;
 	}
 
+	async removeRemoteAgentHost(address: string): Promise<void> {
+		const normalized = normalizeRemoteAgentHostAddress(address);
+		// This setting is only used in the sessions app (user scope), so we
+		// don't need to inspect per-scope values like _upsertConfiguredEntry does.
+		const entries = this._getConfiguredEntries().filter(
+			e => normalizeRemoteAgentHostAddress(e.address) !== normalized
+		);
+		await this._storeConfiguredEntries(entries);
+
+		// Eagerly clear in-memory state so the UI updates immediately
+		// (the config change listener will reconcile, but this is instant).
+		this._names.delete(normalized);
+		this._removeConnection(normalized);
+	}
+
 	private _removeConnection(address: string): void {
 		const entry = this._entries.get(address);
 		if (entry) {

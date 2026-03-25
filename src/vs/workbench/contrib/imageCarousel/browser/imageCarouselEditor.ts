@@ -10,6 +10,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -19,8 +20,9 @@ import { IEditorOpenContext } from '../../../common/editor.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { IWebviewElement, IWebviewService } from '../../webview/browser/webview.js';
 import { ImageCarouselEditorInput } from './imageCarouselEditorInput.js';
-import { ICarouselImage, ICarouselSection } from './imageCarouselTypes.js';
+import { ICarouselImage, ICarouselSection, isVideoMimeType } from './imageCarouselTypes.js';
 
 /**
  * A flat entry referencing a specific image within a section, used
@@ -52,11 +54,13 @@ export class ImageCarouselEditor extends EditorPane {
 	private readonly _imageDisposables = this._register(new DisposableStore());
 	private readonly _blobUrlCache = new Map<string, string>();
 
+	private _videoWebview: IWebviewElement | undefined;
 	private _elements: {
 		root: HTMLElement;
 		imageArea: HTMLElement;
 		mainImageContainer: HTMLElement;
 		mainImage: HTMLImageElement;
+		videoContainer: HTMLElement;
 		captionText: HTMLElement;
 		captionSeparator: HTMLElement;
 		counter: HTMLElement;
@@ -71,7 +75,8 @@ export class ImageCarouselEditor extends EditorPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@IWebviewService private readonly _webviewService: IWebviewService
 	) {
 		super(ImageCarouselEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -96,6 +101,8 @@ export class ImageCarouselEditor extends EditorPane {
 	}
 
 	override clearInput(): void {
+		this._videoWebview?.dispose();
+		this._videoWebview = undefined;
 		this._contentDisposables.clear();
 		this._imageDisposables.clear();
 		this._revokeCachedBlobUrls();
@@ -106,6 +113,11 @@ export class ImageCarouselEditor extends EditorPane {
 		this._elements = undefined;
 		this._thumbnailElements = [];
 		super.clearInput();
+	}
+
+	private _isCurrentVideo(): boolean {
+		const entry = this._flatImages[this._currentIndex];
+		return !!entry && isVideoMimeType(entry.image.mimeType);
 	}
 
 	/**
@@ -132,6 +144,7 @@ export class ImageCarouselEditor extends EditorPane {
 			h('div.image-area@imageArea', [
 				h('div.main-image-container@mainImageContainer', [
 					h('img.main-image@mainImage'),
+					h('div.video-container@videoContainer'),
 				]),
 				h('button.nav-arrow.prev-arrow@prevBtn', { ariaLabel: localize('imageCarousel.previousImage', "Previous image") }, [
 					h('span.codicon.codicon-chevron-left'),
@@ -155,6 +168,7 @@ export class ImageCarouselEditor extends EditorPane {
 			imageArea: elements.imageArea,
 			mainImageContainer: elements.mainImageContainer,
 			mainImage: elements.mainImage as HTMLImageElement,
+			videoContainer: elements.videoContainer,
 			captionText: elements.captionText,
 			captionSeparator: elements.captionSeparator,
 			counter: elements.counter,
@@ -165,6 +179,9 @@ export class ImageCarouselEditor extends EditorPane {
 
 		// Initialize image in fit mode
 		this._elements.mainImage.classList.add('scale-to-fit');
+
+		// Hide video container initially
+		this._elements.videoContainer.style.display = 'none';
 
 		// Navigation listeners
 		this._contentDisposables.add(addDisposableListener(this._elements.prevBtn, 'click', () => {
@@ -197,6 +214,9 @@ export class ImageCarouselEditor extends EditorPane {
 
 		// Zoom: scroll wheel + modifier key (Ctrl on Win/Linux, Alt on Mac) or pinch
 		this._contentDisposables.add(addDisposableListener(this._elements.imageArea, EventType.MOUSE_WHEEL, (e: WheelEvent) => {
+			if (this._isCurrentVideo()) {
+				return;
+			}
 			const isZoomModifier = isMacintosh ? e.altKey : e.ctrlKey;
 			if (!isZoomModifier && !e.ctrlKey) {
 				return;
@@ -227,7 +247,7 @@ export class ImageCarouselEditor extends EditorPane {
 			clickAltPressed = e.altKey;
 		}));
 		this._contentDisposables.add(addDisposableListener(this._elements.mainImageContainer, EventType.CLICK, (e: MouseEvent) => {
-			if (e.button !== 0) {
+			if (e.button !== 0 || this._isCurrentVideo()) {
 				return;
 			}
 			const isZoomOut = isMacintosh ? clickAltPressed : clickCtrlPressed;
@@ -260,16 +280,32 @@ export class ImageCarouselEditor extends EditorPane {
 			for (let i = 0; i < section.images.length; i++) {
 				const image = section.images[i];
 				const currentFlatIndex = flatIndex;
-				const thumbnail = h('button.thumbnail@root', [
-					h('img.thumbnail-image@img'),
-				]);
+				const isItemVideo = isVideoMimeType(image.mimeType);
 
-				const btn = thumbnail.root as HTMLButtonElement;
-				btn.ariaLabel = localize('imageCarousel.thumbnailLabel', "Image {0} of {1}", currentFlatIndex + 1, this._flatImages.length);
+				const btn = document.createElement('button');
+				btn.className = isItemVideo ? 'thumbnail video-thumbnail' : 'thumbnail';
+				btn.ariaLabel = isItemVideo
+					? localize('imageCarousel.thumbnailLabelVideo', "Video {0} of {1}", currentFlatIndex + 1, this._flatImages.length)
+					: localize('imageCarousel.thumbnailLabelImage', "Image {0} of {1}", currentFlatIndex + 1, this._flatImages.length);
 
-				const img = thumbnail.img as HTMLImageElement;
-				this._loadBlobUrl(image).then(url => { img.src = url; });
-				img.alt = image.name;
+				if (isItemVideo) {
+					const icon = h('span.codicon.codicon-play.thumbnail-play-icon');
+					icon.root.setAttribute('aria-hidden', 'true');
+					btn.appendChild(icon.root);
+				} else {
+					const img = document.createElement('img');
+					img.className = 'thumbnail-image';
+					this._loadBlobUrl(image).then(url => {
+						img.src = url;
+					}, () => {
+						btn.classList.add('broken');
+					});
+					img.alt = image.name;
+					this._contentDisposables.add(addDisposableListener(img, 'error', () => {
+						btn.classList.add('broken');
+					}));
+					btn.appendChild(img);
+				}
 
 				this._contentDisposables.add(addDisposableListener(btn, 'click', () => {
 					this._currentIndex = currentFlatIndex;
@@ -306,28 +342,84 @@ export class ImageCarouselEditor extends EditorPane {
 		// decodes on a worker thread, avoiding main-thread stalls during commit.
 		const entry = this._flatImages[navigationIndex];
 		const currentImage = entry.image;
-		const url = await this._loadBlobUrl(currentImage);
+		const isVideo = isVideoMimeType(currentImage.mimeType);
 
-		// If the user navigated while loading the blob URL, discard this result.
-		if (this._currentIndex !== navigationIndex) {
-			return;
+		if (isVideo) {
+			// Show video container, hide image
+			this._elements.mainImage.style.display = 'none';
+			this._elements.videoContainer.style.display = '';
+			this._elements.mainImageContainer.classList.remove('zoomed');
+			this._elements.mainImageContainer.style.cursor = 'default';
+
+			// Load raw data to send via postMessage
+			const rawData = await this._loadRawData(currentImage);
+			if (this._currentIndex !== navigationIndex) {
+				return;
+			}
+
+			const nonce = generateUuid();
+			const videoHtml = `<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src blob: data:; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
+<style nonce="${nonce}">html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:transparent}
+video{width:100%;height:100%;object-fit:contain;outline:none}</style>
+</head><body>
+<video id="v" controls></video>
+<script nonce="${nonce}">
+window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVideo"){var b=new Blob([m.data],{type:m.mimeType});document.getElementById("v").src=URL.createObjectURL(b);}});
+</script>
+</body></html>`;
+
+			// Reuse existing webview or create one on first video navigation
+			let webview: IWebviewElement;
+			if (!this._videoWebview) {
+				webview = this._contentDisposables.add(this._webviewService.createWebviewElement({
+					title: currentImage.name,
+					options: { disableServiceWorker: true },
+					contentOptions: { allowScripts: true },
+					extension: undefined,
+				}));
+				webview.mountTo(this._elements.videoContainer, this.window);
+				this._videoWebview = webview;
+			} else {
+				webview = this._videoWebview;
+			}
+
+			webview.setHtml(videoHtml);
+
+			// Send the video data to the webview via postMessage
+			const buffer = (rawData as Uint8Array<ArrayBuffer>).buffer;
+			webview.postMessage({ type: 'loadVideo', data: buffer, mimeType: currentImage.mimeType }, [buffer]);
+		} else {
+			// Show image, hide video container
+			this._elements.videoContainer.style.display = 'none';
+			this._elements.mainImage.style.display = '';
+			this._elements.mainImageContainer.style.cursor = '';
+
+			const url = await this._loadBlobUrl(currentImage);
+
+			// If the user navigated while loading the blob URL, discard this result.
+			if (this._currentIndex !== navigationIndex) {
+				return;
+			}
+
+			const tmp = new Image();
+			tmp.src = url;
+			tmp.decode().then(() => {
+				// Only apply if user hasn't navigated away during decode
+				if (this._currentIndex === navigationIndex && this._elements) {
+					this._elements.mainImage.src = url;
+					this._elements.mainImage.alt = currentImage.name;
+				}
+			}, () => {
+				// Decode failed (invalid image) — still show src for browser fallback
+				if (this._currentIndex === navigationIndex && this._elements) {
+					this._elements.mainImage.src = url;
+					this._elements.mainImage.alt = currentImage.name;
+				}
+			});
 		}
-
-		const tmp = new Image();
-		tmp.src = url;
-		tmp.decode().then(() => {
-			// Only apply if user hasn't navigated away during decode
-			if (this._currentIndex === navigationIndex && this._elements) {
-				this._elements.mainImage.src = url;
-				this._elements.mainImage.alt = currentImage.name;
-			}
-		}, () => {
-			// Decode failed (invalid image) — still show src for browser fallback
-			if (this._currentIndex === navigationIndex && this._elements) {
-				this._elements.mainImage.src = url;
-				this._elements.mainImage.alt = currentImage.name;
-			}
-		});
 
 		// Reset zoom when switching images
 		this._applyZoom('fit');
@@ -411,16 +503,32 @@ export class ImageCarouselEditor extends EditorPane {
 		this._blobUrlCache.clear();
 	}
 
+	private async _loadRawData(image: ICarouselImage): Promise<Uint8Array> {
+		if (image.data) {
+			return image.data instanceof Uint8Array ? image.data : image.data.buffer;
+		} else if (image.uri) {
+			const content = await this._fileService.readFile(image.uri);
+			return content.value.buffer;
+		}
+		return new Uint8Array(0);
+	}
+
 	private _preloadAdjacentImages(): void {
 		for (const idx of [this._currentIndex - 1, this._currentIndex + 1]) {
 			if (idx >= 0 && idx < this._flatImages.length) {
-				this._loadBlobUrl(this._flatImages[idx].image).then(url => {
-					// Pre-decode via decode() so the compositor doesn't block
-					// the main thread decoding this image during commit.
-					const img = new Image();
-					img.src = url;
-					img.decode().catch(() => { /* invalid image */ });
-				});
+				const adjacentImage = this._flatImages[idx].image;
+				if (isVideoMimeType(adjacentImage.mimeType)) {
+					// For video, preload raw data into the file service cache
+					this._loadRawData(adjacentImage).catch(() => { /* ignore */ });
+				} else {
+					this._loadBlobUrl(adjacentImage).then(url => {
+						// Pre-decode via decode() so the compositor doesn't block
+						// the main thread decoding this image during commit.
+						const img = new Image();
+						img.src = url;
+						img.decode().catch(() => { /* invalid image */ });
+					});
+				}
 			}
 		}
 	}

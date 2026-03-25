@@ -8,7 +8,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IMenu, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
@@ -782,20 +781,15 @@ export function setupTerminalMenus(): void {
 	}
 }
 
-export function getTerminalActionBarArgs(location: ITerminalLocationOptions, profiles: ITerminalProfile[], defaultProfileName: string, contributedProfiles: readonly IExtensionTerminalProfile[], terminalService: ITerminalService, dropdownMenu: IMenu, disposableStore: DisposableStore, configurationService: IConfigurationService): {
+export function getTerminalActionBarArgs(location: ITerminalLocationOptions, profiles: ITerminalProfile[], defaultProfileName: string, contributedProfiles: readonly IExtensionTerminalProfile[], terminalService: ITerminalService, dropdownMenu: IMenu, disposableStore: DisposableStore): {
 	dropdownAction: IAction;
 	dropdownMenuActions: IAction[];
 	className: string;
 	dropdownIcon?: string;
 } {
-	const shouldElevateAiProfiles = configurationService.getValue<boolean>(TerminalSettingId.ExperimentalAiProfileGrouping);
 	profiles = profiles.filter(e => !e.isAutoDetected);
-	const [aiProfiles, otherProfiles] = shouldElevateAiProfiles
-		? splitProfiles(profiles)
-		: [[], profiles];
-	const [aiContributedProfiles, otherContributedProfiles] = shouldElevateAiProfiles
-		? splitContributedProfiles(contributedProfiles)
-		: [[], contributedProfiles];
+	const [aiProfiles, otherProfiles] = splitProfiles(profiles);
+	const [aiContributedProfiles, otherContributedProfiles] = splitContributedProfiles(contributedProfiles);
 	const dropdownActions: IAction[] = [];
 	const submenuActions: IAction[] = [];
 	const splitLocation = (location === TerminalLocation.Editor || (typeof location === 'object' && hasKey(location, { viewColumn: true }) && location.viewColumn === ACTIVE_GROUP)) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };

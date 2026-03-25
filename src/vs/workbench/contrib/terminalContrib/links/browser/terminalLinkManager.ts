@@ -209,7 +209,7 @@ export class TerminalLinkManager extends DisposableStore {
 		this._telemetryService.publicLog2<{
 			linkType: TerminalBuiltinLinkType | string;
 		}, {
-			owner: 'tyriar';
+			owner: 'anthonykim1';
 			comment: 'When the user opens a link in the terminal';
 			linkType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of link being opened' };
 		}>('terminal/openLink', { linkType: isString(link.type) ? link.type : `extension:${link.type.id}` });
