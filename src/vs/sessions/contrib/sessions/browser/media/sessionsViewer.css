@@ -10,22 +10,28 @@
 
 	/*
 	 * Show-more / show-less: 2px list row (nearly invisible gap).
-	 * On hover, absolutely positioned content appears above the list rows.
+	 * On hover, absolutely positioned content appears overlaying the gap.
 	 */
+	.monaco-list-row:has(.agent-session-show-more) {
+		overflow: visible !important;
+		z-index: 1;
+	}
+
+	.monaco-list-row:hover:has(.agent-session-show-more) {
+		z-index: 100;
+	}
+
 	.agent-session-show-more {
-		position: absolute;
-		left: 0;
-		right: 0;
-		top: -10px;
-		height: 22px;
+		position: relative;
 		display: flex;
 		justify-content: center;
 		align-items: center;
 		padding: 0 6px;
+		height: 22px;
+		margin-top: -10px;
 		font-size: 11px;
 		color: transparent;
 		pointer-events: none;
-		z-index: 100;
 		transition: color 0.15s ease;
 
 		.agent-session-show-more-label {
