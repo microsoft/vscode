@@ -24,6 +24,7 @@ import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolb
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { IStyleOverride, defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -62,10 +63,20 @@ export interface ISessionSection {
 	readonly sessions: ISessionData[];
 }
 
-export type SessionListItem = ISessionData | ISessionSection;
+export interface ISessionShowMore {
+	readonly showMore: true;
+	readonly sectionLabel: string;
+	readonly remainingCount: number;
+}
+
+export type SessionListItem = ISessionData | ISessionSection | ISessionShowMore;
 
 function isSessionSection(item: SessionListItem): item is ISessionSection {
 	return 'sessions' in item && Array.isArray((item as ISessionSection).sessions);
+}
+
+function isSessionShowMore(item: SessionListItem): item is ISessionShowMore {
+	return 'showMore' in item && (item as ISessionShowMore).showMore === true;
 }
 
 //#endregion
@@ -75,12 +86,16 @@ function isSessionSection(item: SessionListItem): item is ISessionSection {
 class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT = 54;
 	private static readonly SECTION_HEIGHT = 26;
+	private static readonly SHOW_MORE_HEIGHT = 26;
 
 	constructor(private readonly _approvalModel?: AgentSessionApprovalModel) { }
 
 	getHeight(element: SessionListItem): number {
 		if (isSessionSection(element)) {
 			return SessionsTreeDelegate.SECTION_HEIGHT;
+		}
+		if (isSessionShowMore(element)) {
+			return SessionsTreeDelegate.SHOW_MORE_HEIGHT;
 		}
 
 		let height = SessionsTreeDelegate.ITEM_HEIGHT;
@@ -94,11 +109,17 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	}
 
 	hasDynamicHeight(element: SessionListItem): boolean {
-		return !!this._approvalModel && !isSessionSection(element);
+		return !!this._approvalModel && !isSessionSection(element) && !isSessionShowMore(element);
 	}
 
 	getTemplateId(element: SessionListItem): string {
-		return isSessionSection(element) ? SessionSectionRenderer.TEMPLATE_ID : SessionItemRenderer.TEMPLATE_ID;
+		if (isSessionSection(element)) {
+			return SessionSectionRenderer.TEMPLATE_ID;
+		}
+		if (isSessionShowMore(element)) {
+			return SessionShowMoreRenderer.TEMPLATE_ID;
+		}
+		return SessionItemRenderer.TEMPLATE_ID;
 	}
 }
 
@@ -173,7 +194,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
 		const element = node.element;
-		if (isSessionSection(element)) {
+		if (isSessionSection(element) || isSessionShowMore(element)) {
 			return;
 		}
 		this.renderSession(element, template);
@@ -429,6 +450,32 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 
 //#endregion
 
+//#region Show More Renderer
+
+class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, HTMLElement> {
+	static readonly TEMPLATE_ID = 'session-show-more';
+	readonly templateId = SessionShowMoreRenderer.TEMPLATE_ID;
+
+	constructor(private readonly onShowMore: (sectionLabel: string) => void) { }
+
+	renderTemplate(container: HTMLElement): HTMLElement {
+		container.classList.add('session-show-more');
+		const link = DOM.append(container, $('a.session-show-more-link'));
+		return link;
+	}
+
+	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: HTMLElement): void {
+		const element = node.element;
+		if (!isSessionShowMore(element)) {
+			return;
+		}
+		template.textContent = localize('showMore', "Show {0} More...", element.remainingCount);
+		template.onclick = () => this.onShowMore(element.sectionLabel);
+	}
+
+	disposeTemplate(_template: HTMLElement): void { }
+}
+
 //#region Accessibility
 
 class SessionsAccessibilityProvider {
@@ -439,6 +486,9 @@ class SessionsAccessibilityProvider {
 	getAriaLabel(element: SessionListItem): string | null {
 		if (isSessionSection(element)) {
 			return `${element.label}, ${element.sessions.length}`;
+		}
+		if (isSessionShowMore(element)) {
+			return localize('showMoreAria', "Show {0} more sessions", element.remainingCount);
 		}
 		return element.title.get();
 	}
@@ -485,6 +535,8 @@ export interface ISessionsListControl {
 	setExcludeRead(exclude: boolean): void;
 	isExcludeRead(): boolean;
 	resetFilters(): void;
+	setRepositoryGroupCapped(capped: boolean): void;
+	isRepositoryGroupCapped(): boolean;
 }
 
 export class SessionsListControl extends Disposable implements ISessionsListControl {
@@ -495,6 +547,8 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 	private static readonly EXCLUDED_STATUSES_KEY = 'sessionsListControl.excludedStatuses';
 	private static readonly EXCLUDE_ARCHIVED_KEY = 'sessionsListControl.excludeArchived';
 	private static readonly EXCLUDE_READ_KEY = 'sessionsListControl.excludeRead';
+	private static readonly REPO_GROUP_CAPPED_KEY = 'sessionsListControl.repoGroupCapped';
+	private static readonly REPO_GROUP_LIMIT = 5;
 
 	private readonly listContainer: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
@@ -505,6 +559,8 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 	private readonly excludedStatuses: Set<SessionStatus>;
 	private _excludeArchived: boolean;
 	private _excludeRead: boolean;
+	private _repoGroupCapped: boolean;
+	private readonly _expandedRepoGroups = new Set<string>();
 
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
 	readonly onDidUpdate: Event<void> = this._onDidUpdate.event;
@@ -520,6 +576,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -535,6 +592,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 		// Load archived/read filter state
 		this._excludeArchived = this.storageService.getBoolean(SessionsListControl.EXCLUDE_ARCHIVED_KEY, StorageScope.PROFILE, true);
 		this._excludeRead = this.storageService.getBoolean(SessionsListControl.EXCLUDE_READ_KEY, StorageScope.PROFILE, false);
+		this._repoGroupCapped = this.storageService.getBoolean(SessionsListControl.REPO_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control'));
 
@@ -548,6 +606,11 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 			markdownRendererService,
 		);
 
+		const showMoreRenderer = new SessionShowMoreRenderer(sectionLabel => {
+			this._expandedRepoGroups.add(sectionLabel);
+			this.update();
+		});
+
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
 			'SessionsListTree',
@@ -556,6 +619,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 			[
 				sessionRenderer,
 				new SessionSectionRenderer(),
+				showMoreRenderer,
 			],
 			{
 				accessibilityProvider: new SessionsAccessibilityProvider(),
@@ -563,6 +627,9 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 					getId: (element: SessionListItem) => {
 						if (isSessionSection(element)) {
 							return `section:${element.id}`;
+						}
+						if (isSessionShowMore(element)) {
+							return `show-more:${element.sectionLabel}`;
 						}
 						return element.resource.toString();
 					}
@@ -577,6 +644,9 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 						if (isSessionSection(element)) {
 							return element.label;
 						}
+						if (isSessionShowMore(element)) {
+							return element.sectionLabel;
+						}
 						return element.title.get();
 					}
 				},
@@ -588,7 +658,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 		this._register(this.tree.onDidOpen(e => {
 			const element = e.element;
-			if (element && !isSessionSection(element)) {
+			if (element && !isSessionSection(element) && !isSessionShowMore(element)) {
 				this.options.onSessionOpen(element.resource);
 			}
 		}));
@@ -673,14 +743,32 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 			sections.push({ id: 'archived', label: localize('archived', "Archived"), sessions: archived });
 		}
 
-		const children: IObjectTreeElement<SessionListItem>[] = sections.map(section => ({
-			element: section,
-			collapsible: true,
-			collapsed: this.getSavedCollapseState(section.id) ?? ObjectTreeElementCollapseState.PreserveOrExpanded,
-			children: section.sessions.map(session => ({
-				element: session,
-			})),
-		}));
+		const children: IObjectTreeElement<SessionListItem>[] = sections.map(section => {
+			const isRepoGroup = grouping === SessionsGrouping.Repository
+				&& section.id !== 'pinned' && section.id !== 'archived';
+			const isCapped = isRepoGroup && this._repoGroupCapped
+				&& !this._expandedRepoGroups.has(section.label)
+				&& section.sessions.length > SessionsListControl.REPO_GROUP_LIMIT;
+
+			let sectionChildren: IObjectTreeElement<SessionListItem>[];
+			if (isCapped) {
+				const visible = section.sessions.slice(0, SessionsListControl.REPO_GROUP_LIMIT);
+				const remainingCount = section.sessions.length - SessionsListControl.REPO_GROUP_LIMIT;
+				sectionChildren = [
+					...visible.map(session => ({ element: session as SessionListItem })),
+					{ element: { showMore: true as const, sectionLabel: section.label, remainingCount } },
+				];
+			} else {
+				sectionChildren = section.sessions.map(session => ({ element: session as SessionListItem }));
+			}
+
+			return {
+				element: section as SessionListItem,
+				collapsible: true,
+				collapsed: this.getSavedCollapseState(section.id) ?? ObjectTreeElementCollapseState.PreserveOrExpanded,
+				children: sectionChildren,
+			};
+		});
 
 		this.tree.setChildren(null, children);
 		this._onDidUpdate.fire();
@@ -738,7 +826,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 	private onContextMenu(e: ITreeContextMenuEvent<SessionListItem | null>): void {
 		const element = e.element;
-		if (!element || isSessionSection(element)) {
+		if (!element || isSessionSection(element) || isSessionShowMore(element)) {
 			return;
 		}
 
@@ -755,6 +843,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 		this.contextMenuService.showContextMenu({
 			getActions: () => Separator.join(...menu.getActions({ arg: element, shouldForwardArgs: true }).map(([, actions]) => actions)),
 			getAnchor: () => e.anchor,
+			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id) ?? undefined,
 		});
 
 		menu.dispose();
@@ -914,7 +1003,25 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 		this.storageService.store(SessionsListControl.EXCLUDE_ARCHIVED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 		this._excludeRead = false;
 		this.storageService.store(SessionsListControl.EXCLUDE_READ_KEY, false, StorageScope.PROFILE, StorageTarget.USER);
+		this._repoGroupCapped = true;
+		this.storageService.store(SessionsListControl.REPO_GROUP_CAPPED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
+		this._expandedRepoGroups.clear();
 		this.update();
+	}
+
+	// Repository group capping
+
+	setRepositoryGroupCapped(capped: boolean): void {
+		this._repoGroupCapped = capped;
+		this.storageService.store(SessionsListControl.REPO_GROUP_CAPPED_KEY, capped, StorageScope.PROFILE, StorageTarget.USER);
+		if (capped) {
+			this._expandedRepoGroups.clear();
+		}
+		this.update();
+	}
+
+	isRepositoryGroupCapped(): boolean {
+		return this._repoGroupCapped;
 	}
 
 	// -- Section collapse persistence --

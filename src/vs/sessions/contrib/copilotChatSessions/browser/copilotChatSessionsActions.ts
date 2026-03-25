@@ -21,12 +21,12 @@ import { EnhancedModelPickerActionItem } from '../../../../workbench/contrib/cha
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IContextKeyService, ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { Menus } from '../../../browser/menus.js';
-import { ISessionsManagementService, IsNewChatSessionContext } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { SessionItemContextMenuId } from '../../sessions/browser/sessionsListControl.js';
 import { ISessionData } from '../../sessions/common/sessionData.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { CopilotCLISession, COPILOT_PROVIDER_ID, COPILOT_CLI_SESSION_TYPE } from './copilotChatSessionsProvider.js';
+import { CopilotCLISession, COPILOT_PROVIDER_ID, COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE } from './copilotChatSessionsProvider.js';
 import { IsolationPicker } from './isolationPicker.js';
 import { BranchPicker } from './branchPicker.js';
 import { ModePicker } from './modePicker.js';
@@ -35,8 +35,10 @@ import { NewChatPermissionPicker } from '../../chat/browser/newChatPermissionPic
 
 const ActiveSessionHasGitRepositoryContext = new RawContextKey<boolean>('activeSessionHasGitRepository', false);
 const IsActiveSessionCopilotCLI = ContextKeyExpr.equals('activeSessionType', COPILOT_CLI_SESSION_TYPE);
+const IsActiveSessionCopilotCloud = ContextKeyExpr.equals('activeSessionType', COPILOT_CLOUD_SESSION_TYPE);
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals('activeSessionProviderId', COPILOT_PROVIDER_ID);
 const IsActiveSessionCopilotChatCLI = ContextKeyExpr.and(IsActiveSessionCopilotCLI, IsActiveCopilotChatSessionProvider);
+const IsActiveSessionCopilotChatCloud = ContextKeyExpr.and(IsActiveSessionCopilotCloud, IsActiveCopilotChatSessionProvider);
 
 // -- Actions --
 
@@ -88,7 +90,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 0,
-				when: IsActiveSessionCopilotCLI,
+				when: IsActiveSessionCopilotChatCLI,
 			}],
 		});
 	}
@@ -105,7 +107,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 1,
-				when: IsActiveCopilotChatSessionProvider,
+				when: IsActiveSessionCopilotChatCLI,
 			}],
 		});
 	}
@@ -122,7 +124,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(IsNewChatSessionContext, IsActiveCopilotChatSessionProvider, IsActiveSessionCopilotCLI.negate()),
+				when: IsActiveSessionCopilotChatCloud,
 			}],
 		});
 	}

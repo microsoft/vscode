@@ -46,6 +46,7 @@ export const COPILOT_PROVIDER_ID = 'default-copilot';
 
 /** Session type ID for local Copilot CLI sessions. */
 export const COPILOT_CLI_SESSION_TYPE = AgentSessionProviders.Background;
+export const COPILOT_CLOUD_SESSION_TYPE = AgentSessionProviders.Cloud;
 
 const STORAGE_KEY_RECENT_PROJECTS = 'sessions.recentlyPickedProjects';
 
@@ -61,7 +62,7 @@ const CopilotCLISessionType: ISessionType = {
 };
 
 const CopilotCloudSessionType: ISessionType = {
-	id: AgentSessionProviders.Cloud,
+	id: COPILOT_CLOUD_SESSION_TYPE,
 	label: 'Cloud',
 	icon: Codicon.cloud,
 };

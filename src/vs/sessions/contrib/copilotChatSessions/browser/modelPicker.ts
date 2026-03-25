@@ -7,11 +7,13 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { RemoteNewSession } from './copilotChatSessionsProvider.js';
 
 const FILTER_THRESHOLD = 10;
@@ -47,14 +49,19 @@ export class CloudModelPicker extends Disposable {
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
+
+		this._register(autorun(reader => {
+			const session = sessionsManagementService.activeSession.read(reader);
+			if (session instanceof RemoteNewSession) {
+				this._setSession(session);
+			}
+		}));
 	}
 
-	/**
-	 * Sets the remote session and loads the available models from it.
-	 */
-	setSession(session: RemoteNewSession): void {
+	private _setSession(session: RemoteNewSession): void {
 		this._session = session;
 		this._sessionDisposables.clear();
 		this._loadModels(session);

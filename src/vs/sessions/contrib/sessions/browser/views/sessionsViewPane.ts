@@ -5,44 +5,36 @@
 
 import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { EditorsVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, IViewPaneLocationColors, ViewPane } from '../../../../../workbench/browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../../workbench/common/views.js';
 import { sessionsSidebarBackground } from '../../../../common/theme.js';
-import { SessionsCategories } from '../../../../common/categories.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { localize, localize2 } from '../../../../../nls.js';
+import { localize } from '../../../../../nls.js';
 import { SessionsListControl, SessionsGrouping, SessionsSorting } from '../sessionsListControl.js';
 import { SessionStatus } from '../../common/sessionData.js';
-import { ISessionsManagementService, IsNewChatSessionContext } from '../sessionsManagementService.js';
+import { ISessionsManagementService } from '../sessionsManagementService.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 
 const $ = DOM.$;
 export const SessionsViewPaneId = 'agentic.workbench.view.sessionsViewPane';
 const ACTION_ID_NEW_SESSION = 'workbench.action.chat.newChat';
-const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
-const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
-const SessionsViewGroupingContext = new RawContextKey<string>('sessionsViewPane.grouping', SessionsGrouping.Repository);
-const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);
 const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
+
+import { SessionsViewFilterOptionsSubMenu, SessionsViewGroupingContext, SessionsViewSortingContext } from './sessionsViewActions.js';
 
 export class SessionsViewPane extends ViewPane {
 
@@ -390,161 +382,3 @@ export class SessionsViewPane extends ViewPane {
 		this.sessionsControl?.update();
 	}
 }
-
-// -- Keybindings --
-
-KeybindingsRegistry.registerKeybindingRule({
-	id: ACTION_ID_NEW_SESSION,
-	weight: KeybindingWeight.WorkbenchContrib + 1,
-	primary: KeyMod.CtrlCmd | KeyCode.KeyN,
-});
-
-const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
-registerAction2(class CloseSessionAction extends Action2 {
-	constructor() {
-		super({
-			id: CLOSE_SESSION_COMMAND_ID,
-			title: localize2('closeSession', "Close Session"),
-			f1: true,
-			precondition: ContextKeyExpr.and(IsNewChatSessionContext.negate(), EditorsVisibleContext.negate()),
-			category: SessionsCategories.Sessions,
-		});
-	}
-	override async run(accessor: ServicesAccessor) {
-		const sessionsService = accessor.get(ISessionsManagementService);
-		await sessionsService.openNewSessionView();
-	}
-});
-
-KeybindingsRegistry.registerKeybindingRule({
-	id: CLOSE_SESSION_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib + 1,
-	when: ContextKeyExpr.and(IsNewChatSessionContext.negate(), EditorsVisibleContext.negate()),
-	primary: KeyMod.CtrlCmd | KeyCode.KeyW,
-	win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
-});
-
-// -- Sort / Group Menus --
-
-MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-	submenu: SessionsViewFilterSubMenu,
-	title: localize2('filterSessions', "Filter Sessions"),
-	group: 'navigation',
-	order: 3,
-	icon: Codicon.settings,
-	when: ContextKeyExpr.equals('view', SessionsViewPaneId)
-});
-
-MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {
-	submenu: SessionsViewFilterOptionsSubMenu,
-	title: localize2('filter', "Filter"),
-	group: '0_filter',
-	order: 0,
-});
-
-registerAction2(class SortByCreatedAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessionsViewPane.sortByCreated',
-			title: localize2('sortByCreated', "Sort by Created"),
-			category: SessionsCategories.Sessions,
-			toggled: ContextKeyExpr.equals(SessionsViewSortingContext.key, SessionsSorting.Created),
-			menu: [{ id: SessionsViewFilterSubMenu, group: '1_sort', order: 0 }]
-		});
-	}
-	override run(accessor: ServicesAccessor) {
-		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
-		view?.setSorting(SessionsSorting.Created);
-	}
-});
-
-registerAction2(class SortByUpdatedAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessionsViewPane.sortByUpdated',
-			title: localize2('sortByUpdated', "Sort by Updated"),
-			category: SessionsCategories.Sessions,
-			toggled: ContextKeyExpr.equals(SessionsViewSortingContext.key, SessionsSorting.Updated),
-			menu: [{ id: SessionsViewFilterSubMenu, group: '1_sort', order: 1 }]
-		});
-	}
-	override run(accessor: ServicesAccessor) {
-		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
-		view?.setSorting(SessionsSorting.Updated);
-	}
-});
-
-registerAction2(class GroupByProjectAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessionsViewPane.groupByProject',
-			title: localize2('groupByProject', "Group by Project"),
-			category: SessionsCategories.Sessions,
-			toggled: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Repository),
-			menu: [{ id: SessionsViewFilterSubMenu, group: '2_group', order: 0 }]
-		});
-	}
-	override run(accessor: ServicesAccessor) {
-		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
-		view?.setGrouping(SessionsGrouping.Repository);
-	}
-});
-
-registerAction2(class GroupByTimeAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessionsViewPane.groupByTime',
-			title: localize2('groupByTime', "Group by Time"),
-			category: SessionsCategories.Sessions,
-			toggled: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Date),
-			menu: [{ id: SessionsViewFilterSubMenu, group: '2_group', order: 1 }]
-		});
-	}
-	override run(accessor: ServicesAccessor) {
-		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
-		view?.setGrouping(SessionsGrouping.Date);
-	}
-});
-
-registerAction2(class RefreshSessionsAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessionsViewPane.refresh',
-			title: localize2('refresh', "Refresh Sessions"),
-			icon: Codicon.refresh,
-			f1: true,
-			category: SessionsCategories.Sessions,
-		});
-	}
-	override run(accessor: ServicesAccessor) {
-		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
-		return view?.sessionsControl?.refresh();
-	}
-});
-
-registerAction2(class FindSessionAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessionsViewPane.find',
-			title: localize2('find', "Find Session"),
-			icon: Codicon.search,
-			category: SessionsCategories.Sessions,
-			menu: [{
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				order: 2,
-				when: ContextKeyExpr.equals('view', SessionsViewPaneId),
-			}]
-		});
-	}
-	override run(accessor: ServicesAccessor) {
-		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
-		return view?.openFind();
-	}
-});
