@@ -112,6 +112,220 @@ The Agentic Window (`Workbench`) provides a simplified, fixed-layout workbench t
 
 See [LAYOUT.md](LAYOUT.md) for the detailed layout specification.
 
+## Sessions Provider Architecture
+
+The sessions window uses an extensible provider model to manage sessions. Instead of hardcoding session type logic (CLI, Cloud, Agent Host) throughout the codebase, all session behavior is encapsulated in **sessions providers** that register with a central registry.
+
+### Overview Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        UI Components                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌───────────────────────────┐ │
+│  │ SessionsView │  │  TitleBar    │  │    NewChatWidget          │ │
+│  │   Pane       │  │   Widget     │  │  (workspace/type pickers) │ │
+│  └──────┬───────┘  └──────┬───────┘  └─────────────┬─────────────┘ │
+│         │                 │                         │               │
+│         └─────────────────┼─────────────────────────┘               │
+│                           │                                         │
+│                    ┌──────▼──────┐                                   │
+│                    │  Sessions   │                                   │
+│                    │ Management  │  ISessionsManagementService       │
+│                    │  Service    │  - activeSession observable       │
+│                    └──────┬──────┘  - openSession / createNewSession │
+│                           │        - sendRequest / setSessionType    │
+│                    ┌──────▼──────┐                                   │
+│                    │  Sessions   │                                   │
+│                    │ Providers   │  ISessionsProvidersService        │
+│                    │  Service    │  - registerProvider / getProviders │
+│                    └──────┬──────┘  - getSessions (aggregated)       │
+│                           │        - onDidChangeSessions             │
+│              ┌────────────┼────────────┐                            │
+│              │            │            │                             │
+│       ┌──────▼──────┐ ┌──▼─────┐ ┌────▼──────┐                     │
+│       │  Copilot    │ │ Remote │ │  Custom   │                      │
+│       │  Chat       │ │ Agent  │ │ Provider  │  ISessionsProvider   │
+│       │  Sessions   │ │ Host   │ │  (future) │  - getSessions       │
+│       │  Provider   │ │Provider│ │           │  - createNewSession   │
+│       └──────┬──────┘ └──┬─────┘ └────┬──────┘  - sendRequest       │
+│              │            │            │         - browseActions     │
+│              │            │            │         - sessionTypes      │
+│       ┌──────▼──────┐ ┌──▼─────────┐  │                            │
+│       │ Agent       │ │  Agent     │   │                            │
+│       │ Sessions    │ │  Host      │   │                            │
+│       │ Service     │ │  Protocol  │   │                            │
+│       └─────────────┘ └────────────┘   │                            │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Core Concepts
+
+#### Session Type (`ISessionType`)
+
+A lightweight label identifying an agent backend. Says nothing about where it runs or how it's configured.
+
+```typescript
+// Platform-level session type (registered once)
+interface ISessionType {
+    readonly id: string;      // e.g., 'copilot-cli', 'copilot-cloud'
+    readonly label: string;   // e.g., 'Copilot CLI', 'Cloud'
+    readonly icon: ThemeIcon;
+}
+```
+
+#### Sessions Provider (`ISessionsProvider`)
+
+A compute environment adapter. One provider can serve multiple session types. Multiple provider instances can serve the same session type.
+
+```typescript
+interface ISessionsProvider {
+    readonly id: string;                       // 'default-copilot', 'agenthost-hostA'
+    readonly label: string;
+    readonly sessionTypes: readonly ISessionType[];
+
+    // Workspace browsing
+    getWorkspaces(): ISessionWorkspace[];
+    readonly browseActions: readonly ISessionsBrowseAction[];
+
+    // Session CRUD
+    getSessions(): ISessionData[];
+    createNewSession(workspace: ISessionWorkspace): ISessionData;
+    sendRequest(sessionId: string, options: ISendRequestOptions): Promise<ISessionData>;
+
+    // Lifecycle
+    archiveSession(sessionId: string): Promise<void>;
+    deleteSession(sessionId: string): Promise<void>;
+    renameSession(sessionId: string, title: string): Promise<void>;
+}
+```
+
+#### Session Data (`ISessionData`)
+
+The universal session interface. All reactive properties are observables — UI components subscribe and update automatically.
+
+```typescript
+interface ISessionData {
+    readonly sessionId: string;          // Globally unique: 'providerId:localId'
+    readonly resource: URI;
+    readonly providerId: string;
+    readonly sessionType: string;        // e.g., 'copilot-cli'
+
+    // Reactive properties
+    readonly title: IObservable<string>;
+    readonly status: IObservable<SessionStatus>;
+    readonly workspace: IObservable<ISessionWorkspace | undefined>;
+    readonly changes: IObservable<readonly IChatSessionFileChange[]>;
+    readonly isArchived: IObservable<boolean>;
+    readonly isRead: IObservable<boolean>;
+    readonly lastTurnEnd: IObservable<Date | undefined>;
+}
+```
+
+### Examples
+
+#### Example 1: CopilotChatSessionsProvider
+
+The default provider wrapping existing CLI and Cloud sessions:
+
+```
+CopilotChatSessionsProvider
+├── id: 'default-copilot'
+├── sessionTypes: [CopilotCLI, CopilotCloud]
+├── browseActions:
+│   ├── "Browse Folders..." → file dialog
+│   └── "Browse Repositories..." → GitHub repo picker
+├── getSessions() → wraps IAgentSession[] as AgentSessionAdapter[]
+├── createNewSession(workspace)
+│   ├── file:// URI → CopilotCLISession (local background agent)
+│   └── github-remote-file:// → RemoteNewSession (cloud agent)
+└── sendRequest() → delegates to IChatService
+```
+
+#### Example 2: RemoteAgentHostSessionsProvider
+
+One instance per connected remote agent host:
+
+```
+RemoteAgentHostSessionsProvider
+├── id: 'agenthost-<hostId>'
+├── sessionTypes: [CopilotCLI]  (reuses platform type)
+├── browseActions:
+│   └── "Browse Remote Folders..." → remote folder picker
+├── getSessions() → sessions from this specific host
+└── createNewSession(workspace)
+    └── Creates session on the remote agent host
+```
+
+### Data Flow
+
+#### Creating a New Session
+
+```
+User picks workspace in WorkspacePicker
+    │
+    ▼
+SessionsManagementService.createNewSession(providerId, workspace)
+    │
+    ├── Finds provider by ID
+    ├── Calls provider.createNewSession(workspace)
+    │       │
+    │       ▼
+    │   Provider creates ISessionData
+    │   (e.g., CopilotCLISession or RemoteNewSession)
+    │
+    ├── Sets as active session
+    └── Returns ISessionData to widget
+
+User types message and sends
+    │
+    ▼
+SessionsManagementService.sendRequest(session, options)
+    │
+    ├── Finds provider by session.providerId
+    ├── Calls provider.sendRequest(sessionId, options)
+    │       │
+    │       ▼
+    │   Provider creates real agent session
+    │   (e.g., starts CLI agent, opens cloud session)
+    │
+    └── Returns created ISessionData (now backed by real session)
+```
+
+#### Session Change Events
+
+```
+Agent session completes a turn
+    │
+    ▼
+AgentSessionsService fires onDidChangeSessions
+    │
+    ▼
+CopilotChatSessionsProvider._refreshSessionCache()
+    ├── Diffs current sessions vs cache
+    ├── Updates AgentSessionAdapter observables (title, status, changes)
+    └── Fires onDidChangeSessions { added, removed, changed, archived }
+         │
+         ▼
+    SessionsProvidersService forwards event
+         │
+         ▼
+    SessionsManagementService forwards event
+         │
+         ├── UI re-renders (sessions list, titlebar, changes view)
+         └── Context keys updated (hasChanges, isBackground, etc.)
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `contrib/sessions/common/sessionData.ts` | `ISessionData`, `ISessionWorkspace`, `ISessionRepository`, `SessionStatus` |
+| `contrib/sessions/browser/sessionsProvider.ts` | `ISessionsProvider`, `ISessionType`, `ISessionsChangeEvent` |
+| `contrib/sessions/browser/sessionsProvidersService.ts` | `ISessionsProvidersService` + implementation |
+| `contrib/sessions/browser/sessionsManagementService.ts` | `ISessionsManagementService` — active session, routing |
+| `contrib/copilotChatSessions/browser/copilotChatSessionsProvider.ts` | Default Copilot provider |
+| `contrib/remoteAgentHost/browser/remoteAgentHostSessionsProvider.ts` | Remote agent host provider |
+
 ## Adding New Functionality
 
 When adding features to the agentic window:
