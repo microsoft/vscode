@@ -395,7 +395,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 			const quickWidget = disposables.add(this._quickInputService.createQuickWidget());
 			quickWidget.title = isConfigureMode
-				? localize('configureActionWidgetTitle', "Configure Task...")
+				? localize('configureActionWidgetTitle', "Configure Task")
 				: existingTask
 					? localize('addExistingActionWidgetTitle', "Add Existing Task")
 					: localize('addActionWidgetTitle', "Add Task");
