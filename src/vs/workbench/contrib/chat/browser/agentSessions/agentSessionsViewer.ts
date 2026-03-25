@@ -222,7 +222,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		// Icon — in status-only mode, show status indicator in icon column and session type icon in details row
 		if (this.options.useStatusOnlyIcons) {
-			template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getStatusIcon(session.element))}${session.element.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
+			template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element, true))}${session.element.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
 			template.detailsIcon.className = `agent-session-details-icon ${ThemeIcon.asClassName(session.element.icon)}`;
 			template.detailsIcon.classList.add('visible');
 		} else {
@@ -383,7 +383,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		return true;
 	}
 
-	private getIcon(session: IAgentSession): ThemeIcon {
+	private getIcon(session: IAgentSession, statusOnly?: boolean): ThemeIcon {
 		if (session.status === AgentSessionStatus.InProgress) {
 			return Codicon.sessionInProgress;
 		}
@@ -396,54 +396,40 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return Codicon.error;
 		}
 
+		if (statusOnly) {
+			// PR status icons
+			const metadata = session.metadata;
+			const hasPR = metadata?.pullRequestUrl || metadata?.pullRequestNumber;
+			if (hasPR) {
+				if (metadata?.pullRequestMerged === true) {
+					return Codicon.gitMerge;
+				}
+				return Codicon.gitPullRequest;
+			}
+
+			// Fallback: check badge text for PR indicators
+			const badge = session.badge;
+			if (badge) {
+				const badgeText = typeof badge === 'string' ? badge : badge.value;
+				if (/\bmerged\b/i.test(badgeText) || /\$\(git-merge\)/.test(badgeText)) {
+					return Codicon.gitMerge;
+				}
+				if (/\bPR\s*#\d+/i.test(badgeText) || /\$\(git-pull-request\)/.test(badgeText)) {
+					return Codicon.gitPullRequest;
+				}
+			}
+		}
+
 		if (!session.isRead() && !session.isArchived()) {
 			return Codicon.circleFilled;
 		}
 
-		if (session.providerType === AgentSessionProviders.Local) {
+		if (!statusOnly && session.providerType === AgentSessionProviders.Local) {
 			return Codicon.circleSmallFilled;
 		}
 
-		return session.icon;
-	}
-
-	private getStatusIcon(session: IAgentSession): ThemeIcon {
-		if (session.status === AgentSessionStatus.InProgress) {
-			return Codicon.sessionInProgress;
-		}
-
-		if (session.status === AgentSessionStatus.NeedsInput) {
-			return Codicon.circleFilled;
-		}
-
-		if (session.status === AgentSessionStatus.Failed) {
-			return Codicon.error;
-		}
-
-		// PR status icons
-		const metadata = session.metadata;
-		const hasPR = metadata?.pullRequestUrl || metadata?.pullRequestNumber;
-		if (hasPR) {
-			if (metadata?.pullRequestMerged === true) {
-				return Codicon.gitMerge;
-			}
-			return Codicon.gitPullRequest;
-		}
-
-		// Fallback: check badge text for PR indicators
-		const badge = session.badge;
-		if (badge) {
-			const badgeText = typeof badge === 'string' ? badge : badge.value;
-			if (/\bmerged\b/i.test(badgeText) || /\$\(git-merge\)/.test(badgeText)) {
-				return Codicon.gitMerge;
-			}
-			if (/\bPR\s*#\d+/i.test(badgeText) || /\$\(git-pull-request\)/.test(badgeText)) {
-				return Codicon.gitPullRequest;
-			}
-		}
-
-		if (!session.isRead() && !session.isArchived()) {
-			return Codicon.circleFilled;
+		if (!statusOnly) {
+			return session.icon;
 		}
 
 		return Codicon.circleSmallFilled;

@@ -190,18 +190,6 @@ export const agentSessionReadIndicatorForeground = registerColor(
 	localize('agentSessionReadIndicatorForeground', "Foreground color for the read indicator in an agent session.")
 );
 
-export const agentSessionPullRequestOpenForeground = registerColor(
-	'agentSessionPullRequest.openForeground',
-	{ dark: '#3fb950', light: '#1a7f37', hcDark: '#3fb950', hcLight: '#1a7f37' },
-	localize('agentSessionPullRequestOpenForeground', "Foreground color for the open pull request indicator in an agent session.")
-);
-
-export const agentSessionPullRequestMergedForeground = registerColor(
-	'agentSessionPullRequest.mergedForeground',
-	{ dark: '#a371f7', light: '#8250df', hcDark: '#a371f7', hcLight: '#8250df' },
-	localize('agentSessionPullRequestMergedForeground', "Foreground color for the merged pull request indicator in an agent session.")
-);
-
 export const agentSessionSelectedBadgeBorder = registerColor(
 	'agentSessionSelectedBadge.border',
 	{ dark: transparent(listActiveSelectionForeground, 0.3), light: transparent(listActiveSelectionForeground, 0.3), hcDark: foreground, hcLight: foreground },

@@ -152,11 +152,11 @@
 				}
 
 				&.codicon.codicon-git-pull-request {
-					color: var(--vscode-agentSessionPullRequest-openForeground);
+					color: var(--vscode-charts-green);
 				}
 
 				&.codicon.codicon-git-merge {
-					color: var(--vscode-agentSessionPullRequest-mergedForeground);
+					color: var(--vscode-charts-purple);
 				}
 
 				@media (prefers-reduced-motion: reduce) {
