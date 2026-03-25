@@ -30,6 +30,7 @@ import { IWorkingCopyService } from '../../../services/workingCopy/common/workin
 import { IWebviewService } from '../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createClaudeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots, getClaudeUserRoots } from '../../../contrib/chat/common/customizationHarnessService.js';
+import { IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ParsedPromptFile } from '../../../contrib/chat/common/promptSyntax/promptFileParser.js';
@@ -471,6 +472,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override async generateCustomization() { }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, harnessService);
+			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override async getCustomizations() { return undefined; }
+				override getRegisteredChatSessionItemProviders() { return []; }
+			}());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
 				override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
