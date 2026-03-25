@@ -81,6 +81,21 @@
 				},
 				"publisherDisplayName": "Microsoft"
 			}
+		},
+		{
+			"name": "TypeScriptTeam.jsts-chat-features",
+			"version": "0.0.2",
+			"sha256": "288d8bc26a6e3a752c0971bc93078736c3d818384b27989c1e05ec49a28e1c29",
+			"metadata": {
+				"id": "7d881d23-233c-448d-9700-cf11a0de79c2",
+				"publisherId": {
+					"publisherId": "4f0355d2-4a53-4ab1-a8ea-507f4a333a6f",
+					"publisherName": "ms-vscode",
+					"displayName": "Microsoft",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Microsoft"
+			}
 		}
 	],
 	"defaultChatAgent": {
