@@ -142,6 +142,7 @@ const THINKING_SCROLL_MAX_HEIGHT = 200;
 
 const TITLE_CACHE_STORAGE_KEY = 'chat.thinkingTitleCache';
 const TITLE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const TITLE_CACHE_MAX_ENTRIES = 1000;
 
 const enum WorkingMessageCategory {
 	Thinking = 'thinking',
@@ -899,9 +900,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				return;
 			}
 
-			// Fallback: check the persisted title cache by toolId
-			for (const toolInvocation of this.toolInvocations) {
-				const cachedTitle = this.getCachedTitle(toolInvocation.toolId);
+			// Fallback: check the persisted title cache using the last tool call
+			const lastToolInvocation = this.toolInvocations[this.toolInvocations.length - 1];
+			if (lastToolInvocation) {
+				const cachedTitle = this.getCachedTitle(lastToolInvocation.toolCallId);
 				if (cachedTitle) {
 					this.currentTitle = cachedTitle;
 					this.content.generatedTitle = cachedTitle;
@@ -971,31 +973,49 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
-	private getCachedTitle(toolId: string): string | undefined {
-		const cache = this.storageService.getObject<Record<string, { title: string; storedAt: number }>>(TITLE_CACHE_STORAGE_KEY, StorageScope.PROFILE);
-		if (!cache) {
-			return undefined;
+	private loadTitleCache(): Record<string, { title: string; storedAt: number }> {
+		return this.storageService.getObject<Record<string, { title: string; storedAt: number }>>(TITLE_CACHE_STORAGE_KEY, StorageScope.PROFILE) ?? {};
+	}
+
+	private saveTitleCache(cache: Record<string, { title: string; storedAt: number }>): void {
+		if (Object.keys(cache).length === 0) {
+			this.storageService.remove(TITLE_CACHE_STORAGE_KEY, StorageScope.PROFILE);
+		} else {
+			this.storageService.store(TITLE_CACHE_STORAGE_KEY, JSON.stringify(cache), StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
-		const entry = cache[toolId];
+	}
+
+	private getCachedTitle(toolCallId: string): string | undefined {
+		const entry = this.loadTitleCache()[toolCallId];
 		if (!entry || (Date.now() - entry.storedAt) > TITLE_CACHE_TTL_MS) {
 			return undefined;
 		}
 		return entry.title;
 	}
 
-	private setCachedTitle(toolId: string, title: string): void {
-		const cache = this.storageService.getObject<Record<string, { title: string; storedAt: number }>>(TITLE_CACHE_STORAGE_KEY, StorageScope.PROFILE) ?? {};
+	private setCachedTitle(toolCallId: string, title: string): void {
+		const cache = this.loadTitleCache();
 		const now = Date.now();
 
-		// Evict expired entries while we're here
+		// Evict expired entries on write
 		for (const key of Object.keys(cache)) {
 			if ((now - cache[key].storedAt) > TITLE_CACHE_TTL_MS) {
 				delete cache[key];
 			}
 		}
 
-		cache[toolId] = { title, storedAt: now };
-		this.storageService.store(TITLE_CACHE_STORAGE_KEY, JSON.stringify(cache), StorageScope.PROFILE, StorageTarget.MACHINE);
+		cache[toolCallId] = { title, storedAt: now };
+
+		// Cap size by dropping oldest entries
+		const keys = Object.keys(cache);
+		if (keys.length > TITLE_CACHE_MAX_ENTRIES) {
+			const sorted = keys.sort((a, b) => cache[a].storedAt - cache[b].storedAt);
+			for (let i = 0; i < sorted.length - TITLE_CACHE_MAX_ENTRIES; i++) {
+				delete cache[sorted[i]];
+			}
+		}
+
+		this.saveTitleCache(cache);
 	}
 
 	private async generateTitleViaLLM(): Promise<void> {
@@ -1156,8 +1176,10 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 				this.content.generatedTitle = generatedTitle;
 				this.setGeneratedTitleOnAllParts(generatedTitle);
 
-				for (const toolInvocation of this.toolInvocations) {
-					this.setCachedTitle(toolInvocation.toolId, generatedTitle);
+				// Persist to storage using the last tool call ID — one entry per thinking group
+				const lastTool = this.toolInvocations[this.toolInvocations.length - 1];
+				if (lastTool) {
+					this.setCachedTitle(lastTool.toolCallId, generatedTitle);
 				}
 
 				return;
