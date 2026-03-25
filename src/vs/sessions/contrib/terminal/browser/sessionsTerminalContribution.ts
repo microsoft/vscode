@@ -12,7 +12,6 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -57,7 +56,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 		@ILogService private readonly _logService: ILogService,
 		@IPathService private readonly _pathService: IPathService,
 		@IViewsService viewsService: IViewsService,
@@ -99,12 +97,12 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 		}));
 
-		// When a session is archived, close all terminals for its worktree
-		this._register(this._agentSessionsService.model.onDidChangeSessionArchivedState(session => {
-			if (session.isArchived()) {
-				const worktreePath = session.metadata?.worktreePath as string | undefined;
-				if (worktreePath) {
-					this._closeTerminalsForPath(URI.file(worktreePath).fsPath);
+		// When a session is archived or removed, close all terminals for its worktree
+		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
+			for (const session of [...e.removed, ...e.changed.filter(s => s.isArchived.get())]) {
+				const worktreeUri = session.workspace.get()?.repositories[0]?.workingDirectory;
+				if (worktreeUri) {
+					this._closeTerminalsForPath(worktreeUri.fsPath);
 				}
 			}
 		}));

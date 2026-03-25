@@ -14,11 +14,10 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
 import { ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { IAgentSession, IAgentSessionsModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
 import { ISessionData } from '../../../sessions/common/sessionData.js';
+import { ISessionsChangeEvent } from '../../../sessions/browser/sessionsProvider.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { SessionsTerminalContribution } from '../../browser/sessionsTerminalContribution.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -48,7 +47,6 @@ function makeAgentSession(opts: {
 	worktree?: URI;
 	providerType?: string;
 	isArchived?: boolean;
-	worktreePath?: string;
 }): ISessionData {
 	const repo = opts.repository || opts.worktree ? {
 		uri: opts.repository ?? opts.worktree!,
@@ -71,7 +69,7 @@ function makeAgentSession(opts: {
 		modelId: observableValue('test.modelId', undefined),
 		mode: observableValue('test.mode', undefined),
 		loading: observableValue('test.loading', false),
-		isArchived: observableValue('test.isArchived', false),
+		isArchived: observableValue('test.isArchived', opts.isArchived ?? false),
 		isRead: observableValue('test.isRead', true),
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
@@ -144,7 +142,7 @@ suite('SessionsTerminalContribution', () => {
 	const store = new DisposableStore();
 	let contribution: SessionsTerminalContribution;
 	let activeSessionObs: ReturnType<typeof observableValue<ISessionData | undefined>>;
-	let onDidChangeSessionArchivedState: Emitter<IAgentSession>;
+	let onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 	let onDidCreateInstance: Emitter<ITerminalInstance>;
 
 	let createdTerminals: { cwd: URI }[];
@@ -175,13 +173,14 @@ suite('SessionsTerminalContribution', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 
 		activeSessionObs = observableValue<ISessionData | undefined>('activeSession', undefined);
-		onDidChangeSessionArchivedState = store.add(new Emitter<IAgentSession>());
+		onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
 		onDidCreateInstance = store.add(new Emitter<ITerminalInstance>());
 
 		instantiationService.stub(ILogService, logService);
 
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override activeSession = activeSessionObs;
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
 		});
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
@@ -228,12 +227,6 @@ suite('SessionsTerminalContribution', () => {
 				backgroundedInstances.delete(instance.instanceId);
 				showBackgroundCalls.push(instance.instanceId);
 			}
-		});
-
-		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
-			override model = {
-				onDidChangeSessionArchivedState: onDidChangeSessionArchivedState.event,
-			} as unknown as IAgentSessionsModel;
 		});
 
 		instantiationService.stub(IPathService, new TestPathService(HOME_DIR));
@@ -408,7 +401,7 @@ suite('SessionsTerminalContribution', () => {
 		assert.ok(logService.traces.some(message => message.includes(`Cannot activate created terminal for ${cwd.fsPath}; terminal 1 is no longer available`)));
 	});
 
-	// --- onDidChangeSessionArchivedState ---
+	// --- onDidChangeSessions (archived) ---
 
 	test('closes terminals when session is archived', async () => {
 		const worktreeUri = URI.file('/worktree');
@@ -418,9 +411,9 @@ suite('SessionsTerminalContribution', () => {
 
 		const session = makeAgentSession({
 			isArchived: true,
-			worktreePath: worktreeUri.fsPath,
+			worktree: worktreeUri,
 		});
-		onDidChangeSessionArchivedState.fire(session as unknown as IAgentSession);
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 		await tick();
 
 		assert.strictEqual(disposedInstances.length, 1);
@@ -432,23 +425,36 @@ suite('SessionsTerminalContribution', () => {
 
 		const session = makeAgentSession({
 			isArchived: false,
-			worktreePath: worktreeUri.fsPath,
+			worktree: worktreeUri,
 		});
-		onDidChangeSessionArchivedState.fire(session as unknown as IAgentSession);
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 		await tick();
 
 		assert.strictEqual(disposedInstances.length, 0);
 	});
 
-	test('does not close terminals when archived session has no worktreePath', async () => {
+	test('does not close terminals when archived session has no worktree', async () => {
 		const worktreeUri = URI.file('/worktree');
 		await contribution.ensureTerminal(worktreeUri, false);
 
 		const session = makeAgentSession({ isArchived: true });
-		onDidChangeSessionArchivedState.fire(session as unknown as IAgentSession);
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 		await tick();
 
 		assert.strictEqual(disposedInstances.length, 0);
+	});
+
+	test('closes terminals when session is removed', async () => {
+		const worktreeUri = URI.file('/worktree');
+		await contribution.ensureTerminal(worktreeUri, false);
+
+		assert.strictEqual(createdTerminals.length, 1);
+
+		const session = makeAgentSession({ worktree: worktreeUri });
+		onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+		await tick();
+
+		assert.strictEqual(disposedInstances.length, 1);
 	});
 
 	// --- switching back to previously used path reuses terminal ---
