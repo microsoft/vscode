@@ -224,7 +224,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				constructor() {
 					super({
 						id: CONFIGURE_DEFAULT_RUN_ACTION_ID,
-						title: localize2('configureDefaultRunAction', "Add Task..."),
+						title: localize2('configureDefaultRunAction', "Add Task"),
 						category: SessionsCategories.Sessions,
 						icon: Codicon.add,
 						precondition: configureScriptPrecondition,
@@ -248,7 +248,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				constructor() {
 					super({
 						id: GENERATE_RUN_ACTION_ID,
-						title: localize2('generateRunAction', "Generate New Task..."),
+						title: localize2('generateRunAction', "Generate New Task"),
 						category: SessionsCategories.Sessions,
 						precondition: IsActiveSessionBackgroundProviderContext,
 						menu: [{
@@ -652,11 +652,11 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			});
 		}
 
-		// "Add Task..." action
+		// "Add Task" action
 		const canConfigure = !!(session.worktree ?? session.repository);
 		actions.push({
 			id: 'runScript.addAction',
-			label: localize('configureDefaultRunAction', "Add Task..."),
+			label: localize('configureDefaultRunAction', "Add Task"),
 			tooltip: '',
 			hover: {
 				content: canConfigure
@@ -676,10 +676,10 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			},
 		});
 
-		// "Generate New Task..." action
+		// "Generate New Task" action
 		actions.push({
 			id: 'runScript.generateAction',
-			label: localize('generateRunAction', "Generate New Task..."),
+			label: localize('generateRunAction', "Generate New Task"),
 			tooltip: '',
 			hover: {
 				content: localize('generateRunActionTooltip', "Generate a new workspace task"),
