@@ -644,7 +644,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					toolInvocation?.acceptProgress(step);
 				}
 			}, token);
-
 			invocationTimeWatch.stop();
 			this.ensureToolDetails(dto, toolResult, tool.data, toolInvocation);
 
