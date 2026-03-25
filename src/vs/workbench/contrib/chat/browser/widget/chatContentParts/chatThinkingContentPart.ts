@@ -38,6 +38,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { extractImagesFromToolInvocationOutputDetails } from '../../../common/chatImageExtraction.js';
 import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js';
 import { ChatThinkingExternalResourceWidget } from './chatThinkingExternalResourcesWidget.js';
+import { LocalChatSessionUri, chatSessionResourceToId } from '../../../common/model/chatUri.js';
 
 
 function extractTextFromPart(content: IChatThinkingPart): string {
@@ -885,31 +886,34 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
-		// Only check existing titles and the static cache when re-rendering
+		// Reuse any existing generated title from tool invocations or thinking parts.
+		const existingTitle = this.toolInvocations.find(t => t.generatedTitle)?.generatedTitle
+			?? this.allThinkingParts.find(t => t.generatedTitle)?.generatedTitle;
+		if (existingTitle) {
+			this.currentTitle = existingTitle;
+			this.content.generatedTitle = existingTitle;
+			this.setGeneratedTitleOnAllParts(existingTitle);
+			this.setFinalizedTitle(existingTitle);
+			return;
+		}
+
+		// Only check the persisted cache when re-rendering
 		// (all tool invocations are serialized), not during live streaming.
 		const allSerialized = this.toolInvocations.length > 0
 			&& this.toolInvocations.every(t => t.kind === 'toolInvocationSerialized');
 		if (allSerialized) {
-			const existingTitle = this.toolInvocations.find(t => t.generatedTitle)?.generatedTitle
-				?? this.allThinkingParts.find(t => t.generatedTitle)?.generatedTitle;
-			if (existingTitle) {
-				this.currentTitle = existingTitle;
-				this.content.generatedTitle = existingTitle;
-				this.setGeneratedTitleOnAllParts(existingTitle);
-				this.setFinalizedTitle(existingTitle);
-				return;
-			}
-
-			// Fallback: check the persisted title cache using the last tool call
-			const lastToolInvocation = this.toolInvocations[this.toolInvocations.length - 1];
-			if (lastToolInvocation) {
-				const cachedTitle = this.getCachedTitle(lastToolInvocation.toolCallId);
-				if (cachedTitle) {
-					this.currentTitle = cachedTitle;
-					this.content.generatedTitle = cachedTitle;
-					this.setGeneratedTitleOnAllParts(cachedTitle);
-					this.setFinalizedTitle(cachedTitle);
-					return;
+			// Fallback: check the persisted title cache using the last tool call (non-local sessions only)
+			if (!LocalChatSessionUri.isLocalSession(this.element.sessionResource)) {
+				const lastToolInvocation = this.toolInvocations[this.toolInvocations.length - 1];
+				if (lastToolInvocation) {
+					const cachedTitle = this.getCachedTitle(lastToolInvocation.toolCallId);
+					if (cachedTitle) {
+						this.currentTitle = cachedTitle;
+						this.content.generatedTitle = cachedTitle;
+						this.setGeneratedTitleOnAllParts(cachedTitle);
+						this.setFinalizedTitle(cachedTitle);
+						return;
+					}
 				}
 			}
 		}
@@ -985,8 +989,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
+	private getTitleCacheKey(toolCallId: string): string {
+		return `${chatSessionResourceToId(this.element.sessionResource)}:${toolCallId}`;
+	}
+
 	private getCachedTitle(toolCallId: string): string | undefined {
-		const entry = this.loadTitleCache()[toolCallId];
+		const entry = this.loadTitleCache()[this.getTitleCacheKey(toolCallId)];
 		if (!entry || (Date.now() - entry.storedAt) > TITLE_CACHE_TTL_MS) {
 			return undefined;
 		}
@@ -1004,7 +1012,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 		}
 
-		cache[toolCallId] = { title, storedAt: now };
+		cache[this.getTitleCacheKey(toolCallId)] = { title, storedAt: now };
 
 		// Cap size by dropping oldest entries
 		const keys = Object.keys(cache);
@@ -1176,10 +1184,12 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 				this.content.generatedTitle = generatedTitle;
 				this.setGeneratedTitleOnAllParts(generatedTitle);
 
-				// Persist to storage using the last tool call ID — one entry per thinking group
-				const lastTool = this.toolInvocations[this.toolInvocations.length - 1];
-				if (lastTool) {
-					this.setCachedTitle(lastTool.toolCallId, generatedTitle);
+				// Persist to storage for non-local sessions only
+				if (!LocalChatSessionUri.isLocalSession(this.element.sessionResource)) {
+					const lastTool = this.toolInvocations[this.toolInvocations.length - 1];
+					if (lastTool) {
+						this.setCachedTitle(lastTool.toolCallId, generatedTitle);
+					}
 				}
 
 				return;
