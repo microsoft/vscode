@@ -3677,7 +3677,6 @@ export interface ExtHostChatSessionsShape {
 	$provideHandleOptionsChange(providerHandle: number, sessionResource: UriComponents, updates: Record<string, string | IChatSessionProviderOptionItem | undefined>, token: CancellationToken): Promise<void>;
 	$forkChatSession(providerHandle: number, sessionResource: UriComponents, request: IChatSessionRequestHistoryItemDto | undefined, token: CancellationToken): Promise<Dto<IChatSessionItem>>;
 	$provideChatSessionCustomizations(handle: number, token: CancellationToken): Promise<IChatSessionCustomizationItemGroupDto[] | undefined>;
-	$resolveCustomizationDeletion(handle: number, itemId: string, itemUri: UriComponents, token: CancellationToken): Promise<void>;
 }
 
 export interface GitRefQueryDto {

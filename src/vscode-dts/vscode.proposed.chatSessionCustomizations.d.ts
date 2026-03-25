@@ -138,16 +138,5 @@ declare module 'vscode' {
 		 */
 		provideCustomizations(token: CancellationToken): ProviderResult<ChatSessionCustomizationItemGroup[]>;
 
-		/**
-		 * Called when the user deletes a customization item from the management UI.
-		 *
-		 * The provider is responsible for performing the actual deletion
-		 * (e.g., removing the file from disk) and should fire
-		 * {@link onDidChangeCustomizations} afterwards to refresh the UI.
-		 *
-		 * @param item The item being deleted.
-		 * @param token A cancellation token.
-		 */
-		resolveCustomizationDeletion?(item: ChatSessionCustomizationItem, token: CancellationToken): Thenable<void>;
 	}
 }

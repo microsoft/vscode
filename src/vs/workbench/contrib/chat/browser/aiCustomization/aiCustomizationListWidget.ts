@@ -1150,6 +1150,21 @@ export class AICustomizationListWidget extends Disposable {
 			return; // section changed while loading
 		}
 
+		// Fetch commands for extension-contributed harnesses separately to avoid
+		// race conditions when _fetchItemsFromProvider is also called for count
+		// computation on other sections.
+		const activeHarness = this.harnessService.activeHarness.get();
+		const isBuiltInHarness = activeHarness === CustomizationHarness.VSCode ||
+			activeHarness === CustomizationHarness.CLI ||
+			activeHarness === CustomizationHarness.Claude;
+		if (!isBuiltInHarness) {
+			const groups = await this.chatSessionsService.getCustomizations(activeHarness, CancellationToken.None);
+			if (groups) {
+				const matchingIds = sectionToCustomizationGroupIds(section);
+				this._currentGroupCommands = groups.filter(g => matchingIds.includes(g.id)).flatMap(g => g.commands ?? []);
+			}
+		}
+
 		this.allItems = items;
 		this.filterItems();
 		this._onDidChangeItemCount.fire(items.length);
@@ -1601,11 +1616,6 @@ export class AICustomizationListWidget extends Disposable {
 		// Filter groups to only those matching the current section
 		const matchingGroupIds = sectionToCustomizationGroupIds(section);
 		const filteredGroups = groups.filter(g => matchingGroupIds.includes(g.id));
-
-		// Save group commands for the active section so buildCreateActions can use them
-		if (section === this.currentSection) {
-			this._currentGroupCommands = filteredGroups.flatMap(g => g.commands ?? []);
-		}
 
 		const items: IAICustomizationListItem[] = [];
 		for (const group of filteredGroups) {

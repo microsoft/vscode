@@ -862,9 +862,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					}));
 				});
 			},
-			resolveCustomizationDeletion: (item, token) => {
-				return this._proxy.$resolveCustomizationDeletion(handle, item.id, item.uri, token);
-			},
 		};
 
 		disposables.add(this._chatSessionsService.registerCustomizationsProvider(chatSessionType, provider));

@@ -919,21 +919,4 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 	}
 
-	async $resolveCustomizationDeletion(handle: number, itemId: string, itemUri: UriComponents, token: CancellationToken): Promise<void> {
-		const entry = this._customizationsProviders.get(handle);
-		if (!entry?.provider.resolveCustomizationDeletion) {
-			return;
-		}
-		const item: vscode.ChatSessionCustomizationItem = {
-			id: itemId,
-			uri: URI.revive(itemUri),
-			label: '',
-			storageLocation: extHostTypes.ChatSessionCustomizationStorageLocation.Workspace,
-		};
-		try {
-			await entry.provider.resolveCustomizationDeletion(item, token);
-		} catch (err) {
-			this._logService.error(`[ExtHostChatSessions] resolveCustomizationDeletion failed:`, err);
-		}
-	}
 }

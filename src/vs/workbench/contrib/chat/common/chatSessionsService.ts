@@ -299,7 +299,6 @@ export interface IChatSessionCustomizationItemGroup {
 export interface IChatSessionCustomizationsProvider {
 	readonly onDidChangeCustomizations: Event<void>;
 	provideCustomizations(token: CancellationToken): Promise<IChatSessionCustomizationItemGroup[] | undefined>;
-	resolveCustomizationDeletion?(item: IChatSessionCustomizationItem, token: CancellationToken): Promise<void>;
 }
 
 
@@ -429,7 +428,6 @@ export interface IChatSessionsService {
 	readonly onDidChangeCustomizations: Event<{ readonly chatSessionType: string }>;
 	registerCustomizationsProvider(chatSessionType: string, provider: IChatSessionCustomizationsProvider): IDisposable;
 	getCustomizations(chatSessionType: string, token: CancellationToken): Promise<IChatSessionCustomizationItemGroup[] | undefined>;
-	resolveCustomizationDeletion(chatSessionType: string, item: IChatSessionCustomizationItem, token: CancellationToken): Promise<void>;
 	// #endregion
 }
 
