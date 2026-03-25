@@ -7,7 +7,7 @@
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
-	padding: 9px;
+	padding: 12px;
 }
 
 .run-script-action-section {
@@ -116,8 +116,8 @@
 	gap: 8px;
 	height: 32px;
 	padding: 0 6px 0 0;
-	border-top-left-radius: var(--vscode-cornerRadius-xLarge);
-	border-top-right-radius: var(--vscode-cornerRadius-xLarge);
+	border-top-left-radius: 8px;
+	border-top-right-radius: 8px;
 	border-bottom: 1px solid var(--vscode-titleBar-border, var(--vscode-widget-border, transparent));
 	box-sizing: border-box;
 }
@@ -130,7 +130,26 @@
 	color: var(--vscode-titleBar-activeForeground);
 }
 
+.quick-input-widget.run-script-action-quick-widget {
+	border-radius: 8px;
+	box-shadow: var(--vscode-shadow-xl);
+}
+
+.quick-input-widget.run-script-action-quick-widget::before {
+	content: '';
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.3);
+	pointer-events: none;
+	z-index: -1;
+}
+
+.quick-input-widget.run-script-action-quick-widget .quick-input-html-widget {
+	border-bottom-left-radius: 8px;
+	border-bottom-right-radius: 8px;
+}
+
 .quick-input-widget.run-script-action-quick-widget .quick-input-header,
 .quick-input-widget.run-script-action-quick-widget .run-script-action-widget {
-	background-color: rgb(26 26 26);
+	background-color: var(--vscode-editor-background);
 }
