@@ -219,6 +219,19 @@ export function isAgentSessionShowMore(obj: unknown): obj is IAgentSessionShowMo
 	return (obj as IAgentSessionShowMore)?.showMore === true;
 }
 
+/**
+ * A "Show less" item that appears as the last child
+ * of an expanded repository group section to allow collapsing back.
+ */
+export interface IAgentSessionShowLess {
+	readonly showLess: true;
+	readonly sectionLabel: string;
+}
+
+export function isAgentSessionShowLess(obj: unknown): obj is IAgentSessionShowLess {
+	return (obj as IAgentSessionShowLess)?.showLess === true;
+}
+
 export interface IMarshalledAgentSessionContext {
 	readonly $mid: MarshalledId.AgentSessionContext;
 
@@ -355,6 +368,15 @@ class AgentSessionsLogger extends Disposable {
 				const summary = getAgentChangesSummary(session.changes);
 				if (summary) {
 					lines.push(`  Changes: ${summary.files} files, +${summary.insertions} -${summary.deletions}`);
+				}
+			}
+
+			// Metadata
+			if (session.metadata && Object.keys(session.metadata).length > 0) {
+				lines.push(`  Metadata:`);
+				for (const [key, value] of Object.entries(session.metadata)) {
+					const renderedValue = typeof value === 'string' ? value : safeStringify(value);
+					lines.push(`    ${key}: ${renderedValue}`);
 				}
 			}
 
