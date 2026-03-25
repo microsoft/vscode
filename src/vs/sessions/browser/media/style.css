@@ -86,17 +86,12 @@
 
 /* ---- Chat Output ---- */
 
-/* Top fade overlay: dims content scrolled near the top edge of the chat bar card */
-.agent-sessions-workbench .part.chatbar .interactive-list::before {
-	content: '';
-	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
+/* Top fade overlay: dims content scrolled near the top edge of the chat bar card.
+ * Use the Monaco scroll shadow element, which is only shown when scrollTop > 0. */
+.agent-sessions-workbench .part.chatbar .monaco-scrollable-element > .shadow.top {
 	height: 16px;
 	background: linear-gradient(to bottom, var(--part-background), transparent);
-	z-index: 1;
-	pointer-events: none;
+	box-shadow: none;
 }
 
 /* ---- Chat Input ---- */
