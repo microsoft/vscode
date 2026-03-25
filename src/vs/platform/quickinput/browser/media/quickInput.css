@@ -101,7 +101,7 @@
 .quick-input-header {
 	cursor: grab;
 	display: flex;
-	padding: 6px 12px 4px;
+	padding: 6px 6px 4px;
 }
 
 .quick-input-widget .quick-input-filter .monaco-inputbox {

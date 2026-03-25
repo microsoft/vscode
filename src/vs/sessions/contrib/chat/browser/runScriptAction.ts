@@ -288,7 +288,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 		items.push({ type: 'separator', label: localize('custom', "Custom") });
 		items.push({
-			label: localize('createNewTask', "Create new Task..."),
+			label: localize('createNewTask', "Create new task"),
 			description: localize('enterCustomCommandDesc', "Create a new shell task"),
 		});
 
