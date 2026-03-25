@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/agentsessionsviewer.css';
-import { h } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, h } from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { IIdentityProvider, IListVirtualDelegate, NotSelectableGroupId, NotSelectableGroupIdType } from '../../../../../base/browser/ui/list/list.js';
 import { AriaRole } from '../../../../../base/browser/ui/aria/aria.js';
@@ -706,6 +706,7 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 interface IAgentSessionShowMoreTemplate {
 	readonly container: HTMLElement;
 	readonly label: HTMLElement;
+	readonly elementDisposable: DisposableStore;
 	readonly disposables: DisposableStore;
 }
 
@@ -713,11 +714,18 @@ export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<I
 
 	static readonly TEMPLATE_ID = 'agent-session-show-more';
 	static readonly HEIGHT = 26;
+	static readonly COLLAPSED_HEIGHT = 1;
 
 	readonly templateId = AgentSessionShowMoreRenderer.TEMPLATE_ID;
 
+	private readonly _onDidChangeItemHeight = new Emitter<IAgentSessionShowMore>();
+	readonly onDidChangeItemHeight: Event<IAgentSessionShowMore> = this._onDidChangeItemHeight.event;
+
+	constructor(private readonly _compact?: boolean) { }
+
 	renderTemplate(container: HTMLElement): IAgentSessionShowMoreTemplate {
 		const disposables = new DisposableStore();
+		const elementDisposable = disposables.add(new DisposableStore());
 
 		const elements = h(
 			'div.agent-session-show-more@container',
@@ -729,22 +737,47 @@ export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<I
 		return {
 			container: elements.container,
 			label: elements.label,
+			elementDisposable,
 			disposables,
 		};
 	}
 
 	renderElement(element: ITreeNode<IAgentSessionShowMore, FuzzyScore>, _index: number, template: IAgentSessionShowMoreTemplate): void {
+		template.elementDisposable.clear();
 		template.label.textContent = localize('agentSessions.showMore', "+{0} more", element.element.remainingCount);
+
+		if (this._compact) {
+			template.container.classList.add('compact-collapsed');
+			const listRow = template.container.closest('.monaco-list-row');
+			if (listRow) {
+				template.elementDisposable.add(addDisposableListener(listRow, 'mouseenter', () => {
+					template.container.classList.remove('compact-collapsed');
+					template.container.classList.add('compact-expanded');
+					this._onDidChangeItemHeight.fire(element.element);
+				}));
+				template.elementDisposable.add(addDisposableListener(listRow, 'mouseleave', () => {
+					template.container.classList.remove('compact-expanded');
+					template.container.classList.add('compact-collapsed');
+					this._onDidChangeItemHeight.fire(element.element);
+				}));
+			}
+		}
 	}
 
 	renderCompressedElements(): void {
 		throw new Error('Should never happen since show-more is incompressible');
 	}
 
-	disposeElement(): void { }
+	disposeElement(_element: ITreeNode<IAgentSessionShowMore, FuzzyScore>, _index: number, template: IAgentSessionShowMoreTemplate): void {
+		template.elementDisposable.clear();
+	}
 
 	disposeTemplate(templateData: IAgentSessionShowMoreTemplate): void {
 		templateData.disposables.dispose();
+	}
+
+	dispose(): void {
+		this._onDidChangeItemHeight.dispose();
 	}
 }
 
@@ -755,8 +788,14 @@ export class AgentSessionShowLessRenderer implements ICompressibleTreeRenderer<I
 
 	readonly templateId = AgentSessionShowLessRenderer.TEMPLATE_ID;
 
+	private readonly _onDidChangeItemHeight = new Emitter<IAgentSessionShowLess>();
+	readonly onDidChangeItemHeight: Event<IAgentSessionShowLess> = this._onDidChangeItemHeight.event;
+
+	constructor(private readonly _compact?: boolean) { }
+
 	renderTemplate(container: HTMLElement): IAgentSessionShowMoreTemplate {
 		const disposables = new DisposableStore();
+		const elementDisposable = disposables.add(new DisposableStore());
 
 		const elements = h(
 			'div.agent-session-show-more@container',
@@ -768,22 +807,47 @@ export class AgentSessionShowLessRenderer implements ICompressibleTreeRenderer<I
 		return {
 			container: elements.container,
 			label: elements.label,
+			elementDisposable,
 			disposables,
 		};
 	}
 
 	renderElement(element: ITreeNode<IAgentSessionShowLess, FuzzyScore>, _index: number, template: IAgentSessionShowMoreTemplate): void {
+		template.elementDisposable.clear();
 		template.label.textContent = localize('agentSessions.showLess', "Show less");
+
+		if (this._compact) {
+			template.container.classList.add('compact-collapsed');
+			const listRow = template.container.closest('.monaco-list-row');
+			if (listRow) {
+				template.elementDisposable.add(addDisposableListener(listRow, 'mouseenter', () => {
+					template.container.classList.remove('compact-collapsed');
+					template.container.classList.add('compact-expanded');
+					this._onDidChangeItemHeight.fire(element.element);
+				}));
+				template.elementDisposable.add(addDisposableListener(listRow, 'mouseleave', () => {
+					template.container.classList.remove('compact-expanded');
+					template.container.classList.add('compact-collapsed');
+					this._onDidChangeItemHeight.fire(element.element);
+				}));
+			}
+		}
 	}
 
 	renderCompressedElements(): void {
 		throw new Error('Should never happen since show-less is incompressible');
 	}
 
-	disposeElement(): void { }
+	disposeElement(_element: ITreeNode<IAgentSessionShowLess, FuzzyScore>, _index: number, template: IAgentSessionShowMoreTemplate): void {
+		template.elementDisposable.clear();
+	}
 
 	disposeTemplate(templateData: IAgentSessionShowMoreTemplate): void {
 		templateData.disposables.dispose();
+	}
+
+	dispose(): void {
+		this._onDidChangeItemHeight.dispose();
 	}
 }
 
@@ -814,6 +878,9 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 	}
 
 	hasDynamicHeight(element: AgentSessionListItem): boolean {
+		if (isAgentSessionShowMore(element) || isAgentSessionShowLess(element)) {
+			return true;
+		}
 		return !!this._approvalModel && isAgentSession(element);
 	}
 

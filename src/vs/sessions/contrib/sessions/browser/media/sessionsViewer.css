@@ -9,16 +9,23 @@
 .agent-sessions-workbench {
 
 	/*
-	 * Show-more / show-less: always visible with centered text and
-	 * line decoration on both sides. Text fades in on hover.
-	 * Note: virtualized list enforces overflow: hidden on rows,
-	 * so the row must keep its full 26px height.
+	 * Show-more / show-less: starts collapsed (0 height), expands on
+	 * hover via dynamic height updates from the renderer.
 	 */
 	.agent-session-show-more {
 		justify-content: center;
 		padding: 0 6px;
 		font-size: 11px;
 		color: var(--vscode-descriptionForeground);
+
+		&.compact-collapsed {
+			height: 0;
+			overflow: hidden;
+		}
+
+		&.compact-expanded {
+			height: 26px;
+		}
 
 		.agent-session-show-more-label {
 			padding: 0 6px;
@@ -34,11 +41,6 @@
 			height: 1px;
 			background: var(--vscode-widget-border, var(--vscode-contrastBorder));
 		}
-	}
-
-	/* Brighter text on direct hover */
-	.monaco-list-row:hover .agent-session-show-more {
-		color: var(--vscode-foreground);
 	}
 
 	/* Brighter text on direct hover */

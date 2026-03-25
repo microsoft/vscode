@@ -53,6 +53,7 @@ export interface IAgentSessionsControlOptions {
 	readonly hideSectionCount?: boolean;
 	readonly hideSessionBadge?: boolean;
 	readonly useStatusOnlyIcons?: boolean;
+	readonly compactShowMore?: boolean;
 
 	getHoverPosition(): HoverPosition;
 	trackActiveEditorSession(): boolean;
@@ -265,6 +266,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			isGroupedByRepository: () => this.options.filter.groupResults?.() === AgentSessionsGrouping.Repository,
 			isSortedByUpdated: () => this.options.filter.sortResults?.() === AgentSessionsSorting.Updated,
 		}, approvalModel, activeSessionResource));
+		const compact = this.options.compactShowMore;
+		const showMoreRenderer = new AgentSessionShowMoreRenderer(compact);
+		const showLessRenderer = new AgentSessionShowLessRenderer(compact);
 		const sessionDataSource = this.sessionsDataSource = this._register(new AgentSessionsDataSource(this.options.filter, sorter, this.options.repositoryGroupLimit));
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
@@ -274,8 +278,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			[
 				sessionRenderer,
 				this.instantiationService.createInstance(AgentSessionSectionRenderer, { hideSectionCount: this.options.hideSectionCount }),
-				new AgentSessionShowMoreRenderer(),
-				new AgentSessionShowLessRenderer(),
+				showMoreRenderer,
+				showLessRenderer,
 			],
 			sessionDataSource,
 			{
@@ -299,6 +303,18 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this._register(sessionRenderer.onDidChangeItemHeight(session => {
 			if (list.hasNode(session)) {
 				list.updateElementHeight(session, undefined);
+			}
+		}));
+
+		this._register(showMoreRenderer.onDidChangeItemHeight(item => {
+			if (list.hasNode(item)) {
+				list.updateElementHeight(item, undefined);
+			}
+		}));
+
+		this._register(showLessRenderer.onDidChangeItemHeight(item => {
+			if (list.hasNode(item)) {
+				list.updateElementHeight(item, undefined);
 			}
 		}));
 
