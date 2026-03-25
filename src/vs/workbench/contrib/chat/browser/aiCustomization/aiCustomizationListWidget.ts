@@ -776,6 +776,7 @@ export class AICustomizationListWidget extends Disposable {
 		this._register(this.promptsService.onDidChangeCustomAgents(() => this.refresh()));
 		this._register(this.promptsService.onDidChangeSlashCommands(() => this.refresh()));
 		this._register(this.promptsService.onDidChangeSkills(() => this.refresh()));
+		this._register(this.chatSessionsService.onDidChangeCustomizations(() => this.refresh()));
 
 		// Refresh on file deletions so the list updates after inline delete actions
 		this._register(this.fileService.onDidFilesChange(e => {
