@@ -448,18 +448,18 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			code: 'multiCursorEdit',
 			confirmBeforeUndo: false,
 			undo: async () => {
-				newElementsMap.forEach(async value => {
-					value.reverse().forEach(async element => {
+				for (const value of newElementsMap.values()) {
+					for (const element of value.reverse()) {
 						await element.undo();
-					});
-				});
+					}
+				}
 			},
 			redo: async () => {
-				newElementsMap.forEach(async value => {
-					value.forEach(async element => {
+				for (const value of newElementsMap.values()) {
+					for (const element of value) {
 						await element.redo();
-					});
-				});
+					}
+				}
 			}
 		});
 	}
