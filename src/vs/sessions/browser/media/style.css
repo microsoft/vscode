@@ -154,7 +154,7 @@
  * Subtle appear animation when parts transition from display:none → visible
  * (via split-view-view .visible class).
  *
- * Animated properties: opacity, margin, border-color, background, box-shadow.
+ * Animated properties: opacity, margin, border-color, background.
  * Opacity transiently creates a stacking context while it animates from 0 to 1
  * over 250ms — once settled at opacity: 1, no additional stacking context is
  * introduced by this animation. Margin shifts are purely visual within the
@@ -171,8 +171,7 @@
 		margin-right 250ms ease-out,
 		margin-bottom 250ms ease-out,
 		border-color 250ms ease-out,
-		background 250ms ease-out,
-		box-shadow 250ms ease-out;
+		background 250ms ease-out;
 }
 
 /* Sidebar & auxiliary bar also transition margin-left */
@@ -182,8 +181,7 @@
 		opacity 250ms ease-out,
 		margin 250ms ease-out,
 		border-color 250ms ease-out,
-		background 250ms ease-out,
-		box-shadow 250ms ease-out;
+		background 250ms ease-out;
 }
 
 @starting-style {
@@ -196,12 +194,11 @@
 		border-color: transparent;
 	}
 
-	/* Card parts: blend from surrounding background + brief shadow lift */
+	/* Card parts: blend from surrounding background */
 	.agent-sessions-workbench .part.auxiliarybar,
 	.agent-sessions-workbench .part.panel,
 	.agent-sessions-workbench .part.chatbar {
 		background: color-mix(in srgb, var(--part-background) 60%, var(--vscode-sideBar-background));
-		box-shadow: 0 4px 16px color-mix(in srgb, var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36)) 50%, transparent);
 	}
 
 	/* Per-part margin shifts — each part settles into its resting margin */
