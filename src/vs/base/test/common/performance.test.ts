@@ -11,7 +11,7 @@ function marksFor(prefix: string): PerformanceMark[] {
 }
 
 function markNames(prefix: string): string[] {
-	return marksFor(prefix).sort((a, b) => a.startTime - b.startTime).map(m => m.name);
+	return marksFor(prefix).map(m => m.name);
 }
 
 function detailOf(m: PerformanceMark): Record<string, unknown> {
