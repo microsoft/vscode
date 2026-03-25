@@ -312,22 +312,19 @@ export class WorkspacePicker extends Disposable {
 			}
 		}
 
-		// Browse actions from providers, separated per provider
-		let browseActionIndex = 0;
-		for (const provider of allProviders) {
-			if (provider.browseActions.length === 0) {
-				continue;
-			}
-			items.push({ kind: ActionListItemKind.Separator, label: provider.label });
-			for (const action of provider.browseActions) {
-				items.push({
-					kind: ActionListItemKind.Action,
-					label: action.label,
-					group: { title: '', icon: action.icon },
-					item: { browseActionIndex },
-				});
-				browseActionIndex++;
-			}
+		// Browse actions from all providers
+		const allBrowseActions = this._getAllBrowseActions();
+		if (items.length > 0 && allBrowseActions.length > 0) {
+			items.push({ kind: ActionListItemKind.Separator, label: '' });
+		}
+		for (let i = 0; i < allBrowseActions.length; i++) {
+			const action = allBrowseActions[i];
+			items.push({
+				kind: ActionListItemKind.Action,
+				label: action.label,
+				group: { title: '', icon: action.icon },
+				item: { browseActionIndex: i },
+			});
 		}
 
 		return items;
