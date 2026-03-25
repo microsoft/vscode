@@ -353,16 +353,7 @@ export class RemoteNewSession extends Disposable implements ISessionData {
 		this.icon = CopilotCloudSessionType.icon;
 		this.createdAt = new Date();
 
-		// Set workspace data
-		this._workspaceData.set(sessionWorkspace, undefined);
-		this._repoUri = sessionWorkspace.repositories[0]?.uri;
-		if (this._repoUri) {
-			const id = this._repoUri.path.substring(1);
-			this.setOption('repositories', { id, name: id });
-		}
-
 		this._updateWhenClauseKeys();
-
 		this._register(this.chatSessionsService.onDidChangeOptionGroups(() => {
 			this._updateWhenClauseKeys();
 			this._onDidChangeOptionGroups.fire();
@@ -372,35 +363,18 @@ export class RemoteNewSession extends Disposable implements ISessionData {
 				this._onDidChangeOptionGroups.fire();
 			}
 		}));
-	}
 
-	// -- ISessionData option routing --
-
-	setSessionDataOption(key: string, value: unknown): void {
-		switch (key) {
-			case 'modelId':
-				this.setModelId(value as string | undefined);
-				break;
-			case 'mode':
-				this.setMode(value as IChatMode | undefined);
-				break;
-			case 'project':
-				this.setProject(value as ISessionWorkspace);
-				break;
-			case 'permissionLevel':
-				this._permissionLevel.set(value as ChatPermissionLevel, undefined);
-				break;
+		// Set workspace data
+		this._workspaceData.set(sessionWorkspace, undefined);
+		this._repoUri = sessionWorkspace.repositories[0]?.uri;
+		if (this._repoUri) {
+			const id = this._repoUri.path.substring(1);
+			this.setOption('repositories', { id, name: id });
 		}
+
 	}
 
 	// -- New session configuration methods --
-
-	setProject(project: ISessionWorkspace): void {
-		this._project = project;
-		this._repoUri = project.repositories[0]?.uri;
-		const id = project.repositories[0]?.uri.path.substring(1) ?? '';
-		this.setOption('repositories', { id, name: id });
-	}
 
 	setIsolationMode(_mode: IsolationMode): void {
 		// No-op for remote sessions
@@ -416,14 +390,6 @@ export class RemoteNewSession extends Disposable implements ISessionData {
 
 	setMode(_mode: IChatMode | undefined): void {
 		// Intentionally a no-op: remote sessions do not support client-side mode selection.
-	}
-
-	setQuery(query: string): void {
-		this._query = query;
-	}
-
-	setAttachedContext(context: IChatRequestVariableEntry[] | undefined): void {
-		this._attachedContext = context;
 	}
 
 	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void {
@@ -831,6 +797,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const workspaceUri = workspace.repositories[0]?.uri;
 		if (!workspaceUri) {
 			throw new Error('Workspace has no repository URI');
+		}
+
+		if (this._currentNewSession) {
+			this._currentNewSession.dispose();
+			this._currentNewSession = undefined;
 		}
 
 		if (workspaceUri.scheme === Schemas.file) {
