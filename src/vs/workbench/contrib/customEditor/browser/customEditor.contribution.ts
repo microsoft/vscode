@@ -14,6 +14,7 @@ import { ICustomEditorService } from '../common/customEditor.js';
 import { WebviewEditor } from '../../webviewPanel/browser/webviewEditor.js';
 import { CustomEditorInput } from './customEditorInput.js';
 import { CustomEditorService } from './customEditors.js';
+import './customEditorOutline.js';
 
 registerSingleton(ICustomEditorService, CustomEditorService, InstantiationType.Delayed);
 

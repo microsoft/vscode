@@ -273,6 +273,30 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 
 		ctxFocused.bindTo(tree.contextKeyService);
 
+		// feature: right-click context menu via outline config
+		if (newOutline.config.contextMenuId) {
+			this._editorControlDisposables.add(tree.onContextMenu(e => {
+				if (!e.element) {
+					return;
+				}
+				e.browserEvent.preventDefault();
+				e.browserEvent.stopPropagation();
+				tree.setFocus([e.element]);
+
+				// Build a context key overlay with per-element values so that
+				// menu `when` clauses (e.g. customEditorOutlineItem == 'x') resolve correctly.
+				const overlay = newOutline.config.getContextKeyOverlay?.(e.element) ?? [];
+				const contextKeyService = tree.contextKeyService.createOverlay(overlay);
+
+				this.contextMenuService.showContextMenu({
+					menuId: newOutline.config.contextMenuId,
+					menuActionOptions: { shouldForwardArgs: true },
+					contextKeyService,
+					getAnchor: () => e.anchor,
+				});
+			}));
+		}
+
 		// update tree, listen to changes
 		const updateTree = () => {
 			if (newOutline.isEmpty) {
