@@ -31,7 +31,6 @@ const UPDATE_TITLE_BAR_ACTION_ID = 'workbench.actions.updateIndicator';
 const UPDATE_TITLE_BAR_CONTEXT = new RawContextKey<boolean>('updateTitleBar', false);
 
 const ACTIONABLE_STATES: readonly StateType[] = [StateType.AvailableForDownload, StateType.Downloaded, StateType.Ready];
-const DETAILED_STATES: readonly StateType[] = [...ACTIONABLE_STATES, StateType.CheckingForUpdates, StateType.Downloading, StateType.Updating, StateType.Overwriting];
 
 const LAST_KNOWN_VERSION_KEY = 'updateTitleBarEntry/lastKnownVersion';
 
@@ -64,7 +63,7 @@ registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
 export class UpdateTitleBarContribution extends Disposable implements IWorkbenchContribution {
 	private readonly context!: IContextKey<boolean>;
 	private readonly tooltip!: UpdateTooltip;
-	private mode: 'always' | 'detailed' | 'actionable' | 'none' = 'none';
+	private mode: 'actionable' | 'none' = 'none';
 	private state!: State;
 	private entry: UpdateTitleBarEntry | undefined;
 	private tooltipVisible = false;
@@ -122,12 +121,6 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 
 	private updateContext() {
 		switch (this.mode) {
-			case 'always':
-				this.context.set(true);
-				break;
-			case 'detailed':
-				this.context.set(DETAILED_STATES.includes(this.state.type));
-				break;
 			case 'actionable':
 				this.context.set(ACTIONABLE_STATES.includes(this.state.type));
 				break;
