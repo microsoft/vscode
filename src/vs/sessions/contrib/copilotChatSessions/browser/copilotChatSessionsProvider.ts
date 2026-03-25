@@ -8,11 +8,10 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { getRepositoryName } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsViewer.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
@@ -33,10 +32,10 @@ import { ResourceSet } from '../../../../base/common/map.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IGitService, IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
-import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { localize } from '../../../../nls.js';
 
 const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
 
@@ -47,22 +46,16 @@ export const COPILOT_PROVIDER_ID = 'default-copilot';
 export const COPILOT_CLI_SESSION_TYPE = AgentSessionProviders.Background;
 export const COPILOT_CLOUD_SESSION_TYPE = AgentSessionProviders.Cloud;
 
-const STORAGE_KEY_RECENT_PROJECTS = 'sessions.recentlyPickedProjects';
-
-interface IStoredWorkspace {
-	readonly uri: UriComponents;
-}
-
 const CopilotCLISessionType: ISessionType = {
 	id: COPILOT_CLI_SESSION_TYPE,
-	label: 'Copilot CLI',
-	icon: Codicon.worktree,
+	label: localize('copilotCLI', "Copilot"),
+	icon: Codicon.copilot,
 	requiresWorkspaceTrust: true,
 };
 
 const CopilotCloudSessionType: ISessionType = {
 	id: COPILOT_CLOUD_SESSION_TYPE,
-	label: 'Cloud',
+	label: localize('copilotCloud', "Cloud"),
 	icon: Codicon.cloud,
 };
 
@@ -717,13 +710,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -749,27 +740,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	// -- Workspaces --
-
-	getWorkspaces(): ISessionWorkspace[] {
-		const stored = this._getRecentWorkspaces();
-		return stored
-			.map(p => {
-				const uri = URI.revive(p.uri);
-				return {
-					label: this._labelFromUri(uri),
-					icon: this._iconFromUri(uri),
-					repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
-				};
-			})
-			.sort((a, b) => {
-				const aIsLocal = a.repositories[0]?.uri.scheme === Schemas.file;
-				const bIsLocal = b.repositories[0]?.uri.scheme === Schemas.file;
-				if (aIsLocal !== bIsLocal) {
-					return aIsLocal ? -1 : 1;
-				}
-				return a.label.localeCompare(b.label);
-			});
-	}
 
 	// -- Sessions --
 
@@ -991,13 +961,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		});
 		if (result?.length) {
 			const uri = result[0];
-			const workspace: ISessionWorkspace = {
+			return {
 				label: this._labelFromUri(uri),
 				icon: this._iconFromUri(uri),
 				repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
 			};
-			this._addToRecentWorkspaces({ uri: uri.toJSON() });
-			return workspace;
 		}
 		return undefined;
 	}
@@ -1006,23 +974,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const repoId = await this.commandService.executeCommand<string>(OPEN_REPO_COMMAND);
 		if (repoId) {
 			const uri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repoId}/HEAD` });
-			const workspace: ISessionWorkspace = {
+			return {
 				label: this._labelFromUri(uri),
 				icon: this._iconFromUri(uri),
 				repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
 			};
-			this._addToRecentWorkspaces({ uri: uri.toJSON() });
-			return workspace;
 		}
 		return undefined;
-	}
-
-	private _addToRecentWorkspaces(workspace: IStoredWorkspace): void {
-		const recents = this._getRecentWorkspaces();
-		const workspaceUri = URI.revive(workspace.uri);
-		const filtered = recents.filter(p => !this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), workspaceUri));
-		const updated = [workspace, ...filtered].slice(0, 10);
-		this.storageService.store(STORAGE_KEY_RECENT_PROJECTS, JSON.stringify(updated), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private _labelFromUri(uri: URI): string {
@@ -1037,18 +995,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return Codicon.repo;
 		}
 		return Codicon.folder;
-	}
-
-	private _getRecentWorkspaces(): IStoredWorkspace[] {
-		const raw = this.storageService.get(STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE);
-		if (!raw) {
-			return [];
-		}
-		try {
-			return JSON.parse(raw) as IStoredWorkspace[];
-		} catch {
-			return [];
-		}
 	}
 
 	private _isOwnedSession(session: IAgentSession): boolean {

@@ -18,6 +18,14 @@ import { IChatSessionFileChange } from '../../../../workbench/contrib/chat/commo
 import { agentHostAuthority } from './remoteAgentHost.contribution.js';
 import { agentHostUri } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+
+const CopilotCLISessionType: ISessionType = {
+	id: AgentSessionProviders.AgentHostCopilot,
+	label: localize('copilotCLI', "Copilot"),
+	icon: Codicon.copilot,
+	requiresWorkspaceTrust: true,
+};
 
 /**
  * A sessions provider for a single agent on a remote agent host connection.
@@ -44,17 +52,12 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		super();
 
 		const sanitized = agentHostAuthority(_address);
-		const sessionTypeId = `remote-${sanitized}-${_agentProvider}`;
 		const displayName = _connectionName || `${_agentProvider} (${_address})`;
 
 		this.id = `agenthost-${sanitized}-${_agentProvider}`;
 		this.label = displayName;
 
-		this.sessionTypes = [{
-			id: sessionTypeId,
-			label: displayName,
-			icon: Codicon.remote,
-		}];
+		this.sessionTypes = [CopilotCLISessionType];
 
 		this.browseActions = [{
 			label: localize('browseRemote', "Browse {0}...", displayName),
@@ -65,11 +68,6 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	}
 
 	// -- Workspaces --
-
-	getWorkspaces(): ISessionWorkspace[] {
-		// Remote agent host workspaces are browsed on demand, not stored
-		return [];
-	}
 
 	// -- Sessions --
 

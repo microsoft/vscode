@@ -76,8 +76,6 @@ export interface ISessionsProvider {
 
 	// -- Workspaces --
 
-	/** Returns recent/known workspaces for the picker. */
-	getWorkspaces(): ISessionWorkspace[];
 	/** Browse actions shown in the workspace picker. */
 	readonly browseActions: readonly ISessionsBrowseAction[];
 

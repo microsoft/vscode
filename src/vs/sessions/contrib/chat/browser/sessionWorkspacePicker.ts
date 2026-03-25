@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
@@ -14,14 +15,17 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { ISessionWorkspace } from '../../sessions/common/sessionData.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace } from '../../sessions/common/sessionData.js';
+import { basename } from '../../../../base/common/resources.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ISessionsBrowseAction } from '../../sessions/browser/sessionsProvider.js';
 
 const STORAGE_KEY_SELECTED_WORKSPACE = 'sessions.selectedWorkspace';
 const STORAGE_KEY_SELECTED_WORKSPACE_BY_PROVIDER = 'sessions.selectedWorkspaceByProvider';
+const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedProjects';
 const FILTER_THRESHOLD = 10;
+const MAX_RECENT_WORKSPACES = 10;
 
 /**
  * A workspace selection from the picker, pairing the workspace with its owning provider.
@@ -44,6 +48,14 @@ interface IStoredSelectedWorkspace {
  */
 interface IStoredWorkspaceByProvider {
 	[providerId: string]: UriComponents;
+}
+
+/**
+ * Stored recent workspace entry.
+ */
+interface IStoredRecentWorkspace {
+	readonly uri: UriComponents;
+	readonly providerId: string;
 }
 
 /**
@@ -259,27 +271,39 @@ export class WorkspacePicker extends Disposable {
 	private _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
 
-		// Collect workspaces from the active provider(s)
+		// Collect recent workspaces from picker storage, grouped by provider
 		const providers = this._getActiveProviders();
+		const providerIds = new Set(providers.map(p => p.id));
+		const recentWorkspaces = this._getRecentWorkspaces().filter(w => providerIds.has(w.providerId));
 		const hasMultipleProviders = providers.length > 1;
-		for (const provider of providers) {
-			const workspaces = provider.getWorkspaces();
-			if (workspaces.length === 0) {
-				continue;
-			}
 
-			// Add provider label as group header when multiple providers
-			if (hasMultipleProviders) {
+		if (hasMultipleProviders) {
+			// Group workspaces by provider
+			for (const provider of providers) {
+				const providerWorkspaces = recentWorkspaces.filter(w => w.providerId === provider.id);
+				if (providerWorkspaces.length === 0) {
+					continue;
+				}
 				items.push({
 					kind: ActionListItemKind.Header,
 					label: provider.label,
 					group: { title: provider.label, icon: provider.icon },
 					item: {},
 				});
+				for (const { workspace, providerId } of providerWorkspaces) {
+					const selection: IWorkspaceSelection = { providerId, workspace };
+					const selected = this._isSelectedWorkspace(selection);
+					items.push({
+						kind: ActionListItemKind.Action,
+						label: workspace.label,
+						group: { title: '', icon: workspace.icon },
+						item: { selection, checked: selected || undefined },
+					});
+				}
 			}
-
-			for (const workspace of workspaces) {
-				const selection: IWorkspaceSelection = { providerId: provider.id, workspace };
+		} else {
+			for (const { workspace, providerId } of recentWorkspaces) {
+				const selection: IWorkspaceSelection = { providerId, workspace };
 				const selected = this._isSelectedWorkspace(selection);
 				items.push({
 					kind: ActionListItemKind.Action,
@@ -337,10 +361,13 @@ export class WorkspacePicker extends Disposable {
 		if (!uri) {
 			return;
 		}
-		// Store per-provider
+		// Store per-provider selected workspace
 		const byProvider = this._getStoredByProvider();
 		byProvider[selection.providerId] = uri.toJSON();
 		this.storageService.store(STORAGE_KEY_SELECTED_WORKSPACE_BY_PROVIDER, JSON.stringify(byProvider), StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		// Add to recent workspaces
+		this._addRecentWorkspace(selection.providerId, selection.workspace);
 	}
 
 	private _hasStoredWorkspace(): boolean {
@@ -359,6 +386,7 @@ export class WorkspacePicker extends Disposable {
 	private _restoreSelectedWorkspace(): IWorkspaceSelection | undefined {
 		try {
 			const byProvider = this._getStoredByProvider();
+			const recentWorkspaces = this._getRecentWorkspaces();
 
 			// Find the workspace for the active provider (or first available provider)
 			const providers = this._getActiveProviders();
@@ -368,11 +396,12 @@ export class WorkspacePicker extends Disposable {
 					continue;
 				}
 				const uri = URI.revive(storedUri);
-				const match = provider.getWorkspaces().find(w =>
-					w.repositories[0]?.uri && this.uriIdentityService.extUri.isEqual(w.repositories[0].uri, uri)
+				const match = recentWorkspaces.find(w =>
+					w.providerId === provider.id
+					&& w.workspace.repositories[0]?.uri && this.uriIdentityService.extUri.isEqual(w.workspace.repositories[0].uri, uri)
 				);
 				if (match) {
-					return { providerId: provider.id, workspace: match };
+					return { providerId: provider.id, workspace: match.workspace };
 				}
 			}
 			return undefined;
@@ -400,5 +429,60 @@ export class WorkspacePicker extends Disposable {
 		} catch {
 			this.storageService.remove(STORAGE_KEY_SELECTED_WORKSPACE, StorageScope.PROFILE);
 		}
+	}
+
+	// -- Recent workspaces storage --
+
+	private _addRecentWorkspace(providerId: string, workspace: ISessionWorkspace): void {
+		const uri = workspace.repositories[0]?.uri;
+		if (!uri) {
+			return;
+		}
+		const recents = this._getStoredRecentWorkspaces();
+		const filtered = recents.filter(p =>
+			!(p.providerId === providerId && this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), uri))
+		);
+		const updated: IStoredRecentWorkspace[] = [{ uri: uri.toJSON(), providerId }, ...filtered].slice(0, MAX_RECENT_WORKSPACES);
+		this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(updated), StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	private _getRecentWorkspaces(): { providerId: string; workspace: ISessionWorkspace }[] {
+		return this._getStoredRecentWorkspaces().map(stored => {
+			const uri = URI.revive(stored.uri);
+			return {
+				providerId: stored.providerId,
+				workspace: {
+					label: this._labelFromUri(uri),
+					icon: this._iconFromUri(uri),
+					repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
+				},
+			};
+		});
+	}
+
+	private _getStoredRecentWorkspaces(): IStoredRecentWorkspace[] {
+		const raw = this.storageService.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
+		if (!raw) {
+			return [];
+		}
+		try {
+			return JSON.parse(raw) as IStoredRecentWorkspace[];
+		} catch {
+			return [];
+		}
+	}
+
+	private _labelFromUri(uri: URI): string {
+		if (uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			return uri.path.substring(1).replace(/\/HEAD$/, '');
+		}
+		return basename(uri);
+	}
+
+	private _iconFromUri(uri: URI): ThemeIcon {
+		if (uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			return Codicon.repo;
+		}
+		return Codicon.folder;
 	}
 }
