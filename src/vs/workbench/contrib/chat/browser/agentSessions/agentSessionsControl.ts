@@ -349,18 +349,29 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 					return;
 				}
 
-				// Read section label from closest session item or section header
-				const sessionItem = row.querySelector('.agent-session-item');
-				const sectionHeader = row.querySelector('.agent-session-section');
+				// Determine section label by checking the row content
+				let sectionLabel: string | undefined;
+
+				const sectionHeader = row.querySelector('.agent-session-section-label');
 				const showMoreEl = row.querySelector('.agent-session-show-more');
 
-				let sectionLabel: string | undefined;
-				if (sessionItem) {
-					sectionLabel = sessionItem.getAttribute('data-section-label') ?? undefined;
-				} else if (sectionHeader) {
-					sectionLabel = sectionHeader.querySelector('.agent-session-section-label')?.textContent ?? undefined;
+				if (sectionHeader) {
+					// Hovering a section header
+					sectionLabel = sectionHeader.textContent ?? undefined;
 				} else if (showMoreEl) {
+					// Hovering the show-more element itself
 					sectionLabel = showMoreEl.getAttribute('data-section-label') ?? undefined;
+				} else if (row.querySelector('.agent-session-item')) {
+					// Hovering a session card — walk backward through sibling rows to find the section header
+					let sibling = row.previousElementSibling;
+					while (sibling) {
+						const siblingLabel = sibling.querySelector('.agent-session-section-label');
+						if (siblingLabel) {
+							sectionLabel = siblingLabel.textContent ?? undefined;
+							break;
+						}
+						sibling = sibling.previousElementSibling;
+					}
 				}
 
 				if (!sectionLabel) {
