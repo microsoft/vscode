@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
@@ -28,6 +28,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { IsActiveSessionBackgroundProviderContext, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ISessionData, SessionStatus } from '../../sessions/common/sessionData.js';
@@ -123,6 +124,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IActionViewItemService private readonly _actionViewItemService: IActionViewItemService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -419,10 +421,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				mode: isConfigureMode ? 'configure' : existingTask ? 'add-existing' : 'add',
 			}));
 			quickWidget.widget = widget.domNode;
-			const targetWindow = getWindow(widget.domNode);
-			const backdrop = targetWindow.document.createElement('div');
-			backdrop.classList.add('run-script-action-modal-backdrop');
-			targetWindow.document.body.appendChild(backdrop);
+			const backdrop = append(this._layoutService.mainContainer, $('.run-script-action-modal-backdrop'));
 			disposables.add(addDisposableListener(backdrop, EventType.MOUSE_DOWN, e => {
 				e.preventDefault();
 				e.stopPropagation();
