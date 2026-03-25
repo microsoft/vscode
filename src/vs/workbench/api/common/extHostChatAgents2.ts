@@ -983,7 +983,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const feedback: vscode.ChatResultFeedback = {
 			result: ehResult,
 			kind,
-			unhelpfulReason: isProposedApiEnabled(agent.extension, 'chatParticipantAdditions') ? voteAction.reason : undefined,
 		};
 		agent.acceptFeedback(Object.freeze(feedback));
 	}
