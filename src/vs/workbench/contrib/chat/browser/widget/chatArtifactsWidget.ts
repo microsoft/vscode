@@ -38,6 +38,7 @@ export class ChatArtifactsWidget extends Disposable {
 	private readonly _listStore = this._register(new DisposableStore());
 	private _expandIcon!: HTMLElement;
 	private _titleElement!: HTMLElement;
+	private _clearButton!: Button;
 
 	public static readonly ELEMENT_HEIGHT = 22;
 	private static readonly MAX_ITEMS_SHOWN = 6;
@@ -77,6 +78,19 @@ export class ChatArtifactsWidget extends Disposable {
 		titleSection.appendChild(this._expandIcon);
 		titleSection.appendChild(this._titleElement);
 		headerButton.element.appendChild(titleSection);
+
+		// Add clear button container
+		const clearButtonContainer = dom.$('.artifacts-clear-button-container');
+		this._clearButton = this._listStore.add(new Button(clearButtonContainer, {
+			supportIcons: true,
+			ariaLabel: localize('chat.artifacts.clearButton', 'Clear all artifacts'),
+		}));
+		this._clearButton.element.tabIndex = 0;
+		this._clearButton.icon = Codicon.clearAll;
+		this._listStore.add(this._clearButton.onDidClick(() => {
+			this._clearAllArtifacts();
+		}));
+		headerButton.element.appendChild(clearButtonContainer);
 
 		this.domNode.appendChild(expandoContainer);
 
@@ -156,6 +170,13 @@ export class ChatArtifactsWidget extends Disposable {
 			},
 			startIndex: Math.max(0, startIndex),
 		});
+	}
+
+	private _clearAllArtifacts(): void {
+		if (!this._sessionResource) {
+			return;
+		}
+		this._chatArtifactsService.setArtifacts(this._sessionResource, []);
 	}
 
 	hide(): void {
