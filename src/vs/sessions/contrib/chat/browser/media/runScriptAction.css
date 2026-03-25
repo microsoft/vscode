@@ -103,6 +103,7 @@
 	border-color: transparent;
 	color: var(--vscode-disabledForeground);
 	opacity: 1;
+	cursor: default;
 }
 
 .run-script-action-section .monaco-custom-radio.run-script-action-radio-disabled > .monaco-button.active,
@@ -111,6 +112,12 @@
 	color: var(--vscode-quickInputList-focusForeground);
 	border-color: var(--vscode-focusBorder, transparent);
 	opacity: 0.9;
+	cursor: default;
+}
+
+.run-script-action-section .monaco-custom-radio.run-script-action-radio-disabled > .monaco-button:focus,
+.run-script-action-section .monaco-custom-radio.run-script-action-radio-disabled > .monaco-button.active:focus {
+	outline: none !important;
 }
 
 .run-script-action-hint {
