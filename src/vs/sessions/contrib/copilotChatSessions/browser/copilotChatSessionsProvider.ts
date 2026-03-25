@@ -755,13 +755,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		this.browseActions = [
 			{
-				label: 'Browse Folders...',
+				label: localize('folders', "Folders"),
 				icon: Codicon.folderOpened,
 				providerId: this.id,
 				execute: () => this._browseForFolder(),
 			},
 			{
-				label: 'Browse Repositories...',
+				label: localize('repositories', "Repositories"),
 				icon: Codicon.repo,
 				providerId: this.id,
 				execute: () => this._browseForRepo(),

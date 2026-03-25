@@ -40,9 +40,11 @@ const $ = DOM.$;
 
 export const SessionItemToolbarMenuId = new MenuId('SessionItemToolbar');
 export const SessionItemContextMenuId = new MenuId('SessionItemContextMenu');
+export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const IsSessionArchivedContext = new RawContextKey<boolean>('sessionItem.isArchived', false);
 export const IsSessionReadContext = new RawContextKey<boolean>('sessionItem.isRead', true);
+export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
 
 //#region Types
 
@@ -435,19 +437,36 @@ interface ISessionSectionTemplate {
 	readonly container: HTMLElement;
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
+	readonly toolbar: MenuWorkbenchToolBar;
+	readonly contextKeyService: IContextKeyService;
+	readonly disposables: DisposableStore;
 }
 
 class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionSectionTemplate> {
 	static readonly TEMPLATE_ID = 'session-section';
 	readonly templateId = SessionSectionRenderer.TEMPLATE_ID;
 
-	constructor(private readonly hideSectionCount: boolean) { }
+	constructor(
+		private readonly hideSectionCount: boolean,
+		private readonly instantiationService: IInstantiationService,
+		private readonly contextKeyService: IContextKeyService,
+	) { }
 
 	renderTemplate(container: HTMLElement): ISessionSectionTemplate {
+		const disposables = new DisposableStore();
+
 		container.classList.add('session-section');
 		const label = DOM.append(container, $('span.session-section-label'));
 		const count = DOM.append(container, $('span.session-section-count'));
-		return { container, label, count };
+		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
+
+		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
+		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+		const toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, SessionSectionToolbarMenuId, {
+			menuOptions: { shouldForwardArgs: true },
+		}));
+
+		return { container, label, count, toolbar, contextKeyService, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -463,9 +482,16 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			template.count.textContent = String(element.sessions.length);
 			template.count.style.display = '';
 		}
+
+		// Set context key for section type so toolbar actions can use when clauses
+		const sectionType = element.id.startsWith('repo:') ? 'repository' : element.id;
+		SessionSectionTypeContext.bindTo(template.contextKeyService).set(sectionType);
+		template.toolbar.context = element;
 	}
 
-	disposeTemplate(_template: ISessionSectionTemplate): void { }
+	disposeTemplate(template: ISessionSectionTemplate): void {
+		template.disposables.dispose();
+	}
 }
 
 //#endregion
@@ -631,7 +657,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			new SessionsTreeDelegate(approvalModel),
 			[
 				sessionRenderer,
-				new SessionSectionRenderer(true /* hideSectionCount */),
+				new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService),
 				showMoreRenderer,
 			],
 			{
