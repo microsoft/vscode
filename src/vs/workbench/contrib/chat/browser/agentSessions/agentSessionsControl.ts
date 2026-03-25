@@ -323,10 +323,38 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			let expandedShowMoreElement: AgentSessionListItem | undefined;
 			let expandedSectionLabel: string | undefined;
 
+			// Map session resource URI -> section label (rebuilt on tree changes)
+			const sessionToSection = new Map<string, string>();
+			const sectionToShowMore = new Map<string, AgentSessionListItem>();
+
+			const rebuildSectionMap = () => {
+				sessionToSection.clear();
+				sectionToShowMore.clear();
+				try {
+					const rootNode = list.getNode();
+					for (const sectionNode of rootNode.children) {
+						if (isAgentSessionSection(sectionNode.element)) {
+							const label = sectionNode.element.label;
+							for (const child of sectionNode.children) {
+								if (isAgentSession(child.element)) {
+									sessionToSection.set(child.element.resource.toString(), label);
+								} else if (isAgentSessionShowMore(child.element) || isAgentSessionShowLess(child.element)) {
+									sectionToShowMore.set(label, child.element);
+								}
+							}
+						}
+					}
+				} catch {
+					// Tree may not be initialized yet
+				}
+			};
+
 			const collapseCurrentShowMore = () => {
-				if (expandedShowMoreElement && list.hasNode(expandedShowMoreElement)) {
-					list.updateElementHeight(expandedShowMoreElement, AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT);
-					const el = container.querySelector(`.agent-session-show-more[data-section-label="${expandedSectionLabel}"]`);
+				if (expandedShowMoreElement && expandedSectionLabel) {
+					if (list.hasNode(expandedShowMoreElement)) {
+						list.updateElementHeight(expandedShowMoreElement, AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT);
+					}
+					const el = container.querySelector(`.agent-session-show-more[data-section-label="${CSS.escape(expandedSectionLabel)}"]`);
 					if (el) {
 						el.classList.add('compact-collapsed');
 						el.classList.remove('compact-expanded');
@@ -336,103 +364,90 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				expandedSectionLabel = undefined;
 			};
 
-			const findShowMoreForSection = (sectionLabel: string): AgentSessionListItem | undefined => {
-				// Walk the tree's own root node children to find sections by label
-				try {
-					const rootNode = list.getNode();
-					for (const sectionNode of rootNode.children) {
-						if (isAgentSessionSection(sectionNode.element) && sectionNode.element.label === sectionLabel) {
-							for (const child of sectionNode.children) {
-								if (isAgentSessionShowMore(child.element) || isAgentSessionShowLess(child.element)) {
-									return child.element;
-								}
-							}
-						}
-					}
-				} catch {
-					// Tree may not be initialized yet
-				}
-				return undefined;
-			};
-
-			this._register(addDisposableListener(container, 'mouseover', (e: MouseEvent) => {
-				const target = e.target as HTMLElement;
-				const row = target.closest('.monaco-list-row');
-				if (!row) {
-					console.log('[show-more] no row found');
-					return;
-				}
-
-				// Determine section label by checking the row content
-				let sectionLabel: string | undefined;
-
-				const sectionHeader = row.querySelector('.agent-session-section-label');
-				const showMoreEl = row.querySelector('.agent-session-show-more');
-				const sessionItem = row.querySelector('.agent-session-item');
-
-				console.log('[show-more] row content:', {
-					hasSectionHeader: !!sectionHeader,
-					hasShowMore: !!showMoreEl,
-					hasSessionItem: !!sessionItem,
-					rowClasses: row.className,
-					rowHTML: row.innerHTML.substring(0, 200),
-				});
-
-				if (sectionHeader) {
-					sectionLabel = sectionHeader.textContent ?? undefined;
-				} else if (showMoreEl) {
-					sectionLabel = showMoreEl.getAttribute('data-section-label') ?? undefined;
-				} else if (sessionItem) {
-					// Walk backward through sibling rows to find the section header
-					let sibling = row.previousElementSibling;
-					let steps = 0;
-					while (sibling) {
-						const siblingLabel = sibling.querySelector('.agent-session-section-label');
-						if (siblingLabel) {
-							sectionLabel = siblingLabel.textContent ?? undefined;
-							break;
-						}
-						sibling = sibling.previousElementSibling;
-						steps++;
-					}
-					console.log('[show-more] walked', steps, 'siblings, found section:', sectionLabel);
-				}
-
-				console.log('[show-more] sectionLabel:', sectionLabel);
-
-				if (!sectionLabel) {
-					collapseCurrentShowMore();
-					return;
-				}
-
+			const expandShowMore = (sectionLabel: string) => {
 				if (expandedSectionLabel === sectionLabel) {
 					return;
 				}
 
 				collapseCurrentShowMore();
 
-				const showMoreItem = findShowMoreForSection(sectionLabel);
-				console.log('[show-more] found showMoreItem:', !!showMoreItem, 'hasNode:', showMoreItem ? list.hasNode(showMoreItem) : false);
-				if (!showMoreItem) {
+				const showMoreItem = sectionToShowMore.get(sectionLabel);
+				if (!showMoreItem || !list.hasNode(showMoreItem)) {
 					return;
 				}
 
 				expandedShowMoreElement = showMoreItem;
 				expandedSectionLabel = sectionLabel;
-				if (list.hasNode(showMoreItem)) {
-					const el = container.querySelector(`.agent-session-show-more[data-section-label="${sectionLabel}"]`);
-					if (el) {
-						el.classList.remove('compact-collapsed');
-						el.classList.add('compact-expanded');
-					}
-					console.log('[show-more] expanding to height', AgentSessionShowMoreRenderer.HEIGHT);
-					list.updateElementHeight(showMoreItem, AgentSessionShowMoreRenderer.HEIGHT);
+				const el = container.querySelector(`.agent-session-show-more[data-section-label="${CSS.escape(sectionLabel)}"]`);
+				if (el) {
+					el.classList.remove('compact-collapsed');
+					el.classList.add('compact-expanded');
 				}
+				list.updateElementHeight(showMoreItem, AgentSessionShowMoreRenderer.HEIGHT);
+			};
+
+			// Stamp data-section-label on session items after rendering
+			const stampSectionLabels = () => {
+				rebuildSectionMap();
+				// Stamp each rendered session item with its section label
+				container.querySelectorAll('.agent-session-item').forEach(item => {
+					// Find the session title text and match against our map
+					// Simpler: we'll set data-section-label on the item via the tree node iteration
+				});
+				// Alternative: stamp via session resource URI stored on the item
+				// We'll use a different approach: store the section label on each session renderer
+			};
+
+			// Listen to tree model changes
+			this._register(list.onDidChangeModel(() => {
+				rebuildSectionMap();
+			}));
+
+			// On mouseover, determine section from the hovered element
+			this._register(addDisposableListener(container, 'mouseover', (e: MouseEvent) => {
+				const target = e.target as HTMLElement;
+				const row = target.closest('.monaco-list-row');
+				if (!row) {
+					return;
+				}
+
+				let sectionLabel: string | undefined;
+
+				// Section header
+				const sectionHeaderEl = row.querySelector('.agent-session-section-label');
+				if (sectionHeaderEl) {
+					sectionLabel = sectionHeaderEl.textContent ?? undefined;
+				}
+
+				// Show-more element
+				if (!sectionLabel) {
+					const showMoreEl = row.querySelector('.agent-session-show-more');
+					if (showMoreEl) {
+						sectionLabel = showMoreEl.getAttribute('data-section-label') ?? undefined;
+					}
+				}
+
+				// Session item — use data-section-label attribute
+				if (!sectionLabel) {
+					const sessionItem = row.querySelector('.agent-session-item[data-section-label]');
+					if (sessionItem) {
+						sectionLabel = sessionItem.getAttribute('data-section-label') ?? undefined;
+					}
+				}
+
+				if (!sectionLabel || !sectionToShowMore.has(sectionLabel)) {
+					collapseCurrentShowMore();
+					return;
+				}
+
+				expandShowMore(sectionLabel);
 			}));
 
 			this._register(addDisposableListener(container, 'mouseleave', () => {
 				collapseCurrentShowMore();
 			}));
+
+			stampSectionLabels();
 		}
 
 		this._register(sessionDataSource.onDidGetChildren(count => {
