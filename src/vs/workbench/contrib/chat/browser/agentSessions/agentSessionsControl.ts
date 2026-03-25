@@ -53,7 +53,6 @@ export interface IAgentSessionsControlOptions {
 	readonly hideSectionCount?: boolean;
 	readonly hideSessionBadge?: boolean;
 	readonly useStatusOnlyIcons?: boolean;
-	readonly compactShowMore?: boolean;
 
 	getHoverPosition(): HoverPosition;
 	trackActiveEditorSession(): boolean;
@@ -270,7 +269,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
 			container,
-			new AgentSessionsListDelegate(approvalModel, this.options.compactShowMore),
+			new AgentSessionsListDelegate(approvalModel),
 			new AgentSessionsCompressionDelegate(),
 			[
 				sessionRenderer,
