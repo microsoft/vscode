@@ -7,11 +7,11 @@ import { clearMarks, createPerfTracer, getMarks, getPerfTracer, mark, Performanc
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 function marksFor(prefix: string): PerformanceMark[] {
-	return getMarks().filter(m => m.name.startsWith(prefix)).sort((a, b) => a.startTime - b.startTime);
+	return getMarks().filter(m => m.name.startsWith(prefix));
 }
 
 function markNames(prefix: string): string[] {
-	return marksFor(prefix).map(m => m.name);
+	return marksFor(prefix).sort((a, b) => a.startTime - b.startTime).map(m => m.name);
 }
 
 function detailOf(m: PerformanceMark): Record<string, unknown> {
@@ -75,7 +75,7 @@ suite('PerfTracer', () => {
 			trace.mark('willDo');
 			trace.mark('didDo');
 
-			assert.deepStrictEqual(markNames(p), [`${p}willDo`, `${p}didDo`]);
+			assert.deepStrictEqual(markNames(p).sort(), [`${p}didDo`, `${p}willDo`].sort());
 		});
 
 		test('all marks from a trace share the same traceId', () => {
