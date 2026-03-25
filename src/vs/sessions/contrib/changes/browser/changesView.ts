@@ -698,7 +698,7 @@ export class ChangesViewPane extends ViewPane {
 							: { shouldForwardArgs: true },
 						buttonConfigProvider: (action) => {
 							if (action.id === 'chatEditing.viewChanges' || action.id === 'chatEditing.viewPreviousEdits' || action.id === 'chatEditing.viewAllSessionChanges' || action.id === 'chat.openSessionWorktreeInVSCode') {
-								return { showIcon: true, showLabel: false, isSecondary: true, customClass: 'working-set-diff-stats' };
+								return { showIcon: true, showLabel: false, isSecondary: true, customClass: 'working-set-nav-button' };
 							}
 							if (action.id === RUN_SESSION_CODE_REVIEW_ACTION_ID) {
 								if (codeReviewLoading) {
