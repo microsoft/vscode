@@ -52,7 +52,7 @@
 .run-script-action-section .monaco-custom-radio > .monaco-button {
 	width: fit-content;
 	min-width: 76px;
-	padding: 4px 10px;
+	padding: 4px 8px;
 	border: 1px solid transparent;
 	border-radius: 5px;
 	background: transparent;
@@ -110,6 +110,24 @@
 	min-height: 28px;
 	padding: 5px 12px;
 	border-radius: 6px;
+}
+
+.quick-input-widget.run-script-action-quick-widget .quick-input-titlebar {
+	gap: 8px;
+	height: 32px;
+	padding: 0 8px 0 0;
+	border-top-left-radius: var(--vscode-cornerRadius-xLarge);
+	border-top-right-radius: var(--vscode-cornerRadius-xLarge);
+	border-bottom: 1px solid var(--vscode-titleBar-border, var(--vscode-widget-border, transparent));
+	box-sizing: border-box;
+}
+
+.quick-input-widget.run-script-action-quick-widget .quick-input-title {
+	padding: 0;
+	text-align: left;
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-titleBar-activeForeground);
 }
 
 .quick-input-widget.run-script-action-quick-widget .quick-input-header,

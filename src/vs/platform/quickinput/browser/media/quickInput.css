@@ -17,13 +17,8 @@
 	cursor: grab;
 	display: flex;
 	align-items: center;
-	gap: 8px;
-	height: 32px;
-	padding: 0 8px 0 4px;
 	border-top-right-radius: 5px;
 	border-top-left-radius: 5px;
-	border-bottom: 1px solid var(--vscode-titleBar-border, var(--vscode-widget-border, transparent));
-	box-sizing: border-box;
 }
 
 .quick-input-html-widget {
@@ -64,13 +59,11 @@
 
 .quick-input-title {
 	cursor: grab;
-	padding: 0;
-	text-align: left;
+	padding: 3px 0px;
+	text-align: center;
 	text-overflow: ellipsis;
 	overflow: hidden;
 	flex: 1;
-	font-size: 12px;
-	font-weight: 600;
 }
 
 .quick-input-right-action-bar {
