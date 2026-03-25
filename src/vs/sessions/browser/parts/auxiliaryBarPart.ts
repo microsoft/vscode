@@ -111,7 +111,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			},
 			AuxiliaryBarPart.activeViewSettingsKey,
 			ActiveAuxiliaryContext.bindTo(contextKeyService),
-			AuxiliaryBarFocusContext.bindTo(contextKeyService),
+			AuxiliaryBarFocusContext,
 			'auxiliarybar',
 			'auxiliarybar',
 			undefined,

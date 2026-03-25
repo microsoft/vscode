@@ -15,14 +15,14 @@ import { IView } from '../../../base/browser/ui/grid/grid.js';
 import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
-import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
+import { Dimension, EventHelper, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../platform/contextkey/common/contextkey.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { IComposite } from '../../common/composite.js';
 import { localize } from '../../../nls.js';
@@ -137,7 +137,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		partOptions: ICompositePartOptions,
 		activePaneCompositeSettingsKey: string,
 		private readonly activePaneContextKey: IContextKey<string>,
-		private paneFocusContextKey: IContextKey<boolean>,
+		private readonly paneFocusContextKey: RawContextKey<boolean>,
 		nameForTelemetry: string,
 		compositeCSSClass: string,
 		titleForegroundColor: string | undefined,
@@ -244,9 +244,11 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		this.updateCompositeBar();
 
-		const focusTracker = this._register(trackFocus(parent));
-		this._register(focusTracker.onDidFocus(() => this.paneFocusContextKey.set(true)));
-		this._register(focusTracker.onDidBlur(() => this.paneFocusContextKey.set(false)));
+		// Use a scoped context key service to track focus via DOM hierarchy:
+		// the focus key is `true` when evaluated from within this part's element
+		// (i.e., when the part has focus) and `false` otherwise.
+		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
+		this.paneFocusContextKey.bindTo(scopedContextKeyService).set(true);
 	}
 
 	private createEmptyPaneMessage(parent: HTMLElement): void {
@@ -696,12 +698,9 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	protected getViewsSubmenuAction(): SubmenuAction | undefined {
 		const viewPaneContainer = (this.getActivePaneComposite() as PaneComposite)?.getViewPaneContainer();
 		if (viewPaneContainer) {
-			const disposables = new DisposableStore();
-			const scopedContextKeyService = disposables.add(this.contextKeyService.createScoped(this.element));
-			scopedContextKeyService.createKey('viewContainer', viewPaneContainer.viewContainer.id);
-			const menu = this.menuService.getMenuActions(ViewsSubMenu, scopedContextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
+			const overlayContextKeyService = this.contextKeyService.createOverlay([['viewContainer', viewPaneContainer.viewContainer.id]]);
+			const menu = this.menuService.getMenuActions(ViewsSubMenu, overlayContextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
 			const viewsActions = getActionBarActions(menu, () => true).primary;
-			disposables.dispose();
 			return viewsActions.length > 1 && viewsActions.some(a => a.enabled) ? new SubmenuAction('views', localize('views', "Views"), viewsActions) : undefined;
 		}
 		return undefined;

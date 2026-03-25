@@ -119,7 +119,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			{ hasTitle: true, trailingSeparator: false, borderWidth: () => 0 },
 			SidebarPart.activeViewletSettingsKey,
 			ActiveViewletContext.bindTo(contextKeyService),
-			SidebarFocusContext.bindTo(contextKeyService),
+			SidebarFocusContext,
 			'sideBar',
 			'viewlet',
 			SIDE_BAR_TITLE_FOREGROUND,

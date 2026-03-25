@@ -89,7 +89,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			{ hasTitle: true, trailingSeparator: false, borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 },
 			SidebarPart.activeViewletSettingsKey,
 			ActiveViewletContext.bindTo(contextKeyService),
-			SidebarFocusContext.bindTo(contextKeyService),
+			SidebarFocusContext,
 			'sideBar',
 			'viewlet',
 			SIDE_BAR_TITLE_FOREGROUND,
