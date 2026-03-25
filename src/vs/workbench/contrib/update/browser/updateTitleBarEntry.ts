@@ -139,12 +139,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 
 	private async onStateChange(startup = false) {
 		this.updateContext();
-		if (this.mode === 'none') {
-			return;
-		}
-
-		if (this.tooltipVisible || !await this.hostService.hadLastFocus()) {
-			this.tooltip.renderState(this.state);
+		if (this.mode === 'none' || this.tooltipVisible || !await this.hostService.hadLastFocus()) {
 			return;
 		}
 
@@ -205,6 +200,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 export class UpdateTitleBarEntry extends BaseActionViewItem {
 	private content: HTMLElement | undefined;
 	private showTooltipOnRender = false;
+	private hintTimer: ReturnType<typeof setTimeout> | undefined;
 
 	constructor(
 		action: IAction,
@@ -241,12 +237,15 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 			return;
 		}
 
+		this.content.classList.add('hint-visible');
+
 		this.hoverService.showInstantHover({
 			content: this.tooltip.domNode,
 			target: {
 				targetElements: [this.content],
 				dispose: () => {
 					if (!!this.content?.isConnected) {
+						this.content.classList.remove('hint-visible');
 						this.onUserDismissedTooltip();
 					}
 				}
@@ -286,37 +285,90 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 			return;
 		}
 
+		// Clear previous hint timer
+		if (this.hintTimer !== undefined) {
+			clearTimeout(this.hintTimer);
+			this.hintTimer = undefined;
+		}
+
 		dom.clearNode(this.content);
-		this.content.classList.remove('prominent', 'progress-indefinite', 'progress-percent', 'update-disabled');
+		this.content.classList.remove('prominent', 'progress-indefinite', 'progress-percent', 'update-disabled', 'hint-visible');
 		this.content.style.removeProperty('--update-progress');
 
 		const label = dom.append(this.content, dom.$('.indicator-label'));
-		label.textContent = localize('updateIndicator.update', "Update");
 
 		switch (state.type) {
 			case StateType.Disabled:
+				label.textContent = localize('updateIndicator.update', "Update");
 				this.content.classList.add('update-disabled');
 				break;
 
 			case StateType.CheckingForUpdates:
-			case StateType.Overwriting:
+				label.textContent = localize('updateIndicator.checking', "Checking...");
 				this.renderProgressState(this.content);
 				break;
 
-			case StateType.AvailableForDownload:
-			case StateType.Downloaded:
-			case StateType.Ready:
-				this.content.classList.add('prominent');
+			case StateType.Overwriting:
+				label.textContent = localize('updateIndicator.updating', "Updating...");
+				this.renderProgressState(this.content);
 				break;
 
+			case StateType.AvailableForDownload: {
+				label.textContent = localize('updateIndicator.update', "Update");
+				this.content.classList.add('prominent');
+				const hint = dom.append(this.content, dom.$('.indicator-hint'));
+				hint.textContent = localize('updateIndicator.availableHint', "Available. Download?");
+				this.flashHintOnce();
+				break;
+			}
+
+			case StateType.Downloaded: {
+				label.textContent = localize('updateIndicator.update', "Update");
+				this.content.classList.add('prominent');
+				const hint = dom.append(this.content, dom.$('.indicator-hint'));
+				hint.textContent = localize('updateIndicator.downloadedHint', "Downloaded. Install?");
+				this.flashHintOnce();
+				break;
+			}
+
+			case StateType.Ready: {
+				label.textContent = localize('updateIndicator.update', "Update");
+				this.content.classList.add('prominent');
+				break;
+			}
+
 			case StateType.Downloading:
+				label.textContent = localize('updateIndicator.downloading', "Downloading...");
 				this.renderProgressState(this.content, computeProgressPercent(state.downloadedBytes, state.totalBytes));
 				break;
 
 			case StateType.Updating:
+				label.textContent = localize('updateIndicator.installing', "Installing...");
 				this.renderProgressState(this.content, computeProgressPercent(state.currentProgress, state.maxProgress));
 				break;
+
+			default:
+				label.textContent = localize('updateIndicator.update', "Update");
+				break;
 		}
+	}
+
+	private flashHintOnce() {
+		if (!this.content) {
+			return;
+		}
+
+		// Flash the hint once after a short delay
+		this.hintTimer = setTimeout(() => {
+			dom.getWindow(this.content!).requestAnimationFrame(() => {
+				this.content?.classList.add('hint-visible');
+			});
+
+			this.hintTimer = setTimeout(() => {
+				this.content?.classList.remove('hint-visible');
+				this.hintTimer = undefined;
+			}, 3000);
+		}, 500);
 	}
 
 	private renderProgressState(content: HTMLElement, percentage?: number) {
