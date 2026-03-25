@@ -29,8 +29,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IStyleOverride, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ISessionData, ISessionWorkspace, SessionStatus } from '../../common/sessionData.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../common/sessionWorkspace.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionData, ISessionWorkspace, SessionStatus } from '../../common/sessionData.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
