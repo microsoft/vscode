@@ -145,8 +145,9 @@ export class MainThreadCustomEditorOutline extends Disposable implements MainThr
 	}
 
 	$unregisterCustomEditorOutlineProvider(viewType: string): void {
+		// deleteAndDispose disposes the registration returned by registerProvider(),
+		// whose dispose handler already removes the entry and fires onDidChange.
 		this._registrations.deleteAndDispose(viewType);
-		this._service.unregisterProvider(viewType);
 	}
 
 	$onDidChangeOutline(viewType: string): void {
