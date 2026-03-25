@@ -123,7 +123,9 @@ export class ComputeAutomaticInstructions {
 		}
 
 		this.sendTelemetry(telemetryEvent);
-		trace?.mark('didCollectInstructions');
+		if (this._sessionResource) {
+			markChat(this._sessionResource, 'didCollectInstructions');
+		}
 	}
 
 	private sendTelemetry(telemetryEvent: InstructionsCollectionEvent): void {
