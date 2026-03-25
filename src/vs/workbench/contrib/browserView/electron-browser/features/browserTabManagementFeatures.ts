@@ -33,6 +33,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { testUrlMatchesGlob } from '../../../../../platform/url/common/urlGlob.js';
 
 const CONTEXT_BROWSER_EDITOR_OPEN = new RawContextKey<boolean>('browserEditorOpen', false, localize('browser.editorOpen', "Whether any browser editor is currently open"));
 
@@ -244,6 +245,13 @@ class QuickOpenBrowserAction extends Action2 {
 interface IOpenBrowserOptions {
 	url?: string;
 	openToSide?: boolean;
+
+	/**
+	 * If set, the first existing tab with a URL matching this glob pattern will be reused / focused instead of opening a new tab.
+	 *
+	 * This is used by Live Preview extension to reuse tabs, especially after reload / restart.
+	 */
+	reuseUrlFilter?: string;
 }
 
 class OpenIntegratedBrowserAction extends Action2 {
@@ -275,6 +283,20 @@ class OpenIntegratedBrowserAction extends Action2 {
 		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
 		const resource = BrowserViewUri.forId(generateUuid());
 		const group = options.openToSide ? SIDE_GROUP : ACTIVE_GROUP;
+
+		if (options.reuseUrlFilter) {
+			const matchingEditor = editorService.editors.find((e): e is BrowserEditorInput =>
+				e instanceof BrowserEditorInput &&
+				testUrlMatchesGlob(e.url || '', options.reuseUrlFilter!)
+			);
+			if (matchingEditor) {
+				if (options.url) {
+					matchingEditor.navigate(options.url);
+				}
+				await editorService.openEditor(matchingEditor);
+				return;
+			}
+		}
 
 		logBrowserOpen(telemetryService, options.url ? 'commandWithUrl' : 'commandWithoutUrl');
 
