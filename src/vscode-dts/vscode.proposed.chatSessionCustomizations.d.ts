@@ -46,11 +46,6 @@ declare module 'vscode' {
 	 */
 	export interface ChatSessionCustomizationItem {
 		/**
-		 * Unique identifier for this item within its group.
-		 */
-		readonly id: string;
-
-		/**
 		 * Display label for the item.
 		 */
 		readonly label: string;
@@ -63,6 +58,7 @@ declare module 'vscode' {
 		/**
 		 * URI pointing to the underlying resource
 		 * (`.agent.md`, `.instructions.md`, `SKILL.md`, etc.).
+		 * Also serves as the unique identity for this item.
 		 */
 		readonly uri: Uri;
 
@@ -107,8 +103,8 @@ declare module 'vscode' {
 
 		/**
 		 * Commands shown in the context menu for individual items.
-		 * Each command receives the item's {@link ChatSessionCustomizationItem.id id}
-		 * and {@link ChatSessionCustomizationItem.uri uri} as arguments.
+		 * Each command receives the item's {@link ChatSessionCustomizationItem.uri uri}
+		 * as its first argument.
 		 *
 		 * @example A "Run Prompt" command, a "Disable Skill" command.
 		 */

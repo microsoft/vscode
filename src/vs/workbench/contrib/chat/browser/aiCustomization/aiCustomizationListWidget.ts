@@ -553,7 +553,7 @@ function mapProviderItemToListItem(
 		: storageLocationToGroupKey(item.storageLocation);
 
 	return {
-		id: item.id,
+		id: item.uri.toString(),
 		uri: item.uri,
 		name: item.label,
 		filename,
@@ -870,7 +870,7 @@ export class AICustomizationListWidget extends Disposable {
 					cmd.title,
 					undefined,
 					true,
-					async () => { this.commandService.executeCommand(cmd.id, item.id, item.uri.toString()); },
+					async () => { this.commandService.executeCommand(cmd.id, item.uri.toString()); },
 				)),
 			]
 			: [];

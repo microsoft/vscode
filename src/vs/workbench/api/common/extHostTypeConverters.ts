@@ -4221,7 +4221,6 @@ export namespace ChatSessionCustomizations {
 
 	export function fromItem(item: vscode.ChatSessionCustomizationItem): extHostProtocol.IChatSessionCustomizationItemDto {
 		return {
-			id: item.id,
 			label: item.label,
 			description: item.description,
 			uri: item.uri,

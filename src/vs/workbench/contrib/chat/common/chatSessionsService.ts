@@ -281,7 +281,6 @@ export namespace ChatSessionOptionsMap {
 export type ReadonlyChatSessionOptionsMap = ReadonlyMap<string, string | IChatSessionProviderOptionItem>;
 
 export interface IChatSessionCustomizationItem {
-	readonly id: string;
 	readonly label: string;
 	readonly description?: string;
 	readonly uri: URI;
