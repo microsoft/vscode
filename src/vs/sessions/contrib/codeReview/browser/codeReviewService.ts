@@ -559,8 +559,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 					continue;
 				}
 
-				const allSessions = this._sessionsManagementService.getSessions();
-				const session = allSessions.find(s => s.resource.toString() === key);
+				const session = this._sessionsManagementService.getSession(URI.parse(key));
 				if (!session) {
 					// Session no longer exists - clean up
 					data.state.set({ kind: CodeReviewStateKind.Idle }, undefined);

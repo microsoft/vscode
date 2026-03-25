@@ -290,15 +290,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			}
 		}
 
-		for (const session of this._sessionsManagementService.getSessions()) {
-			if (!isEqual(session.resource, sessionResource)) {
-				continue;
-			}
+		const session = this._sessionsManagementService.getSession(sessionResource);
+		if (!session) {
+			return false;
+		}
 
-			const changes = session.changes.get();
-			if (changes.some(change => changeMatchesResource(change, resourceUri))) {
-				return true;
-			}
+		const changes = session.changes.get();
+		if (changes.some(change => changeMatchesResource(change, resourceUri))) {
+			return true;
 		}
 
 		return false;
@@ -316,7 +315,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 	async revealSessionComment(sessionResource: URI, commentId: string, resourceUri: URI, range: IRange): Promise<void> {
 		const selection = { startLineNumber: range.startLineNumber, startColumn: range.startColumn };
-		const sessionData = this._sessionsManagementService.getSessions().find(s => s.resource.toString() === sessionResource.toString());
+		const sessionData = this._sessionsManagementService.getSession(sessionResource);
 		const sessionChange = this._getSessionChange(resourceUri, sessionData?.changes.get());
 
 		if (sessionChange?.isDeletion && sessionChange.originalUri) {

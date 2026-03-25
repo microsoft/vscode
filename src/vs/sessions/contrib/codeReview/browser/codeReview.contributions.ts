@@ -70,8 +70,7 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 			}
 
 			// Get changes from ISessionData
-			const sessions = sessionManagementService.getSessions();
-			const sessionData = sessions.find(s => s.resource.toString() === resource.toString());
+			const sessionData = sessionManagementService.getSession(resource);
 			const changes = sessionData?.changes.get();
 			if (!changes || changes.length === 0) {
 				return;
