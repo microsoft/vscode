@@ -348,7 +348,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		}));
 		// feature: reveal editor selection in outline
 		const revealActiveElement = () => {
-			if (!this._outlineViewState.followCursor || !newOutline.activeElement) {
+			if (!(this._outlineViewState.followCursor || newOutline.config.alwaysRevealActiveElement) || !newOutline.activeElement) {
 				return;
 			}
 			let item = newOutline.activeElement;
