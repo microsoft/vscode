@@ -316,7 +316,6 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		this._shownTip = undefined;
 		this._tipRequestId = undefined;
 		this._contextKeyService = undefined;
-		this._tipsHiddenForSession = false;
 	}
 
 	dismissTip(): void {

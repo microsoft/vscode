@@ -540,7 +540,7 @@ suite('ChatTipService', () => {
 		}
 	});
 
-	test('dismissTipForSession hides tips until resetSession', () => {
+	test('dismissTipForSession hides tips for the rest of the session even after resetSession', () => {
 		const service = createService();
 
 		const tip = service.getWelcomeTip(contextKeyService);
@@ -551,7 +551,7 @@ suite('ChatTipService', () => {
 		assert.strictEqual(service.getWelcomeTip(contextKeyService), undefined, 'Tips should stay hidden for the current session after dismissing');
 
 		service.resetSession();
-		assert.ok(service.getWelcomeTip(contextKeyService), 'Tips should reappear after resetting the session');
+		assert.strictEqual(service.getWelcomeTip(contextKeyService), undefined, 'Tips should stay hidden after switching chat sessions');
 	});
 
 	test('navigateToNextTip keeps foundational tips before QoL tips', () => {
