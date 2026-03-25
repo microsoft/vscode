@@ -60,7 +60,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		this.sessionTypes = [CopilotCLISessionType];
 
 		this.browseActions = [{
-			label: localize('browseRemote', "Browse {0}...", displayName),
+			label: localize('browseRemote', "Browse Remote Folders..."),
 			icon: Codicon.remote,
 			providerId: this.id,
 			execute: () => this._browseForFolder(),
