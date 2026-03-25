@@ -332,21 +332,20 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			};
 
 			const findShowMoreForSection = (sectionLabel: string): AgentSessionListItem | undefined => {
-				// Walk the tree's own nodes to find the show-more/show-less with matching section
-				const sections = Array.from(sessionDataSource.getChildren(this.agentSessionsService.model));
-				for (const section of sections) {
-					if (isAgentSessionSection(section) && section.label === sectionLabel) {
-						try {
-							const treeNode = list.getNode(section);
-							for (const child of treeNode.children) {
+				// Walk the tree's own root node children to find sections by label
+				try {
+					const rootNode = list.getNode();
+					for (const sectionNode of rootNode.children) {
+						if (isAgentSessionSection(sectionNode.element) && sectionNode.element.label === sectionLabel) {
+							for (const child of sectionNode.children) {
 								if (isAgentSessionShowMore(child.element) || isAgentSessionShowLess(child.element)) {
 									return child.element;
 								}
 							}
-						} catch {
-							// Section might not be in the tree
 						}
 					}
+				} catch {
+					// Tree may not be initialized yet
 				}
 				return undefined;
 			};
