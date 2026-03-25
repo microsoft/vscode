@@ -49,3 +49,5 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.AfterRestored);
+
+registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);

@@ -11,7 +11,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { EditorsVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { EditorsVisibleContext, IsAuxiliaryWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { AgentSessionSection, IAgentSessionSection, isAgentSessionSection } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -19,9 +19,11 @@ import { AUX_WINDOW_GROUP } from '../../../../../workbench/services/editor/commo
 import { SessionsCategories } from '../../../../common/categories.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting } from './sessionsList.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from '../sessionsManagementService.js';
-import { ISessionData } from '../../common/sessionData.js';
+import { ISessionData, SessionStatus } from '../../common/sessionData.js';
 import { IsRepositoryGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { SessionsViewId as NewChatViewId } from '../../../chat/browser/newChatViewPane.js';
+import { Menus } from '../../../../browser/menus.js';
+import { SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 
 //  Constants
 
@@ -473,5 +475,35 @@ registerAction2(class MarkAllSessionsReadAction extends Action2 {
 				sessionsManagementService.setRead(session, true);
 			}
 		}
+	}
+});
+
+registerAction2(class MarkSessionAsDoneAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSession.markAsDone',
+			title: localize2('markAsDone', "Mark as Done"),
+			icon: Codicon.check,
+			menu: [{
+				id: Menus.CommandCenter,
+				order: 102,
+				when: ContextKeyExpr.and(
+					IsAuxiliaryWindowContext.negate(),
+					SessionsWelcomeVisibleContext.negate(),
+					IsNewChatSessionContext.negate()
+				)
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+
+		const activeSession = sessionsManagementService.activeSession.get();
+		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
+			return;
+		}
+		sessionsManagementService.archiveSession(activeSession);
 	}
 });
