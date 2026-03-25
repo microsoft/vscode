@@ -305,11 +305,11 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					let text: string;
 					if (URI.isUri(ref)) {
 						const name = part.name || basename(ref);
-						const path = ref.scheme === 'file' ? (ref.fsPath || ref.path) : ref.toString(true);
+						const path = ref.scheme === 'file' ? ref.path : ref.toString(true);
 						text = name !== path ? `${name} (${path})` : path;
 					} else if (isLocation(ref)) {
 						const name = part.name || basename(ref.uri);
-						const path = ref.uri.scheme === 'file' ? (ref.uri.fsPath || ref.uri.path) : ref.uri.toString(true);
+						const path = ref.uri.scheme === 'file' ? ref.uri.path : ref.uri.toString(true);
 						text = `${name} (${path}:${ref.range.startLineNumber})`;
 					} else {
 						// IWorkspaceSymbol
