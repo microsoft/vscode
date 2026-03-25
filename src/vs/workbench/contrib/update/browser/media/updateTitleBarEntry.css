@@ -116,24 +116,3 @@
 .monaco-workbench.monaco-reduce-motion .update-indicator .indicator-hint {
 	transition: none;
 }
-
-/* Post-install state — plain text, no background */
-.monaco-action-bar .update-indicator.post-install {
-	background-color: transparent;
-	border-color: transparent;
-	cursor: pointer;
-	transition: opacity 0.5s ease;
-}
-
-.monaco-action-bar .update-indicator.post-install .indicator-label {
-	opacity: 0.85;
-}
-
-.monaco-action-bar .update-indicator.post-install:hover .indicator-label {
-	opacity: 1;
-}
-
-.monaco-action-bar .update-indicator.post-install-fade {
-	opacity: 0;
-	pointer-events: none;
-}
