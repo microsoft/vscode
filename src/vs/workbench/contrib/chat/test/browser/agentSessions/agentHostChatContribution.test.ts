@@ -1645,7 +1645,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Fire a delta action to simulate the server streaming more text
 			agentHostService.fireAction({
-				action: { type: 'session/delta', session: sessionUri.toString(), turnId: 'turn-active', content: ' and more' } as ISessionAction,
+				action: { type: 'session/delta', session: sessionUri.toString(), turnId: 'turn-active', partId: 'md-active', content: ' and more' } as ISessionAction,
 				serverSeq: 1,
 				origin: undefined,
 			});

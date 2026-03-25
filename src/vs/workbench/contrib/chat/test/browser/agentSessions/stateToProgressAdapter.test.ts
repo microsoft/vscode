@@ -456,14 +456,16 @@ suite('stateToProgressAdapter', () => {
 			const result = activeTurnToProgress(createActiveTurnState([
 				{
 					kind: ResponsePartKind.ToolCall,
-					toolCall: createToolCallState({
+					toolCall: {
 						toolCallId: 'tc-pending',
 						toolName: 'bash',
 						displayName: 'Bash',
+						invocationMessage: 'Run command',
 						status: ToolCallStatus.PendingConfirmation,
 						confirmationTitle: 'Run command',
 						toolInput: 'echo hello',
-					}),
+						_meta: { toolKind: 'terminal' },
+					},
 				},
 			]));
 			assert.strictEqual(result.length, 1);
@@ -486,11 +488,14 @@ suite('stateToProgressAdapter', () => {
 				},
 				{
 					kind: ResponsePartKind.ToolCall,
-					toolCall: createToolCallState({
+					toolCall: {
 						toolCallId: 'tc-2',
+						toolName: 'test_tool',
+						displayName: 'Test Tool',
+						invocationMessage: 'Confirm',
 						status: ToolCallStatus.PendingConfirmation,
 						confirmationTitle: 'Confirm',
-					}),
+					},
 				},
 			]));
 			// reasoning + text + tool call + pending confirmation = 4 items
