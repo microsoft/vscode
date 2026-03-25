@@ -710,6 +710,11 @@ interface IAgentSessionShowMoreTemplate {
 	readonly disposables: DisposableStore;
 }
 
+export interface IShowMoreHeightChangeEvent {
+	readonly element: IAgentSessionShowMore | IAgentSessionShowLess;
+	readonly height: number;
+}
+
 export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<IAgentSessionShowMore, FuzzyScore, IAgentSessionShowMoreTemplate> {
 
 	static readonly TEMPLATE_ID = 'agent-session-show-more';
@@ -718,8 +723,8 @@ export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<I
 
 	readonly templateId = AgentSessionShowMoreRenderer.TEMPLATE_ID;
 
-	private readonly _onDidChangeItemHeight = new Emitter<IAgentSessionShowMore>();
-	readonly onDidChangeItemHeight: Event<IAgentSessionShowMore> = this._onDidChangeItemHeight.event;
+	private readonly _onDidChangeItemHeight = new Emitter<IShowMoreHeightChangeEvent>();
+	readonly onDidChangeItemHeight: Event<IShowMoreHeightChangeEvent> = this._onDidChangeItemHeight.event;
 
 	constructor(private readonly _compact?: boolean) { }
 
@@ -753,12 +758,12 @@ export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<I
 				template.elementDisposable.add(addDisposableListener(listRow, 'mouseenter', () => {
 					template.container.classList.remove('compact-collapsed');
 					template.container.classList.add('compact-expanded');
-					this._onDidChangeItemHeight.fire(element.element);
+					this._onDidChangeItemHeight.fire({ element: element.element, height: AgentSessionShowMoreRenderer.HEIGHT });
 				}));
 				template.elementDisposable.add(addDisposableListener(listRow, 'mouseleave', () => {
 					template.container.classList.remove('compact-expanded');
 					template.container.classList.add('compact-collapsed');
-					this._onDidChangeItemHeight.fire(element.element);
+					this._onDidChangeItemHeight.fire({ element: element.element, height: AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT });
 				}));
 			}
 		}
@@ -788,8 +793,8 @@ export class AgentSessionShowLessRenderer implements ICompressibleTreeRenderer<I
 
 	readonly templateId = AgentSessionShowLessRenderer.TEMPLATE_ID;
 
-	private readonly _onDidChangeItemHeight = new Emitter<IAgentSessionShowLess>();
-	readonly onDidChangeItemHeight: Event<IAgentSessionShowLess> = this._onDidChangeItemHeight.event;
+	private readonly _onDidChangeItemHeight = new Emitter<IShowMoreHeightChangeEvent>();
+	readonly onDidChangeItemHeight: Event<IShowMoreHeightChangeEvent> = this._onDidChangeItemHeight.event;
 
 	constructor(private readonly _compact?: boolean) { }
 
@@ -823,12 +828,12 @@ export class AgentSessionShowLessRenderer implements ICompressibleTreeRenderer<I
 				template.elementDisposable.add(addDisposableListener(listRow, 'mouseenter', () => {
 					template.container.classList.remove('compact-collapsed');
 					template.container.classList.add('compact-expanded');
-					this._onDidChangeItemHeight.fire(element.element);
+					this._onDidChangeItemHeight.fire({ element: element.element, height: AgentSessionShowMoreRenderer.HEIGHT });
 				}));
 				template.elementDisposable.add(addDisposableListener(listRow, 'mouseleave', () => {
 					template.container.classList.remove('compact-expanded');
 					template.container.classList.add('compact-collapsed');
-					this._onDidChangeItemHeight.fire(element.element);
+					this._onDidChangeItemHeight.fire({ element: element.element, height: AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT });
 				}));
 			}
 		}

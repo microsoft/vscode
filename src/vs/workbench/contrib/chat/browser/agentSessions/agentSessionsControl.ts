@@ -306,15 +306,15 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			}
 		}));
 
-		this._register(showMoreRenderer.onDidChangeItemHeight(item => {
-			if (list.hasNode(item)) {
-				list.updateElementHeight(item, undefined);
+		this._register(showMoreRenderer.onDidChangeItemHeight(({ element, height }) => {
+			if (list.hasNode(element)) {
+				list.updateElementHeight(element, height);
 			}
 		}));
 
-		this._register(showLessRenderer.onDidChangeItemHeight(item => {
-			if (list.hasNode(item)) {
-				list.updateElementHeight(item, undefined);
+		this._register(showLessRenderer.onDidChangeItemHeight(({ element, height }) => {
+			if (list.hasNode(element)) {
+				list.updateElementHeight(element, height);
 			}
 		}));
 
