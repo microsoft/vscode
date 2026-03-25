@@ -422,8 +422,10 @@ export function getShellIntegrationTimeout(
 ): number {
 	const timeoutValue = configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
 	let timeoutMs: number;
-
-	if (!isNumber(timeoutValue) || timeoutValue < 0) {
+	if (isNumber(timeoutValue) && timeoutValue === -2) {
+		// Used for tests
+		timeoutMs = 0;
+	} else if (!isNumber(timeoutValue) || timeoutValue < 0) {
 		timeoutMs = siInjectionEnabled ? 5000 : (isRemote ? 3000 : 2000);
 	} else if (timeoutValue === 0) {
 		timeoutMs = 0;
