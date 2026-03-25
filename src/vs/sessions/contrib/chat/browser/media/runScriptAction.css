@@ -7,13 +7,13 @@
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
-	padding: 8px 9px 12px;
+	padding: 9px;
 }
 
 .run-script-action-section {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 4px;
 }
 
 .run-script-action-label {
@@ -44,9 +44,9 @@
 	max-width: 100%;
 	gap: 2px;
 	padding: 2px;
-	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.06));
 	border-radius: 8px;
-	background-color: rgba(255, 255, 255, 0.03);
+	background-color: rgba(255, 255, 255, 0.02);
 }
 
 .run-script-action-section .monaco-custom-radio > .monaco-button {
@@ -77,7 +77,7 @@
 
 .run-script-action-section .monaco-custom-radio > .monaco-button:hover:not(.active) {
 	background-color: var(--vscode-list-hoverBackground);
-	border-color: var(--vscode-widget-border, transparent);
+	border-color: rgba(255, 255, 255, 0.06);
 	opacity: 1;
 }
 
@@ -95,7 +95,7 @@
 
 .run-script-action-hint {
 	font-size: 12px;
-	opacity: 0.8;
+	color: var(--vscode-descriptionForeground);
 }
 
 .run-script-action-buttons {
@@ -132,5 +132,5 @@
 
 .quick-input-widget.run-script-action-quick-widget .quick-input-header,
 .quick-input-widget.run-script-action-quick-widget .run-script-action-widget {
-	background-color: rgb(28, 29, 31);
+	background-color: rgb(24, 24, 24);
 }
