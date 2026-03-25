@@ -427,6 +427,10 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 			}));
 			disposables.add(quickWidget.onDidHide(() => {
+				const quickInputContainer = widget.domNode.closest('.quick-input-widget');
+				if (quickInputContainer instanceof HTMLElement) {
+					quickInputContainer.classList.remove('run-script-action-quick-widget');
+				}
 				if (!settled) {
 					settled = true;
 					resolve(undefined);
@@ -435,6 +439,10 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			}));
 
 			quickWidget.show();
+			const quickInputContainer = widget.domNode.closest('.quick-input-widget');
+			if (quickInputContainer instanceof HTMLElement) {
+				quickInputContainer.classList.add('run-script-action-quick-widget');
+			}
 			widget.focus();
 		});
 	}

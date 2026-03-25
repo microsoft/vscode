@@ -18,8 +18,8 @@
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	min-height: 40px;
-	padding: 4px 8px 4px 12px;
+	height: 32px;
+	padding: 0 8px 0 4px;
 	border-top-right-radius: 5px;
 	border-top-left-radius: 5px;
 	border-bottom: 1px solid var(--vscode-titleBar-border, var(--vscode-widget-border, transparent));
@@ -58,7 +58,7 @@
 
 .quick-input-title {
 	cursor: grab;
-	padding: 4px 0;
+	padding: 0;
 	text-align: left;
 	text-overflow: ellipsis;
 	overflow: hidden;
