@@ -21,10 +21,8 @@ import { ISessionsManagementService } from '../../sessions/browser/sessionsManag
 import { ISessionsBrowseAction } from '../../sessions/browser/sessionsProvider.js';
 import { COPILOT_PROVIDER_ID } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 
-const STORAGE_KEY_SELECTED_WORKSPACE = 'sessions.selectedWorkspace';
-const STORAGE_KEY_SELECTED_WORKSPACE_BY_PROVIDER = 'sessions.selectedWorkspaceByProvider';
-const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedProjects';
-const LEGACY_STORAGE_KEY_RECENT_WORKSPACES = 'sessions.workspaces.recentlyPicked';
+const LEGACY_STORAGE_KEY_RECENT_PROJECTS = 'sessions.recentlyPickedProjects';
+const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
 const FILTER_THRESHOLD = 10;
 const MAX_RECENT_WORKSPACES = 10;
 
@@ -43,7 +41,7 @@ export interface IWorkspaceSelection {
 interface IStoredRecentWorkspace {
 	readonly uri: UriComponents;
 	readonly providerId: string;
-	readonly checked?: boolean;
+	readonly checked: boolean;
 }
 
 /**
@@ -84,7 +82,7 @@ export class WorkspacePicker extends Disposable {
 	) {
 		super();
 
-		// Migrate legacy single-key storage to per-provider storage
+		// Migrate legacy storage to new key
 		this._migrateLegacyStorage();
 
 		// Restore selected workspace from storage
@@ -197,7 +195,7 @@ export class WorkspacePicker extends Disposable {
 		this._selectedWorkspace = undefined;
 		// Clear checked state from all recents
 		const recents = this._getStoredRecentWorkspaces();
-		const updated = recents.map(p => p.checked ? { ...p, checked: undefined } : p);
+		const updated = recents.map(p => ({ ...p, checked: false }));
 		this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(updated), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._updateTriggerLabel();
 	}
@@ -352,12 +350,11 @@ export class WorkspacePicker extends Disposable {
 		if (!uri) {
 			return;
 		}
-		// Add to recent workspaces with checked state
 		this._addRecentWorkspace(selection.providerId, selection.workspace, true);
 	}
 
 	private _hasStoredWorkspace(): boolean {
-		return this._getStoredRecentWorkspaces().some(w => w.checked);
+		return this._getStoredRecentWorkspaces().length > 0;
 	}
 
 	private _restoreSelectedWorkspace(): IWorkspaceSelection | undefined {
@@ -377,6 +374,18 @@ export class WorkspacePicker extends Disposable {
 					return { providerId: stored.providerId, workspace };
 				}
 			}
+
+			// No checked entry found — fall back to the first resolvable recent workspace
+			for (const stored of storedRecents) {
+				if (!providerIds.has(stored.providerId)) {
+					continue;
+				}
+				const uri = URI.revive(stored.uri);
+				const workspace = this.sessionsProvidersService.resolveWorkspace(stored.providerId, uri);
+				if (workspace) {
+					return { providerId: stored.providerId, workspace };
+				}
+			}
 			return undefined;
 		} catch {
 			return undefined;
@@ -384,68 +393,38 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	/**
-	 * Migrate legacy storage keys into the unified recents list with checked state.
+	 * Migrate legacy `sessions.recentlyPickedProjects` storage to the new
+	 * `sessions.recentlyPickedWorkspaces` key, adding `providerId` (defaulting
+	 * to Copilot) and ensuring at least one entry is checked.
 	 */
 	private _migrateLegacyStorage(): void {
-		// Migrate legacy single-key selected workspace
-		const rawSelected = this.storageService.get(STORAGE_KEY_SELECTED_WORKSPACE, StorageScope.PROFILE);
-		if (rawSelected) {
-			try {
-				const stored: { uri: UriComponents; providerId: string } = JSON.parse(rawSelected);
-				this._addRecentWorkspaceToStorage(stored.providerId, stored.uri, true);
-			} catch { /* ignore */ }
-			this.storageService.remove(STORAGE_KEY_SELECTED_WORKSPACE, StorageScope.PROFILE);
+		// Already migrated
+		if (this.storageService.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE)) {
+			return;
 		}
 
-		// Migrate legacy per-provider selected workspaces
-		const rawByProvider = this.storageService.get(STORAGE_KEY_SELECTED_WORKSPACE_BY_PROVIDER, StorageScope.PROFILE);
-		if (rawByProvider) {
-			try {
-				const byProvider: { [providerId: string]: UriComponents } = JSON.parse(rawByProvider);
-				for (const [providerId, uri] of Object.entries(byProvider)) {
-					this._addRecentWorkspaceToStorage(providerId, uri, true);
-				}
-			} catch { /* ignore */ }
-			this.storageService.remove(STORAGE_KEY_SELECTED_WORKSPACE_BY_PROVIDER, StorageScope.PROFILE);
+		const raw = this.storageService.get(LEGACY_STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE);
+		if (!raw) {
+			return;
 		}
 
-		// Migrate old storage key to new one
-		const rawOldRecents = this.storageService.get(LEGACY_STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
-		if (rawOldRecents) {
-			const rawNewRecents = this.storageService.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
-			if (!rawNewRecents) {
-				this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, rawOldRecents, StorageScope.PROFILE, StorageTarget.MACHINE);
-			}
-			this.storageService.remove(LEGACY_STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
-		}
-	}
+		try {
+			const parsed = JSON.parse(raw) as { uri: UriComponents; checked?: boolean }[];
+			const hasAnyChecked = parsed.some(e => e.checked);
+			const migrated: IStoredRecentWorkspace[] = parsed.map((entry, index) => ({
+				uri: entry.uri,
+				providerId: COPILOT_PROVIDER_ID,
+				checked: hasAnyChecked ? !!entry.checked : index === 0,
+			}));
+			this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(migrated), StorageScope.PROFILE, StorageTarget.MACHINE);
+		} catch { /* ignore */ }
 
-	/**
-	 * Low-level helper for migration: adds an entry to stored recents without
-	 * resolving the workspace (providers may not be registered yet).
-	 */
-	private _addRecentWorkspaceToStorage(providerId: string, uri: UriComponents, checked: boolean): void {
-		const recents = this._getStoredRecentWorkspaces();
-		const revivedUri = URI.revive(uri);
-		const filtered = recents.map(p => {
-			// Clear checked from other entries for the same provider when marking checked
-			if (checked && p.providerId === providerId && this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), revivedUri)) {
-				return undefined; // Will be re-added at front
-			}
-			if (checked && p.providerId === providerId) {
-				return { ...p, checked: undefined };
-			}
-			return p;
-		}).filter((p): p is IStoredRecentWorkspace => p !== undefined);
-
-		const entry: IStoredRecentWorkspace = { uri, providerId, checked: checked || undefined };
-		const updated = [entry, ...filtered].slice(0, MAX_RECENT_WORKSPACES);
-		this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(updated), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.remove(LEGACY_STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE);
 	}
 
 	// -- Recent workspaces storage --
 
-	private _addRecentWorkspace(providerId: string, workspace: ISessionWorkspace, checked?: boolean): void {
+	private _addRecentWorkspace(providerId: string, workspace: ISessionWorkspace, checked: boolean): void {
 		const uri = workspace.repositories[0]?.uri;
 		if (!uri) {
 			return;
@@ -458,12 +437,12 @@ export class WorkspacePicker extends Disposable {
 			}
 			// Clear checked from other entries for the same provider when marking checked
 			if (checked && p.providerId === providerId) {
-				return { ...p, checked: undefined };
+				return { ...p, checked: false };
 			}
 			return p;
 		}).filter((p): p is IStoredRecentWorkspace => p !== undefined);
 
-		const entry: IStoredRecentWorkspace = { uri: uri.toJSON(), providerId, checked: checked || undefined };
+		const entry: IStoredRecentWorkspace = { uri: uri.toJSON(), providerId, checked };
 		const updated = [entry, ...filtered].slice(0, MAX_RECENT_WORKSPACES);
 		this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(updated), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
@@ -496,14 +475,7 @@ export class WorkspacePicker extends Disposable {
 			return [];
 		}
 		try {
-			const parsed = JSON.parse(raw) as (IStoredRecentWorkspace | { uri: UriComponents })[];
-			// Migrate legacy entries that don't have providerId (from old CopilotChatSessionsProvider storage)
-			return parsed.map(entry => {
-				const stored = entry as IStoredRecentWorkspace;
-				return stored.providerId
-					? stored
-					: { uri: entry.uri, providerId: COPILOT_PROVIDER_ID };
-			});
+			return JSON.parse(raw) as IStoredRecentWorkspace[];
 		} catch {
 			return [];
 		}

@@ -1989,11 +1989,14 @@ export default tseslint.config(
 						'vs/editor/~',
 						'vs/editor/contrib/*/~',
 						'vs/editor/editor.all.js',
+						'vs/sessions/~',
+						'vs/sessions/services/*/~',
+						'vs/sessions/contrib/*/~',
 						'vs/workbench/~',
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
-						'vs/workbench/contrib/terminal/terminal.all.js'
+						'vs/workbench/contrib/terminal/terminal.all.js',
 					]
 				},
 				{

@@ -243,7 +243,6 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ITerminalService private readonly terminalService: ITerminalService,
 	) {
@@ -252,7 +251,6 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 		this.registerMockAgents();
 		this.registerMockSessionProvider();
 		this.registerMockTerminalBackend();
-		this.preseedFolder();
 	}
 
 	/**
@@ -509,20 +507,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 		} as unknown as ITerminalBackend;
 	}
 
-	private preseedFolder(): void {
-		const mockFolderUri = URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/mock-repo' });
-		const providerId = 'default-copilot';
 
-		// Seed per-provider selected workspace (new picker reads this key)
-		const byProvider = JSON.stringify({ [providerId]: mockFolderUri.toJSON() });
-		this.storageService.store('sessions.selectedWorkspaceByProvider', byProvider, StorageScope.PROFILE, StorageTarget.MACHINE);
-
-		// Seed recent workspaces so resolveWorkspace() can hydrate the selection
-		const recentWorkspaces = JSON.stringify([{ uri: mockFolderUri.toJSON(), providerId }]);
-		this.storageService.store('sessions.recentlyPickedProjects', recentWorkspaces, StorageScope.PROFILE, StorageTarget.MACHINE);
-
-		console.log(`[Sessions Web Test] Pre-seeded folder: ${mockFolderUri.toString()}`);
-	}
 }
 
 // Register the contribution so it runs during workbench startup
@@ -588,9 +573,22 @@ export class TestSessionsBrowserMain extends SessionsBrowserMain {
 		return workbench;
 	}
 
+	private preseedFolder(storageService: IStorageService): void {
+		const mockFolderUri = URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/mock-repo' });
+		const providerId = 'default-copilot';
+
+		// Seed recent workspaces so resolveWorkspace() can hydrate the selection
+		const recentWorkspaces = JSON.stringify([{ uri: mockFolderUri.toJSON(), providerId, checked: true }]);
+		storageService.store('sessions.recentlyPickedWorkspaces', recentWorkspaces, StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		console.log(`[Sessions Web Test] Pre-seeded folder: ${mockFolderUri.toString()}`);
+	}
+
 	protected override createWorkbench(domElement: HTMLElement, serviceCollection: ServiceCollection, logService: ILogService): IBrowserMainWorkbench {
 		// Register mock-fs:// provider so all services can resolve workspace files
 		registerMockFileSystemProvider(serviceCollection);
+
+		this.preseedFolder(serviceCollection.get(IStorageService) as IStorageService);
 
 		return new SessionsWorkbench(domElement, undefined, serviceCollection, logService);
 	}

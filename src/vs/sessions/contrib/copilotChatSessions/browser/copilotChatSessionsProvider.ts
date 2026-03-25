@@ -34,7 +34,6 @@ import { ILanguageModelsService } from '../../../../workbench/contrib/chat/commo
 import { IGitService, IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { localize } from '../../../../nls.js';
 
 const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
@@ -809,13 +808,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			this._currentNewSession = undefined;
 		}
 
-		if (workspaceUri.scheme === Schemas.file) {
-			const resource = URI.from({ scheme: AgentSessionProviders.Background, path: `/untitled-${generateUuid()}` });
-			const session = this.instantiationService.createInstance(CopilotCLISession, resource, workspace, this.id);
-			this._currentNewSession = session;
-			return session;
-		}
-
 		if (workspaceUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
 			const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: `/untitled-${generateUuid()}` });
 			const session = this.instantiationService.createInstance(RemoteNewSession, resource, workspace, AgentSessionProviders.Cloud, this.id);
@@ -823,7 +815,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return session;
 		}
 
-		throw new Error(`Unsupported workspace URI scheme: ${workspaceUri.scheme}`);
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: `/untitled-${generateUuid()}` });
+		const session = this.instantiationService.createInstance(CopilotCLISession, resource, workspace, this.id);
+		this._currentNewSession = session;
+		return session;
 	}
 
 	setSessionType(sessionId: string, type: ISessionType): ISessionData {
