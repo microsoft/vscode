@@ -17,6 +17,7 @@ import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { hasValidDiff, IAgentSession } from '../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
@@ -28,7 +29,7 @@ import { IChatRequestVariableEntry } from '../../contrib/chat/common/attachments
 import { awaitStatsForSession } from '../../contrib/chat/common/chat.js';
 import { IChatContentInlineReference, IChatProgress, IChatService, ResponseModelState } from '../../contrib/chat/common/chatService/chatService.js';
 import { ChatSessionOptionsMap, ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionCustomizationsProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsService, ReadonlyChatSessionOptionsMap } from '../../contrib/chat/common/chatSessionsService.js';
-import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration } from '../../contrib/chat/common/constants.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/participants/chatAgents.js';
@@ -464,6 +465,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICustomizationHarnessService private readonly _harnessService: ICustomizationHarnessService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -845,6 +847,11 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	}
 
 	$registerChatSessionCustomizationsProvider(handle: number, chatSessionType: string): void {
+		// Kill switch: when disabled, ignore all extension customizations providers
+		if (!this._configurationService.getValue<boolean>(ChatConfiguration.UseCustomizationsProvider)) {
+			return;
+		}
+
 		const disposables = new DisposableStore();
 		const emitter = disposables.add(new Emitter<void>());
 
