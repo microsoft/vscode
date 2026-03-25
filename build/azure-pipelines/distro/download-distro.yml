@@ -52,11 +52,14 @@ steps:
       ArchivePath="$(Agent.TempDirectory)/distro.zip"
       DistroVersion=$(node -p "require('./package.json').distro")
 
-      curl -H "Accept: application/vnd.github+json" \
+      curl -v -H "Accept: application/vnd.github+json" \
         -H "Authorization: Bearer $(github-distro-mixin-password)" \
         -H "X-GitHub-Api-Version: 2022-11-28" \
         -o $ArchivePath \
-        -L "https://api.github.com/repos/microsoft/vscode-distro/zipball/$DistroVersion"
+        -L "https://api.github.com/repos/microsoft/vscode-distro/zipball/$DistroVersion" || { echo "Download failed with exit code: $?"; exit 1; }
+
+      echo "Archive file type: $(file $ArchivePath)"
+      echo "Archive file size: $(stat -c%s $ArchivePath) bytes"
 
       unzip $ArchivePath -d .build
       mv .build/microsoft-vscode-distro-$DistroVersion .build/distro
