@@ -59,9 +59,7 @@ import { getCleanPromptName, isInClaudeRulesFolder } from '../../common/promptSy
 import { evaluateApplyToPattern } from '../../common/promptSyntax/computeAutomaticInstructions.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IChatSessionsService, IChatSessionCustomizationItem, IChatSessionCustomizationItemGroup } from '../../common/chatSessionsService.js';
-import { ChatConfiguration } from '../../common/constants.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -496,6 +494,8 @@ function sectionToCustomizationGroupIds(section: AICustomizationManagementSectio
 			return ['agentInstructions', 'contextInstructions', 'onDemandInstructions'];
 		case AICustomizationManagementSection.Prompts:
 			return ['prompts'];
+		case AICustomizationManagementSection.Hooks:
+			return ['hooks'];
 		default:
 			return [];
 	}
@@ -641,7 +641,6 @@ export class AICustomizationListWidget extends Disposable {
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IProductService private readonly productService: IProductService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
@@ -1234,11 +1233,6 @@ export class AICustomizationListWidget extends Disposable {
 			activeHarness === CustomizationHarness.Claude;
 
 		if (!isBuiltInHarness) {
-			return this._fetchItemsFromProvider(section);
-		}
-
-		const useProvider = this.configurationService.getValue<boolean>(ChatConfiguration.UseCustomizationsProvider);
-		if (useProvider) {
 			return this._fetchItemsFromProvider(section);
 		}
 
