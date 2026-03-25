@@ -12,6 +12,8 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { CopilotCLISession } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -39,7 +41,6 @@ export class NewChatPermissionPicker extends Disposable {
 
 	private _currentLevel: ChatPermissionLevel = ChatPermissionLevel.Default;
 	private _triggerElement: HTMLElement | undefined;
-	private _container: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 
 	get permissionLevel(): ChatPermissionLevel {
@@ -50,15 +51,24 @@ export class NewChatPermissionPicker extends Disposable {
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
+
+		// Write permission level to the active session data when it changes
+		this._register(this.onDidChangeLevel(level => {
+			const session = this.sessionsManagementService.activeSession.get();
+			if (!(session instanceof CopilotCLISession)) {
+				throw new Error('NewChatPermissionPicker requires a CopilotCLISession');
+			}
+			session.setPermissionLevel(level);
+		}));
 	}
 
 	render(container: HTMLElement): HTMLElement {
 		this._renderDisposables.clear();
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
-		this._container = slot;
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
@@ -81,12 +91,6 @@ export class NewChatPermissionPicker extends Disposable {
 		}));
 
 		return slot;
-	}
-
-	setVisible(visible: boolean): void {
-		if (this._container) {
-			this._container.style.display = visible ? '' : 'none';
-		}
 	}
 
 	showPicker(): void {
