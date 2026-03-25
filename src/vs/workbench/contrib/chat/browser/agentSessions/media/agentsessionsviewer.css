@@ -44,11 +44,12 @@
 		.agent-session-diff-container {
 			.agent-session-diff-added,
 			.agent-session-diff-removed {
-					color: unset;
+				color: unset;
 			}
 		}
 	}
 
+	.monaco-list-row.selected .agent-session-item,
 	.monaco-list-row.selected .agent-session-title {
 		color: unset;
 	}
