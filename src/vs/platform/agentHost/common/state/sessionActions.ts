@@ -67,8 +67,10 @@ import type {
 	ISessionResponsePartAction,
 	ISessionPermissionRequestAction,
 	ISessionPermissionResolvedAction,
+	ISessionToolCallApprovedAction,
 	ISessionToolCallCompleteAction,
 	ISessionToolCallConfirmedAction,
+	ISessionToolCallDeniedAction,
 	ISessionToolCallDeltaAction,
 	ISessionToolCallReadyAction,
 	ISessionToolCallResultConfirmedAction,
@@ -100,8 +102,8 @@ export type IResponsePartAction = ISessionResponsePartAction;
 export type IToolCallStartAction = ISessionToolCallStartAction;
 export type IToolCallDeltaAction = ISessionToolCallDeltaAction;
 export type IToolCallReadyAction = ISessionToolCallReadyAction;
-export type IToolCallApprovedAction = import('./protocol/actions.js').ISessionToolCallApprovedAction;
-export type IToolCallDeniedAction = import('./protocol/actions.js').ISessionToolCallDeniedAction;
+export type IToolCallApprovedAction = ISessionToolCallApprovedAction;
+export type IToolCallDeniedAction = ISessionToolCallDeniedAction;
 export type IToolCallConfirmedAction = ISessionToolCallConfirmedAction;
 export type IToolCallCompleteAction = ISessionToolCallCompleteAction;
 export type IToolCallResultConfirmedAction = ISessionToolCallResultConfirmedAction;
