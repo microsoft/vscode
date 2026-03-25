@@ -198,7 +198,9 @@ export class InlineChatInputWidget extends Disposable {
 			this._container.style.width = `${totalWidth}px`;
 			this._inputContainer.style.width = `${inputWidth}px`;
 			this._input.layout({ width: inputWidth, height });
-			this._updatePosition();
+			if (this._position.get() !== null) {
+				this._updatePosition();
+			}
 		}));
 
 		// Toggle focus class on the container
