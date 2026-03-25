@@ -213,6 +213,5 @@
 		".github/skills/.local": true,
 		".agents/skills/.local": true,
 		".claude/skills/.local": true,
-	},
-	"chat.tools.terminal.sandbox.enabled": false
+	}
 }
