@@ -24,9 +24,9 @@ import { localize } from '../../../../nls.js';
 import { getActiveResourceCandidates, getSessionForResource } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments, hasAgentFeedbackComments } from './sessionEditorComments.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 
 class AgentFeedbackActionViewItem extends ActionViewItem {
 
@@ -144,7 +144,7 @@ class AgentFeedbackOverlayController {
 		container: HTMLElement,
 		group: IEditorGroup,
 		@IAgentFeedbackService agentFeedbackService: IAgentFeedbackService,
-		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IInstantiationService instaService: IInstantiationService,
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -189,7 +189,7 @@ class AgentFeedbackOverlayController {
 			let navigationBearings = undefined;
 			let hasAgentFeedback = false;
 			for (const candidate of candidates) {
-				const sessionResource = getSessionForResource(candidate, chatEditingService, agentSessionsService);
+				const sessionResource = getSessionForResource(candidate, chatEditingService, sessionsManagementService);
 				if (!sessionResource) {
 					continue;
 				}
