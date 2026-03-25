@@ -168,6 +168,7 @@
 	display: flex;
 	flex-direction: column;
 	height: 100%;
+	overflow: hidden;
 }
 
 /* Harness dropdown in sidebar */
@@ -719,6 +720,7 @@
 	display: flex;
 	flex-direction: column;
 	height: 100%;
+	overflow: hidden;
 }
 
 .mcp-list-widget .section-footer {
