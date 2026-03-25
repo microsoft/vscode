@@ -7,7 +7,6 @@ import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import type { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, type IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { isMacintosh } from '../../../../../../base/common/platform.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
@@ -31,10 +30,6 @@ export interface ITerminalExecuteStrategyResult {
 	exitCode?: number;
 	error?: string;
 	didEnterAltBuffer?: boolean;
-}
-
-export function shouldForceBracketedPasteModeForRunInTerminal(instance: ITerminalInstance): boolean {
-	return isMacintosh;
 }
 
 export async function waitForIdle(onData: Event<unknown>, idleDurationMs: number): Promise<void> {

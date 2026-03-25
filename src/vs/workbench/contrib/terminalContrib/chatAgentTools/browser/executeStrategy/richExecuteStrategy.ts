@@ -9,11 +9,11 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { isCI } from '../../../../../../base/common/platform.js';
+import { isCI, isMacintosh } from '../../../../../../base/common/platform.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { shouldForceBracketedPasteModeForRunInTerminal, trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
+import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
@@ -85,7 +85,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 			// Execute the command
 			this._log(`Executing command line \`${commandLine}\``);
 			markerRecreation.dispose();
-			const forceBracketedPasteMode = shouldForceBracketedPasteModeForRunInTerminal(this._instance);
+			const forceBracketedPasteMode = isMacintosh;
 			this._instance.runCommand(commandLine, true, commandId, forceBracketedPasteMode);
 
 			// Wait for the terminal to idle

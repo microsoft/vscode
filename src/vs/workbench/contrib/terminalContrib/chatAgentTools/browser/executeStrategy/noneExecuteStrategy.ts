@@ -9,11 +9,12 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
-import { shouldForceBracketedPasteModeForRunInTerminal, waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
+import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { isMacintosh } from '../../../../../../base/common/platform.js';
 
 /**
  * This strategy is used when no shell integration is available. There are very few extension APIs
@@ -84,7 +85,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 			this._log(`Executing command line \`${commandLine}\``);
 			markerRecreation.dispose();
 			const startLine = this._startMarker.value?.line;
-			const forceBracketedPasteMode = shouldForceBracketedPasteModeForRunInTerminal(this._instance);
+			const forceBracketedPasteMode = isMacintosh;
 			this._instance.sendText(commandLine, true, forceBracketedPasteMode);
 
 			// Wait for the cursor to move past the command line before
