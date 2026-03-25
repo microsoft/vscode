@@ -15,7 +15,7 @@ import { ITerminalLogService } from '../../../../../../platform/terminal/common/
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
+import { createAltBufferPromise, setupRecreatingStartMarker } from './strategyHelpers.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 
 /**
@@ -74,7 +74,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 				}),
 			]);
 
-			const markerRecreation = setupRecreatingStartMarker(
+			setupRecreatingStartMarker(
 				xterm,
 				this._startMarker,
 				m => this._onDidCreateStartMarker.fire(m),
@@ -84,7 +84,6 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 
 			// Execute the command
 			this._log(`Executing command line \`${commandLine}\``);
-			markerRecreation.dispose();
 			this._instance.runCommand(commandLine, true, commandId, true);
 
 			// Wait for the terminal to idle
@@ -116,23 +115,13 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 				const commandOutput = finishedCommand?.getOutput();
 				if (commandOutput !== undefined) {
 					this._log('Fetched output via finished command');
-					// On some platforms (e.g. Windows/PowerShell), shell integration
-					// markers can misfire and getOutput() includes the command echo.
-					// Strip it defensively — the function is a no-op when the output
-					// is already clean.
-					output = stripCommandEchoAndPrompt(commandOutput, commandLine, this._log.bind(this));
+					output = commandOutput;
 				}
 			}
 			if (output === undefined) {
 				try {
 					output = xterm.getContentsAsText(this._startMarker.value, endMarker);
 					this._log('Fetched output via markers');
-
-					// The marker-based output includes the command echo and trailing
-					// prompt lines. Strip them to isolate the actual command output.
-					if (output !== undefined) {
-						output = stripCommandEchoAndPrompt(output, commandLine, this._log.bind(this));
-					}
 				} catch {
 					this._log('Failed to fetch output via markers');
 					additionalInformationLines.push('Failed to retrieve command output');

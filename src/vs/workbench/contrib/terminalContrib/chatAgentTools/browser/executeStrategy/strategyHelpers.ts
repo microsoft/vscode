@@ -18,7 +18,7 @@ export function setupRecreatingStartMarker(
 	fire: (marker: IXtermMarker | undefined) => void,
 	store: DisposableStore,
 	log?: (message: string) => void,
-): IDisposable {
+): void {
 	const markerListener = new MutableDisposable<IDisposable>();
 	const recreateStartMarker = () => {
 		if (store.isDisposed) {
@@ -43,12 +43,6 @@ export function setupRecreatingStartMarker(
 		fire(undefined);
 	}));
 	store.add(startMarker);
-
-	// Return a disposable that stops the recreation loop without clearing
-	// the current marker. Callers should dispose this before sending a
-	// command so that prompt re-renders (e.g. PSReadLine transient prompts)
-	// don't move the start marker past the command output.
-	return toDisposable(() => markerListener.dispose());
 }
 
 export function createAltBufferPromise(
