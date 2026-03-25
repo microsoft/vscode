@@ -46,6 +46,7 @@
     "@vscode/vsce": "3.6.1",
     "ansi-colors": "^3.2.3",
     "byline": "^5.0.0",
+    "cockatiel": "^3.1.2",
     "debug": "^4.3.2",
     "esbuild": "0.27.2",
     "extract-zip": "^2.0.1",

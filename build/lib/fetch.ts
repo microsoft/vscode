@@ -10,6 +10,7 @@ import ansiColors from 'ansi-colors';
 import crypto from 'crypto';
 import through2 from 'through2';
 import { Stream } from 'stream';
+import { retry, handleAll, ExponentialBackoff } from 'cockatiel';
 
 export interface IFetchOptions {
 	base?: string;
@@ -43,10 +44,20 @@ export function fetchUrls(urls: string[] | string, options: IFetchOptions): es.T
 
 export async function fetchUrl(url: string, options: IFetchOptions, retries = 10, retryDelay = 1000): Promise<VinylFile> {
 	const verbose = !!options.verbose || !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] || !!process.env['GITHUB_WORKSPACE'];
-	try {
+	const retryPolicy = retry(handleAll, {
+		maxAttempts: retries,
+		backoff: new ExponentialBackoff({ initialDelay: retryDelay, maxDelay: 60_000 }),
+	});
+	retryPolicy.onRetry(({ delay, ...reason }) => {
+		if (verbose) {
+			const cause = 'error' in reason ? reason.error : reason.value;
+			log(`Retrying fetch of ${ansiColors.cyan(url)} after ${ansiColors.magenta(`${delay} ms`)} due to: ${cause}`);
+		}
+	});
+	return retryPolicy.execute(async () => {
 		let startTime = 0;
 		if (verbose) {
-			log(`Start fetching ${ansiColors.magenta(url)}${retries !== 10 ? ` (${10 - retries} retry)` : ''}`);
+			log(`Start fetching ${ansiColors.magenta(url)}`);
 			startTime = new Date().getTime();
 		}
 		const controller = new AbortController();
@@ -92,16 +103,7 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 		} finally {
 			clearTimeout(timeout);
 		}
-	} catch (e) {
-		if (verbose) {
-			log(`Fetching ${ansiColors.cyan(url)} failed: ${e}`);
-		}
-		if (retries > 0) {
-			await new Promise(resolve => setTimeout(resolve, retryDelay));
-			return fetchUrl(url, options, retries - 1, retryDelay);
-		}
-		throw e;
-	}
+	});
 }
 
 const ghApiHeaders: Record<string, string> = {
