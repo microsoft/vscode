@@ -449,8 +449,8 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			confirmBeforeUndo: false,
 			undo: async () => {
 				for (const value of newElementsMap.values()) {
-					for (const element of value.reverse()) {
-						await element.undo();
+					for (let i = value.length - 1; i >= 0; i--) {
+						await value[i].undo();
 					}
 				}
 			},
