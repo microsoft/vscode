@@ -326,6 +326,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			const collapseCurrentShowMore = () => {
 				if (expandedShowMoreElement && list.hasNode(expandedShowMoreElement)) {
 					list.updateElementHeight(expandedShowMoreElement, AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT);
+					const el = container.querySelector(`.agent-session-show-more[data-section-label="${expandedSectionLabel}"]`);
+					if (el) {
+						el.classList.add('compact-collapsed');
+						el.classList.remove('compact-expanded');
+					}
 				}
 				expandedShowMoreElement = undefined;
 				expandedSectionLabel = undefined;
@@ -415,6 +420,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				expandedShowMoreElement = showMoreItem;
 				expandedSectionLabel = sectionLabel;
 				if (list.hasNode(showMoreItem)) {
+					const el = container.querySelector(`.agent-session-show-more[data-section-label="${sectionLabel}"]`);
+					if (el) {
+						el.classList.remove('compact-collapsed');
+						el.classList.add('compact-expanded');
+					}
 					console.log('[show-more] expanding to height', AgentSessionShowMoreRenderer.HEIGHT);
 					list.updateElementHeight(showMoreItem, AgentSessionShowMoreRenderer.HEIGHT);
 				}
