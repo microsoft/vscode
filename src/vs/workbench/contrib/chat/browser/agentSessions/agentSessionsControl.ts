@@ -404,8 +404,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				);
 			};
 
-			// Listen to tree model changes
+			// Listen to tree model changes — collapse any expanded show-more
+			// since element references are invalidated after refresh
 			this._register(list.onDidChangeModel(() => {
+				expandedShowMoreElement = undefined;
+				expandedSectionLabel = undefined;
 				rebuildSectionMap();
 			}));
 
