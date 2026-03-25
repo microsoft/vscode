@@ -9,23 +9,14 @@
 .agent-sessions-workbench {
 
 	/*
-	 * Show-more / show-less: starts collapsed (0 height), expands on
-	 * hover via dynamic height updates from the renderer.
+	 * Show-more / show-less: content always rendered, list row height
+	 * controls visibility (1px = hidden, 26px = visible).
 	 */
 	.agent-session-show-more {
 		justify-content: center;
 		padding: 0 6px;
 		font-size: 11px;
 		color: var(--vscode-descriptionForeground);
-
-		&.compact-collapsed {
-			height: 0;
-			overflow: hidden;
-		}
-
-		&.compact-expanded {
-			height: 26px;
-		}
 
 		.agent-session-show-more-label {
 			padding: 0 6px;

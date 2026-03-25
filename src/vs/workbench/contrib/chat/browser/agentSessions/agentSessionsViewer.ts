@@ -743,8 +743,6 @@ export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<I
 	private readonly _onDidChangeItemHeight = new Emitter<IShowMoreHeightChangeEvent>();
 	readonly onDidChangeItemHeight: Event<IShowMoreHeightChangeEvent> = this._onDidChangeItemHeight.event;
 
-	constructor(private readonly _compact?: boolean) { }
-
 	renderTemplate(container: HTMLElement): IAgentSessionShowMoreTemplate {
 		const disposables = new DisposableStore();
 		const elementDisposable = disposables.add(new DisposableStore());
@@ -768,11 +766,6 @@ export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<I
 		template.elementDisposable.clear();
 		template.label.textContent = localize('agentSessions.showMore', "+{0} more", element.element.remainingCount);
 		template.container.setAttribute('data-section-label', element.element.sectionLabel);
-
-		if (this._compact) {
-			template.container.classList.add('compact-collapsed');
-			template.container.classList.remove('compact-expanded');
-		}
 	}
 
 	renderCompressedElements(): void {
@@ -802,8 +795,6 @@ export class AgentSessionShowLessRenderer implements ICompressibleTreeRenderer<I
 	private readonly _onDidChangeItemHeight = new Emitter<IShowMoreHeightChangeEvent>();
 	readonly onDidChangeItemHeight: Event<IShowMoreHeightChangeEvent> = this._onDidChangeItemHeight.event;
 
-	constructor(private readonly _compact?: boolean) { }
-
 	renderTemplate(container: HTMLElement): IAgentSessionShowMoreTemplate {
 		const disposables = new DisposableStore();
 		const elementDisposable = disposables.add(new DisposableStore());
@@ -827,11 +818,6 @@ export class AgentSessionShowLessRenderer implements ICompressibleTreeRenderer<I
 		template.elementDisposable.clear();
 		template.label.textContent = localize('agentSessions.showLess', "Show less");
 		template.container.setAttribute('data-section-label', element.element.sectionLabel);
-
-		if (this._compact) {
-			template.container.classList.add('compact-collapsed');
-			template.container.classList.remove('compact-expanded');
-		}
 	}
 
 	renderCompressedElements(): void {

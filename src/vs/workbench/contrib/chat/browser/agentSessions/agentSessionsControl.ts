@@ -267,8 +267,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			isSortedByUpdated: () => this.options.filter.sortResults?.() === AgentSessionsSorting.Updated,
 		}, approvalModel, activeSessionResource));
 		const compact = this.options.compactShowMore;
-		const showMoreRenderer = new AgentSessionShowMoreRenderer(compact);
-		const showLessRenderer = new AgentSessionShowLessRenderer(compact);
+		const showMoreRenderer = new AgentSessionShowMoreRenderer();
+		const showLessRenderer = new AgentSessionShowLessRenderer();
 		const sessionDataSource = this.sessionsDataSource = this._register(new AgentSessionsDataSource(this.options.filter, sorter, this.options.repositoryGroupLimit));
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
@@ -354,11 +354,6 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 					if (list.hasNode(expandedShowMoreElement)) {
 						list.updateElementHeight(expandedShowMoreElement, AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT);
 					}
-					const el = container.querySelector(`.agent-session-show-more[data-section-label="${CSS.escape(expandedSectionLabel)}"]`);
-					if (el) {
-						el.classList.add('compact-collapsed');
-						el.classList.remove('compact-expanded');
-					}
 				}
 				expandedShowMoreElement = undefined;
 				expandedSectionLabel = undefined;
@@ -378,11 +373,6 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 				expandedShowMoreElement = showMoreItem;
 				expandedSectionLabel = sectionLabel;
-				const el = container.querySelector(`.agent-session-show-more[data-section-label="${CSS.escape(sectionLabel)}"]`);
-				if (el) {
-					el.classList.remove('compact-collapsed');
-					el.classList.add('compact-expanded');
-				}
 				list.updateElementHeight(showMoreItem, AgentSessionShowMoreRenderer.HEIGHT);
 			};
 
