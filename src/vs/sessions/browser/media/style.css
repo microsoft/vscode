@@ -112,11 +112,6 @@
 	background: rgba(0, 0, 0, 0.5);
 }
 
-/* Hide the file icon in modal editor titles */
-.agent-sessions-workbench .modal-editor-title .monaco-icon-label::before,
-.agent-sessions-workbench .modal-editor-title .monaco-icon-label > .monaco-icon-label-iconpath {
-	display: none;
-}
 
 /* ---- Customization Empty State ---- */
 
