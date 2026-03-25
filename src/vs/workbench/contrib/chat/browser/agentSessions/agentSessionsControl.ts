@@ -318,6 +318,79 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			}
 		}));
 
+		// In compact mode, expand show-more/show-less when hovering any item in the same group
+		if (compact) {
+			let expandedShowMoreElement: AgentSessionListItem | undefined;
+			let expandedSectionLabel: string | undefined;
+
+			const collapseCurrentShowMore = () => {
+				if (expandedShowMoreElement && list.hasNode(expandedShowMoreElement)) {
+					list.updateElementHeight(expandedShowMoreElement, AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT);
+				}
+				expandedShowMoreElement = undefined;
+				expandedSectionLabel = undefined;
+			};
+
+			const findShowMoreForSection = (sectionLabel: string): AgentSessionListItem | undefined => {
+				const sections = Array.from(sessionDataSource.getChildren(this.agentSessionsService.model));
+				for (const section of sections) {
+					if (isAgentSessionSection(section) && section.label === sectionLabel) {
+						const children = Array.from(sessionDataSource.getChildren(section));
+						return children.find(c => isAgentSessionShowMore(c) || isAgentSessionShowLess(c));
+					}
+				}
+				return undefined;
+			};
+
+			this._register(addDisposableListener(container, 'mouseover', (e: MouseEvent) => {
+				const target = e.target as HTMLElement;
+				const row = target.closest('.monaco-list-row');
+				if (!row) {
+					return;
+				}
+
+				// Read section label from closest session item or section header
+				const sessionItem = row.querySelector('.agent-session-item');
+				const sectionHeader = row.querySelector('.agent-session-section');
+				const showMoreEl = row.querySelector('.agent-session-show-more');
+
+				let sectionLabel: string | undefined;
+				if (sessionItem) {
+					sectionLabel = sessionItem.getAttribute('data-section-label') ?? undefined;
+				} else if (sectionHeader) {
+					sectionLabel = sectionHeader.querySelector('.agent-session-section-label')?.textContent ?? undefined;
+				} else if (showMoreEl) {
+					sectionLabel = showMoreEl.getAttribute('data-section-label') ?? undefined;
+				}
+
+				if (!sectionLabel) {
+					collapseCurrentShowMore();
+					return;
+				}
+
+				if (expandedSectionLabel === sectionLabel) {
+					return;
+				}
+
+				collapseCurrentShowMore();
+
+				const showMoreItem = findShowMoreForSection(sectionLabel);
+				if (!showMoreItem) {
+					return;
+				}
+
+				expandedShowMoreElement = showMoreItem;
+				expandedSectionLabel = sectionLabel;
+				if (list.hasNode(showMoreItem)) {
+					list.updateElementHeight(showMoreItem, AgentSessionShowMoreRenderer.HEIGHT);
+				}
+			}));
+
+			this._register(addDisposableListener(container, 'mouseleave', () => {
+				collapseCurrentShowMore();
+			}));
+		}
+
 		this._register(sessionDataSource.onDidGetChildren(count => {
 			this.updateEmpty(count === 0);
 		}));

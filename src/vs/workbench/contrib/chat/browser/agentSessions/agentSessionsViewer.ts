@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/agentsessionsviewer.css';
-import { addDisposableListener, h } from '../../../../../base/browser/dom.js';
+import { h } from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { IIdentityProvider, IListVirtualDelegate, NotSelectableGroupId, NotSelectableGroupIdType } from '../../../../../base/browser/ui/list/list.js';
 import { AriaRole } from '../../../../../base/browser/ui/aria/aria.js';
@@ -211,6 +211,14 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		// Archived
 		template.element.classList.toggle('archived', session.element.isArchived());
+
+		// Section label for group hover detection
+		if (this.options.isGroupedByRepository?.()) {
+			const repoName = getRepositoryName(session.element);
+			if (repoName) {
+				template.element.setAttribute('data-section-label', repoName);
+			}
+		}
 
 		// Icon — in status-only mode, show status indicator in icon column and session type icon in details row
 		if (this.options.useStatusOnlyIcons) {
@@ -750,22 +758,11 @@ export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<I
 	renderElement(element: ITreeNode<IAgentSessionShowMore, FuzzyScore>, _index: number, template: IAgentSessionShowMoreTemplate): void {
 		template.elementDisposable.clear();
 		template.label.textContent = localize('agentSessions.showMore', "+{0} more", element.element.remainingCount);
+		template.container.setAttribute('data-section-label', element.element.sectionLabel);
 
 		if (this._compact) {
 			template.container.classList.add('compact-collapsed');
-			const listRow = template.container.closest('.monaco-list-row');
-			if (listRow) {
-				template.elementDisposable.add(addDisposableListener(listRow, 'mouseenter', () => {
-					template.container.classList.remove('compact-collapsed');
-					template.container.classList.add('compact-expanded');
-					this._onDidChangeItemHeight.fire({ element: element.element, height: AgentSessionShowMoreRenderer.HEIGHT });
-				}));
-				template.elementDisposable.add(addDisposableListener(listRow, 'mouseleave', () => {
-					template.container.classList.remove('compact-expanded');
-					template.container.classList.add('compact-collapsed');
-					this._onDidChangeItemHeight.fire({ element: element.element, height: AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT });
-				}));
-			}
+			template.container.classList.remove('compact-expanded');
 		}
 	}
 
@@ -820,22 +817,11 @@ export class AgentSessionShowLessRenderer implements ICompressibleTreeRenderer<I
 	renderElement(element: ITreeNode<IAgentSessionShowLess, FuzzyScore>, _index: number, template: IAgentSessionShowMoreTemplate): void {
 		template.elementDisposable.clear();
 		template.label.textContent = localize('agentSessions.showLess', "Show less");
+		template.container.setAttribute('data-section-label', element.element.sectionLabel);
 
 		if (this._compact) {
 			template.container.classList.add('compact-collapsed');
-			const listRow = template.container.closest('.monaco-list-row');
-			if (listRow) {
-				template.elementDisposable.add(addDisposableListener(listRow, 'mouseenter', () => {
-					template.container.classList.remove('compact-collapsed');
-					template.container.classList.add('compact-expanded');
-					this._onDidChangeItemHeight.fire({ element: element.element, height: AgentSessionShowMoreRenderer.HEIGHT });
-				}));
-				template.elementDisposable.add(addDisposableListener(listRow, 'mouseleave', () => {
-					template.container.classList.remove('compact-expanded');
-					template.container.classList.add('compact-collapsed');
-					this._onDidChangeItemHeight.fire({ element: element.element, height: AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT });
-				}));
-			}
+			template.container.classList.remove('compact-expanded');
 		}
 	}
 
