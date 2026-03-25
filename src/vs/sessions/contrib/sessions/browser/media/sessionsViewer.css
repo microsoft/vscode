@@ -11,12 +11,9 @@
 	/*
 	 * Show-more / show-less: content always rendered, list row height
 	 * controls visibility (1px = clipped, 26px = visible).
-	 * Lines are flex siblings — at 1px row height they're clipped by overflow:hidden.
+	 * Height animation is driven by JS (requestAnimationFrame) since
+	 * the virtualized list uses absolute positioning.
 	 */
-	.monaco-list-row:has(.agent-session-show-more) {
-		transition: height 0.15s ease;
-	}
-
 	.agent-session-show-more {
 		justify-content: center;
 		align-items: center;

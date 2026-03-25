@@ -349,10 +349,47 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				}
 			};
 
+			let expandAnimationId: number | undefined;
+			let collapseAnimationId: number | undefined;
+
+			const animateHeight = (element: AgentSessionListItem, from: number, to: number, onComplete?: () => void) => {
+				const duration = 150;
+				const start = Date.now();
+				const step = () => {
+					const elapsed = Date.now() - start;
+					const progress = Math.min(elapsed / duration, 1);
+					// Ease-out curve
+					const eased = 1 - Math.pow(1 - progress, 2);
+					const currentHeight = Math.round(from + (to - from) * eased);
+					if (list.hasNode(element)) {
+						list.updateElementHeight(element, currentHeight);
+					}
+					if (progress < 1) {
+						return requestAnimationFrame(step);
+					}
+					onComplete?.();
+					return undefined;
+				};
+				return requestAnimationFrame(step);
+			};
+
 			const collapseCurrentShowMore = () => {
+				if (collapseAnimationId) {
+					cancelAnimationFrame(collapseAnimationId);
+					collapseAnimationId = undefined;
+				}
+				if (expandAnimationId) {
+					cancelAnimationFrame(expandAnimationId);
+					expandAnimationId = undefined;
+				}
 				if (expandedShowMoreElement && expandedSectionLabel) {
 					if (list.hasNode(expandedShowMoreElement)) {
-						list.updateElementHeight(expandedShowMoreElement, AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT);
+						collapseAnimationId = animateHeight(
+							expandedShowMoreElement,
+							AgentSessionShowMoreRenderer.HEIGHT,
+							AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT,
+							() => { collapseAnimationId = undefined; }
+						);
 					}
 				}
 				expandedShowMoreElement = undefined;
@@ -373,7 +410,12 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 				expandedShowMoreElement = showMoreItem;
 				expandedSectionLabel = sectionLabel;
-				list.updateElementHeight(showMoreItem, AgentSessionShowMoreRenderer.HEIGHT);
+				expandAnimationId = animateHeight(
+					showMoreItem,
+					AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT,
+					AgentSessionShowMoreRenderer.HEIGHT,
+					() => { expandAnimationId = undefined; }
+				);
 			};
 
 			// Stamp data-section-label on session items after rendering
