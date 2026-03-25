@@ -346,6 +346,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				const target = e.target as HTMLElement;
 				const row = target.closest('.monaco-list-row');
 				if (!row) {
+					console.log('[show-more] no row found');
 					return;
 				}
 
@@ -354,16 +355,24 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 				const sectionHeader = row.querySelector('.agent-session-section-label');
 				const showMoreEl = row.querySelector('.agent-session-show-more');
+				const sessionItem = row.querySelector('.agent-session-item');
+
+				console.log('[show-more] row content:', {
+					hasSectionHeader: !!sectionHeader,
+					hasShowMore: !!showMoreEl,
+					hasSessionItem: !!sessionItem,
+					rowClasses: row.className,
+					rowHTML: row.innerHTML.substring(0, 200),
+				});
 
 				if (sectionHeader) {
-					// Hovering a section header
 					sectionLabel = sectionHeader.textContent ?? undefined;
 				} else if (showMoreEl) {
-					// Hovering the show-more element itself
 					sectionLabel = showMoreEl.getAttribute('data-section-label') ?? undefined;
-				} else if (row.querySelector('.agent-session-item')) {
-					// Hovering a session card — walk backward through sibling rows to find the section header
+				} else if (sessionItem) {
+					// Walk backward through sibling rows to find the section header
 					let sibling = row.previousElementSibling;
+					let steps = 0;
 					while (sibling) {
 						const siblingLabel = sibling.querySelector('.agent-session-section-label');
 						if (siblingLabel) {
@@ -371,8 +380,12 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 							break;
 						}
 						sibling = sibling.previousElementSibling;
+						steps++;
 					}
+					console.log('[show-more] walked', steps, 'siblings, found section:', sectionLabel);
 				}
+
+				console.log('[show-more] sectionLabel:', sectionLabel);
 
 				if (!sectionLabel) {
 					collapseCurrentShowMore();
@@ -386,6 +399,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				collapseCurrentShowMore();
 
 				const showMoreItem = findShowMoreForSection(sectionLabel);
+				console.log('[show-more] found showMoreItem:', !!showMoreItem, 'hasNode:', showMoreItem ? list.hasNode(showMoreItem) : false);
 				if (!showMoreItem) {
 					return;
 				}
@@ -393,6 +407,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				expandedShowMoreElement = showMoreItem;
 				expandedSectionLabel = sectionLabel;
 				if (list.hasNode(showMoreItem)) {
+					console.log('[show-more] expanding to height', AgentSessionShowMoreRenderer.HEIGHT);
 					list.updateElementHeight(showMoreItem, AgentSessionShowMoreRenderer.HEIGHT);
 				}
 			}));
