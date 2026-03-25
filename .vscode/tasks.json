@@ -259,6 +259,9 @@
 			"windows": {
 				"command": "npm run transpile-client && .\\scripts\\code.bat"
 			},
+			"args": [
+				"--extensionDevelopmentPath=/Users/jospicer/dev/joshbot"
+			],
 			"inSessions": true,
 			"problemMatcher": []
 		},
