@@ -460,8 +460,21 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				expandShowMore(sectionLabel);
 			}));
 
+			let collapseTimeout: ReturnType<typeof setTimeout> | undefined;
+
 			this._register(addDisposableListener(container, 'mouseleave', () => {
-				collapseCurrentShowMore();
+				collapseTimeout = setTimeout(() => {
+					collapseCurrentShowMore();
+					collapseTimeout = undefined;
+				}, 100);
+			}));
+
+			// Cancel pending collapse if mouse re-enters
+			this._register(addDisposableListener(container, 'mouseenter', () => {
+				if (collapseTimeout) {
+					clearTimeout(collapseTimeout);
+					collapseTimeout = undefined;
+				}
 			}));
 
 			rebuildSectionMap();
