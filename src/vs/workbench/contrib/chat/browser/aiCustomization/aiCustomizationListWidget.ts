@@ -869,8 +869,8 @@ export class AICustomizationListWidget extends Disposable {
 	async setSection(section: AICustomizationManagementSection): Promise<void> {
 		this.currentSection = section;
 		this.updateSectionHeader();
-		this.updateAddButton();
 		await this.loadItems();
+		this.updateAddButton();
 	}
 
 	/**
@@ -1134,8 +1134,8 @@ export class AICustomizationListWidget extends Disposable {
 	 * Refreshes the current section's items.
 	 */
 	async refresh(): Promise<void> {
-		this.updateAddButton();
 		await this.loadItems();
+		this.updateAddButton();
 	}
 
 	/**
