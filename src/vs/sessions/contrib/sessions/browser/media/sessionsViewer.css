@@ -9,25 +9,23 @@
 .agent-sessions-workbench {
 
 	/*
-	 * Show-more / show-less: full 26px list row, but visually collapsed
-	 * using negative margins. On hover, margins restore to show the row.
+	 * Show-more / show-less: 2px list row (nearly invisible gap).
+	 * On hover, absolutely positioned content appears above the list rows.
 	 */
-	.monaco-list-row:has(.agent-session-show-more) {
-		margin-top: -10px;
-		margin-bottom: -10px;
-		transition: margin 0.15s ease;
-	}
-
-	.monaco-list-row:hover:has(.agent-session-show-more) {
-		margin-top: 0;
-		margin-bottom: 0;
-	}
-
 	.agent-session-show-more {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: -10px;
+		height: 22px;
+		display: flex;
 		justify-content: center;
+		align-items: center;
 		padding: 0 6px;
 		font-size: 11px;
 		color: transparent;
+		pointer-events: none;
+		z-index: 100;
 		transition: color 0.15s ease;
 
 		.agent-session-show-more-label {
@@ -48,9 +46,11 @@
 		}
 	}
 
-	/* Reveal content on row hover */
+	/* On row hover, reveal and make clickable */
 	.monaco-list-row:hover .agent-session-show-more {
 		color: var(--vscode-descriptionForeground);
+		pointer-events: auto;
+		cursor: pointer;
 
 		&::before,
 		&::after {

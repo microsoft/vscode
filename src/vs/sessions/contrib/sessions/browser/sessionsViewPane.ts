@@ -173,6 +173,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 			hideSectionCount: true,
 			hideSessionBadge: true,
 			useStatusOnlyIcons: true,
+			compactShowMore: true,
 			getHoverPosition: () => this.getSessionHoverPosition(),
 			trackActiveEditorSession: () => true,
 			collapseOlderSections: () => true,
