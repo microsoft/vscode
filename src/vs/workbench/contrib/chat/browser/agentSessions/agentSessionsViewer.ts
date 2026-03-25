@@ -217,7 +217,11 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			const repoName = getRepositoryName(session.element);
 			if (repoName) {
 				template.element.setAttribute('data-section-label', repoName);
+			} else {
+				template.element.removeAttribute('data-section-label');
 			}
+		} else {
+			template.element.removeAttribute('data-section-label');
 		}
 
 		// Icon — in status-only mode, show status indicator in icon column and session type icon in details row
