@@ -7,8 +7,9 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ISessionData } from '../common/sessionData.js';
+import { ISessionData, ISessionWorkspace } from '../common/sessionData.js';
 import { ISessionsChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export const ISessionsProvidersService = createDecorator<ISessionsProvidersService>('sessionsProvidersService');
 
@@ -57,6 +58,8 @@ export interface ISessionsProvidersService {
 	renameSession(sessionId: string, title: string): Promise<void>;
 	/** Mark a session as read or unread. */
 	setRead(sessionId: string, read: boolean): void;
+	/** Resolve a repository URI to a session workspace using the given provider. */
+	resolveWorkspace(providerId: string, repositoryUri: URI): ISessionWorkspace | undefined;
 }
 
 /**
@@ -177,6 +180,11 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		if (provider) {
 			provider.setRead(sessionId, read);
 		}
+	}
+
+	resolveWorkspace(providerId: string, repositoryUri: URI): ISessionWorkspace | undefined {
+		const entry = this._providers.get(providerId);
+		return entry?.provider.resolveWorkspace(repositoryUri);
 	}
 
 	// -- Private Helpers --

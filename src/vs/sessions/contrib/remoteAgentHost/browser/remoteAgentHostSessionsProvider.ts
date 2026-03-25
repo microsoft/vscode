@@ -69,6 +69,14 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 
 	// -- Workspaces --
 
+	resolveWorkspace(repositoryUri: URI): ISessionWorkspace {
+		return {
+			label: repositoryUri.path.split('/').pop() || repositoryUri.path,
+			icon: Codicon.remote,
+			repositories: [{ uri: repositoryUri, workingDirectory: undefined, detail: this.label, baseBranchProtected: undefined }],
+		};
+	}
+
 	// -- Sessions --
 
 	getSessionTypes(_session: ISessionData): ISessionType[] {

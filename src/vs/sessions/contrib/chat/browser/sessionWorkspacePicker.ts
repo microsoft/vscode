@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
@@ -15,8 +14,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace } from '../../sessions/common/sessionData.js';
-import { basename } from '../../../../base/common/resources.js';
+import { ISessionWorkspace } from '../../sessions/common/sessionData.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ISessionsBrowseAction } from '../../sessions/browser/sessionsProvider.js';
@@ -56,7 +54,6 @@ interface IStoredWorkspaceByProvider {
 interface IStoredRecentWorkspace {
 	readonly uri: UriComponents;
 	readonly providerId: string;
-	readonly iconId?: string;
 }
 
 /**
@@ -443,22 +440,21 @@ export class WorkspacePicker extends Disposable {
 		const filtered = recents.filter(p =>
 			!(p.providerId === providerId && this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), uri))
 		);
-		const updated: IStoredRecentWorkspace[] = [{ uri: uri.toJSON(), providerId, iconId: workspace.icon.id }, ...filtered].slice(0, MAX_RECENT_WORKSPACES);
+		const updated: IStoredRecentWorkspace[] = [{ uri: uri.toJSON(), providerId }, ...filtered].slice(0, MAX_RECENT_WORKSPACES);
 		this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(updated), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private _getRecentWorkspaces(): { providerId: string; workspace: ISessionWorkspace }[] {
-		return this._getStoredRecentWorkspaces().map(stored => {
-			const uri = URI.revive(stored.uri);
-			return {
-				providerId: stored.providerId,
-				workspace: {
-					label: this._labelFromUri(uri),
-					icon: stored.iconId ? { id: stored.iconId } : this._iconFromUri(uri),
-					repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
-				},
-			};
-		});
+		return this._getStoredRecentWorkspaces()
+			.map(stored => {
+				const uri = URI.revive(stored.uri);
+				const workspace = this.sessionsProvidersService.resolveWorkspace(stored.providerId, uri);
+				if (!workspace) {
+					return undefined;
+				}
+				return { providerId: stored.providerId, workspace };
+			})
+			.filter((w): w is { providerId: string; workspace: ISessionWorkspace } => w !== undefined);
 	}
 
 	private _getStoredRecentWorkspaces(): IStoredRecentWorkspace[] {
@@ -473,17 +469,4 @@ export class WorkspacePicker extends Disposable {
 		}
 	}
 
-	private _labelFromUri(uri: URI): string {
-		if (uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			return uri.path.substring(1).replace(/\/HEAD$/, '');
-		}
-		return basename(uri);
-	}
-
-	private _iconFromUri(uri: URI): ThemeIcon {
-		if (uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			return Codicon.repo;
-		}
-		return Codicon.folder;
-	}
 }

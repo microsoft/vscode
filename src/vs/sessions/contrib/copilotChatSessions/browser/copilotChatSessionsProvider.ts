@@ -983,6 +983,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return undefined;
 	}
 
+	resolveWorkspace(repositoryUri: URI): ISessionWorkspace {
+		return {
+			label: this._labelFromUri(repositoryUri),
+			icon: this._iconFromUri(repositoryUri),
+			repositories: [{ uri: repositoryUri, workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
+		};
+	}
+
 	private _labelFromUri(uri: URI): string {
 		if (uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
 			return uri.path.substring(1).replace(/\/HEAD$/, '');

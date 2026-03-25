@@ -5,6 +5,7 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ISessionData, ISessionWorkspace } from '../common/sessionData.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
@@ -78,6 +79,8 @@ export interface ISessionsProvider {
 
 	/** Browse actions shown in the workspace picker. */
 	readonly browseActions: readonly ISessionsBrowseAction[];
+	/** Resolve a repository URI to a session workspace with label and icon. */
+	resolveWorkspace(repositoryUri: URI): ISessionWorkspace;
 
 	// -- Sessions (existing) --
 
