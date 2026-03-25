@@ -3,39 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/sessionsList.css';
-import * as DOM from '../../../../base/browser/dom.js';
-import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
-import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
-import { RenderIndentGuides, TreeFindMode } from '../../../../base/browser/ui/tree/abstractTree.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { FuzzyScore } from '../../../../base/common/filters.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { autorun } from '../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI } from '../../../../base/common/uri.js';
-import { fromNow } from '../../../../base/common/date.js';
-import { localize } from '../../../../nls.js';
-import { MenuId, IMenuService } from '../../../../platform/actions/common/actions.js';
-import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
-import { IStyleOverride, defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISessionData, ISessionWorkspace, SessionStatus } from '../common/sessionData.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionWorkspace.js';
-import { ISessionsProvidersService } from './sessionsProvidersService.js';
-import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
-import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
-import { Separator } from '../../../../base/common/actions.js';
+import '../media/sessionsList.css';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
+import { RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { FuzzyScore } from '../../../../../base/common/filters.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { fromNow } from '../../../../../base/common/date.js';
+import { localize } from '../../../../../nls.js';
+import { MenuId, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
+import { IStyleOverride, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ISessionData, ISessionWorkspace, SessionStatus } from '../../common/sessionData.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../common/sessionWorkspace.js';
+import { ISessionsProvidersService } from '../sessionsProvidersService.js';
+import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { Separator } from '../../../../../base/common/actions.js';
 
 const $ = DOM.$;
 
@@ -510,7 +510,7 @@ export interface ISessionsListControlOptions {
  */
 export type ISessionsListOptions = ISessionsListControlOptions;
 
-export interface ISessionsListControl {
+export interface ISessionsList {
 	readonly element: HTMLElement;
 	readonly onDidUpdate: Event<void>;
 	refresh(): void;
@@ -520,7 +520,7 @@ export interface ISessionsListControl {
 	setVisible(visible: boolean): void;
 	layout(height: number, width: number): void;
 	focus(): void;
-	update(): void;
+	update(expandAll?: boolean): void;
 	openFind(): void;
 	resetSectionCollapseState(): void;
 	pinSession(session: ISessionData): void;
@@ -539,7 +539,7 @@ export interface ISessionsListControl {
 	isRepositoryGroupCapped(): boolean;
 }
 
-export class SessionsListControl extends Disposable implements ISessionsListControl {
+export class SessionsList extends Disposable implements ISessionsList {
 
 	private static readonly SECTION_COLLAPSE_STATE_KEY = 'sessionsListControl.sectionCollapseState';
 	private static readonly PINNED_SESSIONS_KEY = 'sessionsListControl.pinnedSessions';
@@ -590,9 +590,9 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 		this.excludedStatuses = this.loadExcludedStatuses();
 
 		// Load archived/read filter state
-		this._excludeArchived = this.storageService.getBoolean(SessionsListControl.EXCLUDE_ARCHIVED_KEY, StorageScope.PROFILE, true);
-		this._excludeRead = this.storageService.getBoolean(SessionsListControl.EXCLUDE_READ_KEY, StorageScope.PROFILE, false);
-		this._repoGroupCapped = this.storageService.getBoolean(SessionsListControl.REPO_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
+		this._excludeArchived = this.storageService.getBoolean(SessionsList.EXCLUDE_ARCHIVED_KEY, StorageScope.PROFILE, true);
+		this._excludeRead = this.storageService.getBoolean(SessionsList.EXCLUDE_READ_KEY, StorageScope.PROFILE, false);
+		this._repoGroupCapped = this.storageService.getBoolean(SessionsList.REPO_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control'));
 
@@ -692,7 +692,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 		this.update();
 	}
 
-	update(): void {
+	update(expandAll?: boolean): void {
 		// Filter by session type and status
 		let filtered = this.sessions;
 		if (this.excludedSessionTypes.size > 0) {
@@ -748,12 +748,12 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 				&& section.id !== 'pinned' && section.id !== 'archived';
 			const isCapped = isRepoGroup && this._repoGroupCapped
 				&& !this._expandedRepoGroups.has(section.label)
-				&& section.sessions.length > SessionsListControl.REPO_GROUP_LIMIT;
+				&& section.sessions.length > SessionsList.REPO_GROUP_LIMIT;
 
 			let sectionChildren: IObjectTreeElement<SessionListItem>[];
 			if (isCapped) {
-				const visible = section.sessions.slice(0, SessionsListControl.REPO_GROUP_LIMIT);
-				const remainingCount = section.sessions.length - SessionsListControl.REPO_GROUP_LIMIT;
+				const visible = section.sessions.slice(0, SessionsList.REPO_GROUP_LIMIT);
+				const remainingCount = section.sessions.length - SessionsList.REPO_GROUP_LIMIT;
 				sectionChildren = [
 					...visible.map(session => ({ element: session as SessionListItem })),
 					{ element: { showMore: true as const, sectionLabel: section.label, remainingCount } },
@@ -850,7 +850,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 	}
 
 	resetSectionCollapseState(): void {
-		this.storageService.remove(SessionsListControl.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+		this.storageService.remove(SessionsList.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
 	}
 
 	// -- Pinning --
@@ -872,7 +872,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 	}
 
 	private loadPinnedSessions(): Set<string> {
-		const raw = this.storageService.get(SessionsListControl.PINNED_SESSIONS_KEY, StorageScope.PROFILE);
+		const raw = this.storageService.get(SessionsList.PINNED_SESSIONS_KEY, StorageScope.PROFILE);
 		if (raw) {
 			try {
 				const arr = JSON.parse(raw);
@@ -888,9 +888,9 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 	private savePinnedSessions(): void {
 		if (this.pinnedSessionIds.size === 0) {
-			this.storageService.remove(SessionsListControl.PINNED_SESSIONS_KEY, StorageScope.PROFILE);
+			this.storageService.remove(SessionsList.PINNED_SESSIONS_KEY, StorageScope.PROFILE);
 		} else {
-			this.storageService.store(SessionsListControl.PINNED_SESSIONS_KEY, JSON.stringify([...this.pinnedSessionIds]), StorageScope.PROFILE, StorageTarget.USER);
+			this.storageService.store(SessionsList.PINNED_SESSIONS_KEY, JSON.stringify([...this.pinnedSessionIds]), StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 
@@ -911,7 +911,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 	}
 
 	private loadExcludedSessionTypes(): Set<string> {
-		const raw = this.storageService.get(SessionsListControl.EXCLUDED_TYPES_KEY, StorageScope.PROFILE);
+		const raw = this.storageService.get(SessionsList.EXCLUDED_TYPES_KEY, StorageScope.PROFILE);
 		if (raw) {
 			try {
 				const arr = JSON.parse(raw);
@@ -927,9 +927,9 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 	private saveExcludedSessionTypes(): void {
 		if (this.excludedSessionTypes.size === 0) {
-			this.storageService.remove(SessionsListControl.EXCLUDED_TYPES_KEY, StorageScope.PROFILE);
+			this.storageService.remove(SessionsList.EXCLUDED_TYPES_KEY, StorageScope.PROFILE);
 		} else {
-			this.storageService.store(SessionsListControl.EXCLUDED_TYPES_KEY, JSON.stringify([...this.excludedSessionTypes]), StorageScope.PROFILE, StorageTarget.USER);
+			this.storageService.store(SessionsList.EXCLUDED_TYPES_KEY, JSON.stringify([...this.excludedSessionTypes]), StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 
@@ -950,7 +950,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 	}
 
 	private loadExcludedStatuses(): Set<SessionStatus> {
-		const raw = this.storageService.get(SessionsListControl.EXCLUDED_STATUSES_KEY, StorageScope.PROFILE);
+		const raw = this.storageService.get(SessionsList.EXCLUDED_STATUSES_KEY, StorageScope.PROFILE);
 		if (raw) {
 			try {
 				const arr = JSON.parse(raw);
@@ -966,9 +966,9 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 	private saveExcludedStatuses(): void {
 		if (this.excludedStatuses.size === 0) {
-			this.storageService.remove(SessionsListControl.EXCLUDED_STATUSES_KEY, StorageScope.PROFILE);
+			this.storageService.remove(SessionsList.EXCLUDED_STATUSES_KEY, StorageScope.PROFILE);
 		} else {
-			this.storageService.store(SessionsListControl.EXCLUDED_STATUSES_KEY, JSON.stringify([...this.excludedStatuses]), StorageScope.PROFILE, StorageTarget.USER);
+			this.storageService.store(SessionsList.EXCLUDED_STATUSES_KEY, JSON.stringify([...this.excludedStatuses]), StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 
@@ -976,7 +976,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 	setExcludeArchived(exclude: boolean): void {
 		this._excludeArchived = exclude;
-		this.storageService.store(SessionsListControl.EXCLUDE_ARCHIVED_KEY, exclude, StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(SessionsList.EXCLUDE_ARCHIVED_KEY, exclude, StorageScope.PROFILE, StorageTarget.USER);
 		this.update();
 	}
 
@@ -986,7 +986,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 	setExcludeRead(exclude: boolean): void {
 		this._excludeRead = exclude;
-		this.storageService.store(SessionsListControl.EXCLUDE_READ_KEY, exclude, StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(SessionsList.EXCLUDE_READ_KEY, exclude, StorageScope.PROFILE, StorageTarget.USER);
 		this.update();
 	}
 
@@ -1000,11 +1000,11 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 		this.excludedStatuses.clear();
 		this.saveExcludedStatuses();
 		this._excludeArchived = true;
-		this.storageService.store(SessionsListControl.EXCLUDE_ARCHIVED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(SessionsList.EXCLUDE_ARCHIVED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 		this._excludeRead = false;
-		this.storageService.store(SessionsListControl.EXCLUDE_READ_KEY, false, StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(SessionsList.EXCLUDE_READ_KEY, false, StorageScope.PROFILE, StorageTarget.USER);
 		this._repoGroupCapped = true;
-		this.storageService.store(SessionsListControl.REPO_GROUP_CAPPED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(SessionsList.REPO_GROUP_CAPPED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 		this._expandedRepoGroups.clear();
 		this.update();
 	}
@@ -1013,7 +1013,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 	setRepositoryGroupCapped(capped: boolean): void {
 		this._repoGroupCapped = capped;
-		this.storageService.store(SessionsListControl.REPO_GROUP_CAPPED_KEY, capped, StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(SessionsList.REPO_GROUP_CAPPED_KEY, capped, StorageScope.PROFILE, StorageTarget.USER);
 		if (capped) {
 			this._expandedRepoGroups.clear();
 		}
@@ -1027,7 +1027,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 	// -- Section collapse persistence --
 
 	private getSavedCollapseState(sectionId: string): boolean | undefined {
-		const raw = this.storageService.get(SessionsListControl.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+		const raw = this.storageService.get(SessionsList.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
 		if (raw) {
 			try {
 				const state: Record<string, boolean> = JSON.parse(raw);
@@ -1043,7 +1043,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 	private saveSectionCollapseState(sectionId: string, collapsed: boolean): void {
 		let state: Record<string, boolean> = {};
-		const raw = this.storageService.get(SessionsListControl.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+		const raw = this.storageService.get(SessionsList.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
 		if (raw) {
 			try {
 				const parsed = JSON.parse(raw);
@@ -1055,7 +1055,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 			}
 		}
 		state[sectionId] = collapsed;
-		this.storageService.store(SessionsListControl.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(SessionsList.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	// -- Sorting --
@@ -1131,7 +1131,7 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 		addGroup('today', localize('today', "Today"), today);
 		addGroup('yesterday', localize('yesterday', "Yesterday"), yesterday);
-		addGroup('thisWeek', localize('thisWeek', "This Week"), week);
+		addGroup('thisWeek', localize('lastSevenDays', "Last 7 Days"), week);
 		addGroup('older', localize('older', "Older"), older);
 
 		return sections;

@@ -7,7 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -17,23 +17,15 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { AUX_WINDOW_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { SessionItemToolbarMenuId, SessionItemContextMenuId, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting } from '../sessionsListControl.js';
+import { SessionItemToolbarMenuId, SessionItemContextMenuId, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting } from './sessionsList.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from '../sessionsManagementService.js';
 import { ISessionData } from '../../common/sessionData.js';
-import { SessionsViewPane, SessionsViewPaneId } from './sessionsViewPane.js';
+import { IsRepositoryGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { SessionsViewId as NewChatViewId } from '../../../chat/browser/newChatViewPane.js';
 
 //  Constants
 
 const ACTION_ID_NEW_SESSION = 'workbench.action.chat.newChat';
-const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
-const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
-const SessionsViewGroupingContext = new RawContextKey<string>('sessionsViewPane.grouping', SessionsGrouping.Repository);
-const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);
-const IsRepositoryGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.repoGroupCapped', true);
-
-export { SessionsViewFilterSubMenu, SessionsViewFilterOptionsSubMenu, SessionsViewGroupingContext, SessionsViewSortingContext };
-
 //  Keybindings
 
 KeybindingsRegistry.registerKeybindingRule({
@@ -55,7 +47,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 	}
 	override async run(accessor: ServicesAccessor) {
 		const sessionsService = accessor.get(ISessionsManagementService);
-		await sessionsService.openNewSessionView();
+		sessionsService.openNewSessionView();
 	}
 });
 
@@ -75,7 +67,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	group: 'navigation',
 	order: 3,
 	icon: Codicon.settings,
-	when: ContextKeyExpr.equals('view', SessionsViewPaneId)
+	when: ContextKeyExpr.equals('view', SessionsViewId)
 });
 
 MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {
@@ -99,7 +91,7 @@ registerAction2(class SortByCreatedAction extends Action2 {
 	}
 	override run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
+		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 		view?.setSorting(SessionsSorting.Created);
 	}
 });
@@ -116,7 +108,7 @@ registerAction2(class SortByUpdatedAction extends Action2 {
 	}
 	override run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
+		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 		view?.setSorting(SessionsSorting.Updated);
 	}
 });
@@ -133,7 +125,7 @@ registerAction2(class GroupByProjectAction extends Action2 {
 	}
 	override run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
+		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 		view?.setGrouping(SessionsGrouping.Repository);
 	}
 });
@@ -150,7 +142,7 @@ registerAction2(class GroupByTimeAction extends Action2 {
 	}
 	override run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
+		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 		view?.setGrouping(SessionsGrouping.Date);
 	}
 });
@@ -174,7 +166,7 @@ registerAction2(class ShowRecentSessionsAction extends Action2 {
 	}
 	override run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
+		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 		view?.sessionsControl?.setRepositoryGroupCapped(true);
 		IsRepositoryGroupCappedContext.bindTo(accessor.get(IContextKeyService)).set(true);
 	}
@@ -197,7 +189,7 @@ registerAction2(class ShowAllSessionsAction extends Action2 {
 	}
 	override run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
+		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 		view?.sessionsControl?.setRepositoryGroupCapped(false);
 		IsRepositoryGroupCappedContext.bindTo(accessor.get(IContextKeyService)).set(false);
 	}
@@ -217,7 +209,7 @@ registerAction2(class RefreshSessionsAction extends Action2 {
 	}
 	override run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
+		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 		return view?.sessionsControl?.refresh();
 	}
 });
@@ -233,13 +225,13 @@ registerAction2(class FindSessionAction extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.equals('view', SessionsViewPaneId),
+				when: ContextKeyExpr.equals('view', SessionsViewId),
 			}]
 		});
 	}
 	override run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
+		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 		return view?.openFind();
 	}
 });
@@ -297,7 +289,7 @@ registerAction2(class PinSessionAction extends Action2 {
 			return;
 		}
 		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
+		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 		view?.sessionsControl?.pinSession(context);
 	}
 });
@@ -326,7 +318,7 @@ registerAction2(class UnpinSessionAction extends Action2 {
 			return;
 		}
 		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<SessionsViewPane>(SessionsViewPaneId);
+		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 		view?.sessionsControl?.unpinSession(context);
 	}
 });

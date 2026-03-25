@@ -18,29 +18,33 @@ import { sessionsSidebarBackground } from '../../../../common/theme.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../nls.js';
-import { SessionsListControl, SessionsGrouping, SessionsSorting } from '../sessionsListControl.js';
+import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
 import { SessionStatus } from '../../common/sessionData.js';
 import { ISessionsManagementService } from '../sessionsManagementService.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
-import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 
 const $ = DOM.$;
-export const SessionsViewPaneId = 'agentic.workbench.view.sessionsViewPane';
+export const SessionsViewId = 'sessions.workbench.view.sessionsView';
 const ACTION_ID_NEW_SESSION = 'workbench.action.chat.newChat';
 const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
 
-import { SessionsViewFilterOptionsSubMenu, SessionsViewGroupingContext, SessionsViewSortingContext } from './sessionsViewActions.js';
+export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
+export const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
+export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsViewPane.grouping', SessionsGrouping.Repository);
+export const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);
+export const IsRepositoryGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.repoGroupCapped', true);
 
-export class SessionsViewPane extends ViewPane {
+export class SessionsView extends ViewPane {
 
 	private viewPaneContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
-	sessionsControl: SessionsListControl | undefined;
+	sessionsControl: SessionsList | undefined;
 	private currentGrouping: SessionsGrouping = SessionsGrouping.Repository;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
 	private groupingContextKey: IContextKey | undefined;
@@ -128,7 +132,7 @@ export class SessionsViewPane extends ViewPane {
 
 		// Sessions List Control
 		this.sessionsControlContainer = DOM.append(sessionsContent, $('.agent-sessions-control-container'));
-		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(SessionsListControl, this.sessionsControlContainer, {
+		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(SessionsList, this.sessionsControlContainer, {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.currentGrouping,
 			sorting: () => this.currentSorting,
@@ -191,7 +195,7 @@ export class SessionsViewPane extends ViewPane {
 
 	private readonly registeredFilterTypeIds = new Set<string>();
 
-	private registerSessionTypeFilters(sessionsControl: SessionsListControl): void {
+	private registerSessionTypeFilters(sessionsControl: SessionsList): void {
 		const sessionTypes = this.sessionsManagementService.getAllSessionTypes();
 		for (let i = 0; i < sessionTypes.length; i++) {
 			const type = sessionTypes[i];
@@ -228,7 +232,7 @@ export class SessionsViewPane extends ViewPane {
 		}
 	}
 
-	private registerStatusFilters(sessionsControl: SessionsListControl): void {
+	private registerStatusFilters(sessionsControl: SessionsList): void {
 		const statusFilters: { status: SessionStatus; label: string }[] = [
 			{ status: SessionStatus.Completed, label: localize('statusCompleted', "Completed") },
 			{ status: SessionStatus.InProgress, label: localize('statusInProgress', "In Progress") },
@@ -368,7 +372,7 @@ export class SessionsViewPane extends ViewPane {
 		this.storageService.store(GROUPING_STORAGE_KEY, this.currentGrouping, StorageScope.PROFILE, StorageTarget.USER);
 		this.groupingContextKey?.set(this.currentGrouping);
 		this.sessionsControl?.resetSectionCollapseState();
-		this.sessionsControl?.update();
+		this.sessionsControl?.update(true);
 	}
 
 	setSorting(sorting: SessionsSorting): void {

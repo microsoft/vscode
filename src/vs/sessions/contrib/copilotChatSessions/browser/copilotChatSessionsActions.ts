@@ -23,7 +23,7 @@ import { IContextKeyService, ContextKeyExpr, RawContextKey } from '../../../../p
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
-import { SessionItemContextMenuId } from '../../sessions/browser/sessionsListControl.js';
+import { SessionItemContextMenuId } from '../../sessions/browser/views/sessionsList.js';
 import { ISessionData } from '../../sessions/common/sessionData.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { CopilotCLISession, COPILOT_PROVIDER_ID, COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE } from './copilotChatSessionsProvider.js';

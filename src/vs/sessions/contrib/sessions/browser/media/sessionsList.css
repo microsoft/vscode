@@ -257,18 +257,12 @@
 .session-show-more {
 	display: flex;
 	align-items: center;
-	padding: 4px 6px;
 	font-size: 12px;
-
-	.session-show-more-link {
-		color: var(--vscode-textLink-foreground);
-		cursor: pointer;
-		text-decoration: none;
-
-		&:hover {
-			text-decoration: underline;
-		}
-	}
+	color: var(--vscode-foreground);
+	/* align with session item text: 6px item padding + 16px icon + 6px main-col padding */
+	padding: 0 6px 0 24px;
+	cursor: pointer;
+	text-decoration: none !important;
 }
 
 /* Section Header */

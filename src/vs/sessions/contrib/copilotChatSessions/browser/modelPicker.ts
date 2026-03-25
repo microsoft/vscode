@@ -12,7 +12,7 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { RemoteNewSession } from './copilotChatSessionsProvider.js';
 
@@ -50,6 +50,7 @@ export class CloudModelPicker extends Disposable {
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@IChatSessionsService chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -57,6 +58,14 @@ export class CloudModelPicker extends Disposable {
 			const session = sessionsManagementService.activeSession.read(reader);
 			if (session instanceof RemoteNewSession) {
 				this._setSession(session);
+			}
+		}));
+
+		// Also listen directly for option group changes from the extension host,
+		// in case they arrive before the RemoteNewSession relays the event.
+		this._register(chatSessionsService.onDidChangeOptionGroups(() => {
+			if (this._session) {
+				this._loadModels(this._session);
 			}
 		}));
 	}

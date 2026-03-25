@@ -14,7 +14,8 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../work
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { SessionsManagementService, ISessionsManagementService } from './sessionsManagementService.js';
 import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
-import { SessionsViewPane, SessionsViewPaneId } from './views/sessionsViewPane.js';
+import { SessionsView, SessionsViewId } from './views/sessionsView.js';
+import './views/sessionsViewActions.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
@@ -32,14 +33,14 @@ const agentSessionsViewContainer: ViewContainer = Registry.as<IViewContainersReg
 }, ViewContainerLocation.Sidebar, { isDefault: true });
 
 const sessionsViewPaneDescriptor: IViewDescriptor = {
-	id: SessionsViewPaneId,
+	id: SessionsViewId,
 	containerIcon: agentSessionsViewIcon,
 	containerTitle: AGENT_SESSIONS_VIEW_TITLE.value,
 	singleViewPaneContainerTitle: AGENT_SESSIONS_VIEW_TITLE.value,
 	name: AGENT_SESSIONS_VIEW_TITLE,
 	canToggleVisibility: true,
 	canMoveView: false,
-	ctorDescriptor: new SyncDescriptor(SessionsViewPane),
+	ctorDescriptor: new SyncDescriptor(SessionsView),
 	windowVisibility: WindowVisibility.Sessions
 };
 
@@ -48,6 +49,3 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.AfterRestored);
-
-// Import actions to trigger their registration
-import './views/sessionsViewActions.js';
