@@ -20,6 +20,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { hasValidDiff, IAgentSession } from '../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IChatWidgetService, isIChatViewViewContext } from '../../contrib/chat/browser/chat.js';
+import { getInProgressChatSessionDescription } from '../../contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { IChatEditorOptions } from '../../contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
@@ -670,7 +671,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		// Override description if there's an in-progress count
 		const inProgress = model.getRequests().filter(r => r.response && !r.response.isComplete);
 		if (inProgress.length) {
-			outgoingSession.description = this._chatSessionsService.getInProgressSessionDescription(model);
+			outgoingSession.description = getInProgressChatSessionDescription(model);
 		}
 
 		// Override changes
