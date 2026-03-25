@@ -113,6 +113,10 @@ suite('CodeReviewService', () => {
 			this.activeSession = observableValue<ISessionData | undefined>('test.activeSession', undefined);
 		}
 
+		override getSession(resource: URI): ISessionData | undefined {
+			return this._sessions.get(resource.toString());
+		}
+
 		addSession(resource: URI, changes?: readonly IChatSessionFileChange2[], archived = false): ISessionData {
 			const changesObs = observableValue<readonly IChatSessionFileChange[]>('test.changes',
 				(changes ?? []).map(c => ({ modifiedUri: c.modifiedUri ?? c.uri, originalUri: c.originalUri, insertions: c.insertions, deletions: c.deletions }))
