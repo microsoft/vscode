@@ -15,6 +15,7 @@ import {
 	ISSHRemoteAgentHostService,
 	SSHAuthMethod,
 	type ISSHAgentHostConfig,
+	type ISSHAgentHostConfigSanitized,
 	type ISSHAgentHostConnection,
 } from '../common/sshRemoteAgentHost.js';
 
@@ -123,6 +124,11 @@ function sshExec(client: SSHClient, command: string, opts?: { ignoreExitCode?: b
 	});
 }
 
+/** Redact connection tokens from log output. */
+function redactToken(text: string): string {
+	return text.replace(/\?tkn=[^\s&]+/g, '?tkn=***');
+}
+
 /**
  * Start the agent host on the remote and parse its output for the
  * WebSocket address. Returns { port, connectionToken } from the
@@ -148,14 +154,14 @@ function startRemoteAgentHost(
 			const timeout = setTimeout(() => {
 				if (!resolved) {
 					resolved = true;
-					reject(new Error(`${LOG_PREFIX} Timed out waiting for agent host to start.\nstderr so far: ${stderrBuf}`));
+					reject(new Error(`${LOG_PREFIX} Timed out waiting for agent host to start.\nstderr so far: ${redactToken(stderrBuf)}`));
 				}
 			}, 60_000);
 
 			stream.stderr.on('data', (data: Buffer) => {
 				const text = data.toString();
 				stderrBuf += text;
-				logService.trace(`${LOG_PREFIX} remote stderr: ${text.trimEnd()}`);
+				logService.trace(`${LOG_PREFIX} remote stderr: ${redactToken(text.trimEnd())}`);
 
 				if (!resolved) {
 					// Look for the "listening on ws://..." line
@@ -179,7 +185,7 @@ function startRemoteAgentHost(
 				if (!resolved) {
 					resolved = true;
 					clearTimeout(timeout);
-					reject(new Error(`${LOG_PREFIX} Agent host process exited with code ${code} before becoming ready.\nstderr: ${stderrBuf}`));
+					reject(new Error(`${LOG_PREFIX} Agent host process exited with code ${code} before becoming ready.\nstderr: ${redactToken(stderrBuf)}`));
 				}
 			});
 		});
@@ -225,12 +231,21 @@ function createLocalForwarder(
 	});
 }
 
+/** Strip secret fields from the config before exposing it on the connection. */
+function sanitizeConfig(config: ISSHAgentHostConfig): ISSHAgentHostConfigSanitized {
+	const { password: _p, privateKeyPath: _k, ...sanitized } = config;
+	return sanitized;
+}
+
 class SSHAgentHostConnection extends Disposable implements ISSHAgentHostConnection {
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
 
+	readonly config: ISSHAgentHostConfigSanitized;
+	private _closed = false;
+
 	constructor(
-		readonly config: ISSHAgentHostConfig,
+		fullConfig: ISSHAgentHostConfig,
 		readonly localAddress: string,
 		readonly name: string,
 		sshClient: SSHClient,
@@ -239,7 +254,13 @@ class SSHAgentHostConnection extends Disposable implements ISSHAgentHostConnecti
 	) {
 		super();
 
+		this.config = sanitizeConfig(fullConfig);
+
 		this._register(toDisposable(() => {
+			if (this._closed) {
+				return;
+			}
+			this._closed = true;
 			remoteStream.close();
 			localServer.close();
 			sshClient.end();
@@ -247,12 +268,10 @@ class SSHAgentHostConnection extends Disposable implements ISSHAgentHostConnecti
 		}));
 
 		sshClient.on('close', () => {
-			this._onDidClose.fire();
 			this.dispose();
 		});
 
 		sshClient.on('error', () => {
-			this._onDidClose.fire();
 			this.dispose();
 		});
 	}

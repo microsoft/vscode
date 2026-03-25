@@ -282,30 +282,79 @@ export async function promptToConnectViaSSH(
 	const sshService = accessor.get(ISSHRemoteAgentHostService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const notificationService = accessor.get(INotificationService);
+
+	const validateSshHostInput = (value: string): string | undefined => {
+		const v = value.trim();
+		if (!v) {
+			return localize('sshHostEmpty', "Enter an SSH host.");
+		}
+		const atIdx = v.indexOf('@');
+		if (atIdx === 0) {
+			return localize('sshUsernameMissingInHost', "Enter a username before '@'.");
+		}
+		if (atIdx === v.length - 1) {
+			return localize('sshHostMissingAfterAt', "Enter a host name after '@'.");
+		}
+		const hostPart = atIdx !== -1 ? v.substring(atIdx + 1) : v;
+		if (!hostPart) {
+			return localize('sshHostMissingAfterAt', "Enter a host name after '@'.");
+		}
+		const colonIdx = hostPart.lastIndexOf(':');
+		if (colonIdx !== -1) {
+			const hostName = hostPart.substring(0, colonIdx);
+			const portStr = hostPart.substring(colonIdx + 1);
+			if (!hostName) {
+				return localize('sshHostMissingAfterAt', "Enter a host name after '@'.");
+			}
+			if (portStr) {
+				const port = Number(portStr);
+				if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+					return localize('sshHostInvalidPort', "Enter a valid port number.");
+				}
+			}
+		}
+		return undefined;
+	};
+
 	// Step 1: SSH host
 	const hostInput = await quickInputService.input({
 		title: localize('sshHostTitle', "Connect via SSH"),
-		prompt: localize('sshHostPrompt', "Enter the SSH host (e.g. user@hostname or hostname)."),
+		prompt: localize('sshHostPrompt', "Enter the SSH host (e.g. user@hostname or user@hostname:port)."),
 		placeHolder: 'user@myserver.example.com',
 		ignoreFocusLost: true,
-		validateInput: async value => value.trim() ? undefined : localize('sshHostEmpty', "Enter an SSH host."),
+		validateInput: async value => validateSshHostInput(value),
 	});
 	if (!hostInput) {
 		return undefined;
 	}
 
-	// Parse user@host format
+	// Parse user@host[:port] format
 	const trimmed = hostInput.trim();
-	let username: string;
+	let username: string | undefined;
 	let host: string;
+	let port: number | undefined;
 	const atIndex = trimmed.indexOf('@');
+
+	let hostPart: string;
 	if (atIndex !== -1) {
 		username = trimmed.substring(0, atIndex);
-		host = trimmed.substring(atIndex + 1);
+		hostPart = trimmed.substring(atIndex + 1);
 	} else {
-		host = trimmed;
+		hostPart = trimmed;
+	}
 
-		// Step 2: Username (only if not provided in host string)
+	const colonIndex = hostPart.lastIndexOf(':');
+	if (colonIndex !== -1) {
+		host = hostPart.substring(0, colonIndex);
+		const portStr = hostPart.substring(colonIndex + 1);
+		if (portStr) {
+			port = Number(portStr);
+		}
+	} else {
+		host = hostPart;
+	}
+
+	if (atIndex === -1) {
 		const usernameInput = await quickInputService.input({
 			title: localize('sshUsernameTitle', "SSH Username"),
 			prompt: localize('sshUsernamePrompt', "Enter the username for {0}.", host),
@@ -317,6 +366,10 @@ export async function promptToConnectViaSSH(
 			return undefined;
 		}
 		username = usernameInput.trim();
+	}
+
+	if (!username) {
+		return undefined;
 	}
 
 	// Step 3: Auth method
@@ -394,6 +447,7 @@ export async function promptToConnectViaSSH(
 	// Connect via SSH
 	const config: ISSHAgentHostConfig = {
 		host,
+		port,
 		username,
 		authMethod: authPicked.method,
 		privateKeyPath,

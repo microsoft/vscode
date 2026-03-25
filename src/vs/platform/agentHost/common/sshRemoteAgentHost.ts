@@ -35,9 +35,16 @@ export interface ISSHAgentHostConfig {
 	readonly name: string;
 }
 
+/**
+ * A sanitized view of the SSH config that omits secret material
+ * (password, private key path). Exposed on active connections so
+ * consumers can inspect connection metadata without accessing credentials.
+ */
+export type ISSHAgentHostConfigSanitized = Omit<ISSHAgentHostConfig, 'password' | 'privateKeyPath'>;
+
 export interface ISSHAgentHostConnection extends IDisposable {
-	/** The SSH config used to establish this connection. */
-	readonly config: ISSHAgentHostConfig;
+	/** The SSH config used to establish this connection (secrets stripped). */
+	readonly config: ISSHAgentHostConfigSanitized;
 	/** The local forwarded address (e.g. `127.0.0.1:54321`) registered with IRemoteAgentHostService. */
 	readonly localAddress: string;
 	/** The display name. */
