@@ -105,6 +105,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	private readonly _pendingProgress = new Map<string, { progress: (parts: IChatProgress[]) => void; chatSession: IChatModel | undefined }>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
 
+	/** Last-pushed URI sets, used to suppress no-op pushes that would cause a feedback loop. */
+	private _lastPushedAgentUris: string | undefined;
+	private _lastPushedInstructionUris: string | undefined;
+	private _lastPushedSkillUris: string | undefined;
+
 	private readonly _activeTasks = new Map<string, IChatTask>();
 
 	private readonly _unresolvedAnchors = new Map</* requestId */string, Map</* id */ string, IChatContentInlineReference>>();
@@ -184,6 +189,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		try {
 			const customAgents = await this._promptsService.getCustomAgents(CancellationToken.None);
 			const dtos: ICustomAgentDto[] = customAgents.map(agent => ({ uri: agent.uri }));
+			const key = dtos.map(d => d.uri.toString()).sort().join('\n');
+			if (key === this._lastPushedAgentUris) {
+				return;
+			}
+			this._lastPushedAgentUris = key;
 			this._proxy.$acceptCustomAgents(dtos);
 		} catch (error) {
 			this._logService.error('[chat] Failed to push custom agents to extension host', error);
@@ -194,6 +204,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		try {
 			const instructions = await this._promptsService.getInstructionFiles(CancellationToken.None);
 			const dtos: IInstructionDto[] = instructions.map(instruction => ({ uri: instruction.uri }));
+			const key = dtos.map(d => d.uri.toString()).sort().join('\n');
+			if (key === this._lastPushedInstructionUris) {
+				return;
+			}
+			this._lastPushedInstructionUris = key;
 			this._proxy.$acceptInstructions(dtos);
 		} catch (error) {
 			this._logService.error('[chat] Failed to push instructions to extension host', error);
@@ -204,6 +219,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		try {
 			const skills = await this._promptsService.findAgentSkills(CancellationToken.None) ?? [];
 			const dtos: ISkillDto[] = skills.map(skill => ({ uri: skill.uri }));
+			const key = dtos.map(d => d.uri.toString()).sort().join('\n');
+			if (key === this._lastPushedSkillUris) {
+				return;
+			}
+			this._lastPushedSkillUris = key;
 			this._proxy.$acceptSkills(dtos);
 		} catch (error) {
 			this._logService.error('[chat] Failed to push skills to extension host', error);
