@@ -40,11 +40,11 @@
 
 /* Main container - matches chat editing session styling */
 .changes-view-body .chat-editing-session-container {
-	padding: 4px 3px;
+	/* padding: 4px 3px; */
 	box-sizing: border-box;
-	background-color: var(--vscode-editor-background);
-	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: 4px;
+	/* background-color: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-input-border, transparent); */
+	/* border-radius: 4px; */
 	display: flex;
 	flex-direction: column;
 	gap: 2px;

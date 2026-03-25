@@ -810,6 +810,7 @@ export class ChangesViewPane extends ViewPane {
 						getId: (element: ChangesTreeElement) => element.uri.toString()
 					},
 					compressionEnabled: true,
+					defaultIndent: 0,
 					twistieAdditionalCssClass: (e: unknown) => {
 						return this.viewModel.viewModeObs.get() === ChangesViewMode.List
 							? 'force-no-twistie'
@@ -960,10 +961,10 @@ export class ChangesViewPane extends ViewPane {
 		const ciWidget = this.ciStatusWidget;
 		const ciVisible = ciWidget?.visible ?? false;
 		const ciHeaderHeight = ciVisible ? CIStatusWidget.HEADER_HEIGHT : 0;
-		const ciMargin = ciVisible ? 8 : 0; // margin-top on CI widget
+		const ciBorder = ciVisible ? 2 : 0; // 1px top + 1px bottom border
 		const ciDesiredHeight = ciWidget?.desiredHeight ?? 0;
 
-		const spaceForTreeAndCI = Math.max(0, bodyHeight - fixedUsed - ciMargin);
+		const spaceForTreeAndCI = Math.max(0, bodyHeight - fixedUsed - ciBorder);
 
 		// Give the tree priority, then CI gets the rest (with min/max on CI body)
 		const treeContentHeight = this.tree.contentHeight;

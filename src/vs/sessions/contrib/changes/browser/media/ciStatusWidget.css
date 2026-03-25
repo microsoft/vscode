@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* CI Status Widget - beneath the changes tree */
+/* CI Status Widget - pinned to the bottom of the panel, expands upward */
 .ci-status-widget {
-	margin-top: 8px;
+	margin-top: auto;
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
 	background-color: var(--vscode-editor-background);
 	overflow: hidden;
 	font-size: 12px;
+	display: flex;
+	flex-direction: column-reverse;
 }
 
 /* Header - always visible, clickable */
@@ -81,9 +83,9 @@
 	opacity: 0.7;
 }
 
-/* Body - collapsible list */
+/* Body - collapsible list, appears above header */
 .ci-status-widget-body {
-	border-top: 1px solid var(--vscode-input-border, transparent);
+	border-bottom: 1px solid var(--vscode-input-border, transparent);
 }
 
 .ci-status-widget-list {
