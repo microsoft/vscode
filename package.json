@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.114.0",
-  "distro": "a981e7362565b4058f3bfd7604f8ab8c4f85101b",
+  "distro": "d48ce3e61fa56a702d13bb450ceb3532620dbd46",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -81,8 +81,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "0.0.42",
-    "@github/copilot": "^1.0.4-0",
-    "@github/copilot-sdk": "^0.1.32",
+    "@github/copilot": "^1.0.11",
+    "@github/copilot-sdk": "^0.2.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "^2.5.6",

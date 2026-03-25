@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { PermissionKind, ToolCallStatus, TurnState, getToolOutputText, type ICompletedToolCall, type IPermissionRequest, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { PermissionKind, ToolCallStatus, TurnState, getToolFileEdits, getToolOutputText, type ICompletedToolCall, type IPermissionRequest, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind, getToolLanguage } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { type IChatProgress, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
@@ -198,10 +200,28 @@ export function permissionToConfirmation(perm: IPermissionRequest): ChatToolInvo
 }
 
 /**
+ * Data returned by {@link finalizeToolInvocation} describing file edits
+ * that should be routed through the editing session's external edits pipeline.
+ */
+export interface IToolCallFileEdit {
+	/** The real file URI on the remote (e.g., `file:///path/to/file`). */
+	readonly resource: URI;
+	/** URI to read the before-snapshot content from. */
+	readonly beforeContentUri: URI;
+	/** URI to read the after-content from (real file on remote via agenthost:// scheme). */
+	readonly afterContentUri: URI;
+	/** Undo stop ID for grouping edits. */
+	readonly undoStopId: string;
+}
+
+/**
  * Updates a live {@link ChatToolInvocation} with completion data from the
  * protocol's tool-call state, transitioning it to the completed state.
+ *
+ * Returns file edits that the caller should route through the editing
+ * session's external edits pipeline.
  */
-export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: IToolCallState): void {
+export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: IToolCallState): IToolCallFileEdit[] {
 	const isCompleted = tc.status === ToolCallStatus.Completed;
 	const isCancelled = tc.status === ToolCallStatus.Cancelled;
 	const isTerminal = invocation.toolSpecificData?.kind === 'terminal' || getToolKind(tc) === 'terminal';
@@ -224,4 +244,51 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ITool
 	const errorMessage = isCompleted ? tc.error?.message : (isCancelled ? tc.reasonMessage : undefined);
 	const errorString = typeof errorMessage === 'string' ? errorMessage : errorMessage?.markdown;
 	invocation.didExecuteTool(isFailure ? { content: [], toolResultError: errorString } : undefined);
+
+	// Extract file edits for the editing session pipeline
+	return isCompleted ? fileEditsToExternalEdits(tc) : [];
+}
+
+/**
+ * Extracts file edit content entries from a completed tool call and
+ * converts them to {@link IToolCallFileEdit} data for routing through
+ * the editing session's external edits pipeline.
+ */
+function fileEditsToExternalEdits(tc: IToolCallState): IToolCallFileEdit[] {
+	if (tc.status !== ToolCallStatus.Completed) {
+		return [];
+	}
+	const edits = getToolFileEdits(tc);
+	if (edits.length === 0) {
+		return [];
+	}
+	const result: IToolCallFileEdit[] = [];
+	for (const edit of edits) {
+		const filePath = getFilePathFromToolInput(tc);
+		if (filePath) {
+			result.push({
+				resource: URI.file(filePath),
+				beforeContentUri: URI.parse(edit.beforeURI),
+				afterContentUri: URI.parse(edit.afterURI),
+				undoStopId: generateUuid(),
+			});
+		}
+	}
+	return result;
+}
+
+/**
+ * Extracts the file path from a tool call's input parameters.
+ * Edit tools store the file path in JSON parameters as `path`.
+ */
+function getFilePathFromToolInput(tc: IToolCallState): string | undefined {
+	if (tc.status !== ToolCallStatus.Completed || !tc.toolInput) {
+		return undefined;
+	}
+	try {
+		const params = JSON.parse(tc.toolInput);
+		return typeof params.path === 'string' ? params.path : undefined;
+	} catch {
+		return undefined;
+	}
 }
