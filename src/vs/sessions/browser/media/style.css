@@ -84,6 +84,21 @@
 	box-sizing: border-box;
 }
 
+/* ---- Chat Output ---- */
+
+/* Top fade overlay: dims content scrolled near the top edge of the chat bar card */
+.agent-sessions-workbench .part.chatbar .interactive-list::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 16px;
+	background: linear-gradient(to bottom, var(--part-background), transparent);
+	z-index: 1;
+	pointer-events: none;
+}
+
 /* ---- Chat Input ---- */
 
 .agent-sessions-workbench .interactive-session .chat-input-container {
