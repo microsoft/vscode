@@ -194,7 +194,7 @@ export function registerNewChatActions() {
 		}
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleNavigationToolbar, {
+	MenuRegistry.appendMenuItem(MenuId.ChatTitleBarMenu, {
 		command: {
 			id: ACTION_ID_NEW_CHAT,
 			title: localize2('chat.goBack', "Go Back"),
@@ -203,6 +203,16 @@ export function registerNewChatActions() {
 		when: ChatContextKeys.agentSessionsViewerOrientation.notEqualsTo(AgentSessionsViewerOrientation.SideBySide), // when sessions show side by side, no need for a back button
 		group: 'navigation',
 		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.ChatTitleBarMenu, {
+		command: {
+			id: ACTION_ID_NEW_CHAT,
+			title: localize2('chat.newEdits.label', "New Chat"),
+		},
+		when: ChatContextKeys.enabled,
+		group: 'b_new',
+		order: -1,
 	});
 
 	registerAction2(class UndoChatEditInteractionAction extends EditingSessionAction {
