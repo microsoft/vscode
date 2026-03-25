@@ -344,11 +344,12 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				const step = () => {
 					const elapsed = Date.now() - start;
 					const progress = Math.min(elapsed / duration, 1);
-					// Ease-out curve
 					const eased = 1 - Math.pow(1 - progress, 2);
 					const currentHeight = Math.round(from + (to - from) * eased);
 					if (list.hasNode(element)) {
+						isUpdatingHeight = true;
 						list.updateElementHeight(element, currentHeight);
+						isUpdatingHeight = false;
 					}
 					if (progress < 1) {
 						return requestAnimationFrame(step);
@@ -404,22 +405,17 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				);
 			};
 
-			// Listen to tree model changes — rebuild the section map
-			// and re-acquire the expanded element reference if still valid
+			// Listen to tree model changes — rebuild the section map.
+			// Use a flag to avoid re-entrancy since updateElementHeight
+			// triggers model changes.
+			let isUpdatingHeight = false;
 			this._register(list.onDidChangeModel(() => {
-				const previousSectionLabel = expandedSectionLabel;
-				rebuildSectionMap();
-
-				// Re-acquire the show-more reference for the previously expanded section
-				if (previousSectionLabel) {
-					const newShowMoreItem = sectionToShowMore.get(previousSectionLabel);
-					if (newShowMoreItem && list.hasNode(newShowMoreItem)) {
-						expandedShowMoreElement = newShowMoreItem;
-					} else {
-						expandedShowMoreElement = undefined;
-						expandedSectionLabel = undefined;
-					}
+				if (isUpdatingHeight) {
+					return;
 				}
+				expandedShowMoreElement = undefined;
+				expandedSectionLabel = undefined;
+				rebuildSectionMap();
 			}));
 
 			// On mouseover, determine section from the hovered element

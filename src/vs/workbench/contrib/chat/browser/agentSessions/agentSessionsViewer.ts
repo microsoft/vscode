@@ -406,18 +406,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 				}
 				return Codicon.gitPullRequest;
 			}
-
-			// Fallback: check badge text for PR indicators
-			const badge = session.badge;
-			if (badge) {
-				const badgeText = typeof badge === 'string' ? badge : badge.value;
-				if (/\bmerged\b/i.test(badgeText) || /\$\(git-merge\)/.test(badgeText)) {
-					return Codicon.gitMerge;
-				}
-				if (/\bPR\s*#\d+/i.test(badgeText) || /\$\(git-pull-request\)/.test(badgeText)) {
-					return Codicon.gitPullRequest;
-				}
-			}
 		}
 
 		if (!session.isRead() && !session.isArchived()) {
