@@ -72,6 +72,7 @@ interface ICommentThreadTemplateData {
 	};
 	actionBar: ActionBar;
 	disposables: IDisposable[];
+	elementDisposables: IDisposable[];
 }
 
 class CommentsModelVirtualDelegate implements IListVirtualDelegate<ResourceWithCommentThreads | CommentNode> {
@@ -230,7 +231,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		repliesMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.indent));
 
 		const disposables = [threadMetadata.timestamp, repliesMetadata.timestamp];
-		return { threadMetadata, repliesMetadata, actionBar, disposables };
+		return { threadMetadata, repliesMetadata, actionBar, disposables, elementDisposables: [] };
 	}
 
 	private getCountString(commentCount: number): string {
@@ -310,14 +311,14 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			templateData.threadMetadata.commentPreview.innerText = originalComment.comment.body;
 		} else {
 			const disposables = new DisposableStore();
-			templateData.disposables.push(disposables);
+			templateData.elementDisposables.push(disposables);
 			const renderedComment = this.getRenderedComment(originalComment.comment.body);
-			templateData.disposables.push(renderedComment);
+			templateData.elementDisposables.push(renderedComment);
 			for (let i = renderedComment.element.children.length - 1; i >= 1; i--) {
 				renderedComment.element.removeChild(renderedComment.element.children[i]);
 			}
 			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element);
-			templateData.disposables.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
+			templateData.elementDisposables.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
 		}
 
 		if (node.element.range) {
@@ -353,12 +354,13 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	}
 
 	disposeElement(_node: ITreeNode<CommentNode>, _index: number, templateData: ICommentThreadTemplateData): void {
-		templateData.disposables.forEach(d => d.dispose());
-		templateData.disposables.length = 0;
+		templateData.elementDisposables.forEach(d => d.dispose());
+		templateData.elementDisposables.length = 0;
 	}
 
 	disposeTemplate(templateData: ICommentThreadTemplateData): void {
 		templateData.disposables.forEach(disposeable => disposeable.dispose());
+		templateData.elementDisposables.forEach(d => d.dispose());
 		templateData.actionBar.dispose();
 	}
 }
