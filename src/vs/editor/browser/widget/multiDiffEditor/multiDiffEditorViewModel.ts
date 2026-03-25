@@ -4,13 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ITransaction, autorun, constObservable, derived, derivedObservableWithWritableCache, mapObservableArrayCached, observableFromValueWithChangeEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, ITransaction, constObservable, derived, derivedObservableWithWritableCache, mapObservableArrayCached, observableFromValueWithChangeEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyValue } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { Selection } from '../../../common/core/selection.js';
 import { IDiffEditorViewModel } from '../../../common/editorCommon.js';
@@ -64,41 +61,12 @@ export class MultiDiffEditorViewModel extends Disposable {
 	) {
 		super();
 		this._documents = observableFromValueWithChangeEvent(this.model, this.model.documents);
-
-		// Read once at construction: changes to the setting take effect for newly opened editors
-		const maxFileCount = this._instantiationService.invokeFunction(accessor =>
-			accessor.get(IConfigurationService).getValue<number>('multiDiffEditor.maxFileCount') || 0
-		);
-
 		this._documentsArr = derived(this, reader => {
 			const result = this._documents.read(reader);
 			if (result === 'loading') { return []; }
-			if (maxFileCount > 0 && result.length > maxFileCount) {
-				return result.slice(0, maxFileCount);
-			}
 			return result;
 		});
 		this.isLoading = derived(this, reader => this._documents.read(reader) === 'loading');
-
-		if (maxFileCount > 0) {
-			let hasNotified = false;
-			this._register(autorun(reader => {
-				/** @description Notify when maxFileCount is exceeded */
-				const result = this._documents.read(reader);
-				if (result !== 'loading' && result.length > maxFileCount && !hasNotified) {
-					hasNotified = true;
-					this._instantiationService.invokeFunction(accessor => {
-						accessor.get(INotificationService).warn(localize(
-							'multiDiffEditor.maxFileCountExceeded',
-							"The multi-file diff editor is limited to {0} files (configured via `multiDiffEditor.maxFileCount`). {1} files are not shown.",
-							maxFileCount,
-							result.length - maxFileCount
-						));
-					});
-				}
-			}));
-		}
-
 		this.items = mapObservableArrayCached(
 			this,
 			this._documentsArr,

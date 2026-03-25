@@ -22,8 +22,10 @@ import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptio
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ConfirmResult } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IEditorConfiguration } from '../../../browser/parts/editor/textEditor.js';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
@@ -184,7 +186,39 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		const source = await this._resolvedSource.getPromise();
 		const textResourceConfigurationService = this._textResourceConfigurationService;
 
-		const documentsWithPromises = mapObservableArrayCached(this, source.resources, async (r, store) => {
+		// Read once at construction: changes to the setting take effect for newly opened editors
+		const maxFileCount = this._instantiationService.invokeFunction(accessor =>
+			accessor.get(IConfigurationService).getValue<number>('multiDiffEditor.maxFileCount') || 0
+		);
+
+		const limitedResources = maxFileCount > 0 ? derived(this, reader => {
+			const resources = source.resources.read(reader);
+			if (resources.length > maxFileCount) {
+				return resources.slice(0, maxFileCount);
+			}
+			return resources;
+		}) : source.resources;
+
+		if (maxFileCount > 0) {
+			let hasNotified = false;
+			this._register(autorun(reader => {
+				/** @description Notify when maxFileCount is exceeded */
+				const resources = source.resources.read(reader);
+				if (resources.length > maxFileCount && !hasNotified) {
+					hasNotified = true;
+					this._instantiationService.invokeFunction(accessor => {
+						accessor.get(INotificationService).warn(localize(
+							'multiDiffEditor.maxFileCountExceeded',
+							"The multi-file diff editor is limited to {0} files (configured via `multiDiffEditor.maxFileCount`). {1} files are not shown.",
+							maxFileCount,
+							resources.length - maxFileCount
+						));
+					});
+				}
+			}));
+		}
+
+		const documentsWithPromises = mapObservableArrayCached(this, limitedResources, async (r, store) => {
 			/** @description documentsWithPromises */
 			let original: IReference<IResolvedTextEditorModel> | undefined;
 			let modified: IReference<IResolvedTextEditorModel> | undefined;
