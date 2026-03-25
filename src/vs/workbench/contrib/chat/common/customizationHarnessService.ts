@@ -163,10 +163,10 @@ export interface ICustomizationHarnessService {
 // #region Shared filter constants
 
 /**
- * Hooks are always restricted to local + plugin sources regardless of harness.
+ * Hooks filter — local, user, and plugin sources.
  */
 const HOOKS_FILTER: IStorageSourceFilter = {
-	sources: [PromptsStorage.local, PromptsStorage.plugin],
+	sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin],
 };
 
 // #endregion
