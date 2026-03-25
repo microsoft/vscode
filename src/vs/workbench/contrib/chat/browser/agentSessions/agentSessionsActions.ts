@@ -179,7 +179,7 @@ export class ArchiveAllAgentSessionsAction extends Action2 {
 			message: sessionsToArchive.length === 1
 				? localize('archiveAllSessions.confirmSingle', "Are you sure you want to archive 1 agent session?")
 				: localize('archiveAllSessions.confirm', "Are you sure you want to archive {0} agent sessions?", sessionsToArchive.length),
-			detail: localize('archiveAllSessions.detail', "You can unarchive sessions later if needed from the Sessions view."),
+			detail: localize('archiveAllSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
 			primaryButton: localize('archiveAllSessions.archive', "Archive")
 		});
 
