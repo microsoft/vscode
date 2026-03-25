@@ -227,8 +227,12 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		// Icon — in status-only mode, show status indicator in icon column and session type icon in details row
 		if (this.options.useStatusOnlyIcons) {
 			template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element, true))}${session.element.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
-			template.detailsIcon.className = `agent-session-details-icon ${ThemeIcon.asClassName(session.element.icon)}`;
-			template.detailsIcon.classList.add('visible');
+			if (session.element.providerType === AgentSessionProviders.Background) {
+				template.detailsIcon.className = 'agent-session-details-icon'; // hide default provider icon (same as Local in non-status-only mode)
+			} else {
+				template.detailsIcon.className = `agent-session-details-icon ${ThemeIcon.asClassName(session.element.icon)}`;
+				template.detailsIcon.classList.add('visible');
+			}
 		} else {
 			template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}${session.element.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
 			template.detailsIcon.className = 'agent-session-details-icon';
