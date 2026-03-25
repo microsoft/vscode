@@ -476,12 +476,9 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 	static readonly TEMPLATE_ID = 'session-show-more';
 	readonly templateId = SessionShowMoreRenderer.TEMPLATE_ID;
 
-	constructor(private readonly onShowMore: (sectionLabel: string) => void) { }
-
 	renderTemplate(container: HTMLElement): HTMLElement {
 		container.classList.add('session-show-more');
-		const link = DOM.append(container, $('a.session-show-more-link'));
-		return link;
+		return DOM.append(container, $('span.session-show-more-label'));
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: HTMLElement): void {
@@ -490,7 +487,6 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			return;
 		}
 		template.textContent = localize('showMoreCompact', "+{0} more", element.remainingCount);
-		template.onclick = () => this.onShowMore(element.sectionLabel);
 	}
 
 	disposeTemplate(_template: HTMLElement): void { }
@@ -626,10 +622,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			markdownRendererService,
 		);
 
-		const showMoreRenderer = new SessionShowMoreRenderer(sectionLabel => {
-			this._expandedRepoGroups.add(sectionLabel);
-			this.update();
-		});
+		const showMoreRenderer = new SessionShowMoreRenderer();
 
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
@@ -678,7 +671,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this._register(this.tree.onDidOpen(e => {
 			const element = e.element;
-			if (element && !isSessionSection(element) && !isSessionShowMore(element)) {
+			if (!element) {
+				return;
+			}
+			if (isSessionShowMore(element)) {
+				this._expandedRepoGroups.add(element.sectionLabel);
+				this.update();
+				return;
+			}
+			if (!isSessionSection(element)) {
 				this.options.onSessionOpen(element.resource);
 			}
 		}));
