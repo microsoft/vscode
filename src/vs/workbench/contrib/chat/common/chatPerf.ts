@@ -5,6 +5,7 @@
 
 import { mark, clearMarks } from '../../../../base/common/performance.js';
 import { URI } from '../../../../base/common/uri.js';
+import { chatSessionResourceToId } from './model/chatUri.js';
 
 const chatPerfPrefix = 'code/chat/';
 
@@ -64,7 +65,7 @@ export const ChatPerfMark = {
  * disposed — see {@link clearChatMarks}.
  */
 export function markChat(sessionResource: URI, name: string): void {
-	mark(`${chatPerfPrefix}${sessionResource.toString()}/${name}`);
+	mark(`${chatPerfPrefix}${chatSessionResourceToId(sessionResource)}/${name}`);
 }
 
 /**
@@ -72,5 +73,5 @@ export function markChat(sessionResource: URI, name: string): void {
  * Called when the chat model is disposed.
  */
 export function clearChatMarks(sessionResource: URI): void {
-	clearMarks(`${chatPerfPrefix}${sessionResource.toString()}/`);
+	clearMarks(`${chatPerfPrefix}${chatSessionResourceToId(sessionResource)}/`);
 }
