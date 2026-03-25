@@ -8,59 +8,96 @@ instructions pack) may contribute customizations via `registerInstructionsProvid
 `registerSkillProvider`, etc. These items currently vanish when a non-built-in harness
 is active because the provider path bypasses `IPromptsService` entirely.
 
-### What we need
+### Relevant VS Code patterns
 
-The harness's `ChatSessionCustomizationsProvider` should be the **single source of truth**
-for what the UI displays — but it needs to be *aware* of customizations from outside its
-own extension so it can decide whether to include them.
+**`TreeDataProvider` (source-of-truth model):**
+The provider is the sole authority — `getChildren()` returns exactly what the UI shows.
+External changes flow through `onDidChangeTreeData`. This is our current model: the
+`ChatSessionCustomizationsProvider` is the single source, and what it returns is what
+appears. But it means the provider must independently discover everything.
 
-Concretely:
+**`applyStorageSourceFilter` (post-collection filter model):**
+`IPromptsService` gathers items from ALL sources (workspace, user, extension, plugin),
+then `applyStorageSourceFilter()` removes items that don't match the harness policy.
+The harness doesn't provide items — it defines a filter. This is how the built-in
+path works today.
 
-1. **Feeding external customizations into the provider.** When VS Code discovers items
-   from other sources (built-in discovery, other extensions' providers, the workspace),
-   it should offer them to the active harness's provider as *candidates*. The provider
-   then decides which to accept, reject, or augment.
+**`CompletionItemProvider` / `CodeActionProvider` (isolated model):**
+Each provider runs independently with no context about others' results. VS Code merges
+after the fact. NOT suitable — we need the provider to curate, not just contribute.
 
-2. **Provider as a filter, not just a source.** The provider's `provideCustomizations`
-   could receive a `context` parameter containing the candidate items from other sources.
-   The provider returns the final merged list — keeping its own items, optionally
-   including external ones, and controlling ordering/grouping.
+### Proposed approach: provider as curator with context
 
-   Sketch:
-   ```typescript
-   provideCustomizations(
-       context: { externalItems: ChatSessionCustomizationItemGroup[] },
-       token: CancellationToken
-   ): ProviderResult<ChatSessionCustomizationItemGroup[]>;
-   ```
+The provider should receive the "global pool" of customizations as input and return
+the curated subset. This matches `applyStorageSourceFilter` semantics but gives the
+extension full control over the curation logic.
 
-3. **Opt-in to other harnesses' customizations.** An extension should be able to declare
-   that it wants to see customizations from specific other harnesses or from the global
-   `IPromptsService` pool. This avoids every provider having to re-discover everything
-   — VS Code does the gathering, the provider does the curation.
+```typescript
+interface ChatSessionCustomizationsProvider {
+    readonly onDidChangeCustomizations: Event<void>;
 
-4. **The provider is always authoritative.** Whatever the provider returns is what the UI
-   shows. If the provider drops an external item, it's dropped. If the provider adds a
-   badge or changes the grouping of an external item, that's what the user sees. The
-   provider owns the final presentation.
+    provideCustomizations(
+        context: ChatSessionCustomizationsContext,
+        token: CancellationToken
+    ): ProviderResult<ChatSessionCustomizationItemGroup[]>;
+}
 
-### Why this matters
+interface ChatSessionCustomizationsContext {
+    /**
+     * Customization items discovered from other sources (workspace files,
+     * user configuration, other extensions' providers). The provider can
+     * include, exclude, or augment these in its returned groups.
+     */
+    readonly discoveredItems: readonly ChatSessionCustomizationItemGroup[];
+}
+```
 
-Without this, switching to a third-party harness (like joshbot) hides all the user's
-existing workspace agents, instructions, and skills that were contributed by other
-extensions. Users expect to see *everything relevant* regardless of which harness is
-active — but the harness should control *how* it's presented and *whether* each item
-is actually consumed by its runtime.
+**How it would work:**
+
+1. User opens Customizations editor with joshbot harness active
+2. VS Code runs the built-in `IPromptsService` discovery (workspace + user + extensions)
+3. VS Code converts discovered items to `ChatSessionCustomizationItemGroup[]`
+4. VS Code calls `provider.provideCustomizations({ discoveredItems }, token)`
+5. Provider examines discovered items, adds its own, returns final curated list
+6. UI shows exactly what the provider returned
+
+**Provider strategies:**
+
+```typescript
+// Strategy A: Include everything + add own items
+async provideCustomizations(context, token) {
+    return [...context.discoveredItems, ...myOwnItems];
+}
+
+// Strategy B: Filter to only relevant items
+async provideCustomizations(context, token) {
+    const relevant = context.discoveredItems.filter(g =>
+        g.items.some(i => i.storageLocation !== StorageLocation.Extension)
+    );
+    return [...relevant, ...myOwnItems];
+}
+
+// Strategy C: Ignore external, only show own
+async provideCustomizations(context, token) {
+    return myOwnItems;  // Same as today
+}
+```
+
+### Why context parameter is better than separate filter API
+
+- **Flexibility**: provider can do arbitrary logic, not just source/path filtering
+- **Transparency**: provider sees exactly what it's filtering, can add badges/descriptions
+- **Backwards compatible**: `context.discoveredItems` can be empty initially, providers
+  that ignore it work exactly as today
+- **Single call**: no two-phase provide-then-filter dance
 
 ### Open questions
 
-- Should the context include items from ALL sources, or only those matching the
-  harness's storage source filter?
-- Should external items be passed as candidates on every `provideCustomizations` call,
-  or should the provider subscribe to a separate event?
-- How does this interact with the existing `chatPromptFiles` API
-  (`registerCustomAgentProvider`, `registerSkillProvider`, etc.)? Those are global
-  providers that contribute to all session types. Do they become the "external items"
-  that get fed into the harness provider?
-- Performance: if the provider is called frequently, passing all external items each
-  time may be expensive. Caching / diffing strategies?
+- Should `discoveredItems` include items from ALL harnesses, or only the "global"
+  (non-harness-specific) pool?
+- Performance: running `IPromptsService` discovery even when a non-built-in harness
+  is active adds overhead. Should it be lazy / cached?
+- Should the context include the raw `IPromptPath[]` (with full metadata) or just
+  the simplified `ChatSessionCustomizationItem[]`?
+- How does this interact with `onDidChangeCustomizations`? If discovered items change
+  (e.g. a new workspace file is created), should the provider be re-called automatically?
