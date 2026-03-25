@@ -849,10 +849,18 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 	}
 
+	async unarchiveSession(sessionId: string): Promise<void> {
+		const agentSession = this._findAgentSession(sessionId);
+		if (agentSession) {
+			agentSession.setArchived(false);
+		}
+	}
+
 	async deleteSession(sessionId: string): Promise<void> {
 		const agentSession = this._findAgentSession(sessionId);
 		if (agentSession) {
 			await this.chatService.removeHistoryEntry(agentSession.resource);
+			this._refreshSessionCache();
 		}
 	}
 
@@ -1095,7 +1103,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 
 		if (added.length > 0 || removed.length > 0 || changed.length > 0) {
-			this._onDidChangeSessions.fire({ added, removed, changed, archived: [] });
+			this._onDidChangeSessions.fire({ added, removed, changed });
 		}
 	}
 

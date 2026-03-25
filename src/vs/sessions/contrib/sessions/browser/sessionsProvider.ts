@@ -45,7 +45,6 @@ export interface ISessionsChangeEvent {
 	readonly added: readonly ISessionData[];
 	readonly removed: readonly ISessionData[];
 	readonly changed: readonly ISessionData[];
-	readonly archived: readonly ISessionData[];
 }
 
 /**
@@ -103,6 +102,8 @@ export interface ISessionsProvider {
 	setModel(sessionId: string, modelId: string): void;
 	/** Archive a session. */
 	archiveSession(sessionId: string): Promise<void>;
+	/** Unarchive a session. */
+	unarchiveSession(sessionId: string): Promise<void>;
 	/** Delete a session. */
 	deleteSession(sessionId: string): Promise<void>;
 	/** Mark a session as read or unread. */

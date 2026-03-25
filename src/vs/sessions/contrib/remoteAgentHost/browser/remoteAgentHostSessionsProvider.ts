@@ -131,6 +131,10 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		// Agent host sessions don't support archiving
 	}
 
+	async unarchiveSession(_sessionId: string): Promise<void> {
+		// Agent host sessions don't support unarchiving
+	}
+
 	async deleteSession(_sessionId: string): Promise<void> {
 		// Agent host sessions don't support deletion
 	}

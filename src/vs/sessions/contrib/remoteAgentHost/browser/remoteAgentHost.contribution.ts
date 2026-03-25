@@ -7,7 +7,7 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
-import { AgentHostFileSystemProvider, agentHostRemotePath } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
+import { AgentHostFileSystemProvider } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { type AgentProvider, type IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -288,19 +288,14 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			if (cached) {
 				return cached;
 			}
-			const repository = this._sessionsManagementService.activeSession.get()?.workspace?.get()?.repositories[0].uri;
-			if (repository) {
-				let dir: string | undefined;
-				if (repository.scheme === AGENT_HOST_SCHEME) {
-					// Decode the agent host URI to get the actual remote filesystem path
-					dir = agentHostRemotePath(repository);
-				} else if (repository.scheme === 'file') {
-					dir = repository.fsPath || repository.path;
-				}
-				if (dir) {
-					sessionWorkingDirs.set(resourceKey, dir);
-					return dir;
-				}
+			const activeSession = this._sessionsManagementService.activeSession.get();
+			const repoUri = activeSession?.workspace.get()?.repositories[0]?.uri;
+			if (repoUri) {
+				// The repository URI's path is the remote filesystem path
+				// (set via agentHostRemotePath in the folder picker callback)
+				const dir = repoUri.path;
+				sessionWorkingDirs.set(resourceKey, dir);
+				return dir;
 			}
 			return undefined;
 		};
@@ -439,9 +434,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[RemoteAgentHostsEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.remoteAgentHostsEnabled', "Enable connecting to remote agent hosts."),
+			description: nls.localize('chat.remoteAgentHosts.enabled', "Enable connecting to remote agent hosts."),
 			default: false,
-			tags: ['experimental', 'advanced'],
+			tags: ['experimental'],
 		},
 		[RemoteAgentHostsSettingId]: {
 			type: 'array',

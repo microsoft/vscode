@@ -7,7 +7,7 @@ import './media/sessionsList.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
-import { IObjectTreeElement, ITreeNode, ITreeRenderer, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
 import { RenderIndentGuides, TreeFindMode } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -19,9 +19,10 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { localize } from '../../../../nls.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { MenuId, IMenuService } from '../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
@@ -33,12 +34,15 @@ import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { Separator } from '../../../../base/common/actions.js';
 
 const $ = DOM.$;
 
 export const SessionItemToolbarMenuId = new MenuId('SessionItemToolbar');
 export const SessionItemContextMenuId = new MenuId('SessionItemContextMenu');
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
+export const IsSessionArchivedContext = new RawContextKey<boolean>('sessionItem.isArchived', false);
+export const IsSessionReadContext = new RawContextKey<boolean>('sessionItem.isRead', true);
 
 //#region Types
 
@@ -183,6 +187,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 		// Context key: isPinned
 		IsSessionPinnedContext.bindTo(template.contextKeyService).set(this.options.isPinned(element));
+		IsSessionArchivedContext.bindTo(template.contextKeyService).set(element.isArchived.get());
+		IsSessionReadContext.bindTo(template.contextKeyService).set(element.isRead.get());
 
 		// Archived styling — reactive
 		template.elementDisposables.add(autorun(reader => {
@@ -509,8 +515,10 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 		private readonly options: ISessionsListControlOptions,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super();
 
@@ -590,6 +598,8 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 			}
 		}));
 
+		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+
 		this._register(this.tree.onDidChangeCollapseState(e => {
 			const element = e.node.element;
 			if (element && isSessionSection(element)) {
@@ -629,14 +639,17 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 		const sorted = this.sortSessions(filtered);
 
-		// Separate pinned sessions
+		// Separate pinned and archived sessions
 		const pinned: ISessionData[] = [];
-		const unpinned: ISessionData[] = [];
+		const archived: ISessionData[] = [];
+		const regular: ISessionData[] = [];
 		for (const session of sorted) {
 			if (this.isSessionPinned(session)) {
 				pinned.push(session);
+			} else if (session.isArchived.get()) {
+				archived.push(session);
 			} else {
-				unpinned.push(session);
+				regular.push(session);
 			}
 		}
 
@@ -648,11 +661,16 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 			sections.push({ id: 'pinned', label: localize('pinned', "Pinned"), sessions: pinned });
 		}
 
-		// Group remaining sessions
+		// Group remaining non-archived sessions
 		const grouped = grouping === SessionsGrouping.Repository
-			? this.groupByRepository(unpinned)
-			: this.groupByDate(unpinned);
+			? this.groupByRepository(regular)
+			: this.groupByDate(regular);
 		sections.push(...grouped);
+
+		// Add archived section at the bottom
+		if (archived.length > 0) {
+			sections.push({ id: 'archived', label: localize('archived', "Archived"), sessions: archived });
+		}
 
 		const children: IObjectTreeElement<SessionListItem>[] = sections.map(section => ({
 			element: section,
@@ -713,6 +731,32 @@ export class SessionsListControl extends Disposable implements ISessionsListCont
 
 	openFind(): void {
 		this.tree.openFind();
+	}
+
+	// Context menu
+
+	private onContextMenu(e: ITreeContextMenuEvent<SessionListItem | null>): void {
+		const element = e.element;
+		if (!element || isSessionSection(element)) {
+			return;
+		}
+
+		const contextOverlay: [string, boolean | string][] = [
+			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
+			[IsSessionArchivedContext.key, element.isArchived.get()],
+			[IsSessionReadContext.key, element.isRead.get()],
+			['chatSessionType', element.sessionType],
+			['chatSessionProviderId', element.providerId],
+		];
+
+		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));
+
+		this.contextMenuService.showContextMenu({
+			getActions: () => Separator.join(...menu.getActions({ arg: element, shouldForwardArgs: true }).map(([, actions]) => actions)),
+			getAnchor: () => e.anchor,
+		});
+
+		menu.dispose();
 	}
 
 	resetSectionCollapseState(): void {

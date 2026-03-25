@@ -22,7 +22,7 @@ import { SessionsViewId as NewChatViewId } from '../../chat/browser/newChatViewP
 import { SessionsViewPane, SessionsViewPaneId } from './views/sessionsViewPane.js';
 import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { SessionItemToolbarMenuId, SessionItemContextMenuId, IsSessionPinnedContext } from './sessionsListControl.js';
+import { SessionItemToolbarMenuId, SessionItemContextMenuId, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext } from './sessionsListControl.js';
 import { ISessionData } from '../common/sessionData.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
@@ -39,20 +39,6 @@ const agentSessionsViewContainer: ViewContainer = Registry.as<IViewContainersReg
 	order: 6,
 	windowVisibility: WindowVisibility.Sessions
 }, ViewContainerLocation.Sidebar, { isDefault: true });
-
-// Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
-// 	id: SessionsViewId,
-// 	containerIcon: agentSessionsViewIcon,
-// 	containerTitle: AGENT_SESSIONS_VIEW_TITLE.value,
-// 	singleViewPaneContainerTitle: AGENT_SESSIONS_VIEW_TITLE.value,
-// 	name: AGENT_SESSIONS_VIEW_TITLE,
-// 	canToggleVisibility: false,
-// 	canMoveView: false,
-// 	ctorDescriptor: new SyncDescriptor(AgenticSessionsViewPane),
-// 	windowVisibility: WindowVisibility.Sessions
-// }], agentSessionsViewContainer);
-
-// -- New Sessions View Pane (sessions-data-model based) --
 
 const sessionsViewPaneDescriptor: IViewDescriptor = {
 	id: SessionsViewPaneId,
@@ -104,6 +90,7 @@ registerAction2(class NewSessionForRepositoryAction extends Action2 {
 });
 
 // -- Session Item Actions --
+
 registerAction2(class PinSessionAction extends Action2 {
 	constructor() {
 		super({
@@ -171,10 +158,12 @@ registerAction2(class ArchiveSessionAction extends Action2 {
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
 				order: 1,
+				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
 			}, {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 2,
+				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
 			}]
 		});
 	}
@@ -187,16 +176,22 @@ registerAction2(class ArchiveSessionAction extends Action2 {
 	}
 });
 
-registerAction2(class DeleteSessionAction extends Action2 {
+registerAction2(class UnarchiveSessionAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsViewPane.deleteSession',
-			title: localize2('deleteSession', "Delete"),
-			icon: Codicon.trash,
+			id: 'sessionsViewPane.unarchiveSession',
+			title: localize2('unarchiveSession', "Unarchive"),
+			icon: Codicon.unarchive,
 			menu: [{
+				id: SessionItemToolbarMenuId,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, true),
+			}, {
 				id: SessionItemContextMenuId,
-				group: '2_delete',
-				order: 0,
+				group: '1_edit',
+				order: 2,
+				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, true),
 			}]
 		});
 	}
@@ -205,6 +200,79 @@ registerAction2(class DeleteSessionAction extends Action2 {
 			return;
 		}
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		await sessionsManagementService.deleteSession(context);
+		await sessionsManagementService.unarchiveSession(context);
+	}
+});
+
+registerAction2(class MarkSessionReadAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.markRead',
+			title: localize2('markRead', "Mark as Read"),
+			menu: [{
+				id: SessionItemContextMenuId,
+				group: '0_read',
+				order: 0,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(IsSessionReadContext.key, false),
+					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+				),
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor, context?: ISessionData): void {
+		if (!context) {
+			return;
+		}
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		sessionsManagementService.setRead(context, true);
+	}
+});
+
+registerAction2(class MarkSessionUnreadAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.markUnread',
+			title: localize2('markUnread', "Mark as Unread"),
+			menu: [{
+				id: SessionItemContextMenuId,
+				group: '0_read',
+				order: 0,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(IsSessionReadContext.key, true),
+					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+				),
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor, context?: ISessionData): void {
+		if (!context) {
+			return;
+		}
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		sessionsManagementService.setRead(context, false);
+	}
+});
+
+registerAction2(class MarkAllSessionsReadAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.markAllRead',
+			title: localize2('markAllRead', "Mark All as Read"),
+			menu: [{
+				id: SessionItemContextMenuId,
+				group: '0_read',
+				order: 1,
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessions = sessionsManagementService.getSessions();
+		for (const session of sessions) {
+			if (!session.isArchived.get() && !session.isRead.get()) {
+				sessionsManagementService.setRead(session, true);
+			}
+		}
 	}
 });

@@ -49,6 +49,8 @@ export interface ISessionsProvidersService {
 
 	/** Archive a session. */
 	archiveSession(sessionId: string): Promise<void>;
+	/** Unarchive a session. */
+	unarchiveSession(sessionId: string): Promise<void>;
 	/** Delete a session. */
 	deleteSession(sessionId: string): Promise<void>;
 	/** Rename a session. */
@@ -146,6 +148,13 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		const { provider } = this._resolveProvider(sessionId);
 		if (provider) {
 			await provider.archiveSession(sessionId);
+		}
+	}
+
+	async unarchiveSession(sessionId: string): Promise<void> {
+		const { provider } = this._resolveProvider(sessionId);
+		if (provider) {
+			await provider.unarchiveSession(sessionId);
 		}
 	}
 

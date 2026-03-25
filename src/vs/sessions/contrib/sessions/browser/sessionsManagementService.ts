@@ -158,6 +158,8 @@ export interface ISessionsManagementService {
 
 	/** Archive a session. */
 	archiveSession(session: ISessionData): Promise<void>;
+	/** Unarchive a session. */
+	unarchiveSession(session: ISessionData): Promise<void>;
 	/** Delete a session. */
 	deleteSession(session: ISessionData): Promise<void>;
 	/** Rename a session. */
@@ -269,15 +271,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 
-		if (e.archived.length) {
-			if (e.archived.some(r => r.sessionId === currentActive.sessionId)) {
+		if (e.changed.length) {
+			const updated = e.changed.find(s => s.sessionId === currentActive.sessionId);
+			if (updated?.isArchived.get()) {
 				this.openNewSessionView();
 				return;
 			}
-		}
-
-		if (e.changed.length) {
-			const updated = e.changed.find(s => s.sessionId === currentActive.sessionId);
 			if (updated) {
 				this._activeSession.set(updated, undefined);
 				return;
@@ -596,7 +595,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await this.sessionsProvidersService.archiveSession(session.sessionId);
 	}
 
+	async unarchiveSession(session: ISessionData): Promise<void> {
+		await this.sessionsProvidersService.unarchiveSession(session.sessionId);
+	}
+
 	async deleteSession(session: ISessionData): Promise<void> {
+		// Clear the chat widget before removing from storage
+		await this.chatWidgetService.getWidgetBySessionResource(session.resource)?.clear();
 		await this.sessionsProvidersService.deleteSession(session.sessionId);
 	}
 

@@ -6,7 +6,9 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IReader, autorun, observableValue } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2, MenuId, MenuRegistry, isIMenuItem } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -21,6 +23,9 @@ import { IContextKeyService, ContextKeyExpr, RawContextKey } from '../../../../p
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from '../../sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
+import { SessionItemContextMenuId } from '../../sessions/browser/sessionsListControl.js';
+import { ISessionData } from '../../sessions/common/sessionData.js';
+import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { CopilotCLISession, COPILOT_PROVIDER_ID, COPILOT_CLI_SESSION_TYPE } from './copilotChatSessionsProvider.js';
 import { IsolationPicker } from './isolationPicker.js';
 import { BranchPicker } from './branchPicker.js';
@@ -293,3 +298,68 @@ class CopilotActiveSessionContribution extends Disposable implements IWorkbenchC
 
 registerWorkbenchContribution2(CopilotPickerActionViewItemContribution.ID, CopilotPickerActionViewItemContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(CopilotActiveSessionContribution.ID, CopilotActiveSessionContribution, WorkbenchPhase.AfterRestored);
+
+/**
+ * Bridges extension-contributed context menu actions from {@link MenuId.AgentSessionsContext}
+ * to {@link SessionItemContextMenuId} for the new sessions view.
+ * Registers wrapper commands that resolve {@link ISessionData} → {@link IAgentSession}
+ * and forward to the original command with marshalled context.
+ */
+class CopilotSessionContextMenuBridge extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'copilotChatSessions.contextMenuBridge';
+
+	private readonly _bridgedIds = new Set<string>();
+
+	constructor(
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@ICommandService private readonly commandService: ICommandService,
+	) {
+		super();
+		this._bridgeItems();
+		this._register(MenuRegistry.onDidChangeMenu(menuIds => {
+			if (menuIds.has(MenuId.AgentSessionsContext)) {
+				this._bridgeItems();
+			}
+		}));
+	}
+
+	private _bridgeItems(): void {
+		const items = MenuRegistry.getMenuItems(MenuId.AgentSessionsContext).filter(isIMenuItem);
+		for (const item of items) {
+			const commandId = item.command.id;
+			if (!commandId.startsWith('github.copilot.')) {
+				continue;
+			}
+			if (this._bridgedIds.has(commandId)) {
+				continue;
+			}
+			this._bridgedIds.add(commandId);
+
+			const wrapperId = `sessionsViewPane.bridge.${commandId}`;
+			this._register(CommandsRegistry.registerCommand(wrapperId, (accessor, sessionData?: ISessionData) => {
+				if (!sessionData) {
+					return;
+				}
+				const agentSession = this.agentSessionsService.getSession(sessionData.resource);
+				if (!agentSession) {
+					return;
+				}
+				return this.commandService.executeCommand(commandId, {
+					session: agentSession,
+					sessions: [agentSession],
+					$mid: MarshalledId.AgentSessionContext,
+				});
+			}));
+
+			const providerWhen = ContextKeyExpr.equals('chatSessionProviderId', COPILOT_PROVIDER_ID);
+			this._register(MenuRegistry.appendMenuItem(SessionItemContextMenuId, {
+				command: { ...item.command, id: wrapperId },
+				group: item.group,
+				order: item.order,
+				when: item.when ? ContextKeyExpr.and(providerWhen, item.when) : providerWhen,
+			}));
+		}
+	}
+}
+
+registerWorkbenchContribution2(CopilotSessionContextMenuBridge.ID, CopilotSessionContextMenuBridge, WorkbenchPhase.AfterRestored);

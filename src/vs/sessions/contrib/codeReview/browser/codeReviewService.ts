@@ -329,12 +329,14 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		}));
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
+			const archived = e.changed.filter(s => s.isArchived.get());
+			const nonArchived = e.changed.filter(s => !s.isArchived.get());
 			// Initialize PR review for new/changed sessions
-			for (const session of [...e.added, ...e.changed]) {
+			for (const session of [...e.added, ...nonArchived]) {
 				this._ensurePRReviewInitialized(session.resource);
 			}
-			// Dispose PR review for removed/archived sessions
-			for (const session of [...e.removed, ...e.archived]) {
+			// Dispose PR review for removed and archived sessions
+			for (const session of [...e.removed, ...archived]) {
 				this._disposePRReview(session.resource);
 			}
 		}));
@@ -540,7 +542,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		// Clean up when sessions change (archived/removed sessions, stale review versions)
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
 			// Clean up reviews for removed/archived sessions
-			for (const session of [...e.removed, ...e.archived]) {
+			for (const session of [...e.removed, ...e.changed.filter(s => s.isArchived.get())]) {
 				const key = session.resource.toString();
 				const data = this._reviewsBySession.get(key);
 				if (data) {
