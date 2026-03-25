@@ -13,18 +13,19 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { CHANGES_VIEW_ID } from './changesView.js';
+import { CHANGES_VIEW_ID } from '../../changes/browser/changesView.js';
 
 interface IPendingTurnState {
 	readonly hadChangesBeforeSend: boolean;
 	readonly submittedAt: number;
 }
 
-export class ChangesViewController extends Disposable {
+export class SessionLayoutController extends Disposable {
 
-	static readonly ID = 'workbench.contrib.changesViewController';
+	static readonly ID = 'workbench.contrib.sessionLayoutController';
 
 	private readonly pendingTurnStateByResource = new ResourceMap<IPendingTurnState>();
+	private readonly panelVisibilityByResource = new ResourceMap<boolean>();
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -55,7 +56,7 @@ export class ChangesViewController extends Disposable {
 			return changes.length > 0;
 		});
 
-		// Switch between sessions
+		// Switch between sessions: sync auxiliary bar visibility
 		this._register(autorun(reader => {
 			const activeSessionHasChanges = activeSessionHasChangesObs.read(reader);
 			this.syncAuxiliaryBarVisibility(activeSessionHasChanges);
@@ -94,6 +95,29 @@ export class ChangesViewController extends Disposable {
 				hadChangesBeforeSend: activeSessionHasChangesObs.get(),
 				submittedAt: Date.now(),
 			});
+		}));
+
+		// Track user-initiated panel visibility changes for the active session
+		this._register(this.layoutService.onDidChangePartVisibility(e => {
+			if (e.partId !== Parts.PANEL_PART) {
+				return;
+			}
+
+			const sessionResource = activeSessionResourceObs.get();
+			if (sessionResource) {
+				this.panelVisibilityByResource.set(sessionResource, e.visible);
+			}
+		}));
+
+		// Switch between sessions: sync panel visibility
+		this._register(autorun(reader => {
+			const sessionResource = activeSessionResourceObs.read(reader);
+			if (!sessionResource) {
+				return;
+			}
+
+			const panelVisible = this.panelVisibilityByResource.get(sessionResource) ?? false;
+			this.layoutService.setPartHidden(!panelVisible, Parts.PANEL_PART);
 		}));
 	}
 
