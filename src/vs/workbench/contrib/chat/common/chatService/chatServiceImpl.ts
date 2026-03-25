@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { findLast } from '../../../../../base/common/arraysFind.js';
 import { DeferredPromise, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
@@ -11,6 +12,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, autorunIterableDelta, derived, IObservable, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -21,6 +23,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -28,36 +31,34 @@ import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IChatDebugService } from '../chatDebugService.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { InlineChatConfigKeys } from '../../../inlineChat/common/inlineChat.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
 import { awaitStatsForSession } from '../chat.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
-import { chatEditingSessionIsReady } from '../editing/chatEditingService.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestModeInfo, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges, ISerializableChatModelInputState } from '../model/chatModel.js';
-import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
-import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
-import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
-import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatSendResultSent, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatQuestionAnswers, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
-import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
+import { IChatDebugService } from '../chatDebugService.js';
+import { ChatMode } from '../chatModes.js';
 import { IChatSessionsService, localChatSessionType } from '../chatSessionsService.js';
+import { ChatAgentLocation, ChatModeKind } from '../constants.js';
+import { chatEditingSessionIsReady } from '../editing/chatEditingService.js';
+import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatModelInputState, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from '../model/chatModel.js';
+import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
+import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
-import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
-import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentLocation, ChatModeKind } from '../constants.js';
-import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
-import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
-import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
-import { IPromptsService } from '../promptSyntax/service/promptsService.js';
-import { AGENT_DEBUG_LOG_ENABLED_SETTING, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
+import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
-import { findLast } from '../../../../../base/common/arraysFind.js';
-import { ChatMode } from '../chatModes.js';
+import { AGENT_DEBUG_LOG_ENABLED_SETTING, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, COPILOT_SKILL_URI_SCHEME, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_PICK_SESSION_COMMAND, TROUBLESHOOT_SKILL_PATH } from '../promptSyntax/promptTypes.js';
+import { IPromptsService } from '../promptSyntax/service/promptsService.js';
+import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
+import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
+import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
+import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatSendResultSent, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatQuestionAnswers, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
+import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 
 const serializedChatKey = 'interactive.sessions';
 
@@ -172,6 +173,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -1036,12 +1038,51 @@ export class ChatService extends Disposable implements IChatService {
 			{
 				const debugLogEnabled = this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING);
 				const fileLoggingEnabled = this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING);
+				const promptText = getPromptText(parsedRequest).message;
+				const isTroubleshootCommand = agentSlashCommandPart?.command.name === TROUBLESHOOT_COMMAND_NAME
+					|| commandPart?.slashCommand.command === TROUBLESHOOT_COMMAND_NAME
+					|| promptText.trim() === '/' + TROUBLESHOOT_COMMAND_NAME
+					|| promptText.startsWith('/' + TROUBLESHOOT_COMMAND_NAME + ' ');
+				const hasTroubleshootSkill = options?.attachedContext?.some(v => {
+					const uri = IChatRequestVariableEntry.toUri(v);
+					return uri && (uri.scheme === COPILOT_SKILL_URI_SCHEME || uri.path.includes(TROUBLESHOOT_SKILL_PATH));
+				});
+
+				// When /troubleshoot is used and debug logging is enabled,
+				// delegate to the extension session picker which opens a new
+				// chat targeting a selected past session's logs. The picker
+				// returns true if it handled (showed picker), false if this
+				// is already a troubleshoot session (let it run normally).
+				if (isTroubleshootCommand && debugLogEnabled && fileLoggingEnabled) {
+					try {
+						const userQuestion = parsedRequest.parts
+							.filter(p => p instanceof ChatRequestTextPart)
+							.map(p => p.text)
+							.join('')
+							.trim();
+						const handled = await this.commandService.executeCommand(TROUBLESHOOT_PICK_SESSION_COMMAND, { question: userQuestion || undefined, sessionId: chatSessionResourceToId(model.sessionResource) });
+						if (handled) {
+							request = model.addRequest(parsedRequest, { variables: [] }, attempt, options?.modeInfo);
+							completeResponseCreated();
+							model.acceptResponseProgress(request, {
+								kind: 'markdownContent',
+								content: new MarkdownString(localize(
+									'agentDebugLog.troubleshootPickSession',
+									"Opening session picker\u2026"
+								)),
+							});
+							model.setResponse(request, {});
+							request.response?.complete();
+							return;
+						}
+						// handled === false means we're inside a troubleshoot
+						// session — fall through to normal /troubleshoot processing
+					} catch (e) {
+						this.logService.trace('Troubleshoot session picker unavailable', e);
+					}
+				}
+
 				if (!debugLogEnabled || !fileLoggingEnabled) {
-					const isTroubleshootCommand = agentSlashCommandPart?.command.name === TROUBLESHOOT_COMMAND_NAME;
-					const hasTroubleshootSkill = options?.attachedContext?.some(v => {
-						const uri = IChatRequestVariableEntry.toUri(v);
-						return uri && (uri.scheme === COPILOT_SKILL_URI_SCHEME || uri.path.includes(TROUBLESHOOT_SKILL_PATH));
-					});
 					if (isTroubleshootCommand || hasTroubleshootSkill) {
 						request = model.addRequest(parsedRequest, { variables: [] }, attempt, options?.modeInfo);
 						completeResponseCreated();
