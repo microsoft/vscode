@@ -8,6 +8,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -18,7 +19,6 @@ import { ISessionWorkspace } from '../../sessions/common/sessionData.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ISessionsBrowseAction } from '../../sessions/browser/sessionsProvider.js';
-import { COPILOT_PROVIDER_ID } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 
 const STORAGE_KEY_SELECTED_WORKSPACE = 'sessions.selectedWorkspace';
 const STORAGE_KEY_SELECTED_WORKSPACE_BY_PROVIDER = 'sessions.selectedWorkspaceByProvider';
@@ -455,7 +455,16 @@ export class WorkspacePicker extends Disposable {
 				}
 				return { providerId: stored.providerId, workspace };
 			})
-			.filter((w): w is { providerId: string; workspace: ISessionWorkspace } => w !== undefined);
+			.filter((w): w is { providerId: string; workspace: ISessionWorkspace } => w !== undefined)
+			.sort((a, b) => {
+				// Local folders first, then remote repositories, alphabetical within each group
+				const aIsLocal = a.workspace.repositories[0]?.uri.scheme === Schemas.file;
+				const bIsLocal = b.workspace.repositories[0]?.uri.scheme === Schemas.file;
+				if (aIsLocal !== bIsLocal) {
+					return aIsLocal ? -1 : 1;
+				}
+				return a.workspace.label.localeCompare(b.workspace.label);
+			});
 	}
 
 	private _getStoredRecentWorkspaces(): IStoredRecentWorkspace[] {
@@ -464,14 +473,7 @@ export class WorkspacePicker extends Disposable {
 			return [];
 		}
 		try {
-			const parsed = JSON.parse(raw) as (IStoredRecentWorkspace | { uri: UriComponents })[];
-			// Migrate legacy entries that don't have providerId (from old CopilotChatSessionsProvider storage)
-			return parsed.map(entry => {
-				const stored = entry as IStoredRecentWorkspace;
-				return stored.providerId
-					? stored
-					: { uri: entry.uri, providerId: COPILOT_PROVIDER_ID };
-			});
+			return JSON.parse(raw) as IStoredRecentWorkspace[];
 		} catch {
 			return [];
 		}
