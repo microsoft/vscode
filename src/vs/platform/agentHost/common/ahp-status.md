@@ -32,6 +32,7 @@ Priority key: P0 = critical for self-hosting, P1 = important for feature parity,
 | MCP server configuration | P1 | N | N | N | Copilot Chat extension manages MCP servers per session; no protocol concept of MCP server lifecycle |
 | Custom agents | P1 | N | N | N | Extension has `.agent.md` configs, per-session agent tracking; protocol only has provider-level `IAgentInfo` |
 | NeedsInput status | P1 | N | N | N | Extension has `NeedsInput` for user questions; protocol only has `Idle`/`InProgress`/`Error` |
+| Elicitations | P1 | N | N | N | MCP-style elicitation (server asks client to collect structured input from user); extension has `ask_questions` tool; no protocol concept of elicitation requests |
 | Session options discovery | P1 | N | N | N | Extension has dynamic option groups (isolation, branch, folder, agent); protocol has flat `ICreateSessionParams` |
 | Permission policies | P2 | N | P | N | CopilotAgent auto-approves reads in workdir; no session-wide policy concept in protocol |
 | Session forking | P2 | N | N | N | Extension has `forkSession` with turn selection |
