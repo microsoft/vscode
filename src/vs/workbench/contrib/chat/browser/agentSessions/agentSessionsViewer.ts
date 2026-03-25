@@ -217,7 +217,11 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			const repoName = getRepositoryName(session.element);
 			if (repoName) {
 				template.element.setAttribute('data-section-label', repoName);
+			} else {
+				template.element.removeAttribute('data-section-label');
 			}
+		} else {
+			template.element.removeAttribute('data-section-label');
 		}
 
 		// Icon — in status-only mode, show status indicator in icon column and session type icon in details row
@@ -713,6 +717,10 @@ interface IAgentSessionShowMoreTemplate {
 	readonly disposables: DisposableStore;
 }
 
+export interface IAgentSessionShowMoreRendererOptions {
+	readonly compactLabel?: boolean;
+}
+
 export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<IAgentSessionShowMore, FuzzyScore, IAgentSessionShowMoreTemplate> {
 
 	static readonly TEMPLATE_ID = 'agent-session-show-more';
@@ -720,6 +728,8 @@ export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<I
 	static readonly COLLAPSED_HEIGHT = 1;
 
 	readonly templateId = AgentSessionShowMoreRenderer.TEMPLATE_ID;
+
+	constructor(private readonly options?: IAgentSessionShowMoreRendererOptions) { }
 
 	renderTemplate(container: HTMLElement): IAgentSessionShowMoreTemplate {
 		const disposables = new DisposableStore();
@@ -739,7 +749,9 @@ export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<I
 	}
 
 	renderElement(element: ITreeNode<IAgentSessionShowMore, FuzzyScore>, _index: number, template: IAgentSessionShowMoreTemplate): void {
-		template.label.textContent = localize('agentSessions.showMore', "+{0} more", element.element.remainingCount);
+		template.label.textContent = this.options?.compactLabel
+			? localize('agentSessions.showMoreCompact', "+{0} more", element.element.remainingCount)
+			: localize('agentSessions.showMore', "Show {0} More...", element.element.remainingCount);
 		template.container.setAttribute('data-section-label', element.element.sectionLabel);
 	}
 
@@ -811,7 +823,7 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 		}
 
 		if (isAgentSessionShowMore(element) || isAgentSessionShowLess(element)) {
-			return this._compactShowMore ? 1 : AgentSessionShowMoreRenderer.HEIGHT;
+			return this._compactShowMore ? AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT : AgentSessionShowMoreRenderer.HEIGHT;
 		}
 
 		let height = AgentSessionsListDelegate.ITEM_HEIGHT;

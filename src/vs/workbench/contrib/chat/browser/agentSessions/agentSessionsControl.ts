@@ -8,7 +8,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
-import { $, append, EventHelper, addDisposableListener, EventType, hide, setVisibility } from '../../../../../base/browser/dom.js';
+import { $, append, EventHelper, addDisposableListener, EventType, getWindow, hide, setVisibility } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
@@ -42,6 +42,7 @@ import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IChatWidget } from '../chat.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 
 export interface IAgentSessionsControlOptions {
 	readonly overrideStyles: IStyleOverride<IListStyles>;
@@ -117,6 +118,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -276,7 +278,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			[
 				sessionRenderer,
 				this.instantiationService.createInstance(AgentSessionSectionRenderer, { hideSectionCount: this.options.hideSectionCount }),
-				new AgentSessionShowMoreRenderer(),
+				new AgentSessionShowMoreRenderer({ compactLabel: this.options.compactShowMore }),
 				new AgentSessionShowLessRenderer(),
 			],
 			sessionDataSource,
@@ -308,13 +310,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		if (compact) {
 			let expandedShowMoreElement: AgentSessionListItem | undefined;
 			let expandedSectionLabel: string | undefined;
+			let currentAnimatedHeight = AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT;
 
-			// Map session resource URI -> section label (rebuilt on tree changes)
-			const sessionToSection = new Map<string, string>();
 			const sectionToShowMore = new Map<string, AgentSessionListItem>();
 
 			const rebuildSectionMap = () => {
-				sessionToSection.clear();
 				sectionToShowMore.clear();
 				try {
 					const rootNode = list.getNode();
@@ -322,9 +322,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 						if (isAgentSessionSection(sectionNode.element)) {
 							const label = sectionNode.element.label;
 							for (const child of sectionNode.children) {
-								if (isAgentSession(child.element)) {
-									sessionToSection.set(child.element.resource.toString(), label);
-								} else if (isAgentSessionShowMore(child.element) || isAgentSessionShowLess(child.element)) {
+								if (isAgentSessionShowMore(child.element) || isAgentSessionShowLess(child.element)) {
 									sectionToShowMore.set(label, child.element);
 								}
 							}
@@ -337,43 +335,71 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 			let expandAnimationId: number | undefined;
 			let collapseAnimationId: number | undefined;
+			const targetWindow = getWindow(container);
+
+			// Cancel pending animations on dispose to avoid calling into a disposed tree
+			this._register({
+				dispose: () => {
+					if (expandAnimationId) { targetWindow.cancelAnimationFrame(expandAnimationId); }
+					if (collapseAnimationId) { targetWindow.cancelAnimationFrame(collapseAnimationId); }
+				}
+			});
 
 			const animateHeight = (element: AgentSessionListItem, from: number, to: number, onComplete?: () => void) => {
+				// Respect prefers-reduced-motion
+				if (this.accessibilityService.isMotionReduced()) {
+					if (list.hasNode(element)) {
+						isUpdatingHeight = true;
+						try {
+							list.updateElementHeight(element, to);
+						} finally {
+							isUpdatingHeight = false;
+						}
+						currentAnimatedHeight = to;
+					}
+					onComplete?.();
+					return undefined;
+				}
+
 				const duration = 150;
 				const start = Date.now();
 				const step = () => {
 					const elapsed = Date.now() - start;
 					const progress = Math.min(elapsed / duration, 1);
 					const eased = 1 - Math.pow(1 - progress, 2);
-					const currentHeight = Math.round(from + (to - from) * eased);
+					const height = Math.round(from + (to - from) * eased);
 					if (list.hasNode(element)) {
 						isUpdatingHeight = true;
-						list.updateElementHeight(element, currentHeight);
-						isUpdatingHeight = false;
+						try {
+							list.updateElementHeight(element, height);
+						} finally {
+							isUpdatingHeight = false;
+						}
+						currentAnimatedHeight = height;
 					}
 					if (progress < 1) {
-						return requestAnimationFrame(step);
+						return targetWindow.requestAnimationFrame(step);
 					}
 					onComplete?.();
 					return undefined;
 				};
-				return requestAnimationFrame(step);
+				return targetWindow.requestAnimationFrame(step);
 			};
 
 			const collapseCurrentShowMore = () => {
 				if (collapseAnimationId) {
-					cancelAnimationFrame(collapseAnimationId);
+					targetWindow.cancelAnimationFrame(collapseAnimationId);
 					collapseAnimationId = undefined;
 				}
 				if (expandAnimationId) {
-					cancelAnimationFrame(expandAnimationId);
+					targetWindow.cancelAnimationFrame(expandAnimationId);
 					expandAnimationId = undefined;
 				}
 				if (expandedShowMoreElement && expandedSectionLabel) {
 					if (list.hasNode(expandedShowMoreElement)) {
 						collapseAnimationId = animateHeight(
 							expandedShowMoreElement,
-							AgentSessionShowMoreRenderer.HEIGHT,
+							currentAnimatedHeight,
 							AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT,
 							() => { collapseAnimationId = undefined; }
 						);
@@ -397,6 +423,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 				expandedShowMoreElement = showMoreItem;
 				expandedSectionLabel = sectionLabel;
+				currentAnimatedHeight = AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT;
 				expandAnimationId = animateHeight(
 					showMoreItem,
 					AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT,
@@ -415,6 +442,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				}
 				expandedShowMoreElement = undefined;
 				expandedSectionLabel = undefined;
+				currentAnimatedHeight = AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT;
 				rebuildSectionMap();
 			}));
 
@@ -428,7 +456,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 				let sectionLabel: string | undefined;
 
-				// Section header
+				// Section header — querySelector is needed to identify elements within virtualized list rows
+				// eslint-disable-next-line no-restricted-syntax
 				const sectionHeaderEl = row.querySelector('.agent-session-section-label');
 				if (sectionHeaderEl) {
 					sectionLabel = sectionHeaderEl.textContent ?? undefined;
@@ -436,6 +465,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 				// Show-more element
 				if (!sectionLabel) {
+					// eslint-disable-next-line no-restricted-syntax
 					const showMoreEl = row.querySelector('.agent-session-show-more');
 					if (showMoreEl) {
 						sectionLabel = showMoreEl.getAttribute('data-section-label') ?? undefined;
@@ -444,6 +474,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 				// Session item — use data-section-label attribute
 				if (!sectionLabel) {
+					// eslint-disable-next-line no-restricted-syntax
 					const sessionItem = row.querySelector('.agent-session-item[data-section-label]');
 					if (sessionItem) {
 						sectionLabel = sessionItem.getAttribute('data-section-label') ?? undefined;
@@ -454,6 +485,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				// inside a row with a session item, keep the current state
 				// (prevents collapse when hovering toolbar icons, diff stats, etc.)
 				if (!sectionLabel) {
+					// eslint-disable-next-line no-restricted-syntax
 					if (row.querySelector('.agent-session-item')) {
 						return;
 					}
