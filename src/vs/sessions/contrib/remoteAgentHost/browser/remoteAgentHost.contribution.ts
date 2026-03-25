@@ -31,6 +31,8 @@ import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { ISessionsManagementService } from '../../../contrib/sessions/browser/sessionsManagementService.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
+import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 
 /**
  * Given a sanitized URI authority, resolves the corresponding agent host
@@ -100,6 +102,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IFileService private readonly _fileService: IFileService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super();
@@ -262,11 +265,12 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			if (cached) {
 				return cached;
 			}
-			const activeSessionItem = this._sessionsManagementService.getActiveSession();
-			if (activeSessionItem?.repository) {
+			const activeSession = this._sessionsManagementService.activeSession.get();
+			const repoUri = activeSession?.workspace.get()?.repositories[0]?.uri;
+			if (repoUri) {
 				// The repository URI's path is the remote filesystem path
 				// (set via agentHostRemotePath in the folder picker callback)
-				const dir = activeSessionItem.repository.path;
+				const dir = repoUri.path;
 				sessionWorkingDirs.set(resourceKey, dir);
 				return dir;
 			}
@@ -283,6 +287,12 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			requiresCustomModels: true,
 			supportsDelegation: false,
 		}));
+
+		// Register as a sessions provider
+		const sessionsProvider = this._instantiationService.createInstance(
+			RemoteAgentHostSessionsProvider, address, configuredName, agent.provider);
+		agentStore.add(sessionsProvider);
+		agentStore.add(this._sessionsProvidersService.registerProvider(sessionsProvider));
 
 		// Session list controller (unified)
 		const listController = agentStore.add(this._instantiationService.createInstance(

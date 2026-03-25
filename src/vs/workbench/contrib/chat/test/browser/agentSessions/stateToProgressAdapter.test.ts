@@ -6,10 +6,10 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ToolCallStatus, ToolCallConfirmationReason, PermissionKind, ToolResultContentType, TurnState, type ICompletedToolCall, type IPermissionRequest, type IToolCallRunningState, type ITurn, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ICompletedToolCall, type IToolCallRunningState, type ITurn, type IToolCallResponsePart, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocationSerialized, type IChatMarkdownContent } from '../../../common/chatService/chatService.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory, toolCallStateToInvocation, permissionToConfirmation, finalizeToolInvocation } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory, toolCallStateToInvocation, finalizeToolInvocation } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -43,19 +43,9 @@ function createTurn(overrides?: Partial<ITurn>): ITurn {
 	return {
 		id: 'turn-1',
 		userMessage: { text: 'Hello' },
-		responseText: '',
 		responseParts: [],
-		toolCalls: [],
 		usage: undefined,
 		state: TurnState.Complete,
-		...overrides,
-	};
-}
-
-function createPermission(overrides?: Partial<IPermissionRequest>): IPermissionRequest {
-	return {
-		requestId: 'perm-1',
-		permissionKind: PermissionKind.Shell,
 		...overrides,
 	};
 }
@@ -76,7 +66,7 @@ suite('stateToProgressAdapter', () => {
 		test('single turn produces request + response pair', () => {
 			const turn = createTurn({
 				userMessage: { text: 'Do something' },
-				toolCalls: [createCompletedToolCall()],
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall() } as IToolCallResponsePart],
 			});
 
 			const history = turnsToHistory([turn], 'participant-1');
@@ -101,12 +91,14 @@ suite('stateToProgressAdapter', () => {
 
 		test('terminal tool call in history has correct terminal data', () => {
 			const turn = createTurn({
-				toolCalls: [createCompletedToolCall({
-					_meta: { toolKind: 'terminal', language: 'shellscript' },
-					toolInput: 'echo hello',
-					content: [{ type: ToolResultContentType.Text, text: 'hello' }],
-					success: true,
-				})],
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						_meta: { toolKind: 'terminal', language: 'shellscript' },
+						toolInput: 'echo hello',
+						content: [{ type: ToolResultContentType.Text, text: 'hello' }],
+						success: true,
+					})
+				} as IToolCallResponsePart],
 			});
 
 			const history = turnsToHistory([turn], 'p');
@@ -125,7 +117,7 @@ suite('stateToProgressAdapter', () => {
 
 		test('turn with responseText produces markdown content in history', () => {
 			const turn = createTurn({
-				responseText: 'Hello world',
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'Hello world' }],
 			});
 
 			const history = turnsToHistory([turn], 'p');
@@ -155,12 +147,14 @@ suite('stateToProgressAdapter', () => {
 
 		test('failed tool in history has exitCode 1', () => {
 			const turn = createTurn({
-				toolCalls: [createCompletedToolCall({
-					_meta: { toolKind: 'terminal' },
-					toolInput: 'bad-command',
-					content: [{ type: ToolResultContentType.Text, text: 'error' }],
-					success: false,
-				})],
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						_meta: { toolKind: 'terminal' },
+						toolInput: 'bad-command',
+						content: [{ type: ToolResultContentType.Text, text: 'error' }],
+						success: false,
+					})
+				} as IToolCallResponsePart],
 			});
 
 			const history = turnsToHistory([turn], 'p');
@@ -211,47 +205,6 @@ suite('stateToProgressAdapter', () => {
 
 			const invocation = toolCallStateToInvocation(tc);
 			assert.strictEqual(invocation.toolCallId, 'tc-1');
-		});
-	});
-
-	suite('permissionToConfirmation', () => {
-
-		test('shell permission has terminal data', () => {
-			const perm = createPermission({
-				permissionKind: PermissionKind.Shell,
-				fullCommandText: 'rm -rf /',
-				intention: 'Delete everything',
-			});
-
-			const invocation = permissionToConfirmation(perm);
-			assert.ok(invocation.toolSpecificData);
-			assert.strictEqual(invocation.toolSpecificData.kind, 'terminal');
-			const termData = invocation.toolSpecificData as { kind: 'terminal'; commandLine: { original: string } };
-			assert.strictEqual(termData.commandLine.original, 'rm -rf /');
-		});
-
-		test('mcp permission uses server + tool name as title', () => {
-			const perm = createPermission({
-				permissionKind: PermissionKind.Mcp,
-				serverName: 'My Server',
-				toolName: 'my_tool',
-			});
-
-			const invocation = permissionToConfirmation(perm);
-			const message = typeof invocation.invocationMessage === 'string' ? invocation.invocationMessage : invocation.invocationMessage.value;
-			assert.ok(message.includes('My Server: my_tool'));
-		});
-
-		test('write permission has input data', () => {
-			const perm = createPermission({
-				permissionKind: PermissionKind.Write,
-				path: '/test.ts',
-				rawRequest: '{"path":"/test.ts","content":"hello"}',
-			});
-
-			const invocation = permissionToConfirmation(perm);
-			assert.ok(invocation.toolSpecificData);
-			assert.strictEqual(invocation.toolSpecificData.kind, 'input');
 		});
 	});
 
