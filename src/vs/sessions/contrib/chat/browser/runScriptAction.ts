@@ -622,6 +622,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 					class: ThemeIcon.asClassName(isPinned ? Codicon.pinned : Codicon.pin),
 					enabled: !!repo?.uri,
 					run: async () => {
+						this._actionWidgetService.hide();
 						this._sessionsConfigService.setPinnedTaskLabel(repo?.uri, isPinned ? undefined : task.label);
 					}
 				},
@@ -632,6 +633,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 					class: ThemeIcon.asClassName(Codicon.gear),
 					enabled: true,
 					run: async () => {
+						this._actionWidgetService.hide();
 						await this._showCustomCommandInput(session, { task, target: entry.target }, 'configure');
 					}
 				},
@@ -642,6 +644,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 					class: ThemeIcon.asClassName(Codicon.close),
 					enabled: true,
 					run: async () => {
+						this._actionWidgetService.hide();
 						await this._sessionsConfigService.removeTask(task.label, session, entry.target);
 					}
 				}
