@@ -9,7 +9,6 @@ import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { getPerfTracer } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
@@ -19,6 +18,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js';
 import { IChatProgress, IChatService } from '../../chatService/chatService.js';
+import { markChat } from '../../chatPerf.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../constants.js';
 import { ILanguageModelsService } from '../../languageModels.js';
 import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
@@ -129,8 +129,9 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const trace = getPerfTracer('code/chat')?.findTraceByCorrelation('requestId', invocation.chatRequestId);
-		trace?.mark('subagent/willInvoke');
+		if (invocation.context?.sessionResource) {
+			markChat(invocation.context.sessionResource, 'subagent/willInvoke');
+		}
 
 		const args = invocation.parameters as IRunSubagentToolInputParams;
 

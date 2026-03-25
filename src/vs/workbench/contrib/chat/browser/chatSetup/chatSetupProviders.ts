@@ -6,7 +6,6 @@
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { createPerfTracer, IPerfTrace } from '../../../../../base/common/performance.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -48,6 +47,7 @@ import { ACTION_START as INLINE_CHAT_START } from '../../../inlineChat/common/in
 import { IPosition } from '../../../../../editor/common/core/position.js';
 import { IMarker, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { ChatSetupController } from './chatSetupController.js';
+import { markChat } from '../../common/chatPerf.js';
 import { ChatSetupAnonymous, ChatSetupStep, IChatSetupResult, maybeEnableAuthExtension, refreshTokens } from './chatSetup.js';
 import { ChatSetup } from './chatSetupRunner.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
@@ -71,8 +71,6 @@ const ToolsAgentContextKey = ContextKeyExpr.and(
 );
 
 export class SetupAgent extends Disposable implements IChatAgentImplementation {
-
-	private readonly _perfTracer = this._register(createPerfTracer('code/chat/setup', { local: true }));
 
 	static registerDefaultAgents(instantiationService: IInstantiationService, location: ChatAgentLocation, mode: ChatModeKind, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
 		return instantiationService.invokeFunction(accessor => {
@@ -245,25 +243,20 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	async invoke(request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void): Promise<IChatAgentResult> {
-		const trace = this._perfTracer.start({ requestId: request.requestId });
-		trace.mark('willInvoke');
-		try {
-			return await this.instantiationService.invokeFunction(async accessor /* using accessor for lazy loading */ => {
-				const chatService = accessor.get(IChatService);
-				const languageModelsService = accessor.get(ILanguageModelsService);
-				const chatWidgetService = accessor.get(IChatWidgetService);
-				const chatAgentService = accessor.get(IChatAgentService);
-				const languageModelToolsService = accessor.get(ILanguageModelToolsService);
-				const defaultAccountService = accessor.get(IDefaultAccountService);
+		markChat(request.sessionResource, 'setup/willInvoke');
+		return this.instantiationService.invokeFunction(async accessor /* using accessor for lazy loading */ => {
+			const chatService = accessor.get(IChatService);
+			const languageModelsService = accessor.get(ILanguageModelsService);
+			const chatWidgetService = accessor.get(IChatWidgetService);
+			const chatAgentService = accessor.get(IChatAgentService);
+			const languageModelToolsService = accessor.get(ILanguageModelToolsService);
+			const defaultAccountService = accessor.get(IDefaultAccountService);
 
-				return this.doInvoke(trace, request, part => progress([part]), chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService, defaultAccountService);
-			});
-		} finally {
-			trace.done();
-		}
+			return this.doInvoke(request, part => progress([part]), chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService, defaultAccountService);
+		});
 	}
 
-	private async doInvoke(trace: IPerfTrace, request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService, defaultAccountService: IDefaultAccountService): Promise<IChatAgentResult> {
+	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService, defaultAccountService: IDefaultAccountService): Promise<IChatAgentResult> {
 		if (
 			!this.context.state.installed ||									// Extension not installed: run setup to install
 			this.context.state.disabled ||										// Extension disabled: run setup to enable
@@ -274,14 +267,14 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 				!this.chatEntitlementService.anonymous							// unless anonymous access is enabled
 			)
 		) {
-			return this.doInvokeWithSetup(trace, request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService, defaultAccountService);
+			return this.doInvokeWithSetup(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService, defaultAccountService);
 		}
 
-		return this.doInvokeWithoutSetup(trace, request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService);
+		return this.doInvokeWithoutSetup(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService);
 	}
 
-	private async doInvokeWithoutSetup(trace: IPerfTrace, request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService): Promise<IChatAgentResult> {
-		trace.mark('invokeWithoutSetup');
+	private async doInvokeWithoutSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService): Promise<IChatAgentResult> {
+		markChat(request.sessionResource, 'setup/invokeWithoutSetup');
 		const requestModel = chatWidgetService.getWidgetBySessionResource(request.sessionResource)?.viewModel?.model.getRequests().at(-1);
 		if (!requestModel) {
 			this.logService.error('[chat setup] Request model not found, cannot redispatch request.');
@@ -294,14 +287,14 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			shimmer: true,
 		});
 
-		await this.forwardRequestToChat(trace, requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
+		await this.forwardRequestToChat(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
 
 		return {};
 	}
 
-	private async forwardRequestToChat(trace: IPerfTrace, requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
+	private async forwardRequestToChat(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
 		try {
-			await this.doForwardRequestToChat(trace, requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
+			await this.doForwardRequestToChat(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
 		} catch (error) {
 			this.logService.error('[chat setup] Failed to forward request to chat', error);
 
@@ -312,12 +305,12 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		}
 	}
 
-	private async doForwardRequestToChat(trace: IPerfTrace, requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
+	private async doForwardRequestToChat(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
 		if (this.pendingForwardedRequests.has(requestModel.session.sessionResource)) {
 			throw new Error('Request already in progress');
 		}
 
-		const forwardRequest = this.doForwardRequestToChatWhenReady(trace, requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
+		const forwardRequest = this.doForwardRequestToChatWhenReady(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
 		this.pendingForwardedRequests.set(requestModel.session.sessionResource, forwardRequest);
 
 		try {
@@ -327,8 +320,8 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		}
 	}
 
-	private async doForwardRequestToChatWhenReady(trace: IPerfTrace, requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
-		trace.mark('willForwardRequestToChatWhenReady');
+	private async doForwardRequestToChatWhenReady(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
+		markChat(requestModel.session.sessionResource, 'setup/willForwardRequestToChatWhenReady');
 
 		// Ensure auth extension is enabled before waiting for chat readiness.
 		// This must run before the readiness event listeners are set up because
@@ -350,7 +343,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		let languageModelReady = false;
 		let toolsModelReady = false;
 
-		trace.mark('willWaitForReadiness');
+		markChat(requestModel.session.sessionResource, 'setup/willWaitForReadiness');
 
 		const whenAgentActivated = this.whenAgentActivated(chatService).then(() => agentActivated = true);
 		const whenAgentReady = this.whenAgentReady(chatAgentService, modeInfo?.kind)?.then(() => agentReady = true);
@@ -547,7 +540,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			}
 		}
 
-		trace.mark('didWaitForReadiness');
+		markChat(requestModel.session.sessionResource, 'setup/didWaitForReadiness');
 		await chatService.resendRequest(requestModel, {
 			...widget?.getModeRequestOptions(),
 			modeInfo,
@@ -657,8 +650,8 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		}
 	}
 
-	private async doInvokeWithSetup(trace: IPerfTrace, request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService, defaultAccountService: IDefaultAccountService): Promise<IChatAgentResult> {
-		trace.mark('invokeWithSetup');
+	private async doInvokeWithSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService, defaultAccountService: IDefaultAccountService): Promise<IChatAgentResult> {
+		markChat(request.sessionResource, 'setup/invokeWithSetup');
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'chat' });
 
 		const widget = chatWidgetService.getWidgetBySessionResource(request.sessionResource);
@@ -704,7 +697,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 					let newRequest = this.replaceAgentInRequestModel(requestModel, chatAgentService); 	// Replace agent part with the actual Chat agent...
 					newRequest = this.replaceToolInRequestModel(newRequest); 							// ...then replace any tool parts with the actual Chat tools
 
-					await this.forwardRequestToChat(trace, newRequest, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
+					await this.forwardRequestToChat(newRequest, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
 				}
 			} else {
 				progress({

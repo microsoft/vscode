@@ -17,7 +17,6 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { createPerfTracer, IPerfTrace } from '../../../../../base/common/performance.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -28,6 +27,7 @@ import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { markChat } from '../../common/chatPerf.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
@@ -289,8 +289,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _visible = false;
 	get visible() { return this._visible; }
-
-	private readonly _perfTracer = this._register(createPerfTracer('code/chatWidget', { local: true }));
 
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
 	private _instructionFilesExist: boolean | undefined;
@@ -2215,15 +2213,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
-		const trace = this._perfTracer.start();
-		trace.mark('willAcceptInput');
-		try {
-			const result = await this._acceptInput(query ? { query } : undefined, options, trace);
-			trace.mark('didAcceptInput');
-			return result;
-		} finally {
-			trace.done();
+		if (this.viewModel) {
+			markChat(this.viewModel.sessionResource, 'willAcceptInput');
 		}
+		const result = await this._acceptInput(query ? { query } : undefined, options);
+		if (this.viewModel) {
+			markChat(this.viewModel.sessionResource, 'didAcceptInput');
+		}
+		return result;
 	}
 
 	async rerunLastRequest(): Promise<void> {
@@ -2307,7 +2304,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}, trace?: IPerfTrace): Promise<IChatResponseModel | undefined> {
+	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}): Promise<IChatResponseModel | undefined> {
 		if (!query && this.input.generating) {
 			// if the user submits the input and generation finishes quickly, just submit it for them
 			const generatingAutoSubmitWindow = 500;
@@ -2382,9 +2379,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// process the prompt command
 		await this._applyPromptFileIfSet(requestInputs);
-		trace?.mark('willCollectInstructions');
+		markChat(this.viewModel.sessionResource, 'willCollectInstructions');
 		await this._autoAttachInstructions(requestInputs);
-		trace?.mark('didCollectInstructions');
+		markChat(this.viewModel.sessionResource, 'didCollectInstructions');
 
 		if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit) {
 			const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
