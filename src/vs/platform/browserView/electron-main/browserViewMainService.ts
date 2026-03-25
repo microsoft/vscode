@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewService, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewState, IBrowserViewService, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId } from '../common/browserView.js';
 import { clipboard, Menu, MenuItem } from 'electron';
 import { ICDPTarget, CDPBrowserVersion, CDPWindowBounds, CDPTargetInfo, ICDPConnection, ICDPBrowserTarget } from '../common/cdp/types.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
@@ -17,6 +17,7 @@ import { BrowserViewUri } from '../common/browserViewUri.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { BrowserSession } from './browserSession.js';
 import { IProductService } from '../../product/common/productService.js';
+import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { CDPBrowserProxy } from '../common/cdp/proxy.js';
 import { IntegratedBrowserOpenSource, logBrowserOpen } from '../common/browserViewTelemetry.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -61,7 +62,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IProductService private readonly productService: IProductService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
+		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
+		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService
 	) {
 		super();
 	}
@@ -193,8 +195,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				await this.destroyBrowserView(view.id);
 			}
 		}
-
-		browserSession.dispose();
 	}
 
 	/**
@@ -304,10 +304,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).captureScreenshot(options);
 	}
 
-	async dispatchKeyEvent(id: string, keyEvent: IBrowserViewKeyDownEvent): Promise<void> {
-		return this._getBrowserView(id).dispatchKeyEvent(keyEvent);
-	}
-
 	async focus(id: string): Promise<void> {
 		return this._getBrowserView(id).focus();
 	}
@@ -332,9 +328,18 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).setBrowserZoomIndex(zoomIndex);
 	}
 
+	async trustCertificate(id: string, host: string, fingerprint: string): Promise<void> {
+		return this._getBrowserView(id).trustCertificate(host, fingerprint);
+	}
+
+	async untrustCertificate(id: string, host: string, fingerprint: string): Promise<void> {
+		return this._getBrowserView(id).untrustCertificate(host, fingerprint);
+	}
+
 	async clearGlobalStorage(): Promise<void> {
 		const browserSession = BrowserSession.getOrCreateGlobal();
-		await browserSession.electronSession.clearData();
+		browserSession.connectStorage(this.applicationStorageMainService);
+		await browserSession.clearData();
 	}
 
 	async clearWorkspaceStorage(workspaceId: string): Promise<void> {
@@ -342,7 +347,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			workspaceId,
 			this.environmentMainService.workspaceStorageHome
 		);
-		await browserSession.electronSession.clearData();
+		browserSession.connectStorage(this.applicationStorageMainService);
+		await browserSession.clearData();
 	}
 
 	async updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void> {
@@ -356,6 +362,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		if (this.browserViews.has(id)) {
 			throw new Error(`Browser view with id ${id} already exists`);
 		}
+
+		browserSession.connectStorage(this.applicationStorageMainService);
 
 		const view = this.instantiationService.createInstance(
 			BrowserView,
@@ -405,7 +413,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		// Request the workbench to open the editor
 		window.sendWhenReady('vscode:runAction', CancellationToken.None, {
 			id: '_workbench.open',
-			args: [BrowserViewUri.forUrl(url, targetId), [undefined, editorOptions], undefined]
+			args: [BrowserViewUri.forId(targetId), [undefined, { ...editorOptions, viewState: { url } }], undefined]
 		});
 
 		return view;

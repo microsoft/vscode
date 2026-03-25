@@ -751,8 +751,8 @@ export function inspectSetting(key: string, target: SettingsTarget, languageFilt
 	return { isConfigured, inspected, targetSelector, inspectedLanguageOverrides, languageSelector: languageFilter };
 }
 
-function sanitizeId(id: string): string {
-	return id.replace(/[\.\/]/, '_');
+export function sanitizeId(id: string): string {
+	return id.replace(/[\.\/]/g, '_');
 }
 
 export function settingKeyToDisplayFormat(key: string, groupId: string = '', isLanguageTagSetting: boolean = false): { category: string; label: string } {
