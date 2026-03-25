@@ -72,10 +72,13 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		const allContributions = this.chatSessionsService.getAllChatSessionContributions();
 		const contribution = allContributions.find(contribution => getAgentSessionProvider(contribution.type) === type);
 
-		// In core VS Code, only allow delegation from local sessions.
+		// In core VS Code, only allow delegation from local sessions (for first-party providers).
+		// Third-party providers like OpenCode always start a new session, so they are always enabled.
 		// In the sessions window, only allow delegation from background sessions (not cloud).
 		const activeProvider = this.delegate.getActiveSessionProvider();
-		if (!this._isSessionsWindow && activeProvider !== AgentSessionProviders.Local) {
+		if (!this._isSessionsWindow && !isFirstPartyAgentSessionProvider(type)) {
+			// Third-party target: always allowed (opens new session)
+		} else if (!this._isSessionsWindow && activeProvider !== AgentSessionProviders.Local) {
 			return false;
 		}
 		if (this._isSessionsWindow && activeProvider !== AgentSessionProviders.Background) {
@@ -85,6 +88,11 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		// In the sessions window, cloud delegation requires a git repository
 		if (this._isSessionsWindow && type === AgentSessionProviders.Cloud && !this._hasGitRepository()) {
 			return false;
+		}
+
+		// Third-party providers (like OpenCode) always open a new session, so canDelegate doesn't apply.
+		if (!isFirstPartyAgentSessionProvider(type)) {
+			return this._getSelectedSessionType() !== type;
 		}
 
 		if (contribution && !contribution.canDelegate && activeProvider !== type /* Allow switching back to active type */) {

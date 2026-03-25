@@ -22,7 +22,7 @@ import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isBuiltInAgentSessionProvider, isFirstPartyAgentSessionProvider } from '../../../browser/agentSessions/agentSessions.js';
 
 class StaticChatSessionItemController implements IChatSessionItemController {
 	readonly onDidChangeChatSessionItems = Event.None;
@@ -2061,6 +2061,39 @@ suite('AgentSessions', () => {
 		test('should return false for Growth provider', () => {
 			const result = getAgentCanContinueIn(AgentSessionProviders.Growth);
 			assert.strictEqual(result, false);
+		});
+
+		test('should return true for OpenCode provider', () => {
+			const result = getAgentCanContinueIn(AgentSessionProviders.OpenCode);
+			assert.strictEqual(result, true);
+		});
+	});
+
+	suite('AgentSessionsViewModel - OpenCode provider', () => {
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('should return correct name for OpenCode provider', () => {
+			const name = getAgentSessionProviderName(AgentSessionProviders.OpenCode);
+			assert.strictEqual(name, 'OpenCode');
+		});
+
+		test('should return opencode codicon for OpenCode provider', () => {
+			const icon = getAgentSessionProviderIcon(AgentSessionProviders.OpenCode);
+			assert.strictEqual(icon.id, Codicon.opencode.id);
+		});
+
+		test('should not be a first-party provider', () => {
+			assert.strictEqual(isFirstPartyAgentSessionProvider(AgentSessionProviders.OpenCode), false);
+		});
+
+		test('should be a built-in provider', () => {
+			assert.strictEqual(isBuiltInAgentSessionProvider(AgentSessionProviders.OpenCode), true);
+		});
+
+		test('description should be a non-empty localized string ending with a period', () => {
+			const desc = getAgentSessionProviderDescription(AgentSessionProviders.OpenCode);
+			assert.ok(typeof desc === 'string' && desc.length > 0, 'description should be non-empty');
+			assert.ok(desc.endsWith('.'), `description should end with a period, got: "${desc}"`);
 		});
 	});
 
