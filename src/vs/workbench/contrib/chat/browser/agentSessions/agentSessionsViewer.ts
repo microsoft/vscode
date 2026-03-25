@@ -450,6 +450,16 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return true;
 		}
 
+		// Show repository name for pinned sessions when grouped by repository,
+		// since they are not placed under a repository section header.
+		if (session.element.isPinned() && this.options.isGroupedByRepository?.()) {
+			const repoName = getRepositoryName(session.element);
+			if (repoName) {
+				template.description.textContent = repoName;
+				return true;
+			}
+		}
+
 		template.description.textContent = '';
 		return false;
 	}
@@ -1171,13 +1181,9 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		const result: AgentSessionListItem[] = [];
 
-		if (pinnedSessions.length > 0) {
-			result.push({
-				section: AgentSessionSection.Pinned,
-				label: AgentSessionSectionLabels[AgentSessionSection.Pinned],
-				sessions: pinnedSessions,
-			});
-		}
+		// Pinned sessions are added directly (no section header) so they
+		// appear at the top without a "PINNED" group label.
+		result.push(...pinnedSessions);
 
 		const sortedRepoGroups = [...repoMap.values()].sort((a, b) =>
 			a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
