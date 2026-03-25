@@ -262,24 +262,24 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	/**
-	 * Collects browse actions from active providers.
+	 * Collects browse actions from all registered providers.
 	 */
 	private _getAllBrowseActions(): ISessionsBrowseAction[] {
-		return this._getActiveProviders().flatMap(p => p.browseActions);
+		return this.sessionsProvidersService.getProviders().flatMap(p => p.browseActions);
 	}
 
 	private _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
 
-		// Collect recent workspaces from picker storage, grouped by provider
-		const providers = this._getActiveProviders();
-		const providerIds = new Set(providers.map(p => p.id));
+		// Collect recent workspaces from picker storage across all providers
+		const allProviders = this.sessionsProvidersService.getProviders();
+		const providerIds = new Set(allProviders.map(p => p.id));
 		const recentWorkspaces = this._getRecentWorkspaces().filter(w => providerIds.has(w.providerId));
-		const hasMultipleProviders = providers.length > 1;
+		const hasMultipleProviders = allProviders.length > 1;
 
 		if (hasMultipleProviders) {
 			// Group workspaces by provider
-			for (const provider of providers) {
+			for (const provider of allProviders) {
 				const providerWorkspaces = recentWorkspaces.filter(w => w.providerId === provider.id);
 				if (providerWorkspaces.length === 0) {
 					continue;
