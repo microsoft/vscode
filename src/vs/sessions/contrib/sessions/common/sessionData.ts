@@ -8,6 +8,8 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatSessionFileChange } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
+export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
+
 /**
  * Status of an agent session as reported by the sessions provider.
  */

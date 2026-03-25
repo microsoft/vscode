@@ -18,8 +18,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISessionType, ISendRequestOptions, ISessionsChangeEvent } from './sessionsProvider.js';
-import { ISessionData, ISessionWorkspace } from '../common/sessionData.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionWorkspace.js';
+import { ISessionData, ISessionWorkspace, GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionData.js';
 import { IGitHubSessionContext } from '../../github/common/types.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 
