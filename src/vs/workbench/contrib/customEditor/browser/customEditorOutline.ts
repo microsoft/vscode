@@ -75,6 +75,7 @@ class CustomEditorOutlineRenderer implements ITreeRenderer<CustomEditorOutlineEn
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) { }
 
 	renderTemplate(container: HTMLElement): ICustomEditorOutlineTemplate {
@@ -98,10 +99,13 @@ class CustomEditorOutlineRenderer implements ITreeRenderer<CustomEditorOutlineEn
 
 		template.iconClass.className = '';
 		template.iconClass.classList.add('outline-element-icon', 'inline');
-		if (entry.icon) {
+		if (entry.icon && this._configurationService.getValue<boolean>(OutlineConfigKeys.icons)) {
 			template.iconClass.classList.add('codicon-colored', ...ThemeIcon.asClassNameArray(entry.icon));
 		}
 
+		if (entry.tooltip) {
+			options.title = entry.tooltip;
+		}
 		template.iconLabel.setLabel(entry.label, entry.detail, options);
 
 		if (this._target === OutlineTarget.OutlinePane) {
@@ -118,11 +122,12 @@ class CustomEditorOutlineRenderer implements ITreeRenderer<CustomEditorOutlineEn
 			}));
 
 			const menu = template.elementDisposables.add(this._menuService.createMenu(MenuId.CustomEditorOutlineActionMenu, scopedContextKeyService));
-			const actions = getActionBarActions(menu.getActions({ shouldForwardArgs: true }), g => /^inline/.test(g));
+			const menuArg = { id: entry.id };
+			const actions = getActionBarActions(menu.getActions({ shouldForwardArgs: true, arg: menuArg }), g => /^inline/.test(g));
 			toolbar.setActions(actions.primary, actions.secondary);
 
 			template.elementDisposables.add(menu.onDidChange(() => {
-				const actions = getActionBarActions(menu.getActions({ shouldForwardArgs: true }), g => /^inline/.test(g));
+				const actions = getActionBarActions(menu.getActions({ shouldForwardArgs: true, arg: menuArg }), g => /^inline/.test(g));
 				toolbar.setActions(actions.primary, actions.secondary);
 			}));
 		}
@@ -190,6 +195,7 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 	private _entries: CustomEditorOutlineEntry[] = [];
 	private _activeEntry: CustomEditorOutlineEntry | undefined;
 	private _flatMap = new Map<string, CustomEditorOutlineEntry>();
+	private _loadCts: CancellationTokenSource | undefined;
 	private readonly _resource: URI;
 	private readonly _viewType: string;
 
@@ -300,7 +306,10 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 	}
 
 	private async _loadItems(): Promise<void> {
-		const cts = new CancellationTokenSource();
+		// Cancel any previous in-flight request to avoid stale responses overwriting newer data
+		this._loadCts?.cancel();
+		this._loadCts?.dispose();
+		const cts = this._loadCts = new CancellationTokenSource();
 		try {
 			const dtos = await this._providerService.provideOutline(this._viewType, cts.token);
 			if (cts.token.isCancellationRequested) {
@@ -315,6 +324,9 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 
 			this._onDidChange.fire({});
 		} finally {
+			if (this._loadCts === cts) {
+				this._loadCts = undefined;
+			}
 			cts.dispose();
 		}
 	}
@@ -351,6 +363,8 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 	}
 
 	dispose(): void {
+		this._loadCts?.cancel();
+		this._loadCts?.dispose();
 		this._disposables.dispose();
 		this._onDidChange.dispose();
 	}
