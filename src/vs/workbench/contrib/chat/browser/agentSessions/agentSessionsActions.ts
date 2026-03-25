@@ -168,6 +168,7 @@ export class ArchiveAllAgentSessionsAction extends Action2 {
 	}
 	async run(accessor: ServicesAccessor) {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
+		const dialogService = accessor.get(IDialogService);
 
 		const sessionsToArchive = agentSessionsService.model.sessions.filter(session => !session.isArchived());
 		if (sessionsToArchive.length === 0) {
@@ -175,7 +176,6 @@ export class ArchiveAllAgentSessionsAction extends Action2 {
 		}
 
 		if (sessionsToArchive.length > 1) {
-			const dialogService = accessor.get(IDialogService);
 			const confirmed = await dialogService.confirm({
 				message: localize('archiveAllSessions.confirm', "Are you sure you want to archive {0} agent sessions?", sessionsToArchive.length),
 				detail: localize('archiveAllSessions.detail', "You can unarchive sessions later if needed from the Chat view."),
@@ -252,11 +252,12 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 			return;
 		}
 
+		const dialogService = accessor.get(IDialogService);
+		const storageService = accessor.get(IStorageService);
+
 		if (context.sessions.length > 1) {
-			const storageService = accessor.get(IStorageService);
 			const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
 			if (!skipConfirmation) {
-				const dialogService = accessor.get(IDialogService);
 				const confirmed = await dialogService.confirm({
 					message: localize('archiveSectionSessions.confirm', "Are you sure you want to archive {0} agent sessions from '{1}'?", context.sessions.length, context.label),
 					detail: localize('archiveSectionSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
@@ -308,11 +309,12 @@ export class UnarchiveAgentSessionSectionAction extends Action2 {
 			return;
 		}
 
+		const dialogService = accessor.get(IDialogService);
+		const storageService = accessor.get(IStorageService);
+
 		if (context.sessions.length > 1) {
-			const storageService = accessor.get(IStorageService);
 			const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
 			if (!skipConfirmation) {
-				const dialogService = accessor.get(IDialogService);
 				const confirmed = await dialogService.confirm({
 					message: localize('unarchiveSectionSessions.confirm', "Are you sure you want to unarchive {0} agent sessions?", context.sessions.length),
 					primaryButton: localize('unarchiveSectionSessions.unarchive', "Unarchive All"),
