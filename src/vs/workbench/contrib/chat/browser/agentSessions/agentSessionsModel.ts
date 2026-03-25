@@ -219,6 +219,19 @@ export function isAgentSessionShowMore(obj: unknown): obj is IAgentSessionShowMo
 	return (obj as IAgentSessionShowMore)?.showMore === true;
 }
 
+/**
+ * A "Show less" item that appears as the last child
+ * of an expanded repository group section to allow collapsing back.
+ */
+export interface IAgentSessionShowLess {
+	readonly showLess: true;
+	readonly sectionLabel: string;
+}
+
+export function isAgentSessionShowLess(obj: unknown): obj is IAgentSessionShowLess {
+	return (obj as IAgentSessionShowLess)?.showLess === true;
+}
+
 export interface IMarshalledAgentSessionContext {
 	readonly $mid: MarshalledId.AgentSessionContext;
 

@@ -121,6 +121,9 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 			}
 
 			description = this.chatSessionsService.getInProgressSessionDescription(model);
+		} else if (chat.isActive) {
+			// Sessions that are active but don't have a chat model are ultimately untitled with no requests
+			return undefined;
 		}
 
 		return {

@@ -38,7 +38,7 @@
 	margin: unset;
 }
 
-.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right {
+.agent-sessions-workbench.monaco-workbench.mac .part.titlebar > .sessions-titlebar-container > .titlebar-right {
 	order: 2;
 	width: fit-content;
 	flex-grow: 0;
@@ -54,37 +54,13 @@
 	height: 100%;
 }
 
-/* Layout actions toolbar appears after the diff widget */
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-layout-actions-container {
-	order: 2;
-	/* Always render so we can animate in/out instead of display:none */
-	display: flex !important;
-	align-items: center;
-	overflow: hidden;
-	width: 0;
-	opacity: 0;
-}
-
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-layout-actions-container:not(.has-no-actions) {
-	/* TODO: Hardcoded to separator (9px) + single action button (28px).
-	Update if more actions are added to TitleBarRightLayout. */
-	width: 37px;
-	opacity: 1;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-	.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-layout-actions-container {
-		transition: width 0.15s ease-out, opacity 0.15s ease-out;
-	}
-}
-
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container:not(.has-no-actions) {
 	display: flex;
 	align-items: center;
 }
 
-/* Separator before layout actions toolbar */
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-layout-actions-container:not(.has-no-actions)::before {
+/* Separator before right layout toolbar */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container:not(.has-no-actions)::before {
 	content: '';
 	width: 1px;
 	height: 16px;
