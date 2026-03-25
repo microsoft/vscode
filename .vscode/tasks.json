@@ -247,7 +247,9 @@
 				"command": "npm run transpile-client && .\\scripts\\code.bat"
 			},
 			"args": [
-				"--sessions"
+				"--sessions",
+				"--user-data-dir=${env:HOME}/.vscode-oss-sessions-dev",
+				"--extensions-dir=${env:HOME}/.vscode-oss-sessions-dev/extensions"
 			],
 			"inSessions": true,
 			"problemMatcher": []
