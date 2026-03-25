@@ -119,43 +119,83 @@ The sessions window uses an extensible provider model to manage sessions. Instea
 ### Overview Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        UI Components                                │
-│  ┌──────────────┐  ┌──────────────┐  ┌───────────────────────────┐ │
-│  │ SessionsView │  │  TitleBar    │  │    NewChatWidget          │ │
-│  │   Pane       │  │   Widget     │  │  (workspace/type pickers) │ │
-│  └──────┬───────┘  └──────┬───────┘  └─────────────┬─────────────┘ │
-│         │                 │                         │               │
-│         └─────────────────┼─────────────────────────┘               │
-│                           │                                         │
-│                    ┌──────▼──────┐                                   │
-│                    │  Sessions   │                                   │
-│                    │ Management  │  ISessionsManagementService       │
-│                    │  Service    │  - activeSession observable       │
-│                    └──────┬──────┘  - openSession / createNewSession │
-│                           │        - sendRequest / setSessionType    │
-│                    ┌──────▼──────┐                                   │
-│                    │  Sessions   │                                   │
-│                    │ Providers   │  ISessionsProvidersService        │
-│                    │  Service    │  - registerProvider / getProviders │
-│                    └──────┬──────┘  - getSessions (aggregated)       │
-│                           │        - onDidChangeSessions             │
-│              ┌────────────┼────────────┐                            │
-│              │            │            │                             │
-│       ┌──────▼──────┐ ┌──▼─────┐ ┌────▼──────┐                     │
-│       │  Copilot    │ │ Remote │ │  Custom   │                      │
-│       │  Chat       │ │ Agent  │ │ Provider  │  ISessionsProvider   │
-│       │  Sessions   │ │ Host   │ │  (future) │  - getSessions       │
-│       │  Provider   │ │Provider│ │           │  - createNewSession   │
-│       └──────┬──────┘ └──┬─────┘ └────┬──────┘  - sendRequest       │
-│              │            │            │         - browseActions     │
-│              │            │            │         - sessionTypes      │
-│       ┌──────▼──────┐ ┌──▼─────────┐  │                            │
-│       │ Agent       │ │  Agent     │   │                            │
-│       │ Sessions    │ │  Host      │   │                            │
-│       │ Service     │ │  Protocol  │   │                            │
-│       └─────────────┘ └────────────┘   │                            │
-└─────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                              UI Components                                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐  ┌──────────────┐  │
+│  │ SessionsView │  │  TitleBar    │  │   NewChatWidget    │  │ ChangesView  │  │
+│  │   Pane       │  │   Widget     │  │ (workspace/type    │  │              │  │
+│  │              │  │              │  │  pickers)          │  │              │  │
+│  └──────┬───────┘  └──────┬───────┘  └────────┬───────────┘  └──────┬───────┘  │
+│         │                 │                    │                     │          │
+│         │     reads ISessionData observables   │                     │          │
+│         │   (title, status, changes, workspace, isArchived, ...)     │          │
+│         └─────────────────┼────────────────────┼─────────────────────┘          │
+│                           │                    │                                │
+│                    ┌──────▼────────────────────▼──┐                              │
+│                    │  Sessions Management Service │  ISessionsManagementService  │
+│                    │  - activeSession: IObservable<ISessionData>                 │
+│                    │  - getSessions(): ISessionData[]                            │
+│                    │  - openSession / createNewSession                           │
+│                    │  - sendRequest / setSessionType                             │
+│                    │  - onDidChangeSessions                                      │
+│                    └──────────────┬────────────────┘                             │
+│                                  │                                              │
+│                    ┌─────────────▼─────────────┐                                │
+│                    │ Sessions Providers Service │  ISessionsProvidersService     │
+│                    │ - registerProvider(p)      │                                │
+│                    │ - getProviders()           │                                │
+│                    │ - getSessions() (merged)   │                                │
+│                    └─────────────┬──────────────┘                               │
+│                                  │                                              │
+│              ┌───────────────────┼───────────────────┐                          │
+│              │                   │                   │                          │
+│       ┌──────▼──────┐     ┌──────▼──────┐     ┌──────▼──────┐                  │
+│       │  Copilot    │     │ Remote Agent│     │   Custom    │                  │
+│       │  Chat       │     │ Host        │     │  Provider   │                  │
+│       │  Sessions   │     │ Provider    │     │  (future)   │                  │
+│       │  Provider   │     │             │     │             │                  │
+│       └──────┬──────┘     └──────┬──────┘     └─────────────┘                  │
+│              │                   │                                              │
+│              │    Each provider returns ISessionData[]                          │
+│              │                   │                                              │
+│       ┌──────▼──────┐     ┌──────▼──────┐                                      │
+│       │ Agent       │     │ Agent Host  │                                      │
+│       │ Sessions    │     │ Protocol    │                                      │
+│       │ Service     │     │             │                                      │
+│       └─────────────┘     └─────────────┘                                      │
+└──────────────────────────────────────────────────────────────────────────────────┘
+
+ISessionData (reactive session facade)
+┌─────────────────────────────────────────────────────────────┐
+│  sessionId: string          providerId: string              │
+│  resource: URI              sessionType: string             │
+│  icon: ThemeIcon            createdAt: Date                 │
+├─────────────────────────────────────────────────────────────┤
+│  Observable properties (auto-update UI when changed):       │
+│                                                             │
+│  title ─────────── "Fix login bug"                          │
+│  status ────────── InProgress | NeedsInput | Completed      │
+│  workspace ─────── { label, icon, repositories[] }          │
+│  changes ───────── [{ modifiedUri, insertions, deletions }] │
+│  updatedAt ─────── Date                                     │
+│  lastTurnEnd ───── Date | undefined                         │
+│  isArchived ────── boolean                                  │
+│  isRead ────────── boolean                                  │
+│  modelId ───────── "gpt-4o" | undefined                     │
+│  mode ──────────── { id, kind } | undefined                 │
+│  loading ───────── boolean                                  │
+└─────────────────────────────────────────────────────────────┘
+
+ISessionWorkspace (nested in ISessionData.workspace)
+┌─────────────────────────────────────────────────────────────┐
+│  label: "my-app"     icon: Codicon.folder                   │
+│  repositories: [{                                           │
+│      uri ──────────── file:///repo or github-remote-file:// │
+│      workingDirectory ── file:///worktree (if isolation)     │
+│      detail ─────────── "feature-branch"                    │
+│      baseBranchProtected ── true/false                      │
+│  }]                                                         │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### Core Concepts
