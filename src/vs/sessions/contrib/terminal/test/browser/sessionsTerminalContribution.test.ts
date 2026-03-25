@@ -73,6 +73,7 @@ function makeAgentSession(opts: {
 		isRead: observableValue('test.isRead', true),
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
+		pullRequestUri: observableValue('test.pullRequestUri', undefined),
 	};
 }
 
@@ -102,6 +103,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		isRead: observableValue('test.isRead', true),
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
+		pullRequestUri: observableValue('test.pullRequestUri', undefined),
 	};
 }
 

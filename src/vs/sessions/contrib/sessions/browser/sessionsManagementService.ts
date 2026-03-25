@@ -21,6 +21,7 @@ import { ISessionType, ISendRequestOptions, ISessionsChangeEvent } from './sessi
 import { ISessionData, ISessionWorkspace, GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionData.js';
 import { IGitHubSessionContext } from '../../github/common/types.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
 /**
  * Configuration properties available on new/pending sessions.
@@ -61,6 +62,11 @@ export interface ISessionsManagementService {
 	 * Get all sessions from all registered providers.
 	 */
 	getSessions(): ISessionData[];
+
+	/**
+	 * Get a session by its resource URI.
+	 */
+	getSession(resource: URI): ISessionData | undefined;
 
 	/**
 	 * Get all session types from all registered providers.
@@ -200,6 +206,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
@@ -325,6 +332,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this.sessionsProvidersService.getSessions();
 	}
 
+	getSession(resource: URI): ISessionData | undefined {
+		return this.sessionsProvidersService.getSessions().find(s => this.uriIdentityService.extUri.isEqual(s.resource, resource));
+	}
+
 	getAllSessionTypes(): ISessionType[] {
 		return [...this._sessionTypes];
 	}
@@ -354,7 +365,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async openSession(sessionResource: URI): Promise<void> {
-		const sessionData = this.sessionsProvidersService.getSessions().find(s => s.resource.toString() === sessionResource.toString());
+		const sessionData = this.getSession(sessionResource);
 		if (!sessionData) {
 			this.logService.warn(`[SessionsManagement] openSession: session not found: ${sessionResource.toString()}`);
 			throw new Error(`Session with resource ${sessionResource.toString()} not found`);
@@ -547,25 +558,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private _parsePRNumberFromSession(session: ISessionData): number | undefined {
-		const agentSession = this.agentSessionsService.model.getSession(session.resource);
-		const metadata = agentSession?.metadata;
-		if (!metadata) {
-			return undefined;
-		}
-
-		// Direct prNumber field
-		if (typeof metadata.pullRequestNumber === 'number') {
-			return metadata.pullRequestNumber as number;
-		}
-
-		// Parse from pullRequestUrl: https://github.com/{owner}/{repo}/pull/{number}
-		if (typeof metadata.pullRequestUrl === 'string') {
-			const match = /\/pull\/(\d+)/.exec(metadata.pullRequestUrl as string);
+		const prUri = session.pullRequestUri.get();
+		if (prUri) {
+			const match = /\/pull\/(\d+)/.exec(prUri.path);
 			if (match) {
 				return parseInt(match[1], 10);
 			}
 		}
-
 		return undefined;
 	}
 
