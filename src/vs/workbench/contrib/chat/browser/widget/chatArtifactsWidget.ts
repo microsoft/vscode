@@ -35,7 +35,7 @@ export class ChatArtifactsWidget extends Disposable {
 
 	private readonly _autorunDisposable = this._register(new MutableDisposable());
 	private _currentObs: IObservable<readonly IChatArtifact[]> | undefined;
-	private _isCollapsed = true;
+	private _isCollapsed = false;
 	private _list: WorkbenchList<IChatArtifact> | undefined;
 	private readonly _listStore = this._register(new DisposableStore());
 	private _expandIcon!: HTMLElement;
