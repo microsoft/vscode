@@ -280,6 +280,26 @@ export namespace ChatSessionOptionsMap {
  */
 export type ReadonlyChatSessionOptionsMap = ReadonlyMap<string, string | IChatSessionProviderOptionItem>;
 
+export interface IChatSessionCustomizationItem {
+	readonly id: string;
+	readonly label: string;
+	readonly description?: string;
+	readonly uri: URI;
+	readonly storageLocation: number;
+	readonly icon?: ThemeIcon;
+}
+
+export interface IChatSessionCustomizationItemGroup {
+	readonly id: string;
+	readonly items: IChatSessionCustomizationItem[];
+}
+
+export interface IChatSessionCustomizationsProvider {
+	readonly onDidChangeCustomizations: Event<void>;
+	provideCustomizations(token: CancellationToken): Promise<IChatSessionCustomizationItemGroup[] | undefined>;
+	resolveCustomizationDeletion?(item: IChatSessionCustomizationItem, token: CancellationToken): Promise<void>;
+}
+
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
 
@@ -402,6 +422,13 @@ export interface IChatSessionsService {
 	 * are redirected to the canonical (untitled) resource in the internal session map.
 	 */
 	registerSessionResourceAlias(untitledResource: URI, realResource: URI): void;
+
+	// #region Customizations provider support
+	readonly onDidChangeCustomizations: Event<{ readonly chatSessionType: string }>;
+	registerCustomizationsProvider(chatSessionType: string, provider: IChatSessionCustomizationsProvider): IDisposable;
+	getCustomizations(chatSessionType: string, token: CancellationToken): Promise<IChatSessionCustomizationItemGroup[] | undefined>;
+	resolveCustomizationDeletion(chatSessionType: string, item: IChatSessionCustomizationItem, token: CancellationToken): Promise<void>;
+	// #endregion
 }
 
 export function isSessionInProgressStatus(state: ChatSessionStatus): boolean {

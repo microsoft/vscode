@@ -163,7 +163,7 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IRes
 }
 
 function createMockHarnessService(activeHarness: CustomizationHarness, descriptors: readonly IHarnessDescriptor[]): ICustomizationHarnessService {
-	const active = observableValue('activeHarness', activeHarness);
+	const active = observableValue<string>('activeHarness', activeHarness);
 	return new class extends mock<ICustomizationHarnessService>() {
 		override readonly activeHarness = active;
 		override readonly availableHarnesses = constObservable(descriptors);
@@ -174,7 +174,8 @@ function createMockHarnessService(activeHarness: CustomizationHarness, descripto
 		override getActiveDescriptor() {
 			return descriptors.find(h => h.id === active.get()) ?? descriptors[0];
 		}
-		override setActiveHarness(id: CustomizationHarness) { active.set(id, undefined); }
+		override setActiveHarness(id: string) { active.set(id, undefined); }
+		override registerContributedHarness() { return { dispose() { } }; }
 	}();
 }
 
@@ -635,8 +636,9 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 				}
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue('activeHarness', CustomizationHarness.VSCode);
+				override readonly activeHarness = observableValue<string>('activeHarness', CustomizationHarness.VSCode);
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
+				override registerContributedHarness() { return { dispose() { } }; }
 			}());
 		},
 	});

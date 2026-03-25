@@ -99,10 +99,11 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 function createMockHarnessService(): ICustomizationHarnessService {
 	const descriptor = createVSCodeHarnessDescriptor([PromptsStorage.extension]);
 	return new class extends mock<ICustomizationHarnessService>() {
-		override readonly activeHarness = observableValue('activeHarness', CustomizationHarness.VSCode);
+		override readonly activeHarness = observableValue<string>('activeHarness', CustomizationHarness.VSCode);
 		override readonly availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('harnesses', [descriptor]);
 		override getStorageSourceFilter() { return defaultFilter; }
 		override getActiveDescriptor() { return descriptor; }
+		override registerContributedHarness() { return { dispose() { } }; }
 	}();
 }
 

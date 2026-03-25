@@ -53,12 +53,15 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ICustomizationHarnessService, matchesWorkspaceSubpath, matchesInstructionFileFilter } from '../../common/customizationHarnessService.js';
+import { CustomizationHarness, ICustomizationHarnessService, matchesWorkspaceSubpath, matchesInstructionFileFilter } from '../../common/customizationHarnessService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { getCleanPromptName, isInClaudeRulesFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { evaluateApplyToPattern } from '../../common/promptSyntax/computeAutomaticInstructions.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IChatSessionsService, IChatSessionCustomizationItem } from '../../common/chatSessionsService.js';
+import { ChatConfiguration } from '../../common/constants.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -480,6 +483,90 @@ export function sectionToPromptType(section: AICustomizationManagementSection): 
 }
 
 /**
+ * Maps a management section to the well-known customization group IDs
+ * used by {@link IChatSessionCustomizationsProvider}.
+ */
+function sectionToCustomizationGroupIds(section: AICustomizationManagementSection): string[] {
+	switch (section) {
+		case AICustomizationManagementSection.Agents:
+			return ['agents'];
+		case AICustomizationManagementSection.Skills:
+			return ['skills'];
+		case AICustomizationManagementSection.Instructions:
+			return ['agentInstructions', 'contextInstructions', 'onDemandInstructions'];
+		case AICustomizationManagementSection.Prompts:
+			return ['prompts'];
+		default:
+			return [];
+	}
+}
+
+/**
+ * Maps the numeric {@link IChatSessionCustomizationItem.storageLocation}
+ * to its corresponding {@link PromptsStorage}.
+ */
+function storageLocationToPromptsStorage(storageLocation: number): PromptsStorage {
+	switch (storageLocation) {
+		case 1: // Workspace
+			return PromptsStorage.local;
+		case 2: // User
+			return PromptsStorage.user;
+		case 3: // Extension
+			return PromptsStorage.extension;
+		case 4: // Plugin
+			return PromptsStorage.plugin;
+		case 5: // BuiltIn
+			return PromptsStorage.extension;
+		default:
+			return PromptsStorage.local;
+	}
+}
+
+/**
+ * Maps the numeric {@link IChatSessionCustomizationItem.storageLocation}
+ * to an optional groupKey override for the list display.
+ */
+function storageLocationToGroupKey(storageLocation: number): string | undefined {
+	// BuiltIn items are grouped under the special "builtin" key
+	if (storageLocation === 5) {
+		return BUILTIN_STORAGE;
+	}
+	return undefined;
+}
+
+/**
+ * Converts an {@link IChatSessionCustomizationItem} from the provider
+ * into an {@link IAICustomizationListItem} for the list widget.
+ */
+function mapProviderItemToListItem(
+	item: IChatSessionCustomizationItem,
+	groupId: string,
+	promptType: PromptsType,
+): IAICustomizationListItem {
+	const storage = storageLocationToPromptsStorage(item.storageLocation);
+	const filename = basename(item.uri);
+	// For instructions, use the group id as the groupKey so items
+	// are placed in the correct sub-group (agent-instructions, etc.)
+	const instructionGroupIds = new Set(['agentInstructions', 'contextInstructions', 'onDemandInstructions']);
+	const groupKey = instructionGroupIds.has(groupId)
+		? groupId.replace('Instructions', '-instructions')
+		: storageLocationToGroupKey(item.storageLocation);
+
+	return {
+		id: item.id,
+		uri: item.uri,
+		name: item.label,
+		filename,
+		description: item.description,
+		storage,
+		promptType,
+		disabled: false,
+		groupKey,
+		typeIcon: item.icon,
+	};
+}
+
+/**
  * An ordered create action for the add button.
  */
 interface ICreateAction {
@@ -553,6 +640,8 @@ export class AICustomizationListWidget extends Disposable {
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IProductService private readonly productService: IProductService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 		this.element = $('.ai-customization-list-widget');
@@ -1107,6 +1196,21 @@ export class AICustomizationListWidget extends Disposable {
 	 * Shared between `loadItems` (active section) and `computeItemCountForSection` (any section).
 	 */
 	private async fetchItemsForSection(section: AICustomizationManagementSection): Promise<IAICustomizationListItem[]> {
+		// Extension-contributed harnesses always use the provider path
+		const activeHarness = this.harnessService.activeHarness.get();
+		const isBuiltInHarness = activeHarness === CustomizationHarness.VSCode ||
+			activeHarness === CustomizationHarness.CLI ||
+			activeHarness === CustomizationHarness.Claude;
+
+		if (!isBuiltInHarness) {
+			return this._fetchItemsFromProvider(section);
+		}
+
+		const useProvider = this.configurationService.getValue<boolean>(ChatConfiguration.UseCustomizationsProvider);
+		if (useProvider) {
+			return this._fetchItemsFromProvider(section);
+		}
+
 		const promptType = sectionToPromptType(section);
 		const items: IAICustomizationListItem[] = [];
 		const disabledUris = this.promptsService.getDisabledPromptFiles(promptType);
@@ -1460,6 +1564,36 @@ export class AICustomizationListWidget extends Disposable {
 		// Sort items by name
 		items.sort((a, b) => a.name.localeCompare(b.name));
 
+		return items;
+	}
+
+	/**
+	 * Fetches items from the registered {@link IChatSessionCustomizationsProvider}
+	 * instead of the built-in {@link IPromptsService} discovery.
+	 */
+	private async _fetchItemsFromProvider(section: AICustomizationManagementSection): Promise<IAICustomizationListItem[]> {
+		const promptType = sectionToPromptType(section);
+
+		// Use the active harness ID as the session type
+		const activeHarness = this.harnessService.activeHarness.get();
+		const groups = await this.chatSessionsService.getCustomizations(activeHarness, CancellationToken.None);
+
+		if (!groups) {
+			return [];
+		}
+
+		// Filter groups to only those matching the current section
+		const matchingGroupIds = sectionToCustomizationGroupIds(section);
+		const filteredGroups = groups.filter(g => matchingGroupIds.includes(g.id));
+
+		const items: IAICustomizationListItem[] = [];
+		for (const group of filteredGroups) {
+			for (const item of group.items) {
+				items.push(mapProviderItemToListItem(item, group.id, promptType));
+			}
+		}
+
+		items.sort((a, b) => a.name.localeCompare(b.name));
 		return items;
 	}
 

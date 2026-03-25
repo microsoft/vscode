@@ -4208,3 +4208,34 @@ export namespace ChatSessionItem {
 		};
 	}
 }
+
+export namespace ChatSessionCustomizations {
+	function commandFrom(cmd: vscode.Command): extHostProtocol.ICommandDto {
+		return {
+			id: cmd.command,
+			title: cmd.title,
+			tooltip: cmd.tooltip,
+			arguments: cmd.arguments,
+		};
+	}
+
+	export function fromItem(item: vscode.ChatSessionCustomizationItem): extHostProtocol.IChatSessionCustomizationItemDto {
+		return {
+			id: item.id,
+			label: item.label,
+			description: item.description,
+			uri: item.uri,
+			storageLocation: item.storageLocation,
+			icon: item.icon ? { id: item.icon.id, color: item.icon.color } : undefined,
+		};
+	}
+
+	export function fromGroup(group: vscode.ChatSessionCustomizationItemGroup): extHostProtocol.IChatSessionCustomizationItemGroupDto {
+		return {
+			id: group.id,
+			items: group.items.map(fromItem),
+			commands: group.commands?.map(commandFrom),
+			itemCommands: group.itemCommands?.map(commandFrom),
+		};
+	}
+}
