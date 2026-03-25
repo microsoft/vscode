@@ -794,7 +794,10 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 	static readonly ITEM_HEIGHT = 54;
 	static readonly SECTION_HEIGHT = 26;
 
-	constructor(private readonly _approvalModel?: AgentSessionApprovalModel) { }
+	constructor(
+		private readonly _approvalModel?: AgentSessionApprovalModel,
+		private readonly _compactShowMore?: boolean,
+	) { }
 
 	getHeight(element: AgentSessionListItem): number {
 		if (isAgentSessionSection(element)) {
@@ -802,11 +805,11 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 		}
 
 		if (isAgentSessionShowMore(element)) {
-			return AgentSessionShowMoreRenderer.HEIGHT;
+			return this._compactShowMore ? 4 : AgentSessionShowMoreRenderer.HEIGHT;
 		}
 
 		if (isAgentSessionShowLess(element)) {
-			return AgentSessionShowLessRenderer.HEIGHT;
+			return this._compactShowMore ? 4 : AgentSessionShowLessRenderer.HEIGHT;
 		}
 
 		let height = AgentSessionsListDelegate.ITEM_HEIGHT;

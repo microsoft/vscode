@@ -11,15 +11,15 @@
 	/*
 	 * Show-more / show-less: collapsed to a thin line by default,
 	 * animates open on hover with height + font-size + color transitions.
-	 * Mirrors the prototype's `.sessions-group-stub` pattern.
+	 * The list row is only 4px tall so the gap is minimal.
 	 */
 	.agent-session-show-more {
 		justify-content: center;
 		padding: 0 6px;
-		height: 1px;
+		height: 4px;
 		font-size: 0;
 		color: transparent;
-		overflow: hidden;
+		overflow: visible;
 		position: relative;
 		transition: height 0.15s, font-size 0.15s, color 0.15s;
 
