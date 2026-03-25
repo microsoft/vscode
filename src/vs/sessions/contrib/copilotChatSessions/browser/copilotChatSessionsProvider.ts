@@ -130,6 +130,7 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 
 	readonly isArchived: IObservable<boolean> = observableValue(this, false);
 	readonly isRead: IObservable<boolean> = observableValue(this, true);
+	readonly description: IObservable<string | undefined> = observableValue(this, undefined);
 	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
 
 	private _gitRepository: IGitRepository | undefined;
@@ -304,6 +305,7 @@ export class RemoteNewSession extends Disposable implements ISessionData {
 
 	readonly isArchived: IObservable<boolean> = observableValue(this, false);
 	readonly isRead: IObservable<boolean> = observableValue(this, true);
+	readonly description: IObservable<string | undefined> = observableValue(this, undefined);
 	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
 
 	readonly _hasGitRepo = observableValue(this, false);
@@ -564,6 +566,9 @@ class AgentSessionAdapter implements ISessionData {
 	private readonly _isRead: ReturnType<typeof observableValue<boolean>>;
 	readonly isRead: IObservable<boolean>;
 
+	private readonly _description: ReturnType<typeof observableValue<string | undefined>>;
+	readonly description: IObservable<string | undefined>;
+
 	private readonly _lastTurnEnd: ReturnType<typeof observableValue<Date | undefined>>;
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 
@@ -601,6 +606,8 @@ class AgentSessionAdapter implements ISessionData {
 		this.isArchived = this._isArchived;
 		this._isRead = observableValue(this, session.isRead());
 		this.isRead = this._isRead;
+		this._description = observableValue(this, this._extractDescription(session));
+		this.description = this._description;
 		this._lastTurnEnd = observableValue(this, session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined);
 		this.lastTurnEnd = this._lastTurnEnd;
 	}
@@ -617,8 +624,16 @@ class AgentSessionAdapter implements ISessionData {
 			this._changes.set(this._extractChanges(session), tx);
 			this._isArchived.set(session.isArchived(), tx);
 			this._isRead.set(session.isRead(), tx);
+			this._description.set(this._extractDescription(session), tx);
 			this._lastTurnEnd.set(session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx);
 		});
+	}
+
+	private _extractDescription(session: IAgentSession): string | undefined {
+		if (!session.description) {
+			return undefined;
+		}
+		return typeof session.description === 'string' ? session.description : session.description.value;
 	}
 
 	private _extractChanges(session: IAgentSession): readonly IChatSessionFileChange[] {

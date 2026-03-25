@@ -223,6 +223,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const changes = element.changes.read(reader);
 			const updatedAt = element.updatedAt.read(reader);
 			const workspace = element.workspace.read(reader);
+			const description = element.description.read(reader);
 
 			// Clear and rebuild details row
 			DOM.clearNode(template.detailsRow);
@@ -264,13 +265,13 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
 				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
-				statusEl.textContent = localize('working', "Working...");
+				statusEl.textContent = description ?? localize('working', "Working...");
 			} else if (sessionStatus === SessionStatus.NeedsInput) {
 				if (parts.length > 0) {
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
 				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
-				statusEl.textContent = localize('needsInput', "Input needed");
+				statusEl.textContent = description ?? localize('needsInput', "Input needed");
 			} else if (sessionStatus === SessionStatus.Error) {
 				if (parts.length > 0) {
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
