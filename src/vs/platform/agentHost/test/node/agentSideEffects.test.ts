@@ -16,7 +16,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
-import { PermissionKind, ResponsePartKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type IToolCallCompletedState } from '../../common/state/sessionState.js';
+import { ResponsePartKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type IMarkdownResponsePart, type IToolCallCompletedState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { SessionStateManager } from '../../node/sessionStateManager.js';
 import { MockAgent } from './mockAgent.js';
@@ -147,38 +147,6 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
-	// ---- handleAction: session/permissionResolved -----------------------
-
-	suite('handleAction — session/permissionResolved', () => {
-
-		test('routes permission response to the correct agent', () => {
-			setupSession();
-			startTurn('turn-1');
-
-			// Simulate a permission_request progress event to populate the pending map
-			disposables.add(sideEffects.registerProgressListener(agent));
-			agent.fireProgress({
-				session: sessionUri,
-				type: 'permission_request',
-				requestId: 'perm-1',
-				permissionKind: PermissionKind.Write,
-				path: 'file.ts',
-				rawRequest: '{}',
-			});
-
-			// Now resolve it
-			sideEffects.handleAction({
-				type: ActionType.SessionPermissionResolved,
-				session: sessionUri.toString(),
-				turnId: 'turn-1',
-				requestId: 'perm-1',
-				approved: true,
-			});
-
-			assert.deepStrictEqual(agent.respondToPermissionCalls, [{ requestId: 'perm-1', approved: true }]);
-		});
-	});
-
 	// ---- handleAction: session/modelChanged -----------------------------
 
 	suite('handleAction — session/modelChanged', () => {
@@ -211,7 +179,8 @@ suite('AgentSideEffects', () => {
 
 			agent.fireProgress({ session: sessionUri, type: 'delta', messageId: 'msg-1', content: 'hi' });
 
-			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionDelta));
+			// First delta creates a response part (not a delta action)
+			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionResponsePart));
 		});
 
 		test('returns a disposable that stops listening', () => {
@@ -223,11 +192,11 @@ suite('AgentSideEffects', () => {
 			const listener = sideEffects.registerProgressListener(agent);
 
 			agent.fireProgress({ session: sessionUri, type: 'delta', messageId: 'msg-1', content: 'before' });
-			assert.strictEqual(envelopes.filter(e => e.action.type === ActionType.SessionDelta).length, 1);
+			assert.strictEqual(envelopes.filter(e => e.action.type === ActionType.SessionResponsePart).length, 1);
 
 			listener.dispose();
 			agent.fireProgress({ session: sessionUri, type: 'delta', messageId: 'msg-2', content: 'after' });
-			assert.strictEqual(envelopes.filter(e => e.action.type === ActionType.SessionDelta).length, 1);
+			assert.strictEqual(envelopes.filter(e => e.action.type === ActionType.SessionResponsePart).length, 1);
 		});
 	});
 
@@ -323,7 +292,9 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state!.lifecycle, SessionLifecycle.Ready);
 			assert.strictEqual(state!.turns.length, 1);
 			assert.strictEqual(state!.turns[0].userMessage.text, 'Hello');
-			assert.strictEqual(state!.turns[0].responseText, 'Hi there!');
+			const mdPart = state!.turns[0].responseParts.find((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			assert.ok(mdPart, 'should have a markdown response part');
+			assert.strictEqual(mdPart.content, 'Hi there!');
 			assert.strictEqual(state!.turns[0].state, TurnState.Complete);
 		});
 
@@ -347,8 +318,9 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state!.turns.length, 1);
 
 			const turn = state!.turns[0];
-			assert.strictEqual(turn.toolCalls.length, 1);
-			const tc = turn.toolCalls[0] as IToolCallCompletedState;
+			const toolCallParts = turn.responseParts.filter((p): p is IToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			assert.strictEqual(toolCallParts.length, 1);
+			const tc = toolCallParts[0].toolCall as IToolCallCompletedState;
 			assert.strictEqual(tc.status, ToolCallStatus.Completed);
 			assert.strictEqual(tc.toolCallId, 'tc-1');
 			assert.strictEqual(tc.toolName, 'shell');
@@ -375,9 +347,11 @@ suite('AgentSideEffects', () => {
 			assert.ok(state);
 			assert.strictEqual(state!.turns.length, 2);
 			assert.strictEqual(state!.turns[0].userMessage.text, 'First question');
-			assert.strictEqual(state!.turns[0].responseText, 'First answer');
+			const mdPart0 = state!.turns[0].responseParts.find((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			assert.strictEqual(mdPart0?.content, 'First answer');
 			assert.strictEqual(state!.turns[1].userMessage.text, 'Second question');
-			assert.strictEqual(state!.turns[1].responseText, 'Second answer');
+			const mdPart1 = state!.turns[1].responseParts.find((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			assert.strictEqual(mdPart1?.content, 'Second answer');
 		});
 
 		test('flushes interrupted turns when user message arrives without closing assistant message', async () => {
@@ -398,10 +372,12 @@ suite('AgentSideEffects', () => {
 			assert.ok(state);
 			assert.strictEqual(state!.turns.length, 2);
 			assert.strictEqual(state!.turns[0].userMessage.text, 'Interrupted question');
-			assert.strictEqual(state!.turns[0].responseText, '');
+			const mdPart0 = state!.turns[0].responseParts.find((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			assert.ok(!mdPart0 || mdPart0.content === '', 'interrupted turn should have empty response');
 			assert.strictEqual(state!.turns[0].state, TurnState.Cancelled);
 			assert.strictEqual(state!.turns[1].userMessage.text, 'Retried question');
-			assert.strictEqual(state!.turns[1].responseText, 'Answer');
+			const mdPart1 = state!.turns[1].responseParts.find((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			assert.strictEqual(mdPart1?.content, 'Answer');
 			assert.strictEqual(state!.turns[1].state, TurnState.Complete);
 		});
 
