@@ -18,9 +18,14 @@ steps:
       $PackageJson = Get-Content -Path package.json -Raw | ConvertFrom-Json
       $DistroVersion = $PackageJson.distro
 
-      Invoke-WebRequest -Uri "https://api.github.com/repos/microsoft/vscode-distro/zipball/$DistroVersion" `
-        -OutFile $ArchivePath `
-        -Headers @{ "Accept" = "application/vnd.github+json"; "Authorization" = "Bearer $(github-distro-mixin-password)"; "X-GitHub-Api-Version" = "2022-11-28" }
+      try {
+        Invoke-WebRequest -Uri "https://api.github.com/repos/microsoft/vscode-distro/zipball/$DistroVersion" `
+          -OutFile $ArchivePath `
+          -Headers @{ "Accept" = "application/vnd.github+json"; "Authorization" = "Bearer $(github-distro-mixin-password)"; "X-GitHub-Api-Version" = "2022-11-28" }
+      } catch {
+        Write-Error "Network error while downloading distro: $_"
+        throw
+      }
 
       New-Item -ItemType Directory -Path .build -Force
       Expand-Archive -Path $ArchivePath -DestinationPath .build
