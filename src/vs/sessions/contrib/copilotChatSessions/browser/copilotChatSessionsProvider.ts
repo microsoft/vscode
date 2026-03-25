@@ -613,7 +613,6 @@ class AgentSessionAdapter implements ISessionData {
 			return undefined;
 		}
 
-		// Direct pullRequestUrl
 		const url = metadata.pullRequestUrl as string | undefined;
 		if (url) {
 			try {
@@ -630,11 +629,6 @@ class AgentSessionAdapter implements ISessionData {
 			const name = metadata.name as string | undefined;
 			if (owner && name) {
 				return URI.parse(`https://github.com/${owner}/${name}/pull/${prNumber}`);
-			}
-
-			const nwo = metadata.repositoryNwo as string | undefined;
-			if (nwo) {
-				return URI.parse(`https://github.com/${nwo}/pull/${prNumber}`);
 			}
 		}
 

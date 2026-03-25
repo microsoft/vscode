@@ -215,19 +215,20 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.container.classList.toggle('archived', element.isArchived.read(reader));
 		}));
 
-		// Icon — reactive based on status and read state
+		// Icon — reactive based on status, read state, and PR
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = element.status.read(reader);
 			const isRead = element.isRead.read(reader);
 			const isArchived = element.isArchived.read(reader);
+			const pullRequestUri = element.pullRequestUri.read(reader);
 			DOM.clearNode(template.iconContainer);
-			const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, element.sessionType, element.icon);
+			const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, !!pullRequestUri, element.icon);
 			DOM.append(template.iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 			template.iconContainer.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
 			template.iconContainer.classList.toggle('session-icon-active', sessionStatus === SessionStatus.InProgress);
 			template.iconContainer.classList.toggle('session-icon-error', sessionStatus === SessionStatus.Error);
 			template.iconContainer.classList.toggle('session-icon-unread', !isRead && !isArchived && sessionStatus !== SessionStatus.InProgress && sessionStatus !== SessionStatus.NeedsInput && sessionStatus !== SessionStatus.Error);
-			template.iconContainer.classList.toggle('session-icon-read', isRead && !isArchived && sessionStatus !== SessionStatus.InProgress && sessionStatus !== SessionStatus.NeedsInput && sessionStatus !== SessionStatus.Error);
+			template.iconContainer.classList.toggle('session-icon-pr', !!pullRequestUri && sessionStatus === SessionStatus.Completed);
 		}));
 
 		// Title — reactive
@@ -248,6 +249,11 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			// Clear and rebuild details row
 			DOM.clearNode(template.detailsRow);
 			const parts: HTMLElement[] = [];
+
+			// Session type icon in details row
+			const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
+			DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(element.icon)}`));
+			parts.push(typeIconEl);
 
 			// Workspace badge — show when not grouped by repository
 			if (workspace && this.options.grouping() !== SessionsGrouping.Repository) {
@@ -279,42 +285,45 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				}
 			}
 
-			// Status description or timestamp
+			// Status description
 			if (sessionStatus === SessionStatus.InProgress) {
 				if (parts.length > 0) {
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
 				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
 				statusEl.textContent = description ?? localize('working', "Working...");
+				parts.push(statusEl);
 			} else if (sessionStatus === SessionStatus.NeedsInput) {
 				if (parts.length > 0) {
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
 				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
 				statusEl.textContent = description ?? localize('needsInput', "Input needed");
+				parts.push(statusEl);
 			} else if (sessionStatus === SessionStatus.Error) {
 				if (parts.length > 0) {
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
 				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
 				statusEl.textContent = localize('failed', "Failed");
-			} else {
-				// Relative timestamp
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
-				const timeEl = DOM.append(template.detailsRow, $('span.session-time'));
-				const formatTime = () => {
-					const seconds = Math.round((Date.now() - updatedAt.getTime()) / 1000);
-					return seconds < 60 ? localize('secondsDuration', "now") : fromNow(updatedAt, true);
-				};
-				timeEl.textContent = formatTime();
-				const targetWindow = DOM.getWindow(timeEl);
-				const interval = targetWindow.setInterval(() => {
-					timeEl.textContent = formatTime();
-				}, 60_000);
-				timeDisposable.value = { dispose: () => targetWindow.clearInterval(interval) };
+				parts.push(statusEl);
 			}
+
+			// Timestamp — always visible
+			if (parts.length > 0) {
+				DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
+			}
+			const timeEl = DOM.append(template.detailsRow, $('span.session-time'));
+			const formatTime = () => {
+				const seconds = Math.round((Date.now() - updatedAt.getTime()) / 1000);
+				return seconds < 60 ? localize('secondsDuration', "now") : fromNow(updatedAt, true);
+			};
+			timeEl.textContent = formatTime();
+			const targetWindow = DOM.getWindow(timeEl);
+			const interval = targetWindow.setInterval(() => {
+				timeEl.textContent = formatTime();
+			}, 60_000);
+			timeDisposable.value = { dispose: () => targetWindow.clearInterval(interval) };
 		}));
 
 		// Approval row — reactive
@@ -377,16 +386,20 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}));
 	}
 
-	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, _sessionType: string, defaultIcon: ThemeIcon): ThemeIcon {
+	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, hasPR: boolean, _defaultIcon: ThemeIcon): ThemeIcon {
 		switch (status) {
 			case SessionStatus.InProgress: return Codicon.sessionInProgress;
 			case SessionStatus.NeedsInput: return Codicon.circleFilled;
 			case SessionStatus.Error: return Codicon.error;
 			default:
+				if (hasPR) {
+					return Codicon.gitPullRequest;
+				}
 				if (!isRead && !isArchived) {
 					return Codicon.circleFilled;
 				}
-				return defaultIcon;
+				// Status-only: show small dot for read sessions
+				return Codicon.circleSmallFilled;
 		}
 	}
 
@@ -428,6 +441,8 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 	static readonly TEMPLATE_ID = 'session-section';
 	readonly templateId = SessionSectionRenderer.TEMPLATE_ID;
 
+	constructor(private readonly hideSectionCount: boolean) { }
+
 	renderTemplate(container: HTMLElement): ISessionSectionTemplate {
 		container.classList.add('session-section');
 		const label = DOM.append(container, $('span.session-section-label'));
@@ -441,7 +456,13 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			return;
 		}
 		template.label.textContent = element.label;
-		template.count.textContent = String(element.sessions.length);
+		if (this.hideSectionCount) {
+			template.count.textContent = '';
+			template.count.style.display = 'none';
+		} else {
+			template.count.textContent = String(element.sessions.length);
+			template.count.style.display = '';
+		}
 	}
 
 	disposeTemplate(_template: ISessionSectionTemplate): void { }
@@ -468,7 +489,7 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		if (!isSessionShowMore(element)) {
 			return;
 		}
-		template.textContent = localize('showMore', "Show {0} More...", element.remainingCount);
+		template.textContent = localize('showMoreCompact', "+{0} more", element.remainingCount);
 		template.onclick = () => this.onShowMore(element.sectionLabel);
 	}
 
@@ -617,7 +638,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			new SessionsTreeDelegate(approvalModel),
 			[
 				sessionRenderer,
-				new SessionSectionRenderer(),
+				new SessionSectionRenderer(true /* hideSectionCount */),
 				showMoreRenderer,
 			],
 			{
@@ -1076,6 +1097,28 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private sortSessions(sessions: ISessionData[]): ISessionData[] {
 		const sorting = this.options.sorting();
 		return [...sessions].sort((a, b) => {
+			// Prioritize active sessions (NeedsInput first, then InProgress)
+			const aStatus = a.status.get();
+			const bStatus = b.status.get();
+			const aActive = aStatus === SessionStatus.NeedsInput || aStatus === SessionStatus.InProgress;
+			const bActive = bStatus === SessionStatus.NeedsInput || bStatus === SessionStatus.InProgress;
+			if (aActive && !bActive) {
+				return -1;
+			}
+			if (!aActive && bActive) {
+				return 1;
+			}
+			// Among active sessions, NeedsInput comes before InProgress
+			if (aActive && bActive) {
+				if (aStatus === SessionStatus.NeedsInput && bStatus !== SessionStatus.NeedsInput) {
+					return -1;
+				}
+				if (aStatus !== SessionStatus.NeedsInput && bStatus === SessionStatus.NeedsInput) {
+					return 1;
+				}
+			}
+
+			// Sort by time
 			if (sorting === SessionsSorting.Updated) {
 				return b.updatedAt.get().getTime() - a.updatedAt.get().getTime();
 			}
