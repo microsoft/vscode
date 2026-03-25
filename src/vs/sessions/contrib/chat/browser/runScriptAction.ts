@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
@@ -29,7 +29,8 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { IActiveSessionItem, IsActiveSessionBackgroundProviderContext, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { IsActiveSessionBackgroundProviderContext, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionData, SessionStatus } from '../../sessions/common/sessionData.js';
 import { Menus } from '../../../browser/menus.js';
 import { INonSessionTaskEntry, ISessionsConfigurationService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsConfigurationService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
@@ -97,7 +98,7 @@ function getPrimaryTask(tasks: readonly ISessionTaskWithTarget[], pinnedTaskLabe
 }
 
 interface IRunScriptActionContext {
-	readonly session: IActiveSessionItem;
+	readonly session: ISessionData;
 	readonly tasks: readonly ISessionTaskWithTarget[];
 	readonly pinnedTaskLabel: string | undefined;
 }
@@ -145,7 +146,8 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			}
 
 			const tasks = this._sessionsConfigService.getSessionTasks(activeSession).read(reader);
-			const pinnedTaskLabel = this._sessionsConfigService.getPinnedTaskLabel(activeSession.repository).read(reader);
+			const repo = activeSession.workspace.read(reader)?.repositories[0];
+			const pinnedTaskLabel = this._sessionsConfigService.getPinnedTaskLabel(repo?.uri).read(reader);
 			return { session: activeSession, tasks, pinnedTaskLabel };
 		}).recomputeInitiallyAndOnChange(this._store);
 
@@ -167,8 +169,8 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					action,
 					options,
 					that._activeRunState,
-					(session: IActiveSessionItem) => that._showConfigureQuickPick(session),
-					(session: IActiveSessionItem, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => that._showCustomCommandInput(session, existingTask, mode),
+					(session: ISessionData) => that._showConfigureQuickPick(session),
+					(session: ISessionData, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => that._showCustomCommandInput(session, existingTask, mode),
 				);
 			},
 		));
@@ -218,7 +220,8 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			}
 
 			const { session, tasks } = activeState;
-			const configureScriptPrecondition = session.worktree ?? session.repository ? ContextKeyExpr.true() : ContextKeyExpr.false();
+			const repo = session.workspace.read(reader)?.repositories[0];
+			const configureScriptPrecondition = repo?.workingDirectory ?? repo?.uri ? ContextKeyExpr.true() : ContextKeyExpr.false();
 
 			reader.store.add(registerAction2(class extends Action2 {
 				constructor() {
@@ -260,7 +263,8 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 
 				async run(): Promise<void> {
-					if (session.isUntitled) {
+					const status = session.status.read(undefined);
+					if (status === SessionStatus.Untitled) {
 						const viewPane = that._viewsService.getViewWithId<NewChatViewPane>(SessionsViewId);
 						viewPane?.sendQuery('/generate-run-commands');
 					} else {
@@ -272,7 +276,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		}));
 	}
 
-	private async _showConfigureQuickPick(session: IActiveSessionItem): Promise<ITaskEntry | undefined> {
+	private async _showConfigureQuickPick(session: ISessionData): Promise<ITaskEntry | undefined> {
 		const nonSessionTasks = await this._sessionsConfigService.getNonSessionTasks(session);
 		if (nonSessionTasks.length === 0) {
 			// No existing tasks, go straight to custom command input
@@ -321,7 +325,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private async _showCustomCommandInput(session: IActiveSessionItem, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add', allowBackNavigation = false): Promise<ITaskEntry | undefined> {
+	private async _showCustomCommandInput(session: ISessionData, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add', allowBackNavigation = false): Promise<ITaskEntry | undefined> {
 		const taskConfiguration = await this._showCustomCommandWidget(session, existingTask, mode, allowBackNavigation);
 		if (!taskConfiguration) {
 			return undefined;
@@ -378,8 +382,9 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		);
 	}
 
-	private _showCustomCommandWidget(session: IActiveSessionItem, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add', allowBackNavigation = false): Promise<IRunScriptCustomTaskWidgetResult | 'back' | undefined> {
-		const workspaceTargetDisabledReason = !(session.worktree ?? session.repository)
+	private _showCustomCommandWidget(session: ISessionData, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add', allowBackNavigation = false): Promise<IRunScriptCustomTaskWidgetResult | 'back' | undefined> {
+		const repo = session.workspace.get()?.repositories[0];
+		const workspaceTargetDisabledReason = !(repo?.workingDirectory ?? repo?.uri)
 			? localize('workspaceStorageUnavailableTooltip', "Workspace storage is unavailable for this session")
 			: undefined;
 		const isConfigureMode = mode === 'configure';
@@ -439,7 +444,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			}));
 			disposables.add(quickWidget.onDidHide(() => {
 				const quickInputContainer = widget.domNode.closest('.quick-input-widget');
-				if (quickInputContainer instanceof HTMLElement) {
+				if (isHTMLElement(quickInputContainer)) {
 					quickInputContainer.classList.remove('run-script-action-quick-widget');
 				}
 				if (!settled) {
@@ -451,7 +456,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 			quickWidget.show();
 			const quickInputContainer = widget.domNode.closest('.quick-input-widget');
-			if (quickInputContainer instanceof HTMLElement) {
+			if (isHTMLElement(quickInputContainer)) {
 				quickInputContainer.classList.add('run-script-action-quick-widget');
 			}
 			widget.focus();
@@ -475,8 +480,8 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		_options: IActionViewItemOptions,
 		private readonly _activeRunState: IObservable<IRunScriptActionContext | undefined>,
-		private readonly _showConfigureQuickPick: (session: IActiveSessionItem) => Promise<ITaskEntry | undefined>,
-		private readonly _showCustomCommandInput: (session: IActiveSessionItem, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => Promise<ITaskEntry | undefined>,
+		private readonly _showConfigureQuickPick: (session: ISessionData) => Promise<ITaskEntry | undefined>,
+		private readonly _showCustomCommandInput: (session: ISessionData, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => Promise<ITaskEntry | undefined>,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ISessionsConfigurationService private readonly _sessionsConfigService: ISessionsConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -593,6 +598,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		}
 
 		const { tasks, session, pinnedTaskLabel } = state;
+		const repo = session.workspace.get()?.repositories[0];
 		const actions: IActionWidgetDropdownAction[] = [];
 
 		// Category for normal tasks (no header shown)
@@ -614,10 +620,10 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 					label: isPinned ? localize('unpinTask', "Unpin") : localize('pinTask', "Pin"),
 					tooltip: isPinned ? localize('unpinTaskTooltip', "Unpin") : localize('pinTaskTooltip', "Pin"),
 					class: ThemeIcon.asClassName(isPinned ? Codicon.pinned : Codicon.pin),
-					enabled: !!session.repository,
+					enabled: !!repo?.uri,
 					run: async () => {
 						this._actionWidgetService.hide();
-						this._sessionsConfigService.setPinnedTaskLabel(session.repository, isPinned ? undefined : task.label);
+						this._sessionsConfigService.setPinnedTaskLabel(repo?.uri, isPinned ? undefined : task.label);
 					}
 				},
 				{
@@ -664,7 +670,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		}
 
 		// "Add Task..." action
-		const canConfigure = !!(session.worktree ?? session.repository);
+		const canConfigure = !!(repo?.workingDirectory ?? repo?.uri);
 		actions.push({
 			id: 'runScript.addAction',
 			label: localize('configureDefaultRunAction', "Add Task..."),
@@ -701,7 +707,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			class: undefined,
 			category: addCategory,
 			run: async () => {
-				if (session.isUntitled) {
+				if (session.status.get() === SessionStatus.Untitled) {
 					const viewPane = this._viewsService.getViewWithId<NewChatViewPane>(SessionsViewId);
 					viewPane?.sendQuery('/generate-run-commands');
 				} else {
