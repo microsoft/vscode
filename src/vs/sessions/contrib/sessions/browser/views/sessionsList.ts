@@ -742,6 +742,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			sections.push({ id: 'archived', label: localize('archived', "Archived"), sessions: archived });
 		}
 
+		const hasTodaySessions = sections.some(s => s.id === 'today' && s.sessions.length > 0);
+
 		const children: IObjectTreeElement<SessionListItem>[] = sections.map(section => {
 			const isRepoGroup = grouping === SessionsGrouping.Repository
 				&& section.id !== 'pinned' && section.id !== 'archived';
@@ -761,10 +763,22 @@ export class SessionsList extends Disposable implements ISessionsList {
 				sectionChildren = section.sessions.map(session => ({ element: session as SessionListItem }));
 			}
 
+			// Default collapse state for older time sections
+			let defaultCollapsed: boolean | ObjectTreeElementCollapseState = ObjectTreeElementCollapseState.PreserveOrExpanded;
+			if (grouping === SessionsGrouping.Date && hasTodaySessions) {
+				const olderSections = ['yesterday', 'thisWeek', 'older', 'archived'];
+				if (olderSections.includes(section.id)) {
+					defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
+				}
+			}
+			if (section.id === 'archived') {
+				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
+			}
+
 			return {
 				element: section as SessionListItem,
 				collapsible: true,
-				collapsed: this.getSavedCollapseState(section.id) ?? ObjectTreeElementCollapseState.PreserveOrExpanded,
+				collapsed: this.getSavedCollapseState(section.id) ?? defaultCollapsed,
 				children: sectionChildren,
 			};
 		});
