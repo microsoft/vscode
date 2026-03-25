@@ -306,6 +306,9 @@ export interface IAgentFeedbackVariableEntry extends IBaseChatRequestVariableEnt
 		readonly resourceUri: URI;
 		readonly range: IRange;
 		readonly codeSelection?: string;
+		readonly diffHunks?: string;
+		/** When this item was converted from a PR review comment, the original thread ID. */
+		readonly sourcePRReviewCommentId?: string;
 	}>;
 }
 

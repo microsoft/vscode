@@ -12,12 +12,14 @@ import { Event } from '../../../../../../base/common/event.js';
 import { escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { getMediaMime } from '../../../../../../base/common/mime.js';
 import { basename, posix, win32 } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -36,7 +38,7 @@ import type { ITerminalExecuteStrategy, ITerminalExecuteStrategyResult } from '.
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
+import { extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh, normalizeTerminalCommandForDisplay } from '../runInTerminalHelpers.js';
 import type { ICommandLinePresenter } from './commandLinePresenter/commandLinePresenter.js';
 import { NodeCommandLinePresenter } from './commandLinePresenter/nodeCommandLinePresenter.js';
 import { PythonCommandLinePresenter } from './commandLinePresenter/pythonCommandLinePresenter.js';
@@ -45,7 +47,7 @@ import { SandboxedCommandLinePresenter } from './commandLinePresenter/sandboxedC
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
-import { type ICommandLineAnalyzer, type ICommandLineAnalyzerOptions, type ICommandLineAnalyzerResult } from './commandLineAnalyzer/commandLineAnalyzer.js';
+import { type ICommandLineAnalyzer, type ICommandLineAnalyzerOptions } from './commandLineAnalyzer/commandLineAnalyzer.js';
 import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLineAutoApproveAnalyzer.js';
 import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 import { CommandLineSandboxAnalyzer } from './commandLineAnalyzer/commandLineSandboxAnalyzer.js';
@@ -70,15 +72,16 @@ import { clamp } from '../../../../../../base/common/numbers.js';
 import { IOutputAnalyzer } from './outputAnalyzer.js';
 import { SandboxOutputAnalyzer } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
+import { ITerminalSandboxService, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
 
 // #region Tool data
 
 const TOOL_REFERENCE_NAME = 'runInTerminal';
 const LEGACY_TOOL_REFERENCE_FULL_NAMES = ['runCommands/runInTerminal'];
 
-function createPowerShellModelDescription(shell: string): string {
+function createPowerShellModelDescription(shell: string, isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	const isWinPwsh = isWindowsPowerShell(shell);
-	return [
+	const parts = [
 		`This tool allows you to execute ${isWinPwsh ? 'Windows PowerShell 5.1' : 'PowerShell'} commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.`,
 		'',
 		'Command Execution:',
@@ -103,6 +106,13 @@ function createPowerShellModelDescription(shell: string): string {
 		'- For long-running tasks (e.g., servers), set isBackground=true',
 		'- Returns a terminal ID for checking status and runtime later',
 		'- Use Start-Job for background PowerShell jobs',
+	];
+
+	if (isSandboxEnabled) {
+		parts.push(...createSandboxLines(networkDomains));
+	}
+
+	parts.push(
 		'',
 		'Output Management:',
 		'- Output is automatically truncated if longer than 60KB to prevent context overflow',
@@ -118,10 +128,39 @@ function createPowerShellModelDescription(shell: string): string {
 		'- Use Test-Path to check file/directory existence',
 		'- Be specific with Select-Object properties to avoid excessive output',
 		'- Avoid printing credentials unless absolutely required',
-	].join('\n');
+	);
+
+	return parts.join('\n');
 }
 
-const genericDescription = `
+function createSandboxLines(networkDomains?: ITerminalSandboxResolvedNetworkDomains): string[] {
+	const lines = [
+		'',
+		'Sandboxing:',
+		'- ATTENTION: Terminal sandboxing is enabled, commands run in a sandbox by default',
+		'- When executing commands within the sandboxed environment, all operations requiring a temporary directory must utilize the $TMPDIR environment variable. The /tmp directory is not guaranteed to be accessible or writable and must be avoided',
+		'- Tools and scripts should respect the TMPDIR environment variable, which is automatically set to an appropriate path within the sandbox',
+		'- When a command fails due to sandbox restrictions, immediately re-run it with requestUnsandboxedExecution=true. Do NOT ask the user for permission — setting this flag automatically shows a confirmation prompt to the user',
+		'- Only set requestUnsandboxedExecution=true when there is evidence of failures caused by the sandbox, e.g. \'Operation not permitted\' errors, network failures, or file access errors, etc',
+		'- When setting requestUnsandboxedExecution=true, also provide requestUnsandboxedExecutionReason explaining why the command needs unsandboxed access',
+	];
+	if (networkDomains) {
+		const deniedSet = new Set(networkDomains.deniedDomains);
+		const effectiveAllowed = networkDomains.allowedDomains.filter(d => !deniedSet.has(d));
+		if (effectiveAllowed.length === 0) {
+			lines.push('- All network access is blocked in the sandbox');
+		} else {
+			lines.push(`- Only the following domains are accessible in the sandbox (all other network access is blocked): ${effectiveAllowed.join(', ')}`);
+		}
+		if (networkDomains.deniedDomains.length > 0) {
+			lines.push(`- The following domains are explicitly blocked in the sandbox: ${networkDomains.deniedDomains.join(', ')}`);
+		}
+	}
+	return lines;
+}
+
+function createGenericDescription(isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
+	const parts = [`
 Command Execution:
 - Use && to chain simple commands on one line
 - Prefer pipelines | over temporary files for data flow
@@ -141,7 +180,13 @@ Program Execution:
 
 Background Processes:
 - For long-running tasks (e.g., servers), set isBackground=true
-- Returns a terminal ID for checking status and runtime later
+- Returns a terminal ID for checking status and runtime later`];
+
+	if (isSandboxEnabled) {
+		parts.push(createSandboxLines(networkDomains).join('\n'));
+	}
+
+	parts.push(`
 
 Output Management:
 - Output is automatically truncated if longer than 60KB to prevent context overflow
@@ -153,22 +198,25 @@ Best Practices:
 - Quote variables: "$var" instead of $var to handle spaces
 - Use find with -exec or xargs for file operations
 - Be specific with commands to avoid excessive output
-- Avoid printing credentials unless absolutely required`;
+- Avoid printing credentials unless absolutely required`);
 
-function createBashModelDescription(): string {
+	return parts.join('');
+}
+
+function createBashModelDescription(isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	return [
 		'This tool allows you to execute shell commands in a persistent bash terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		genericDescription,
+		createGenericDescription(isSandboxEnabled, networkDomains),
 		'- Use [[ ]] for conditional tests instead of [ ]',
 		'- Prefer $() over backticks for command substitution',
 		'- Use set -e at start of complex commands to exit on errors'
 	].join('\n');
 }
 
-function createZshModelDescription(): string {
+function createZshModelDescription(isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	return [
 		'This tool allows you to execute shell commands in a persistent zsh terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		genericDescription,
+		createGenericDescription(isSandboxEnabled, networkDomains),
 		'- Use type to check command type (builtin, function, alias)',
 		'- Use jobs, fg, bg for job control',
 		'- Use [[ ]] for conditional tests instead of [ ]',
@@ -178,10 +226,10 @@ function createZshModelDescription(): string {
 	].join('\n');
 }
 
-function createFishModelDescription(): string {
+function createFishModelDescription(isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	return [
 		'This tool allows you to execute shell commands in a persistent fish terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		genericDescription,
+		createGenericDescription(isSandboxEnabled, networkDomains),
 		'- Use type to check command type (builtin, function, alias)',
 		'- Use jobs, fg, bg for job control',
 		'- Use test expressions for conditionals (no [[ ]] syntax)',
@@ -196,20 +244,26 @@ export async function createRunInTerminalToolData(
 	accessor: ServicesAccessor
 ): Promise<IToolData> {
 	const instantiationService = accessor.get(IInstantiationService);
+	const terminalSandboxService = accessor.get(ITerminalSandboxService);
 
 	const profileFetcher = instantiationService.createInstance(TerminalProfileFetcher);
-	const shell = await profileFetcher.getCopilotShell();
-	const os = await profileFetcher.osBackend;
+	const [shell, os, isSandboxEnabled] = await Promise.all([
+		profileFetcher.getCopilotShell(),
+		profileFetcher.osBackend,
+		terminalSandboxService.isEnabled(),
+	]);
+
+	const networkDomains = isSandboxEnabled ? terminalSandboxService.getResolvedNetworkDomains() : undefined;
 
 	let modelDescription: string;
 	if (shell && os && isPowerShell(shell, os)) {
-		modelDescription = createPowerShellModelDescription(shell);
+		modelDescription = createPowerShellModelDescription(shell, isSandboxEnabled, networkDomains);
 	} else if (shell && os && isZsh(shell, os)) {
-		modelDescription = createZshModelDescription();
+		modelDescription = createZshModelDescription(isSandboxEnabled, networkDomains);
 	} else if (shell && os && isFish(shell, os)) {
-		modelDescription = createFishModelDescription();
+		modelDescription = createFishModelDescription(isSandboxEnabled, networkDomains);
 	} else {
-		modelDescription = createBashModelDescription();
+		modelDescription = createBashModelDescription(isSandboxEnabled, networkDomains);
 	}
 
 	return {
@@ -242,8 +296,18 @@ export async function createRunInTerminalToolData(
 				},
 				timeout: {
 					type: 'number',
-					description: 'An optional timeout in milliseconds. When provided, the tool will stop tracking the command after this duration and return the output collected so far. Be conservative with the timeout duration, give enough time that the command would complete on a low-end machine. Use 0 for no timeout. If it\'s not clear how long the command will take then use 0 to avoid prematurely terminating it, never guess too low.',
+					description: 'An optional timeout in milliseconds. When provided, the tool will stop tracking the command after this duration and return the output collected so far with a timeout indicator. Be conservative with the timeout duration, give enough time that the command would complete on a low-end machine. Use 0 for no timeout. If it\'s not clear how long the command will take then use 0 to avoid prematurely terminating it, never guess too low.',
 				},
+				...isSandboxEnabled ? {
+					requestUnsandboxedExecution: {
+						type: 'boolean',
+						description: 'Request that this command run outside the terminal sandbox. Only set this when the command clearly needs unsandboxed access. The user will be prompted before the command runs unsandboxed.'
+					},
+					requestUnsandboxedExecutionReason: {
+						type: 'string',
+						description: 'A short explanation of why this command must run outside the terminal sandbox. Only provide this when requestUnsandboxedExecution is true.'
+					},
+				} : {},
 			},
 			required: [
 				'command',
@@ -277,6 +341,8 @@ export interface IRunInTerminalInputParams {
 	goal: string;
 	isBackground: boolean;
 	timeout?: number;
+	requestUnsandboxedExecution?: boolean;
+	requestUnsandboxedExecutionReason?: string;
 }
 
 /**
@@ -309,8 +375,6 @@ const telemetryIgnoredSequences = [
 ];
 
 const altBufferMessage = '\n' + localize('runInTerminalTool.altBufferMessage', "The command opened the alternate buffer.");
-const deniedCommandCircuitBreakerThreshold = 3;
-type DenialDetails = NonNullable<ICommandLineAnalyzerResult['denialDetails']>;
 
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {
@@ -329,7 +393,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	protected readonly _sessionTerminalAssociations = new ResourceMap<IToolTerminal>();
 	protected readonly _sessionTerminalInstances = new ResourceMap<Set<ITerminalInstance>>();
-	private readonly _sessionDeniedCommandCounts = new ResourceMap<Map<string, number>>();
 	private readonly _terminalsBeingDisposedBySessionCleanup = new Set<ITerminalInstance>();
 
 	// Immutable window state
@@ -365,10 +428,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		RunInTerminalTool._activeExecutions.delete(id);
 		return true;
 	}
-
+	/**
+	 * Controls whether this tool wires up sandbox-specific command-line
+	 * behavior, including both the {@link CommandLineSandboxRewriter} and the
+	 * {@link CommandLineSandboxAnalyzer}. This is separate from
+	 * ITerminalSandboxService.isEnabled(), which reports whether terminal
+	 * sandboxing is currently enabled for the running window.
+	 */
+	protected get _enableCommandLineSandboxRewriting() {
+		return true;
+	}
 	constructor(
 		@IChatService protected readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -378,6 +451,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalSandboxService private readonly _terminalSandboxService: ITerminalSandboxService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
@@ -395,14 +469,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._commandLineRewriters = [
 			this._register(this._instantiationService.createInstance(CommandLineCdPrefixRewriter)),
 			this._register(this._instantiationService.createInstance(CommandLinePwshChainOperatorRewriter, this._treeSitterCommandParser)),
-			this._register(this._instantiationService.createInstance(CommandLinePreventHistoryRewriter)),
-			this._register(this._instantiationService.createInstance(CommandLineSandboxRewriter)),
 		];
+		if (this._enableCommandLineSandboxRewriting) {
+			this._commandLineRewriters.push(this._register(this._instantiationService.createInstance(CommandLineSandboxRewriter)));
+		}
+		// PreventHistoryRewriter must be last so the leading space is applied to the final
+		// command, including any sandbox wrapping.
+		this._commandLineRewriters.push(this._register(this._instantiationService.createInstance(CommandLinePreventHistoryRewriter)));
 		this._commandLineAnalyzers = [
 			this._register(this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineFileWriteAnalyzer: ${message}`, args))),
 			this._register(this._instantiationService.createInstance(CommandLineAutoApproveAnalyzer, this._treeSitterCommandParser, this._telemetry, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args))),
-			this._register(this._instantiationService.createInstance(CommandLineSandboxAnalyzer)),
 		];
+		if (this._enableCommandLineSandboxRewriting) {
+			this._commandLineAnalyzers.push(this._register(this._instantiationService.createInstance(CommandLineSandboxAnalyzer)));
+		}
 		this._commandLinePresenters = [
 			this._instantiationService.createInstance(SandboxedCommandLinePresenter),
 			new NodeCommandLinePresenter(),
@@ -440,14 +520,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	async handleToolStream(context: IToolInvocationStreamContext, _token: CancellationToken): Promise<IStreamedToolInvocation | undefined> {
 		const partialInput = context.rawInput as Partial<IRunInTerminalInputParams> | undefined;
 		if (partialInput && typeof partialInput === 'object' && partialInput.command) {
-			const normalizedCommand = partialInput.command.replace(/\r\n|\r|\n/g, ' ');
+			const normalizedCommand = normalizeTerminalCommandForDisplay(partialInput.command).replace(/\r\n|\r|\n/g, ' ');
 			const truncatedCommand = normalizedCommand.length > 80
 				? normalizedCommand.substring(0, 77) + '...'
 				: normalizedCommand;
-			const escapedCommand = escapeMarkdownSyntaxTokens(truncatedCommand);
 			const invocationMessage = partialInput.isBackground
-				? new MarkdownString(localize('runInTerminal.streaming.background', "Running `{0}` in background", escapedCommand))
-				: new MarkdownString(localize('runInTerminal.streaming', "Running `{0}`", escapedCommand));
+				? new MarkdownString(localize('runInTerminal.streaming.background', "Running `{0}` in background", truncatedCommand))
+				: new MarkdownString(localize('runInTerminal.streaming', "Running `{0}`", truncatedCommand));
 			return { invocationMessage };
 		}
 		return { invocationMessage: localize('runInTerminal.streaming.default', "Running command") };
@@ -464,7 +543,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				instance = toolTerminal.instance;
 			}
 		}
-		const [os, shell, cwd] = await Promise.all([
+		const [os, shell, cwd, isTerminalSandboxEnabled] = await Promise.all([
 			this._osBackend,
 			this._profileFetcher.getCopilotShell(),
 			(async () => {
@@ -475,9 +554,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					cwd = workspaceFolder?.uri;
 				}
 				return cwd;
-			})()
+			})(),
+			this._terminalSandboxService.isEnabled()
 		]);
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
+		const requiresUnsandboxConfirmation = isTerminalSandboxEnabled && args.requestUnsandboxedExecution === true;
 
 		const terminalToolSessionId = generateUuid();
 		// Generate a custom command ID to link the command between renderer and pty host
@@ -485,16 +566,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		let rewrittenCommand: string | undefined = args.command;
 		let forDisplayCommand: string | undefined = undefined;
+		let isSandboxWrapped = false;
 		for (const rewriter of this._commandLineRewriters) {
 			const rewriteResult = await rewriter.rewrite({
 				commandLine: rewrittenCommand,
 				cwd,
 				shell,
-				os
+				os,
+				requestUnsandboxedExecution: requiresUnsandboxConfirmation,
 			});
 			if (rewriteResult) {
 				rewrittenCommand = rewriteResult.rewritten;
-				forDisplayCommand = rewriteResult.forDisplay;
+				forDisplayCommand = rewriteResult.forDisplay ?? forDisplayCommand;
+				if (rewriteResult.isSandboxWrapped) {
+					isSandboxWrapped = true;
+				}
 				this._logService.info(`RunInTerminalTool: Command rewritten by ${rewriter.constructor.name}: ${rewriteResult.reasoning}`);
 			}
 		}
@@ -506,11 +592,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			commandLine: {
 				original: args.command,
 				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand,
-				forDisplay: forDisplayCommand,
+				forDisplay: forDisplayCommand ?? normalizeTerminalCommandForDisplay(rewrittenCommand ?? args.command),
+				isSandboxWrapped,
 			},
 			cwd,
 			language,
 			isBackground: args.isBackground,
+			requestUnsandboxedExecution: requiresUnsandboxConfirmation,
+			requestUnsandboxedExecutionReason: args.requestUnsandboxedExecutionReason,
 		};
 
 		// HACK: Exit early if there's an alternative recommendation, this is a little hacky but
@@ -556,8 +645,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			treeSitterLanguage: isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
 			terminalToolSessionId,
 			chatSessionResource,
+			requiresUnsandboxConfirmation,
 		};
-		const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
+
+		// In Autopilot/Bypass Approvals modes, do not interact with terminal auto-approve rules.
+		// Commands should flow through directly based on the chat permission level.
+		const isSessionAutoApproved = chatSessionResource && this._isSessionAutoApproveLevel(chatSessionResource);
+		const commandLineAnalyzers = isSessionAutoApproved
+			? this._commandLineAnalyzers.filter(e => !(e instanceof CommandLineAutoApproveAnalyzer))
+			: this._commandLineAnalyzers;
+		const commandLineAnalyzerResults = await Promise.all(commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
 
 		const disclaimersRaw = commandLineAnalyzerResults.map(e => e.disclaimers).filter(e => !!e).flatMap(e => e);
 		let disclaimer: IMarkdownString | undefined;
@@ -606,7 +703,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		// Extract cd prefix for display - show directory in title, command suffix in editor
-		const commandToDisplay = (toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original).trimStart();
+		const commandToDisplay = (toolSpecificData.commandLine.forDisplay ?? toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original).trimStart();
 		const extractedCd = extractCdPrefix(commandToDisplay, shell, os);
 		let confirmationTitle: string;
 		if (extractedCd && cwd) {
@@ -665,52 +762,47 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 
-		// Check if the session's permission level (Autopilot/Bypass Approvals) auto-approves all tools.
-		// When active, skip terminal confirmation entirely since the user has opted into full auto-approval.
-		const isSessionAutoApproved = chatSessionResource && this._isSessionAutoApproveLevel(chatSessionResource);
-		const deniedAnalyzerResult = commandLineAnalyzerResults.find(e => e.isAutoApproved === false && e.denialDetails);
-
-		// In auto-approval session mode, fail closed for policy-denied commands instead of showing
-		// a confirmation that may block unattended runs.
-		if (isSessionAutoApproved && deniedAnalyzerResult?.denialDetails && context.forceConfirmationReason === undefined) {
-			const denial = deniedAnalyzerResult.denialDetails;
-			const deniedRule = denial.ruleSourceText
-				? ` Rule: \`${escapeMarkdownSyntaxTokens(denial.ruleSourceText)}\`.`
-				: '';
-			const deniedAttempts = this._recordDeniedCommandAttempt(chatSessionResource!, denial);
-			const shouldCircuitBreak = deniedAttempts >= deniedCommandCircuitBreakerThreshold;
-			toolSpecificData.alternativeRecommendation = shouldCircuitBreak
-				? `POLICY_DENIED_CIRCUIT_BREAKER: Command was blocked ${deniedAttempts} times in this session and will not be retried. Scope: ${denial.scope}. Command: \`${escapeMarkdownSyntaxTokens(denial.deniedCommand)}\`. Reason: ${denial.reason}.${deniedRule}`
-				: `POLICY_DENIED: Command was not executed in auto-approval session mode. Scope: ${denial.scope}. Command: \`${escapeMarkdownSyntaxTokens(denial.deniedCommand)}\`. Reason: ${denial.reason}.${deniedRule}`;
-			return {
-				confirmationMessages: undefined,
-				toolSpecificData,
-			};
-		}
-		if (isSessionAutoApproved && chatSessionResource) {
-			this._sessionDeniedCommandCounts.delete(chatSessionResource);
+		if (requiresUnsandboxConfirmation) {
+			confirmationTitle = args.isBackground
+				? localize('runInTerminal.unsandboxed.background', "Run `{0}` command outside the sandbox in background?", shellType)
+				: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the sandbox?", shellType);
 		}
 
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
 		const shouldShowConfirmation = (!isFinalAutoApproved && !isSessionAutoApproved) || context.forceConfirmationReason !== undefined;
+		const confirmationMessage = requiresUnsandboxConfirmation
+			? new MarkdownString(localize(
+				'runInTerminal.unsandboxed.confirmationMessage',
+				"Explanation: {0}\n\nGoal: {1}\n\nReason for leaving the sandbox: {2}",
+				args.explanation,
+				args.goal,
+				args.requestUnsandboxedExecutionReason || localize('runInTerminal.unsandboxed.confirmationMessage.defaultReason', "The model indicated that this command needs unsandboxed access.")
+			))
+			: new MarkdownString(localize('runInTerminal.confirmationMessage', "Explanation: {0}\n\nGoal: {1}", args.explanation, args.goal));
 		const confirmationMessages = shouldShowConfirmation ? {
 			title: confirmationTitle,
-			message: new MarkdownString(localize('runInTerminal.confirmationMessage', "Explanation: {0}\n\nGoal: {1}", args.explanation, args.goal)),
+			message: confirmationMessage,
 			disclaimer,
+			allowAutoConfirm: undefined,
 			terminalCustomActions: customActions,
 		} : undefined;
 
-		const rawDisplayCommand = toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
+		const rawDisplayCommand = toolSpecificData.commandLine.forDisplay ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
 		const displayCommand = rawDisplayCommand.length > 80
 			? rawDisplayCommand.substring(0, 77) + '...'
 			: rawDisplayCommand;
 		const escapedDisplayCommand = escapeMarkdownSyntaxTokens(displayCommand);
-		const invocationMessage = args.isBackground
-			? new MarkdownString(localize('runInTerminal.invocation.background', "Running `{0}` in background", escapedDisplayCommand))
-			: new MarkdownString(localize('runInTerminal.invocation', "Running `{0}`", escapedDisplayCommand));
+		const invocationMessage = toolSpecificData.commandLine.isSandboxWrapped
+			? args.isBackground
+				? new MarkdownString(localize('runInTerminal.invocation.sandbox.background', "Running `{0}` in sandbox in background", escapedDisplayCommand))
+				: new MarkdownString(localize('runInTerminal.invocation.sandbox', "Running `{0}` in sandbox", escapedDisplayCommand))
+			: args.isBackground
+				? new MarkdownString(localize('runInTerminal.invocation.background', "Running `{0}` in background", escapedDisplayCommand))
+				: new MarkdownString(localize('runInTerminal.invocation', "Running `{0}`", escapedDisplayCommand));
 
 		return {
 			invocationMessage,
+			icon: toolSpecificData.commandLine.isSandboxWrapped ? Codicon.terminalSecure : Codicon.terminal,
 			confirmationMessages,
 			toolSpecificData,
 		};
@@ -725,10 +817,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const inspected = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
 		if (inspected.policyValue === false) {
 			return false;
-		}
-		// Check the terminal chat service's session auto-approval state
-		if (this._terminalChatService.hasChatSessionAutoApproval(chatSessionResource)) {
-			return true;
 		}
 		// Check the live widget picker level (handles mid-session switches).
 		// Fall back to lastFocusedWidget if the session-specific widget isn't found
@@ -776,8 +864,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const didToolEditCommand = (
 			!didUserEditCommand &&
 			toolSpecificData.commandLine.toolEdited !== undefined &&
-			toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original
+			toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original &&
+			// Only consider it a meaningful edit if the display form also differs from the
+			// original. Cosmetic rewrites like prepending a space to prevent shell history
+			// should not trigger the "tool simplified the command" note.
+			normalizeTerminalCommandForDisplay(toolSpecificData.commandLine.toolEdited).trim() !== normalizeTerminalCommandForDisplay(toolSpecificData.commandLine.original).trim()
 		);
+
+		const didSandboxWrapCommand = toolSpecificData.commandLine.isSandboxWrapped === true;
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
@@ -824,6 +918,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let didTimeout = false;
 		let didMoveToBackground = args.isBackground;
 		let timeoutPromise: CancelablePromise<void> | undefined;
+		let timeoutRacePromise: Promise<{ type: 'timeout' }> | undefined;
 		let outputMonitor: OutputMonitor | undefined;
 		let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 		const executeCancellation = store.add(new CancellationTokenSource(token));
@@ -834,12 +929,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const shouldEnforceTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel) === true;
 			if (shouldEnforceTimeout) {
 				timeoutPromise = timeout(timeoutValue);
-				timeoutPromise.then(() => {
-					if (!executeCancellation.token.isCancellationRequested) {
-						didTimeout = true;
-						executeCancellation.cancel();
-					}
-				});
+				timeoutRacePromise = timeoutPromise.then(
+					() => ({ type: 'timeout' as const })
+				).catch(() => ({ type: 'timeout' as const }));
 			}
 		}
 
@@ -878,7 +970,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.None) {
 				toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
 			}
-			this._logService.debug(`RunInTerminalTool: Using \`${execution.strategy.type}\` execute strategy for command \`${command}\``);
+			this._logService.info(`RunInTerminalTool: Using \`${execution.strategy.type}\` execute strategy for command \`${command}\``);
 			store.add(execution);
 			RunInTerminalTool._activeExecutions.set(termId, execution);
 
@@ -922,22 +1014,38 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				state.timestamp = state.timestamp ?? timingStart;
 				toolSpecificData.terminalCommandState = state;
 
+				// if the command is wrapped in a sandbox, we will not show the command. This is because the sandbox may add additional commands that are not relevant to the user, and the output will provide more context about what is running.
 				let resultText = (
-					didUserEditCommand
-						? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
-						: didToolEditCommand
-							? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
-							: `Command is running in terminal with ID=${termId}`
+					didSandboxWrapCommand ? `Command is now running in terminal with ID=${termId}`
+						: didUserEditCommand
+							? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
+							: didToolEditCommand
+								? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
+								: `Command is running in terminal with ID=${termId}`
 				);
+				const backgroundOutput = pollingResult?.modelOutputEvalResponse ?? pollingResult?.output;
+				const outputAnalyzerMessage = backgroundOutput
+					? await this._getOutputAnalyzerMessage(undefined, backgroundOutput, command, didSandboxWrapCommand)
+					: undefined;
 				if (pollingResult && pollingResult.modelOutputEvalResponse) {
-					resultText += `\n\ The command became idle with output:\n${pollingResult.modelOutputEvalResponse}`;
+					resultText += `\n\ The command became idle with output:\n`;
+					if (outputAnalyzerMessage) {
+						resultText += `${outputAnalyzerMessage}\n`;
+					}
+					resultText += pollingResult.modelOutputEvalResponse;
 				} else if (pollingResult) {
-					resultText += `\n\ The command is still running, with output:\n${pollingResult.output}`;
+					resultText += `\n\ The command is still running, with output:\n`;
+					if (outputAnalyzerMessage) {
+						resultText += `${outputAnalyzerMessage}\n`;
+					}
+					resultText += pollingResult.output;
 				}
-
+				const endCwd = await toolTerminal.instance.getCwdResource();
 				return {
 					toolMetadata: {
-						exitCode: undefined // Background processes don't have immediate exit codes
+						exitCode: undefined, // Background processes don't have immediate exit codes
+						id: termId,
+						cwd: endCwd?.toString(),
 					},
 					content: [{
 						kind: 'text',
@@ -946,10 +1054,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				};
 			} else {
 				// Foreground mode: race execution completion against continue in background
-				const raceResult = await Promise.race([
+				const raceCandidates: Promise<{ type: 'completed'; result: ITerminalExecuteStrategyResult } | { type: 'background' } | { type: 'timeout' }>[] = [
 					executionPromise.then(result => ({ type: 'completed' as const, result })),
 					continueInBackgroundPromise.then(() => ({ type: 'background' as const }))
-				]);
+				];
+				if (timeoutRacePromise) {
+					raceCandidates.push(timeoutRacePromise);
+				}
+				const raceResult = await Promise.race(raceCandidates);
 
 				if (raceResult.type === 'background') {
 					// Moved to background - execution continues running, just return current output
@@ -958,6 +1070,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					const backgroundOutput = execution.getOutput();
 					outputLineCount = backgroundOutput ? count(backgroundOutput.trim(), '\n') + 1 : 0;
 					terminalResult = backgroundOutput;
+				} else if (raceResult.type === 'timeout') {
+					// Timeout reached - return partial output and keep terminal alive as background.
+					this._logService.debug(`RunInTerminalTool: Timeout reached, returning output collected so far`);
+					error = 'timeout';
+					didTimeout = true;
+					didMoveToBackground = true;
+					toolTerminal.isBackground = true;
+					this._sessionTerminalAssociations.delete(chatSessionResource);
+					await this._associateProcessIdWithSession(toolTerminal.instance, chatSessionResource, termId, toolTerminal.shellIntegrationQuality, true);
+					const timeoutOutput = execution.getOutput();
+					outputLineCount = timeoutOutput ? count(timeoutOutput.trim(), '\n') + 1 : 0;
+					terminalResult = timeoutOutput ?? '';
 				} else {
 					const executeResult = raceResult.result;
 					// Reset user input state after command execution completes
@@ -973,10 +1097,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						toolResultMessage = altBufferMessage;
 						outputLineCount = 0;
 						error = executeResult.error ?? 'alternateBuffer';
+						const altBufferCwd = await toolTerminal.instance.getCwdResource();
 						altBufferResult = {
 							toolResultMessage,
 							toolMetadata: {
-								exitCode: undefined
+								exitCode: undefined,
+								id: termId,
+								cwd: altBufferCwd?.toString(),
 							},
 							content: [{
 								kind: 'text',
@@ -997,7 +1124,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							toolSpecificData.terminalCommandState = state;
 						}
 
-						this._logService.debug(`RunInTerminalTool: Finished \`${execution.strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
+						this._logService.info(`RunInTerminalTool: Finished \`${execution.strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
 						outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
 						exitCode = executeResult.exitCode;
 						error = executeResult.error;
@@ -1018,6 +1145,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (didTimeout && e instanceof CancellationError) {
 				this._logService.debug(`RunInTerminalTool: Timeout reached, returning output collected so far`);
 				error = 'timeout';
+				didMoveToBackground = true;
+				toolTerminal.isBackground = true;
+				this._sessionTerminalAssociations.delete(chatSessionResource);
 				const timeoutOutput = getOutput(toolTerminal.instance, undefined);
 				outputLineCount = timeoutOutput ? count(timeoutOutput.trim(), '\n') + 1 : 0;
 				terminalResult = timeoutOutput ?? '';
@@ -1091,43 +1221,124 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const resultText: string[] = [];
-		if (didUserEditCommand) {
-			resultText.push(`Note: The user manually edited the command to \`${command}\`, and this is the output of running that command instead:\n`);
-		} else if (didToolEditCommand) {
-			resultText.push(`Note: The tool simplified the command to \`${command}\`, and this is the output of running that command instead:\n`);
-		}
-		if (didMoveToBackground && !args.isBackground) {
-			resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
-		}
-		let outputAnalyzerMessage: string | undefined;
-		for (const analyzer of this._outputAnalyzers) {
-			const message = await analyzer.analyze({ exitCode, exitResult: terminalResult, commandLine: command });
-			if (message) {
-				outputAnalyzerMessage = message;
-				break;
+		if (!didSandboxWrapCommand) {
+			if (didUserEditCommand) {
+				resultText.push(`Note: The user manually edited the command to \`${command}\`, and this is the output of running that command instead:\n`);
+			} else if (didToolEditCommand) {
+				resultText.push(`Note: The tool simplified the command to \`${command}\`, and this is the output of running that command instead:\n`);
+			}
+			if (didMoveToBackground && !args.isBackground) {
+				resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
 			}
 		}
+		if (didTimeout && timeoutValue !== undefined && timeoutValue > 0) {
+			resultText.push(`Note: Command timed out after ${timeoutValue}ms. Output collected so far is shown below and the command may still be running in terminal ID ${termId}.\n\n`);
+		}
+		const outputAnalyzerMessage = await this._getOutputAnalyzerMessage(exitCode, terminalResult, command, didSandboxWrapCommand);
 		if (outputAnalyzerMessage) {
 			resultText.push(`${outputAnalyzerMessage}\n`);
 		}
 		resultText.push(terminalResult);
 
 		const isError = exitCode !== undefined && exitCode !== 0;
+		const endCwd = await toolTerminal.instance.getCwdResource();
+
+		const imageContent = await this._extractImagesFromOutput(terminalResult, endCwd);
+
 		return {
 			toolResultMessage,
 			toolMetadata: {
-				exitCode: exitCode
+				exitCode: exitCode,
+				id: termId,
+				cwd: endCwd?.toString(),
+				timedOut: didTimeout || undefined,
+				timeoutMs: didTimeout ? timeoutValue : undefined,
 			},
 			toolResultDetails: isError ? {
 				input: command,
 				output: [{ type: 'embed', isText: true, value: terminalResult }],
 				isError: true
 			} : undefined,
-			content: [{
-				kind: 'text',
-				value: resultText.join(''),
-			}]
+			content: [
+				{
+					kind: 'text',
+					value: resultText.join(''),
+				},
+				...imageContent,
+			]
 		};
+	}
+
+	private async _getOutputAnalyzerMessage(exitCode: number | undefined, exitResult: string, commandLine: string, isSandboxWrapped: boolean): Promise<string | undefined> {
+		for (const analyzer of this._outputAnalyzers) {
+			const message = await analyzer.analyze({ exitCode, exitResult, commandLine, isSandboxWrapped });
+			if (message) {
+				return message;
+			}
+		}
+
+		return undefined;
+	}
+
+	private static readonly _maxImageFileSize = 5 * 1024 * 1024;
+
+	/**
+	 * Scans terminal output for file paths that point to images and reads them.
+	 * Returns data content parts for any found images that exist on disk.
+	 */
+	private async _extractImagesFromOutput(output: string, cwd: URI | undefined): Promise<IToolResult['content']> {
+		const normalizedOutput = output.replace(/\r?\n/g, '');
+
+		// Match paths ending with image extensions. A leading / or \ is sufficient
+		// to identify a path segment; the full path up to the extension is captured.
+		const pathPattern = /(?:[^\s]*[\/\\][^\s]*\.(?:png|jpe?g|gif|webp|bmp))/gi;
+
+		const matches = new Set<string>();
+		for (const match of normalizedOutput.matchAll(pathPattern)) {
+			matches.add(match[0]);
+		}
+
+		if (matches.size === 0) {
+			return [];
+		}
+
+		const results: IToolResult['content'] = [];
+		for (const filePath of matches) {
+			try {
+				const mimeType = getMediaMime(filePath);
+				if (!mimeType || !mimeType.startsWith('image/')) {
+					continue;
+				}
+
+				// Resolve the URI - check for absolute path (Unix / or Windows drive letter)
+				let fileUri: URI;
+				if (/^\/|^[A-Za-z]:[\\\/]/.test(filePath)) {
+					fileUri = URI.file(filePath);
+				} else if (cwd) {
+					fileUri = URI.joinPath(cwd, filePath);
+				} else {
+					continue;
+				}
+
+				const stat = await this._fileService.stat(fileUri).catch(() => undefined);
+				if (!stat || stat.isDirectory || stat.size > RunInTerminalTool._maxImageFileSize) {
+					continue;
+				}
+
+				const fileContent = await this._fileService.readFile(fileUri);
+				results.push({
+					kind: 'data',
+					value: {
+						mimeType,
+						data: fileContent.value,
+					},
+				});
+			} catch {
+				// Ignore files that can't be read
+			}
+		}
+
+		return results;
 	}
 
 	private _handleTerminalVisibility(toolTerminal: IToolTerminal, chatSessionResource: URI) {
@@ -1288,7 +1499,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		this._sessionTerminalAssociations.delete(chatSessionResource);
 		this._sessionTerminalInstances.delete(chatSessionResource);
-		this._sessionDeniedCommandCounts.delete(chatSessionResource);
 
 		for (const terminal of terminalsToDispose) {
 			// Skip redundant map walks in onDidDispose since this session has already been removed.
@@ -1307,18 +1517,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		for (const termId of terminalToRemove) {
 			RunInTerminalTool._activeExecutions.delete(termId);
 		}
-	}
-
-	private _recordDeniedCommandAttempt(chatSessionResource: URI, denial: DenialDetails): number {
-		let sessionCounts = this._sessionDeniedCommandCounts.get(chatSessionResource);
-		if (!sessionCounts) {
-			sessionCounts = new Map<string, number>();
-			this._sessionDeniedCommandCounts.set(chatSessionResource, sessionCounts);
-		}
-		const signature = JSON.stringify([denial.scope, denial.deniedCommand, denial.ruleSourceText ?? denial.reason]);
-		const attempts = (sessionCounts.get(signature) ?? 0) + 1;
-		sessionCounts.set(signature, attempts);
-		return attempts;
 	}
 
 	private _addSessionTerminalAssociation(chatSessionResource: URI, toolTerminal: IToolTerminal): void {
@@ -1514,6 +1712,15 @@ export class TerminalProfileFetcher {
 				...defaultProfile,
 				path: 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
 				profileName: 'PowerShell'
+			};
+		}
+
+		// Force bash over sh as sh doesn't have shell integration
+		if (defaultProfile.path === '/bin/sh') {
+			return {
+				...defaultProfile,
+				path: '/bin/bash',
+				profileName: 'bash',
 			};
 		}
 

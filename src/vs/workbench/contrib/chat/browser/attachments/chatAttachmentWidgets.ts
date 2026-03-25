@@ -18,7 +18,6 @@ import { IMarkdownString, MarkdownString } from '../../../../../base/common/html
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { getMediaMime } from '../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
@@ -62,6 +61,7 @@ import { toHistoryItemHoverContent } from '../../../scm/browser/scmHistory.js';
 import { getHistoryItemEditorTitle } from '../../../scm/browser/util.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
+import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
@@ -69,6 +69,7 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
+import { IChatImageCarouselService } from '../chatImageCarouselService.js';
 
 const commonHoverOptions: Partial<IHoverOptions> = {
 	style: HoverStyle.Pointer,
@@ -422,6 +423,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
@@ -436,10 +438,10 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		const ref = attachment.references?.[0]?.reference;
 		resource = ref && URI.isUri(ref) ? ref : undefined;
+		const imageData = coerceImageBuffer(attachment.value);
 		const clickHandler = async () => {
-			if (attachment.value instanceof Uint8Array && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
-				const mimeType = getMediaMime(attachment.name) ?? 'image/png';
-				await commandService.executeCommand('workbench.action.chat.openImageInCarousel', { name: attachment.name, mimeType, data: attachment.value });
+			if ((resource || imageData) && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
+				await this.openInCarousel(attachment.name, imageData, resource);
 			} else if (resource) {
 				await this.openResource(resource, { editorOptions: { preserveFocus: true } }, false, undefined);
 			}
@@ -448,11 +450,11 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'Current model';
 
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
-		this._register(createImageElements(resource, attachment.name, fullName, this.element, attachment.value as Uint8Array, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
+		this._register(createImageElements(resource, attachment.name, fullName, this.element, imageData ?? (attachment.value as Uint8Array), this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
 		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 
 		// Wire up click + keyboard (Enter/Space) open handlers
-		const canOpenCarousel = attachment.value instanceof Uint8Array && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled);
+		const canOpenCarousel = !!imageData && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled);
 		if (canOpenCarousel || resource) {
 			this.element.style.cursor = 'pointer';
 			this._register(registerOpenEditorListeners(this.element, async () => {
@@ -465,6 +467,11 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 				this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
 			});
 		}
+	}
+
+	private async openInCarousel(name: string, data: Uint8Array | undefined, referenceUri: URI | undefined): Promise<void> {
+		const resource = referenceUri ?? URI.from({ scheme: 'data', path: name });
+		await this.chatImageCarouselService.openCarouselAtResource(resource, data);
 	}
 }
 

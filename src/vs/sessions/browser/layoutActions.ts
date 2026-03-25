@@ -14,15 +14,11 @@ import { Menus } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
-import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
 
 // Register Icons
-const panelLeftIcon = registerIcon('agent-panel-left', Codicon.layoutSidebarLeft, localize('panelLeft', "Represents a side bar in the left position"));
-const panelLeftOffIcon = registerIcon('agent-panel-left-off', Codicon.layoutSidebarLeftOff, localize('panelLeftOff', "Represents a side bar in the left position that is hidden"));
-const panelRightIcon = registerIcon('agent-panel-right', Codicon.layoutSidebarRight, localize('panelRight', "Represents a secondary side bar in the right position"));
-const panelRightOffIcon = registerIcon('agent-panel-right-off', Codicon.layoutSidebarRightOff, localize('panelRightOff', "Represents a secondary side bar in the right position that is hidden"));
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));
 
 class ToggleSidebarVisibilityAction extends Action2 {
@@ -34,13 +30,7 @@ class ToggleSidebarVisibilityAction extends Action2 {
 		super({
 			id: ToggleSidebarVisibilityAction.ID,
 			title: localize2('toggleSidebar', 'Toggle Primary Side Bar Visibility'),
-			icon: panelLeftOffIcon,
-			toggled: {
-				condition: SideBarVisibleContext,
-				icon: panelLeftIcon,
-				title: localize('primary sidebar', "Primary Side Bar"),
-				mnemonicTitle: localize({ key: 'primary sidebar mnemonic', comment: ['&& denotes a mnemonic'] }, "&&Primary Side Bar"),
-			},
+			icon: panelCloseIcon,
 			metadata: {
 				description: localize('openAndCloseSidebar', 'Open/Show and Close/Hide Sidebar'),
 			},
@@ -51,12 +41,6 @@ class ToggleSidebarVisibilityAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyB
 			},
 			menu: [
-				{
-					id: Menus.TitleBarLeftLayout,
-					group: 'navigation',
-					order: 0,
-					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
-				},
 				{
 					id: Menus.TitleBarContext,
 					group: 'navigation',
@@ -90,13 +74,7 @@ class ToggleSecondarySidebarVisibilityAction extends Action2 {
 		super({
 			id: ToggleSecondarySidebarVisibilityAction.ID,
 			title: localize2('toggleSecondarySidebar', 'Toggle Secondary Side Bar Visibility'),
-			icon: panelRightOffIcon,
-			toggled: {
-				condition: AuxiliaryBarVisibleContext,
-				icon: panelRightIcon,
-				title: localize('secondary sidebar', "Secondary Side Bar"),
-				mnemonicTitle: localize({ key: 'secondary sidebar mnemonic', comment: ['&& denotes a mnemonic'] }, "&&Secondary Side Bar"),
-			},
+			icon: panelCloseIcon,
 			metadata: {
 				description: localize('openAndCloseSecondarySidebar', 'Open/Show and Close/Hide Secondary Side Bar'),
 			},
@@ -104,10 +82,10 @@ class ToggleSecondarySidebarVisibilityAction extends Action2 {
 			f1: true,
 			menu: [
 				{
-					id: Menus.TitleBarRightLayout,
+					id: Menus.AuxiliaryBarTitle,
 					group: 'navigation',
-					order: 10,
-					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
+					order: 100,
+					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), AuxiliaryBarVisibleContext, SessionsWelcomeVisibleContext.toNegated())
 				},
 				{
 					id: Menus.TitleBarContext,

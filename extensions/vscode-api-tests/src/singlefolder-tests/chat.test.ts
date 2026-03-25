@@ -60,6 +60,7 @@ suite('chat', () => {
 
 	test('participant and slash command history', async () => {
 		const onRequest = setupParticipant();
+		await commands.executeCommand('workbench.action.chat.newChat');
 		commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
 
 		const deferred = new DeferredPromise<void>();

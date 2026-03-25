@@ -57,6 +57,7 @@ export interface IGitHubPluginSource {
 	readonly repo: string;
 	readonly ref?: string;
 	readonly sha?: string;
+	readonly path?: string;
 }
 
 export interface IGitUrlPluginSource {
@@ -113,6 +114,7 @@ interface IJsonPluginSource {
 	readonly package?: string;
 	readonly ref?: string;
 	readonly sha?: string;
+	readonly path?: string;
 	readonly version?: string;
 	readonly registry?: string;
 }
@@ -427,7 +429,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			}
 			const url = `https://raw.githubusercontent.com/${repo}/main/${def.path}`;
 			try {
-				const context = await this._requestService.request({ type: 'GET', url }, token);
+				const context = await this._requestService.request({ type: 'GET', url, callSite: 'pluginMarketplaceService.fetchPluginList' }, token);
 				const statusCode = context.res.statusCode;
 				if (statusCode !== 200) {
 					repoMayBePrivate &&= statusCode !== undefined && statusCode >= 400 && statusCode < 500;
@@ -840,11 +842,16 @@ export function parsePluginSource(
 				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': github source 'sha' must be a full 40-character commit hash when provided`);
 				return undefined;
 			}
+			if (!isOptionalString(rawSource.path)) {
+				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': github source 'path' must be a string when provided`);
+				return undefined;
+			}
 			return {
 				kind: PluginSourceKind.GitHub,
 				repo: rawSource.repo,
 				ref: rawSource.ref,
 				sha: rawSource.sha,
+				path: rawSource.path,
 			};
 		}
 		case 'url': {
@@ -930,7 +937,7 @@ export function getPluginSourceLabel(descriptor: IPluginSourceDescriptor): strin
 		case PluginSourceKind.RelativePath:
 			return descriptor.path || '.';
 		case PluginSourceKind.GitHub:
-			return descriptor.repo;
+			return descriptor.path ? `${descriptor.repo}/${descriptor.path}` : descriptor.repo;
 		case PluginSourceKind.GitUrl:
 			return descriptor.url;
 		case PluginSourceKind.Npm:
@@ -952,7 +959,8 @@ export function hasSourceChanged(installed: IPluginSourceDescriptor, marketplace
 	switch (installed.kind) {
 		case PluginSourceKind.GitHub:
 			return installed.ref !== (marketplace as typeof installed).ref
-				|| installed.sha !== (marketplace as typeof installed).sha;
+				|| installed.sha !== (marketplace as typeof installed).sha
+				|| installed.path !== (marketplace as typeof installed).path;
 		case PluginSourceKind.GitUrl:
 			return installed.ref !== (marketplace as typeof installed).ref
 				|| installed.sha !== (marketplace as typeof installed).sha;
