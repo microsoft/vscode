@@ -60,6 +60,7 @@ steps:
 
       echo "Archive file type: $(file $ArchivePath)"
       echo "Archive file size: $(stat -c%s $ArchivePath) bytes"
+      cat $ArchivePath
 
       unzip $ArchivePath -d .build
       mv .build/microsoft-vscode-distro-$DistroVersion .build/distro
