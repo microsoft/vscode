@@ -7,7 +7,7 @@ import { clearMarks, createPerfTracer, getMarks, getPerfTracer, mark, Performanc
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 function marksFor(prefix: string): PerformanceMark[] {
-	return getMarks().filter(m => m.name.startsWith(prefix));
+	return getMarks().filter(m => m.name.startsWith(prefix)).sort((a, b) => a.startTime - b.startTime);
 }
 
 function markNames(prefix: string): string[] {
