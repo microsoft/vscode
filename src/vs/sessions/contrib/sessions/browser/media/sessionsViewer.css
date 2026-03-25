@@ -42,20 +42,4 @@
 	.monaco-list-row:hover .agent-session-show-more:hover {
 		color: var(--vscode-foreground);
 	}
-
-	/* Time labels: hidden by default, shown on card hover */
-	.agent-session-item .agent-session-status {
-		opacity: 0;
-		transition: opacity 0.15s;
-	}
-
-	.monaco-list-row:hover .agent-session-item .agent-session-status,
-	.monaco-list-row.focused .agent-session-item .agent-session-status {
-		opacity: 1;
-	}
-
-	/* Hide separators before time when time is hidden */
-	.agent-session-item .agent-session-status.has-separator::before {
-		content: none;
-	}
 }
