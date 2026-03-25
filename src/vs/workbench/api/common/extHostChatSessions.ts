@@ -907,11 +907,16 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		if (!entry) {
 			return undefined;
 		}
-		const result = await entry.provider.provideCustomizations(token);
-		if (!result) {
+		try {
+			const result = await entry.provider.provideCustomizations(token);
+			if (!result) {
+				return undefined;
+			}
+			return result.map(g => typeConvert.ChatSessionCustomizations.fromGroup(g));
+		} catch (err) {
+			this._logService.error(`[ExtHostChatSessions] provideCustomizations failed:`, err);
 			return undefined;
 		}
-		return result.map(g => typeConvert.ChatSessionCustomizations.fromGroup(g));
 	}
 
 	async $resolveCustomizationDeletion(handle: number, itemId: string, itemUri: UriComponents, token: CancellationToken): Promise<void> {
@@ -925,6 +930,10 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			label: '',
 			storageLocation: extHostTypes.ChatSessionCustomizationStorageLocation.Workspace,
 		};
-		await entry.provider.resolveCustomizationDeletion(item, token);
+		try {
+			await entry.provider.resolveCustomizationDeletion(item, token);
+		} catch (err) {
+			this._logService.error(`[ExtHostChatSessions] resolveCustomizationDeletion failed:`, err);
+		}
 	}
 }
