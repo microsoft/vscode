@@ -7,7 +7,7 @@ import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import type { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, type IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { GeneralShellType } from '../../../../../../platform/terminal/common/terminal.js';
+import { isMacintosh } from '../../../../../../base/common/platform.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
@@ -34,9 +34,7 @@ export interface ITerminalExecuteStrategyResult {
 }
 
 export function shouldForceBracketedPasteModeForRunInTerminal(instance: ITerminalInstance): boolean {
-	// PowerShell can mis-handle executed bracketed paste input for chained commands
-	// (for example `a ; b ; c`) and execute only the first segment.
-	return instance.shellType !== GeneralShellType.PowerShell;
+	return isMacintosh;
 }
 
 export async function waitForIdle(onData: Event<unknown>, idleDurationMs: number): Promise<void> {
