@@ -467,7 +467,18 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 					}
 				}
 
-				if (!sectionLabel || !sectionToShowMore.has(sectionLabel)) {
+				// If we couldn't determine the section but are still hovering
+				// inside a row with a session item, keep the current state
+				// (prevents collapse when hovering toolbar icons, diff stats, etc.)
+				if (!sectionLabel) {
+					if (row.querySelector('.agent-session-item')) {
+						return;
+					}
+					collapseCurrentShowMore();
+					return;
+				}
+
+				if (!sectionToShowMore.has(sectionLabel)) {
 					collapseCurrentShowMore();
 					return;
 				}

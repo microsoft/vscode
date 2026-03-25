@@ -77,3 +77,5 @@
 [  308616ms] [WARNING] Failed to decode character for style.css fontCharacter: \E01D @ http://127.0.0.1:5500/:10014
 [  309714ms] TypeError: Cannot read properties of null (reading 'classList')
     at http://127.0.0.1:5500/:10303:130
+[  417741ms] TypeError: Cannot read properties of null (reading 'classList')
+    at http://127.0.0.1:5500/:10303:130
