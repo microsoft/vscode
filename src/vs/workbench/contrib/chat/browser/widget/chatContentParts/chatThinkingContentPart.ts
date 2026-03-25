@@ -34,6 +34,7 @@ import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
 import './media/chatThinkingContent.css';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { extractImagesFromToolInvocationOutputDetails } from '../../../common/chatImageExtraction.js';
 import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js';
 import { ChatThinkingExternalResourceWidget } from './chatThinkingExternalResourcesWidget.js';
@@ -138,6 +139,9 @@ interface ILazyThinkingItem {
 
 type ILazyItem = ILazyToolItem | ILazyThinkingItem;
 const THINKING_SCROLL_MAX_HEIGHT = 200;
+
+const TITLE_CACHE_STORAGE_KEY = 'chat.thinkingTitleCache';
+const TITLE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const enum WorkingMessageCategory {
 	Thinking = 'thinking',
@@ -279,6 +283,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IHoverService hoverService: IHoverService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		const initialText = extractTextFromPart(content);
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
@@ -879,14 +884,32 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
-		const existingTitle = this.toolInvocations.find(t => t.generatedTitle)?.generatedTitle
-			?? this.allThinkingParts.find(t => t.generatedTitle)?.generatedTitle;
-		if (existingTitle) {
-			this.currentTitle = existingTitle;
-			this.content.generatedTitle = existingTitle;
-			this.setGeneratedTitleOnAllParts(existingTitle);
-			this.setFinalizedTitle(existingTitle);
-			return;
+		// Only check existing titles and the static cache when re-rendering
+		// (all tool invocations are serialized), not during live streaming.
+		const allSerialized = this.toolInvocations.length > 0
+			&& this.toolInvocations.every(t => t.kind === 'toolInvocationSerialized');
+		if (allSerialized) {
+			const existingTitle = this.toolInvocations.find(t => t.generatedTitle)?.generatedTitle
+				?? this.allThinkingParts.find(t => t.generatedTitle)?.generatedTitle;
+			if (existingTitle) {
+				this.currentTitle = existingTitle;
+				this.content.generatedTitle = existingTitle;
+				this.setGeneratedTitleOnAllParts(existingTitle);
+				this.setFinalizedTitle(existingTitle);
+				return;
+			}
+
+			// Fallback: check the persisted title cache by toolId
+			for (const toolInvocation of this.toolInvocations) {
+				const cachedTitle = this.getCachedTitle(toolInvocation.toolId);
+				if (cachedTitle) {
+					this.currentTitle = cachedTitle;
+					this.content.generatedTitle = cachedTitle;
+					this.setGeneratedTitleOnAllParts(cachedTitle);
+					this.setFinalizedTitle(cachedTitle);
+					return;
+				}
+			}
 		}
 
 		// case where we only have one item (tool or edit) in the thinking container and no thinking parts, we want to move it back to its original position
@@ -946,6 +969,33 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		for (const thinkingPart of this.allThinkingParts) {
 			thinkingPart.generatedTitle = title;
 		}
+	}
+
+	private getCachedTitle(toolId: string): string | undefined {
+		const cache = this.storageService.getObject<Record<string, { title: string; storedAt: number }>>(TITLE_CACHE_STORAGE_KEY, StorageScope.PROFILE);
+		if (!cache) {
+			return undefined;
+		}
+		const entry = cache[toolId];
+		if (!entry || (Date.now() - entry.storedAt) > TITLE_CACHE_TTL_MS) {
+			return undefined;
+		}
+		return entry.title;
+	}
+
+	private setCachedTitle(toolId: string, title: string): void {
+		const cache = this.storageService.getObject<Record<string, { title: string; storedAt: number }>>(TITLE_CACHE_STORAGE_KEY, StorageScope.PROFILE) ?? {};
+		const now = Date.now();
+
+		// Evict expired entries while we're here
+		for (const key of Object.keys(cache)) {
+			if ((now - cache[key].storedAt) > TITLE_CACHE_TTL_MS) {
+				delete cache[key];
+			}
+		}
+
+		cache[toolId] = { title, storedAt: now };
+		this.storageService.store(TITLE_CACHE_STORAGE_KEY, JSON.stringify(cache), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private async generateTitleViaLLM(): Promise<void> {
@@ -1105,6 +1155,11 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 				this.setFinalizedTitle(generatedTitle);
 				this.content.generatedTitle = generatedTitle;
 				this.setGeneratedTitleOnAllParts(generatedTitle);
+
+				for (const toolInvocation of this.toolInvocations) {
+					this.setCachedTitle(toolInvocation.toolId, generatedTitle);
+				}
+
 				return;
 			}
 		} catch (error) {
