@@ -264,13 +264,10 @@
 		{
 			"label": "Run and Compile Code - OSS (JoshBot)",
 			"type": "shell",
-			"command": "npm run transpile-client && ./scripts/code.sh",
+			"command": "npm run transpile-client && ./scripts/code.sh --extensionDevelopmentPath=/Users/jospicer/dev/joshbot",
 			"windows": {
-				"command": "npm run transpile-client && .\\scripts\\code.bat"
+				"command": "npm run transpile-client && .\\scripts\\code.bat --extensionDevelopmentPath=/Users/jospicer/dev/joshbot"
 			},
-			"args": [
-				"--extensionDevelopmentPath=/Users/jospicer/dev/joshbot"
-			],
 			"inSessions": true,
 			"problemMatcher": []
 		},
