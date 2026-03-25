@@ -8,17 +8,25 @@
 
 .agent-sessions-workbench {
 
-	/* Show-more / show-less: hidden by default, reveal on own row hover with line decoration */
+	/*
+	 * Show-more / show-less: collapsed to a thin line by default,
+	 * animates open on hover with height + font-size + color transitions.
+	 * Mirrors the prototype's `.sessions-group-stub` pattern.
+	 */
 	.agent-session-show-more {
-		position: relative;
 		justify-content: center;
 		padding: 0 6px;
-		opacity: 0;
-		transition: opacity 0.15s;
+		height: 1px;
+		font-size: 0;
+		color: transparent;
+		overflow: hidden;
+		position: relative;
+		transition: height 0.15s, font-size 0.15s, color 0.15s;
 
 		.agent-session-show-more-label {
-			font-size: 11px;
-			color: var(--vscode-descriptionForeground);
+			position: relative;
+			z-index: 1;
+			padding: 0 6px;
 			flex-shrink: 0;
 		}
 
@@ -29,24 +37,25 @@
 			flex: 1;
 			height: 1px;
 			background: var(--vscode-widget-border, var(--vscode-contrastBorder));
-		}
-
-		&::before {
-			margin-right: 6px;
-		}
-
-		&::after {
-			margin-left: 6px;
+			opacity: 0;
+			transition: opacity 0.15s;
 		}
 	}
 
-	/* Show on row hover */
+	/* Expand on row hover — animate height, font-size, color */
 	.monaco-list-row:hover .agent-session-show-more {
-		opacity: 1;
+		height: 20px;
+		font-size: 11px;
+		color: var(--vscode-descriptionForeground);
+
+		&::before,
+		&::after {
+			opacity: 1;
+		}
 	}
 
 	/* Brighter text on direct hover */
-	.monaco-list-row:hover .agent-session-show-more:hover .agent-session-show-more-label {
+	.monaco-list-row:hover .agent-session-show-more:hover {
 		color: var(--vscode-foreground);
 	}
 
