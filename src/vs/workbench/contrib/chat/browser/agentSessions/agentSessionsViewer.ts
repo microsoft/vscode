@@ -461,16 +461,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return true;
 		}
 
-		// Show repository name for pinned sessions when grouped by repository,
-		// since they are not placed under a repository section header.
-		if (session.element.isPinned() && this.options.isGroupedByRepository?.()) {
-			const repoName = getRepositoryName(session.element);
-			if (repoName) {
-				template.description.textContent = repoName;
-				return true;
-			}
-		}
-
 		template.description.textContent = '';
 		return false;
 	}
@@ -486,7 +476,13 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 	private renderStatus(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
 
-		const getTimeLabel = (session: IAgentSession) => {
+		// Show repository name for pinned sessions when grouped by repository,
+		// since they are not placed under a repository section header.
+		const repoPrefix = (session.element.isPinned() && this.options.isGroupedByRepository?.())
+			? getRepositoryName(session.element)
+			: undefined;
+
+		const getStatusText = (session: IAgentSession) => {
 			let timeLabel: string | undefined;
 			if (session.status === AgentSessionStatus.InProgress && session.timing.lastRequestStarted) {
 				timeLabel = this.toDuration(session.timing.lastRequestStarted, Date.now(), false, false);
@@ -504,13 +500,13 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 				}
 			}
 
-			return timeLabel;
+			return repoPrefix ? `${repoPrefix} \u00B7 ${timeLabel}` : timeLabel;
 		};
 
 		// Time label
-		template.statusTime.textContent = getTimeLabel(session.element);
+		template.statusTime.textContent = getStatusText(session.element);
 		const timer = template.elementDisposable.add(new IntervalTimer());
-		timer.cancelAndSet(() => template.statusTime.textContent = getTimeLabel(session.element), session.element.status === AgentSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
+		timer.cancelAndSet(() => template.statusTime.textContent = getStatusText(session.element), session.element.status === AgentSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
 
 		return true;
 	}
