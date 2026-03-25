@@ -7,6 +7,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { basename, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -47,6 +48,8 @@ const IMAGE_DECODE_DELAY_MS = 100;
  */
 export class ChatResourceGroupWidget extends Disposable {
 	public readonly domNode: HTMLElement;
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	constructor(
 		parts: IChatCollapsibleIODataPart[],
@@ -124,6 +127,7 @@ export class ChatResourceGroupWidget extends Disposable {
 		};
 
 		itemsContainer.appendChild(attachments.domNode!);
+		this._onDidChangeHeight.fire();
 
 		const toolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, MenuId.ChatToolOutputResourceToolbar, {
 			menuOptions: {
@@ -146,6 +150,7 @@ export class ChatResourceGroupWidget extends Disposable {
 
 				// Update attachments in place
 				attachments.updateVariables(entries);
+				this._onDidChangeHeight.fire();
 			}, IMAGE_DECODE_DELAY_MS));
 		}
 	}

@@ -11,6 +11,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
+import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { agentSessionContainsResource, editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -18,6 +19,7 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
+import { IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -28,6 +30,10 @@ export interface IAgentFeedback {
 	readonly range: IRange;
 	readonly sessionResource: URI;
 	readonly suggestion?: ICodeReviewSuggestion;
+	readonly codeSelection?: string;
+	readonly diffHunks?: string;
+	/** When this feedback was converted from a PR review comment, the original thread ID. */
+	readonly sourcePRReviewCommentId?: string;
 }
 
 export interface INavigableSessionComment {
@@ -57,12 +63,17 @@ export interface IAgentFeedbackService {
 	/**
 	 * Add a feedback item for the given session.
 	 */
-	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion): IAgentFeedback;
+	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string): IAgentFeedback;
 
 	/**
 	 * Remove a single feedback item.
 	 */
 	removeFeedback(sessionResource: URI, feedbackId: string): void;
+
+	/**
+	 * Update the text of an existing feedback item.
+	 */
+	updateFeedback(sessionResource: URI, feedbackId: string, newText: string): void;
 
 	/**
 	 * Get all feedback items for a session.
@@ -78,6 +89,12 @@ export interface IAgentFeedbackService {
 	 * Set the navigation anchor to a specific feedback item, open its editor, and fire a navigation event.
 	 */
 	revealFeedback(sessionResource: URI, feedbackId: string): Promise<void>;
+
+	/**
+	 * Open an editor for the given session comment (feedback or code-review) at its range
+	 * and set it as the navigation anchor.
+	 */
+	revealSessionComment(sessionResource: URI, commentId: string, resourceUri: URI, range: IRange): Promise<void>;
 
 	/**
 	 * Navigate to next/previous feedback item in a session.
@@ -100,7 +117,7 @@ export interface IAgentFeedbackService {
 	 * Add a feedback item and then submit the feedback. Waits for the
 	 * attachment to be updated in the chat widget before submitting.
 	 */
-	addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion): Promise<void>;
+	addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string): Promise<void>;
 }
 
 // --- Implementation -----------------------------------------------------------
@@ -131,7 +148,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		super();
 	}
 
-	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion): IAgentFeedback {
+	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string): IAgentFeedback {
 		const key = sessionResource.toString();
 		let feedbackItems = this._feedbackBySession.get(key);
 		if (!feedbackItems) {
@@ -146,6 +163,9 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			range,
 			sessionResource,
 			suggestion,
+			codeSelection: context?.codeSelection,
+			diffHunks: context?.diffHunks,
+			sourcePRReviewCommentId,
 		};
 
 		// Insert at the correct sorted position.
@@ -204,6 +224,25 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 				this._sessionUpdatedOrder.delete(key);
 			}
 
+			this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
+		}
+	}
+
+	updateFeedback(sessionResource: URI, feedbackId: string, newText: string): void {
+		const key = sessionResource.toString();
+		const feedbackItems = this._feedbackBySession.get(key);
+		if (!feedbackItems) {
+			return;
+		}
+
+		const idx = feedbackItems.findIndex(f => f.id === feedbackId);
+		if (idx >= 0) {
+			const existing = feedbackItems[idx];
+			feedbackItems[idx] = {
+				...existing,
+				text: newText,
+			};
+			this._sessionUpdatedOrder.set(key, ++this._sessionUpdatedSequence);
 			this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
 		}
 	}
@@ -271,16 +310,87 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		if (!feedback) {
 			return;
 		}
-		await this._editorService.openEditor({
-			resource: feedback.resourceUri,
-			options: {
-				preserveFocus: false,
-				revealIfVisible: true,
-			}
-		});
-		setTimeout(() => {
-			this.setNavigationAnchor(sessionResource, feedbackId);
-		}, 50); // delay to ensure editor has revealed the correct position before firing navigation event
+		await this.revealSessionComment(sessionResource, feedbackId, feedback.resourceUri, feedback.range);
+	}
+
+	async revealSessionComment(sessionResource: URI, commentId: string, resourceUri: URI, range: IRange): Promise<void> {
+		const selection = { startLineNumber: range.startLineNumber, startColumn: range.startColumn };
+		const sessionChange = this._getSessionChange(resourceUri, this._agentSessionsService.getSession(sessionResource)?.changes);
+
+		if (sessionChange?.isDeletion && sessionChange.originalUri) {
+			await this._editorService.openEditor({
+				resource: sessionChange.originalUri,
+				options: {
+					modal: {},
+					preserveFocus: false,
+					revealIfVisible: true,
+					selection,
+				}
+			});
+		} else if (sessionChange?.originalUri) {
+			await this._editorService.openEditor({
+				original: { resource: sessionChange.originalUri },
+				modified: { resource: sessionChange.modifiedUri },
+				options: {
+					modal: {},
+					preserveFocus: false,
+					revealIfVisible: true,
+					selection,
+				}
+			});
+		} else {
+			await this._editorService.openEditor({
+				resource: sessionChange?.modifiedUri ?? resourceUri,
+				options: {
+					modal: {},
+					preserveFocus: false,
+					revealIfVisible: true,
+					selection,
+				}
+			});
+		}
+
+		this.setNavigationAnchor(sessionResource, commentId);
+	}
+
+	private _getSessionChange(resourceUri: URI, changes: readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[] | {
+		readonly files: number;
+		readonly insertions: number;
+		readonly deletions: number;
+	} | undefined): { originalUri?: URI; modifiedUri: URI; isDeletion: boolean } | undefined {
+		if (!(changes instanceof Array)) {
+			return undefined;
+		}
+
+		const matchingChange = changes.find(change => this._changeContainsResource(change, resourceUri));
+		if (!matchingChange) {
+			return undefined;
+		}
+
+		if (isIChatSessionFileChange2(matchingChange)) {
+			return {
+				originalUri: matchingChange.originalUri,
+				modifiedUri: matchingChange.modifiedUri ?? matchingChange.uri,
+				isDeletion: matchingChange.modifiedUri === undefined,
+			};
+		}
+
+		return {
+			originalUri: matchingChange.originalUri,
+			modifiedUri: matchingChange.modifiedUri,
+			isDeletion: false,
+		};
+	}
+
+	private _changeContainsResource(change: IChatSessionFileChange | IChatSessionFileChange2, resourceUri: URI): boolean {
+		if (isIChatSessionFileChange2(change)) {
+			return change.uri.fsPath === resourceUri.fsPath
+				|| change.originalUri?.fsPath === resourceUri.fsPath
+				|| change.modifiedUri?.fsPath === resourceUri.fsPath;
+		}
+
+		return change.modifiedUri.fsPath === resourceUri.fsPath
+			|| change.originalUri?.fsPath === resourceUri.fsPath;
 	}
 
 	getNextFeedback(sessionResource: URI, next: boolean): IAgentFeedback | undefined {
@@ -336,8 +446,8 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems: [] });
 	}
 
-	async addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion): Promise<void> {
-		this.addFeedback(sessionResource, resourceUri, range, text, suggestion);
+	async addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string): Promise<void> {
+		this.addFeedback(sessionResource, resourceUri, range, text, suggestion, context, sourcePRReviewCommentId);
 
 		// Wait for the attachment contribution to update the chat widget's attachment model
 		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);

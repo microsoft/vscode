@@ -8,7 +8,9 @@ import { Disposable, MutableDisposable } from '../../../../../../../base/common/
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { MouseTargetType } from '../../../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../../../editor/browser/services/codeEditorService.js';
+import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../../../editor/common/editorCommon.js';
 import { TrackedRangeStickiness } from '../../../../../../../editor/common/model.js';
@@ -17,6 +19,7 @@ import { ILabelService } from '../../../../../../../platform/label/common/label.
 import { inputPlaceholderForeground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../../../common/participants/chatAgents.js';
+import { localize } from '../../../../../../../nls.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../common/widget/chatColors.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../../../common/requestParser/chatRequestParser.js';
@@ -29,10 +32,12 @@ import { NativeEditContextRegistry } from '../../../../../../../editor/browser/c
 import { TextAreaEditContextRegistry } from '../../../../../../../editor/browser/controller/editContext/textArea/textAreaEditContextRegistry.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { ThrottledDelayer } from '../../../../../../../base/common/async.js';
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 
 const decorationDescription = 'chat';
 const placeholderDecorationType = 'chat-session-detail';
 const slashCommandTextDecorationType = 'chat-session-text';
+const clickableSlashPromptTextDecorationType = 'chat-session-clickable-text';
 const variableTextDecorationType = 'chat-variable-text';
 
 function agentAndCommandToKey(agent: IChatAgentData, subcommand: string | undefined): string {
@@ -69,6 +74,8 @@ class InputEditorDecorations extends Disposable {
 	public readonly id = 'inputEditorDecorations';
 
 	private readonly previouslyUsedAgents = new Set<string>();
+	private clickablePromptSlashCommand: { range: Range; uri: URI } | undefined;
+	private mouseDownPromptSlashCommand: { position: Position; uri: URI; range: Range } | undefined;
 
 	private readonly viewModelDisposables = this._register(new MutableDisposable());
 
@@ -82,6 +89,7 @@ class InputEditorDecorations extends Disposable {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IPromptsService private readonly promptsService: IPromptsService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
@@ -96,6 +104,38 @@ class InputEditorDecorations extends Disposable {
 		}));
 		this._register(this.widget.onDidSubmitAgent((e) => {
 			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent, e.slashCommand?.name));
+		}));
+		this._register(this.widget.inputEditor.onMouseDown(e => {
+			this.mouseDownPromptSlashCommand = undefined;
+
+			if (!e.event.leftButton || e.target.type !== MouseTargetType.CONTENT_TEXT || !e.target.position) {
+				return;
+			}
+
+			const clickablePromptSlashCommand = this.clickablePromptSlashCommand;
+			if (!clickablePromptSlashCommand || !clickablePromptSlashCommand.range.containsPosition(e.target.position)) {
+				return;
+			}
+
+			this.mouseDownPromptSlashCommand = {
+				position: Position.lift(e.target.position),
+				uri: clickablePromptSlashCommand.uri,
+				range: clickablePromptSlashCommand.range,
+			};
+		}));
+		this._register(this.widget.inputEditor.onMouseUp(e => {
+			const mouseDownPromptSlashCommand = this.mouseDownPromptSlashCommand;
+			this.mouseDownPromptSlashCommand = undefined;
+
+			if (!mouseDownPromptSlashCommand || e.target.type !== MouseTargetType.CONTENT_TEXT || !e.target.position) {
+				return;
+			}
+
+			if (!mouseDownPromptSlashCommand.range.containsPosition(e.target.position) || !Position.equals(mouseDownPromptSlashCommand.position, e.target.position)) {
+				return;
+			}
+
+			void this.editorService.openEditor({ resource: mouseDownPromptSlashCommand.uri });
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.triggerInputEditorDecorationsUpdate()));
 		this._register(this.promptsService.onDidChangeSlashCommands(() => this.triggerInputEditorDecorationsUpdate()));
@@ -127,6 +167,12 @@ class InputEditorDecorations extends Disposable {
 			color: themeColorFromId(chatSlashCommandForeground),
 			backgroundColor: themeColorFromId(chatSlashCommandBackground),
 			borderRadius: '3px'
+		}));
+		this._register(this.codeEditorService.registerDecorationType(decorationDescription, clickableSlashPromptTextDecorationType, {
+			color: themeColorFromId(chatSlashCommandForeground),
+			backgroundColor: themeColorFromId(chatSlashCommandBackground),
+			borderRadius: '3px',
+			cursor: 'pointer'
 		}));
 		this._register(this.codeEditorService.registerDecorationType(decorationDescription, variableTextDecorationType, {
 			color: themeColorFromId(chatSlashCommandForeground),
@@ -253,6 +299,8 @@ class InputEditorDecorations extends Disposable {
 	}
 
 	private async updateAsyncInputEditorDecorations(token: CancellationToken): Promise<void> {
+		this.clickablePromptSlashCommand = undefined;
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, []);
 
 		const parsedRequest = this.widget.parsedInput.parts;
 
@@ -299,7 +347,21 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (slashPromptPart && promptSlashCommand) {
-			textDecorations.push({ range: slashPromptPart.editorRange });
+			this.clickablePromptSlashCommand = {
+				range: Range.lift(slashPromptPart.editorRange),
+				uri: promptSlashCommand.promptPath.uri,
+			};
+			const promptHoverMessage = new MarkdownString();
+			promptHoverMessage.appendText(localize(
+				'chatInput.promptSlashCommand.open',
+				"Click to open {0}",
+				this.labelService.getUriLabel(promptSlashCommand.promptPath.uri, { relative: true })
+			));
+			const promptDecoration = {
+				range: slashPromptPart.editorRange,
+				hoverMessage: promptHoverMessage,
+			};
+			this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, [promptDecoration]);
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);

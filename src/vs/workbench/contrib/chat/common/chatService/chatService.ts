@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, IObservable, IReader } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -31,6 +31,7 @@ import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js
 import { IChatRequestVariableValue } from '../attachments/chatVariables.js';
 import { ChatAgentLocation } from '../constants.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
+import { ReadonlyChatSessionOptionsMap } from '../chatSessionsService.js';
 
 export interface IChatRequest {
 	message: string;
@@ -255,6 +256,13 @@ export interface IChatExternalEditsDto {
 	undoStopId: string;
 	start: boolean; /** true=start, false=stop */
 	resources: UriComponents[];
+	/**
+	 * When present, these URIs are read instead of the `resources` URIs
+	 * (by-index) when capturing file snapshots. Used by the agent host
+	 * to provide before/after content from the remote filesystem
+	 * or from stored snapshots.
+	 */
+	contentFor?: UriComponents[];
 }
 
 export interface IChatTaskDto {
@@ -351,6 +359,18 @@ export interface IChatConfirmation {
 }
 
 /**
+ * Validation rules for a question in a question carousel.
+ */
+export interface IChatQuestionValidation {
+	minLength?: number;
+	maxLength?: number;
+	format?: 'email' | 'uri' | 'date' | 'date-time';
+	minimum?: number;
+	maximum?: number;
+	isInteger?: boolean;
+}
+
+/**
  * Represents an individual question in a question carousel.
  */
 export interface IChatQuestion {
@@ -358,10 +378,31 @@ export interface IChatQuestion {
 	type: 'text' | 'singleSelect' | 'multiSelect';
 	title: string;
 	message?: string | IMarkdownString;
-	options?: { id: string; label: string; value: unknown }[];
+	description?: string;
+	options?: { id: string; label: string; value: string }[];
 	defaultValue?: string | string[];
 	allowFreeformInput?: boolean;
+	required?: boolean;
+	validation?: IChatQuestionValidation;
 }
+
+/** Answer shape for a single-select question. */
+export interface IChatSingleSelectAnswer {
+	selectedValue?: string;
+	freeformValue?: string;
+}
+
+/** Answer shape for a multi-select question. */
+export interface IChatMultiSelectAnswer {
+	selectedValues: string[];
+	freeformValue?: string;
+}
+
+/** Union of all possible answer values in a question carousel. */
+export type IChatQuestionAnswerValue = string | IChatSingleSelectAnswer | IChatMultiSelectAnswer;
+
+/** Record mapping question IDs to their typed answer values. */
+export type IChatQuestionAnswers = Record<string, IChatQuestionAnswerValue>;
 
 /**
  * A carousel for presenting multiple questions inline in the chat response.
@@ -373,9 +414,13 @@ export interface IChatQuestionCarousel {
 	/** Unique identifier for resolving the carousel answers back to the extension */
 	resolveId?: string;
 	/** Storage for collected answers when user submits */
-	data?: Record<string, unknown>;
+	data?: IChatQuestionAnswers;
 	/** Whether the carousel has been submitted/skipped */
 	isUsed?: boolean;
+	/** Top-level message shown above the questions (e.g. from MCP elicitation message) */
+	message?: string | IMarkdownString;
+	/** Source attribution (e.g. MCP server) */
+	source?: ToolDataSource;
 	kind: 'questionCarousel';
 }
 
@@ -451,6 +496,8 @@ export interface IChatTerminalToolInvocationData {
 		toolEdited?: string;
 		// command to show in the chat UI (potentially different from what is actually run in the terminal)
 		forDisplay?: string;
+		// isSandboxWrapped boolean to run in the terminal (potentially different from original command)
+		isSandboxWrapped?: boolean;
 	};
 	/** The working directory URI for the terminal */
 	cwd?: UriComponents;
@@ -486,6 +533,10 @@ export interface IChatTerminalToolInvocationData {
 	terminalCommandId?: string;
 	/** Whether the terminal command was started as a background execution */
 	isBackground?: boolean;
+	/** Whether the command was explicitly approved to run outside the sandbox */
+	requestUnsandboxedExecution?: boolean;
+	/** The model-provided reason for requesting sandbox bypass */
+	requestUnsandboxedExecutionReason?: string;
 	/** Serialized URI for the command that was executed in the terminal */
 	terminalCommandUri?: UriComponents;
 	/** Serialized output of the executed command */
@@ -558,7 +609,7 @@ export type ConfirmedReason =
 
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
-	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatToolResourcesInvocationData;
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData;
 	readonly originMessage: string | IMarkdownString | undefined;
 	readonly invocationMessage: string | IMarkdownString;
 	readonly pastTenseMessage: string | IMarkdownString | undefined;
@@ -566,8 +617,10 @@ export interface IChatToolInvocation {
 	readonly toolId: string;
 	readonly toolCallId: string;
 	readonly subAgentInvocationId?: string;
+	readonly icon?: ThemeIcon;
 	readonly state: IObservable<IChatToolInvocation.State>;
 	generatedTitle?: string;
+	isAttachedToThinking: boolean;
 
 	kind: 'toolInvocation';
 
@@ -818,7 +871,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatToolResourcesInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -828,9 +881,11 @@ export interface IChatToolInvocationSerialized {
 	isComplete: boolean;
 	toolCallId: string;
 	toolId: string;
+	readonly icon?: undefined;
 	source: ToolDataSource | undefined; // undefined on pre-1.104 versions
 	readonly subAgentInvocationId?: string;
 	generatedTitle?: string;
+	isAttachedToThinking?: boolean;
 	kind: 'toolInvocationSerialized';
 }
 
@@ -874,8 +929,9 @@ export interface IChatExternalToolInvocationUpdate {
 	errorMessage?: string;
 	invocationMessage?: string | IMarkdownString;
 	pastTenseMessage?: string | IMarkdownString;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatModifiedFilesConfirmationData;
 	subagentInvocationId?: string;
+	resultDetails?: IToolResultInputOutputDetails;
 }
 
 export interface IChatTodoListContent {
@@ -896,6 +952,19 @@ export interface IChatSimpleToolInvocationData {
 export interface IChatToolResourcesInvocationData {
 	readonly kind: 'resources';
 	readonly values: Array<URI | Location>;
+}
+
+export interface IChatModifiedFilesConfirmationData {
+	readonly kind: 'modifiedFilesConfirmation';
+	readonly options: readonly string[];
+	readonly modifiedFiles: readonly {
+		readonly uri: UriComponents;
+		readonly originalUri?: UriComponents;
+		readonly insertions?: number;
+		readonly deletions?: number;
+		readonly title?: string;
+		readonly description?: string;
+	}[];
 }
 
 export interface IChatMcpServersStarting {
@@ -1144,35 +1213,35 @@ export interface IChatCompleteResponse {
 }
 
 export interface IChatSessionStats {
-	fileCount: number;
-	added: number;
-	removed: number;
+	readonly fileCount: number;
+	readonly added: number;
+	readonly removed: number;
 }
 
 export type IChatSessionTiming = {
 	/**
 	 * Timestamp when the session was created in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 	 */
-	created: number;
+	readonly created: number;
 
 	/**
 	 * Timestamp when the most recent request started in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 	 *
 	 * Should be undefined if no requests have been made yet.
 	 */
-	lastRequestStarted: number | undefined;
+	readonly lastRequestStarted: number | undefined;
 
 	/**
 	 * Timestamp when the most recent request completed in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 	 *
 	 * Should be undefined if the most recent request is still in progress or if no requests have been made yet.
 	 */
-	lastRequestEnded: number | undefined;
+	readonly lastRequestEnded: number | undefined;
 };
 
 interface ILegacyChatSessionTiming {
-	startTime: number;
-	endTime?: number;
+	readonly startTime: number;
+	readonly endTime?: number;
 }
 
 export function convertLegacyChatSessionTiming(timing: IChatSessionTiming | ILegacyChatSessionTiming): IChatSessionTiming {
@@ -1235,6 +1304,8 @@ export interface ChatSendResultRejected {
 export interface ChatSendResultSent {
 	readonly kind: 'sent';
 	readonly data: IChatSendRequestData;
+	/** Set when the session was replaced by a new one (e.g. untitled -> real contributed session). */
+	readonly newSessionResource?: URI;
 }
 
 export interface ChatSendResultQueued {
@@ -1412,6 +1483,12 @@ export interface IChatService {
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionResource: URI, source?: string): Promise<void>;
 	/**
+	 * Migrates all in-flight and queued pending requests from one session to another.
+	 * Cancels the in-flight request on the original session, removes queued requests,
+	 * and re-sends them all on the target session preserving their original send options.
+	 */
+	migrateRequests(originalResource: URI, targetResource: URI): void;
+	/**
 	 * Sets yieldRequested on the active request for the given session.
 	 */
 	setYieldRequested(sessionResource: URI): void;
@@ -1445,16 +1522,21 @@ export interface IChatService {
 	readonly onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
 
-	readonly onDidReceiveQuestionCarouselAnswer: Event<{ requestId: string; resolveId: string; answers: Record<string, unknown> | undefined }>;
-	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: Record<string, unknown> | undefined): void;
+	readonly onDidReceiveQuestionCarouselAnswer: Event<{ requestId: string; resolveId: string; answers: IChatQuestionAnswers | undefined }>;
+	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: IChatQuestionAnswers | undefined): void;
 
-	readonly onDidDisposeSession: Event<{ readonly sessionResource: URI[]; readonly reason: 'cleared' }>;
+	readonly onDidDisposeSession: Event<{ readonly sessionResource: readonly URI[]; readonly reason: 'cleared' }>;
 
 	transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void>;
 
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
 
 	readonly requestInProgressObs: IObservable<boolean>;
+
+	/**
+	 * @deprecated
+	 */
+	registerChatModelChangeListeners(chatSessionType: string, onChange: (chatSessionResource: URI) => void): IDisposable;
 
 	/**
 	 * For tests only!
@@ -1468,10 +1550,8 @@ export interface IChatService {
 }
 
 export interface IChatSessionContext {
-	readonly chatSessionType: string;
 	readonly chatSessionResource: URI;
-	readonly isUntitled: boolean;
-	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | { id: string; name: string } }>;
+	readonly initialSessionOptions?: ReadonlyChatSessionOptionsMap;
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';

@@ -18,6 +18,7 @@ import {
 	IAgentPluginMcpServerDefinition,
 	IAgentPluginService
 } from '../../../chat/common/plugins/agentPluginService.js';
+import { isContributionEnabled } from '../../../chat/common/enablement.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
 import { McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
@@ -39,11 +40,20 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 			const plugins = this._agentPluginService.plugins.read(reader);
 			const seen = new ResourceSet();
 			for (const plugin of plugins) {
+				if (!isContributionEnabled(plugin.enablement.read(reader))) {
+					continue;
+				}
+				const servers = plugin.mcpServerDefinitions.read(reader);
+				if (servers.length === 0) {
+					continue;
+				}
+
 				seen.add(plugin.uri);
 
 				let collectionState = this._collections.get(plugin.uri);
 				if (!collectionState) {
-					collectionState = this.createCollectionState(plugin);
+					// note: all plugin servers are currently defined in the same file
+					collectionState = this.createCollectionState(plugin, servers[0].uri);
 					this._collections.set(plugin.uri, collectionState);
 				}
 			}
@@ -56,7 +66,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 		}));
 	}
 
-	private createCollectionState(plugin: IAgentPlugin) {
+	private createCollectionState(plugin: IAgentPlugin, manifestURI: URI) {
 		const collectionId = `plugin.${plugin.uri}`;
 		return this._mcpRegistry.registerCollection({
 			id: collectionId,
@@ -68,7 +78,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 			serverDefinitions: plugin.mcpServerDefinitions.map(defs =>
 				defs.map(d => this._toServerDefinition(collectionId, d)).filter(isDefined)),
 			presentation: {
-				origin: plugin.uri,
+				origin: manifestURI,
 				order: McpCollectionSortOrder.Plugin,
 			},
 		});
@@ -87,6 +97,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 			id: `${collectionId}.${name}`,
 			label: name,
 			launch,
+			variableReplacement: { target: ConfigurationTarget.USER },
 			cacheNonce: String(hash(launch)),
 		};
 	}

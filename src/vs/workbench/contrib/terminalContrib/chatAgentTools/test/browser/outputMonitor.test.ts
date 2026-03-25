@@ -31,17 +31,22 @@ suite('OutputMonitor', () => {
 	let cts: CancellationTokenSource;
 	let instantiationService: TestInstantiationService;
 	let sendTextCalled: boolean;
+	let sentText: string | undefined;
 	let dataEmitter: Emitter<string>;
 
 	setup(() => {
 		sendTextCalled = false;
+		sentText = undefined;
 		dataEmitter = new Emitter<string>();
 		execution = {
 			getOutput: () => 'test output',
 			isActive: async () => false,
 			instance: {
 				instanceId: 1,
-				sendText: async () => { sendTextCalled = true; },
+				sendText: async (text?: string) => {
+					sendTextCalled = true;
+					sentText = text;
+				},
 				onDidInputData: dataEmitter.event,
 				onDisposed: Event.None,
 				onData: dataEmitter.event,
@@ -285,6 +290,60 @@ suite('OutputMonitor', () => {
 		assert.strictEqual(optionResult?.suggestedOption, 'n', 'suggested option should be derived from fallback model response');
 	});
 
+	test('auto reply stops on generic press any key prompts', async () => {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[TerminalChatAgentToolsSettingId.AutoReplyToPrompts]: true
+		}));
+
+		execution.getOutput = () => 'Press any key to continue...';
+		const monitorCts = new CancellationTokenSource();
+		monitorCts.cancel();
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), monitorCts.token, 'test command'));
+
+		const outputMonitorWithPrivateMethod = monitor as unknown as {
+			[key: string]: ((token: CancellationToken) => Promise<{ shouldContinuePollling: boolean }>) | undefined;
+		};
+		const idleResult = await outputMonitorWithPrivateMethod['_handleIdleState']!(CancellationToken.None);
+		await Event.toPromise(monitor.onDidFinishCommand);
+		monitorCts.dispose();
+
+		assert.strictEqual(sendTextCalled, false, 'sendText should not be called when auto reply is enabled for free-form prompts');
+		assert.strictEqual(sentText, undefined, 'no terminal input should be sent');
+		assert.strictEqual(idleResult.shouldContinuePollling, false, 'monitor should stop polling for free-form prompts in auto reply mode');
+	});
+
+	test('auto reply does not propagate free-form input requests without explicit input', async () => {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[TerminalChatAgentToolsSettingId.AutoReplyToPrompts]: true
+		}));
+
+		const monitorCts = new CancellationTokenSource();
+		monitorCts.cancel();
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), monitorCts.token, 'test command'));
+
+		const outputMonitorWithPrivateMethod = monitor as unknown as {
+			[key: string]: unknown;
+		};
+		let freeFormRequestShown = false;
+		outputMonitorWithPrivateMethod['_determineUserInputOptions'] = async () => ({
+			prompt: 'Password:',
+			options: [],
+			detectedRequestForFreeFormInput: true
+		});
+		outputMonitorWithPrivateMethod['_requestFreeFormTerminalInput'] = async () => {
+			freeFormRequestShown = true;
+			return true;
+		};
+
+		const idleResult = await (outputMonitorWithPrivateMethod['_handleIdleState'] as (token: CancellationToken) => Promise<{ shouldContinuePollling: boolean }>)(CancellationToken.None);
+		await Event.toPromise(monitor.onDidFinishCommand);
+		monitorCts.dispose();
+
+		assert.strictEqual(freeFormRequestShown, false, 'free-form elicitation should not be shown when auto reply is enabled');
+		assert.strictEqual(sendTextCalled, false, 'sensitive free-form prompt should not be auto-replied');
+		assert.strictEqual(idleResult.shouldContinuePollling, false, 'monitor should stop instead of propagating free-form prompt');
+	});
+
 	suite('detectsInputRequiredPattern', () => {
 		test('detects yes/no confirmation prompts (pairs and variants)', () => {
 			assert.strictEqual(detectsInputRequiredPattern('Continue? (y/N) '), true);
@@ -393,6 +452,7 @@ suite('OutputMonitor', () => {
 		test('detects VS Code task completion messages', () => {
 			assert.strictEqual(detectsVSCodeTaskFinishMessage('Press any key to close the terminal.'), true);
 			assert.strictEqual(detectsVSCodeTaskFinishMessage('Terminal will be reused by tasks, press any key to close it.'), true);
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('The terminal will be reused by tasks. Press any key to close. Please provide the required input to the terminal.'), true);
 			// Case insensitive
 			assert.strictEqual(detectsVSCodeTaskFinishMessage('press any key to close the terminal.'), true);
 			assert.strictEqual(detectsVSCodeTaskFinishMessage('PRESS ANY KEY TO CLOSE THE TERMINAL.'), true);

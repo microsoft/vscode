@@ -33,13 +33,13 @@ export function getData<T = {}>(key: string): T {
 }
 
 export class SettingsManager {
-	private _settings: PreviewSettings = getData('data-settings');
+	#settings: PreviewSettings = getData('data-settings');
 
 	public get settings(): PreviewSettings {
-		return this._settings;
+		return this.#settings;
 	}
 
 	public updateSettings(newSettings: PreviewSettings) {
-		this._settings = newSettings;
+		this.#settings = newSettings;
 	}
 }
