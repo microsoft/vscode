@@ -56,6 +56,7 @@ interface IStoredWorkspaceByProvider {
 interface IStoredRecentWorkspace {
 	readonly uri: UriComponents;
 	readonly providerId: string;
+	readonly iconId?: string;
 }
 
 /**
@@ -442,7 +443,7 @@ export class WorkspacePicker extends Disposable {
 		const filtered = recents.filter(p =>
 			!(p.providerId === providerId && this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), uri))
 		);
-		const updated: IStoredRecentWorkspace[] = [{ uri: uri.toJSON(), providerId }, ...filtered].slice(0, MAX_RECENT_WORKSPACES);
+		const updated: IStoredRecentWorkspace[] = [{ uri: uri.toJSON(), providerId, iconId: workspace.icon.id }, ...filtered].slice(0, MAX_RECENT_WORKSPACES);
 		this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(updated), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
@@ -453,7 +454,7 @@ export class WorkspacePicker extends Disposable {
 				providerId: stored.providerId,
 				workspace: {
 					label: this._labelFromUri(uri),
-					icon: this._iconFromUri(uri),
+					icon: stored.iconId ? { id: stored.iconId } : this._iconFromUri(uri),
 					repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
 				},
 			};
