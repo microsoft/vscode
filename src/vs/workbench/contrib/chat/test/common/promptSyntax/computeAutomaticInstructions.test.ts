@@ -1532,7 +1532,7 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.equal(xmlContents(skills[1], 'file')[0], getFilePath(`${rootFolder}/.claude/skills/no-desc-skill/SKILL.md`));
 
 			// Skill with mismatched name should use folder name
-			assert.equal(xmlContents(skills[2], 'name')[0], 'mismatched-name');
+			assert.equal(xmlContents(skills[2], 'name')[0], 'actual-folder');
 			assert.equal(xmlContents(skills[2], 'description')[0], 'A skill with mismatched name');
 			assert.equal(xmlContents(skills[2], 'file')[0], getFilePath(`${rootFolder}/.claude/skills/actual-folder/SKILL.md`));
 		});

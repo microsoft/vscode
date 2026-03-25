@@ -55,7 +55,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeBrowser}:/**`,
 			{
-				id: BrowserEditorInput.ID,
+				id: BrowserEditorInput.EDITOR_ID,
 				label: localize('browser.editorLabel', "Browser"),
 				priority: RegisteredEditorPriority.exclusive
 			},

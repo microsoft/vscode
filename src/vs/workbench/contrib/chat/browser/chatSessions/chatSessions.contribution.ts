@@ -1215,7 +1215,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public async forkChatSession(sessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken): Promise<IChatSessionItem> {
-		const session = this._sessions.get(this._resolveResource(sessionResource));
+		const session = this._sessions.get(sessionResource)
+			// Try to resolve in case an alias was used
+			?? this._sessions.get(this._resolveResource(sessionResource));
 		if (!session?.session.forkSession) {
 			throw new Error(`Session ${sessionResource.toString()} does not support forking`);
 		}
