@@ -658,7 +658,6 @@ export class ChangesViewPane extends ViewPane {
 			this.renderDisposables.add(scopedInstantiationService);
 
 			this.renderDisposables.add(autorun(reader => {
-				topLevelStats.read(reader);
 				const outgoingChanges = outgoingChangesObs.read(reader);
 				const sessionResource = this.viewModel.activeSessionResourceObs.read(reader);
 
