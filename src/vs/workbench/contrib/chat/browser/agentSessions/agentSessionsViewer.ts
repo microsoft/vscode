@@ -50,6 +50,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { compareIgnoreCase } from '../../../../../base/common/strings.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection | IAgentSessionShowMore | IAgentSessionShowLess;
 
@@ -1192,9 +1193,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		// appear at the top without a "PINNED" group label.
 		result.push(...pinnedSessions);
 
-		const sortedRepoGroups = [...repoMap.values()].sort((a, b) =>
-			a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
-		);
+		const sortedRepoGroups = [...repoMap.values()].sort((a, b) => compareIgnoreCase(a.label, b.label));
 
 		for (const { label, sessions } of sortedRepoGroups) {
 			result.push({
