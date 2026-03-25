@@ -129,8 +129,3 @@
 	font-weight: 600;
 	color: var(--vscode-titleBar-activeForeground);
 }
-
-.quick-input-widget.run-script-action-quick-widget .quick-input-header,
-.quick-input-widget.run-script-action-quick-widget .run-script-action-widget {
-	background-color: rgb(18, 19, 20);
-}
