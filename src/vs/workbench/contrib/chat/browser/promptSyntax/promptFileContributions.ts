@@ -13,7 +13,7 @@ import { MARKERS_OWNER_ID, PromptValidator } from '../../common/promptSyntax/lan
 import { PromptDocumentSemanticTokensProvider } from '../../common/promptSyntax/languageProviders/promptDocumentSemanticTokensProvider.js';
 import { PromptCodeActionProvider } from '../../common/promptSyntax/languageProviders/promptCodeActions.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
@@ -107,33 +107,42 @@ class PromptValidatorContribution extends Disposable {
 			}
 		};
 
-		// Track models from editors that are currently open
-		for (const editor of this.codeEditorService.listCodeEditors()) {
-			acquire(editor);
-		}
+		const perEditorDisposables = new DisposableMap<string, DisposableStore>();
+		this.localDisposables.add(perEditorDisposables);
 
-		// When an editor is added, start tracking its model
-		this.localDisposables.add(this.codeEditorService.onCodeEditorAdd((editor: ICodeEditor) => {
+		const onCodeEditorAdd = (editor: ICodeEditor) => {
 			acquire(editor);
+			const store = new DisposableStore();
 			// Track model changes within the editor (e.g. when a different file is opened in the same editor)
-			this.localDisposables.add(editor.onDidChangeModel((e) => {
+			store.add(editor.onDidChangeModel((e) => {
 				if (e.oldModelUrl) {
 					release(e.oldModelUrl);
 				}
 				acquire(editor);
 			}));
-			// Track model changes within the editor (e.g. when a different file is opened in the same editor)
-			this.localDisposables.add(editor.onDidChangeModelLanguage((e) => {
+			store.add(editor.onDidChangeModelLanguage((e) => {
 				const model = editor.getModel();
 				if (model) {
 					release(model.uri);
 					acquire(editor);
 				}
 			}));
+			perEditorDisposables.set(editor.getId(), store);
+		};
+
+		// Track models from editors that are currently open
+		for (const editor of this.codeEditorService.listCodeEditors()) {
+			onCodeEditorAdd(editor);
+		}
+
+		// When an editor is added, start tracking its model
+		this.localDisposables.add(this.codeEditorService.onCodeEditorAdd((editor: ICodeEditor) => {
+			onCodeEditorAdd(editor);
 		}));
 
-		// When an editor is removed, release its model
+		// When an editor is removed, clean up its per-editor listeners and release its model
 		this.localDisposables.add(this.codeEditorService.onCodeEditorRemove((editor: ICodeEditor) => {
+			perEditorDisposables.deleteAndDispose(editor.getId());
 			const model = editor.getModel();
 			if (model) {
 				release(model.uri);
@@ -170,7 +179,9 @@ class ModelTracker extends Disposable {
 			const markers: IMarkerData[] = [];
 			const ast = this.promptsService.getParsedPromptFile(this.textModel);
 			await this.validator.validate(ast, this.promptType, m => markers.push(m));
-			this.markerService.changeOne(MARKERS_OWNER_ID, this.textModel.uri, markers);
+			if (!this._store.isDisposed) {
+				this.markerService.changeOne(MARKERS_OWNER_ID, this.textModel.uri, markers);
+			}
 		});
 	}
 
