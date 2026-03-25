@@ -46,6 +46,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 				displayName: tool.displayName,
 				toolReferenceName: tool.toolReferenceName,
 				legacyToolReferenceFullNames: tool.legacyToolReferenceFullNames,
+				fullReferenceName: tool.source.type === 'mcp' ? this._languageModelToolsService.getFullReferenceNameById(tool.id) : undefined,
 				tags: tool.tags,
 				userDescription: tool.userDescription,
 				modelDescription: tool.modelDescription,
