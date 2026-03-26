@@ -590,7 +590,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			this._chatTodoListService.migrateTodos(originalResource, modifiedResource);
 
 			// Migrate artifacts from old session to new session
-			this._chatArtifactsService.migrateArtifacts(originalResource, modifiedResource);
+			this._chatArtifactsService.getArtifacts(originalResource).migrate(this._chatArtifactsService.getArtifacts(modifiedResource));
 
 			// Eagerly invoke debug providers for Copilot CLI sessions so the real
 			// session appears in the debug panel immediately after the untitled →

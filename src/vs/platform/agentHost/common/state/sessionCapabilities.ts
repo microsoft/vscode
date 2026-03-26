@@ -10,14 +10,8 @@
 // versions/versionRegistry.ts. This file re-exports them and provides the
 // capability-object API that client code uses to gate features.
 
-export {
-	ACTION_INTRODUCED_IN,
-	isActionKnownToVersion,
-	isNotificationKnownToVersion,
-	MIN_PROTOCOL_VERSION,
-	NOTIFICATION_INTRODUCED_IN,
-	PROTOCOL_VERSION,
-} from './versions/versionRegistry.js';
+export const PROTOCOL_VERSION = 1;
+export const MIN_PROTOCOL_VERSION = 1;
 
 /**
  * Capabilities derived from a protocol version.

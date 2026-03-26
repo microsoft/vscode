@@ -189,7 +189,7 @@ export class WorkspacePicker extends Disposable {
 	 * Programmatically set the selected project.
 	 * @param fireEvent Whether to fire the onDidSelectWorkspace event. Defaults to true.
 	 */
-	setSelectedProject(project: IWorkspaceSelection, fireEvent = true): void {
+	setSelectedWorkspace(project: IWorkspaceSelection, fireEvent = true): void {
 		this._selectProject(project, fireEvent);
 	}
 

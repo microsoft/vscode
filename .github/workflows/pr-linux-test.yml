@@ -17,7 +17,7 @@ on:
 jobs:
   linux-test:
     name: ${{ inputs.job_name }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
+    runs-on: ubuntu-22.04
     env:
       ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}
       NPM_ARCH: x64
