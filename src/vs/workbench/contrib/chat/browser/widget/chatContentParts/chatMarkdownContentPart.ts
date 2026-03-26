@@ -411,17 +411,21 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	private renderCodeBlockPill(sessionResource: URI, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined): IDisposableReference<CollapsedCodeBlock> {
 		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock, sessionResource, requestId, inUndoStop);
+		const diffListenerStore = new DisposableStore();
 		const ref: IDisposableReference<CollapsedCodeBlock> = {
 			object: codeBlock,
 			isStale: () => false,
-			dispose: () => codeBlock.dispose()
+			dispose: () => {
+				codeBlock.dispose();
+				diffListenerStore.dispose();
+			}
 		};
 
 		// Push to allRefs and register the diff listener before calling render(),
 		// since diff observables may fire synchronously when the editing session
 		// already has finalized diff data (e.g. on session restore).
 		this.allRefs.push(ref);
-		this._register(codeBlock.onDidChangeDiff(() => this.fireAggregatedDiff()));
+		diffListenerStore.add(codeBlock.onDidChangeDiff(() => this.fireAggregatedDiff()));
 		if (codemapperUri) {
 			codeBlock.render(codemapperUri);
 		}

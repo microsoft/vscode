@@ -690,9 +690,13 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			diffContainer.appendChild($('span.label-added', {}, `+${added}`));
 			diffContainer.appendChild($('span.label-removed', {}, `-${removed}`));
 			labelElement.appendChild(diffContainer);
-		}
 
-		this._collapseButton.element.ariaLabel = title;
+			const insertionsFragment = added === 1 ? localize('chat.thinking.insertions.one', "1 insertion") : localize('chat.thinking.insertions', "{0} insertions", added);
+			const deletionsFragment = removed === 1 ? localize('chat.thinking.deletions.one', "1 deletion") : localize('chat.thinking.deletions', "{0} deletions", removed);
+			this._collapseButton.element.ariaLabel = localize('chat.thinking.titleWithDiff', "{0}, {1}, {2}", title, insertionsFragment, deletionsFragment);
+		} else {
+			this._collapseButton.element.ariaLabel = title;
+		}
 	}
 
 	private setDropdownClickable(clickable: boolean): void {
