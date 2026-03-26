@@ -12,12 +12,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ISessionData, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
-import { ISendRequestOptions, ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
-import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
+import { IChatData, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
+import { ISendRequestOptions, ISessionsBrowseAction, IChatChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
 import { IChatSessionFileChange } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { agentHostUri } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
 
 /**
  * A sessions provider for a single agent on a remote agent host connection.
@@ -30,8 +30,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly sessionTypes: readonly ISessionType[];
 
-	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionsChangeEvent>());
-	readonly onDidChangeSessions: Event<ISessionsChangeEvent> = this._onDidChangeSessions.event;
+	private readonly _onDidChangeSessions = this._register(new Emitter<IChatChangeEvent>());
+	readonly onDidChangeSessions: Event<IChatChangeEvent> = this._onDidChangeSessions.event;
 
 	readonly browseActions: readonly ISessionsBrowseAction[];
 
@@ -72,11 +72,11 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 
 	// -- Sessions --
 
-	getSessionTypes(_session: ISessionData): ISessionType[] {
+	getSessionTypes(_chat: IChatData): ISessionType[] {
 		return [...this.sessionTypes];
 	}
 
-	getSessions(): ISessionData[] {
+	getSessions(): IChatData[] {
 		// Sessions are managed by the existing AgentHostSessionListController
 		// This will be populated when the list controller is integrated
 		return [];
@@ -84,15 +84,15 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 
 	// -- Session Lifecycle --
 
-	createNewSession(workspace: ISessionWorkspace): ISessionData {
+	createNewSession(workspace: ISessionWorkspace): IChatData {
 		const workspaceUri = workspace.repositories[0]?.uri;
 		if (!workspaceUri) {
 			throw new Error('Workspace has no repository URI');
 		}
 		const resource = URI.from({ scheme: this.sessionTypes[0]?.id ?? 'agenthost', path: `/untitled-${generateUuid()}` });
-		// Create a minimal ISessionData for the new session
+		// Create a minimal IChatData for the new session
 		return {
-			sessionId: `${this.id}:${resource.toString()}`,
+			chatId: `${this.id}:${resource.toString()}`,
 			resource,
 			providerId: this.id,
 			sessionType: this.sessionTypes[0]?.id ?? 'agenthost',
@@ -116,41 +116,44 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			description: observableValue(this, undefined),
 			lastTurnEnd: observableValue(this, undefined),
 			pullRequest: observableValue(this, undefined),
-
 		};
 	}
 
-	setSessionType(_sessionId: string, _type: ISessionType): ISessionData {
+	createNewSessionFrom(_chatId: string): IChatData {
+		throw new Error('Cloning sessions is not supported for remote agent host sessions');
+	}
+
+	setSessionType(_chatId: string, _type: ISessionType): IChatData {
 		throw new Error('Remote agent host sessions do not support changing session type');
 	}
 
-	setModel(_sessionId: string, _modelId: string): void {
+	setModel(_chatId: string, _modelId: string): void {
 		// No-op for remote agent host sessions
 	}
 
 	// -- Session Actions --
 
-	async archiveSession(_sessionId: string): Promise<void> {
+	async archiveSession(_chatId: string): Promise<void> {
 		// Agent host sessions don't support archiving
 	}
 
-	async unarchiveSession(_sessionId: string): Promise<void> {
+	async unarchiveSession(_chatId: string): Promise<void> {
 		// Agent host sessions don't support unarchiving
 	}
 
-	async deleteSession(_sessionId: string): Promise<void> {
+	async deleteSession(_chatId: string): Promise<void> {
 		// Agent host sessions don't support deletion
 	}
 
-	async renameSession(_sessionId: string, _title: string): Promise<void> {
+	async renameSession(_chatId: string, _title: string): Promise<void> {
 		// Agent host sessions don't support renaming
 	}
 
-	setRead(_sessionId: string, _read: boolean): void {
+	setRead(_chatId: string, _read: boolean): void {
 		// Agent host sessions don't track read state
 	}
 
-	async sendRequest(_sessionId: string, sendOptions: ISendRequestOptions): Promise<ISessionData> {
+	async sendRequest(_chatId: string, sendOptions: ISendRequestOptions): Promise<IChatData> {
 		// Agent host session send is handled separately
 		throw new Error('Remote agent host sessions do not support sending requests through the sessions provider');
 	}

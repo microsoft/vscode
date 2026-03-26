@@ -508,7 +508,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			return;
 		}
 		const hasText = !!this._editor?.getModel()?.getValue().trim();
-		const session = this.sessionsManagementService.activeSession.get();
+		const session = this.sessionsManagementService.activeSession.get()?.activeChat.get();
 		const hasActiveSession = !!session;
 		const isLoading = session?.loading.get() ?? false;
 		this._sendButton.enabled = !this._sending && hasText && hasActiveSession && !isLoading;
@@ -553,11 +553,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._updateInputLoadingState();
 
 		try {
-			const session = this.sessionsManagementService.activeSession.get();
-			if (!session) {
+			const chat = this.sessionsManagementService.activeSession.get()?.activeChat.get();
+			if (!chat) {
 				return;
 			}
-			await this.sessionsManagementService.sendRequest(session, { query, attachedContext });
+			await this.sessionsManagementService.sendRequest(chat, { query, attachedContext });
 			this._contextAttachments.clear();
 			this._editor.getModel()?.setValue('');
 		} catch (e) {
