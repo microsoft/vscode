@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISessionData, SessionStatus } from '../../common/sessionData.js';
+import { IChatData, ISessionData, SessionStatus } from '../../common/sessionData.js';
 import { groupByWorkspace, sortSessions, SessionsSorting } from '../../browser/views/sessionsList.js';
 
 function createSession(id: string, opts: {
@@ -44,6 +44,8 @@ function createSession(id: string, opts: {
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		pullRequest: observableValue(`pullRequest-${id}`, undefined),
+		chats: observableValue<readonly IChatData[]>(`chats-${id}`, []),
+		activeChat: observableValue<IChatData>(`activeChat-${id}`, undefined!),
 	};
 }
 
