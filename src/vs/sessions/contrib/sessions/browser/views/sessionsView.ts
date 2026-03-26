@@ -187,7 +187,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	private restoreLastSelectedSession(): void {
-		const activeSession = this.sessionsManagementService.activeSession.get();
+		const activeSession = this.sessionsManagementService.activeSession.get()?.activeChat.get();
 		if (activeSession && this.sessionsControl) {
 			this.sessionsControl.reveal(activeSession.resource);
 		}

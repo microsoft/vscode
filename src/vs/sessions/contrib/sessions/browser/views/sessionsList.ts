@@ -31,7 +31,7 @@ import { IStyleOverride, defaultButtonStyles } from '../../../../../platform/the
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISessionData, ISessionWorkspace, SessionStatus } from '../../common/sessionData.js';
-import { ISessionsProvidersService } from '../sessionsProvidersService.js';
+import { ISessionsManagementService } from '../sessionsManagementService.js';
 import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -607,7 +607,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
 	private sessions: ISessionData[] = [];
 	private visible = true;
-	private readonly pinnedSessionIds: Set<string>;
+	private readonly _pinnedSessionIds: Set<string>;
 	private readonly excludedSessionTypes: Set<string>;
 	private readonly excludedStatuses: Set<SessionStatus>;
 	private _excludeArchived: boolean;
@@ -623,7 +623,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	constructor(
 		container: HTMLElement,
 		private readonly options: ISessionsListControlOptions,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -634,7 +634,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		super();
 
 		// Load pinned sessions from storage
-		this.pinnedSessionIds = this.loadPinnedSessions();
+		this._pinnedSessionIds = this.loadPinnedSessions();
 
 		// Load excluded session types from storage
 		this.excludedSessionTypes = this.loadExcludedSessionTypes();
@@ -736,7 +736,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
-		this._register(this.sessionsProvidersService.onDidChangeSessions(() => {
+		this._register(this._sessionsManagementService.onDidChangeSessions(() => {
 			if (this.visible) {
 				this.refresh();
 			}
@@ -746,7 +746,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	refresh(): void {
-		this.sessions = this.sessionsProvidersService.getSessions();
+		this.sessions = this._sessionsManagementService.getSessions();
 		this.update();
 	}
 
@@ -928,19 +928,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 	// -- Pinning --
 
 	pinSession(session: ISessionData): void {
-		this.pinnedSessionIds.add(session.sessionId);
+		this._pinnedSessionIds.add(session.sessionId);
 		this.savePinnedSessions();
 		this.update();
 	}
 
 	unpinSession(session: ISessionData): void {
-		this.pinnedSessionIds.delete(session.sessionId);
+		this._pinnedSessionIds.delete(session.sessionId);
 		this.savePinnedSessions();
 		this.update();
 	}
 
 	isSessionPinned(session: ISessionData): boolean {
-		return this.pinnedSessionIds.has(session.sessionId);
+		return this._pinnedSessionIds.has(session.sessionId);
 	}
 
 	private loadPinnedSessions(): Set<string> {
@@ -959,10 +959,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private savePinnedSessions(): void {
-		if (this.pinnedSessionIds.size === 0) {
+		if (this._pinnedSessionIds.size === 0) {
 			this.storageService.remove(SessionsList.PINNED_SESSIONS_KEY, StorageScope.PROFILE);
 		} else {
-			this.storageService.store(SessionsList.PINNED_SESSIONS_KEY, JSON.stringify([...this.pinnedSessionIds]), StorageScope.PROFILE, StorageTarget.USER);
+			this.storageService.store(SessionsList.PINNED_SESSIONS_KEY, JSON.stringify([...this._pinnedSessionIds]), StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 

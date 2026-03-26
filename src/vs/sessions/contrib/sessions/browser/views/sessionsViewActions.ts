@@ -10,6 +10,7 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../p
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -594,7 +595,7 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 			icon: Codicon.check,
 			menu: [{
 				id: Menus.CommandCenter,
-				order: 102,
+				order: 103,
 				when: ContextKeyExpr.and(
 					IsAuxiliaryWindowContext.negate(),
 					SessionsWelcomeVisibleContext.negate(),
@@ -612,5 +613,44 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 			return;
 		}
 		sessionsManagementService.archiveSession(activeSession);
+	}
+});
+
+registerAction2(class AddChatAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSession.addChat',
+			title: localize2('addChat', "Add Chat"),
+			icon: Codicon.plus,
+			menu: [{
+				id: Menus.CommandCenter,
+				order: 102,
+				when: ContextKeyExpr.and(
+					IsAuxiliaryWindowContext.negate(),
+					SessionsWelcomeVisibleContext.negate(),
+					IsNewChatSessionContext.negate()
+				)
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		const activeSession = sessionsManagementService.activeSession.get();
+		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
+			return;
+		}
+
+		const query = await quickInputService.input({
+			placeHolder: localize('addChat.placeholder', "Enter a prompt for the new chat"),
+			prompt: localize('addChat.prompt', "Add a new chat to the active session"),
+		});
+
+		if (query) {
+			await sessionsManagementService.sendAndCreateChat({ query }, activeSession);
+		}
 	}
 });
