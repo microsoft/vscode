@@ -76,7 +76,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 
 	update(actions: IAction[], secondary: IAction[]): void {
 
-		const conifgProvider: IButtonConfigProvider = this._options?.buttonConfigProvider ?? (() => ({ showLabel: true }));
+		const configProvider: IButtonConfigProvider = this._options?.buttonConfigProvider ?? (() => ({ showLabel: true }));
 
 		this._updateStore.clear();
 		this.clear();
@@ -100,7 +100,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 				tooltip = this._keybindingService.appendKeybinding(tooltip, action.id);
 
 				btn = this.addButtonWithDropdown({
-					secondary: conifgProvider(action, i)?.isSecondary ?? secondary,
+					secondary: configProvider(action, i)?.isSecondary ?? secondary,
 					actionRunner: this._actionRunner,
 					actions: rest,
 					contextMenuProvider: this._contextMenuService,
@@ -117,7 +117,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 				tooltip = this._keybindingService.appendKeybinding(tooltip, action.id);
 
 				btn = this.addButton({
-					secondary: conifgProvider(action, i)?.isSecondary ?? secondary,
+					secondary: configProvider(action, i)?.isSecondary ?? secondary,
 					ariaLabel: tooltip,
 					supportIcons: true,
 					small: this._options?.small,
@@ -127,9 +127,9 @@ export class WorkbenchButtonBar extends ButtonBar {
 			btn.enabled = action.enabled;
 			btn.checked = action.checked ?? false;
 			btn.element.classList.add('default-colors');
-			const showLabel = conifgProvider(action, i)?.showLabel ?? true;
-			const customClass = conifgProvider(action, i)?.customClass;
-			const customLabel = conifgProvider(action, i)?.customLabel;
+			const showLabel = configProvider(action, i)?.showLabel ?? true;
+			const customClass = configProvider(action, i)?.customClass;
+			const customLabel = configProvider(action, i)?.customLabel;
 
 			if (customClass) {
 				btn.element.classList.add(customClass);
@@ -140,7 +140,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 			} else {
 				btn.element.classList.add('monaco-text-button');
 			}
-			if (conifgProvider(action, i)?.showIcon) {
+			if (configProvider(action, i)?.showIcon) {
 				if (action instanceof MenuItemAction && ThemeIcon.isThemeIcon(action.item.icon)) {
 					if (!showLabel) {
 						btn.icon = action.item.icon;
