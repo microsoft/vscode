@@ -397,6 +397,7 @@
 			"type": "shell",
 			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
 			"isBackground": true,
+			"inSessions": true,
 			"problemMatcher": {
 				"owner": "component-explorer",
 				"fileLocation": "absolute",
