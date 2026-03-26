@@ -749,11 +749,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.telemetryService.publicLog2<CustomizationEditorItemSelectedEvent, CustomizationEditorItemSelectedClassification>('chatCustomizationEditor.itemSelected', {
 				section: this.selectedSection,
 				promptType: item.promptType,
-				storage: item.storage,
+				storage: item.storage ?? 'external',
 			});
-			const isWorkspaceFile = item.storage === PromptsStorage.local;
-			const isReadOnly = item.storage === PromptsStorage.extension || item.storage === PromptsStorage.plugin || item.storage === BUILTIN_STORAGE;
-			this.showEmbeddedEditor(item.uri, item.name, item.promptType, item.storage, isWorkspaceFile, isReadOnly);
+			const storage = item.storage ?? PromptsStorage.local;
+			const isWorkspaceFile = storage === PromptsStorage.local;
+			const isReadOnly = storage === PromptsStorage.extension || storage === PromptsStorage.plugin || storage === BUILTIN_STORAGE;
+			this.showEmbeddedEditor(item.uri, item.name, item.promptType, storage, isWorkspaceFile, isReadOnly);
 		}));
 
 		// Handle create actions - AI-guided creation

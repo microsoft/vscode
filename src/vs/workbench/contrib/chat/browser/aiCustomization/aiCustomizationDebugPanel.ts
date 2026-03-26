@@ -34,7 +34,7 @@ function sectionToPromptType(section: AICustomizationManagementSection): Prompts
  * Snapshot of the list widget's internal state, passed in to avoid coupling.
  */
 export interface IDebugWidgetState {
-	readonly allItems: readonly { readonly storage: PromptsStorage }[];
+	readonly allItems: readonly { readonly storage?: PromptsStorage }[];
 	readonly displayEntries: readonly { type: string; label?: string; count?: number; collapsed?: boolean }[];
 }
 
