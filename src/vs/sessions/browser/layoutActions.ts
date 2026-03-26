@@ -21,7 +21,7 @@ import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
 // Register Icons
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));
 
-class ToggleSidebarVisibilityAction extends Action2 {
+export class ToggleSidebarVisibilityAction extends Action2 {
 
 	static readonly ID = 'workbench.action.agentToggleSidebarVisibility';
 	static readonly LABEL = localize('compositePart.hideSideBarLabel', "Hide Primary Side Bar");
