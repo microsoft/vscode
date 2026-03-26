@@ -22,6 +22,8 @@ import { IDialogService } from '../../../../../../platform/dialogs/common/dialog
 import Severity from '../../../../../../base/common/severity.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { URI } from '../../../../../../base/common/uri.js';
 
 // Track whether warnings have been shown this VS Code session
 const shownWarnings = new Set<ChatPermissionLevel>();
@@ -54,6 +56,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IOpenerService openerService: IOpenerService,
 	) {
 		const isAutoApprovePolicyRestricted = () => configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 		const isAutopilotEnabled = () => configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
@@ -135,7 +138,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: 'chat.permissions.autopilot',
 						label: localize('permissions.autopilot', "Autopilot (Preview)"),
-						description: localize('permissions.autopilot.subtext', "Copilot handles it from start to finish"),
+						description: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
 						icon: ThemeIcon.fromId(Codicon.rocket.id),
 						checked: currentLevel === ChatPermissionLevel.Autopilot,
 						enabled: !policyRestricted,
@@ -164,7 +167,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 									custom: {
 										icon: Codicon.rocket,
 										markdownDetails: [{
-											markdown: new MarkdownString(localize('permissions.autopilot.warning.detail', "Autopilot will auto-approve all tool calls and continue working autonomously until the task is complete. The agent will make decisions on your behalf without asking for confirmation.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.")),
+											markdown: new MarkdownString(localize('permissions.autopilot.warning.detail', "Autopilot will auto-approve all tool calls and continue working autonomously until the task is complete. This includes terminal commands, file edits, and external tool calls. The agent will make decisions on your behalf without asking for confirmation.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.")),
 										}],
 									},
 								});
@@ -186,8 +189,18 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 
 		super(action, {
 			actionProvider,
+			actionBarActions: [{
+				id: 'chat.permissions.learnMore',
+				label: localize('permissions.learnMore', "Learn More about Permissions"),
+				tooltip: localize('permissions.learnMore', "Learn More about Permissions"),
+				class: undefined,
+				enabled: true,
+				run: async () => {
+					await openerService.open(URI.parse('https://code.visualstudio.com/docs/copilot/agents/agent-tools#_permission-levels'));
+				}
+			}],
 			reporter: { id: 'ChatPermissionPicker', name: 'ChatPermissionPicker', includeOptions: true },
-			listOptions: { descriptionBelow: true, minWidth: 232 },
+			listOptions: { descriptionBelow: true, minWidth: 255 },
 		}, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 	}
 

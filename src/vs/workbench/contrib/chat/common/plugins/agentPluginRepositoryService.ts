@@ -32,6 +32,8 @@ export interface IPullRepositoryOptions {
 	readonly failureLabel?: string;
 	/** Marketplace type metadata for repository index updates. */
 	readonly marketplaceType?: MarketplaceType;
+	/** When `true`, suppresses progress notifications. */
+	readonly silent?: boolean;
 }
 
 /**
@@ -60,8 +62,9 @@ export interface IAgentPluginRepositoryService {
 
 	/**
 	 * Pulls latest changes for a cloned marketplace repository.
+	 * Returns `true` if the pull brought in new changes.
 	 */
-	pullRepository(marketplace: IMarketplaceReference, options?: IPullRepositoryOptions): Promise<void>;
+	pullRepository(marketplace: IMarketplaceReference, options?: IPullRepositoryOptions): Promise<boolean>;
 
 	/**
 	 * Returns the local install URI for a plugin based on its
@@ -82,8 +85,9 @@ export interface IAgentPluginRepositoryService {
 	 * Updates a plugin source that is stored outside the marketplace repository.
 	 * For github/url sources this pulls latest changes and reapplies pinned
 	 * ref/sha checkout. For npm/pip sources this is a no-op.
+	 * Returns `true` if the update brought in new changes.
 	 */
-	updatePluginSource(plugin: IMarketplacePlugin, options?: IPullRepositoryOptions): Promise<void>;
+	updatePluginSource(plugin: IMarketplacePlugin, options?: IPullRepositoryOptions): Promise<boolean>;
 
 	/**
 	 * Returns the {@link IPluginSource} strategy for the given
@@ -98,7 +102,19 @@ export interface IAgentPluginRepositoryService {
 	 * the marketplace repository cache). For direct sources (github, url, npm,
 	 * pip) the cache directory is deleted.
 	 *
+	 * When {@link otherInstalledDescriptors} is provided, deletion is skipped
+	 * if any of those descriptors share the same cleanup target directory
+	 * (e.g. multiple plugins installed from the same cloned repository).
+	 *
 	 * This is best-effort: failures are logged but do not throw.
 	 */
-	cleanupPluginSource(plugin: IMarketplacePlugin): Promise<void>;
+	cleanupPluginSource(plugin: IMarketplacePlugin, otherInstalledDescriptors?: readonly IPluginSourceDescriptor[]): Promise<void>;
+
+	/**
+	 * Silently fetches remote refs for a cloned marketplace repository and
+	 * returns whether the local branch is behind the remote (i.e. updates
+	 * are available). Returns `false` if the repo is not cloned or on
+	 * network failure.
+	 */
+	fetchRepository(marketplace: IMarketplaceReference): Promise<boolean>;
 }

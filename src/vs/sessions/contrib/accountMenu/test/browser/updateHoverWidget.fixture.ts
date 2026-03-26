@@ -32,8 +32,6 @@ function createMockUpdateService(state: State): IUpdateService {
 }
 
 function renderHoverWidget(ctx: ComponentFixtureContext, state: State): void {
-	ctx.container.style.padding = '16px';
-	ctx.container.style.width = '320px';
 	ctx.container.style.backgroundColor = 'var(--vscode-editorHoverWidget-background)';
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {

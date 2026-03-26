@@ -189,9 +189,14 @@ declare module 'vscode' {
 		readonly modelId?: string;
 
 		/**
+		 * The mode instructions that were active for this request, if any.
+		 */
+		readonly modeInstructions2?: ChatRequestModeInstructions;
+
+		/**
 		 * @hidden
 		 */
-		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined, modelId: string | undefined);
+		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined, modelId: string | undefined, modeInstructions2: ChatRequestModeInstructions | undefined);
 	}
 
 	export class ChatResponseTurn2 {
@@ -400,6 +405,13 @@ declare module 'vscode' {
 		 * will immediately follow up with a new request in the same conversation.
 		 */
 		readonly yieldRequested: boolean;
+
+		/**
+		 * The resource URI identifying the chat session this context belongs to.
+		 * Available when the context is provided for title generation, summarization,
+		 * or other session-scoped operations. Extracted from the session's history entries.
+		 */
+		readonly sessionResource?: Uri;
 	}
 
 	// #endregion

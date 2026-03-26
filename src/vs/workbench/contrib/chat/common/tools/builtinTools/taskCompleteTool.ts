@@ -21,6 +21,8 @@ export const AUTOPILOT_CONTINUATION_MESSAGE =
 	'- You have open questions or ambiguities — make good decisions and keep working\n' +
 	'- You encountered an error — try to resolve it or find an alternative approach\n' +
 	'- There are remaining steps — complete them first\n\n' +
+	'When you ARE done, first provide a brief text summary of what was accomplished, then call task_complete. ' +
+	'Both the summary message and the tool call are required.\n\n' +
 	'Keep working autonomously until the task is truly finished, then call task_complete.';
 
 export const TaskCompleteToolData: IToolData = {
@@ -29,8 +31,10 @@ export const TaskCompleteToolData: IToolData = {
 	modelDescription:
 		'Signal that the user\'s task is fully done. You MUST call this tool when your work is complete — ' +
 		'whether you made code changes, answered a question, or completed any other kind of task. ' +
-		'Provide a brief summary of what was accomplished. If the summary is trivial (e.g. answering a question), omit it. ' +
+		'Provide a brief summary of what was accomplished. ' +
 		'Do not restate the summary in your message text — it is shown to the user directly.\n\n' +
+		'IMPORTANT: Before calling this tool, you MUST output a brief text message summarizing what was done. ' +
+		'The task is not complete until both your summary message AND this tool call are present.\n\n' +
 		'When to call:\n' +
 		'- After answering the user\'s question or completing a conversational request\n' +
 		'- After you have completed ALL requested changes\n' +

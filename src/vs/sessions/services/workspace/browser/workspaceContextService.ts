@@ -13,8 +13,6 @@ import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/co
 import { getWorkspaceIdentifier } from '../../../../workbench/services/workspaces/browser/workspaces.js';
 import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-
 export class SessionsWorkspaceContextService extends Disposable implements IWorkspaceContextService, IWorkspaceEditingService {
 
 	declare readonly _serviceBrand: undefined;
@@ -52,13 +50,8 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 		return WorkbenchState.WORKSPACE;
 	}
 
-	private _configurationService: IConfigurationService | undefined;
-	setConfigurationService(configurationService: IConfigurationService) {
-		this._configurationService = configurationService;
-	}
-
 	hasWorkspaceData(): boolean {
-		return this._configurationService?.getValue('sessions.workspace.sendWorkspaceDataToExtHost') === true;
+		return true;
 	}
 
 	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {

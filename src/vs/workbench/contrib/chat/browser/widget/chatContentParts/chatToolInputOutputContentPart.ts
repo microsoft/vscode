@@ -96,6 +96,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		private readonly output: IChatCollapsibleOutputData | undefined,
 		isError: boolean,
 		initiallyExpanded: boolean,
+		shimmer: boolean,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IHoverService hoverService: IHoverService,
@@ -140,6 +141,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			const checkmarksEnabled = showCheckmarks.read(r);
 			elements.root.classList.toggle('collapsed', !value);
 
+			const isInProgress = !output && !isError;
 			if (isError) {
 				btn.icon = Codicon.error;
 			} else {
@@ -147,6 +149,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 					? Codicon.check
 					: ThemeIcon.modify(Codicon.loading, 'spin');
 			}
+			elements.root.classList.toggle('shimmer-progress', shimmer && isInProgress);
 
 			container.root.classList.toggle('show-checkmarks', checkmarksEnabled);
 

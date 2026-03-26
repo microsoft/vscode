@@ -8,6 +8,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IMainProcessService } from '../../ipc/common/mainProcessService.js';
 import { IBrowserViewGroup, IBrowserViewGroupService, IBrowserViewGroupViewEvent, ipcBrowserViewGroupChannelName } from '../common/browserViewGroup.js';
+import { CDPEvent, CDPRequest, CDPResponse } from '../common/cdp/types.js';
 
 /**
  * Remote-process service for managing browser view groups.
@@ -62,8 +63,12 @@ class RemoteBrowserViewGroup extends Disposable implements IBrowserViewGroup {
 		return this.groupService.removeViewFromGroup(this.id, viewId);
 	}
 
-	async getDebugWebSocketEndpoint(): Promise<string> {
-		return this.groupService.getDebugWebSocketEndpoint(this.id);
+	async sendCDPMessage(msg: CDPRequest): Promise<void> {
+		return this.groupService.sendCDPMessage(this.id, msg);
+	}
+
+	get onCDPMessage(): Event<CDPResponse | CDPEvent> {
+		return this.groupService.onDynamicCDPMessage(this.id);
 	}
 
 	override dispose(fromService = false): void {

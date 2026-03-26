@@ -722,9 +722,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -1666,7 +1666,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [//]: # (crates)
 
 [`aead`]: ./aead
-[`async‑signature`]: ./signature/async
 [`cipher`]: ./cipher
 [`crypto‑common`]: ./crypto-common
 [`crypto`]: ./crypto
@@ -1828,7 +1827,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [//]: # (crates)
 
 [`aead`]: ./aead
-[`async‑signature`]: ./signature/async
 [`cipher`]: ./cipher
 [`crypto‑common`]: ./crypto-common
 [`crypto`]: ./crypto
@@ -1924,9 +1922,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5289,9 +5287,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5330,9 +5328,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5371,9 +5369,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5412,9 +5410,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5453,9 +5451,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5494,9 +5492,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5535,9 +5533,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5576,9 +5574,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5617,9 +5615,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5658,9 +5656,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5699,9 +5697,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5740,9 +5738,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5781,9 +5779,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5822,9 +5820,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -10139,7 +10137,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-tar 0.4.44 - MIT OR Apache-2.0
+tar 0.4.45 - MIT OR Apache-2.0
 https://github.com/alexcrichton/tar-rs
 
 Copyright (c) The tar-rs Project Contributors
@@ -13671,33 +13669,7 @@ ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation a
 zbus 3.15.2 - MIT
 https://github.com/z-galaxy/zbus/
 
-The MIT License (MIT)
-
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -13705,33 +13677,7 @@ DEALINGS IN THE SOFTWARE.
 zbus_macros 3.15.2 - MIT
 https://github.com/z-galaxy/zbus/
 
-The MIT License (MIT)
-
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -13739,33 +13685,7 @@ DEALINGS IN THE SOFTWARE.
 zbus_names 2.6.1 - MIT
 https://github.com/z-galaxy/zbus/
 
-The MIT License (MIT)
-
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -14169,9 +14089,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-Some files in the "tests/data" subdirectory of this repository are under other
-licences; see files named LICENSE.*.txt for details.
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -14211,33 +14128,7 @@ DEALINGS IN THE SOFTWARE.
 zvariant 3.15.2 - MIT
 https://github.com/z-galaxy/zbus/
 
-The MIT License (MIT)
-
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -14245,33 +14136,7 @@ DEALINGS IN THE SOFTWARE.
 zvariant_derive 3.15.2 - MIT
 https://github.com/z-galaxy/zbus/
 
-The MIT License (MIT)
-
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -14279,31 +14144,5 @@ DEALINGS IN THE SOFTWARE.
 zvariant_utils 1.0.1 - MIT
 https://github.com/z-galaxy/zbus/
 
-The MIT License (MIT)
-
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+LICENSE-MIT
 ---------------------------------------------------------
