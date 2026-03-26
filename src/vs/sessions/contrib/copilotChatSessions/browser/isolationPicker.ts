@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -32,12 +31,8 @@ export type IsolationMode = 'worktree' | 'workspace';
  */
 export class IsolationPicker extends Disposable {
 
-	private _isolationMode: IsolationMode = 'worktree';
 	private _hasGitRepo = false;
 	private _isolationOptionEnabled: boolean;
-
-	private readonly _onDidChange = this._register(new Emitter<IsolationMode>());
-	readonly onDidChange: Event<IsolationMode> = this._onDidChange.event;
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private _slotElement: HTMLElement | undefined;
@@ -55,7 +50,7 @@ export class IsolationPicker extends Disposable {
 			if (e.affectsConfiguration('github.copilot.chat.cli.isolationOption.enabled')) {
 				this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
 				if (!this._isolationOptionEnabled) {
-					this._setMode('worktree');
+					this._setModeOnSession('worktree');
 				}
 				this._updateTriggerLabel();
 			}
@@ -65,21 +60,19 @@ export class IsolationPicker extends Disposable {
 			const session = this.sessionsManagementService.activeSession.read(reader);
 			if (session instanceof CopilotCLISession) {
 				const isLoading = session.loading.read(reader);
-				this.setHasGitRepo(!isLoading && !!session.gitRepository);
+				this._hasGitRepo = !isLoading && !!session.gitRepository;
+				// Read isolation mode from session — session is the source of truth
+				session.isolationModeObservable.read(reader);
 			} else {
-				this.setHasGitRepo(false);
+				this._hasGitRepo = false;
 			}
+			this._updateTriggerLabel();
 		}));
 	}
 
-	private setHasGitRepo(hasRepo: boolean): void {
-		this._hasGitRepo = hasRepo;
-		if (!hasRepo) {
-			this._setMode('workspace');
-		} else {
-			this._setMode('worktree');
-		}
-		this._updateTriggerLabel();
+	private _getSessionIsolationMode(): IsolationMode {
+		const session = this.sessionsManagementService.activeSession.get();
+		return session instanceof CopilotCLISession ? session.isolationMode : 'worktree';
 	}
 
 	render(container: HTMLElement): void {
@@ -136,7 +129,7 @@ export class IsolationPicker extends Disposable {
 		const delegate: IActionListDelegate<IsolationMode> = {
 			onSelect: (mode) => {
 				this.actionWidgetService.hide();
-				this._setMode(mode);
+				this._setModeOnSession(mode);
 			},
 			onHide: () => { triggerElement.focus(); },
 		};
@@ -156,18 +149,12 @@ export class IsolationPicker extends Disposable {
 		);
 	}
 
-	private _setMode(mode: IsolationMode): void {
-		if (this._isolationMode !== mode) {
-			this._isolationMode = mode;
-			this._updateTriggerLabel();
-			this._onDidChange.fire(mode);
-
-			const session = this.sessionsManagementService.activeSession.get();
-			if (!(session instanceof CopilotCLISession)) {
-				throw new Error('IsolationPicker requires a CopilotCLISession');
-			}
-			session.setIsolationMode(mode);
+	private _setModeOnSession(mode: IsolationMode): void {
+		const session = this.sessionsManagementService.activeSession.get();
+		if (!(session instanceof CopilotCLISession)) {
+			throw new Error('IsolationPicker requires a CopilotCLISession');
 		}
+		session.setIsolationMode(mode);
 	}
 
 	private _updateTriggerLabel(): void {
@@ -177,10 +164,11 @@ export class IsolationPicker extends Disposable {
 
 		dom.clearNode(this._triggerElement);
 
+		const isolationMode = this._getSessionIsolationMode();
 		let modeIcon;
 		let modeLabel: string;
 
-		switch (this._isolationMode) {
+		switch (isolationMode) {
 			case 'workspace':
 				modeIcon = Codicon.folder;
 				modeLabel = localize('isolationMode.folder', "Folder");
