@@ -227,14 +227,13 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const isArchived = element.isArchived.read(reader);
 			const pullRequest = element.pullRequest.read(reader);
 			DOM.clearNode(template.iconContainer);
-			const hasPrIcon = !!pullRequest;
-			const icon = pullRequest?.icon ? pullRequest.icon : this.getStatusIcon(sessionStatus, isRead, isArchived);
+			const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, pullRequest?.icon);
 			const iconSpan = DOM.append(template.iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 			iconSpan.style.color = icon.color ? asCssVariable(icon.color.id) : '';
-			template.iconContainer.classList.toggle('session-icon-pulse', !hasPrIcon && sessionStatus === SessionStatus.NeedsInput);
-			template.iconContainer.classList.toggle('session-icon-active', !hasPrIcon && sessionStatus === SessionStatus.InProgress);
-			template.iconContainer.classList.toggle('session-icon-error', !hasPrIcon && sessionStatus === SessionStatus.Error);
-			template.iconContainer.classList.toggle('session-icon-unread', !hasPrIcon && !isRead && !isArchived && sessionStatus !== SessionStatus.InProgress && sessionStatus !== SessionStatus.NeedsInput && sessionStatus !== SessionStatus.Error);
+			template.iconContainer.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
+			template.iconContainer.classList.toggle('session-icon-active', sessionStatus === SessionStatus.InProgress);
+			template.iconContainer.classList.toggle('session-icon-error', sessionStatus === SessionStatus.Error);
+			template.iconContainer.classList.toggle('session-icon-unread', !isRead && !isArchived && sessionStatus !== SessionStatus.InProgress && sessionStatus !== SessionStatus.NeedsInput && sessionStatus !== SessionStatus.Error);
 		}));
 
 		// Title — reactive
@@ -395,12 +394,16 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}));
 	}
 
-	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean): ThemeIcon {
+	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon {
 		switch (status) {
 			case SessionStatus.InProgress: return Codicon.sessionInProgress;
 			case SessionStatus.NeedsInput: return Codicon.circleFilled;
 			case SessionStatus.Error: return Codicon.error;
 			default:
+				if (pullRequestIcon) {
+					return pullRequestIcon;
+				}
+
 				if (!isRead && !isArchived) {
 					return Codicon.circleFilled;
 				}
