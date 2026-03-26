@@ -137,7 +137,7 @@
 		"editorSuggestWidget.foreground": "#bfbfbf",
 		"editorSuggestWidget.highlightForeground": "#bfbfbf",
 		"editorSuggestWidget.selectedBackground": "#3994BC26",
-		"editorHoverWidget.background": "#202122",
+		"editorHoverWidget.background": "#2A2B2C",
 		"editorHoverWidget.border": "#2A2B2CFF",
 		"widget.border": "#2A2B2CFF",
 		"peekView.border": "#2A2B2CFF",
