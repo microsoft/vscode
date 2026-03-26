@@ -41,6 +41,7 @@ import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.
 import { Schemas } from '../../../base/common/network.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionDataService } from './sessionDataService.js';
+import { createPeerTools } from './peerTools.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -184,6 +185,26 @@ async function main(): Promise<void> {
 		diServices.set(ISessionDataService, sessionDataService);
 		const instantiationService = new InstantiationService(diServices);
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
+
+		// Wire peer communication tools so sessions can discover and message each other
+		const peerToolsState = { summaries: new Map<string, string>() };
+		copilotAgent.setCustomTools(createPeerTools({
+			async listSessions() {
+				const allSessions = [];
+				for (const agent of agents.values()) {
+					allSessions.push(...await agent.listSessions());
+				}
+				return allSessions;
+			},
+			dispatchAction(action, clientId, clientSeq) {
+				stateManager.dispatchClientAction(action, { clientId, clientSeq });
+				sideEffects.handleAction(action);
+			},
+			stateManager,
+			providerId: copilotAgent.id,
+			logService,
+		}, peerToolsState));
+
 		registerAgent(copilotAgent);
 		log('CopilotAgent registered');
 	}

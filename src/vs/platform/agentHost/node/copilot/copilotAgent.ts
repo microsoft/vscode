@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, CopilotSession, type SessionEvent, type SessionEventPayload } from '@github/copilot-sdk';
+import { CopilotClient, CopilotSession, type Tool, type SessionEvent, type SessionEventPayload } from '@github/copilot-sdk';
 import { rgPath } from '@vscode/ripgrep';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -51,6 +51,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _sessionWorkingDirs = new Map<string, string>();
 	/** File edit trackers per session, keyed by raw session ID. */
 	private readonly _editTrackers = new Map<string, FileEditTracker>();
+	/** Custom tools to inject into every SDK session (e.g. peer communication tools). */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK Tool<T> is invariant on T
+	private _customTools: Tool<any>[] | undefined;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -58,6 +61,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) {
 		super();
+	}
+
+	/**
+	 * Sets custom tools that will be injected into every SDK session
+	 * created or resumed by this agent (e.g. peer communication tools).
+	 * Must be called before any sessions are created.
+	 */
+	setCustomTools(tools: Tool<unknown>[]): void {
+		this._customTools = tools;
 	}
 
 	// ---- auth ---------------------------------------------------------------
@@ -207,6 +219,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			workingDirectory: config?.workingDirectory,
 			onPermissionRequest: (request, invocation) => this._handlePermissionRequest(request, invocation),
 			hooks: this._createSessionHooks(),
+			tools: this._customTools,
 		});
 
 		const wrapper = this._trackSession(raw);
@@ -757,6 +770,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			onPermissionRequest: (request, invocation) => this._handlePermissionRequest(request, invocation),
 			workingDirectory: this._sessionWorkingDirs.get(sessionId),
 			hooks: this._createSessionHooks(),
+			tools: this._customTools,
 		});
 		return this._trackSession(raw, sessionId);
 	}
