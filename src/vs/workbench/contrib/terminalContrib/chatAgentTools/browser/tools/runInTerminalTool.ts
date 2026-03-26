@@ -76,6 +76,7 @@ import { ITerminalSandboxService, type ITerminalSandboxResolvedNetworkDomains } 
 
 // #region Tool data
 
+const TERMINAL_SANDBOX_DOCUMENTATION_URL = 'https://aka.ms/vscode-sandboxing';
 const TOOL_REFERENCE_NAME = 'runInTerminal';
 const LEGACY_TOOL_REFERENCE_FULL_NAMES = ['runCommands/runInTerminal'];
 
@@ -764,8 +765,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		if (requiresUnsandboxConfirmation) {
 			confirmationTitle = args.isBackground
-				? localize('runInTerminal.unsandboxed.background', "Run `{0}` command outside the sandbox in background?", shellType)
-				: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the sandbox?", shellType);
+				? localize('runInTerminal.unsandboxed.background', "Run `{0}` command outside the [sandbox]({1}) in background?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL)
+				: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the [sandbox]({1})?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL);
 		}
 
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
