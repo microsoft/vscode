@@ -267,8 +267,15 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		// eslint-disable-next-line no-restricted-syntax
 		for (const anchor of hintElement.querySelectorAll('a')) {
 			anchor.style.cursor = 'pointer';
+			anchor.tabIndex = 0;
+			anchor.setAttribute('role', 'button');
+			this._register(addDisposableListener(anchor, 'keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					anchor.click();
+					e.preventDefault();
+				}
+			}));
 		}
-
 		return { hintElement, ariaLabel };
 	}
 
