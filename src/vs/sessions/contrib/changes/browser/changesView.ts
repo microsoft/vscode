@@ -91,8 +91,14 @@ const enum ChangesVersionMode {
 	LastTurn = 'lastTurn'
 }
 
+const enum IsolationMode {
+	Workspace = 'workspace',
+	Worktree = 'worktree'
+}
+
 const changesVersionModeContextKey = new RawContextKey<ChangesVersionMode>('sessions.changesVersionMode', ChangesVersionMode.AllChanges);
 const isMergeBaseBranchProtectedContextKey = new RawContextKey<boolean>('sessions.isMergeBaseBranchProtected', false);
+const isolationModeContextKey = new RawContextKey<IsolationMode>('sessions.isolationMode', IsolationMode.Workspace);
 const hasOpenPullRequestContextKey = new RawContextKey<boolean>('sessions.hasOpenPullRequest', false);
 const hasIncomingChangesContextKey = new RawContextKey<boolean>('sessions.hasIncomingChanges', false);
 const hasOutgoingChangesContextKey = new RawContextKey<boolean>('sessions.hasOutgoingChanges', false);
@@ -598,13 +604,14 @@ export class ChangesViewPane extends ViewPane {
 		const combinedEntriesObs = derived(reader => {
 			const headCommit = headCommitObs.read(reader);
 			const sessionFiles = sessionFilesObs.read(reader);
-			const lastTurnDiffChanges = lastTurnChangesObs.read(reader).read(reader);
 			const versionMode = this.viewModel.versionModeObs.read(reader);
 
 			let sourceEntries: IChangesFileItem[];
 			if (versionMode === ChangesVersionMode.LastTurn) {
+				const lastCheckpointRef = lastCheckpointRefObs.read(reader);
+				const lastTurnDiffChanges = lastTurnChangesObs.read(reader).read(reader);
+
 				const diffChanges = lastTurnDiffChanges ?? [];
-				const lastCheckpointRef = lastCheckpointRefObs.read(undefined);
 
 				const ref = lastCheckpointRef
 					? lastCheckpointRef
@@ -676,6 +683,13 @@ export class ChangesViewPane extends ViewPane {
 			this.renderDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, this.scopedContextKeyService, reader => {
 				const { files } = topLevelStats.read(reader);
 				return files > 0;
+			}));
+
+			this.renderDisposables.add(bindContextKey(isolationModeContextKey, this.scopedContextKeyService, reader => {
+				const activeSession = this.sessionManagementService.activeSession.read(reader);
+				return activeSession?.workspace.read(reader)?.repositories[0].workingDirectory === undefined
+					? IsolationMode.Workspace
+					: IsolationMode.Worktree;
 			}));
 
 			this.renderDisposables.add(bindContextKey(isMergeBaseBranchProtectedContextKey, this.scopedContextKeyService, reader => {
@@ -1309,7 +1323,7 @@ registerAction2(SetChangesTreeViewModeAction);
 MenuRegistry.appendMenuItem(MenuId.ChatEditingSessionTitleToolbar, {
 	submenu: MenuId.ChatEditingSessionChangesVersionsSubmenu,
 	title: localize2('versionsActions', 'Versions'),
-	icon: Codicon.versions,
+	icon: Codicon.listFilter,
 	group: 'navigation',
 	order: 9,
 	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', CHANGES_VIEW_ID), IsSessionsWindowContext),
