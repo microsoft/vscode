@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -27,7 +27,7 @@ import { IsolationMode } from './isolationPicker.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { isBuiltinChatMode, IChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
@@ -80,6 +80,8 @@ export interface ICopilotNewSessionData extends ISessionData {
  */
 export class CopilotCLISession extends Disposable implements ISessionData {
 
+	static readonly COPILOT_WORKTREE_PATTERN = 'copilot-worktree-';
+
 	// -- ISessionData fields --
 
 	readonly sessionId: string;
@@ -128,6 +130,17 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 	readonly pullRequestStateIcon: IObservable<ThemeIcon | undefined> = observableValue(this, undefined);
 
 	private _gitRepository: IGitRepository | undefined;
+	private readonly _loadBranchesCts = this._register(new MutableDisposable<CancellationTokenSource>());
+
+	// -- Branch state --
+
+	private readonly _branches = observableValue<readonly string[]>(this, []);
+	readonly branches: IObservable<readonly string[]> = this._branches;
+
+	private readonly _branchesLoading = observableValue(this, false);
+	readonly branchesLoading: IObservable<boolean> = this._branchesLoading;
+
+	private _defaultBranch: string | undefined;
 
 	// -- New session configuration fields --
 
@@ -199,6 +212,55 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 			}
 		}
 		this._loading.set(false, undefined);
+
+		if (this._gitRepository) {
+			this._loadBranches();
+		}
+	}
+
+	private _loadBranches(): void {
+		const repo = this._gitRepository;
+		if (!repo) {
+			return;
+		}
+
+		this._loadBranchesCts.value?.cancel();
+		const cts = this._loadBranchesCts.value = new CancellationTokenSource();
+
+		this._branchesLoading.set(true, undefined);
+
+		repo.getRefs({ pattern: 'refs/heads' }, cts.token).then(refs => {
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+			const branches = refs
+				.map(r => r.name)
+				.filter((name): name is string => !!name)
+				.filter(name => !name.includes(CopilotCLISession.COPILOT_WORKTREE_PATTERN));
+
+			const defaultBranch = branches.find(b => b === repo.state.get().HEAD?.name)
+				?? branches.find(b => b === 'main')
+				?? branches.find(b => b === 'master')
+				?? branches[0];
+
+			this._defaultBranch = defaultBranch;
+
+			transaction(tx => {
+				this._branches.set(branches, tx);
+				this._branchesLoading.set(false, tx);
+			});
+
+			if (defaultBranch && !this._branch) {
+				this.setBranch(defaultBranch);
+			}
+		}).catch(() => {
+			if (!cts.token.isCancellationRequested) {
+				transaction(tx => {
+					this._branches.set([], tx);
+					this._branchesLoading.set(false, tx);
+				});
+			}
+		});
 	}
 
 	setIsolationMode(mode: IsolationMode): void {
@@ -206,12 +268,17 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 			this._isolationMode = mode;
 			this._isolationModeObservable.set(mode, undefined);
 			this.setOption(ISOLATION_OPTION_ID, mode);
+
+			if (mode === 'workspace' && this._defaultBranch) {
+				this.setBranch(this._defaultBranch);
+			}
 		}
 	}
 
 	setBranch(branch: string | undefined): void {
 		if (this._branch !== branch) {
 			this._branch = branch;
+			this._branchObservable.set(branch, undefined);
 			this.setOption(BRANCH_OPTION_ID, branch ?? '');
 		}
 	}
