@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IActionEnvelope, INotification, ISessionAction } from './state/sessionActions.js';
 import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { AttachmentType, PermissionKind, type IToolCallResult, type PolicyState } from './state/sessionState.js';
+import { AttachmentType, type IToolCallResult, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -226,27 +226,19 @@ export interface IAgentUsageEvent extends IAgentProgressEventBase {
 	readonly cacheReadTokens?: number;
 }
 
-/** A tool permission request from the SDK requiring a renderer-side decision. */
-export interface IAgentPermissionRequestEvent extends IAgentProgressEventBase {
-	readonly type: 'permission_request';
-	/** Unique ID for correlating the response. */
-	readonly requestId: string;
-	/** The kind of permission being requested. */
-	readonly permissionKind: PermissionKind;
-	/** The tool call ID that triggered this permission request. */
-	readonly toolCallId?: string;
-	/** File path involved (for read/write). */
-	readonly path?: string;
-	/** For shell: the full command text. */
-	readonly fullCommandText?: string;
-	/** For shell: the intention description. */
-	readonly intention?: string;
-	/** For MCP: the server name. */
-	readonly serverName?: string;
-	/** For MCP: the tool name. */
-	readonly toolName?: string;
-	/** Serialized JSON of the full permission request for fallback display. */
-	readonly rawRequest: string;
+/**
+ * A running tool requires re-confirmation (e.g. a mid-execution permission check).
+ * Maps to `SessionToolCallReady` without `confirmed` to transition Running → PendingConfirmation.
+ */
+export interface IAgentToolReadyEvent extends IAgentProgressEventBase {
+	readonly type: 'tool_ready';
+	readonly toolCallId: string;
+	/** Message describing what confirmation is needed. */
+	readonly invocationMessage: StringOrMarkdown;
+	/** Raw tool input to display. */
+	readonly toolInput?: string;
+	/** Short title for the confirmation prompt. */
+	readonly confirmationTitle?: StringOrMarkdown;
 }
 
 /** Streaming reasoning/thinking content from the assistant. */
@@ -260,11 +252,11 @@ export type IAgentProgressEvent =
 	| IAgentMessageEvent
 	| IAgentIdleEvent
 	| IAgentToolStartEvent
+	| IAgentToolReadyEvent
 	| IAgentToolCompleteEvent
 	| IAgentTitleChangedEvent
 	| IAgentErrorEvent
 	| IAgentUsageEvent
-	| IAgentPermissionRequestEvent
 	| IAgentReasoningEvent;
 
 // ---- Session URI helpers ----------------------------------------------------
