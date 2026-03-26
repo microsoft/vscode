@@ -84,6 +84,21 @@ suite('HTML Embedded Formatting', () => {
 		await assertFormat('<html><head>\n<style>\n.foo{display:none;}\n</style></head></html>', '<html>\n\n<head>\n  <style>\n    .foo {\n      display: none;\n    }\n  </style>\n</head>\n\n</html>');
 	});
 
+	test('HTML & Styles with CSS format settings', async () => {
+		const options = {
+			css: {
+				format: {
+					newlineBetweenSelectors: false
+				}
+			}
+		};
+		await assertFormat(
+			'<html><head>\n<style>\n.foo,\n.bar{display:none;}\n</style></head></html>',
+			'<html>\n\n<head>\n  <style>\n    .foo, .bar {\n      display: none;\n    }\n  </style>\n</head>\n\n</html>',
+			options
+		);
+	});
+
 	test('EndWithNewline', async () => {
 		const options: FormattingOptions = FormattingOptions.create(2, true);
 		options.insertFinalNewline = true;
