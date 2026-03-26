@@ -22,7 +22,7 @@ const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContaine
 
 const changesViewContainer = viewContainersRegistry.registerViewContainer({
 	id: CHANGES_VIEW_CONTAINER_ID,
-	title: localize2('changes', 'Changes'),
+	title: localize2('artifacts', 'Artifacts'),
 	ctorDescriptor: new SyncDescriptor(ChangesViewPaneContainer),
 	icon: changesViewIcon,
 	order: 10,
@@ -34,7 +34,7 @@ const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsR
 
 viewsRegistry.registerViews([{
 	id: CHANGES_VIEW_ID,
-	name: localize2('changes', 'Changes'),
+	name: localize2('artifacts', 'Artifacts'),
 	containerIcon: changesViewIcon,
 	ctorDescriptor: new SyncDescriptor(ChangesViewPane),
 	canToggleVisibility: true,
