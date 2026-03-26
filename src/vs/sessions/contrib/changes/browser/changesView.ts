@@ -5,6 +5,7 @@
 
 import './media/changesView.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
@@ -22,9 +23,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { MenuId, Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ActionWidgetDropdownActionViewItem } from '../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
+import { MenuId, Action2, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
+import { IActionWidgetDropdownActionProvider } from '../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -46,8 +50,6 @@ import { IResourceLabel, ResourceLabels } from '../../../../workbench/browser/la
 import { ViewPane, IViewPaneOptions, ViewAction } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
-import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -416,8 +418,18 @@ export class ChangesViewPane extends ViewPane {
 
 		// Files header
 		this.filesHeaderNode = dom.append(this.contentContainer, $('.changes-files-header'));
-		const filesTitle = dom.append(this.filesHeaderNode, $('.changes-files-title'));
-		filesTitle.textContent = localize('changesView.filesTitle', "Changed Files");
+
+		const filesHeaderToolbarContainer = dom.append(this.filesHeaderNode, $('.changes-files-header-toolbar'));
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, filesHeaderToolbarContainer, MenuId.ChatEditingSessionChangesFileHeaderToolbar, {
+			menuOptions: { shouldForwardArgs: true },
+			actionViewItemProvider: (action) => {
+				if (action.id === 'chatEditing.versionsPicker' && action instanceof MenuItemAction) {
+					return this.instantiationService.createInstance(ChangesPickerActionItem, action, this.viewModel);
+				}
+				return undefined;
+			},
+		}));
+
 		this.filesCountBadge = dom.append(this.filesHeaderNode, $('.changes-files-count'));
 
 		// Overview section (header with summary only - actions moved outside card)
@@ -1381,59 +1393,90 @@ class SetChangesTreeViewModeAction extends ViewAction<ChangesViewPane> {
 registerAction2(SetChangesListViewModeAction);
 registerAction2(SetChangesTreeViewModeAction);
 
-// --- Versions Submenu
+// --- Versions Picker Action
 
-MenuRegistry.appendMenuItem(MenuId.ChatEditingSessionTitleToolbar, {
-	submenu: MenuId.ChatEditingSessionChangesVersionsSubmenu,
-	title: localize2('versionsActions', 'Versions'),
-	icon: Codicon.listFilter,
-	group: 'navigation',
-	order: 9,
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', CHANGES_VIEW_ID), IsSessionsWindowContext),
-});
+class VersionsPickerAction extends Action2 {
+	static readonly ID = 'chatEditing.versionsPicker';
 
-class AllChangesAction extends Action2 {
 	constructor() {
 		super({
-			id: 'chatEditing.versionsAllChanges',
-			title: localize2('chatEditing.versionsAllChanges', 'All Changes'),
+			id: VersionsPickerAction.ID,
+			title: localize2('chatEditing.versionsPicker', 'Versions'),
 			category: CHAT_CATEGORY,
-			toggled: changesVersionModeContextKey.isEqualTo(ChangesVersionMode.AllChanges),
+			icon: Codicon.listFilter,
+			f1: false,
 			menu: [{
-				id: MenuId.ChatEditingSessionChangesVersionsSubmenu,
-				group: '1_changes',
-				order: 1,
+				id: MenuId.ChatEditingSessionChangesFileHeaderToolbar,
+				group: 'navigation',
+				order: 9,
 			}],
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getActiveViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
-		view?.viewModel.setVersionMode(ChangesVersionMode.AllChanges);
+	override async run(): Promise<void> { }
+}
+registerAction2(VersionsPickerAction);
+
+class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
+	constructor(
+		action: MenuItemAction,
+		private readonly viewModel: ChangesViewModel,
+		@IActionWidgetService actionWidgetService: IActionWidgetService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ITelemetryService telemetryService: ITelemetryService,
+	) {
+		const actionProvider: IActionWidgetDropdownActionProvider = {
+			getActions: () => {
+				return [
+					{
+						...action,
+						id: 'chatEditing.versionsAllChanges',
+						label: localize('chatEditing.versionsAllChanges', 'All Changes'),
+						description: localize('chatEditing.versionsAllChanges.description', 'Show all changes made in this session'),
+						checked: viewModel.versionModeObs.get() === ChangesVersionMode.AllChanges,
+						run: async () => {
+							viewModel.setVersionMode(ChangesVersionMode.AllChanges);
+							if (this.element) {
+								this.renderLabel(this.element);
+							}
+						},
+					},
+					{
+						...action,
+						id: 'chatEditing.versionsLastTurnChanges',
+						label: localize('chatEditing.versionsLastTurnChanges', "Last Turn's Changes"),
+						description: localize('chatEditing.versionsLastTurnChanges.description', 'Show only changes from the last turn'),
+						checked: viewModel.versionModeObs.get() === ChangesVersionMode.LastTurn,
+						run: async () => {
+							viewModel.setVersionMode(ChangesVersionMode.LastTurn);
+							if (this.element) {
+								this.renderLabel(this.element);
+							}
+						},
+					},
+				];
+			},
+		};
+
+		super(action, { actionProvider, listOptions: { descriptionBelow: true } }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
+
+		this._register(autorun(reader => {
+			viewModel.versionModeObs.read(reader);
+			if (this.element) {
+				this.renderLabel(this.element);
+			}
+		}));
+	}
+
+	protected override renderLabel(element: HTMLElement): null {
+		const mode = this.viewModel.versionModeObs.get();
+		const label = mode === ChangesVersionMode.LastTurn
+			? localize('sessionsChanges.versionsLastTurn', "Last Turn's Changes")
+			: localize('sessionsChanges.versionsAllChanges', "All Changes");
+
+		dom.reset(element, dom.$('span', undefined, label), ...renderLabelWithIcons('$(chevron-down)'));
+		this.updateAriaLabel();
+		return null;
 	}
 }
-registerAction2(AllChangesAction);
-
-class LastTurnChangesAction extends Action2 {
-	constructor() {
-		super({
-			id: 'chatEditing.versionsLastTurnChanges',
-			title: localize2('chatEditing.versionsLastTurnChanges', "Last Turn's Changes"),
-			category: CHAT_CATEGORY,
-			toggled: changesVersionModeContextKey.isEqualTo(ChangesVersionMode.LastTurn),
-			menu: [{
-				id: MenuId.ChatEditingSessionChangesVersionsSubmenu,
-				group: '1_changes',
-				order: 2,
-			}],
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getActiveViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
-		view?.viewModel.setVersionMode(ChangesVersionMode.LastTurn);
-	}
-}
-registerAction2(LastTurnChangesAction);
