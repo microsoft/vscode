@@ -176,13 +176,31 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 }
 
 if ($Global:__VSCodeState.IsA11yMode -eq "1") {
-	if (-not (Get-Module -Name PSReadLine)) {
-		$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-		$specialPsrlPath = Join-Path $scriptRoot 'psreadline'
-		Import-Module $specialPsrlPath
+	# Check if the loaded PSReadLine already supports EnableScreenReaderMode
+	$hasScreenReaderParam = (Get-Module -Name PSReadLine) -and (Get-Command Set-PSReadLineOption).Parameters.ContainsKey('EnableScreenReaderMode')
+
+	if (-not $hasScreenReaderParam -and $PSVersionTable.PSVersion -ge "7.0") {
+		# The loaded PSReadLine lacks EnableScreenReaderMode (only available in 2.4.4-beta4+).
+		# PowerShell 7.0+ skips autoloading PSReadLine when the OS reports a screen reader active.
+		# When only VS Code's accessibility mode is enabled (no OS screen reader),
+		# it's still loaded and must be removed to load our bundled copy.
+		# Skip this on Windows PowerShell 5.1 where removing the built-in PSReadLine 2.0.0
+		# and replacing it can cause input handling issues (e.g. repeated Enter key presses).
 		if (Get-Module -Name PSReadLine) {
-			Set-PSReadLineOption -EnableScreenReaderMode
+			Remove-Module PSReadLine -Force
 		}
+
+		# Import VS Code's bundled PSReadLine 2.4.3 which has EnableScreenReaderMode
+		$specialPsrlPath = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'psreadline'
+		if (Test-Path $specialPsrlPath) {
+			Import-Module $specialPsrlPath
+		}
+
+		$hasScreenReaderParam = (Get-Module -Name PSReadLine) -and (Get-Command Set-PSReadLineOption).Parameters.ContainsKey('EnableScreenReaderMode')
+	}
+
+	if ($hasScreenReaderParam) {
+		Set-PSReadLineOption -EnableScreenReaderMode
 	}
 }
 

@@ -7,10 +7,10 @@ import type { CancellationToken } from '../../../../../base/common/cancellation.
 import { localize } from '../../../../../nls.js';
 import { logBrowserOpen } from '../../../../../platform/browserView/common/browserViewTelemetry.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { errorResult } from './browserToolHelpers.js';
 import { IOpenBrowserToolParams, OpenBrowserToolData } from './openBrowserTool.js';
 
 export const OpenBrowserToolNonAgenticData: IToolData = {
@@ -26,12 +26,21 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const params = context.parameters as IOpenBrowserToolParams;
+
+		if (!params.url) {
+			throw new Error('The "url" parameter is required.');
+		}
+		const parsed = URL.parse(params.url);
+		if (!parsed) {
+			throw new Error('You must provide a complete, valid URL.');
+		}
+
 		return {
-			invocationMessage: localize('browser.open.nonAgentic.invocation', "Opening browser page at {0}", params.url ?? 'about:blank'),
-			pastTenseMessage: localize('browser.open.nonAgentic.past', "Opened browser page at {0}", params.url ?? 'about:blank'),
+			invocationMessage: localize('browser.open.nonAgentic.invocation', "Opening browser page at {0}", parsed.href),
+			pastTenseMessage: localize('browser.open.nonAgentic.past', "Opened browser page at {0}", parsed.href),
 			confirmationMessages: {
 				title: localize('browser.open.nonAgentic.confirmTitle', 'Open Browser Page?'),
-				message: localize('browser.open.nonAgentic.confirmMessage', 'This will open {0} in the integrated browser. The agent will not be able to read its contents.', params.url ?? 'about:blank'),
+				message: localize('browser.open.nonAgentic.confirmMessage', 'This will open {0} in the integrated browser. The agent will not be able to read its contents.', parsed.href),
 				allowAutoConfirm: true,
 			},
 		};
@@ -40,17 +49,10 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
 		const params = invocation.parameters as IOpenBrowserToolParams;
 
-		if (!params.url) {
-			return errorResult('The "url" parameter is required.');
-		}
-		if (!URL.parse(params.url)) {
-			return errorResult('You must provide a complete, valid URL.');
-		}
-
 		logBrowserOpen(this.telemetryService, 'chatTool');
 
-		const browserUri = BrowserViewUri.forUrl(params.url);
-		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true } });
+		const browserUri = BrowserViewUri.forId(generateUuid());
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: params.url } } });
 
 		return {
 			content: [{

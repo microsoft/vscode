@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -14,46 +14,105 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
 import { ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { IAgentSession, IAgentSessionsModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IActiveSessionItem, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { ISessionData } from '../../../sessions/common/sessionData.js';
+import { ISessionsChangeEvent } from '../../../sessions/browser/sessionsProvider.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { SessionsTerminalContribution } from '../../browser/sessionsTerminalContribution.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 
 const HOME_DIR = URI.file('/home/user');
+
+class TestLogService extends NullLogService {
+	readonly traces: string[] = [];
+
+	override trace(message: string, ...args: unknown[]): void {
+		this.traces.push([message, ...args].join(' '));
+	}
+}
+
+type TestTerminalInstance = ITerminalInstance & {
+	_testCommandHistory: { timestamp: number }[];
+	_testSetDisposed(disposed: boolean): void;
+	_testSetShellLaunchConfig(shellLaunchConfig: ITerminalInstance['shellLaunchConfig']): void;
+};
 
 function makeAgentSession(opts: {
 	repository?: URI;
 	worktree?: URI;
 	providerType?: string;
 	isArchived?: boolean;
-	worktreePath?: string;
-}): IActiveSessionItem & IAgentSession {
+}): ISessionData {
+	const repo = opts.repository || opts.worktree ? {
+		uri: opts.repository ?? opts.worktree!,
+		workingDirectory: opts.worktree,
+		detail: undefined,
+		baseBranchProtected: undefined,
+	} : undefined;
 	return {
+		sessionId: 'test:session',
 		resource: URI.parse('file:///session'),
-		repository: opts.repository,
-		worktree: opts.worktree,
-		providerType: opts.providerType ?? AgentSessionProviders.Local,
-		setArchived: () => { },
-		setRead: () => { },
-		isArchived: () => opts.isArchived ?? false,
-		isRead: () => true,
-		metadata: opts.worktreePath ? { worktreePath: opts.worktreePath } : undefined,
-	} as unknown as IActiveSessionItem & IAgentSession;
+		providerId: 'test',
+		sessionType: opts.providerType ?? AgentSessionProviders.Local,
+		icon: Codicon.copilot,
+		createdAt: new Date(),
+		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo] } : undefined),
+		title: observableValue('test.title', 'Test Session'),
+		updatedAt: observableValue('test.updatedAt', new Date()),
+		status: observableValue('test.status', 0),
+		changes: observableValue('test.changes', []),
+		modelId: observableValue('test.modelId', undefined),
+		mode: observableValue('test.mode', undefined),
+		loading: observableValue('test.loading', false),
+		isArchived: observableValue('test.isArchived', opts.isArchived ?? false),
+		isRead: observableValue('test.isRead', true),
+		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
+		description: observableValue('test.description', undefined),
+		pullRequestUri: observableValue('test.pullRequestUri', undefined),
+		pullRequestStateIcon: observableValue('test.pullRequestStateIcon', undefined),
+	};
 }
 
-function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerType?: string }): IActiveSessionItem {
+function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerType?: string }): ISessionData {
+	const repo = opts.repository || opts.worktree ? {
+		uri: opts.repository ?? opts.worktree!,
+		workingDirectory: opts.worktree,
+		detail: undefined,
+		baseBranchProtected: undefined,
+	} : undefined;
 	return {
-		repository: opts.repository,
-		worktree: opts.worktree,
-		providerType: opts.providerType ?? AgentSessionProviders.Local,
-	} as IActiveSessionItem;
+		sessionId: 'test:non-agent',
+		resource: URI.parse('file:///session'),
+		providerId: 'test',
+		sessionType: opts.providerType ?? AgentSessionProviders.Local,
+		icon: Codicon.copilot,
+		createdAt: new Date(),
+		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo] } : undefined),
+		title: observableValue('test.title', 'Test Session'),
+		updatedAt: observableValue('test.updatedAt', new Date()),
+		status: observableValue('test.status', 0),
+		changes: observableValue('test.changes', []),
+		modelId: observableValue('test.modelId', undefined),
+		mode: observableValue('test.mode', undefined),
+		loading: observableValue('test.loading', false),
+		isArchived: observableValue('test.isArchived', false),
+		isRead: observableValue('test.isRead', true),
+		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
+		description: observableValue('test.description', undefined),
+		pullRequestUri: observableValue('test.pullRequestUri', undefined),
+		pullRequestStateIcon: observableValue('test.pullRequestStateIcon', undefined),
+	};
 }
 
-function makeTerminalInstance(id: number, cwd: string): ITerminalInstance & { _testCommandHistory: { timestamp: number }[] } {
+function makeTerminalInstance(id: number, cwd: string): TestTerminalInstance {
 	const commandHistory: { timestamp: number }[] = [];
+	let isDisposed = false;
+	let shellLaunchConfig: ITerminalInstance['shellLaunchConfig'] = {} as ITerminalInstance['shellLaunchConfig'];
 	const capabilities = {
 		get(cap: TerminalCapability) {
 			if (cap === TerminalCapability.CommandDetection && commandHistory.length > 0) {
@@ -65,22 +124,30 @@ function makeTerminalInstance(id: number, cwd: string): ITerminalInstance & { _t
 
 	return {
 		instanceId: id,
-		isDisposed: false,
+		get isDisposed() { return isDisposed; },
+		get shellLaunchConfig() { return shellLaunchConfig; },
 		getInitialCwd: () => Promise.resolve(cwd),
 		capabilities,
 		_testCommandHistory: commandHistory,
-	} as unknown as ITerminalInstance & { _testCommandHistory: { timestamp: number }[] };
+		_testSetDisposed(disposed: boolean) {
+			isDisposed = disposed;
+		},
+		_testSetShellLaunchConfig(value: ITerminalInstance['shellLaunchConfig']) {
+			shellLaunchConfig = value;
+		},
+	} as unknown as TestTerminalInstance;
 }
 
 function addCommandToInstance(instance: ITerminalInstance, timestamp: number): void {
-	(instance as ITerminalInstance & { _testCommandHistory: { timestamp: number }[] })._testCommandHistory.push({ timestamp });
+	(instance as TestTerminalInstance)._testCommandHistory.push({ timestamp });
 }
 
 suite('SessionsTerminalContribution', () => {
 	const store = new DisposableStore();
 	let contribution: SessionsTerminalContribution;
-	let activeSessionObs: ReturnType<typeof observableValue<IActiveSessionItem | undefined>>;
-	let onDidChangeSessionArchivedState: Emitter<IAgentSession>;
+	let activeSessionObs: ReturnType<typeof observableValue<ISessionData | undefined>>;
+	let onDidChangeSessions: Emitter<ISessionsChangeEvent>;
+	let onDidCreateInstance: Emitter<ITerminalInstance>;
 
 	let createdTerminals: { cwd: URI }[];
 	let activeInstanceSet: number[];
@@ -91,6 +158,8 @@ suite('SessionsTerminalContribution', () => {
 	let backgroundedInstances: Set<number>;
 	let moveToBackgroundCalls: number[];
 	let showBackgroundCalls: number[];
+	let disposeOnCreatePaths: Set<string>;
+	let logService: TestLogService;
 
 	setup(() => {
 		createdTerminals = [];
@@ -102,20 +171,24 @@ suite('SessionsTerminalContribution', () => {
 		backgroundedInstances = new Set();
 		moveToBackgroundCalls = [];
 		showBackgroundCalls = [];
+		disposeOnCreatePaths = new Set();
+		logService = new TestLogService();
 
 		const instantiationService = store.add(new TestInstantiationService());
 
-		activeSessionObs = observableValue('activeSession', undefined);
-		onDidChangeSessionArchivedState = store.add(new Emitter<IAgentSession>());
+		activeSessionObs = observableValue<ISessionData | undefined>('activeSession', undefined);
+		onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
+		onDidCreateInstance = store.add(new Emitter<ITerminalInstance>());
 
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ILogService, logService);
 
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override activeSession = activeSessionObs;
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
 		});
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
-			override onDidCreateInstance = Event.None;
+			override onDidCreateInstance = onDidCreateInstance.event;
 			override get instances(): readonly ITerminalInstance[] {
 				return [...terminalInstances.values()];
 			}
@@ -129,6 +202,10 @@ suite('SessionsTerminalContribution', () => {
 				const instance = makeTerminalInstance(id, cwdStr);
 				createdTerminals.push({ cwd: opts?.config?.cwd });
 				terminalInstances.set(id, instance);
+				if (disposeOnCreatePaths.has(cwdStr)) {
+					instance._testSetDisposed(true);
+					terminalInstances.delete(id);
+				}
 				return instance;
 			}
 			override getInstanceFromId(id: number): ITerminalInstance | undefined {
@@ -142,6 +219,7 @@ suite('SessionsTerminalContribution', () => {
 			}
 			override async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
 				disposedInstances.push(instance);
+				(instance as TestTerminalInstance)._testSetDisposed(true);
 				terminalInstances.delete(instance.instanceId);
 				backgroundedInstances.delete(instance.instanceId);
 			}
@@ -155,13 +233,14 @@ suite('SessionsTerminalContribution', () => {
 			}
 		});
 
-		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
-			override model = {
-				onDidChangeSessionArchivedState: onDidChangeSessionArchivedState.event,
-			} as unknown as IAgentSessionsModel;
-		});
-
 		instantiationService.stub(IPathService, new TestPathService(HOME_DIR));
+
+		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
+
+		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+			override isViewVisible(): boolean { return false; }
+			override onDidChangeViewVisibility = store.add(new Emitter<{ id: string; visible: boolean }>()).event;
+		});
 
 		contribution = store.add(instantiationService.createInstance(SessionsTerminalContribution));
 	});
@@ -315,7 +394,18 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(createdTerminals.length, 1, 'should match case-insensitively');
 	});
 
-	// --- onDidChangeSessionArchivedState ---
+	test('ensureTerminal does not activate a terminal disposed during creation', async () => {
+		const cwd = URI.file('/test-cwd');
+		disposeOnCreatePaths.add(cwd.fsPath);
+
+		const instances = await contribution.ensureTerminal(cwd, false);
+
+		assert.strictEqual(instances.length, 0);
+		assert.strictEqual(activeInstanceSet.length, 0);
+		assert.ok(logService.traces.some(message => message.includes(`Cannot activate created terminal for ${cwd.fsPath}; terminal 1 is no longer available`)));
+	});
+
+	// --- onDidChangeSessions (archived) ---
 
 	test('closes terminals when session is archived', async () => {
 		const worktreeUri = URI.file('/worktree');
@@ -325,9 +415,9 @@ suite('SessionsTerminalContribution', () => {
 
 		const session = makeAgentSession({
 			isArchived: true,
-			worktreePath: worktreeUri.fsPath,
+			worktree: worktreeUri,
 		});
-		onDidChangeSessionArchivedState.fire(session);
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 		await tick();
 
 		assert.strictEqual(disposedInstances.length, 1);
@@ -339,23 +429,36 @@ suite('SessionsTerminalContribution', () => {
 
 		const session = makeAgentSession({
 			isArchived: false,
-			worktreePath: worktreeUri.fsPath,
+			worktree: worktreeUri,
 		});
-		onDidChangeSessionArchivedState.fire(session);
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 		await tick();
 
 		assert.strictEqual(disposedInstances.length, 0);
 	});
 
-	test('does not close terminals when archived session has no worktreePath', async () => {
+	test('does not close terminals when archived session has no worktree', async () => {
 		const worktreeUri = URI.file('/worktree');
 		await contribution.ensureTerminal(worktreeUri, false);
 
 		const session = makeAgentSession({ isArchived: true });
-		onDidChangeSessionArchivedState.fire(session);
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 		await tick();
 
 		assert.strictEqual(disposedInstances.length, 0);
+	});
+
+	test('closes terminals when session is removed', async () => {
+		const worktreeUri = URI.file('/worktree');
+		await contribution.ensureTerminal(worktreeUri, false);
+
+		assert.strictEqual(createdTerminals.length, 1);
+
+		const session = makeAgentSession({ worktree: worktreeUri });
+		onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+		await tick();
+
+		assert.strictEqual(disposedInstances.length, 1);
 	});
 
 	// --- switching back to previously used path reuses terminal ---
@@ -449,6 +552,28 @@ suite('SessionsTerminalContribution', () => {
 
 		assert.strictEqual(createdTerminals.length, 0, 'should reuse existing terminal, not create a new one');
 		assert.ok(showBackgroundCalls.includes(existingInstance.instanceId), 'should show the existing terminal');
+	});
+
+	test('does not background a restored terminal that is disposed before cwd resolves', async () => {
+		let resolveInitialCwd: ((cwd: string) => void) | undefined;
+		const restoredInstance = makeTerminalInstance(nextInstanceId++, '/restored');
+		restoredInstance._testSetShellLaunchConfig({ attachPersistentProcess: {} as never } as ITerminalInstance['shellLaunchConfig']);
+		restoredInstance.getInitialCwd = () => new Promise<string>(resolve => {
+			resolveInitialCwd = resolve;
+		});
+		terminalInstances.set(restoredInstance.instanceId, restoredInstance);
+
+		activeSessionObs.set(makeAgentSession({ worktree: URI.file('/active'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		onDidCreateInstance.fire(restoredInstance);
+		restoredInstance._testSetDisposed(true);
+		terminalInstances.delete(restoredInstance.instanceId);
+		resolveInitialCwd?.('/other');
+		await tick();
+
+		assert.ok(!moveToBackgroundCalls.includes(restoredInstance.instanceId), 'disposed restored terminal should not be backgrounded');
+		assert.ok(logService.traces.some(message => message.includes('Cannot hide restored terminal for /other; terminal') && message.includes('is no longer available')));
 	});
 
 	test('hides pre-existing terminal with non-matching cwd when session changes', async () => {

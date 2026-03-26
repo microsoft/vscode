@@ -15,7 +15,7 @@ import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService }
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ILoggerService, ILogService, LogLevel } from '../../platform/log/common/log.js';
 import { NativeWorkbenchStorageService } from '../../workbench/services/storage/electron-browser/storageService.js';
-import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier, reviveIdentifier, IWorkspaceIdentifier } from '../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier, reviveIdentifier } from '../../platform/workspace/common/workspace.js';
 import { IWorkbenchConfigurationService } from '../../workbench/services/configuration/common/configuration.js';
 import { IStorageService } from '../../platform/storage/common/storage.js';
 import { Disposable } from '../../base/common/lifecycle.js';
@@ -292,18 +292,20 @@ export class SessionsMain extends Disposable {
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-		const workspaceIdentifier = getWorkspaceIdentifier(uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(userDataProfilesService.profilesHome), 'agent-sessions.code-workspace'));
+		const workspaceIdentifier = getWorkspaceIdentifier(environmentService.agentSessionsWorkspace);
+		const workspaceContextService = new SessionsWorkspaceContextService(workspaceIdentifier, uriIdentityService);
 
-		const [{ configurationService, workspaceContextService }, storageService] = await Promise.all([
-			this.createWorkspaceAndConfigurationService(workspaceIdentifier, userDataProfileService, uriIdentityService, fileService, logService, policyService).then(services => {
+		// Workspace
+		serviceCollection.set(IWorkspaceContextService, workspaceContextService);
+		serviceCollection.set(IWorkspaceEditingService, workspaceContextService);
+
+		const [configurationService, storageService] = await Promise.all([
+			this.createConfigurationService(workspaceContextService, userDataProfileService, uriIdentityService, fileService, logService, policyService).then(configurationService => {
 
 				// Configuration
-				serviceCollection.set(IWorkbenchConfigurationService, services.configurationService);
-				// Workspace
-				serviceCollection.set(IWorkspaceContextService, services.workspaceContextService);
-				serviceCollection.set(IWorkspaceEditingService, services.workspaceContextService);
+				serviceCollection.set(IWorkbenchConfigurationService, configurationService);
 
-				return services;
+				return configurationService;
 			}),
 
 			this.createStorageService(workspaceIdentifier, environmentService, userDataProfileService, userDataProfilesService, mainProcessService).then(service => {
@@ -344,15 +346,14 @@ export class SessionsMain extends Disposable {
 		return { serviceCollection, logService, storageService, configurationService };
 	}
 
-	private async createWorkspaceAndConfigurationService(
-		workspaceIdentifier: IWorkspaceIdentifier,
+	private async createConfigurationService(
+		workspaceContextService: SessionsWorkspaceContextService,
 		userDataProfileService: IUserDataProfileService,
 		uriIdentityService: IUriIdentityService,
 		fileService: FileService,
 		logService: ILogService,
 		policyService: IPolicyService
-	): Promise<{ configurationService: ConfigurationService; workspaceContextService: SessionsWorkspaceContextService }> {
-		const workspaceContextService = new SessionsWorkspaceContextService(workspaceIdentifier, uriIdentityService);
+	): Promise<ConfigurationService> {
 		const configurationService = new ConfigurationService(userDataProfileService, workspaceContextService, uriIdentityService, fileService, policyService, logService);
 		try {
 			await configurationService.initialize();
@@ -360,8 +361,7 @@ export class SessionsMain extends Disposable {
 			onUnexpectedError(error);
 		}
 
-		workspaceContextService.setConfigurationService(configurationService);
-		return { configurationService, workspaceContextService };
+		return configurationService;
 	}
 
 	private async createStorageService(workspace: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService, userDataProfilesService: IUserDataProfilesService, mainProcessService: IMainProcessService): Promise<NativeWorkbenchStorageService> {

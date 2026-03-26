@@ -55,7 +55,7 @@
 
 /** Styles for each row in the list element **/
 .action-widget .monaco-list .monaco-list-row {
-	padding: 0 4px 0 8px;
+	padding: 0 12px 0 8px;
 	white-space: nowrap;
 	cursor: pointer;
 	touch-action: none;
@@ -119,7 +119,7 @@
 
 .action-widget .monaco-list-row.action {
 	display: flex;
-	gap: 8px;
+	gap: 6px;
 	align-items: center;
 }
 
@@ -160,14 +160,14 @@
 }
 
 .action-widget .monaco-list-row.action .monaco-keybinding > .monaco-keybinding-key {
-		background-color: var(--vscode-keybindingLabel-background);
-		color: var(--vscode-keybindingLabel-foreground);
-		border-style: solid;
-		border-width: 1px;
-		border-radius: 3px;
-		border-color: var(--vscode-keybindingLabel-border);
-		border-bottom-color: var(--vscode-keybindingLabel-bottomBorder);
-		box-shadow: inset 0 -1px 0 var(--vscode-widget-shadow);
+	background-color: var(--vscode-keybindingLabel-background);
+	color: var(--vscode-keybindingLabel-foreground);
+	border-style: solid;
+	border-width: 1px;
+	border-radius: 3px;
+	border-color: var(--vscode-keybindingLabel-border);
+	border-bottom-color: var(--vscode-keybindingLabel-bottomBorder);
+	box-shadow: inset 0 -1px 0 var(--vscode-widget-shadow);
 }
 
 /* Action bar */
@@ -221,15 +221,18 @@
 .action-widget .description-below .monaco-list .monaco-list-row.action {
 	flex-wrap: wrap;
 	align-content: center;
-	padding-top: 6px;
 	padding-right: 2px;
+
+	&:has(.description:not([style*="display: none"])) {
+		padding-top: 6px;
+	}
 
 	.title {
 		line-height: 14px;
 	}
 
 	.description {
-		display: block !important;
+		display: block;
 		width: 100%;
 		margin-left: 0;
 		padding-left: 20px;
@@ -252,7 +255,7 @@
 	display: flex;
 }
 
-.action-widget .monaco-list-row .action-list-item-toolbar .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover{
+.action-widget .monaco-list-row .action-list-item-toolbar .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
@@ -265,7 +268,14 @@
 
 /* Filter input */
 .action-widget .action-list-filter {
-	padding: 2px 2px 4px 2px
+	padding: 2px 2px 4px 2px;
+}
+
+.action-widget .action-list-filter-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding-right: 10px;
 }
 
 .action-widget .action-list-filter:first-child {
@@ -278,6 +288,7 @@
 
 .action-widget .action-list-filter-input {
 	width: 100%;
+	flex: 1;
 	box-sizing: border-box;
 	padding: 4px 8px;
 	border: 1px solid var(--vscode-input-border, transparent);
@@ -293,4 +304,47 @@
 
 .action-widget .action-list-filter-input::placeholder {
 	color: var(--vscode-input-placeholderForeground);
+}
+
+.action-widget .action-list-filter-actions .action-label {
+	padding: 3px;
+	border-radius: 3px;
+}
+
+.action-widget .action-list-filter-actions .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Anchor for the absolutely-positioned submenu panel */
+.action-widget .actionList {
+	position: relative;
+}
+
+.action-widget .action-list-submenu-indicator {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	flex-shrink: 0;
+	border-radius: 4px;
+}
+
+.action-widget .action-list-submenu-indicator.has-submenu {
+	opacity: 0.6;
+}
+
+.action-widget .monaco-list-row.action .action-list-submenu-indicator.codicon {
+	display: flex;
+	font-size: 16px;
+}
+
+.action-list-submenu-panel {
+	background-color: var(--vscode-menu-background);
+	color: var(--vscode-menu-foreground);
+	border: 1px solid var(--vscode-menu-border, var(--vscode-editorHoverWidget-border));
+	border-radius: 5px;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	z-index: 50;
+	width: fit-content;
 }

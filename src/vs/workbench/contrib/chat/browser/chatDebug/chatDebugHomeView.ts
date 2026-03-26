@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -11,10 +12,14 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isUUID } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { AGENT_DEBUG_LOG_ENABLED_SETTING } from '../../common/promptSyntax/promptTypes.js';
+import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 
 const $ = DOM.$;
 
@@ -32,10 +37,18 @@ export class ChatDebugHomeView extends Disposable {
 		@IChatService private readonly chatService: IChatService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super();
 		this.container = DOM.append(parent, $('.chat-debug-home'));
 		this.scrollContent = DOM.append(this.container, $('div.chat-debug-home-content'));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AGENT_DEBUG_LOG_ENABLED_SETTING)) {
+				this.render();
+			}
+		}));
 	}
 
 	show(): void {
@@ -51,7 +64,22 @@ export class ChatDebugHomeView extends Disposable {
 		DOM.clearNode(this.scrollContent);
 		this.renderDisposables.clear();
 
-		DOM.append(this.scrollContent, $('h2.chat-debug-home-title', undefined, localize('chatDebug.title', "Agent Debug Panel")));
+		DOM.append(this.scrollContent, $('h2.chat-debug-home-title', undefined, localize('chatDebug.title', "Agent Debug Logs")));
+
+		const isEnabled = this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING);
+		if (!isEnabled) {
+			DOM.append(this.scrollContent, $('p.chat-debug-home-subtitle', undefined,
+				localize('chatDebug.disabled', "Enable to view debug logs and investigate chat issues with /troubleshoot.")
+			));
+
+			const enableButton = this.renderDisposables.add(new Button(this.scrollContent, { ...defaultButtonStyles, secondary: true }));
+			enableButton.element.style.width = 'auto';
+			enableButton.label = localize('chatDebug.openSetting', "Enable in Settings");
+			this.renderDisposables.add(enableButton.onDidClick(() => {
+				this.preferencesService.openSettings({ jsonEditor: false, query: AGENT_DEBUG_LOG_ENABLED_SETTING });
+			}));
+			return;
+		}
 
 		// Determine the active session resource
 		const activeWidget = this.chatWidgetService.lastFocusedWidget;
@@ -60,7 +88,12 @@ export class ChatDebugHomeView extends Disposable {
 		// List sessions that have debug event data.
 		// Use the debug service as the source of truth — it includes sessions
 		// whose chat models may have been archived (e.g. when a new chat was started).
-		const sessionResources = [...this.chatDebugService.getSessionResources()].reverse();
+		const cliSessionTypes = new Set(['copilotcli', 'claude-code']);
+		const sessionResources = [...this.chatDebugService.getSessionResources()].reverse()
+			// Hide untitled bootstrap sessions for CLI session types (e.g. copilotcli, claude-code).
+			// These are transient sessions created during async session setup that only contain
+			// a single "Load Hooks" event and would confuse users.
+			.filter(r => !cliSessionTypes.has(getChatSessionType(r)) || !isUntitledChatSession(r));
 
 		// Sort: active session first
 		if (activeSessionResource) {
@@ -85,7 +118,26 @@ export class ChatDebugHomeView extends Disposable {
 			const items: HTMLButtonElement[] = [];
 
 			for (const sessionResource of sessionResources) {
-				const sessionTitle = this.chatService.getSessionTitle(sessionResource) || LocalChatSessionUri.parseLocalSessionId(sessionResource) || sessionResource.toString();
+				const rawTitle = this.chatService.getSessionTitle(sessionResource);
+				const importedTitle = this.chatDebugService.getImportedSessionTitle(sessionResource);
+				let sessionTitle: string;
+				if (rawTitle && !isUUID(rawTitle)) {
+					sessionTitle = rawTitle;
+				} else if (LocalChatSessionUri.isLocalSession(sessionResource)) {
+					sessionTitle = localize('chatDebug.newSession', "New Chat");
+				} else if (importedTitle) {
+					sessionTitle = localize('chatDebug.importedSession', "Imported: {0}", importedTitle);
+				} else if (getChatSessionType(sessionResource) === 'copilotcli') {
+					const pathId = sessionResource.path.replace(/^\//, '').split('-')[0];
+					const shortId = pathId || sessionResource.authority || sessionResource.toString();
+					sessionTitle = localize('chatDebug.copilotCliSessionWithId', "Copilot CLI: {0}", shortId);
+				} else if (getChatSessionType(sessionResource) === 'claude-code') {
+					const pathId = sessionResource.path.replace(/^\//, '').split('-')[0];
+					const shortId = pathId || sessionResource.authority || sessionResource.toString();
+					sessionTitle = localize('chatDebug.claudeCodeSessionWithId', "Claude Code: {0}", shortId);
+				} else {
+					sessionTitle = localize('chatDebug.newSession', "New Chat");
+				}
 				const isActive = activeSessionResource !== undefined && sessionResource.toString() === activeSessionResource.toString();
 
 				const item = DOM.append(sessionList, $<HTMLButtonElement>('button.chat-debug-home-session-item'));
@@ -98,32 +150,20 @@ export class ChatDebugHomeView extends Disposable {
 				DOM.append(item, $(`span${ThemeIcon.asCSSSelector(Codicon.comment)}`));
 
 				const titleSpan = DOM.append(item, $('span.chat-debug-home-session-item-title'));
-				// Show shimmer when the title is still a UUID — the session is
-				// either not yet loaded or hasn't produced a real title yet.
-				const isShimmering = isUUID(sessionTitle);
-				if (isShimmering) {
-					titleSpan.classList.add('chat-debug-home-session-item-shimmer');
-					item.disabled = true;
-					item.setAttribute('aria-busy', 'true');
-					item.setAttribute('aria-label', localize('chatDebug.loadingSession', "Loading session…"));
-				} else {
-					titleSpan.textContent = sessionTitle;
-					const ariaLabel = isActive
-						? localize('chatDebug.sessionItemActive', "{0} (active)", sessionTitle)
-						: sessionTitle;
-					item.setAttribute('aria-label', ariaLabel);
-				}
+				titleSpan.textContent = sessionTitle;
+				const ariaLabel = isActive
+					? localize('chatDebug.sessionItemActive', "{0} (active)", sessionTitle)
+					: sessionTitle;
+				item.setAttribute('aria-label', ariaLabel);
 
 				if (isActive) {
 					DOM.append(item, $('span.chat-debug-home-session-badge', undefined, localize('chatDebug.active', "Active")));
 				}
 
-				if (!isShimmering) {
-					this.renderDisposables.add(DOM.addDisposableListener(item, DOM.EventType.CLICK, () => {
-						this._onNavigateToSession.fire(sessionResource);
-					}));
-					items.push(item);
-				}
+				this.renderDisposables.add(DOM.addDisposableListener(item, DOM.EventType.CLICK, () => {
+					this._onNavigateToSession.fire(sessionResource);
+				}));
+				items.push(item);
 			}
 
 			// Arrow key navigation between session items

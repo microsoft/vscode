@@ -328,14 +328,19 @@ export class OutputPosition {
 	}
 }
 
+export interface ILineBreaksComputerContext {
+	getLineContent(lineNumber: number): string;
+	getLineInjectedText(lineNumber: number): LineInjectedText[] | null;
+}
+
 export interface ILineBreaksComputerFactory {
-	createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ILineBreaksComputer;
+	createLineBreaksComputer(context: ILineBreaksComputerContext, fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ILineBreaksComputer;
 }
 
 export interface ILineBreaksComputer {
 	/**
 	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
 	 */
-	addRequest(lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null): void;
+	addRequest(lineNumber: number, previousLineBreakData: ModelLineProjectionData | null): void;
 	finalize(): (ModelLineProjectionData | null)[];
 }

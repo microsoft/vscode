@@ -48,7 +48,9 @@ steps:
         libxkbfile-dev \
         libkrb5-dev \
         libgbm1 \
-        rpm
+        rpm \
+        bubblewrap \
+        socat
       sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
       sudo chmod +x /etc/init.d/xvfb
       sudo update-rc.d xvfb defaults
@@ -345,7 +347,7 @@ steps:
         - script: |
             set -e
             npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
-            sudo -E docker run -e VSCODE_ARCH -e VSCODE_QUALITY -v $(pwd):/work -w /work vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64 /bin/bash -c "./build/azure-pipelines/linux/build-snap.sh"
+            sudo -E docker run -e VSCODE_ARCH -e VSCODE_QUALITY -v $(pwd):/work -w /work vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64@sha256:ab4a88c4d85e0d7a85acabba59543f7143f575bab2c0b2b07f5b77d4a7e491ff /bin/bash -c "./build/azure-pipelines/linux/build-snap.sh"
 
             SNAP_ROOT="$(pwd)/.build/linux/snap/$(VSCODE_ARCH)"
             SNAP_EXTRACTED_PATH=$(find $SNAP_ROOT -maxdepth 1 -type d -name 'code-*')
