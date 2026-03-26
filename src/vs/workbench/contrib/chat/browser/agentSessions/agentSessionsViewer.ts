@@ -16,8 +16,9 @@ import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, IT
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionShowLess, IAgentSessionShowMore, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { fromNow, getDurationString } from '../../../../../base/common/date.js';
 import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -226,7 +227,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		// Icon — in status-only mode, show status indicator in icon column and session type icon in details row
 		if (this.options.useStatusOnlyIcons) {
-			template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element, true))}${session.element.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
+			const statusIcon = this.getIcon(session.element, true);
+			template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(statusIcon)}${session.element.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
+			template.icon.style.color = statusIcon.color ? asCssVariable(statusIcon.color.id) : '';
 			if (session.element.providerType === AgentSessionProviders.Background) {
 				template.detailsIcon.className = 'agent-session-details-icon'; // hide default provider icon (same as Local in non-status-only mode)
 			} else {
@@ -234,7 +237,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 				template.detailsIcon.classList.add('visible');
 			}
 		} else {
-			template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}${session.element.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
+			const icon = this.getIcon(session.element);
+			template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(icon)}${session.element.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
+			template.icon.style.color = icon.color ? asCssVariable(icon.color.id) : '';
 			template.detailsIcon.className = 'agent-session-details-icon';
 		}
 
@@ -409,10 +414,16 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			const metadata = session.metadata;
 			const hasPR = metadata?.pullRequestUrl || metadata?.pullRequestNumber;
 			if (hasPR) {
-				if (metadata?.pullRequestMerged === true) {
-					return Codicon.gitMerge;
+				switch (metadata?.pullRequestState) {
+					case 'merged':
+						return { ...Codicon.gitPullRequestDone, color: themeColorFromId('charts.purple') };
+					case 'closed':
+						return { ...Codicon.gitPullRequestClosed, color: themeColorFromId('charts.red') };
+					case 'draft':
+						return { ...Codicon.gitPullRequestDraft, color: themeColorFromId('descriptionForeground') };
+					default:
+						return { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') };
 				}
-				return Codicon.gitPullRequest;
 			}
 		}
 
