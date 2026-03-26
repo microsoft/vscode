@@ -36,6 +36,7 @@ import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Separator } from '../../../../../base/common/actions.js';
+import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 
 const $ = DOM.$;
 
@@ -222,18 +223,16 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const sessionStatus = element.status.read(reader);
 			const isRead = element.isRead.read(reader);
 			const isArchived = element.isArchived.read(reader);
-			const pullRequestUri = element.pullRequestUri.read(reader);
 			const pullRequestStateIcon = element.pullRequestStateIcon.read(reader);
 			DOM.clearNode(template.iconContainer);
 			const hasPrIcon = !!pullRequestStateIcon;
-			const icon = pullRequestStateIcon ?? this.getStatusIcon(sessionStatus, isRead, isArchived, element.icon);
+			const icon = hasPrIcon ? pullRequestStateIcon : this.getStatusIcon(sessionStatus, isRead, isArchived);
 			const iconSpan = DOM.append(template.iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 			iconSpan.style.color = icon.color ? asCssVariable(icon.color.id) : '';
 			template.iconContainer.classList.toggle('session-icon-pulse', !hasPrIcon && sessionStatus === SessionStatus.NeedsInput);
 			template.iconContainer.classList.toggle('session-icon-active', !hasPrIcon && sessionStatus === SessionStatus.InProgress);
 			template.iconContainer.classList.toggle('session-icon-error', !hasPrIcon && sessionStatus === SessionStatus.Error);
 			template.iconContainer.classList.toggle('session-icon-unread', !hasPrIcon && !isRead && !isArchived && sessionStatus !== SessionStatus.InProgress && sessionStatus !== SessionStatus.NeedsInput && sessionStatus !== SessionStatus.Error);
-			template.iconContainer.classList.toggle('session-icon-pr', !!pullRequestUri && !hasPrIcon && sessionStatus === SessionStatus.Completed);
 		}));
 
 		// Title — reactive
@@ -256,9 +255,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const parts: HTMLElement[] = [];
 
 			// Session type icon in details row
-			const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
-			DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(element.icon)}`));
-			parts.push(typeIconEl);
+			// Disabling background icon - hacky but couldn't figure out how to do it from the new provider
+			if (element.sessionType !== AgentSessionProviders.Background) {
+				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
+				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(element.icon)}`));
+				parts.push(typeIconEl);
+			}
 
 			// Workspace badge — show when not grouped by repository
 			if (workspace && this.options.grouping() !== SessionsGrouping.Repository) {
@@ -391,7 +393,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}));
 	}
 
-	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, _defaultIcon: ThemeIcon): ThemeIcon {
+	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean): ThemeIcon {
 		switch (status) {
 			case SessionStatus.InProgress: return Codicon.sessionInProgress;
 			case SessionStatus.NeedsInput: return Codicon.circleFilled;
