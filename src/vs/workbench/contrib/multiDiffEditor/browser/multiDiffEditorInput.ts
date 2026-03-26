@@ -26,6 +26,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ConfirmResult } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IEditorConfiguration } from '../../../browser/parts/editor/textEditor.js';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
@@ -92,6 +93,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMultiDiffSourceResolverService private readonly _multiDiffSourceResolverService: IMultiDiffSourceResolverService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 		this._name = '';
@@ -186,39 +189,33 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		const source = await this._resolvedSource.getPromise();
 		const textResourceConfigurationService = this._textResourceConfigurationService;
 
-		// Read once at construction: changes to the setting take effect for newly opened editors
-		const maxFileCount = this._instantiationService.invokeFunction(accessor =>
-			accessor.get(IConfigurationService).getValue<number>('multiDiffEditor.maxFileCount') || 0
-		);
+		const maxFileCount = observableConfigValue('multiDiffEditor.maxFileCount', 0, this._configurationService);
 
-		const limitedResources = maxFileCount > 0 ? derived(this, reader => {
+		const limitedResources = derived(this, reader => {
+			const max = maxFileCount.read(reader);
 			const resources = source.resources.read(reader);
-			if (resources.length > maxFileCount) {
-				return resources.slice(0, maxFileCount);
+			if (max > 0 && resources.length > max) {
+				return { maxFileCount: max, fileCountNotShown: resources.length - max, resources: resources.slice(0, max) };
 			}
-			return resources;
-		}) : source.resources;
+			return { maxFileCount: max, fileCountNotShown: 0, resources };
+		});
 
-		if (maxFileCount > 0) {
-			let hasNotified = false;
-			this._register(autorun(reader => {
-				/** @description Notify when maxFileCount is exceeded */
-				const resources = source.resources.read(reader);
-				if (resources.length > maxFileCount && !hasNotified) {
-					hasNotified = true;
-					this._instantiationService.invokeFunction(accessor => {
-						accessor.get(INotificationService).warn(localize(
-							'multiDiffEditor.maxFileCountExceeded',
-							"The multi-file diff editor is limited to {0} files (configured via `multiDiffEditor.maxFileCount`). {1} files are not shown.",
-							maxFileCount,
-							resources.length - maxFileCount
-						));
-					});
-				}
-			}));
-		}
+		let hasNotified = false;
+		this._register(autorun(reader => {
+			/** @description Notify when maxFileCount is exceeded */
+			const { maxFileCount: max, fileCountNotShown } = limitedResources.read(reader);
+			if (fileCountNotShown > 0 && !hasNotified) {
+				hasNotified = true;
+				this._notificationService.warn(localize(
+					'multiDiffEditor.maxFileCountExceeded',
+					"The multi-file diff editor is limited to {0} files (configured via `multiDiffEditor.maxFileCount`). {1} files are not shown.",
+					max,
+					fileCountNotShown
+				));
+			}
+		}));
 
-		const documentsWithPromises = mapObservableArrayCached(this, limitedResources, async (r, store) => {
+		const documentsWithPromises = mapObservableArrayCached(this, limitedResources.map(r => r.resources), async (r, store) => {
 			/** @description documentsWithPromises */
 			let original: IReference<IResolvedTextEditorModel> | undefined;
 			let modified: IReference<IResolvedTextEditorModel> | undefined;
