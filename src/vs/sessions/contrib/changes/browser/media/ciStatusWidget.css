@@ -123,8 +123,8 @@
 }
 
 /* Individual check row */
-.ci-status-widget-list .monaco-list-row {
-	border-radius: 4px !important;
+.ci-status-widget .ci-status-widget-list .monaco-list-row {
+	border-radius: 4px;
 }
 
 .ci-status-widget-check {

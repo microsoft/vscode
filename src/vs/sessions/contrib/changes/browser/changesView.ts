@@ -11,7 +11,7 @@ import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/obje
 import { IObjectTreeElement, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IObservableWithChange, ISettableObservable, ObservablePromise, observableSignalFromEvent, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { basename, dirname } from '../../../../base/common/path.js';
@@ -52,7 +52,6 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
-import { IActivityService, NumberBadge } from '../../../../workbench/services/activity/common/activity.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -341,7 +340,6 @@ export class ChangesViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IActivityService private readonly activityService: IActivityService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -371,21 +369,6 @@ export class ChangesViewPane extends ViewPane {
 			return activeSession?.sessionType ?? '';
 		}));
 
-		// Badge
-		const badgeDisposable = this._register(new MutableDisposable());
-
-		this._register(autorun(reader => {
-			const changes = this.viewModel.activeSessionChangesObs.read(reader);
-			if (changes.length === 0) {
-				badgeDisposable.clear();
-				return;
-			}
-
-			const message = changes.length === 1
-				? localize('changesView.oneFileChanged', '1 file changed')
-				: localize('changesView.filesChanged', '{0} files changed', changes.length);
-			badgeDisposable.value = this.activityService.showViewActivity(CHANGES_VIEW_ID, { badge: new NumberBadge(changes.length, () => message) });
-		}));
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -441,7 +424,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// Shared constants for pane sizing
 		const ciMinHeight = CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.MIN_BODY_HEIGHT;
-		const treeMinHeight = 3 * 22; // three tree rows (row height = 22)
+		const treeMinHeight = 3 * ChangesTreeDelegate.ROW_HEIGHT;
 
 		// Top pane: file tree
 		const treePane: IView = {
@@ -1025,7 +1008,7 @@ export class ChangesViewPane extends ViewPane {
 
 	/** Layout the SplitView to fill available body space. */
 	private layoutSplitView(): void {
-		if (!this.splitView) {
+		if (!this.splitView || !this.splitViewContainer) {
 			return;
 		}
 		const bodyHeight = this.currentBodyHeight;
@@ -1036,7 +1019,7 @@ export class ChangesViewPane extends ViewPane {
 		const actionsHeight = this.actionsContainer?.offsetHeight ?? 0;
 		const actionsMargin = actionsHeight > 0 ? 8 : 0;
 		const availableHeight = Math.max(0, bodyHeight - bodyPadding - actionsHeight - actionsMargin);
-		this.splitViewContainer!.style.height = `${availableHeight}px`;
+		this.splitViewContainer.style.height = `${availableHeight}px`;
 		this.splitView.layout(availableHeight);
 	}
 
@@ -1085,8 +1068,10 @@ export class ChangesViewPaneContainer extends ViewPaneContainer {
 // --- Tree Delegate & Renderer
 
 class ChangesTreeDelegate implements IListVirtualDelegate<ChangesTreeElement> {
+	static readonly ROW_HEIGHT = 22;
+
 	getHeight(_element: ChangesTreeElement): number {
-		return 22;
+		return ChangesTreeDelegate.ROW_HEIGHT;
 	}
 
 	getTemplateId(_element: ChangesTreeElement): string {
