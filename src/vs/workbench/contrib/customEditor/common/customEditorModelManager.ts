@@ -52,6 +52,11 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 					}
 				}),
 			};
+		}, err => {
+			// Clear the cached rejected promise so subsequent attempts
+			// can create a fresh model instead of reusing the stale error
+			this._references.delete(key);
+			throw err;
 		});
 	}
 
