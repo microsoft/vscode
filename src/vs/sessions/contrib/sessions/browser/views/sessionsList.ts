@@ -1173,7 +1173,7 @@ export function groupByWorkspace(sessions: ISessionData[]): ISessionSection[] {
 	const groups = new Map<string, ISessionData[]>();
 	for (const session of sessions) {
 		const workspace = session.workspace.get();
-		const label = workspace?.label ?? localize('noWorkspace', "No Workspace");
+		const label = workspace?.label || localize('noWorkspace', "No Workspace");
 		let group = groups.get(label);
 		if (!group) {
 			group = [];
@@ -1182,13 +1182,24 @@ export function groupByWorkspace(sessions: ISessionData[]): ISessionSection[] {
 		group.push(session);
 	}
 
-	const order = [...groups.keys()].sort((a, b) => a.localeCompare(b));
+	const noWorkspaceLabel = localize('noWorkspace', "No Workspace");
+	const order = [...groups.keys()]
+		.filter(k => k !== noWorkspaceLabel)
+		.sort((a, b) => a.localeCompare(b));
 
-	return order.map(label => ({
+	const result: ISessionSection[] = order.map(label => ({
 		id: `workspace:${label}`,
 		label,
 		sessions: groups.get(label)!,
 	}));
+
+	// "No Workspace" always at the bottom
+	const noWorkspace = groups.get(noWorkspaceLabel);
+	if (noWorkspace) {
+		result.push({ id: `workspace:${noWorkspaceLabel}`, label: noWorkspaceLabel, sessions: noWorkspace });
+	}
+
+	return result;
 }
 
 export function groupByDate(sessions: ISessionData[], sorting: SessionsSorting): ISessionSection[] {

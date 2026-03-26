@@ -93,6 +93,30 @@ suite('Sessions - SessionsList Helpers', () => {
 			assert.strictEqual(groups[1].sessions.length, 2);
 		});
 
+		test('"No Workspace" appears after workspaces that sort alphabetically later', () => {
+			const sessions = [
+				createSession('1', {}),
+				createSession('2', { workspaceLabel: 'Zulu' }),
+				createSession('3', { workspaceLabel: 'Alpha' }),
+			];
+
+			const groups = groupByWorkspace(sessions);
+
+			assert.deepStrictEqual(groups.map(g => g.label), ['Alpha', 'Zulu', 'No Workspace']);
+		});
+
+		test('empty workspace label is treated as "No Workspace"', () => {
+			const sessions = [
+				createSession('1', { workspaceLabel: 'Zulu' }),
+				createSession('2', { workspaceLabel: '' }),
+			];
+
+			const groups = groupByWorkspace(sessions);
+
+			assert.deepStrictEqual(groups.map(g => g.label), ['Zulu', 'No Workspace']);
+			assert.strictEqual(groups[1].sessions.length, 1);
+		});
+
 		test('group ids are prefixed with workspace:', () => {
 			const sessions = [
 				createSession('1', { workspaceLabel: 'MyProject' }),
