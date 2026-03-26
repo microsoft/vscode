@@ -4,28 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ISessionData, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
-import { ISendRequestOptions, ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
-import { IChatSessionFileChange, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { agentHostUri } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
 import { isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ISessionSummary } from '../../../../platform/agentHost/common/state/sessionState.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
-import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatSendRequestOptions, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSessionFileChange, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { ISendRequestOptions, ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
+import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
+import { ISessionData, ISessionPullRequest, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
 
 export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly address: string;
@@ -33,13 +33,6 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly defaultDirectory: string | undefined;
 	readonly connection: IAgentConnection;
 }
-
-const CopilotCLISessionType: ISessionType = {
-	id: AgentSessionProviders.AgentHostCopilot,
-	label: localize('copilotCLI', "Copilot"),
-	icon: Codicon.copilot,
-	requiresWorkspaceTrust: true,
-};
 
 /**
  * Adapts an {@link IAgentSessionMetadata} from the agent host connection
@@ -81,7 +74,7 @@ class RemoteSessionAdapter implements ISessionData {
 
 	readonly description: IObservable<string | undefined>;
 	readonly lastTurnEnd: IObservable<Date | undefined>;
-	readonly pullRequestUri: IObservable<URI | undefined>;
+	readonly pullRequest: IObservable<ISessionPullRequest | undefined>;
 
 	/** Backend agent session URI for protocol operations (e.g. disposeSession). */
 	readonly backendSessionUri: URI;
@@ -134,7 +127,7 @@ class RemoteSessionAdapter implements ISessionData {
 
 		this.description = observableValue(this, providerLabel);
 		this.lastTurnEnd = observableValue(this, metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
-		this.pullRequestUri = observableValue(this, undefined);
+		this.pullRequest = observableValue(this, undefined);
 	}
 
 	/**
@@ -154,6 +147,7 @@ class RemoteSessionAdapter implements ISessionData {
 			label,
 			icon: Codicon.remote,
 			repositories: [{ uri, workingDirectory: undefined, detail: providerLabel, baseBranchProtected: undefined }],
+			requiresWorkspaceTrust: false
 		};
 	}
 }
@@ -212,7 +206,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		this.sessionTypes = [CopilotCLISessionType];
 
 		this.browseActions = [{
-			label: localize('browseRemote', "Browse Folders ({0})...", displayName),
+			label: localize('folders', "Folders"),
+			// label: localize('browseRemote', "Browse Folders ({0})...", displayName),
 			icon: Codicon.remote,
 			providerId: this.id,
 			execute: () => this._browseForFolder(),
@@ -243,6 +238,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			label: repositoryUri.path.split('/').pop() || repositoryUri.path,
 			icon: Codicon.remote,
 			repositories: [{ uri: repositoryUri, workingDirectory: undefined, detail: this.label, baseBranchProtected: undefined }],
+			requiresWorkspaceTrust: true
 		};
 	}
 
@@ -283,6 +279,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 				label: workspaceUri.path.split('/').pop() || workspaceUri.path,
 				icon: Codicon.remote,
 				repositories: [{ uri: workspaceUri, workingDirectory: undefined, detail: this.label, baseBranchProtected: undefined }],
+				requiresWorkspaceTrust: true
 			}),
 			title: observableValue(this, ''),
 			updatedAt: observableValue(this, new Date()),
@@ -295,7 +292,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			isRead: observableValue(this, true),
 			description: observableValue(this, undefined),
 			lastTurnEnd: observableValue(this, undefined),
-			pullRequestUri: observableValue(this, undefined),
+			pullRequest: observableValue(this, undefined),
+
 		};
 		this._currentNewSession = session;
 		return session;
@@ -560,6 +558,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 					label,
 					icon: Codicon.remote,
 					repositories: [{ uri, workingDirectory: undefined, detail: this.label, baseBranchProtected: undefined }],
+					requiresWorkspaceTrust: true
 				};
 			}
 		} catch {

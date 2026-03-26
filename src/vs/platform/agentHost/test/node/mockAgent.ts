@@ -7,7 +7,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentMessageEvent, type IAgentModelInfo, type IAgentProgressEvent, type IAgentSessionMetadata, type IAgentToolCompleteEvent, type IAgentToolStartEvent } from '../../common/agentService.js';
-import { ToolResultContentType, type IToolCallResult } from '../../common/state/sessionState.js';
+import { ToolResultContentType, type IPendingMessage, type IToolCallResult } from '../../common/state/sessionState.js';
 
 /**
  * General-purpose mock agent for unit tests. Tracks all method calls
@@ -22,6 +22,7 @@ export class MockAgent implements IAgent {
 
 
 	readonly sendMessageCalls: { session: URI; prompt: string }[] = [];
+	readonly setPendingMessagesCalls: { session: URI; steeringMessage: IPendingMessage | undefined; queuedMessages: readonly IPendingMessage[] }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
@@ -64,6 +65,10 @@ export class MockAgent implements IAgent {
 
 	async sendMessage(session: URI, prompt: string): Promise<void> {
 		this.sendMessageCalls.push({ session, prompt });
+	}
+
+	setPendingMessages(session: URI, steeringMessage: IPendingMessage | undefined, queuedMessages: readonly IPendingMessage[]): void {
+		this.setPendingMessagesCalls.push({ session, steeringMessage, queuedMessages });
 	}
 
 	async getSessionMessages(_session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
