@@ -1110,24 +1110,25 @@ export class ActionListWidget<T> extends Disposable {
 		}
 
 		const element = e.elements[0];
-		if (element.isSectionToggle) {
+		if (element.isSectionToggle && element.section) {
 			this._list.setSelection([]);
-			if (element.section) {
-				const wasCollapsed = this._collapsedSections.has(element.section);
-				this._toggleSection(element.section);
+			const section = element.section;
+			const wasCollapsed = this._collapsedSections.has(section);
+			queueMicrotask(() => {
+				this._toggleSection(section);
 				if (wasCollapsed) {
 					// Section was just expanded — focus the first item in it
 					const items = this._list;
 					for (let i = 0; i < items.length; i++) {
 						const item = items.element(i);
-						if (item.section === element.section && !item.isSectionToggle) {
+						if (item.section === section && !item.isSectionToggle) {
 							items.setFocus([i]);
 							items.reveal(i);
 							break;
 						}
 					}
 				}
-			}
+			});
 			return;
 		}
 		// Don't select when clicking the submenu indicator
@@ -1436,8 +1437,6 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private onListClick(e: IListMouseEvent<IActionListItem<T>>): void {
-		// Section toggles are handled in onListSelection (which fires for both
-		// keyboard and mouse) so we don't toggle again here.
 		if (e.element && this.focusCondition(e.element)) {
 			this._list.setFocus([]);
 		}
