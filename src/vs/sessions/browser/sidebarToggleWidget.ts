@@ -81,6 +81,8 @@ class SessionStatusToggleViewItem extends BaseActionViewItem {
 		this._indicatorDisposables.add(this.hoverService.setupManagedHover(
 			this._hoverDelegate, this._container, hoverText
 		));
+
+		this._container.setAttribute('aria-label', hoverText);
 	}
 }
 
@@ -89,7 +91,7 @@ class SessionStatusToggleViewItem extends BaseActionViewItem {
  * (`SidebarTitleLeft`) and provides a custom action view item to render
  * the tasklist icon with an unread badge.
  */
-export class SessionStatusToggleContribution extends Disposable implements IWorkbenchContribution {
+class SessionStatusToggleContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionStatusToggle';
 
