@@ -106,7 +106,7 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 	private readonly _branchObservable = observableValue<string | undefined>(this, undefined);
 	readonly branchObservable: IObservable<string | undefined> = this._branchObservable;
 
-	private readonly _isolationModeObservable = observableValue<string | undefined>(this, undefined);
+	private readonly _isolationModeObservable = observableValue<string | undefined>(this, 'worktree');
 	readonly isolationModeObservable: IObservable<string | undefined> = this._isolationModeObservable;
 
 	readonly changes: IObservable<readonly IChatSessionFileChange[]> = observableValue<readonly IChatSessionFileChange[]>(this, []);
