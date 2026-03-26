@@ -30,6 +30,7 @@ import { IWorkingCopyService } from '../../../services/workingCopy/common/workin
 import { IWebviewService } from '../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createClaudeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots, getClaudeUserRoots } from '../../../contrib/chat/common/customizationHarnessService.js';
+import { IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ParsedPromptFile } from '../../../contrib/chat/common/promptSyntax/promptFileParser.js';
@@ -163,7 +164,7 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IRes
 }
 
 function createMockHarnessService(activeHarness: CustomizationHarness, descriptors: readonly IHarnessDescriptor[]): ICustomizationHarnessService {
-	const active = observableValue('activeHarness', activeHarness);
+	const active = observableValue<string>('activeHarness', activeHarness);
 	return new class extends mock<ICustomizationHarnessService>() {
 		override readonly activeHarness = active;
 		override readonly availableHarnesses = constObservable(descriptors);
@@ -174,7 +175,8 @@ function createMockHarnessService(activeHarness: CustomizationHarness, descripto
 		override getActiveDescriptor() {
 			return descriptors.find(h => h.id === active.get()) ?? descriptors[0];
 		}
-		override setActiveHarness(id: CustomizationHarness) { active.set(id, undefined); }
+		override setActiveHarness(id: string) { active.set(id, undefined); }
+		override registerContributedHarness() { return { dispose() { } }; }
 	}();
 }
 
@@ -470,6 +472,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override async generateCustomization() { }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, harnessService);
+			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override async getCustomizations() { return undefined; }
+				override getRegisteredChatSessionItemProviders() { return []; }
+			}());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
 				override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
@@ -635,8 +642,9 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 				}
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue('activeHarness', CustomizationHarness.VSCode);
+				override readonly activeHarness = observableValue<string>('activeHarness', CustomizationHarness.VSCode);
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
+				override registerContributedHarness() { return { dispose() { } }; }
 			}());
 		},
 	});

@@ -60,7 +60,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				return override;
 			}
 			const session = this.sessionsService.activeSession.read(reader);
-			return session?.worktree ?? session?.repository;
+			const repo = session?.workspace.read(reader)?.repositories[0];
+			return repo?.workingDirectory ?? repo?.uri;
 		});
 
 		this.hasOverrideProjectRoot = derived(reader => {
@@ -73,8 +74,9 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		if (override) {
 			return override;
 		}
-		const session = this.sessionsService.getActiveSession();
-		return session?.worktree ?? session?.repository;
+		const session = this.sessionsService.activeSession.get();
+		const repo = session?.workspace.get()?.repositories[0];
+		return repo?.workingDirectory ?? repo?.uri;
 	}
 
 	setOverrideProjectRoot(root: URI): void {
@@ -107,13 +109,14 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 * the file is also committed there so the session sees it immediately.
 	 */
 	async commitFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
-		const session = this.sessionsService.getActiveSession();
-		if (!session?.repository) {
+		const session = this.sessionsService.activeSession.get();
+		const repo = session?.workspace.get()?.repositories[0];
+		if (!repo?.uri) {
 			return;
 		}
 
 		for (const fileUri of fileUris) {
-			await this.commitFileToRepos(fileUri, session.repository, session.worktree);
+			await this.commitFileToRepos(fileUri, repo.uri, repo.workingDirectory);
 		}
 	}
 
@@ -123,13 +126,14 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 * in the worktree if one is active.
 	 */
 	async deleteFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
-		const session = this.sessionsService.getActiveSession();
-		if (!session?.repository) {
+		const session = this.sessionsService.activeSession.get();
+		const repo = session?.workspace.get()?.repositories[0];
+		if (!repo?.uri) {
 			return;
 		}
 
 		for (const fileUri of fileUris) {
-			await this.commitDeletionToRepos(fileUri, session.repository, session.worktree);
+			await this.commitDeletionToRepos(fileUri, repo.uri, repo.workingDirectory);
 		}
 	}
 

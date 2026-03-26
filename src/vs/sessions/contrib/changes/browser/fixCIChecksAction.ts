@@ -162,7 +162,7 @@ class FixCIChecksAction extends Action2 {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const logService = accessor.get(ILogService);
 
-		const activeSession = sessionManagementService.getActiveSession();
+		const activeSession = sessionManagementService.activeSession.get();
 		if (!activeSession) {
 			return;
 		}

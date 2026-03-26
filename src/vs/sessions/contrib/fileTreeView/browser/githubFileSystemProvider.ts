@@ -11,8 +11,7 @@ import { IRequestService, asJson } from '../../../../platform/request/common/req
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionWorkspace.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionData.js';
 
 /**
  * Derives a display name from a github-remote-file URI.

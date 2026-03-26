@@ -26,8 +26,6 @@ export {
 	type ISessionReadyAction,
 	type ISessionReasoningAction,
 	type ISessionResponsePartAction,
-	type ISessionPermissionRequestAction,
-	type ISessionPermissionResolvedAction,
 	type ISessionToolCallCompleteAction,
 	type ISessionToolCallConfirmedAction,
 	type ISessionToolCallApprovedAction,
@@ -65,8 +63,6 @@ import type {
 	ISessionModelChangedAction,
 	ISessionReasoningAction,
 	ISessionResponsePartAction,
-	ISessionPermissionRequestAction,
-	ISessionPermissionResolvedAction,
 	ISessionToolCallCompleteAction,
 	ISessionToolCallConfirmedAction,
 	ISessionToolCallDeltaAction,
@@ -105,8 +101,6 @@ export type IToolCallDeniedAction = import('./protocol/actions.js').ISessionTool
 export type IToolCallConfirmedAction = ISessionToolCallConfirmedAction;
 export type IToolCallCompleteAction = ISessionToolCallCompleteAction;
 export type IToolCallResultConfirmedAction = ISessionToolCallResultConfirmedAction;
-export type IPermissionRequestAction = ISessionPermissionRequestAction;
-export type IPermissionResolvedAction = ISessionPermissionResolvedAction;
 export type ITurnCompleteAction = ISessionTurnCompleteAction;
 export type ITurnCancelledAction = ISessionTurnCancelledAction;
 export type ITitleChangedAction = ISessionTitleChangedAction;

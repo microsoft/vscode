@@ -179,7 +179,7 @@ export class ArchiveAllAgentSessionsAction extends Action2 {
 			message: sessionsToArchive.length === 1
 				? localize('archiveAllSessions.confirmSingle', "Are you sure you want to archive 1 agent session?")
 				: localize('archiveAllSessions.confirm', "Are you sure you want to archive {0} agent sessions?", sessionsToArchive.length),
-			detail: localize('archiveAllSessions.detail', "You can unarchive sessions later if needed from the Chat view."),
+			detail: localize('archiveAllSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
 			primaryButton: localize('archiveAllSessions.archive', "Archive")
 		});
 
@@ -312,24 +312,24 @@ export class UnarchiveAgentSessionSectionAction extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 		const storageService = accessor.get(IStorageService);
 
-		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
-		if (!skipConfirmation) {
-			const confirmed = await dialogService.confirm({
-				message: context.sessions.length === 1
-					? localize('unarchiveSectionSessions.confirmSingle', "Are you sure you want to unarchive 1 agent session?")
-					: localize('unarchiveSectionSessions.confirm', "Are you sure you want to unarchive {0} agent sessions?", context.sessions.length),
-				primaryButton: localize('unarchiveSectionSessions.unarchive', "Unarchive All"),
-				checkbox: {
-					label: localize('doNotAskAgain', "Do not ask me again")
+		if (context.sessions.length > 1) {
+			const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
+			if (!skipConfirmation) {
+				const confirmed = await dialogService.confirm({
+					message: localize('unarchiveSectionSessions.confirm', "Are you sure you want to unarchive {0} agent sessions?", context.sessions.length),
+					primaryButton: localize('unarchiveSectionSessions.unarchive', "Unarchive All"),
+					checkbox: {
+						label: localize('doNotAskAgain', "Do not ask me again")
+					}
+				});
+
+				if (!confirmed.confirmed) {
+					return;
 				}
-			});
 
-			if (!confirmed.confirmed) {
-				return;
-			}
-
-			if (confirmed.checkboxChecked) {
-				storageService.store(ConfirmArchiveStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
+				if (confirmed.checkboxChecked) {
+					storageService.store(ConfirmArchiveStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
+				}
 			}
 		}
 

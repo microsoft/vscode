@@ -35,7 +35,7 @@ export {
 	type IErrorInfo,
 	type IMarkdownResponsePart,
 	type IMessageAttachment,
-	type IPermissionRequest,
+	type IReasoningResponsePart,
 	type IResponsePart,
 	type IRootState,
 	type ISessionActiveClient,
@@ -48,6 +48,7 @@ export {
 	type IToolCallCompletedState,
 	type IToolCallPendingConfirmationState,
 	type IToolCallPendingResultConfirmationState,
+	type IToolCallResponsePart,
 	type IToolCallResult,
 	type IToolCallRunningState,
 	type IToolCallState,
@@ -64,7 +65,6 @@ export {
 	type URI,
 	AttachmentType,
 	PolicyState,
-	PermissionKind,
 	ResponsePartKind,
 	SessionLifecycle,
 	SessionStatus,
@@ -155,11 +155,7 @@ export function createActiveTurn(id: string, userMessage: IUserMessage): IActive
 	return {
 		id,
 		userMessage,
-		streamingText: '',
 		responseParts: [],
-		toolCalls: {},
-		pendingPermissions: {},
-		reasoning: '',
 		usage: undefined,
 	};
 }

@@ -49,7 +49,7 @@ export class BrowserEditorInput extends EditorInput {
 	private static readonly DEFAULT_LABEL = localize('browser.editorLabel', "Browser");
 
 	private readonly _id: string;
-	private readonly _initialData: IBrowserEditorInputData;
+	private _initialData: IBrowserEditorInputData;
 	private _model: IBrowserViewModel | undefined;
 	private _modelPromise: Promise<IBrowserViewModel> | undefined;
 
@@ -95,6 +95,19 @@ export class BrowserEditorInput extends EditorInput {
 	get favicon(): string | undefined {
 		// Use model favicon if available, otherwise fall back to initial data
 		return this._model ? this._model.favicon : this._initialData.favicon;
+	}
+
+	navigate(url: string): void {
+		if (this._model) {
+			void this._model.loadURL(url);
+		} else {
+			// If the model isn't created yet, update the initial data so that the URL is correct when the model is created
+			this._initialData = {
+				id: this._id,
+				url
+			};
+			this._onDidChangeLabel.fire();
+		}
 	}
 
 	override async resolve(): Promise<IBrowserViewModel> {

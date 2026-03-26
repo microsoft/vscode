@@ -77,6 +77,22 @@
 	flex-shrink: 0;
 }
 
+/* Provider label (shown for untitled sessions) */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-provider {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	opacity: 0.7;
+}
+
+/* Provider label (shown for untitled sessions) */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-provider {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	opacity: 0.7;
+}
+
 /* Session count widget (tasklist icon + unread count, left of pill) */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count {
 	display: flex;
@@ -107,3 +123,4 @@
 	font-variant-numeric: tabular-nums;
 	line-height: 16px;
 }
+

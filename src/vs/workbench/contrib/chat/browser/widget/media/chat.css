@@ -2251,6 +2251,42 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 13px;
 }
 
+.chat-artifacts-widget .artifacts-clear-button-container {
+	padding-right: 2px;
+	display: flex;
+	align-items: center;
+	height: 18px;
+	opacity: 1;
+}
+
+.chat-artifacts-widget .artifacts-clear-button-container .monaco-button {
+	background-color: transparent;
+	border-color: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	height: 16px;
+	padding: 3px;
+	border-radius: 2px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: unset;
+}
+
+.chat-artifacts-widget .artifacts-clear-button-container .monaco-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-artifacts-widget .artifacts-clear-button-container .monaco-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.chat-artifacts-widget .artifacts-clear-button-container .monaco-button .codicon {
+	font-size: 10px;
+	color: var(--vscode-foreground);
+}
+
 .interactive-session .checkpoint-file-changes-summary {
 	display: flex;
 	flex-direction: column;

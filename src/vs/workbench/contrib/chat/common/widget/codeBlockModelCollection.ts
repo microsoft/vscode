@@ -202,6 +202,10 @@ export class CodeBlockModelCollection extends Disposable {
 			}
 
 			newText = codeblockUri.textWithoutResult;
+		} else if (entry) {
+			entry.codemapperUri = undefined;
+			entry.isEdit = undefined;
+			entry.subAgentInvocationId = undefined;
 		}
 
 		if (content.isComplete) {

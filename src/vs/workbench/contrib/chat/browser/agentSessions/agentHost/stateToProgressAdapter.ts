@@ -6,12 +6,29 @@
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { PermissionKind, ToolCallStatus, TurnState, getToolFileEdits, getToolOutputText, type ICompletedToolCall, type IPermissionRequest, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, type ICompletedToolCall, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind, getToolLanguage } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { type IChatProgress, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { type IPreparedToolInvocation, type IToolConfirmationMessages, type IToolData, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { type IToolConfirmationMessages, type IToolData, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { hasKey } from '../../../../../../base/common/types.js';
+
+function getPtyTerminalData(meta: Record<string, unknown> | undefined): { input?: string; output?: string } | undefined {
+	if (!meta) {
+		return undefined;
+	}
+	const value = meta['ptyTerminal'];
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const input = (value as { input?: unknown }).input;
+	const output = (value as { output?: unknown }).output;
+	return {
+		input: typeof input === 'string' ? input : undefined,
+		output: typeof output === 'string' ? output : undefined,
+	};
+}
 
 /**
  * Converts completed turns from the protocol state into session history items.
@@ -22,17 +39,29 @@ export function turnsToHistory(turns: readonly ITurn[], participantId: string): 
 		// Request
 		history.push({ type: 'request', prompt: turn.userMessage.text, participant: participantId });
 
-		// Response parts
+		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];
 
-		// Assistant response text
-		if (turn.responseText) {
-			parts.push({ kind: 'markdownContent', content: new MarkdownString(turn.responseText) });
-		}
-
-		// Completed tool calls
-		for (const tc of turn.toolCalls) {
-			parts.push(completedToolCallToSerialized(tc));
+		for (const rp of turn.responseParts) {
+			switch (rp.kind) {
+				case ResponsePartKind.Markdown:
+					if (rp.content) {
+						parts.push({ kind: 'markdownContent', content: new MarkdownString(rp.content) });
+					}
+					break;
+				case ResponsePartKind.ToolCall:
+					parts.push(completedToolCallToSerialized(rp.toolCall as ICompletedToolCall));
+					break;
+				case ResponsePartKind.Reasoning:
+					if (rp.content) {
+						parts.push({ kind: 'thinking', value: rp.content });
+					}
+					break;
+				case ResponsePartKind.ContentRef:
+					// Content references are not restored into history;
+					// they are handled separately by the content provider.
+					break;
+			}
 		}
 
 		// Error message for failed turns
@@ -55,15 +84,21 @@ function completedToolCallToSerialized(tc: ICompletedToolCall): IChatToolInvocat
 	const invocationMsg = stringOrMarkdownToString(tc.invocationMessage) ?? '';
 
 	let toolSpecificData: IChatTerminalToolInvocationData | undefined;
-	if (isTerminal && tc.toolInput) {
-		const toolOutput = tc.status === ToolCallStatus.Completed ? getToolOutputText(tc) : undefined;
-		toolSpecificData = {
-			kind: 'terminal',
-			commandLine: { original: tc.toolInput },
-			language: getToolLanguage(tc) ?? 'shellscript',
-			terminalCommandOutput: toolOutput !== undefined ? { text: toolOutput } : undefined,
-			terminalCommandState: { exitCode: isSuccess ? 0 : 1 },
-		};
+	if (isTerminal) {
+		const ptyTerminal = getPtyTerminalData(tc._meta);
+		const commandInput = ptyTerminal?.input ?? tc.toolInput;
+		const toolOutput = tc.status === ToolCallStatus.Completed ? (ptyTerminal?.output ?? getToolOutputText(tc)) : undefined;
+		if (!commandInput && toolOutput === undefined) {
+			toolSpecificData = undefined;
+		} else {
+			toolSpecificData = {
+				kind: 'terminal',
+				commandLine: { original: commandInput ?? '' },
+				language: getToolLanguage(tc) ?? 'shellscript',
+				terminalCommandOutput: toolOutput !== undefined ? { text: toolOutput } : undefined,
+				terminalCommandState: { exitCode: isSuccess ? 0 : 1 },
+			};
+		}
 	}
 
 	const pastTenseMsg = isSuccess
@@ -113,90 +148,57 @@ export function toolCallStateToInvocation(tc: IToolCallState): ChatToolInvocatio
 		modelDescription: tc.toolName,
 	};
 
+	if (tc.status === ToolCallStatus.PendingConfirmation) {
+		// Tool needs confirmation — create with confirmation messages
+		const titleText = stringOrMarkdownToString(tc.confirmationTitle) ?? stringOrMarkdownToString(tc.invocationMessage) ?? tc.displayName;
+		const titleStr = typeof titleText === 'string' ? titleText : titleText?.value ?? '';
+		const confirmationMessages: IToolConfirmationMessages = {
+			title: typeof titleText === 'string' ? new MarkdownString(titleText) : (titleText ?? new MarkdownString('')),
+			message: new MarkdownString(''),
+		};
+
+		let toolSpecificData: IChatTerminalToolInvocationData | IChatToolInputInvocationData | undefined;
+		if (getToolKind(tc) === 'terminal' && tc.toolInput) {
+			toolSpecificData = {
+				kind: 'terminal',
+				commandLine: { original: tc.toolInput },
+				language: getToolLanguage(tc) ?? 'shellscript',
+			};
+		} else if (tc.toolInput) {
+			let rawInput: unknown;
+			try { rawInput = JSON.parse(tc.toolInput); } catch { rawInput = { input: tc.toolInput }; }
+			toolSpecificData = { kind: 'input', rawInput };
+		}
+
+		return new ChatToolInvocation(
+			{
+				invocationMessage: typeof titleText === 'string' ? new MarkdownString(titleStr) : (titleText ?? new MarkdownString('')),
+				confirmationMessages,
+				presentation: ToolInvocationPresentation.HiddenAfterComplete,
+				toolSpecificData,
+			},
+			toolData,
+			tc.toolCallId,
+			undefined,
+			undefined,
+		);
+	}
+
 	const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, undefined, undefined);
 	invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage) ?? '';
 
 	if (getToolKind(tc) === 'terminal') {
+		const ptyTerminal = getPtyTerminalData(tc._meta);
+		const commandInput = ptyTerminal?.input ?? (tc.status !== ToolCallStatus.Streaming ? (tc.toolInput ?? '') : '');
 		invocation.toolSpecificData = {
 			kind: 'terminal',
-			commandLine: { original: tc.status !== ToolCallStatus.Streaming ? (tc.toolInput ?? '') : '' },
+			commandLine: { original: commandInput },
 			language: getToolLanguage(tc) ?? 'shellscript',
+			terminalCommandOutput: ptyTerminal?.output !== undefined ? { text: ptyTerminal.output } : undefined,
 		} satisfies IChatTerminalToolInvocationData;
 	}
 
 	return invocation;
-}
-
-/**
- * Creates a {@link ChatToolInvocation} with confirmation messages from a
- * protocol permission request. The resulting invocation starts in the
- * waiting-for-confirmation state.
- */
-export function permissionToConfirmation(perm: IPermissionRequest): ChatToolInvocation {
-	let title: string;
-	let toolSpecificData: IChatTerminalToolInvocationData | IChatToolInputInvocationData | undefined;
-
-	switch (perm.permissionKind) {
-		case PermissionKind.Shell: {
-			title = perm.intention ?? 'Run command';
-			toolSpecificData = perm.fullCommandText ? {
-				kind: 'terminal',
-				commandLine: { original: perm.fullCommandText },
-				language: 'shellscript',
-			} : undefined;
-			break;
-		}
-		case PermissionKind.Write: {
-			title = perm.path ? `Edit ${perm.path}` : 'Edit file';
-			let rawInput: unknown;
-			try { rawInput = perm.rawRequest ? JSON.parse(perm.rawRequest) : { path: perm.path }; } catch { rawInput = { path: perm.path }; }
-			toolSpecificData = { kind: 'input', rawInput };
-			break;
-		}
-		case PermissionKind.Mcp: {
-			const toolTitle = perm.toolName ?? 'MCP Tool';
-			title = perm.serverName ? `${perm.serverName}: ${toolTitle}` : toolTitle;
-			let rawInput: unknown;
-			try { rawInput = perm.rawRequest ? JSON.parse(perm.rawRequest) : { serverName: perm.serverName, toolName: perm.toolName }; } catch { rawInput = { serverName: perm.serverName, toolName: perm.toolName }; }
-			toolSpecificData = { kind: 'input', rawInput };
-			break;
-		}
-		case PermissionKind.Read: {
-			title = perm.intention ?? 'Read file';
-			let rawInput: unknown;
-			try { rawInput = perm.rawRequest ? JSON.parse(perm.rawRequest) : { path: perm.path, intention: perm.intention }; } catch { rawInput = { path: perm.path, intention: perm.intention }; }
-			toolSpecificData = { kind: 'input', rawInput };
-			break;
-		}
-		default: {
-			title = 'Permission request';
-			let rawInput: unknown;
-			try { rawInput = perm.rawRequest ? JSON.parse(perm.rawRequest) : {}; } catch { rawInput = {}; }
-			toolSpecificData = { kind: 'input', rawInput };
-			break;
-		}
-	}
-
-	const confirmationMessages: IToolConfirmationMessages = {
-		title: new MarkdownString(title),
-		message: new MarkdownString(''),
-	};
-
-	const toolData: IToolData = {
-		id: `permission_${perm.permissionKind}`,
-		source: ToolDataSource.Internal,
-		displayName: title,
-		modelDescription: '',
-	};
-
-	const preparedInvocation: IPreparedToolInvocation = {
-		invocationMessage: new MarkdownString(title),
-		confirmationMessages,
-		presentation: ToolInvocationPresentation.HiddenAfterComplete,
-		toolSpecificData,
-	};
-
-	return new ChatToolInvocation(preparedInvocation, toolData, perm.requestId, undefined, undefined);
 }
 
 /**
@@ -226,12 +228,18 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ITool
 	const isCancelled = tc.status === ToolCallStatus.Cancelled;
 	const isTerminal = invocation.toolSpecificData?.kind === 'terminal' || getToolKind(tc) === 'terminal';
 
+	if ((isCompleted || isCancelled) && hasKey(tc, { invocationMessage: true })) {
+		invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage) ?? invocation.invocationMessage;
+	}
+
 	if (isTerminal && (isCompleted || isCancelled)) {
-		const toolOutput = isCompleted ? getToolOutputText(tc) : undefined;
+		const ptyTerminal = getPtyTerminalData(tc._meta);
+		const toolOutput = isCompleted ? (ptyTerminal?.output ?? getToolOutputText(tc)) : undefined;
 		const existing = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
+		const commandInput = ptyTerminal?.input ?? tc.toolInput ?? existing?.commandLine?.original ?? '';
 		invocation.toolSpecificData = {
 			kind: 'terminal',
-			commandLine: existing?.commandLine ?? { original: tc.toolInput ?? '' },
+			commandLine: { original: commandInput },
 			language: existing?.language ?? getToolLanguage(tc) ?? 'shellscript',
 			terminalCommandOutput: toolOutput !== undefined ? { text: toolOutput } : undefined,
 			terminalCommandState: { exitCode: isCompleted && tc.success ? 0 : 1 },

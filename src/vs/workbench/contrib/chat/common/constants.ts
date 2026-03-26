@@ -60,6 +60,7 @@ export enum ChatConfiguration {
 	AutopilotEnabled = 'chat.autopilot.enabled',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
 	ArtifactsEnabled = 'chat.artifacts.enabled',
+	CustomizationsProviderApi = 'chat.customizations.providerApi.enabled',
 }
 
 /**

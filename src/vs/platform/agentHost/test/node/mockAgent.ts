@@ -7,7 +7,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentMessageEvent, type IAgentModelInfo, type IAgentProgressEvent, type IAgentSessionMetadata, type IAgentToolCompleteEvent, type IAgentToolStartEvent } from '../../common/agentService.js';
-import { PermissionKind, ToolResultContentType, type IToolCallResult } from '../../common/state/sessionState.js';
+import { ToolResultContentType, type IToolCallResult } from '../../common/state/sessionState.js';
 
 /**
  * General-purpose mock agent for unit tests. Tracks all method calls
@@ -190,18 +190,28 @@ export class ScriptedMockAgent implements IAgent {
 				break;
 
 			case 'permission': {
-				// Fire permission_request, then wait for respondToPermissionRequest
-				const permEvent: IAgentProgressEvent = {
-					type: 'permission_request',
+				// Fire tool_start to create the tool, then tool_ready to request confirmation
+				const toolStartEvent = {
+					type: 'tool_start' as const,
 					session,
-					requestId: 'perm-1',
-					permissionKind: PermissionKind.Shell,
-					fullCommandText: 'echo test',
-					intention: 'Run a test command',
-					rawRequest: JSON.stringify({ permissionKind: PermissionKind.Shell, fullCommandText: 'echo test', intention: 'Run a test command' }),
+					toolCallId: 'tc-perm-1',
+					toolName: 'shell',
+					displayName: 'Shell',
+					invocationMessage: 'Run a test command',
 				};
-				setTimeout(() => this._onDidSessionProgress.fire(permEvent), 10);
-				this._pendingPermissions.set('perm-1', (approved) => {
+				const toolReadyEvent = {
+					type: 'tool_ready' as const,
+					session,
+					toolCallId: 'tc-perm-1',
+					invocationMessage: 'Run a test command',
+					toolInput: 'echo test',
+					confirmationTitle: 'Run a test command',
+				};
+				setTimeout(() => {
+					this._onDidSessionProgress.fire(toolStartEvent);
+					setTimeout(() => this._onDidSessionProgress.fire(toolReadyEvent), 5);
+				}, 10);
+				this._pendingPermissions.set('tc-perm-1', (approved) => {
 					if (approved) {
 						this._fireSequence(session, [
 							{ type: 'delta', session, messageId: 'msg-1', content: 'Allowed.' },
@@ -264,10 +274,10 @@ export class ScriptedMockAgent implements IAgent {
 		// Mock agent doesn't track model state
 	}
 
-	respondToPermissionRequest(requestId: string, approved: boolean): void {
-		const callback = this._pendingPermissions.get(requestId);
+	respondToPermissionRequest(toolCallId: string, approved: boolean): void {
+		const callback = this._pendingPermissions.get(toolCallId);
 		if (callback) {
-			this._pendingPermissions.delete(requestId);
+			this._pendingPermissions.delete(toolCallId);
 			callback(approved);
 		}
 	}

@@ -42,9 +42,9 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { ISessionsManagementService, IActiveSessionItem } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionData, GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionData.js';
 import { getGitHubRemoteFileDisplayName } from './githubFileSystemProvider.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionWorkspace.js';
 import { basename } from '../../../../base/common/path.js';
 import { isEqual } from '../../../../base/common/resources.js';
 
@@ -236,24 +236,27 @@ export class FileTreeViewPane extends ViewPane {
 
 	/**
 	 * Determines the root URI for the file tree based on the active session type.
-	 * Tries multiple data sources: IActiveSessionItem fields, agent session model metadata,
+	 * Tries multiple data sources: ISessionData workspace, agent session model metadata,
 	 * and file change URIs as a last resort.
 	 */
-	private resolveTreeRoot(activeSession: IActiveSessionItem | undefined): URI | undefined {
+	private resolveTreeRoot(activeSession: ISessionData | undefined): URI | undefined {
 		if (!activeSession) {
 			return undefined;
 		}
 
 		const sessionType = getChatSessionType(activeSession.resource);
+		const repo = activeSession.workspace.get()?.repositories[0];
+		const worktree = repo?.workingDirectory;
+		const repository = repo?.uri;
 
-		// 1. Try the direct worktree/repository fields from IActiveSessionItem
-		if (activeSession.worktree) {
-			this.logService.info(`[FileTreeView] Using worktree: ${activeSession.worktree.toString()}`);
-			return activeSession.worktree;
+		// 1. Try the direct worktree/repository fields from workspace
+		if (worktree) {
+			this.logService.info(`[FileTreeView] Using worktree: ${worktree.toString()}`);
+			return worktree;
 		}
-		if (activeSession.repository && activeSession.repository.scheme === 'file') {
-			this.logService.info(`[FileTreeView] Using repository: ${activeSession.repository.toString()}`);
-			return activeSession.repository;
+		if (repository && repository.scheme === 'file') {
+			this.logService.info(`[FileTreeView] Using repository: ${repository.toString()}`);
+			return repository;
 		}
 
 		// 2. Query the agent session model directly for metadata
@@ -295,8 +298,8 @@ export class FileTreeViewPane extends ViewPane {
 		}
 
 		// 4. Try to parse the repository URI as a GitHub URL
-		if (activeSession.repository) {
-			const repoStr = activeSession.repository.toString();
+		if (repository) {
+			const repoStr = repository.toString();
 			const parsed = this.parseGitHubUrl(repoStr);
 			if (parsed) {
 				this.logService.info(`[FileTreeView] Parsed repository URI as GitHub: ${parsed.owner}/${parsed.repo}`);

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { URI } from '../../../../base/common/uri.js';
 import { ISubscribeResult } from '../../common/state/protocol/commands.js';
-import type { IActionEnvelope, IDeltaAction, ISessionAddedNotification, ISessionRemovedNotification, IUsageAction } from '../../common/state/sessionActions.js';
+import type { IActionEnvelope, IResponsePartAction, ISessionAddedNotification, ISessionRemovedNotification, IUsageAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
 import {
 	isJsonRpcNotification,
@@ -25,7 +25,7 @@ import {
 	type IProtocolMessage,
 	type IReconnectResult
 } from '../../common/state/sessionProtocol.js';
-import type { ISessionState } from '../../common/state/sessionState.js';
+import { ResponsePartKind, type IMarkdownResponsePart, type ISessionState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
 import { PRE_EXISTING_SESSION_URI } from './mockAgent.js';
 
 // ---- JSON-RPC test client ---------------------------------------------------
@@ -327,24 +327,22 @@ suite('Protocol WebSocket E2E', function () {
 	});
 
 	// 3. Send message and receive response
-	test('send message and receive delta + turnComplete', async function () {
+	test('send message and receive responsePart + turnComplete', async function () {
 		this.timeout(10_000);
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-send-message');
 		dispatchTurnStarted(client, sessionUri, 'turn-1', 'hello', 1);
 
-		const delta = await client.waitForNotification(n => isActionNotification(n, 'session/delta'));
-		const deltaAction = getActionEnvelope(delta).action;
-		assert.strictEqual(deltaAction.type, 'session/delta');
-		if (deltaAction.type === 'session/delta') {
-			assert.strictEqual(deltaAction.content, 'Hello, world!');
-		}
+		const responsePart = await client.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
+		const responsePartAction = getActionEnvelope(responsePart).action as IResponsePartAction;
+		assert.strictEqual(responsePartAction.part.kind, ResponsePartKind.Markdown);
+		assert.strictEqual((responsePartAction.part as IMarkdownResponsePart).content, 'Hello, world!');
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 	});
 
 	// 4. Tool invocation lifecycle
-	test('tool invocation: toolCallStart → toolCallComplete → delta → turnComplete', async function () {
+	test('tool invocation: toolCallStart → toolCallComplete → responsePart → turnComplete', async function () {
 		this.timeout(10_000);
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-tool-invocation');
@@ -357,7 +355,7 @@ suite('Protocol WebSocket E2E', function () {
 		if (tcAction.type === 'session/toolCallComplete') {
 			assert.strictEqual(tcAction.result.success, true);
 		}
-		await client.waitForNotification(n => isActionNotification(n, 'session/delta'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 	});
 
@@ -375,29 +373,33 @@ suite('Protocol WebSocket E2E', function () {
 		}
 	});
 
-	// 6. Permission flow
+	// 6. Permission flow (via tool_ready confirmation)
 	test('permission request → resolve → response', async function () {
 		this.timeout(10_000);
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-permission');
 		dispatchTurnStarted(client, sessionUri, 'turn-perm', 'permission', 1);
 
-		await client.waitForNotification(n => isActionNotification(n, 'session/permissionRequest'));
+		// The mock agent now fires tool_start + tool_ready instead of permission_request
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
 
+		// Confirm the tool call
 		client.notify('dispatchAction', {
 			clientSeq: 2,
 			action: {
-				type: 'session/permissionResolved',
+				type: 'session/toolCallConfirmed',
 				session: sessionUri,
 				turnId: 'turn-perm',
-				requestId: 'perm-1',
+				toolCallId: 'tc-perm-1',
 				approved: true,
 			},
 		});
 
-		const delta = await client.waitForNotification(n => isActionNotification(n, 'session/delta'));
-		const content = (getActionEnvelope(delta).action as IDeltaAction).content;
-		assert.strictEqual(content, 'Allowed.');
+		const responsePart = await client.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
+		const responsePartAction = getActionEnvelope(responsePart).action as IResponsePartAction;
+		assert.strictEqual(responsePartAction.part.kind, ResponsePartKind.Markdown);
+		assert.strictEqual((responsePartAction.part as IMarkdownResponsePart).content, 'Allowed.');
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 	});
@@ -595,8 +597,8 @@ suite('Protocol WebSocket E2E', function () {
 
 		dispatchTurnStarted(client, sessionUri, 'turn-mc', 'hello', 1);
 
-		const d1 = await client.waitForNotification(n => isActionNotification(n, 'session/delta'));
-		const d2 = await client2.waitForNotification(n => isActionNotification(n, 'session/delta'));
+		const d1 = await client.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
+		const d2 = await client2.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
 		assert.ok(d1);
 		assert.ok(d2);
 
@@ -680,9 +682,11 @@ suite('Protocol WebSocket E2E', function () {
 		const turn = state.turns[0];
 		assert.strictEqual(turn.userMessage.text, 'What files are here?');
 		assert.strictEqual(turn.state, 'complete');
-		assert.ok(turn.toolCalls.length >= 1, 'turn should have tool calls');
-		assert.strictEqual(turn.toolCalls[0].toolName, 'list_files');
-		assert.ok(turn.responseText.includes('file1.ts'));
+		const toolCallParts = turn.responseParts.filter((p): p is IToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+		assert.ok(toolCallParts.length >= 1, 'turn should have tool call response parts');
+		assert.strictEqual(toolCallParts[0].toolCall.toolName, 'list_files');
+		const mdParts = turn.responseParts.filter((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+		assert.ok(mdParts.some(p => p.content.includes('file1.ts')), 'turn should have markdown part mentioning file1.ts');
 
 		// Restoring should NOT emit a duplicate sessionAdded notification
 		// (the session is already known to clients via listSessions).

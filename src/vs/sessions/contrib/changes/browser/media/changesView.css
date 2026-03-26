@@ -260,21 +260,6 @@
 	color: var(--vscode-chat-linesRemovedForeground);
 }
 
-/* Line counts in buttons */
-.changes-view-body .chat-editing-session-actions .monaco-button.working-set-diff-stats {
-	flex-shrink: 0;
-	padding-left: 4px;
-	padding-right: 8px;
-}
-
-.changes-view-body .chat-editing-session-actions .monaco-button .working-set-lines-added {
-	color: var(--vscode-chat-linesAddedForeground);
-}
-
-.changes-view-body .chat-editing-session-actions .monaco-button .working-set-lines-removed {
-	color: var(--vscode-chat-linesRemovedForeground);
-}
-
 .changes-view-body .chat-editing-session-actions .monaco-button.code-review-comments,
 .changes-view-body .chat-editing-session-actions .monaco-button.code-review-loading {
 	padding-left: 4px;

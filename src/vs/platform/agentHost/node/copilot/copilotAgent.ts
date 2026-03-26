@@ -12,12 +12,12 @@ import { FileAccess } from '../../../../base/common/network.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { delimiter, dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
+import { localize } from '../../../../nls.js';
 import { AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentDescriptor, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { PermissionKind, ToolResultContentType, type IToolResultContent, type PolicyState } from '../../common/state/sessionState.js';
+import { ToolResultContentType, type IToolResultContent, type PolicyState } from '../../common/state/sessionState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool } from './copilotToolDisplay.js';
 import { FileEditTracker } from './fileEditTracker.js';
@@ -304,8 +304,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	// ---- helpers ------------------------------------------------------------
 
 	/**
-	 * Handles a permission request from the SDK by firing a progress event
-	 * and waiting for the renderer to respond via respondToPermissionRequest.
+	 * Handles a permission request from the SDK by firing a `tool_ready` event
+	 * (which transitions the tool to PendingConfirmation) and waiting for the
+	 * side-effects layer to respond via respondToPermissionRequest.
 	 */
 	private async _handlePermissionRequest(
 		request: { kind: string; toolCallId?: string;[key: string]: unknown },
@@ -325,34 +326,84 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		}
 
-		const requestId = generateUuid();
-		this._logService.info(`[Copilot:${invocation.sessionId}] Requesting permission from renderer: requestId=${requestId}`);
+		const toolCallId = request.toolCallId;
+		if (!toolCallId) {
+			// TODO: handle permission requests without a toolCallId by creating a synthetic tool call
+			this._logService.warn(`[Copilot:${invocation.sessionId}] Permission request without toolCallId, auto-denying: kind=${request.kind}`);
+			return { kind: 'denied-interactively-by-user' };
+		}
+
+		this._logService.info(`[Copilot:${invocation.sessionId}] Requesting confirmation for tool call: ${toolCallId}`);
 
 		const deferred = new DeferredPromise<boolean>();
-		this._pendingPermissions.set(requestId, { sessionId: invocation.sessionId, deferred });
+		this._pendingPermissions.set(toolCallId, { sessionId: invocation.sessionId, deferred });
 
-		const permissionKind = ([PermissionKind.Shell, PermissionKind.Write, PermissionKind.Mcp, PermissionKind.Read, PermissionKind.Url] as const).includes(request.kind as PermissionKind)
-			? request.kind as PermissionKind
-			: PermissionKind.Read; // Treat unknown kinds as read (safest default)
+		// Derive display information from the permission request kind
+		const { confirmationTitle, invocationMessage, toolInput } = this._getPermissionDisplay(request);
 
-		// Fire the event so the renderer can handle it
+		// Fire a tool_ready event to transition the tool to PendingConfirmation
 		this._onDidSessionProgress.fire({
 			session,
-			type: 'permission_request',
-			requestId,
-			permissionKind,
-			toolCallId: request.toolCallId,
-			path: typeof request.path === 'string' ? request.path : (typeof request.fileName === 'string' ? request.fileName : undefined),
-			fullCommandText: typeof request.fullCommandText === 'string' ? request.fullCommandText : undefined,
-			intention: typeof request.intention === 'string' ? request.intention : undefined,
-			serverName: typeof request.serverName === 'string' ? request.serverName : undefined,
-			toolName: typeof request.toolName === 'string' ? request.toolName : undefined,
-			rawRequest: tryStringify(request) ?? '[unserializable permission request]',
+			type: 'tool_ready',
+			toolCallId,
+			invocationMessage,
+			toolInput,
+			confirmationTitle,
 		});
 
 		const approved = await deferred.p;
-		this._logService.info(`[Copilot:${invocation.sessionId}] Permission response: requestId=${requestId}, approved=${approved}`);
+		this._logService.info(`[Copilot:${invocation.sessionId}] Permission response: toolCallId=${toolCallId}, approved=${approved}`);
 		return { kind: approved ? 'approved' : 'denied-interactively-by-user' };
+	}
+
+	/**
+	 * Derives display fields from a permission request for the tool confirmation UI.
+	 */
+	private _getPermissionDisplay(request: { kind: string;[key: string]: unknown }): {
+		confirmationTitle: string;
+		invocationMessage: string;
+		toolInput?: string;
+	} {
+		const path = typeof request.path === 'string' ? request.path : (typeof request.fileName === 'string' ? request.fileName : undefined);
+		const fullCommandText = typeof request.fullCommandText === 'string' ? request.fullCommandText : undefined;
+		const intention = typeof request.intention === 'string' ? request.intention : undefined;
+		const serverName = typeof request.serverName === 'string' ? request.serverName : undefined;
+		const toolName = typeof request.toolName === 'string' ? request.toolName : undefined;
+
+		switch (request.kind) {
+			case 'shell':
+				return {
+					confirmationTitle: localize('copilot.permission.shell.title', "Run in terminal"),
+					invocationMessage: intention ?? localize('copilot.permission.shell.message', "Run command"),
+					toolInput: fullCommandText,
+				};
+			case 'write':
+				return {
+					confirmationTitle: localize('copilot.permission.write.title', "Write file"),
+					invocationMessage: path ? localize('copilot.permission.write.message', "Edit {0}", path) : localize('copilot.permission.write.messageGeneric', "Edit file"),
+					toolInput: tryStringify(path ? { path } : request) ?? undefined,
+				};
+			case 'mcp': {
+				const title = toolName ?? localize('copilot.permission.mcp.defaultTool', "MCP Tool");
+				return {
+					confirmationTitle: serverName ? `${serverName}: ${title}` : title,
+					invocationMessage: serverName ? `${serverName}: ${title}` : title,
+					toolInput: tryStringify({ serverName, toolName }) ?? undefined,
+				};
+			}
+			case 'read':
+				return {
+					confirmationTitle: localize('copilot.permission.read.title', "Read file"),
+					invocationMessage: intention ?? localize('copilot.permission.read.message', "Read file"),
+					toolInput: tryStringify(path ? { path, intention } : request) ?? undefined,
+				};
+			default:
+				return {
+					confirmationTitle: localize('copilot.permission.default.title', "Permission request"),
+					invocationMessage: localize('copilot.permission.default.message', "Permission request"),
+					toolInput: tryStringify(request) ?? undefined,
+				};
+		}
 	}
 
 	private _clearToolCallsForSession(sessionId: string): void {

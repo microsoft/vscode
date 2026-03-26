@@ -76,6 +76,10 @@ export class EnhancedModelPickerActionItem extends BaseActionViewItem {
 		this._showPicker();
 	}
 
+	public setEnabled(enabled: boolean): void {
+		this._pickerWidget.setEnabled(enabled);
+	}
+
 	private _showPicker(): void {
 		this._pickerWidget.show(this._getAnchorElement());
 	}

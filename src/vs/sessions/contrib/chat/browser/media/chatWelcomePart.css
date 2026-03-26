@@ -251,6 +251,12 @@
 	color: var(--vscode-icon-foreground);
 }
 
+.chat-input-picker-item .action-label.disabled {
+	opacity: 0.5;
+	cursor: default;
+	pointer-events: none;
+}
+
 .sessions-chat-picker-slot.loading .action-label {
 	opacity: 0.5;
 	cursor: default;
