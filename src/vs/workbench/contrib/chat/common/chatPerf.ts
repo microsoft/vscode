@@ -23,7 +23,8 @@ const chatPerfPrefix = 'code/chat/';
  *   `request/willCollectInstructions` → `request/didCollectInstructions`
  *
  * **Extension Activation Wait** (first-request cold start):
- *   `request/willWaitForActivation` → `request/didWaitForActivation`
+ *   `code/chat/willWaitForActivation` → `code/chat/didWaitForActivation`
+ *   (global marks, not session-scoped — emitted via {@link markChatGlobal})
  *
  * **Time to First Token** (the headline metric):
  *   `request/start` → `request/firstToken`
@@ -43,10 +44,6 @@ export const ChatPerfMark = {
 	WillCollectInstructions: 'request/willCollectInstructions',
 	/** Done collecting instructions */
 	DidCollectInstructions: 'request/didCollectInstructions',
-	/** Begin waiting for chat extension activation (SetupAgent) */
-	WillWaitForActivation: 'request/willWaitForActivation',
-	/** Extension activation + readiness complete (SetupAgent) */
-	DidWaitForActivation: 'request/didWaitForActivation',
 	/** First streamed response content received */
 	FirstToken: 'request/firstToken',
 	/** Response fully complete */
@@ -74,4 +71,25 @@ export function markChat(sessionResource: URI, name: string): void {
  */
 export function clearChatMarks(sessionResource: URI): void {
 	clearMarks(`${chatPerfPrefix}${chatSessionResourceToId(sessionResource)}/`);
+}
+
+/**
+ * Well-defined one-time global perf marks (not scoped to a session).
+ * These are emitted via {@link markChatGlobal} and are never cleared.
+ */
+export const ChatGlobalPerfMark = {
+	/** Begin waiting for chat extension activation (SetupAgent) */
+	WillWaitForActivation: 'willWaitForActivation',
+	/** Extension activation + readiness complete (SetupAgent) */
+	DidWaitForActivation: 'didWaitForActivation',
+} as const;
+
+/**
+ * Emits a global (non-session-scoped) performance mark:
+ * `code/chat/<name>`
+ *
+ * Used for one-time marks like activation that should persist across requests.
+ */
+export function markChatGlobal(name: string): void {
+	mark(`${chatPerfPrefix}${name}`);
 }
