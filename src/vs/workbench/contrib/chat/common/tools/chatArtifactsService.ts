@@ -48,6 +48,8 @@ export interface IChatArtifacts {
 interface IResponseCache {
 	readonly partsLength: number;
 	readonly completedToolCount: number;
+	readonly byMimeType: Record<string, IArtifactGroupConfig>;
+	readonly byFilePath: Record<string, IArtifactGroupConfig>;
 	readonly artifacts: IChatArtifact[];
 }
 
@@ -144,11 +146,11 @@ class RulesChatArtifacts extends Disposable implements IChatArtifacts {
 
 				const cached = this._responseCache.get(response.id);
 				let extracted: IChatArtifact[];
-				if (cached && cached.partsLength === partsLength && cached.completedToolCount === completedToolCount) {
+				if (cached && cached.partsLength === partsLength && cached.completedToolCount === completedToolCount && cached.byMimeType === byMimeType && cached.byFilePath === byFilePath) {
 					extracted = cached.artifacts;
 				} else {
 					extracted = extractArtifactsFromResponse(responseValue, sessionResource, byMimeType, byFilePath);
-					this._responseCache.set(response.id, { partsLength, completedToolCount, artifacts: extracted });
+					this._responseCache.set(response.id, { partsLength, completedToolCount, byMimeType, byFilePath, artifacts: extracted });
 				}
 
 				for (const artifact of extracted) {
