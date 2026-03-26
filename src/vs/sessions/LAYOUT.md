@@ -442,7 +442,7 @@ The `SidebarPart` includes a footer section (35px height) positioned below the p
 
 On macOS native with custom titlebar, the sidebar title area includes a traffic light spacer (70px) to push content past the system window controls. The spacer is hidden in fullscreen mode and is not created when using native titlebar (since the OS renders traffic lights in its own title bar).
 
-The sessions appear animation applies only to the sidebar body (`.part.sidebar > .content`). The sidebar container, title area, toolbar actions, and footer do not animate during reveal, so the header region remains completely static while the body slides/fades in.
+The sessions appear animation applies only to the sidebar body (`.part.sidebar > .content`). The sidebar container, title area, and footer do not participate in the reveal animation, so the header region stays visually fixed while the body slides/fades in. Normal hover and pressed feedback for header/footer controls is preserved.
 
 ---
 
