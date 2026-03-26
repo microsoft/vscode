@@ -13,17 +13,19 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/editing/chatEditingService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
-import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction, EditingSessionActionContext, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 import { AgentSessionProviders, AgentSessionsViewerOrientation } from '../agentSessions/agentSessions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatEditor } from '../widgetHosts/editor/chatEditor.js';
 
 export interface INewEditSessionActionContext {
 
@@ -60,6 +62,42 @@ function isNewEditSessionActionContext(arg: unknown): arg is INewEditSessionActi
 		return true;
 	}
 	return false;
+}
+
+type NewChatWidgetPosition = 'sidebar' | 'editor';
+
+function isNewChatWidgetPosition(arg: unknown): arg is NewChatWidgetPosition {
+	return arg === 'sidebar' || arg === 'editor';
+}
+
+function getNewChatExecuteCommandContext(args: readonly unknown[]): INewEditSessionActionContext | undefined {
+	return args.find(isNewEditSessionActionContext);
+}
+
+async function resolveNewChatWidget(accessor: ServicesAccessor, position: NewChatWidgetPosition): Promise<IChatWidget | undefined> {
+	if (position === 'sidebar') {
+		const viewsService = accessor.get(IViewsService);
+		const chatView = await viewsService.openView(ChatViewId, true) as { widget: IChatWidget } | null;
+		return chatView?.widget;
+	}
+
+	const editorService = accessor.get(IEditorService);
+	return editorService.activeEditorPane instanceof ChatEditor ? editorService.activeEditorPane.widget : undefined;
+}
+
+async function getNewChatActionContext(accessor: ServicesAccessor, args: readonly unknown[]): Promise<EditingSessionActionContext | undefined> {
+	const explicitPosition = args.find(isNewChatWidgetPosition);
+	const contextArgs = args.filter(arg => !isNewChatWidgetPosition(arg));
+	if (!explicitPosition) {
+		return getEditingSessionContext(accessor, contextArgs);
+	}
+
+	const widget = await resolveNewChatWidget(accessor, explicitPosition);
+	if (!widget) {
+		return getEditingSessionContext(accessor, contextArgs);
+	}
+
+	return { editingSession: widget.viewModel?.model.editingSession, chatWidget: widget };
 }
 
 export function registerNewChatActions() {
@@ -129,10 +167,8 @@ export function registerNewChatActions() {
 		}
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
-			const executeCommandContext = isNewEditSessionActionContext(args[0]) ? args[0] : undefined;
-
-			// Context from toolbar or lastFocusedWidget
-			const context = getEditingSessionContext(accessor, args);
+			const executeCommandContext = getNewChatExecuteCommandContext(args);
+			const context = await getNewChatActionContext(accessor, args);
 			await runNewChatAction(accessor, context, executeCommandContext);
 		}
 	}
@@ -164,8 +200,8 @@ export function registerNewChatActions() {
 			}
 
 			async run(accessor: ServicesAccessor, ...args: unknown[]) {
-				const executeCommandContext = isNewEditSessionActionContext(args[0]) ? args[0] : undefined;
-				const context = getEditingSessionContext(accessor, args);
+				const executeCommandContext = getNewChatExecuteCommandContext(args);
+				const context = await getNewChatActionContext(accessor, args);
 				await runNewChatAction(accessor, context, executeCommandContext);
 			}
 		});
@@ -186,10 +222,8 @@ export function registerNewChatActions() {
 		}
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
-			const executeCommandContext = isNewEditSessionActionContext(args[0]) ? args[0] : undefined;
-
-			// Context from toolbar or lastFocusedWidget
-			const context = getEditingSessionContext(accessor, args);
+			const executeCommandContext = getNewChatExecuteCommandContext(args);
+			const context = await getNewChatActionContext(accessor, args);
 			await runNewChatAction(accessor, context, executeCommandContext, AgentSessionProviders.Local);
 		}
 	});
