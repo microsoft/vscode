@@ -57,6 +57,12 @@ src/vs/sessions/contrib/sessions/browser/
 └── customizationsToolbar.contribution.ts       # Sidebar customization links
 ```
 
+### Sessions Sidebar Shortcuts Widget
+
+The primary Sessions sidebar embeds `AICustomizationShortcutsWidget` at the bottom of the sessions view. It renders the `Menus.SidebarCustomizations` actions as quick links into the Chat Customizations editor and keeps a total-count badge in the header.
+
+The widget is **collapsed by default** in a fresh profile. Once the user expands or collapses it, the choice is persisted in profile storage under `agentSessions.customizationsCollapsed` and restored on subsequent launches.
+
 ### IAICustomizationWorkspaceService
 
 The `IAICustomizationWorkspaceService` interface controls per-window behavior:

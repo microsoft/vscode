@@ -440,6 +440,8 @@ The `AuxiliaryBarPart` provides a custom `DropdownWithPrimaryActionViewItem` for
 
 The `SidebarPart` includes a footer section (35px height) positioned below the pane composite content. The sidebar uses a custom `layout()` override that reduces the content height by `FOOTER_HEIGHT` and renders a `MenuWorkbenchToolBar` driven by `Menus.SidebarFooter`. The footer hosts the account widget (see Section 3.6).
 
+Inside the Sessions view itself, the primary sidebar also renders an `AICustomizationShortcutsWidget` beneath the sessions list. That shortcuts widget is collapsed by default for new profiles and persists its expanded/collapsed state in profile storage (`agentSessions.customizationsCollapsed`).
+
 On macOS native with custom titlebar, the sidebar title area includes a traffic light spacer (70px) to push content past the system window controls. The spacer is hidden in fullscreen mode and is not created when using native titlebar (since the OS renders traffic lights in its own title bar).
 
 ---
@@ -640,6 +642,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-03-26 | Changed the Sessions sidebar customization shortcuts widget to start collapsed by default for new profiles while preserving the persisted `agentSessions.customizationsCollapsed` preference after the user toggles it. |
 | 2026-03-02 | Fixed macOS sidebar traffic light spacer to only render with custom titlebar; added `!hasNativeTitlebar()` guard to `SidebarPart.createTitleArea()` so the 70px spacer is not created when using native titlebar (traffic lights are in the OS title bar, not overlapping the sidebar) |
 | 2026-02-20 | Replaced custom `EditorModal` with standard `ModalEditorPart` via `MODAL_GROUP`; main editor part created but hidden; changed `workbench.editor.useModal` from boolean to enum (`off`/`some`/`all`); sessions config uses `all`; removed `editorModal.ts` and editor modal CSS |
 | 2026-02-17 | Added `-webkit-app-region: drag` to sidebar title area so it can be used to drag the window; interactive children (actions, composite bar, labels) marked `no-drag`; CSS rules scoped to `.agent-sessions-workbench` in `parts/media/sidebarPart.css` |

@@ -217,12 +217,14 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 	}
 
 	// Override storage to set initial collapsed state
-	if (options?.collapsed) {
+	if (options?.collapsed !== undefined) {
 		const storageService = instantiationService.get(IStorageService);
 		instantiationService.set(IStorageService, new class extends mock<IStorageService>() {
-			override getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean) {
+			override getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
+			override getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined;
+			override getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
 				if (key === 'agentSessions.customizationsCollapsed') {
-					return true;
+					return options.collapsed;
 				}
 				return storageService.getBoolean(key, scope, fallbackValue!);
 			}
@@ -244,7 +246,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	Expanded: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: (ctx) => renderWidget(ctx),
+		render: ctx => renderWidget(ctx, { collapsed: false }),
 	}),
 
 	Collapsed: defineComponentFixture({
@@ -254,7 +256,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	WithMcpServers: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: (ctx) => renderWidget(ctx, { mcpServerCount: 3 }),
+		render: ctx => renderWidget(ctx, { mcpServerCount: 3, collapsed: false }),
 	}),
 
 	CollapsedWithMcpServers: defineComponentFixture({
@@ -264,8 +266,9 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	WithCounts: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: (ctx) => renderWidget(ctx, {
+		render: ctx => renderWidget(ctx, {
 			mcpServerCount: 2,
+			collapsed: false,
 			counts: { agents: 2, skills: 30, instructions: 16, prompts: 17, hooks: 4 },
 		}),
 	}),
