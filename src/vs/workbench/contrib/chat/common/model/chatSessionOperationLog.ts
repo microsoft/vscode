@@ -161,6 +161,7 @@ const inputStateSchema = Adapt.object<ISerializableChatModelInputState, ISeriali
 	selectedModel: Adapt.v(i => i.selectedModel, (a, b) => a?.identifier === b?.identifier),
 	inputText: Adapt.v(i => i.inputText),
 	selections: Adapt.v(i => i.selections, objectsEqual),
+	permissionLevel: Adapt.v(i => i.permissionLevel),
 	contrib: Adapt.v(i => i.contrib, objectsEqual),
 });
 

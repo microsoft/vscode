@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
-	// @anthonykim1 @tyriar https://github.com/microsoft/vscode/issues/227467
+	// @anthonykim1 https://github.com/microsoft/vscode/issues/227467
 
 	export interface TerminalShellIntegrationEnvironment {
 		/**

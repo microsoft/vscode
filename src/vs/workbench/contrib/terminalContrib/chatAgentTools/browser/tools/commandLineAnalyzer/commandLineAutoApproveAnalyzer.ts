@@ -51,9 +51,21 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 	}
 
 	async analyze(options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
-		const hasSessionAutoApproval = options.chatSessionResource && this._terminalChatService.hasChatSessionAutoApproval(options.chatSessionResource);
-		if (hasSessionAutoApproval) {
-			this._log('Session has auto approval enabled');
+		const isAutoApproveEnabledInSettings = this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
+		if (isAutoApproveEnabledInSettings && options.chatSessionResource && this._terminalChatService.hasChatSessionAutoApproval(options.chatSessionResource)) {
+			this._log('Session has auto approval enabled, auto approving command');
+			const disableUri = createCommandUri(TerminalChatCommandId.DisableSessionAutoApproval, options.chatSessionResource);
+			const mdTrustSettings = {
+				isTrusted: {
+					enabledCommands: [TerminalChatCommandId.DisableSessionAutoApproval]
+				}
+			};
+			return {
+				isAutoApproved: true,
+				isAutoApproveAllowed: true,
+				disclaimers: [],
+				autoApproveInfo: new MarkdownString(`${localize('autoApprove.session', 'Auto approved for this session')} ([${localize('autoApprove.session.disable', 'Disable')}](${disableUri.toString()}))`, mdTrustSettings),
+			};
 		}
 
 		const trimmedCommandLine = options.commandLine.trimStart();
@@ -71,7 +83,17 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		let autoApproveInfo: IMarkdownString | undefined;
 		let customActions: ToolConfirmationAction[] | undefined;
 
-		if (!subCommands) {
+		if (!subCommands?.length) {
+			if (trimmedCommandLine.length === 0) {
+				this._log('Command line is empty, auto approving');
+				return {
+					isAutoApproved: true,
+					isAutoApproveAllowed: true,
+					disclaimers: [],
+				};
+			}
+
+			this._log('No sub-commands were parsed, auto approval is not allowed');
 			return {
 				isAutoApproveAllowed: false,
 				disclaimers: [],
@@ -86,44 +108,26 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		];
 
 		let isDenied = false;
-		let autoApproveReason: 'subCommand' | 'commandLine' | 'session' | undefined;
+		let autoApproveReason: 'subCommand' | 'commandLine' | undefined;
 		let autoApproveDefault: boolean | undefined;
-		let denialDetails: ICommandLineAnalyzerResult['denialDetails'];
 
-		const deniedSubCommandResultIndex = subCommandResults.findIndex(e => e.result === 'denied');
-		const deniedSubCommandResult = deniedSubCommandResultIndex !== -1 ? subCommandResults[deniedSubCommandResultIndex] : undefined;
+		const deniedSubCommandResult = subCommandResults.find(e => e.result === 'denied');
 		if (deniedSubCommandResult) {
 			this._log('Sub-command DENIED auto approval');
 			isDenied = true;
 			autoApproveDefault = isAutoApproveRule(deniedSubCommandResult.rule) ? deniedSubCommandResult.rule.isDefaultRule : undefined;
 			autoApproveReason = 'subCommand';
-			denialDetails = {
-				scope: 'subCommand',
-				deniedCommand: subCommands[deniedSubCommandResultIndex] ?? trimmedCommandLine,
-				reason: deniedSubCommandResult.reason,
-				ruleSourceText: isAutoApproveRule(deniedSubCommandResult.rule) ? deniedSubCommandResult.rule.sourceText : undefined,
-			};
 		} else if (commandLineResult.result === 'denied') {
 			this._log('Command line DENIED auto approval');
 			isDenied = true;
 			autoApproveDefault = isAutoApproveRule(commandLineResult.rule) ? commandLineResult.rule.isDefaultRule : undefined;
 			autoApproveReason = 'commandLine';
-			denialDetails = {
-				scope: 'commandLine',
-				deniedCommand: trimmedCommandLine,
-				reason: commandLineResult.reason,
-				ruleSourceText: isAutoApproveRule(commandLineResult.rule) ? commandLineResult.rule.sourceText : undefined,
-			};
 		} else {
 			if (subCommandResults.every(e => e.result === 'approved')) {
 				this._log('All sub-commands auto-approved');
 				isAutoApproved = true;
 				autoApproveReason = 'subCommand';
 				autoApproveDefault = subCommandResults.every(e => isAutoApproveRule(e.rule) && e.rule.isDefaultRule);
-			} else if (hasSessionAutoApproval) {
-				this._log('Session auto approval - approving non-denied command');
-				isAutoApproved = true;
-				autoApproveReason = 'session';
 			} else {
 				this._log('All sub-commands NOT auto-approved');
 				if (commandLineResult.result === 'approved') {
@@ -145,15 +149,7 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		// Apply auto approval or force it off depending on enablement/opt-in state
 		const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
 		const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
-		if (hasSessionAutoApproval && isAutoApproved) {
-			const disableUri = createCommandUri(TerminalChatCommandId.DisableSessionAutoApproval, options.chatSessionResource!);
-			const mdTrustSettings = {
-				isTrusted: {
-					enabledCommands: [TerminalChatCommandId.DisableSessionAutoApproval]
-				}
-			};
-			autoApproveInfo = new MarkdownString(`${localize('autoApprove.session', 'Auto approved for this session')} ([${localize('autoApprove.session.disable', 'Disable')}](${disableUri.toString()}))`, mdTrustSettings);
-		} else if (isAutoApproveEnabled && isAutoApproved) {
+		if (isAutoApproveEnabled && isAutoApproved) {
 			autoApproveInfo = this._createAutoApproveInfo(
 				isAutoApproved,
 				isDenied,
@@ -210,14 +206,13 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 			disclaimers,
 			autoApproveInfo,
 			customActions,
-			denialDetails,
 		};
 	}
 
 	private _createAutoApproveInfo(
 		isAutoApproved: boolean,
 		isDenied: boolean,
-		autoApproveReason: 'subCommand' | 'commandLine' | 'session' | undefined,
+		autoApproveReason: 'subCommand' | 'commandLine' | undefined,
 		subCommandResults: ICommandApprovalResultWithReason[],
 		commandLineResult: ICommandApprovalResultWithReason,
 	): IMarkdownString | undefined {

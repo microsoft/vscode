@@ -649,6 +649,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/copilotChatSessions",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/codeReview",
 			"project": "vscode-sessions"
 		},
@@ -666,6 +670,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/logs",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/remoteAgentHost",
 			"project": "vscode-sessions"
 		},
 		{

@@ -51,6 +51,7 @@ import { isQuickChat } from '../widget/chatWidget.js';
 import { resizeImage } from '../chatImageUtils.js';
 import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
 import { CHAT_CATEGORY } from './chatActions.js';
+import { registerCreatePluginAction } from './createPluginAction.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -60,6 +61,7 @@ export function registerChatContextActions() {
 	registerAction2(AttachSearchResultAction);
 	registerAction2(AttachPinnedEditorsToChatAction);
 	registerPromptActions();
+	registerCreatePluginAction();
 }
 
 async function withChatView(accessor: ServicesAccessor): Promise<IChatWidget | undefined> {

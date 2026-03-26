@@ -24,18 +24,35 @@
 }
 
 /* Interactive elements in the title area must not be draggable */
-.agent-sessions-workbench .part.sidebar > .composite.title .action-item {
+.agent-sessions-workbench .part.sidebar > .composite.title .action-item,
+.agent-sessions-workbench .part.sidebar > .composite.title > .session-status-toggle {
 	-webkit-app-region: no-drag;
 }
 
 /* Sidebar Footer Container */
-.monaco-workbench .part.sidebar > .sidebar-footer {
+.agent-sessions-workbench .part.sidebar > .sidebar-footer {
 	display: flex;
 	align-items: stretch;
 	gap: 4px;
-	padding: 6px;
-	border-top: 1px solid var(--vscode-sideBarSectionHeader-border, transparent);
+	padding: 6px 0;
+	border-top: 1px solid var(--vscode-panel-border, transparent);
+	margin: 0 12px 12px 12px;
 	flex-shrink: 0;
+}
+
+/* Inset pane section header borders — hide inline border-top, replace with inset pseudo-element */
+.agent-sessions-workbench .part.sidebar .pane > .pane-header {
+	border-top-color: transparent !important;
+}
+
+.agent-sessions-workbench .part.sidebar .split-view-view:not(:first-of-type) > .pane > .pane-header::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 12px;
+	right: 0;
+	height: 1px;
+	background-color: var(--vscode-panel-border, transparent);
 }
 
 /* Make the toolbar fill the footer width and stack actions vertically */
@@ -55,4 +72,39 @@
 	width: 100%;
 	max-width: 100%;
 	cursor: default;
+}
+
+/* Session status toggle — standalone button in sidebar title area */
+.agent-sessions-workbench .part.sidebar .session-status-toggle {
+	display: flex;
+	align-items: center;
+	align-self: center;
+	gap: 3px;
+	height: 22px;
+	padding: 0 4px;
+	margin-right: 4px;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	color: inherit;
+	font: inherit;
+	background: var(--vscode-toolbar-activeBackground);
+	outline: none;
+	position: relative;
+	z-index: 1;
+}
+
+.agent-sessions-workbench .part.sidebar .session-status-toggle:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.agent-sessions-workbench .part.sidebar .session-status-toggle .codicon {
+	font-size: 16px;
+}
+
+.agent-sessions-workbench .part.sidebar .session-status-toggle-badge {
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+	line-height: 16px;
+	color: inherit;
 }

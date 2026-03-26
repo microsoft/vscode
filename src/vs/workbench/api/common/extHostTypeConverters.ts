@@ -3607,13 +3607,33 @@ namespace ChatLanguageModelToolReferences {
 }
 
 export namespace ChatRequestModeInstructions {
-	export function to(mode: IChatRequestModeInstructions | undefined): vscode.ChatRequestModeInstructions | undefined {
+	export function to(mode: IChatRequestModeInstructions | Dto<IChatRequestModeInstructions> | undefined): vscode.ChatRequestModeInstructions | undefined {
 		if (mode) {
 			return {
 				uri: URI.revive(mode.uri),
 				name: mode.name,
 				content: mode.content,
-				toolReferences: ChatLanguageModelToolReferences.to(mode.toolReferences),
+				toolReferences: ChatLanguageModelToolReferences.to(revive(mode.toolReferences)),
+				metadata: mode.metadata,
+				isBuiltin: mode.isBuiltin,
+			};
+		}
+		return undefined;
+	}
+
+	export function from(mode: vscode.ChatRequestModeInstructions | undefined): IChatRequestModeInstructions | undefined {
+		if (mode) {
+			return {
+				uri: mode.uri,
+				name: mode.name,
+				content: mode.content,
+				toolReferences: mode.toolReferences?.map(ref => ({
+					kind: 'tool' as const,
+					id: ref.name,
+					name: ref.name,
+					value: undefined,
+					range: ref.range ? { start: ref.range[0], endExclusive: ref.range[1] } : undefined,
+				})) ?? [],
 				metadata: mode.metadata,
 				isBuiltin: mode.isBuiltin,
 			};
@@ -4185,6 +4205,36 @@ export namespace ChatSessionItem {
 			},
 			changes: sessionContent.changes instanceof Array ? sessionContent.changes : undefined,
 			metadata: sessionContent.metadata,
+		};
+	}
+}
+
+export namespace ChatSessionCustomizations {
+	function commandFrom(cmd: vscode.Command): extHostProtocol.ICommandDto {
+		return {
+			id: cmd.command,
+			title: cmd.title,
+			tooltip: cmd.tooltip,
+			arguments: cmd.arguments,
+		};
+	}
+
+	export function fromItem(item: vscode.ChatSessionCustomizationItem): extHostProtocol.IChatSessionCustomizationItemDto {
+		return {
+			label: item.label,
+			description: item.description,
+			uri: item.uri,
+			storageLocation: item.storageLocation,
+			icon: item.icon ? { id: item.icon.id, color: item.icon.color } : undefined,
+		};
+	}
+
+	export function fromGroup(group: vscode.ChatSessionCustomizationItemGroup): extHostProtocol.IChatSessionCustomizationItemGroupDto {
+		return {
+			id: group.id,
+			items: group.items.map(fromItem),
+			commands: group.commands?.map(commandFrom),
+			itemCommands: group.itemCommands?.map(commandFrom),
 		};
 	}
 }

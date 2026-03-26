@@ -116,7 +116,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	 * Extracts subagent info (description, agentName, prompt) from a tool invocation.
 	 */
 	private static extractSubagentInfo(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): { description: string; agentName: string | undefined; prompt: string | undefined; modelName: string | undefined } {
-		const defaultDescription = localize('chat.subagent.defaultDescription', 'Running subagent...');
+		const defaultDescription = localize('chat.subagent.defaultDescription', 'Running subagent');
 
 		// Only parent subagent tools contain the full subagent info
 		if (!ChatSubagentContentPart.isParentSubagentTool(toolInvocation)) {
@@ -803,7 +803,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		// Wrap with icon like thinking parts do
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
-		const icon = getToolInvocationIcon(toolInvocation.toolId);
+		const icon = getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon);
 		const iconElement = createThinkingIcon(icon);
 		itemWrapper.appendChild(content);
 

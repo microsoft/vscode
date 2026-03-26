@@ -1,6 +1,5 @@
 name: Sessions E2E Tests
 
-# Disabled: Flaky
 # on:
 #   pull_request:
 #     branches:
