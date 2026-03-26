@@ -236,6 +236,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			includeSymbols: searchConfig?.quickOpen?.includeSymbols,
 			includeHistory: searchConfig?.quickOpen?.includeHistory ?? true,
 			historyFilterSortOrder: searchConfig?.quickOpen?.history?.filterSortOrder,
+			matchMode: searchConfig?.quickOpen?.matchMode ?? 'fuzzy',
 			preserveInput: quickAccessConfig?.preserveInput
 		};
 	}
@@ -302,10 +303,13 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	protected _getPicks(originalFilter: string, disposables: DisposableStore, token: CancellationToken, runOptions?: IAnythingQuickAccessProviderRunOptions): Picks<IAnythingQuickPickItem> | Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> | null {
 		if (runOptions?.filesOnly) {
+			const matchMode = this.configuration.matchMode;
 			return this.getAdditionalPicks(
 				prepareQuery(originalFilter),
 				new ResourceMap<boolean>(uri => this.uriIdentityService.extUri.getComparisonKey(uri)),
 				false,
+				matchMode !== 'contiguous',
+				matchMode === 'wordBoundary',
 				token,
 				runOptions,
 			);
@@ -507,6 +511,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			return this.pickState.lastGlobalPicks;
 		}
 
+		// Compute match mode parameters from configuration
+		const matchMode = this.configuration.matchMode;
+		const allowNonContiguousMatches = matchMode !== 'contiguous';
+		const wordBoundaryFuzzy = matchMode === 'wordBoundary';
+
 		// Otherwise return normally with history and file/symbol results
 		const historyEditorPicks = this.getEditorHistoryPicks(query);
 
@@ -522,7 +531,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					picks.push(pick);
 					continue;
 				}
-				const { score, labelMatch, descriptionMatch } = scoreItemFuzzy(pick, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
+				const { score, labelMatch, descriptionMatch } = scoreItemFuzzy(pick, query, allowNonContiguousMatches, quickPickItemScorerAccessor, this.pickState.scorerCache, wordBoundaryFuzzy);
 				if (!score) {
 					continue;
 				}
@@ -564,7 +573,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					}
 				}
 
-				let additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, Boolean(this.configuration?.includeSymbols), token);
+				let additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, Boolean(this.configuration?.includeSymbols), allowNonContiguousMatches, wordBoundaryFuzzy, token);
 				if (options.filter) {
 					additionalPicks = additionalPicks.filter((p) => options.filter?.(p));
 				}
@@ -583,7 +592,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		};
 	}
 
-	private async getAdditionalPicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, includeSymbols: boolean, token: CancellationToken, runOptions?: IAnythingQuickAccessProviderRunOptions): Promise<Array<IAnythingQuickPickItem>> {
+	private async getAdditionalPicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, includeSymbols: boolean, allowNonContiguousMatches: boolean, wordBoundaryFuzzy: boolean, token: CancellationToken, runOptions?: IAnythingQuickAccessProviderRunOptions): Promise<Array<IAnythingQuickPickItem>> {
 
 		// Resolve file and symbol picks (if enabled)
 		const [filePicks, symbolPicks] = await Promise.all([
@@ -598,7 +607,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// Perform sorting (top results by score)
 		const sortedAnythingPicks = top(
 			[...filePicks, ...symbolPicks],
-			(anyPickA, anyPickB) => compareItemsByFuzzyScore(anyPickA, anyPickB, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache),
+			(anyPickA, anyPickB) => compareItemsByFuzzyScore(anyPickA, anyPickB, query, allowNonContiguousMatches, quickPickItemScorerAccessor, this.pickState.scorerCache, wordBoundaryFuzzy),
 			AnythingQuickAccessProvider.MAX_RESULTS
 		);
 
@@ -613,7 +622,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 			// Otherwise, do the scoring and matching here
 			else {
-				const { score, labelMatch, descriptionMatch } = scoreItemFuzzy(anythingPick, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
+				const { score, labelMatch, descriptionMatch } = scoreItemFuzzy(anythingPick, query, allowNonContiguousMatches, quickPickItemScorerAccessor, this.pickState.scorerCache, wordBoundaryFuzzy);
 				if (!score) {
 					continue;
 				}
