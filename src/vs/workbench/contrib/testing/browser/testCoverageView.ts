@@ -83,7 +83,7 @@ export class TestCoverageView extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		const storedOrder = this.storageService.getNumber('testing.coverageSortOrder', StorageScope.WORKSPACE);
-		if (storedOrder !== undefined && storedOrder in CoverageSortOrder) {
+		if (storedOrder !== undefined && storedOrder >= CoverageSortOrder.Coverage && storedOrder <= CoverageSortOrder.Name) {
 			this.sortOrder.set(storedOrder, undefined);
 		}
 	}
