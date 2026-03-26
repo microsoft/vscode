@@ -42,6 +42,9 @@ export {
 	type ISessionServerToolsChangedAction,
 	type ISessionActiveClientChangedAction,
 	type ISessionActiveClientToolsChangedAction,
+	type ISessionPendingMessageSetAction,
+	type ISessionPendingMessageRemovedAction,
+	type ISessionQueuedMessagesReorderedAction,
 	type IStateAction,
 } from './protocol/actions.js';
 
@@ -77,6 +80,9 @@ import type {
 	ISessionTurnStartedAction,
 	ISessionUsageAction,
 	IStateAction,
+	ISessionPendingMessageSetAction,
+	ISessionPendingMessageRemovedAction,
+	ISessionQueuedMessagesReorderedAction,
 } from './protocol/actions.js';
 
 import type { IProtocolNotification } from './protocol/notifications.js';
@@ -109,6 +115,10 @@ export type ITitleChangedAction = ISessionTitleChangedAction;
 export type IUsageAction = ISessionUsageAction;
 export type IReasoningAction = ISessionReasoningAction;
 export type IModelChangedAction = ISessionModelChangedAction;
+
+export type IPendingMessageSetAction = ISessionPendingMessageSetAction;
+export type IPendingMessageRemovedAction = ISessionPendingMessageRemovedAction;
+export type IQueuedMessagesReorderedAction = ISessionQueuedMessagesReorderedAction;
 
 // Notifications
 export type INotification = IProtocolNotification;

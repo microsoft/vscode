@@ -61,7 +61,7 @@ function makeAgentSession(opts: {
 		sessionType: opts.providerType ?? AgentSessionProviders.Local,
 		icon: Codicon.copilot,
 		createdAt: new Date(),
-		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo] } : undefined),
+		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo], requiresWorkspaceTrust: false, } : undefined),
 		title: observableValue('test.title', 'Test Session'),
 		updatedAt: observableValue('test.updatedAt', new Date()),
 		status: observableValue('test.status', 0),
@@ -73,8 +73,7 @@ function makeAgentSession(opts: {
 		isRead: observableValue('test.isRead', true),
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
-		pullRequestUri: observableValue('test.pullRequestUri', undefined),
-		pullRequestStateIcon: observableValue('test.pullRequestStateIcon', undefined),
+		pullRequest: observableValue('test.pullRequest', undefined),
 	};
 }
 
@@ -92,7 +91,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		sessionType: opts.providerType ?? AgentSessionProviders.Local,
 		icon: Codicon.copilot,
 		createdAt: new Date(),
-		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo] } : undefined),
+		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo], requiresWorkspaceTrust: false, } : undefined),
 		title: observableValue('test.title', 'Test Session'),
 		updatedAt: observableValue('test.updatedAt', new Date()),
 		status: observableValue('test.status', 0),
@@ -104,8 +103,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		isRead: observableValue('test.isRead', true),
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
-		pullRequestUri: observableValue('test.pullRequestUri', undefined),
-		pullRequestStateIcon: observableValue('test.pullRequestStateIcon', undefined),
+		pullRequest: observableValue('test.pullRequest', undefined),
 	};
 }
 

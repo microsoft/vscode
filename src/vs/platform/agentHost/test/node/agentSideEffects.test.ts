@@ -16,7 +16,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type IMarkdownResponsePart, type IToolCallCompletedState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
+import { PendingMessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type IMarkdownResponsePart, type IToolCallCompletedState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { SessionStateManager } from '../../node/sessionStateManager.js';
 import { MockAgent } from './mockAgent.js';
@@ -520,6 +520,206 @@ suite('AgentSideEffects', () => {
 
 			const result = await sideEffects.handleAuthenticate({ resource: 'https://unknown.example.com', token: 'test-token' });
 			assert.deepStrictEqual(result, { authenticated: false });
+		});
+	});
+
+	// ---- Pending message sync -----------------------------------------------
+
+	suite('pending message sync', () => {
+
+		test('syncs steering message to agent on SessionPendingMessageSet', () => {
+			setupSession();
+
+			const action = {
+				type: ActionType.SessionPendingMessageSet as const,
+				session: sessionUri.toString(),
+				kind: PendingMessageKind.Steering,
+				id: 'steer-1',
+				userMessage: { text: 'focus on tests' },
+			};
+			stateManager.dispatchClientAction(action, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(action);
+
+			assert.strictEqual(agent.setPendingMessagesCalls.length, 1);
+			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].steeringMessage, { id: 'steer-1', userMessage: { text: 'focus on tests' } });
+			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].queuedMessages, []);
+		});
+
+		test('syncs queued message to agent on SessionPendingMessageSet', () => {
+			setupSession();
+
+			const action = {
+				type: ActionType.SessionPendingMessageSet as const,
+				session: sessionUri.toString(),
+				kind: PendingMessageKind.Queued,
+				id: 'q-1',
+				userMessage: { text: 'queued message' },
+			};
+			stateManager.dispatchClientAction(action, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(action);
+
+			// Queued messages are not forwarded to the agent; the server controls consumption
+			assert.strictEqual(agent.setPendingMessagesCalls.length, 1);
+			assert.strictEqual(agent.setPendingMessagesCalls[0].steeringMessage, undefined);
+			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].queuedMessages, []);
+
+			// Session was idle, so the queued message is consumed immediately
+			assert.strictEqual(agent.sendMessageCalls.length, 1);
+			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'queued message');
+		});
+
+		test('syncs on SessionPendingMessageRemoved', () => {
+			setupSession();
+
+			// Add a queued message
+			const setAction = {
+				type: ActionType.SessionPendingMessageSet as const,
+				session: sessionUri.toString(),
+				kind: PendingMessageKind.Queued,
+				id: 'q-rm',
+				userMessage: { text: 'will be removed' },
+			};
+			stateManager.dispatchClientAction(setAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(setAction);
+
+			agent.setPendingMessagesCalls.length = 0;
+
+			// Remove
+			const removeAction = {
+				type: ActionType.SessionPendingMessageRemoved as const,
+				session: sessionUri.toString(),
+				kind: PendingMessageKind.Queued,
+				id: 'q-rm',
+			};
+			stateManager.dispatchClientAction(removeAction, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(removeAction);
+
+			assert.strictEqual(agent.setPendingMessagesCalls.length, 1);
+			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].queuedMessages, []);
+		});
+
+		test('syncs on SessionQueuedMessagesReordered', () => {
+			setupSession();
+
+			// Add two queued messages
+			const setA = { type: ActionType.SessionPendingMessageSet as const, session: sessionUri.toString(), kind: PendingMessageKind.Queued, id: 'q-a', userMessage: { text: 'A' } };
+			stateManager.dispatchClientAction(setA, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(setA);
+
+			const setB = { type: ActionType.SessionPendingMessageSet as const, session: sessionUri.toString(), kind: PendingMessageKind.Queued, id: 'q-b', userMessage: { text: 'B' } };
+			stateManager.dispatchClientAction(setB, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(setB);
+
+			agent.setPendingMessagesCalls.length = 0;
+
+			// Reorder
+			const reorderAction = { type: ActionType.SessionQueuedMessagesReordered as const, session: sessionUri.toString(), order: ['q-b', 'q-a'] };
+			stateManager.dispatchClientAction(reorderAction, { clientId: 'test', clientSeq: 3 });
+			sideEffects.handleAction(reorderAction);
+
+			assert.strictEqual(agent.setPendingMessagesCalls.length, 1);
+			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].queuedMessages, []);
+		});
+	});
+
+	// ---- Queued message consumption -----------------------------------------
+
+	suite('queued message consumption', () => {
+
+		test('auto-starts turn from queued message on idle', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			// Queue a message while a turn is active
+			startTurn('turn-1');
+			const setAction = {
+				type: ActionType.SessionPendingMessageSet as const,
+				session: sessionUri.toString(),
+				kind: PendingMessageKind.Queued,
+				id: 'q-auto',
+				userMessage: { text: 'auto queued' },
+			};
+			stateManager.dispatchClientAction(setAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(setAction);
+
+			// Message should NOT be consumed yet (turn is active)
+			assert.strictEqual(agent.sendMessageCalls.length, 0);
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			// Fire idle → turn completes → queued message should be consumed
+			agent.fireProgress({ session: sessionUri, type: 'idle' });
+
+			const turnComplete = envelopes.find(e => e.action.type === ActionType.SessionTurnComplete);
+			assert.ok(turnComplete, 'should dispatch session/turnComplete');
+
+			const turnStarted = envelopes.find(e => e.action.type === ActionType.SessionTurnStarted);
+			assert.ok(turnStarted, 'should dispatch session/turnStarted for queued message');
+			assert.strictEqual((turnStarted!.action as { queuedMessageId?: string }).queuedMessageId, 'q-auto');
+
+			assert.strictEqual(agent.sendMessageCalls.length, 1);
+			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'auto queued');
+
+			// Queued message should be removed from state
+			const state = stateManager.getSessionState(sessionUri.toString());
+			assert.strictEqual(state?.queuedMessages, undefined);
+		});
+
+		test('does not consume queued message while a turn is active', () => {
+			setupSession();
+			startTurn('turn-1');
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			const setAction = {
+				type: ActionType.SessionPendingMessageSet as const,
+				session: sessionUri.toString(),
+				kind: PendingMessageKind.Queued,
+				id: 'q-wait',
+				userMessage: { text: 'should wait' },
+			};
+			stateManager.dispatchClientAction(setAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(setAction);
+
+			// No turn started for the queued message
+			const turnStarted = envelopes.find(e => e.action.type === ActionType.SessionTurnStarted);
+			assert.strictEqual(turnStarted, undefined, 'should not start a turn while one is active');
+			assert.strictEqual(agent.sendMessageCalls.length, 0);
+
+			// Queued message still in state
+			const state = stateManager.getSessionState(sessionUri.toString());
+			assert.strictEqual(state?.queuedMessages?.length, 1);
+			assert.strictEqual(state?.queuedMessages?.[0].id, 'q-wait');
+		});
+
+		test('dispatches SessionPendingMessageRemoved for steering messages', () => {
+			setupSession();
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			const action = {
+				type: ActionType.SessionPendingMessageSet as const,
+				session: sessionUri.toString(),
+				kind: PendingMessageKind.Steering,
+				id: 'steer-rm',
+				userMessage: { text: 'steer me' },
+			};
+			stateManager.dispatchClientAction(action, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(action);
+
+			const removal = envelopes.find(e =>
+				e.action.type === ActionType.SessionPendingMessageRemoved &&
+				(e.action as { kind: PendingMessageKind }).kind === PendingMessageKind.Steering
+			);
+			assert.ok(removal, 'should dispatch SessionPendingMessageRemoved for steering');
+			assert.strictEqual((removal!.action as { id: string }).id, 'steer-rm');
+
+			// Steering message should be removed from state
+			const state = stateManager.getSessionState(sessionUri.toString());
+			assert.strictEqual(state?.steeringMessage, undefined);
 		});
 	});
 });
