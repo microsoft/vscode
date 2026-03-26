@@ -86,7 +86,7 @@ export async function generateCustomizationDebugReport(
 async function appendExternalProviderData(lines: string[], provider: IExternalCustomizationItemProvider, promptType: PromptsType): Promise<void> {
 	lines.push('--- External Provider Data ---');
 
-	const allItems = await provider.provideChatCustomizations(CancellationToken.None);
+	const allItems = await provider.provideChatSessionCustomizations(CancellationToken.None);
 	if (!allItems) {
 		lines.push('  Provider returned undefined');
 		lines.push('');

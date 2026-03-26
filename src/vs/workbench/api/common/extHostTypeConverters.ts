@@ -3512,8 +3512,8 @@ export namespace ChatLocation {
 	}
 }
 
-export namespace ChatCustomizationType {
-	export function from(type: types.ChatCustomizationType): string {
+export namespace ChatSessionCustomizationType {
+	export function from(type: types.ChatSessionCustomizationType): string {
 		return type.id;
 	}
 }

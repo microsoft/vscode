@@ -12,21 +12,21 @@ declare module 'vscode' {
 	/**
 	 * Identifies the kind of customization an item represents.
 	 *
-	 * Use the built-in static instances (e.g. {@link ChatCustomizationType.Agent})
+	 * Use the built-in static instances (e.g. {@link ChatSessionCustomizationType.Agent})
 	 * for well-known customization types, or create a new instance with a custom
 	 * string id for extension-defined types.
 	 */
-	export class ChatCustomizationType {
+	export class ChatSessionCustomizationType {
 		/** Agent customization (`.agent.md` files). */
-		static readonly Agent: ChatCustomizationType;
+		static readonly Agent: ChatSessionCustomizationType;
 		/** Skill customization (`SKILL.md` files). */
-		static readonly Skill: ChatCustomizationType;
+		static readonly Skill: ChatSessionCustomizationType;
 		/** Instruction customization (`.instructions.md` files). */
-		static readonly Instructions: ChatCustomizationType;
+		static readonly Instructions: ChatSessionCustomizationType;
 		/** Prompt customization (`.prompt.md` files). */
-		static readonly Prompt: ChatCustomizationType;
+		static readonly Prompt: ChatSessionCustomizationType;
 		/** Hook customization (event-driven automation). */
-		static readonly Hook: ChatCustomizationType;
+		static readonly Hook: ChatSessionCustomizationType;
 
 		/**
 		 * The string identifier for this customization type.
@@ -46,7 +46,7 @@ declare module 'vscode' {
 	 * This drives UI presentation (label, icon) and filtering (unsupported types,
 	 * workspace sub-paths).
 	 */
-	export interface ChatCustomizationProviderMetadata {
+	export interface ChatSessionCustomizationProviderMetadata {
 		/**
 		 * Display label for this provider (e.g. "Copilot CLI", "Claude Code").
 		 */
@@ -62,7 +62,7 @@ declare module 'vscode' {
 		 * The corresponding sections will be hidden in the management UI
 		 * when this provider is active.
 		 */
-		readonly unsupportedTypes?: readonly ChatCustomizationType[];
+		readonly unsupportedTypes?: readonly ChatSessionCustomizationType[];
 
 		/**
 		 * Workspace sub-paths that this provider recognizes for customization files.
@@ -76,7 +76,7 @@ declare module 'vscode' {
 	/**
 	 * Represents a single customization item reported by a provider.
 	 */
-	export interface ChatCustomizationItem {
+	export interface ChatSessionCustomizationItem {
 		/**
 		 * URI to the customization file (e.g. an `.agent.md`, `SKILL.md`, or `.instructions.md` file).
 		 */
@@ -85,7 +85,7 @@ declare module 'vscode' {
 		/**
 		 * The type of customization this item represents.
 		 */
-		readonly type: ChatCustomizationType;
+		readonly type: ChatSessionCustomizationType;
 
 		/**
 		 * Display name for this customization.
@@ -109,16 +109,16 @@ declare module 'vscode' {
 	 *
 	 * ### Lifecycle
 	 *
-	 * 1. Register via {@link chat.registerCustomizationProvider}.
-	 * 2. The UI calls {@link provideChatCustomizations} once and caches
+	 * 1. Register via {@link chat.registerChatSessionCustomizationProvider}.
+	 * 2. The UI calls {@link provideChatSessionCustomizations} once and caches
 	 *    the result.
 	 * 3. When the underlying files change, fire {@link onDidChange} to
-	 *    trigger a fresh call to {@link provideChatCustomizations}.
+	 *    trigger a fresh call to {@link provideChatSessionCustomizations}.
 	 */
-	export interface ChatCustomizationProvider {
+	export interface ChatSessionCustomizationProvider {
 		/**
 		 * An optional event that fires when the provider's customizations change.
-		 * The UI caches the result of {@link provideChatCustomizations} and will
+		 * The UI caches the result of {@link provideChatSessionCustomizations} and will
 		 * only re-query the provider when this event fires.
 		 */
 		readonly onDidChange?: Event<void>;
@@ -131,7 +131,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @returns The list of customization items, or `undefined` if unavailable.
 		 */
-		provideChatCustomizations(token: CancellationToken): ProviderResult<ChatCustomizationItem[]>;
+		provideChatSessionCustomizations(token: CancellationToken): ProviderResult<ChatSessionCustomizationItem[]>;
 	}
 
 	// #endregion
@@ -142,7 +142,7 @@ declare module 'vscode' {
 		/**
 		 * Register a customization provider that reports what customizations
 		 * a harness or runtime supports. The provider's metadata drives UI
-		 * presentation and filtering, while {@link ChatCustomizationProvider.provideChatCustomizations}
+		 * presentation and filtering, while {@link ChatSessionCustomizationProvider.provideChatSessionCustomizations}
 		 * supplies the actual items.
 		 *
 		 * @param id A unique identifier for this provider (e.g. `'cli'`, `'claude'`).
@@ -150,7 +150,7 @@ declare module 'vscode' {
 		 * @param provider The customization provider implementation.
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerCustomizationProvider(id: string, metadata: ChatCustomizationProviderMetadata, provider: ChatCustomizationProvider): Disposable;
+		export function registerChatSessionCustomizationProvider(id: string, metadata: ChatSessionCustomizationProviderMetadata, provider: ChatSessionCustomizationProvider): Disposable;
 	}
 
 	// #endregion

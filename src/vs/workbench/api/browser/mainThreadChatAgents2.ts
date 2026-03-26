@@ -41,7 +41,7 @@ import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/lang
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatCustomizationItemDto, IChatCustomizationProviderMetadataDto, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IInstructionDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IInstructionDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
@@ -592,7 +592,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		}
 	}
 
-	async $registerCustomizationProvider(handle: number, id: string, metadata: IChatCustomizationProviderMetadataDto, extensionId: ExtensionIdentifier): Promise<void> {
+	async $registerChatSessionCustomizationProvider(handle: number, id: string, metadata: IChatSessionCustomizationProviderMetadataDto, extensionId: ExtensionIdentifier): Promise<void> {
 		const extension = await this._extensionService.getExtension(extensionId.value);
 		if (!extension) {
 			this._logService.error(`[MainThreadChatAgents2] Could not find extension for customization provider: ${extensionId.value}`);
@@ -605,12 +605,12 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		// Build the item provider that calls back to the ExtHost
 		const itemProvider: IExternalCustomizationItemProvider = {
 			onDidChange: emitter.event,
-			provideChatCustomizations: async (token) => {
-				const items = await this._proxy.$provideChatCustomizations(handle, token);
+			provideChatSessionCustomizations: async (token) => {
+				const items = await this._proxy.$provideChatSessionCustomizations(handle, token);
 				if (!items) {
 					return undefined;
 				}
-				return items.map((item: IChatCustomizationItemDto): IExternalCustomizationItem => ({
+				return items.map((item: IChatSessionCustomizationItemDto): IExternalCustomizationItem => ({
 					uri: URI.revive(item.uri),
 					type: item.type,
 					name: item.name,
@@ -649,7 +649,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._customizationProviders.set(handle, registration);
 	}
 
-	$unregisterCustomizationProvider(handle: number): void {
+	$unregisterChatSessionCustomizationProvider(handle: number): void {
 		this._customizationProviders.deleteAndDispose(handle);
 		this._customizationProviderEmitters.deleteAndDispose(handle);
 	}

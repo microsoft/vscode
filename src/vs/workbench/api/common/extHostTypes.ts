@@ -3568,12 +3568,12 @@ export enum ChatSessionStatus {
 	NeedsInput = 3
 }
 
-export class ChatCustomizationType {
-	static readonly Agent = new ChatCustomizationType('agent');
-	static readonly Skill = new ChatCustomizationType('skill');
-	static readonly Instructions = new ChatCustomizationType('instructions');
-	static readonly Prompt = new ChatCustomizationType('prompt');
-	static readonly Hook = new ChatCustomizationType('hook');
+export class ChatSessionCustomizationType {
+	static readonly Agent = new ChatSessionCustomizationType('agent');
+	static readonly Skill = new ChatSessionCustomizationType('skill');
+	static readonly Instructions = new ChatSessionCustomizationType('instructions');
+	static readonly Prompt = new ChatSessionCustomizationType('prompt');
+	static readonly Hook = new ChatSessionCustomizationType('hook');
 
 	constructor(public readonly id: string) { }
 }
