@@ -20,8 +20,6 @@ export interface ISessionType {
 	readonly label: string;
 	/** Icon for this session type. */
 	readonly icon: ThemeIcon;
-	/** Whether this session type requires workspace trust before creating a session. */
-	readonly requiresWorkspaceTrust?: boolean;
 }
 
 /**

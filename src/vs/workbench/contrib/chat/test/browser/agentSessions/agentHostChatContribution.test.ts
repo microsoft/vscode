@@ -1515,4 +1515,137 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual((agentHostService.dispatchedActions[0].action as ITurnStartedAction).userMessage.text, 'Test message');
 		});
 	});
+
+	// ---- Server-initiated turns -------------------------------------------
+
+	suite('server-initiated turns', () => {
+
+		test('detects server-initiated turn and fires onDidStartServerRequest', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			// Create and subscribe a session
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-server-turn' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			// First, do a normal turn so the backend session is created
+			const turn1Promise = chatSession.requestHandler!(
+				makeRequest({ message: 'Hello', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+			await timeout(10);
+			const dispatch1 = agentHostService.dispatchedActions[0];
+			const action1 = dispatch1.action as ITurnStartedAction;
+			const session = action1.session;
+			// Echo + complete the first turn
+			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
+			agentHostService.fireAction({ action: { type: 'session/turnComplete', session, turnId: action1.turnId } as ISessionAction, serverSeq: 2, origin: undefined });
+			await turn1Promise;
+
+			// Now simulate a server-initiated turn (e.g. from a consumed queued message)
+			const serverTurnId = 'server-turn-1';
+			const serverRequestEvents: { prompt: string }[] = [];
+			disposables.add(chatSession.onDidStartServerRequest!(e => serverRequestEvents.push(e)));
+
+			agentHostService.fireAction({
+				action: {
+					type: 'session/turnStarted',
+					session,
+					turnId: serverTurnId,
+					userMessage: { text: 'queued message text' },
+				} as ISessionAction,
+				serverSeq: 3,
+				origin: undefined, // Server-originated — no client origin
+			});
+
+			await timeout(10);
+
+			// onDidStartServerRequest should have fired
+			assert.strictEqual(serverRequestEvents.length, 1);
+			assert.strictEqual(serverRequestEvents[0].prompt, 'queued message text');
+
+			// isCompleteObs should be false (turn in progress)
+			assert.strictEqual(chatSession.isCompleteObs!.get(), false);
+		});
+
+		test('server-initiated turn streams progress through progressObs', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-server-progress' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			// Normal turn to create backend session
+			const turn1Promise = chatSession.requestHandler!(
+				makeRequest({ message: 'Init', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+			await timeout(10);
+			const dispatch1 = agentHostService.dispatchedActions[0];
+			const action1 = dispatch1.action as ITurnStartedAction;
+			const session = action1.session;
+			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
+			agentHostService.fireAction({ action: { type: 'session/turnComplete', session, turnId: action1.turnId } as ISessionAction, serverSeq: 2, origin: undefined });
+			await turn1Promise;
+
+			// Server-initiated turn
+			const serverTurnId = 'server-turn-progress';
+			agentHostService.fireAction({
+				action: { type: 'session/turnStarted', session, turnId: serverTurnId, userMessage: { text: 'auto queued' } } as ISessionAction,
+				serverSeq: 3, origin: undefined,
+			});
+			await timeout(10);
+
+			// Stream a response part + delta
+			agentHostService.fireAction({
+				action: { type: 'session/responsePart', session, turnId: serverTurnId, part: { kind: 'markdown', id: 'md-srv', content: 'Hello ' } } as ISessionAction,
+				serverSeq: 4, origin: undefined,
+			});
+			agentHostService.fireAction({
+				action: { type: 'session/delta', session, turnId: serverTurnId, partId: 'md-srv', content: 'world' } as ISessionAction,
+				serverSeq: 5, origin: undefined,
+			});
+			await timeout(50);
+
+			// Progress should be in progressObs
+			const progress = chatSession.progressObs!.get();
+			const markdownParts = progress.filter((p): p is IChatMarkdownContent => p.kind === 'markdownContent');
+			const totalContent = markdownParts.map(p => p.content.value).join('');
+			assert.strictEqual(totalContent, 'Hello world');
+
+			// Complete the turn
+			agentHostService.fireAction({
+				action: { type: 'session/turnComplete', session, turnId: serverTurnId } as ISessionAction,
+				serverSeq: 6, origin: undefined,
+			});
+			await timeout(10);
+
+			assert.strictEqual(chatSession.isCompleteObs!.get(), true);
+		});
+
+		test('client-dispatched turns are not treated as server-initiated', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-no-dupe' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			const serverRequestEvents: { prompt: string }[] = [];
+			disposables.add(chatSession.onDidStartServerRequest!(e => serverRequestEvents.push(e)));
+
+			// Normal client turn — should NOT fire onDidStartServerRequest
+			const turnPromise = chatSession.requestHandler!(
+				makeRequest({ message: 'Client turn', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+			await timeout(10);
+			const dispatch = agentHostService.dispatchedActions[0];
+			const action = dispatch.action as ITurnStartedAction;
+			agentHostService.fireAction({ action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
+			agentHostService.fireAction({ action: { type: 'session/turnComplete', session: action.session, turnId: action.turnId } as ISessionAction, serverSeq: 2, origin: undefined });
+			await turnPromise;
+
+			assert.strictEqual(serverRequestEvents.length, 0, 'Client-dispatched turns should not trigger onDidStartServerRequest');
+		});
+	});
 });

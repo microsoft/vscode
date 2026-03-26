@@ -9,10 +9,16 @@ The user has given you a GitHub issue URL for an unhandled error from the VS Cod
 
 Follow the `fix-errors` skill guidelines to fix this error. Key principles:
 
-1. **Do NOT fix at the crash site.** Do not add guards, try/catch, or fallback values at the bottom of the stack trace. That only masks the problem.
-2. **Trace the data flow upward** through the call stack to find the producer of invalid data.
-3. **If the producer is cross-process** (e.g., IPC) and cannot be identified from the stack alone, **enrich the error message** with diagnostic context (data type, truncated value, operation name) so the next telemetry cycle reveals the source. Do NOT silently swallow the error.
-4. **If the producer is identifiable**, fix it directly.
+1. **Read the error construction code first.** Before proposing any fix, search the codebase for where the error is constructed (the `new Error(...)` or custom error class instantiation). Read the surrounding code to understand:
+   - What conditions trigger the error (thresholds, validation checks, categorization logic)
+   - What parameters, classifications, or categories the error encodes
+   - What the intended meaning of each category is and what action each warrants
+   - Whether the error is a symptom of invalid data, a threshold-based warning, or a design-time signal
+   Use this understanding to determine the correct fix strategy. Do NOT assume what the error means from its message alone — the construction code is the source of truth.
+2. **Do NOT fix at the crash site.** Do not add guards, try/catch, or fallback values at the bottom of the stack trace. That only masks the problem.
+3. **Trace the data flow upward** through the call stack to find the producer of invalid data.
+4. **If the producer is cross-process** (e.g., IPC) and cannot be identified from the stack alone, **enrich the error message** with diagnostic context (data type, truncated value, operation name) so the next telemetry cycle reveals the source. Do NOT silently swallow the error.
+5. **If the producer is identifiable**, fix it directly.
 
 After making changes, check for compilation errors via the build task and run relevant unit tests.
 
