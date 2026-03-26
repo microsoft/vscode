@@ -7,7 +7,8 @@ import * as dom from '../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
 import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -200,7 +201,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 export class UpdateTitleBarEntry extends BaseActionViewItem {
 	private content: HTMLElement | undefined;
 	private showTooltipOnRender = false;
-	private hintTimer: ReturnType<typeof setTimeout> | undefined;
+	private readonly _hintTimer = this._register(new MutableDisposable());
 
 	constructor(
 		action: IAction,
@@ -286,10 +287,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		}
 
 		// Clear previous hint timer
-		if (this.hintTimer !== undefined) {
-			clearTimeout(this.hintTimer);
-			this.hintTimer = undefined;
-		}
+		this._hintTimer.clear();
 
 		dom.clearNode(this.content);
 		this.content.classList.remove('prominent', 'progress-indefinite', 'progress-percent', 'update-disabled', 'hint-visible');
@@ -358,17 +356,21 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 			return;
 		}
 
-		// Flash the hint once after a short delay
-		this.hintTimer = setTimeout(() => {
-			dom.getWindow(this.content!).requestAnimationFrame(() => {
-				this.content?.classList.add('hint-visible');
-			});
-
-			this.hintTimer = setTimeout(() => {
-				this.content?.classList.remove('hint-visible');
-				this.hintTimer = undefined;
-			}, 3000);
-		}, 500);
+		// Flash the hint once after a short delay, cancelling all pending work on clear
+		const store = new DisposableStore();
+		store.add(disposableTimeout(() => {
+			const content = this.content;
+			if (!content) {
+				return;
+			}
+			store.add(dom.scheduleAtNextAnimationFrame(dom.getWindow(content), () => {
+				content.classList.add('hint-visible');
+			}));
+			store.add(disposableTimeout(() => {
+				content.classList.remove('hint-visible');
+			}, 3000));
+		}, 500));
+		this._hintTimer.value = store;
 	}
 
 	private renderProgressState(content: HTMLElement, percentage?: number) {
