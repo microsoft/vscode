@@ -15,6 +15,13 @@
 		box-sizing: border-box;
 }
 
+/* SplitView container */
+.changes-view-body .changes-splitview-container {
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+}
+
 /* Welcome/Empty state */
 .changes-view-body .changes-welcome {
 	display: flex;
@@ -38,17 +45,44 @@
 	font-size: 12px;
 }
 
-/* Main container - matches chat editing session styling */
+/* Main container */
 .changes-view-body .chat-editing-session-container {
-	padding: 4px 3px;
 	box-sizing: border-box;
-	background-color: var(--vscode-editor-background);
-	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: 4px;
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
 	overflow: hidden;
+}
+
+/* Files header */
+.changes-view-body .changes-files-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 8px;
+	min-height: 22px;
+	font-weight: 500;
+	font-size: 12px;
+}
+
+.changes-view-body .changes-files-title {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.changes-view-body .changes-files-count {
+	flex-shrink: 0;
+	font-size: 11px;
+	padding: 2px 0;
+	border-radius: 4px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	line-height: 1;
+	font-weight: 600;
+	min-width: 16px;
+	text-align: center;
 }
 
 /* Overview section (header) - hidden since actions moved outside card */
@@ -257,6 +291,21 @@
 }
 
 .changes-view-body .chat-editing-session-list .working-set-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+/* Line counts in buttons */
+.changes-view-body .chat-editing-session-actions .monaco-button.working-set-diff-stats {
+	flex-shrink: 0;
+	padding-left: 4px;
+	padding-right: 8px;
+}
+
+.changes-view-body .chat-editing-session-actions .monaco-button .working-set-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.changes-view-body .chat-editing-session-actions .monaco-button .working-set-lines-removed {
 	color: var(--vscode-chat-linesRemovedForeground);
 }
 
