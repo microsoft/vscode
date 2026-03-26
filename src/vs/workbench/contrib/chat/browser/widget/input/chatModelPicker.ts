@@ -583,6 +583,13 @@ export class ModelPickerWidget extends Disposable {
 		this._renderLabel();
 	}
 
+	setEnabled(enabled: boolean): void {
+		if (this._domNode) {
+			this._domNode.classList.toggle('disabled', !enabled);
+			this._domNode.setAttribute('aria-disabled', String(!enabled));
+		}
+	}
+
 	setBadge(badge: ModelPickerBadge | undefined): void {
 		this._badge = badge;
 		this._updateBadge();
@@ -626,7 +633,7 @@ export class ModelPickerWidget extends Disposable {
 
 	show(anchor?: HTMLElement): void {
 		const anchorElement = anchor ?? this._domNode;
-		if (!anchorElement) {
+		if (!anchorElement || this._domNode?.classList.contains('disabled')) {
 			return;
 		}
 
