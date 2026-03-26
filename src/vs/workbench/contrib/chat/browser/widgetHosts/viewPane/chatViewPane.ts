@@ -100,6 +100,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private restoringSession: Promise<void> | undefined;
 	private readonly loadSessionCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
+	private readonly _previousModelRef = this._register(new MutableDisposable<IChatModelReference>());
 
 	private readonly activityBadge = this._register(new MutableDisposable());
 
@@ -704,6 +705,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true): Promise<IChatModel | undefined> {
 		const oldModelResource = this.modelRef.value?.object.sessionResource;
+
+		// Keep the previous model reference alive so its InputModel state (permission level, etc.)
+		// survives until the next session switch. Only the most recent previous session is kept.
+		this._previousModelRef.value = this.modelRef.value;
 		this.modelRef.value = undefined;
 
 		let ref: IChatModelReference | undefined;
@@ -723,6 +728,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		this.modelRef.value = ref;
 		const model = ref?.object;
+
+		// If we're switching back to the previously cached model, clear the cache
+		if (model && this._previousModelRef.value?.object.sessionResource.toString() === model.sessionResource.toString()) {
+			this._previousModelRef.value = undefined;
+		}
 
 		if (model) {
 			await this.updateWidgetLockState(getChatSessionType(model.sessionResource)); // Update widget lock state based on session type

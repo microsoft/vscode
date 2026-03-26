@@ -22,6 +22,8 @@ import { IDialogService } from '../../../../../../platform/dialogs/common/dialog
 import Severity from '../../../../../../base/common/severity.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { URI } from '../../../../../../base/common/uri.js';
 
 // Track whether warnings have been shown this VS Code session
 const shownWarnings = new Set<ChatPermissionLevel>();
@@ -54,6 +56,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IOpenerService openerService: IOpenerService,
 	) {
 		const isAutoApprovePolicyRestricted = () => configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 		const isAutopilotEnabled = () => configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
@@ -186,6 +189,16 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 
 		super(action, {
 			actionProvider,
+			actionBarActions: [{
+				id: 'chat.permissions.learnMore',
+				label: localize('permissions.learnMore', "Learn More about Permissions"),
+				tooltip: localize('permissions.learnMore', "Learn More about Permissions"),
+				class: undefined,
+				enabled: true,
+				run: async () => {
+					await openerService.open(URI.parse('https://code.visualstudio.com/docs/copilot/agents/agent-tools#_permission-levels'));
+				}
+			}],
 			reporter: { id: 'ChatPermissionPicker', name: 'ChatPermissionPicker', includeOptions: true },
 			listOptions: { descriptionBelow: true, minWidth: 255 },
 		}, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
