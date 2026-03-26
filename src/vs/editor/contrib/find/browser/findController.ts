@@ -36,6 +36,7 @@ import { FindWidgetSearchHistory } from './findWidgetSearchHistory.js';
 import { ReplaceWidgetHistory } from './replaceWidgetHistory.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { FIND_CONTROLLER_ID, IFindInputTransformer } from './findCommon.js';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
@@ -91,9 +92,9 @@ export interface IFindStartArguments {
 	findInSelection?: boolean;
 }
 
-export class CommonFindController extends Disposable implements IEditorContribution {
+export class CommonFindController extends Disposable implements IEditorContribution, IFindInputTransformer {
 
-	public static readonly ID = 'editor.contrib.findController';
+	public static readonly ID = FIND_CONTROLLER_ID;
 
 	protected _editor: ICodeEditor;
 	private readonly _findWidgetVisible: IContextKey<boolean>;
@@ -236,6 +237,10 @@ export class CommonFindController extends Disposable implements IEditorContribut
 	 */
 	public focusLastElement(): void {
 		// Base implementation - overridden in FindController
+	}
+
+	public transformFocusedInput(transform: (text: string) => string): boolean {
+		return false;
 	}
 
 	public getState(): FindReplaceState {
@@ -551,6 +556,10 @@ export class FindController extends CommonFindController implements IFindControl
 	 */
 	public override focusLastElement(): void {
 		this._widget?.focusLastElement();
+	}
+
+	public override transformFocusedInput(transform: (text: string) => string): boolean {
+		return this._widget?.transformFocusedInputSelection(transform) ?? false;
 	}
 
 	saveViewState(): any {
