@@ -162,7 +162,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidChangeItemHeight: Event<ISessionData> = this._onDidChangeItemHeight.event;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISessionData) => boolean },
+		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISessionData) => boolean },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
@@ -255,9 +255,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = element.status.read(reader);
 			const changes = element.changes.read(reader);
-			const updatedAt = element.updatedAt.read(reader);
 			const workspace = element.workspace.read(reader);
 			const description = element.description.read(reader);
+			const timeDate = this.options.sorting() === SessionsSorting.Updated ? element.updatedAt.read(reader) : element.createdAt;
 
 			// Clear and rebuild details row
 			DOM.clearNode(template.detailsRow);
@@ -337,8 +337,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}
 			const timeEl = DOM.append(template.detailsRow, $('span.session-time'));
 			const formatTime = () => {
-				const seconds = Math.round((Date.now() - updatedAt.getTime()) / 1000);
-				return seconds < 60 ? localize('secondsDuration', "now") : fromNow(updatedAt, true);
+				const seconds = Math.round((Date.now() - timeDate.getTime()) / 1000);
+				return seconds < 60 ? localize('secondsDuration', "now") : fromNow(timeDate, true);
 			};
 			timeEl.textContent = formatTime();
 			const targetWindow = DOM.getWindow(timeEl);
@@ -658,7 +658,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const approvalModel = this._register(instantiationService.createInstance(AgentSessionApprovalModel));
 		const markdownRendererService = instantiationService.invokeFunction(accessor => accessor.get(IMarkdownRendererService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s) },
+			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s) },
 			approvalModel,
 			instantiationService,
 			contextKeyService,
@@ -1141,27 +1141,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private sortSessions(sessions: ISessionData[]): ISessionData[] {
 		const sorting = this.options.sorting();
 		return [...sessions].sort((a, b) => {
-			// Prioritize active sessions (NeedsInput first, then InProgress)
-			const aStatus = a.status.get();
-			const bStatus = b.status.get();
-			const aActive = aStatus === SessionStatus.NeedsInput || aStatus === SessionStatus.InProgress;
-			const bActive = bStatus === SessionStatus.NeedsInput || bStatus === SessionStatus.InProgress;
-			if (aActive && !bActive) {
-				return -1;
-			}
-			if (!aActive && bActive) {
-				return 1;
-			}
-			// Among active sessions, NeedsInput comes before InProgress
-			if (aActive && bActive) {
-				if (aStatus === SessionStatus.NeedsInput && bStatus !== SessionStatus.NeedsInput) {
-					return -1;
-				}
-				if (aStatus !== SessionStatus.NeedsInput && bStatus === SessionStatus.NeedsInput) {
-					return 1;
-				}
-			}
-
 			// Sort by time
 			if (sorting === SessionsSorting.Updated) {
 				return b.updatedAt.get().getTime() - a.updatedAt.get().getTime();
