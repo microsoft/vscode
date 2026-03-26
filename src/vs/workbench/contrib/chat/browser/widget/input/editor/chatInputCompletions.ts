@@ -878,6 +878,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
@@ -962,6 +963,59 @@ class BuiltinDynamicCompletions extends Disposable {
 
 			return result;
 		});
+
+		// Session Reference completion
+		const sessionWordPattern = new RegExp(`${chatVariableLeader}[^\\s]*`, 'g');
+		this.registerVariableCompletions('sessionReference', async ({ widget, range }) => {
+			if (widget.location !== ChatAgentLocation.Chat) {
+				return;
+			}
+
+			const typedWord = range.varWord?.word ?? '';
+			const sessionPrefix = `${chatVariableLeader}session`;
+			const result: CompletionList = { suggestions: [] };
+
+			if (typedWord.toLowerCase().startsWith(`${sessionPrefix}:`)) {
+				// User has typed #session: — fetch sessions and show them inline
+				const sessions = await this.chatService.getLocalSessionHistory();
+				const currentSessionResource = widget.viewModel?.sessionResource;
+				const filteredSessions = sessions
+					.filter(s => !currentSessionResource || s.sessionResource.toString() !== currentSessionResource.toString())
+					.sort((a, b) => b.lastMessageDate - a.lastMessageDate);
+
+				for (const session of filteredSessions) {
+					const text = `${sessionPrefix}:${session.title}`;
+					const dateStr = new Date(session.lastMessageDate).toLocaleString();
+					result.suggestions.push({
+						label: { label: session.title, description: dateStr },
+						filterText: `${sessionPrefix}:${session.title}`,
+						insertText: range.varWord?.endColumn === range.replace.endColumn ? `${text} ` : text,
+						range,
+						kind: CompletionItemKind.Text,
+						sortText: `z${String(Number.MAX_SAFE_INTEGER - session.lastMessageDate).padStart(20, '0')}`,
+						command: {
+							id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
+								id: session.sessionResource.toString(),
+								range: { startLineNumber: range.replace.startLineNumber, startColumn: range.replace.startColumn, endLineNumber: range.replace.endLineNumber, endColumn: range.replace.startColumn + text.length },
+								data: session.sessionResource
+							})]
+						}
+					});
+				}
+			} else {
+				// User typed # or #s etc — show single #session entry that inserts #session: and re-triggers suggest
+				result.suggestions.push({
+					label: { label: sessionPrefix, description: localize('session.description', 'Attach a chat session') },
+					filterText: sessionPrefix,
+					insertText: `${sessionPrefix}:`,
+					range,
+					kind: CompletionItemKind.Text,
+					sortText: 'z',
+					command: { id: 'editor.action.triggerSuggest', title: '' },
+				});
+			}
+			return result;
+		}, sessionWordPattern);
 
 		// Debug Events Snapshot completion
 		this.registerVariableCompletions('debugEventsSnapshot', ({ widget, range }) => {

@@ -22,12 +22,14 @@ import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInpu
 import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../attachments/chatContextPickService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../widget/input/editor/chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
 import { createDebugEventsAttachment } from '../chatDebug/chatDebugAttachment.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -63,6 +65,7 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(DebugEventsSnapshotContextValuePick)));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SessionReferenceContextPickerPick)));
 	}
 }
 
@@ -317,5 +320,44 @@ class DebugEventsSnapshotContextValuePick implements IChatContextValueItem {
 			return undefined;
 		}
 		return createDebugEventsAttachment(sessionResource, this._chatDebugService);
+	}
+}
+
+class SessionReferenceContextPickerPick implements IChatContextPickerItem {
+
+	readonly type = 'pickerPick';
+	readonly icon = Codicon.comment;
+	readonly label = localize('chatContext.sessions', 'Sessions...');
+	readonly ordinal = -500;
+
+	constructor(
+		@IChatService private readonly _chatService: IChatService,
+	) { }
+
+	isEnabled(widget: IChatWidget): boolean {
+		return widget.location === ChatAgentLocation.Chat;
+	}
+
+	asPicker(widget: IChatWidget): IChatContextPicker {
+		const currentSessionResource = widget.viewModel?.sessionResource;
+		return {
+			placeholder: localize('chatContext.sessions.placeholder', 'Select a session'),
+			picks: this._chatService.getLocalSessionHistory().then(sessions => {
+				return sessions
+					.filter(s => !currentSessionResource || s.sessionResource.toString() !== currentSessionResource.toString())
+					.sort((a, b) => b.lastMessageDate - a.lastMessageDate)
+					.map(session => ({
+						label: session.title,
+						description: new Date(session.lastMessageDate).toLocaleString(),
+						asAttachment: (): IChatRequestVariableEntry => ({
+							kind: 'sessionReference',
+							id: session.sessionResource.toString(),
+							name: session.title,
+							value: session.sessionResource,
+							icon: Codicon.comment,
+						})
+					}));
+			})
+		};
 	}
 }
