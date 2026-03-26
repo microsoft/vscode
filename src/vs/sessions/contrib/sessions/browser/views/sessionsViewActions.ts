@@ -20,8 +20,8 @@ import { SessionsCategories } from '../../../../common/categories.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from '../sessionsManagementService.js';
 import { ISessionData, SessionStatus } from '../../common/sessionData.js';
-import { IsRepositoryGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
-import { SessionsViewId as NewChatViewId } from '../../../chat/browser/newChatViewPane.js';
+import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
+import { SessionsViewId as NewChatViewId, NewChatViewPane } from '../../../chat/browser/newChatViewPane.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 
@@ -115,20 +115,20 @@ registerAction2(class SortByUpdatedAction extends Action2 {
 	}
 });
 
-registerAction2(class GroupByProjectAction extends Action2 {
+registerAction2(class GroupByWorkspaceAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsViewPane.groupByProject',
-			title: localize2('groupByProject', "Group by Project"),
+			id: 'sessionsViewPane.groupByWorkspace',
+			title: localize2('groupByWorkspace', "Group by Workspace"),
 			category: SessionsCategories.Sessions,
-			toggled: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Repository),
+			toggled: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Workspace),
 			menu: [{ id: SessionsViewFilterSubMenu, group: '2_group', order: 0 }]
 		});
 	}
 	override run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
-		view?.setGrouping(SessionsGrouping.Repository);
+		view?.setGrouping(SessionsGrouping.Workspace);
 	}
 });
 
@@ -149,51 +149,51 @@ registerAction2(class GroupByTimeAction extends Action2 {
 	}
 });
 
-//  Repository Group Capping
+//  Workspace Group Capping
 
-registerAction2(class ShowRecentSessionsAction extends Action2 {
+registerAction2(class ShowRecentWorkspaceSessionsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.showRecentSessions',
 			title: localize2('showRecentSessions', "Show Recent Sessions"),
 			category: SessionsCategories.Sessions,
-			toggled: IsRepositoryGroupCappedContext,
+			toggled: IsWorkspaceGroupCappedContext,
 			menu: [{
 				id: SessionsViewFilterSubMenu,
 				group: '3_cap',
 				order: 0,
-				when: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Repository),
+				when: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Workspace),
 			}]
 		});
 	}
 	override run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
-		view?.sessionsControl?.setRepositoryGroupCapped(true);
-		IsRepositoryGroupCappedContext.bindTo(accessor.get(IContextKeyService)).set(true);
+		view?.sessionsControl?.setWorkspaceGroupCapped(true);
+		IsWorkspaceGroupCappedContext.bindTo(accessor.get(IContextKeyService)).set(true);
 	}
 });
 
-registerAction2(class ShowAllSessionsAction extends Action2 {
+registerAction2(class ShowAllWorkspaceSessionsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.showAllSessions',
 			title: localize2('showAllSessions', "Show All Sessions"),
 			category: SessionsCategories.Sessions,
-			toggled: IsRepositoryGroupCappedContext.negate(),
+			toggled: IsWorkspaceGroupCappedContext.negate(),
 			menu: [{
 				id: SessionsViewFilterSubMenu,
 				group: '3_cap',
 				order: 1,
-				when: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Repository),
+				when: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Workspace),
 			}]
 		});
 	}
 	override run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
-		view?.sessionsControl?.setRepositoryGroupCapped(false);
-		IsRepositoryGroupCappedContext.bindTo(accessor.get(IContextKeyService)).set(false);
+		view?.sessionsControl?.setWorkspaceGroupCapped(false);
+		IsWorkspaceGroupCappedContext.bindTo(accessor.get(IContextKeyService)).set(false);
 	}
 });
 
@@ -240,17 +240,17 @@ registerAction2(class FindSessionAction extends Action2 {
 
 //  Section Actions
 
-registerAction2(class NewSessionForRepositoryAction extends Action2 {
+registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.sectionNewSession',
-			title: localize2('newSessionForRepo', "New Session"),
+			title: localize2('newSessionForWorkspace', "New Session"),
 			icon: Codicon.newSession,
 			menu: [{
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'repository'),
+				when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'),
 			}]
 		});
 	}
@@ -261,7 +261,11 @@ registerAction2(class NewSessionForRepositoryAction extends Action2 {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const viewsService = accessor.get(IViewsService);
 		sessionsManagementService.openNewSessionView();
-		await viewsService.openView(NewChatViewId, true);
+		const view = await viewsService.openView<NewChatViewPane>(NewChatViewId, true);
+		const workspace = context.sessions[0].workspace.get();
+		if (view && workspace) {
+			view.selectWorkspace({ providerId: context.sessions[0].providerId, workspace });
+		}
 	}
 });
 
@@ -380,12 +384,18 @@ registerAction2(class PinSessionAction extends Action2 {
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
+					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+				),
 			}, {
 				id: SessionItemContextMenuId,
 				group: '0_pin',
 				order: 0,
-				when: ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
+					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+				),
 			}]
 		});
 	}
@@ -409,12 +419,18 @@ registerAction2(class UnpinSessionAction extends Action2 {
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
+					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+				),
 			}, {
 				id: SessionItemContextMenuId,
 				group: '0_pin',
 				order: 0,
-				when: ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
+					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+				),
 			}]
 		});
 	}

@@ -50,6 +50,18 @@ export interface ISessionWorkspace {
 	readonly icon: ThemeIcon;
 	/** Repositories in this workspace. */
 	readonly repositories: ISessionRepository[];
+	/** Whether the session requires workspace trust to operate. */
+	readonly requiresWorkspaceTrust: boolean;
+}
+
+/**
+ * Pull request information associated with a session.
+ */
+export interface ISessionPullRequest {
+	/** URI of the pull request. */
+	readonly uri: URI;
+	/** Icon reflecting the PR state. */
+	readonly icon?: ThemeIcon;
 }
 
 /**
@@ -97,8 +109,6 @@ export interface ISessionData {
 	readonly description: IObservable<string | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
-	/** URI of the pull request associated with this session, if any. */
-	readonly pullRequestUri: IObservable<URI | undefined>;
-	/** Icon reflecting the PR state */
-	readonly pullRequestStateIcon: IObservable<ThemeIcon | undefined>;
+	/** Pull request associated with this session, if any. */
+	readonly pullRequest: IObservable<ISessionPullRequest | undefined>;
 }
