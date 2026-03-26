@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
-import { IUntypedEditorInput, EditorInputCapabilities } from '../../../../common/editor.js';
+import { IUntypedEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, SaveReason } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID } from './aiCustomizationManagement.js';
 
@@ -67,7 +67,10 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 		return this._isDirty;
 	}
 
-	override async save(): Promise<EditorInput | undefined> {
+	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
+		if (options?.reason !== undefined && options.reason !== SaveReason.EXPLICIT) {
+			return undefined;
+		}
 		if (this._saveHandler) {
 			const saved = await this._saveHandler();
 			return saved ? this : undefined;

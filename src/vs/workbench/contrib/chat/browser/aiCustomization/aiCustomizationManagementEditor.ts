@@ -1722,10 +1722,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 				saveTarget: target.target,
 			});
 
-			const input = this.input;
-			if (input instanceof AICustomizationManagementEditorInput) {
-				input.setDirty(false);
-			}
+			this._editorContentChanged = false;
+			this.updateEditorActionButton();
 
 			return true;
 		} catch (error) {
