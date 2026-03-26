@@ -11,7 +11,7 @@ This design allows new compute environments (remote agent hosts, cloud backends,
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        UI Components                            │
-│  (SessionsView, TitleBar, NewSession, ChatWidget)               │
+│  (SessionsView, TitleBar, NewSession, Changes | Terminal)       │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                 ┌───────────▼────────────┐
@@ -67,7 +67,7 @@ The common session interface exposed by all providers. It is a self-contained fa
 | `isRead` | `IObservable<boolean>` | Read/unread state |
 | `description` | `IObservable<string \| undefined>` | Status description (e.g., current agent action) |
 | `lastTurnEnd` | `IObservable<Date \| undefined>` | When the last agent turn ended |
-| `pullRequestUri` | `IObservable<URI \| undefined>` | Associated pull request URI |
+| `pullRequest` | `IObservable<ISessionPullRequest \\| undefined>` | Associated pull request |
 
 #### Supporting Types
 

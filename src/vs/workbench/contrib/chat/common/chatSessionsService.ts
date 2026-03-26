@@ -187,6 +187,13 @@ export interface IChatSession extends IDisposable {
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
 
 	/**
+	 * Event fired when the server initiates a new request (e.g. from a consumed
+	 * queued message). The consumer should create a new request+response pair in
+	 * the model and prepare to receive progress via {@link progressObs}.
+	 */
+	readonly onDidStartServerRequest?: Event<{ prompt: string }>;
+
+	/**
 	 * Editing session transferred from a previously-untitled chat session in `onDidCommitChatSessionItem`.
 	 */
 	transferredState?: {
@@ -354,7 +361,6 @@ export interface IChatSessionsService {
 	canResolveChatSession(sessionType: string): Promise<boolean>;
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 
-	hasAnySessionOptions(sessionResource: URI): boolean;
 	getSessionOptions(sessionResource: URI): ReadonlyChatSessionOptionsMap | undefined;
 	getSessionOption(sessionResource: URI, optionId: string): string | IChatSessionProviderOptionItem | undefined;
 	setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean;
