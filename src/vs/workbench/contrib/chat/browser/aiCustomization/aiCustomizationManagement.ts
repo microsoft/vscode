@@ -63,6 +63,13 @@ export const AICustomizationManagementTitleMenuId = MenuId.for('AICustomizationM
 export const AICustomizationManagementItemMenuId = MenuId.for('AICustomizationManagementEditorItem');
 
 /**
+ * Menu ID for the AI Customization Management Editor create/add button.
+ * Extensions can contribute commands here to add create actions to the section's add button dropdown.
+ * Use the `aiCustomizationManagementSection` context key to target a specific section.
+ */
+export const AICustomizationManagementCreateMenuId = MenuId.for('AICustomizationManagementCreate');
+
+/**
  * Context key for the item prompt type (e.g. 'prompt', 'agent') used in when-clause filtering.
  */
 export const AI_CUSTOMIZATION_ITEM_TYPE_KEY = 'aiCustomizationManagementItemType';
