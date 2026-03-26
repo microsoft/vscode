@@ -1774,20 +1774,26 @@ class ModelChangeTracker extends Disposable {
 				this.listeners.set(model.uri, model.onDidChangeContent(() => this.onDidPromptModelChange.fire({ uri: model.uri, promptType })));
 			}
 		};
-		const onRemove = (languageId: string, uri: URI) => {
+		const stopListening = (languageId: string, uri: URI) => {
 			const promptType = getPromptsTypeForLanguageId(languageId);
 			if (promptType !== undefined) {
 				this.listeners.get(uri)?.dispose();
 				this.listeners.delete(uri);
-				this.onDidPromptModelChange.fire({ uri, promptType });
 			}
 		};
 		this._register(modelService.onModelAdded(model => onAdd(model)));
 		this._register(modelService.onModelLanguageChanged(e => {
-			onRemove(e.oldLanguageId, e.model.uri);
+			stopListening(e.oldLanguageId, e.model.uri);
 			onAdd(e.model);
 		}));
-		this._register(modelService.onModelRemoved(model => onRemove(model.getLanguageId(), model.uri)));
+		// Model removal only cleans up the content-change listener. It does NOT
+		// fire onDidPromptModelChange because the underlying file has not changed —
+		// parseNew() falls back to fileService.readFile() when the model is gone,
+		// and file-system changes are already covered by getFileLocatorEvent().
+		// Firing here would cause a feedback loop when BoundModelReferenceCollection
+		// evicts models (50-reference cap), since the eviction triggers cache
+		// invalidation that re-opens documents and evicts more models.
+		this._register(modelService.onModelRemoved(model => stopListening(model.getLanguageId(), model.uri)));
 	}
 
 	public override dispose(): void {

@@ -16,6 +16,10 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../../../../../editor/common/languages/languageConfigurationRegistry.js';
+import { TestLanguageConfigurationService } from '../../../../../../../editor/test/common/modes/testLanguageConfigurationService.js';
+import { ITreeSitterLibraryService } from '../../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { TestTreeSitterLibraryService } from '../../../../../../../editor/test/common/services/testTreeSitterLibraryService.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
 import { ModelService } from '../../../../../../../editor/common/services/modelService.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -35,12 +39,12 @@ import { IWorkbenchEnvironmentService } from '../../../../../../services/environ
 import { IFilesConfigurationService } from '../../../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
 import { toUserDataProfile } from '../../../../../../../platform/userDataProfile/common/userDataProfile.js';
-import { TestContextService, TestUserDataProfileService, TestWorkspaceTrustManagementService } from '../../../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestTextResourcePropertiesService, TestUserDataProfileService, TestWorkspaceTrustManagementService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
+import { AGENT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
@@ -49,6 +53,13 @@ import { IPathService } from '../../../../../../services/path/common/pathService
 import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../services/search/common/search.js';
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
 import { IRemoteAgentService } from '../../../../../../services/remote/common/remoteAgentService.js';
+import { ITextResourcePropertiesService } from '../../../../../../../editor/common/services/textResourceConfiguration.js';
+import { IUndoRedoService } from '../../../../../../../platform/undoRedo/common/undoRedo.js';
+import { UndoRedoService } from '../../../../../../../platform/undoRedo/common/undoRedoService.js';
+import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../../../../platform/dialogs/test/common/testDialogService.js';
+import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../../../platform/notification/test/common/testNotificationService.js';
 import { ChatModeKind } from '../../../../common/constants.js';
 import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyService, IContextKeyChangeEvent } from '../../../../../../../platform/contextkey/common/contextkey.js';
@@ -99,8 +110,7 @@ suite('PromptsService', () => {
 		fileService = disposables.add(instaService.createInstance(FileService));
 		instaService.stub(IFileService, fileService);
 
-		const modelService = disposables.add(instaService.createInstance(ModelService));
-		instaService.stub(IModelService, modelService);
+		instaService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(testConfigService));
 		instaService.stub(ILanguageService, {
 			guessLanguageIdByFilepathOrFirstLine(uri: URI) {
 				if (uri.path.endsWith(PROMPT_FILE_EXTENSION)) {
@@ -111,9 +121,24 @@ suite('PromptsService', () => {
 					return INSTRUCTIONS_LANGUAGE_ID;
 				}
 
+				if (uri.path.endsWith('.agent.md')) {
+					return AGENT_LANGUAGE_ID;
+				}
+
 				return 'plaintext';
-			}
+			},
+			requestRichLanguageFeatures() { }
 		});
+		const testLangConfig = new TestLanguageConfigurationService();
+		disposables.add(testLangConfig);
+		instaService.stub(ILanguageConfigurationService, testLangConfig);
+		instaService.stub(ITreeSitterLibraryService, new TestTreeSitterLibraryService());
+		instaService.stub(INotificationService, new TestNotificationService());
+		instaService.stub(IDialogService, new TestDialogService());
+		const undoRedoService = instaService.createInstance(UndoRedoService);
+		instaService.stub(IUndoRedoService, undoRedoService);
+		const modelService = disposables.add(instaService.createInstance(ModelService));
+		instaService.stub(IModelService, modelService);
 		instaService.stub(ILabelService, { getUriLabel: (uri: URI) => uri.path });
 
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
@@ -1490,6 +1515,60 @@ suite('PromptsService', () => {
 			const simpleUserAgent = userAgents.find(a => a.name === 'simple-user-agent');
 			assert.ok(simpleUserAgent, 'Should find simple user agent');
 			assert.strictEqual(simpleUserAgent.agentInstructions.content, 'A simple user agent without header.');
+		});
+
+		test('model removal does not trigger onDidChangeCustomAgents', async () => {
+			// This test verifies that when a model (text document) is removed/disposed,
+			// it does NOT cause the custom agents cache to invalidate. This prevents
+			// the feedback loop where BoundModelReferenceCollection evicting models
+			// (50-reference cap) triggers repeated cache invalidation.
+
+			const rootFolder = '/model-removal-test';
+			const rootFolderUri = URI.file(rootFolder);
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const agentUri = URI.joinPath(rootFolderUri, '.github/agents/test.agent.md');
+			await mockFiles(fileService, [
+				{
+					path: agentUri.path,
+					contents: [
+						'---',
+						'description: \'Test agent\'',
+						'---',
+						'Test agent body.',
+					]
+				}
+			]);
+
+			// Initial fetch to populate cache
+			const agents = await service.getCustomAgents(CancellationToken.None);
+			assert.strictEqual(agents.length, 1);
+
+			// Create a model for the agent file (simulates vscode.workspace.openTextDocument)
+			const modelService = instaService.get(IModelService);
+			const model = modelService.createModel(
+				'---\ndescription: \'Test agent\'\n---\nTest agent body.',
+				{ languageId: AGENT_LANGUAGE_ID, onDidChange: Event.None },
+				agentUri
+			);
+
+			// Wait for model creation to propagate (onModelAdded fires change)
+			await new Promise(resolve => setTimeout(resolve, 50));
+
+			let changeCount = 0;
+			disposables.add(service.onDidChangeCustomAgents(() => {
+				changeCount++;
+			}));
+
+			// Content change SHOULD trigger onDidChangeCustomAgents
+			model.applyEdits([{ range: new Range(4, 1, 4, 17), text: 'Updated body.' }]);
+			await new Promise(resolve => setTimeout(resolve, 50));
+			assert.strictEqual(changeCount, 1, 'Content change should trigger onDidChangeCustomAgents');
+
+			// Now destroy the model (simulates BoundModelReferenceCollection eviction)
+			modelService.destroyModel(agentUri);
+			await new Promise(resolve => setTimeout(resolve, 50));
+			assert.strictEqual(changeCount, 1, 'Model removal should NOT trigger onDidChangeCustomAgents');
 		});
 	});
 
