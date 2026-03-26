@@ -19,12 +19,14 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import Severity from '../../../../base/common/severity.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { URI } from '../../../../base/common/uri.js';
 
 // Track whether warnings have been shown this VS Code session
 const shownWarnings = new Set<ChatPermissionLevel>();
 
 interface IPermissionItem {
-	readonly level: ChatPermissionLevel;
+	readonly level?: ChatPermissionLevel;
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	readonly checked: boolean;
@@ -47,10 +49,16 @@ export class NewChatPermissionPicker extends Disposable {
 		return this._currentLevel;
 	}
 
+	set permissionLevel(level: ChatPermissionLevel) {
+		this._currentLevel = level;
+		this._updateTriggerLabel(this._triggerElement);
+	}
+
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
@@ -146,11 +154,33 @@ export class NewChatPermissionPicker extends Disposable {
 			});
 		}
 
+		items.push({
+			kind: ActionListItemKind.Separator,
+			label: '',
+			disabled: false,
+		});
+		items.push({
+			kind: ActionListItemKind.Action,
+			group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.blank },
+			item: {
+				label: localize('permissions.learnMore', "Learn More about Permissions"),
+				icon: Codicon.blank,
+				checked: false,
+			},
+			label: localize('permissions.learnMore', "Learn More about Permissions"),
+			hideIcon: false,
+			disabled: false,
+		});
+
 		const triggerElement = this._triggerElement;
 		const delegate: IActionListDelegate<IPermissionItem> = {
 			onSelect: async (item) => {
 				this.actionWidgetService.hide();
-				await this._selectLevel(item.level);
+				if (item.level) {
+					await this._selectLevel(item.level);
+				} else {
+					await this.openerService.open(URI.parse('https://code.visualstudio.com/docs/copilot/agents/agent-tools#_permission-levels'));
+				}
 			},
 			onHide: () => { triggerElement.focus(); },
 		};
