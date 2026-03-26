@@ -51,7 +51,7 @@ export const SessionSectionTypeContext = new RawContextKey<string>('sessionSecti
 //#region Types
 
 export enum SessionsGrouping {
-	Repository = 'repository',
+	Workspace = 'workspace',
 	Date = 'date',
 }
 
@@ -264,11 +264,11 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				parts.push(typeIconEl);
 			}
 
-			// Workspace badge — show when not grouped by repository,
+			// Workspace badge — show when not grouped by workspace,
 			// or when the session is pinned/archived (their section headers
-			// don't carry the repository name)
+			// don't carry the workspace name)
 			if (workspace && (
-				this.options.grouping() !== SessionsGrouping.Repository ||
+				this.options.grouping() !== SessionsGrouping.Workspace ||
 				this.options.isPinned(element) ||
 				element.isArchived.read(reader)
 			)) {
@@ -494,7 +494,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		}
 
 		// Set context key for section type so toolbar actions can use when clauses
-		const sectionType = element.id.startsWith('repo:') ? 'repository' : element.id;
+		const sectionType = element.id.startsWith('workspace:') ? 'workspace' : element.id;
 		SessionSectionTypeContext.bindTo(template.contextKeyService).set(sectionType);
 		template.toolbar.context = element;
 	}
@@ -587,8 +587,8 @@ export interface ISessionsList {
 	setExcludeRead(exclude: boolean): void;
 	isExcludeRead(): boolean;
 	resetFilters(): void;
-	setRepositoryGroupCapped(capped: boolean): void;
-	isRepositoryGroupCapped(): boolean;
+	setWorkspaceGroupCapped(capped: boolean): void;
+	isWorkspaceGroupCapped(): boolean;
 }
 
 export class SessionsList extends Disposable implements ISessionsList {
@@ -599,8 +599,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private static readonly EXCLUDED_STATUSES_KEY = 'sessionsListControl.excludedStatuses';
 	private static readonly EXCLUDE_ARCHIVED_KEY = 'sessionsListControl.excludeArchived';
 	private static readonly EXCLUDE_READ_KEY = 'sessionsListControl.excludeRead';
-	private static readonly REPO_GROUP_CAPPED_KEY = 'sessionsListControl.repoGroupCapped';
-	private static readonly REPO_GROUP_LIMIT = 5;
+	private static readonly WORKSPACE_GROUP_CAPPED_KEY = 'sessionsListControl.workspaceGroupCapped';
+	private static readonly WORKSPACE_GROUP_LIMIT = 5;
 
 	private readonly listContainer: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
@@ -611,8 +611,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly excludedStatuses: Set<SessionStatus>;
 	private _excludeArchived: boolean;
 	private _excludeRead: boolean;
-	private _repoGroupCapped: boolean;
-	private readonly _expandedRepoGroups = new Set<string>();
+	private workspaceGroupCapped: boolean;
+	private readonly expandedWorkspaceGroups = new Set<string>();
 
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
 	readonly onDidUpdate: Event<void> = this._onDidUpdate.event;
@@ -644,7 +644,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// Load archived/read filter state
 		this._excludeArchived = this.storageService.getBoolean(SessionsList.EXCLUDE_ARCHIVED_KEY, StorageScope.PROFILE, true);
 		this._excludeRead = this.storageService.getBoolean(SessionsList.EXCLUDE_READ_KEY, StorageScope.PROFILE, false);
-		this._repoGroupCapped = this.storageService.getBoolean(SessionsList.REPO_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
+		this.workspaceGroupCapped = this.storageService.getBoolean(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control'));
 
@@ -711,7 +711,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return;
 			}
 			if (isSessionShowMore(element)) {
-				this._expandedRepoGroups.add(element.sectionLabel);
+				this.expandedWorkspaceGroups.add(element.sectionLabel);
 				this.update();
 				return;
 			}
@@ -790,8 +790,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		// Group remaining non-archived sessions
-		const grouped = grouping === SessionsGrouping.Repository
-			? this.groupByRepository(regular)
+		const grouped = grouping === SessionsGrouping.Workspace
+			? this.groupByWorkspace(regular)
 			: this.groupByDate(regular);
 		sections.push(...grouped);
 
@@ -803,16 +803,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const hasTodaySessions = sections.some(s => s.id === 'today' && s.sessions.length > 0);
 
 		const children: IObjectTreeElement<SessionListItem>[] = sections.map(section => {
-			const isRepoGroup = grouping === SessionsGrouping.Repository
+			const isWorkspaceGroup = grouping === SessionsGrouping.Workspace
 				&& section.id !== 'pinned' && section.id !== 'archived';
-			const isCapped = isRepoGroup && this._repoGroupCapped
-				&& !this._expandedRepoGroups.has(section.label)
-				&& section.sessions.length > SessionsList.REPO_GROUP_LIMIT;
+			const isCapped = isWorkspaceGroup && this.workspaceGroupCapped
+				&& !this.expandedWorkspaceGroups.has(section.label)
+				&& section.sessions.length > SessionsList.WORKSPACE_GROUP_LIMIT;
 
 			let sectionChildren: IObjectTreeElement<SessionListItem>[];
 			if (isCapped) {
-				const visible = section.sessions.slice(0, SessionsList.REPO_GROUP_LIMIT);
-				const remainingCount = section.sessions.length - SessionsList.REPO_GROUP_LIMIT;
+				const visible = section.sessions.slice(0, SessionsList.WORKSPACE_GROUP_LIMIT);
+				const remainingCount = section.sessions.length - SessionsList.WORKSPACE_GROUP_LIMIT;
 				sectionChildren = [
 					...visible.map(session => ({ element: session as SessionListItem })),
 					{ element: { showMore: true as const, sectionLabel: section.label, remainingCount } },
@@ -1074,25 +1074,25 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.storageService.store(SessionsList.EXCLUDE_ARCHIVED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 		this._excludeRead = false;
 		this.storageService.store(SessionsList.EXCLUDE_READ_KEY, false, StorageScope.PROFILE, StorageTarget.USER);
-		this._repoGroupCapped = true;
-		this.storageService.store(SessionsList.REPO_GROUP_CAPPED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
-		this._expandedRepoGroups.clear();
+		this.workspaceGroupCapped = true;
+		this.storageService.store(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
+		this.expandedWorkspaceGroups.clear();
 		this.update();
 	}
 
-	// Repository group capping
+	// Workspace group capping
 
-	setRepositoryGroupCapped(capped: boolean): void {
-		this._repoGroupCapped = capped;
-		this.storageService.store(SessionsList.REPO_GROUP_CAPPED_KEY, capped, StorageScope.PROFILE, StorageTarget.USER);
+	setWorkspaceGroupCapped(capped: boolean): void {
+		this.workspaceGroupCapped = capped;
+		this.storageService.store(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, capped, StorageScope.PROFILE, StorageTarget.USER);
 		if (capped) {
-			this._expandedRepoGroups.clear();
+			this.expandedWorkspaceGroups.clear();
 		}
 		this.update();
 	}
 
-	isRepositoryGroupCapped(): boolean {
-		return this._repoGroupCapped;
+	isWorkspaceGroupCapped(): boolean {
+		return this.workspaceGroupCapped;
 	}
 
 	// -- Section collapse persistence --
@@ -1165,12 +1165,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	// -- Grouping --
 
-	private groupByRepository(sessions: ISessionData[]): ISessionSection[] {
+	private groupByWorkspace(sessions: ISessionData[]): ISessionSection[] {
 		const groups = new Map<string, ISessionData[]>();
 		const order: string[] = [];
 		for (const session of sessions) {
 			const workspace = session.workspace.get();
-			const label = workspace?.label ?? localize('noProject', "No Project");
+			const label = workspace?.label ?? localize('noWorkspace', "No Workspace");
 			let group = groups.get(label);
 			if (!group) {
 				group = [];
@@ -1181,7 +1181,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		return order.map(label => ({
-			id: `repo:${label}`,
+			id: `workspace:${label}`,
 			label,
 			sessions: groups.get(label)!,
 		}));
