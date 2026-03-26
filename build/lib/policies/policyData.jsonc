@@ -170,6 +170,20 @@
             "default": true
         },
         {
+            "key": "chat.editMode.hidden",
+            "name": "DeprecatedEditModeHidden",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.112",
+            "localization": {
+                "description": {
+                    "key": "chat.editMode.hidden",
+                    "value": "When enabled, hides the Edit mode from the chat mode picker."
+                }
+            },
+            "type": "boolean",
+            "default": true
+        },
+        {
             "key": "chat.useHooks",
             "name": "ChatHooks",
             "category": "InteractiveSession",

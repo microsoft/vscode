@@ -18,6 +18,7 @@ import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatProgressContentPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { shouldShimmerForTool } from './chatToolPartUtilities.js';
 
 export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -35,15 +36,6 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 		super(toolInvocation);
 
 		this.domNode = this.createProgressPart();
-
-		// Toggle show-checkmarks class for the accessibility setting
-		const updateCheckmarks = () => this.domNode.classList.toggle('show-checkmarks', !!this.configurationService.getValue<boolean>(AccessibilityWorkbenchSettingId.ShowChatCheckmarks));
-		updateCheckmarks();
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AccessibilityWorkbenchSettingId.ShowChatCheckmarks)) {
-				updateCheckmarks();
-			}
-		}));
 	}
 
 	private createProgressPart(): HTMLElement {
@@ -114,8 +106,7 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 			this.provideScreenReaderStatus(content);
 		}
 
-		const isAskQuestionsTool = this.toolInvocation.toolId === 'copilot_askQuestions' || this.toolInvocation.toolId === 'vscode_askQuestions';
-		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, this.getIcon(), this.toolInvocation, isAskQuestionsTool ? undefined : false);
+		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, this.getIcon(), this.toolInvocation, shouldShimmerForTool(this.toolInvocation));
 	}
 
 	private getAnnouncementKey(kind: 'progress' | 'complete'): string {

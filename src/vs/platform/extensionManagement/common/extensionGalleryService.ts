@@ -1082,7 +1082,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			this.telemetryService.publicLog2<GalleryServiceEngineFallbackEvent, GalleryServiceEngineFallbackClassification>('galleryService:engineFallback', { extension: extensionId, extensionVersion: version });
 
 			const headers = { 'Accept-Encoding': 'gzip' };
-			const context = await this.getAsset(extensionId, manifestAsset, AssetType.Manifest, version, { headers });
+			const context = await this.getAsset(extensionId, manifestAsset, AssetType.Manifest, version, 'extensionGalleryService.engineVersion', { headers });
 			const manifest = await asJson<IExtensionManifest>(context);
 			if (!manifest) {
 				this.logService.error(`Manifest was not found for the extension ${extensionId} with version ${version}`);
@@ -1439,7 +1439,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				type: 'POST',
 				url: extensionsQueryApi,
 				data,
-				headers
+				headers,
+				callSite: 'extensionGalleryService.queryRawGalleryExtensions'
 			}, token);
 
 			if (context.res.statusCode && context.res.statusCode >= 400 && context.res.statusCode < 500) {
@@ -1588,7 +1589,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				type: 'GET',
 				url: uri.toString(true),
 				headers,
-				timeout: this.getRequestTimeout()
+				timeout: this.getRequestTimeout(),
+				callSite: 'extensionGalleryService.getLatestRawGalleryExtension'
 			}, token);
 
 			if (context.res.statusCode === 404) {
@@ -1686,7 +1688,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			await this.requestService.request({
 				type: 'POST',
 				url,
-				headers
+				headers,
+				callSite: 'extensionGalleryService.reportStatistic'
 			}, CancellationToken.None);
 		} catch (error) { /* Ignore */ }
 	}
@@ -1704,7 +1707,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		const activityId = extension.queryContext?.[SEARCH_ACTIVITY_HEADER_NAME];
 		const headers: IHeaders | undefined = activityId && typeof activityId === 'string' ? { [SEARCH_ACTIVITY_HEADER_NAME]: activityId } : undefined;
-		const context = await this.getAsset(extension.identifier.id, downloadAsset, AssetType.VSIX, extension.version, headers ? { headers } : undefined);
+		const context = await this.getAsset(extension.identifier.id, downloadAsset, AssetType.VSIX, extension.version, 'extensionGalleryService.download', headers ? { headers } : undefined);
 
 		try {
 			await this.fileService.writeFile(location, context.stream);
@@ -1737,7 +1740,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		this.logService.trace('ExtensionGalleryService#downloadSignatureArchive', extension.identifier.id);
 
-		const context = await this.getAsset(extension.identifier.id, extension.assets.signature, AssetType.Signature, extension.version);
+		const context = await this.getAsset(extension.identifier.id, extension.assets.signature, AssetType.Signature, extension.version, 'extensionGalleryService.signature');
 		try {
 			await this.fileService.writeFile(location, context.stream);
 		} catch (error) {
@@ -1754,7 +1757,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 	async getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string> {
 		if (extension.assets.readme) {
-			const context = await this.getAsset(extension.identifier.id, extension.assets.readme, AssetType.Details, extension.version, {}, token);
+			const context = await this.getAsset(extension.identifier.id, extension.assets.readme, AssetType.Details, extension.version, 'extensionGalleryService.readme', {}, token);
 			const content = await asTextOrError(context);
 			return content || '';
 		}
@@ -1763,7 +1766,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 	async getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest | null> {
 		if (extension.assets.manifest) {
-			const context = await this.getAsset(extension.identifier.id, extension.assets.manifest, AssetType.Manifest, extension.version, {}, token);
+			const context = await this.getAsset(extension.identifier.id, extension.assets.manifest, AssetType.Manifest, extension.version, 'extensionGalleryService.manifest', {}, token);
 			const text = await asTextOrError(context);
 			return text ? JSON.parse(text) : null;
 		}
@@ -1773,7 +1776,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	async getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation | null> {
 		const asset = extension.assets.coreTranslations.filter(t => t[0] === languageId.toUpperCase())[0];
 		if (asset) {
-			const context = await this.getAsset(extension.identifier.id, asset[1], asset[0], extension.version);
+			const context = await this.getAsset(extension.identifier.id, asset[1], asset[0], extension.version, 'extensionGalleryService.coreTranslation');
 			const text = await asTextOrError(context);
 			return text ? JSON.parse(text) : null;
 		}
@@ -1782,7 +1785,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 	async getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string> {
 		if (extension.assets.changelog) {
-			const context = await this.getAsset(extension.identifier.id, extension.assets.changelog, AssetType.Changelog, extension.version, {}, token);
+			const context = await this.getAsset(extension.identifier.id, extension.assets.changelog, AssetType.Changelog, extension.version, 'extensionGalleryService.changelog', {}, token);
 			const content = await asTextOrError(context);
 			return content || '';
 		}
@@ -1869,7 +1872,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		return result;
 	}
 
-	private async getAsset(extension: string, asset: IGalleryExtensionAsset, assetType: string, extensionVersion: string, options: IRequestOptions = {}, token: CancellationToken = CancellationToken.None): Promise<IRequestContext> {
+	private async getAsset(extension: string, asset: IGalleryExtensionAsset, assetType: string, extensionVersion: string, callSite: string, options: Omit<IRequestOptions, 'callSite'> = {}, token: CancellationToken = CancellationToken.None): Promise<IRequestContext> {
 		const commonHeaders = await this.commonHeadersPromise;
 		const baseOptions = { type: 'GET' };
 		const headers = { ...commonHeaders, ...(options.headers || {}) };
@@ -1877,7 +1880,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		const url = asset.uri;
 		const fallbackUrl = asset.fallbackUri;
-		const firstOptions = { ...options, url, timeout: this.getRequestTimeout() };
+		const firstOptions = { ...options, url, timeout: this.getRequestTimeout(), callSite };
 
 		let context;
 		try {
@@ -1923,7 +1926,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				endToEndId: this.getHeaderValue(context?.res.headers, END_END_ID_HEADER_NAME),
 			});
 
-			const fallbackOptions = { ...options, url: fallbackUrl, timeout: this.getRequestTimeout() };
+			const fallbackOptions = { ...options, url: fallbackUrl, timeout: this.getRequestTimeout(), callSite: `${callSite}.fallback` };
 			return this.requestService.request(fallbackOptions, token);
 		}
 	}
@@ -1942,7 +1945,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const context = await this.requestService.request({
 			type: 'GET',
 			url: this.extensionsControlUrl,
-			timeout: this.getRequestTimeout()
+			timeout: this.getRequestTimeout(),
+			callSite: 'extensionGalleryService.getExtensionsControlManifest'
 		}, CancellationToken.None);
 
 		if (context.res.statusCode !== 200) {

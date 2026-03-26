@@ -34,7 +34,7 @@ import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/ch
 import { ChatRequestParser } from '../../contrib/chat/common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../contrib/chat/browser/attachments/chatVariables.js';
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService/chatService.js';
-import { IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { ChatSessionOptionsMap, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
 import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
@@ -42,6 +42,7 @@ import { IExtensionService } from '../../services/extensions/common/extensions.j
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IInstructionDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
+import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -246,42 +247,13 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					const contributedSession = chatSession?.contributedChatSession;
 					let chatSessionContext: IChatSessionContextDto | undefined;
 					if (contributedSession) {
-						let chatSessionResource = contributedSession.chatSessionResource;
-						let isUntitled = contributedSession.isUntitled;
-
-						// For new untitled sessions, invoke the controller's newChatSessionItemHandler
-						// to let the extension create a proper session item before the first request.
-						if (isUntitled) {
-							const newItem = await this._chatSessionService.createNewChatSessionItem(contributedSession.chatSessionType, request, token);
-							if (newItem) {
-								chatSessionResource = newItem.resource;
-								isUntitled = false;
-
-								// Update the model's contributed session with the resolved resource
-								// so subsequent requests don't re-invoke newChatSessionItemHandler
-								// and getChatSessionFromInternalUri returns the real resource.
-								chatSession?.setContributedChatSession({
-									chatSessionType: contributedSession.chatSessionType,
-									chatSessionResource,
-									isUntitled: false,
-									initialSessionOptions: contributedSession.initialSessionOptions,
-								});
-
-								// Register alias so session-option lookups work with the new resource
-								this._chatSessionService.registerSessionResourceAlias(
-									contributedSession.chatSessionResource,
-									chatSessionResource
-								);
-							}
-						}
+						const chatSessionResource = contributedSession.chatSessionResource;
+						const isUntitled = isUntitledChatSession(chatSessionResource);
 
 						chatSessionContext = {
 							chatSessionResource,
 							isUntitled,
-							initialSessionOptions: contributedSession.initialSessionOptions?.map(o => ({
-								optionId: o.optionId,
-								value: typeof o.value === 'string' ? o.value : o.value.id,
-							})),
+							initialSessionOptions: ChatSessionOptionsMap.toStrValueArray(contributedSession.initialSessionOptions),
 						};
 					}
 					return await this._proxy.$invokeAgent(handle, request, {

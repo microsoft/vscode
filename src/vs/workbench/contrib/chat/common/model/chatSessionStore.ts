@@ -9,7 +9,7 @@ import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
-import { joinPath } from '../../../../../base/common/resources.js';
+import { isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -27,7 +27,7 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { awaitStatsForSession } from '../chat.js';
 import { IChatSessionStats, IChatSessionTiming, ResponseModelState } from '../chatService/chatService.js';
-import { ChatAgentLocation } from '../constants.js';
+import { ChatAgentLocation, ChatPermissionLevel } from '../constants.js';
 import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData } from './chatModel.js';
 import { ChatSessionOperationLog } from './chatSessionOperationLog.js';
@@ -115,7 +115,7 @@ export class ChatSessionStore extends Disposable {
 			joinPath(this.environmentService.workspaceStorageHome, newWorkspaceId, 'chatSessions');
 
 		// If the storage roots are identical, there is nothing to migrate
-		if (oldStorageRoot.toString() === newStorageRoot.toString()) {
+		if (isEqual(oldStorageRoot, newStorageRoot)) {
 			this.storageRoot = newStorageRoot;
 			return;
 		}
@@ -752,6 +752,11 @@ export interface IChatSessionEntryMetadata {
 	 * Whether this session was loaded from an external provider (eg background/cloud sessions).
 	 */
 	isExternal?: boolean;
+
+	/**
+	 * The permission level for tool auto-approval, if not default.
+	 */
+	permissionLevel?: ChatPermissionLevel;
 }
 
 function isChatSessionEntryMetadata(obj: unknown): obj is IChatSessionEntryMetadata {
@@ -836,6 +841,7 @@ async function getSessionMetadata(session: ChatModel | ISerializableChatData): P
 		stats,
 		isExternal: session instanceof ChatModel && !LocalChatSessionUri.parseLocalSessionId(session.sessionResource),
 		lastResponseState,
+		permissionLevel: session instanceof ChatModel ? session.inputModel.state.get()?.permissionLevel : undefined,
 	};
 }
 

@@ -58,7 +58,8 @@ suite('Request', () => {
 			url: `http://127.0.0.1:${port}`,
 			headers: {
 				'echo-header': 'echo-value'
-			}
+			},
+			callSite: 'request.test.GET'
 		}, CancellationToken.None);
 		assert.strictEqual(context.res.statusCode, 200);
 		assert.strictEqual(context.res.headers['content-type'], 'application/json');
@@ -74,6 +75,7 @@ suite('Request', () => {
 			type: 'POST',
 			url: `http://127.0.0.1:${port}/postpath`,
 			data: 'Some data',
+			callSite: 'request.test.POST'
 		}, CancellationToken.None);
 		assert.strictEqual(context.res.statusCode, 200);
 		assert.strictEqual(context.res.headers['content-type'], 'application/json');
@@ -91,6 +93,7 @@ suite('Request', () => {
 					type: 'GET',
 					url: `http://127.0.0.1:${port}/noreply`,
 					timeout: 123,
+					callSite: 'request.test.timeout'
 				}, CancellationToken.None);
 				assert.fail('Should fail with timeout');
 			} catch (err) {
@@ -106,6 +109,7 @@ suite('Request', () => {
 				const res = request({
 					type: 'GET',
 					url: `http://127.0.0.1:${port}/noreply`,
+					callSite: 'request.test.cancel'
 				}, source.token);
 				await new Promise(resolve => setTimeout(resolve, 100));
 				source.cancel();

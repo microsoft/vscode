@@ -592,6 +592,48 @@ suite('LanguageModelToolsService', () => {
 		await promise;
 	});
 
+	test('skipping modified-files confirmation returns the shared skip message and does not invoke the tool', async () => {
+		let invoked = false;
+		const tool = registerToolForTest(service, store, 'testModifiedFilesConfirmationSkip', {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: {
+					title: 'Confirm',
+					message: 'Choose',
+					allowAutoConfirm: false,
+				},
+				toolSpecificData: {
+					kind: 'modifiedFilesConfirmation',
+					options: ['Copy Changes', 'Move Changes'],
+					modifiedFiles: [{
+						uri: URI.parse('file:///workspace/file1.ts')
+					}]
+				}
+			}),
+			invoke: async () => {
+				invoked = true;
+				return { content: [{ kind: 'text', value: 'should not run' }] };
+			},
+		});
+
+		const sessionId = 'sessionId-modified-files-skip';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'requestId-modified-files-skip', capture });
+
+		const dto = tool.makeDto({ x: 1 }, { sessionId });
+		const promise = service.invokeTool(dto, async () => 0, CancellationToken.None);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published, 'expected ChatToolInvocation to be published');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.Skipped });
+		const result = await promise;
+
+		assert.strictEqual(invoked, false);
+		assert.deepStrictEqual(result.content, [{
+			kind: 'text',
+			value: 'The user chose to skip the tool call, they want to proceed without running it'
+		}]);
+	});
+
 	test('cancel tool call', async () => {
 		const toolBarrier = new Barrier();
 		const tool = registerToolForTest(service, store, 'testTool', {
@@ -1589,6 +1631,97 @@ suite('LanguageModelToolsService', () => {
 			CancellationToken.None
 		);
 		assert.strictEqual(result.content[0].value, 'bypass executed');
+	});
+
+	test('bypass approvals does not auto-approve tools in toolIdsThatCannotBeAutoApproved for CLI sessions', async () => {
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
+			configureServices: config => {
+				config.setUserConfiguration('chat.tools.global.autoApprove', false);
+			}
+		});
+
+		// Register a tool with the ID that should never be auto-approved
+		registerToolForTest(testService, store, 'vscode_get_modified_files_confirmation', {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: {
+					title: 'Uncommitted Changes',
+					message: 'Should these changes be included?',
+				},
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'confirmed' }] })
+		});
+
+		// Create a CLI session URI (authority = 'copilotcli' instead of 'local')
+		const sessionId = 'test-bypass-no-auto-confirm';
+		const cliSessionResource = URI.from({
+			scheme: LocalChatSessionUri.scheme,
+			authority: 'copilotcli',
+			path: '/' + sessionId
+		});
+
+		const capture: { invocation?: any } = {};
+		const fakeModel = {
+			sessionId,
+			sessionResource: cliSessionResource,
+			getRequests: () => [{ id: 'req1', modelId: 'test-model', modeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove } }],
+		} as ChatModel;
+		testChatService.addSession(fakeModel);
+		testChatService.appendProgress = (_request, progress) => {
+			capture.invocation = progress;
+		};
+
+		const resultPromise = testService.invokeTool(
+			{
+				callId: '1',
+				toolId: 'vscode_get_modified_files_confirmation',
+				tokenBudget: 100,
+				parameters: { test: true },
+				context: { sessionResource: cliSessionResource },
+			},
+			async () => 0,
+			CancellationToken.None
+		);
+
+		// The tool should NOT be auto-approved for CLI sessions — it must show confirmation UI
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'tool in toolIdsThatCannotBeAutoApproved should require confirmation for CLI sessions even with Bypass Approvals');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const result = await resultPromise;
+		assert.strictEqual(result.content[0].value, 'confirmed');
+	});
+
+	test('bypass approvals auto-approves tools in toolIdsThatCannotBeAutoApproved for local sessions', async () => {
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
+			configureServices: config => {
+				config.setUserConfiguration('chat.tools.global.autoApprove', false);
+			}
+		});
+
+		// Register a tool with the ID that cannot be auto-approved for CLI
+		const tool = registerToolForTest(testService, store, 'vscode_get_modified_files_confirmation', {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: {
+					title: 'Uncommitted Changes',
+					message: 'Should these changes be included?',
+				},
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'auto approved for local' }] })
+		});
+
+		const sessionId = 'test-bypass-local-auto-confirm';
+		stubGetSession(testChatService, sessionId, {
+			requestId: 'req1',
+			modeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove },
+		});
+
+		// For local sessions, Bypass Approvals should auto-approve even these tools
+		const result = await testService.invokeTool(
+			tool.makeDto({ test: true }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result.content[0].value, 'auto approved for local');
 	});
 
 	test('shouldAutoConfirm with basic configuration', async () => {

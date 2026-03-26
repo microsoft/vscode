@@ -27,6 +27,7 @@
 		"../../src/vscode-dts/vscode.proposed.scmMultiDiffEditor.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmTextDocument.d.ts",
 		"../../src/vscode-dts/vscode.proposed.statusBarItemTooltip.d.ts",
+		"../../src/vscode-dts/vscode.proposed.taskRunOptions.d.ts",
 		"../../src/vscode-dts/vscode.proposed.tabInputMultiDiff.d.ts",
 		"../../src/vscode-dts/vscode.proposed.tabInputTextMerge.d.ts",
 		"../../src/vscode-dts/vscode.proposed.textEditorDiffInformation.d.ts",
