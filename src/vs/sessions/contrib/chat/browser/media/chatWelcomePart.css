@@ -117,6 +117,7 @@
 	align-items: center;
 	gap: 4px;
 	min-height: 28px;
+	overflow: visible;
 }
 
 .chat-full-welcome.revealed .chat-full-welcome-local-mode {
@@ -138,6 +139,8 @@
 	align-items: center;
 	gap: 2px;
 	min-width: 0;
+	position: relative;
+	overflow: visible;
 }
 
 /* Ensure the input editor fits properly */
@@ -183,7 +186,8 @@
 }
 
 /* Picker slot needs relative positioning for the callout to anchor to */
-.sessions-chat-picker-slot.sessions-chat-workspace-picker {
+.sessions-chat-picker-slot.sessions-chat-workspace-picker,
+.sessions-chat-picker-slot.sessions-chat-branch-picker {
 	position: relative;
 	overflow: visible;
 }

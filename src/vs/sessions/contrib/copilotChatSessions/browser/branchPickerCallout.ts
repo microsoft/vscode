@@ -10,19 +10,19 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-import './media/workspacePickerCallout.css';
+import '../../chat/browser/media/workspacePickerCallout.css';
 
-const STORAGE_KEY_DISMISSED = 'sessions.workspaceCallout.dismissed';
-const STORAGE_KEY_SNOOZED = 'sessions.workspaceCallout.snoozed';
-const STORAGE_KEY_SNOOZE_UNTIL = 'sessions.workspaceCallout.snoozeUntil';
+const STORAGE_KEY_DISMISSED = 'sessions.branchCallout.dismissed';
+const STORAGE_KEY_SNOOZED = 'sessions.branchCallout.snoozed';
+const STORAGE_KEY_SNOOZE_UNTIL = 'sessions.branchCallout.snoozeUntil';
 const SNOOZE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 /**
- * A floating callout widget that appears near the workspace picker to guide
- * first-time users. Shows a brief explanation of folder vs. repo options,
+ * A floating callout widget that appears near the branch picker to guide
+ * first-time users. Shows a brief explanation of branch selection,
  * expandable FAQ items, and dismiss/snooze controls.
  */
-export class WorkspacePickerCallout extends Disposable {
+export class BranchPickerCallout extends Disposable {
 
 	private readonly _onDidDismiss = this._register(new Emitter<void>());
 	readonly onDidDismiss: Event<void> = this._onDidDismiss.event;
@@ -57,20 +57,18 @@ export class WorkspacePickerCallout extends Disposable {
 
 	/**
 	 * Renders the callout widget into the given container, floating to the
-	 * right of the workspace picker with a left-pointing pointer arrow.
+	 * right of the branch picker with a left-pointing pointer arrow.
 	 */
 	render(container: HTMLElement): HTMLElement {
 		this._renderDisposables.clear();
 		this._container?.remove();
 
-		const callout = dom.append(container, dom.$('.workspace-picker-callout'));
-		callout.style.display = 'none'; // Start hidden, shown when dropdown opens
+		const callout = dom.append(container, dom.$('.workspace-picker-callout.callout-left'));
+		callout.style.display = 'none'; // Start hidden, shown when branches load
 		this._container = callout;
 		this._renderDisposables.add({ dispose: () => callout.remove() });
 
 		// Prevent mousedown on the callout from stealing focus away from the action widget.
-		// Without this, clicking <details> summaries or buttons would blur the action widget
-		// and trigger its focusout → hide() handler before the click could register.
 		this._renderDisposables.add(dom.addDisposableListener(callout, dom.EventType.MOUSE_DOWN, e => {
 			e.preventDefault();
 		}));
@@ -104,18 +102,18 @@ export class WorkspacePickerCallout extends Disposable {
 
 		// Description paragraph
 		const desc = dom.append(body, dom.$('.workspace-picker-callout-description'));
-		desc.textContent = localize('calloutDescription', "Open a local folder you've already cloned, or pick a GitHub repo to edit without cloning.");
+		desc.textContent = localize('branchCalloutDescription', "Pick a starting branch for the agent to base its work on. Changes are made in a separate worktree, keeping your branch clean.");
 
 		// Expandable FAQ
 		const faq = dom.append(body, dom.$('.workspace-picker-callout-faq'));
 
 		this._renderFaqItem(faq,
-			localize('faqCloneQ', "How do I clone a repo?"),
-			localize('faqCloneA', "Use the command palette ({0}) and run \"Git: Clone\", then paste a repository URL. The cloned folder will appear in your file explorer and can be opened here.", 'Cmd+Shift+P'),
+			localize('faqWorktreeQ', "What is a worktree?"),
+			localize('faqWorktreeA', "A worktree is a separate checkout of your repository. The agent works in its own worktree so your local files stay untouched until you choose to merge."),
 		);
 		this._renderFaqItem(faq,
-			localize('faqWorkspaceQ', "What is a workspace?"),
-			localize('faqWorkspaceA', "A workspace is a folder (or set of folders) that the agent works against. It determines which files the agent can read and modify. Pick a folder for local projects, or a GitHub repo for remote ones."),
+			localize('faqChangeBranchQ', "Can I change branches later?"),
+			localize('faqChangeBranchA', "Yes, you can switch branches at any time from the branch picker. The agent will begin working from the new branch."),
 		);
 
 		// Accessibility: escape to dismiss

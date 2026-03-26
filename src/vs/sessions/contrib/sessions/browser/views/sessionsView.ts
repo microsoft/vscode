@@ -27,6 +27,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
+import { NewSessionCallout } from '../newSessionCallout.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -45,6 +46,8 @@ export class SessionsView extends ViewPane {
 	private viewPaneContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	sessionsControl: SessionsList | undefined;
+	private _newSessionCallout: NewSessionCallout | undefined;
+	private _newSessionCalloutShown = false;
 	private currentGrouping: SessionsGrouping = SessionsGrouping.Repository;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
 	private groupingContextKey: IContextKey | undefined;
@@ -121,7 +124,31 @@ export class SessionsView extends ViewPane {
 		const newSessionButtonContainer = DOM.append(sessionsContent, $('.agent-sessions-new-button-container'));
 		const newSessionButton = this._register(new Button(newSessionButtonContainer, { ...defaultButtonStyles, secondary: true }));
 		newSessionButton.label = localize('newSession', "New Session");
-		this._register(newSessionButton.onDidClick(() => this.sessionsManagementService.openNewSessionView()));
+		this._register(newSessionButton.onDidClick(() => {
+			this._newSessionCallout?.hide();
+			this.sessionsManagementService.openNewSessionView();
+		}));
+
+		// New Session callout (shown when user starts their first-ever agent session)
+		const callout = this._newSessionCallout = this._register(this.instantiationService.createInstance(NewSessionCallout));
+		callout.render(newSessionButtonContainer);
+		// The first onDidChangeSessions event carries the initial batch of loaded
+		// sessions. If any exist, the user is not a first-timer. If none exist,
+		// we watch for the first session to be created.
+		let isInitialLoad = true;
+		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
+			if (isInitialLoad) {
+				isInitialLoad = false;
+				// If sessions were loaded on startup, user isn't first-time
+				if (this.sessionsManagementService.getSessions().length > 0) {
+					this._newSessionCalloutShown = true;
+				}
+				return;
+			}
+			if (e.added.length > 0) {
+				this._showNewSessionCalloutIfEligible();
+			}
+		}));
 
 		// Keybinding hint inside the button
 		const keybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_SESSION);
@@ -191,6 +218,14 @@ export class SessionsView extends ViewPane {
 		if (activeSession && this.sessionsControl) {
 			this.sessionsControl.reveal(activeSession.resource);
 		}
+	}
+
+	private _showNewSessionCalloutIfEligible(): void {
+		if (this._newSessionCalloutShown || !this._newSessionCallout?.shouldShow) {
+			return;
+		}
+		this._newSessionCalloutShown = true;
+		this._newSessionCallout.show();
 	}
 
 	private readonly registeredFilterTypeIds = new Set<string>();

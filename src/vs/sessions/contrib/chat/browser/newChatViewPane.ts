@@ -45,6 +45,7 @@ import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { SessionTypePicker } from './sessionTypePicker.js';
 import { WorkspacePicker, IWorkspaceSelection } from './sessionWorkspacePicker.js';
+import { WorkspacePickerCallout } from './workspacePickerCallout.js';
 import { Menus } from '../../../browser/menus.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { SlashCommandHandler } from './slashCommands.js';
@@ -136,6 +137,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
 		this._workspacePicker = this._register(this.instantiationService.createInstance(WorkspacePicker));
+		this._workspacePickerCallout = this._register(this.instantiationService.createInstance(WorkspacePickerCallout));
 		this._sessionTypePicker = this._register(this.instantiationService.createInstance(SessionTypePicker));
 
 		// When a workspace is selected, create a new session

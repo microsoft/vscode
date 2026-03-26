@@ -12,8 +12,10 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { CopilotCLISession } from './copilotChatSessionsProvider.js';
+import { BranchPickerCallout } from './branchPickerCallout.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 
 const FILTER_THRESHOLD = 10;
@@ -42,14 +44,19 @@ export class BranchPicker extends Disposable {
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly _callout: BranchPickerCallout;
+	private _calloutDismissedForSession = false;
 	private _slotElement: HTMLElement | undefined;
 	private _triggerElement: HTMLElement | undefined;
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this._callout = this._register(instantiationService.createInstance(BranchPickerCallout));
 
 		// Watch the active session — load branches when a CopilotCLISession finishes loading
 		this._register(autorun(reader => {
@@ -105,6 +112,8 @@ export class BranchPicker extends Disposable {
 			if (defaultBranch) {
 				this._selectBranch(defaultBranch);
 			}
+
+			this._showCalloutIfEligible();
 		}).catch(() => {
 			if (!cts.token.isCancellationRequested) {
 				this._branches = [];
@@ -125,7 +134,7 @@ export class BranchPicker extends Disposable {
 	render(container: HTMLElement): void {
 		this._renderDisposables.clear();
 
-		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
+		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-branch-picker'));
 		this._slotElement = slot;
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
@@ -152,6 +161,10 @@ export class BranchPicker extends Disposable {
 		if (!this._triggerElement || this.actionWidgetService.isVisible || this._branches.length === 0) {
 			return;
 		}
+
+		// Hide callout permanently once the user opens the dropdown
+		this._callout.hide();
+		this._calloutDismissedForSession = true;
 
 		const items = this._buildItems();
 		const triggerElement = this._triggerElement;
@@ -201,6 +214,13 @@ export class BranchPicker extends Disposable {
 				throw new Error('BranchPicker requires a CopilotCLISession');
 			}
 			session.setBranch(branch);
+		}
+	}
+
+	private _showCalloutIfEligible(): void {
+		if (this._slotElement && this._callout.shouldShow && !this._calloutDismissedForSession && !this.actionWidgetService.isVisible) {
+			this._callout.render(this._slotElement);
+			this._callout.show();
 		}
 	}
 

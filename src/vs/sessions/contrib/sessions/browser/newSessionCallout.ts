@@ -10,24 +10,25 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-import './media/workspacePickerCallout.css';
+import '../../chat/browser/media/workspacePickerCallout.css';
 
-const STORAGE_KEY_DISMISSED = 'sessions.workspaceCallout.dismissed';
-const STORAGE_KEY_SNOOZED = 'sessions.workspaceCallout.snoozed';
-const STORAGE_KEY_SNOOZE_UNTIL = 'sessions.workspaceCallout.snoozeUntil';
+const STORAGE_KEY_DISMISSED = 'sessions.newSessionCallout.dismissed';
+const STORAGE_KEY_SNOOZED = 'sessions.newSessionCallout.snoozed';
+const STORAGE_KEY_SNOOZE_UNTIL = 'sessions.newSessionCallout.snoozeUntil';
 const SNOOZE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 /**
- * A floating callout widget that appears near the workspace picker to guide
- * first-time users. Shows a brief explanation of folder vs. repo options,
+ * A floating callout widget that appears near the "New Session" button to guide
+ * users after their first agent session. Shows how to start new sessions,
  * expandable FAQ items, and dismiss/snooze controls.
  */
-export class WorkspacePickerCallout extends Disposable {
+export class NewSessionCallout extends Disposable {
 
 	private readonly _onDidDismiss = this._register(new Emitter<void>());
 	readonly onDidDismiss: Event<void> = this._onDidDismiss.event;
 
 	private _container: HTMLElement | undefined;
+	private _anchorElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 
 	constructor(
@@ -56,21 +57,22 @@ export class WorkspacePickerCallout extends Disposable {
 	}
 
 	/**
-	 * Renders the callout widget into the given container, floating to the
-	 * right of the workspace picker with a left-pointing pointer arrow.
+	 * Renders the callout widget. The callout uses fixed positioning anchored
+	 * to the given container element so it can break out of overflow: hidden
+	 * parent chains (e.g. the sidebar).
 	 */
-	render(container: HTMLElement): HTMLElement {
+	render(anchorElement: HTMLElement): HTMLElement {
 		this._renderDisposables.clear();
 		this._container?.remove();
+		this._anchorElement = anchorElement;
 
-		const callout = dom.append(container, dom.$('.workspace-picker-callout'));
-		callout.style.display = 'none'; // Start hidden, shown when dropdown opens
+		// Append to body so it's not clipped by sidebar overflow
+		const callout = dom.append(anchorElement.ownerDocument.body, dom.$('.workspace-picker-callout.callout-new-session'));
+		callout.style.display = 'none'; // Start hidden
 		this._container = callout;
 		this._renderDisposables.add({ dispose: () => callout.remove() });
 
-		// Prevent mousedown on the callout from stealing focus away from the action widget.
-		// Without this, clicking <details> summaries or buttons would blur the action widget
-		// and trigger its focusout → hide() handler before the click could register.
+		// Prevent mousedown on the callout from stealing focus.
 		this._renderDisposables.add(dom.addDisposableListener(callout, dom.EventType.MOUSE_DOWN, e => {
 			e.preventDefault();
 		}));
@@ -104,18 +106,18 @@ export class WorkspacePickerCallout extends Disposable {
 
 		// Description paragraph
 		const desc = dom.append(body, dom.$('.workspace-picker-callout-description'));
-		desc.textContent = localize('calloutDescription', "Open a local folder you've already cloned, or pick a GitHub repo to edit without cloning.");
+		desc.textContent = localize('newSessionCalloutDescription', "To start an agent session in another repo or another agent session in this repo, click new session.");
 
 		// Expandable FAQ
 		const faq = dom.append(body, dom.$('.workspace-picker-callout-faq'));
 
 		this._renderFaqItem(faq,
-			localize('faqCloneQ', "How do I clone a repo?"),
-			localize('faqCloneA', "Use the command palette ({0}) and run \"Git: Clone\", then paste a repository URL. The cloned folder will appear in your file explorer and can be opened here.", 'Cmd+Shift+P'),
+			localize('faqSelectBranchQ', "How do I select another branch in this repo?"),
+			localize('faqSelectBranchA', "Open a new session, pick the same repo, then use the branch picker to choose a different starting branch."),
 		);
 		this._renderFaqItem(faq,
-			localize('faqWorkspaceQ', "What is a workspace?"),
-			localize('faqWorkspaceA', "A workspace is a folder (or set of folders) that the agent works against. It determines which files the agent can read and modify. Pick a folder for local projects, or a GitHub repo for remote ones."),
+			localize('faqAgentWorkingQ', "How do I know if an agent is working or not?"),
+			localize('faqAgentWorkingA', "Check the session list on the left. Active sessions show a progress indicator, and you'll see status updates in real time."),
 		);
 
 		// Accessibility: escape to dismiss
@@ -130,17 +132,21 @@ export class WorkspacePickerCallout extends Disposable {
 	}
 
 	/**
-	 * Shows the callout (used when the dropdown opens).
+	 * Shows the callout, positioning it relative to the anchor element.
 	 */
 	show(): void {
-		if (this._container) {
+		if (this._container && this._anchorElement) {
+			const rect = this._anchorElement.getBoundingClientRect();
+			this._container.style.position = 'fixed';
+			this._container.style.top = `${rect.top}px`;
+			this._container.style.left = `${rect.right + 10}px`;
 			this._container.style.display = '';
 			this._container.classList.remove('hiding');
 		}
 	}
 
 	/**
-	 * Hides the callout without dismissing (used when the dropdown closes).
+	 * Hides the callout without dismissing.
 	 */
 	hide(): void {
 		if (this._container) {

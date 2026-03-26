@@ -352,6 +352,12 @@ registerAction2(class ResetAgentSessionsFirstTimeUse extends Action2 {
 		storageService.remove('sessions.workspaceCallout.dismissed', StorageScope.PROFILE);
 		storageService.remove('sessions.workspaceCallout.snoozed', StorageScope.PROFILE);
 		storageService.remove('sessions.workspaceCallout.snoozeUntil', StorageScope.PROFILE);
+		storageService.remove('sessions.branchCallout.dismissed', StorageScope.PROFILE);
+		storageService.remove('sessions.branchCallout.snoozed', StorageScope.PROFILE);
+		storageService.remove('sessions.branchCallout.snoozeUntil', StorageScope.PROFILE);
+		storageService.remove('sessions.newSessionCallout.dismissed', StorageScope.PROFILE);
+		storageService.remove('sessions.newSessionCallout.snoozed', StorageScope.PROFILE);
+		storageService.remove('sessions.newSessionCallout.snoozeUntil', StorageScope.PROFILE);
 
 		// Close all editors so the welcome page runner sees no active editor on reload
 		await Promise.all(editorGroupsService.groups.map(g => g.closeAllEditors()));
