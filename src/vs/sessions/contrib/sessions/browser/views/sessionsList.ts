@@ -28,6 +28,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IStyleOverride, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISessionData, ISessionWorkspace, SessionStatus } from '../../common/sessionData.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
@@ -35,14 +36,17 @@ import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Separator } from '../../../../../base/common/actions.js';
+import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 
 const $ = DOM.$;
 
 export const SessionItemToolbarMenuId = new MenuId('SessionItemToolbar');
 export const SessionItemContextMenuId = new MenuId('SessionItemContextMenu');
+export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const IsSessionArchivedContext = new RawContextKey<boolean>('sessionItem.isArchived', false);
 export const IsSessionReadContext = new RawContextKey<boolean>('sessionItem.isRead', true);
+export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
 
 //#region Types
 
@@ -215,20 +219,22 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.container.classList.toggle('archived', element.isArchived.read(reader));
 		}));
 
+
 		// Icon — reactive based on status, read state, and PR
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = element.status.read(reader);
 			const isRead = element.isRead.read(reader);
 			const isArchived = element.isArchived.read(reader);
-			const pullRequestUri = element.pullRequestUri.read(reader);
+			const pullRequestStateIcon = element.pullRequestStateIcon.read(reader);
 			DOM.clearNode(template.iconContainer);
-			const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, !!pullRequestUri, element.icon);
-			DOM.append(template.iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
-			template.iconContainer.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
-			template.iconContainer.classList.toggle('session-icon-active', sessionStatus === SessionStatus.InProgress);
-			template.iconContainer.classList.toggle('session-icon-error', sessionStatus === SessionStatus.Error);
-			template.iconContainer.classList.toggle('session-icon-unread', !isRead && !isArchived && sessionStatus !== SessionStatus.InProgress && sessionStatus !== SessionStatus.NeedsInput && sessionStatus !== SessionStatus.Error);
-			template.iconContainer.classList.toggle('session-icon-pr', !!pullRequestUri && sessionStatus === SessionStatus.Completed);
+			const hasPrIcon = !!pullRequestStateIcon;
+			const icon = hasPrIcon ? pullRequestStateIcon : this.getStatusIcon(sessionStatus, isRead, isArchived);
+			const iconSpan = DOM.append(template.iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
+			iconSpan.style.color = icon.color ? asCssVariable(icon.color.id) : '';
+			template.iconContainer.classList.toggle('session-icon-pulse', !hasPrIcon && sessionStatus === SessionStatus.NeedsInput);
+			template.iconContainer.classList.toggle('session-icon-active', !hasPrIcon && sessionStatus === SessionStatus.InProgress);
+			template.iconContainer.classList.toggle('session-icon-error', !hasPrIcon && sessionStatus === SessionStatus.Error);
+			template.iconContainer.classList.toggle('session-icon-unread', !hasPrIcon && !isRead && !isArchived && sessionStatus !== SessionStatus.InProgress && sessionStatus !== SessionStatus.NeedsInput && sessionStatus !== SessionStatus.Error);
 		}));
 
 		// Title — reactive
@@ -251,9 +257,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const parts: HTMLElement[] = [];
 
 			// Session type icon in details row
-			const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
-			DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(element.icon)}`));
-			parts.push(typeIconEl);
+			// Disabling background icon - hacky but couldn't figure out how to do it from the new provider
+			if (element.sessionType !== AgentSessionProviders.Background) {
+				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
+				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(element.icon)}`));
+				parts.push(typeIconEl);
+			}
 
 			// Workspace badge — show when not grouped by repository
 			if (workspace && this.options.grouping() !== SessionsGrouping.Repository) {
@@ -386,15 +395,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}));
 	}
 
-	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, hasPR: boolean, _defaultIcon: ThemeIcon): ThemeIcon {
+	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean): ThemeIcon {
 		switch (status) {
 			case SessionStatus.InProgress: return Codicon.sessionInProgress;
 			case SessionStatus.NeedsInput: return Codicon.circleFilled;
 			case SessionStatus.Error: return Codicon.error;
 			default:
-				if (hasPR) {
-					return Codicon.gitPullRequest;
-				}
 				if (!isRead && !isArchived) {
 					return Codicon.circleFilled;
 				}
@@ -435,19 +441,36 @@ interface ISessionSectionTemplate {
 	readonly container: HTMLElement;
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
+	readonly toolbar: MenuWorkbenchToolBar;
+	readonly contextKeyService: IContextKeyService;
+	readonly disposables: DisposableStore;
 }
 
 class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionSectionTemplate> {
 	static readonly TEMPLATE_ID = 'session-section';
 	readonly templateId = SessionSectionRenderer.TEMPLATE_ID;
 
-	constructor(private readonly hideSectionCount: boolean) { }
+	constructor(
+		private readonly hideSectionCount: boolean,
+		private readonly instantiationService: IInstantiationService,
+		private readonly contextKeyService: IContextKeyService,
+	) { }
 
 	renderTemplate(container: HTMLElement): ISessionSectionTemplate {
+		const disposables = new DisposableStore();
+
 		container.classList.add('session-section');
 		const label = DOM.append(container, $('span.session-section-label'));
 		const count = DOM.append(container, $('span.session-section-count'));
-		return { container, label, count };
+		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
+
+		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
+		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+		const toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, SessionSectionToolbarMenuId, {
+			menuOptions: { shouldForwardArgs: true },
+		}));
+
+		return { container, label, count, toolbar, contextKeyService, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -463,9 +486,16 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			template.count.textContent = String(element.sessions.length);
 			template.count.style.display = '';
 		}
+
+		// Set context key for section type so toolbar actions can use when clauses
+		const sectionType = element.id.startsWith('repo:') ? 'repository' : element.id;
+		SessionSectionTypeContext.bindTo(template.contextKeyService).set(sectionType);
+		template.toolbar.context = element;
 	}
 
-	disposeTemplate(_template: ISessionSectionTemplate): void { }
+	disposeTemplate(template: ISessionSectionTemplate): void {
+		template.disposables.dispose();
+	}
 }
 
 //#endregion
@@ -631,7 +661,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			new SessionsTreeDelegate(approvalModel),
 			[
 				sessionRenderer,
-				new SessionSectionRenderer(true /* hideSectionCount */),
+				new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService),
 				showMoreRenderer,
 			],
 			{

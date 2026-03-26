@@ -8,6 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../platform/list/browser/listService.js';
 import { ChatArtifactsWidget } from '../../../contrib/chat/browser/widget/chatArtifactsWidget.js';
@@ -36,6 +37,7 @@ function renderArtifactsWidget(context: ComponentFixtureContext, artifacts: ICha
 			reg.define(IListService, ListService);
 			reg.defineInstance(IChatArtifactsService, createMockArtifactsService(artifacts));
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() { override onDidFilesChange = Event.None; override onDidRunOperation = Event.None; }());
+			reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
 		},
 	});
 
@@ -56,6 +58,7 @@ function renderInChatInputPart(context: ComponentFixtureContext, artifacts: ICha
 			reg.define(IListService, ListService);
 			reg.defineInstance(IChatArtifactsService, createMockArtifactsService(artifacts));
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() { override onDidFilesChange = Event.None; override onDidRunOperation = Event.None; }());
+			reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
 		},
 	});
 
@@ -80,6 +83,14 @@ function renderInChatInputPart(context: ComponentFixtureContext, artifacts: ICha
 	const widget = disposableStore.add(instantiationService.createInstance(ChatArtifactsWidget));
 	widget.render(URI.parse('chat-session:test-session'));
 	inputPart.artifactsContainer.appendChild(widget.domNode);
+}
+
+function renderArtifactsWidgetExpanded(context: ComponentFixtureContext, artifacts: IChatArtifact[]): void {
+	renderArtifactsWidget(context, artifacts);
+
+	// Click the header button to expand the widget
+	const expandButton = context.container.querySelector<HTMLElement>('.chat-artifacts-expand .monaco-button');
+	expandButton?.click();
 }
 
 // ============================================================================
@@ -127,5 +138,13 @@ export default defineThemedFixtureGroup({ path: 'chat/artifacts/' }, {
 
 	InChatInputMultiple: defineComponentFixture({
 		render: context => renderInChatInputPart(context, multipleArtifacts),
+	}),
+
+	MultipleArtifactsExpanded: defineComponentFixture({
+		render: context => renderArtifactsWidgetExpanded(context, multipleArtifacts),
+	}),
+
+	ManyArtifactsExpanded: defineComponentFixture({
+		render: context => renderArtifactsWidgetExpanded(context, manyArtifacts),
 	}),
 });
