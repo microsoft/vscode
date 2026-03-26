@@ -9,6 +9,7 @@ import { IIconLabelValueOptions, IconLabel } from '../../../../base/browser/ui/i
 import { IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { IDataSource, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore, createMatches } from '../../../../base/common/filters.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -124,12 +125,31 @@ class CustomEditorOutlineRenderer implements ITreeRenderer<CustomEditorOutlineEn
 
 			const menu = template.elementDisposables.add(this._menuService.createMenu(MenuId.CustomEditorOutlineActionMenu, scopedContextKeyService));
 			const menuArg = { id: entry.id, uri: this._resource };
+
+			// same fix as in notebookOutline setupToolbarListeners re #103926
+			let dropdownIsVisible = false;
+			let deferredUpdate: (() => void) | undefined;
+
 			const actions = getActionBarActions(menu.getActions({ shouldForwardArgs: true, arg: menuArg }), g => /^inline/.test(g));
 			toolbar.setActions(actions.primary, actions.secondary);
 
 			template.elementDisposables.add(menu.onDidChange(() => {
 				const actions = getActionBarActions(menu.getActions({ shouldForwardArgs: true, arg: menuArg }), g => /^inline/.test(g));
+				if (dropdownIsVisible) {
+					deferredUpdate = () => toolbar.setActions(actions.primary, actions.secondary);
+					return;
+				}
 				toolbar.setActions(actions.primary, actions.secondary);
+			}));
+
+			template.elementDisposables.add(toolbar.onDidChangeDropdownVisibility(visible => {
+				dropdownIsVisible = visible;
+				if (deferredUpdate && !visible) {
+					disposableTimeout(() => {
+						deferredUpdate?.();
+						deferredUpdate = undefined;
+					}, 0, template.elementDisposables);
+				}
 			}));
 		}
 	}
@@ -370,6 +390,7 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 	dispose(): void {
 		this._loadCts?.cancel();
 		this._loadCts?.dispose();
+		this._providerService.releaseResource(this._viewType, this._resource);
 		this._disposables.dispose();
 		this._onDidChange.dispose();
 	}

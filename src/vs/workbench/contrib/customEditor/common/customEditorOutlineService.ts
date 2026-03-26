@@ -38,6 +38,7 @@ export interface ICustomEditorOutlineProviderService {
 
 	registerProvider(viewType: string): IDisposable;
 	unregisterProvider(viewType: string): void;
+	releaseResource(viewType: string, resource: URI): void;
 	fireDidChangeOutline(viewType: string, resource: URI): void;
 	fireDidChangeActiveItem(viewType: string, resource: URI, itemId: string | undefined): void;
 }

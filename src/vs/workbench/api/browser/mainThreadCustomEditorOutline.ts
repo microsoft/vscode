@@ -64,6 +64,15 @@ class CustomEditorOutlineProviderEntry {
 		this.getOrCreateResourceEntry(resource).fireDidChangeActiveItem(itemId);
 	}
 
+	removeResourceEntry(resource: URI): void {
+		const key = resource.toString();
+		const entry = this._resourceEntries.get(key);
+		if (entry) {
+			entry.dispose();
+			this._resourceEntries.delete(key);
+		}
+	}
+
 	dispose(): void {
 		for (const entry of this._resourceEntries.values()) {
 			entry.dispose();
@@ -139,6 +148,10 @@ class CustomEditorOutlineProviderService extends Disposable implements ICustomEd
 	unregisterProvider(viewType: string): void {
 		this._entries.deleteAndDispose(viewType);
 		this._onDidChange.fire();
+	}
+
+	releaseResource(viewType: string, resource: URI): void {
+		this._entries.get(viewType)?.removeResourceEntry(resource);
 	}
 
 	fireDidChangeOutline(viewType: string, resource: URI): void {
