@@ -110,7 +110,7 @@ export class SetArtifactsTool implements IToolImpl {
 			artifacts.push({ label: a.label, uri, type: a.type });
 		}
 
-		this._chatArtifactsService.setArtifacts(chatSessionResource, artifacts);
+		this._chatArtifactsService.getArtifacts(chatSessionResource).set(artifacts);
 
 		return {
 			content: [{ kind: 'text', value: localize('tool.setArtifacts.success', "Set {0} artifact(s)", artifacts.length) }]
