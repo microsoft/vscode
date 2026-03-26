@@ -442,7 +442,7 @@ The `SidebarPart` includes a footer section (35px height) positioned below the p
 
 On macOS native with custom titlebar, the sidebar title area includes a traffic light spacer (70px) to push content past the system window controls. The spacer is hidden in fullscreen mode and is not created when using native titlebar (since the OS renders traffic lights in its own title bar).
 
-The sessions appear animation keeps the sidebar container, title area, and footer visually pinned. Only the sidebar body (`.part.sidebar > .content`) animates in with the left-to-right slide/fade effect, so the header actions do not shift during reveal.
+The sessions appear animation applies only to the sidebar body (`.part.sidebar > .content`). The sidebar container, title area, toolbar actions, and footer do not animate during reveal, so the header region remains completely static while the body slides/fades in.
 
 ---
 
@@ -642,6 +642,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-03-26 | Removed the remaining sidebar header/footer motion during reveal by limiting the appear animation to `.part.sidebar > .content` and disabling transitions/animations in the sidebar title/toolbar/footer region |
 | 2026-03-26 | Updated the sessions sidebar appear animation so the sidebar title/header and footer stay fixed while only the body content (`.part.sidebar > .content`) slides/fades in during reveal |
 | 2026-03-02 | Fixed macOS sidebar traffic light spacer to only render with custom titlebar; added `!hasNativeTitlebar()` guard to `SidebarPart.createTitleArea()` so the 70px spacer is not created when using native titlebar (traffic lights are in the OS title bar, not overlapping the sidebar) |
 | 2026-02-20 | Replaced custom `EditorModal` with standard `ModalEditorPart` via `MODAL_GROUP`; main editor part created but hidden; changed `workbench.editor.useModal` from boolean to enum (`off`/`some`/`all`); sessions config uses `all`; removed `editorModal.ts` and editor modal CSS |

@@ -181,13 +181,6 @@
 		background 250ms ease-out;
 }
 
-/* Sidebar keeps its title/footer pinned while its body content animates */
-.agent-sessions-workbench .part.sidebar {
-	transition:
-		border-color 250ms ease-out,
-		background 250ms ease-out;
-}
-
 .agent-sessions-workbench .part.sidebar > .content {
 	transition:
 		opacity 250ms ease-out,
@@ -235,10 +228,6 @@
 	.agent-sessions-workbench .part.auxiliarybar,
 	.agent-sessions-workbench .part.panel,
 	.agent-sessions-workbench .part.chatbar {
-		transition: none;
-	}
-
-	.agent-sessions-workbench .part.sidebar {
 		transition: none;
 	}
 
