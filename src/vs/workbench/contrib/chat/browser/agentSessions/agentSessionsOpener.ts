@@ -97,7 +97,7 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 
 		let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
 		if (openOptions?.sideBySide) {
-			target = ACTIVE_GROUP;
+			target = SIDE_GROUP;
 		} else {
 			target = ChatViewPaneTarget;
 		}
