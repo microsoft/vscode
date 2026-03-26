@@ -611,9 +611,9 @@ export class UnchangedRegion {
 		const top = lineNumber + 1 - (this.modifiedLineNumber + this._visibleLineCountTop.get());
 		const bottom = (this.modifiedLineNumber - this._visibleLineCountBottom.get() + this.lineCount) - lineNumber;
 		if (preference === RevealPreference.FromCloserSide && top < bottom || preference === RevealPreference.FromTop) {
-			this._visibleLineCountTop.set(this._visibleLineCountTop.get() + top, tx);
+			this._visibleLineCountTop.set(Math.min(this._visibleLineCountTop.get() + top, this.getMaxVisibleLineCountTop()), tx);
 		} else {
-			this._visibleLineCountBottom.set(this._visibleLineCountBottom.get() + bottom, tx);
+			this._visibleLineCountBottom.set(Math.min(this._visibleLineCountBottom.get() + bottom, this.getMaxVisibleLineCountBottom()), tx);
 		}
 	}
 
