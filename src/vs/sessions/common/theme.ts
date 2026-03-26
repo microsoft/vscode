@@ -6,7 +6,6 @@
 import { localize } from '../../nls.js';
 import { getColorRegistry, registerColor, transparent } from '../../platform/theme/common/colorUtils.js';
 import { contrastBorder, iconForeground } from '../../platform/theme/common/colorRegistry.js';
-import { Color } from '../../base/common/color.js';
 import { buttonBackground } from '../../platform/theme/common/colors/inputColors.js';
 import { editorBackground } from '../../platform/theme/common/colors/editorColors.js';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../workbench/common/theme.js';
@@ -14,21 +13,35 @@ import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../.
 // Sessions sidebar background color
 export const sessionsSidebarBackground = registerColor(
 	'sessionsSidebar.background',
-	SIDE_BAR_BACKGROUND,
+	editorBackground,
 	localize('sessionsSidebar.background', 'Background color of the sidebar view in the agent sessions window.')
 );
 
-// Sessions sidebar border color
-export const sessionsSidebarBorder = registerColor(
-	'sessionsSidebar.border',
-	{ dark: Color.fromHex('#808080').transparent(0.35), light: Color.fromHex('#808080').transparent(0.35), hcDark: contrastBorder, hcLight: contrastBorder },
-	localize('sessionsSidebar.border', 'Border color of the sidebar in the agent sessions window.')
+// Sessions auxiliary bar background color
+export const sessionsAuxiliaryBarBackground = registerColor(
+	'sessionsAuxiliaryBar.background',
+	SIDE_BAR_BACKGROUND,
+	localize('sessionsAuxiliaryBar.background', 'Background color of the auxiliary bar in the agent sessions window.')
+);
+
+// Sessions panel background color
+export const sessionsPanelBackground = registerColor(
+	'sessionsPanel.background',
+	SIDE_BAR_BACKGROUND,
+	localize('sessionsPanel.background', 'Background color of the panel in the agent sessions window.')
+);
+
+// Sessions chat bar background color
+export const sessionsChatBarBackground = registerColor(
+	'sessionsChatBar.background',
+	SIDE_BAR_BACKGROUND,
+	localize('sessionsChatBar.background', 'Background color of the chat bar in the agent sessions window.')
 );
 
 // Sessions sidebar header colors
 export const sessionsSidebarHeaderBackground = registerColor(
 	'sessionsSidebarHeader.background',
-	SIDE_BAR_BACKGROUND,
+	sessionsSidebarBackground,
 	localize('sessionsSidebarHeader.background', 'Background color of the sidebar header area in the agent sessions window.')
 );
 
@@ -41,7 +54,7 @@ export const sessionsSidebarHeaderForeground = registerColor(
 // Chat bar title colors
 export const chatBarTitleBackground = registerColor(
 	'chatBarTitle.background',
-	SIDE_BAR_BACKGROUND,
+	sessionsSidebarBackground,
 	localize('chatBarTitle.background', 'Background color of the chat bar title area in the agent sessions window.')
 );
 

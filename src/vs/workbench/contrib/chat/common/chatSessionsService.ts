@@ -188,6 +188,13 @@ export interface IChatSession extends IDisposable {
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
 
 	/**
+	 * Event fired when the server initiates a new request (e.g. from a consumed
+	 * queued message). The consumer should create a new request+response pair in
+	 * the model and prepare to receive progress via {@link progressObs}.
+	 */
+	readonly onDidStartServerRequest?: Event<{ prompt: string }>;
+
+	/**
 	 * Editing session transferred from a previously-untitled chat session in `onDidCommitChatSessionItem`.
 	 */
 	transferredState?: {
@@ -283,6 +290,26 @@ export namespace ChatSessionOptionsMap {
  */
 export type ReadonlyChatSessionOptionsMap = ReadonlyMap<string, string | IChatSessionProviderOptionItem>;
 
+export interface IChatSessionCustomizationItem {
+	readonly label: string;
+	readonly description?: string;
+	readonly uri: URI;
+	readonly storageLocation: number;
+	readonly icon?: ThemeIcon;
+}
+
+export interface IChatSessionCustomizationItemGroup {
+	readonly id: string;
+	readonly items: IChatSessionCustomizationItem[];
+	readonly commands?: readonly { readonly id: string; readonly title: string; readonly arguments?: readonly unknown[] }[];
+	readonly itemCommands?: readonly { readonly id: string; readonly title: string; readonly arguments?: readonly unknown[] }[];
+}
+
+export interface IChatSessionCustomizationsProvider {
+	readonly onDidChangeCustomizations: Event<void>;
+	provideCustomizations(token: CancellationToken): Promise<IChatSessionCustomizationItemGroup[] | undefined>;
+}
+
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
 
@@ -337,7 +364,6 @@ export interface IChatSessionsService {
 	canResolveChatSession(sessionType: string): Promise<boolean>;
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 
-	hasAnySessionOptions(sessionResource: URI): boolean;
 	getSessionOptions(sessionResource: URI): ReadonlyChatSessionOptionsMap | undefined;
 	getSessionOption(sessionResource: URI, optionId: string): string | IChatSessionProviderOptionItem | undefined;
 	setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean;
@@ -408,6 +434,13 @@ export interface IChatSessionsService {
 	 * are redirected to the canonical (untitled) resource in the internal session map.
 	 */
 	registerSessionResourceAlias(untitledResource: URI, realResource: URI): void;
+
+	// #region Customizations provider support
+	readonly onDidChangeCustomizations: Event<{ readonly chatSessionType: string }>;
+	registerCustomizationsProvider(chatSessionType: string, provider: IChatSessionCustomizationsProvider): IDisposable;
+	hasCustomizationsProvider(chatSessionType: string): boolean;
+	getCustomizations(chatSessionType: string, token: CancellationToken): Promise<IChatSessionCustomizationItemGroup[] | undefined>;
+	// #endregion
 }
 
 export function isSessionInProgressStatus(state: ChatSessionStatus): boolean {
