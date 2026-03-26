@@ -583,7 +583,6 @@ export interface ILanguageModelToolsService {
 	// tool names in prompt and agent files ('full reference names')
 	getFullReferenceNames(): Iterable<string>;
 	getFullReferenceName(tool: IToolData, toolSet?: IToolSet): string;
-	getFullReferenceNameById(toolId: string): string | undefined;
 	getToolByFullReferenceName(fullReferenceName: string): IToolData | IToolSet | undefined;
 	getDeprecatedFullReferenceNames(): Map<string, Set<string>>;
 
