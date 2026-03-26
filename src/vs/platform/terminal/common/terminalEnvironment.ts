@@ -65,9 +65,9 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 			break;
 	}
 
-	// Remove dangerous characters except single and double quotes, which we'll escape properly
-	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<]/g;
-	newPath = newPath.replace(bannedChars, '');
+	// Special characters are safe inside single quotes in POSIX shells
+	// (everything is literal except ' itself). Rather than stripping them,
+	// we rely on the quoting below to make the path safe.
 
 	// Apply shell-specific escaping based on quote content
 	if (newPath.includes('\'') && newPath.includes('"')) {
