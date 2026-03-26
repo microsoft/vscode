@@ -576,6 +576,22 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	//#endregion
 
 	private registerControlsListeners(sessionsControl: AgentSessionsControl, chatWidget: ChatWidget, welcomeController: ChatViewWelcomeController): void {
+		this._register(chatWidget.onDidChangeViewModel(({ previousSessionResource, currentSessionResource }) => {
+			this.titleControl?.update(chatWidget.viewModel?.model);
+			this.updateActions();
+
+			if (currentSessionResource) {
+				this.viewState.sessionResource = currentSessionResource;
+				void this.updateWidgetLockState(currentSessionResource);
+			}
+
+			if (previousSessionResource && !isEqual(previousSessionResource, currentSessionResource)) {
+				const oldSession = this.agentSessionsService.model.getSession(previousSessionResource);
+				if (oldSession && !oldSession.isMarkedUnread()) {
+					oldSession.setRead(true);
+				}
+			}
+		}));
 
 		// Sessions control visibility is impacted by multiple things:
 		// - chat widget being in empty state or showing a chat
@@ -703,7 +719,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true): Promise<IChatModel | undefined> {
-		const oldModelResource = this.modelRef.value?.object.sessionResource;
 		this.modelRef.value = undefined;
 
 		let ref: IChatModelReference | undefined;
@@ -725,39 +740,23 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const model = ref?.object;
 
 		if (model) {
-			await this.updateWidgetLockState(getChatSessionType(model.sessionResource)); // Update widget lock state based on session type
-
 			if (token.isCancellationRequested) {
 				this.modelRef.value = undefined;
 				return undefined;
 			}
-
-			// remember as model to restore in view state
-			this.viewState.sessionResource = model.sessionResource;
 		}
 
 		this._widget.setModel(model);
 
-		// Update title control
-		this.titleControl?.update(model);
-
-		// Update the toolbar context with new sessionId
-		this.updateActions();
-
-		// Mark the old model as read when closing unless explicitly marked unread
-		if (oldModelResource) {
-			const oldSession = this.agentSessionsService.model.getSession(oldModelResource);
-			if (oldSession && !oldSession.isMarkedUnread()) {
-				oldSession.setRead(true);
-			}
-		}
-
 		return model;
 	}
 
-	private async updateWidgetLockState(sessionType: string): Promise<void> {
+	private async updateWidgetLockState(sessionResource: URI): Promise<void> {
+		const sessionType = getChatSessionType(sessionResource);
 		if (sessionType === localChatSessionType) {
-			this._widget.unlockFromCodingAgent();
+			if (this._widget.viewModel?.sessionResource && isEqual(this._widget.viewModel.sessionResource, sessionResource)) {
+				this._widget.unlockFromCodingAgent();
+			}
 			return;
 		}
 
@@ -766,6 +765,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			canResolve = await this.chatSessionsService.canResolveChatSession(sessionType);
 		} catch (error) {
 			this.logService.warn(`Failed to resolve chat session type '${sessionType}' for locking`, error);
+		}
+
+		if (!this._widget.viewModel?.sessionResource || !isEqual(this._widget.viewModel.sessionResource, sessionResource)) {
+			return;
 		}
 
 		if (!canResolve) {
@@ -789,9 +792,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Grab the widget's latest view state because it will be loaded back into the widget
 		this.updateViewState();
 		await this.showModel(CancellationToken.None);
-
-		// Update the toolbar context with new sessionId
-		this.updateActions();
 	}
 
 	async loadSession(sessionResource: URI): Promise<IChatModel | undefined> {
