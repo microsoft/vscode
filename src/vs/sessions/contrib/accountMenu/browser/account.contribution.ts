@@ -257,8 +257,8 @@ export class AccountWidget extends ActionViewItem {
 		const state = this.updateService.state;
 		if (state.type === StateType.AvailableForDownload && state.canInstall === false) {
 			await this.dialogService.info(
-				localize('updateFromVSCode.title', "Update Available"),
-				localize('updateFromVSCode.detail', "An update is available. Close Sessions and update from VS Code."),
+				localize('sessionsUpdateAvailable.title', "Update Available"),
+				localize('sessionsUpdateAvailable.detail', "An update is available. Close Sessions and update from VS Code."),
 			);
 			return;
 		}
