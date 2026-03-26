@@ -3,16 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.flex-grow {
-	flex-grow: 1;
-}
-
 .changes-view-body {
 	display: flex;
 	flex-direction: column;
 	height: 100%;
 	padding: 8px;
-		box-sizing: border-box;
+	box-sizing: border-box;
 }
 
 /* SplitView container */
@@ -28,10 +24,10 @@
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
-		flex: 1;
-		padding: 20px;
-		text-align: center;
-		gap: 8px;
+	flex: 1;
+	padding: 20px;
+	text-align: center;
+	gap: 8px;
 }
 
 .changes-view-body .changes-welcome-icon.codicon {
@@ -102,29 +98,27 @@
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	border: 1px solid var(--vscode-input-border);
-	border-radius: 4px;
 }
 
 /* Line counts in header */
 .changes-view-body .changes-summary .working-set-lines-added {
 	color: var(--vscode-chat-linesAddedForeground);
 	font-size: 11px;
-		font-weight: 500;
+	font-weight: 500;
 }
 
 .changes-view-body .changes-summary .working-set-lines-removed {
 	color: var(--vscode-chat-linesRemovedForeground);
 	font-size: 11px;
-		font-weight: 500;
+	font-weight: 500;
 }
 
 /* Actions container */
 .changes-view-body .chat-editing-session-actions {
 	display: flex;
 	flex-direction: row;
-		flex-wrap: nowrap;
-		gap: 6px;
+	flex-wrap: nowrap;
+	gap: 6px;
 	align-items: center;
 }
 

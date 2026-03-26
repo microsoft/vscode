@@ -21,7 +21,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../github/common/types.js';
+import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
 import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
 import { CICheckGroup, buildFixChecksPrompt, getCheckGroup, getCheckStateLabel, getFailedChecks } from './fixCIChecksAction.js';
 
@@ -130,8 +130,8 @@ class CICheckListRenderer implements IListRenderer<ICICheckListItem, ICICheckTem
 }
 
 /**
- * A collapsible widget that shows the CI status of a PR.
- * Rendered beneath the changes tree in the changes view.
+ * A widget that shows the CI status of a PR.
+ * Rendered beneath the changes tree in the changes view as a SplitView pane.
  */
 export class CIStatusWidget extends Disposable {
 
@@ -244,7 +244,6 @@ export class CIStatusWidget extends Disposable {
 			}
 
 			const checks = model.checks.read(reader);
-			const overallStatus = model.overallStatus.read(reader);
 
 			if (checks.length === 0) {
 				this._checkCount = 0;
@@ -260,7 +259,7 @@ export class CIStatusWidget extends Disposable {
 			this._checkCount = sorted.length;
 
 			this._domNode.style.display = '';
-			this._renderHeader(checks, overallStatus);
+			this._renderHeader(checks);
 			this._renderHeaderActions(getFailedChecks(checks));
 			this._renderBody(sorted);
 
@@ -270,7 +269,7 @@ export class CIStatusWidget extends Disposable {
 		});
 	}
 
-	private _renderHeader(checks: readonly IGitHubCICheck[], _overallStatus: GitHubCIOverallStatus): void {
+	private _renderHeader(checks: readonly IGitHubCICheck[]): void {
 		const counts = getCheckCounts(checks);
 
 		// Update count badges
@@ -307,6 +306,7 @@ export class CIStatusWidget extends Disposable {
 
 		if (failedChecks.length === 0) {
 			this._headerActionBarContainer.classList.remove('has-actions');
+			this._domNode.classList.remove('has-fix-actions');
 			return;
 		}
 
@@ -322,6 +322,7 @@ export class CIStatusWidget extends Disposable {
 
 		this._headerActionBar.push([fixChecksAction], { icon: true, label: false });
 		this._headerActionBarContainer.classList.add('has-actions');
+		this._domNode.classList.add('has-fix-actions');
 	}
 
 	/**

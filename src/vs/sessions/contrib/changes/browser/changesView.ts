@@ -444,15 +444,14 @@ export class ChangesViewPane extends ViewPane {
 		const ciMinHeight = CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.MIN_BODY_HEIGHT + ciMarginTop;
 
 		// Top pane: file tree
-		const self = this;
 		const treePane: IView = {
 			element: this.contentContainer,
 			minimumSize: ciMinHeight,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.None,
 			layout: (height) => {
-				self.contentContainer!.style.height = `${height}px`;
-				self._layoutTreeInPane(height);
+				this.contentContainer!.style.height = `${height}px`;
+				this._layoutTreeInPane(height);
 			},
 		};
 
