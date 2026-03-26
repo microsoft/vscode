@@ -1964,11 +1964,13 @@ export class AICustomizationListWidget extends Disposable {
 	 * Generates a debug report for the current section.
 	 */
 	async generateDebugReport(): Promise<string> {
+		const activeDescriptor = this.harnessService.getActiveDescriptor();
 		return generateCustomizationDebugReport(
 			this.currentSection,
 			this.promptsService,
 			this.workspaceService,
 			{ allItems: this.allItems, displayEntries: this.displayEntries },
+			activeDescriptor.itemProvider,
 		);
 	}
 }
