@@ -11,9 +11,11 @@ import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/obje
 import { IObjectTreeElement, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IObservableWithChange, ISettableObservable, ObservablePromise, observableSignalFromEvent, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { basename, dirname } from '../../../../base/common/path.js';
+import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -37,6 +39,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { fillEditorsDragData } from '../../../../workbench/browser/dnd.js';
 import { IResourceLabel, ResourceLabels } from '../../../../workbench/browser/labels.js';
@@ -51,7 +54,6 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
-import { IActivityService, NumberBadge } from '../../../../workbench/services/activity/common/activity.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -62,6 +64,10 @@ import { IGitHubService } from '../../github/browser/githubService.js';
 import { CIStatusWidget } from './ciStatusWidget.js';
 import { arrayEqualsC } from '../../../../base/common/equals.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionData.js';
+import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
+import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
+import { Color } from '../../../../base/common/color.js';
+import { PANEL_SECTION_BORDER } from '../../../../workbench/common/theme.js';
 
 const $ = dom.$;
 
@@ -87,8 +93,14 @@ const enum ChangesVersionMode {
 	LastTurn = 'lastTurn'
 }
 
+const enum IsolationMode {
+	Workspace = 'workspace',
+	Worktree = 'worktree'
+}
+
 const changesVersionModeContextKey = new RawContextKey<ChangesVersionMode>('sessions.changesVersionMode', ChangesVersionMode.AllChanges);
 const isMergeBaseBranchProtectedContextKey = new RawContextKey<boolean>('sessions.isMergeBaseBranchProtected', false);
+const isolationModeContextKey = new RawContextKey<IsolationMode>('sessions.isolationMode', IsolationMode.Workspace);
 const hasOpenPullRequestContextKey = new RawContextKey<boolean>('sessions.hasOpenPullRequest', false);
 const hasIncomingChangesContextKey = new RawContextKey<boolean>('sessions.hasIncomingChanges', false);
 const hasOutgoingChangesContextKey = new RawContextKey<boolean>('sessions.hasOutgoingChanges', false);
@@ -302,6 +314,8 @@ export class ChangesViewPane extends ViewPane {
 
 	private bodyContainer: HTMLElement | undefined;
 	private welcomeContainer: HTMLElement | undefined;
+	private filesHeaderNode: HTMLElement | undefined;
+	private filesCountBadge: HTMLElement | undefined;
 	private contentContainer: HTMLElement | undefined;
 	private overviewContainer: HTMLElement | undefined;
 	private summaryContainer: HTMLElement | undefined;
@@ -309,8 +323,11 @@ export class ChangesViewPane extends ViewPane {
 	// Actions container is positioned outside the card for this layout experiment
 	private actionsContainer: HTMLElement | undefined;
 
+	private changesProgressBar!: ProgressBar;
 	private tree: WorkbenchCompressibleObjectTree<ChangesTreeElement> | undefined;
 	private ciStatusWidget: CIStatusWidget | undefined;
+	private splitView: SplitView | undefined;
+	private splitViewContainer: HTMLElement | undefined;
 
 	private readonly renderDisposables = this._register(new DisposableStore());
 
@@ -332,14 +349,13 @@ export class ChangesViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IActivityService private readonly activityService: IActivityService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.viewModel = this.instantiationService.createInstance(ChangesViewModel);
 		this._register(this.viewModel);
@@ -362,20 +378,10 @@ export class ChangesViewPane extends ViewPane {
 			return activeSession?.sessionType ?? '';
 		}));
 
-		// Badge
-		const badgeDisposable = this._register(new MutableDisposable());
-
+		// Title actions
 		this._register(autorun(reader => {
-			const changes = this.viewModel.activeSessionChangesObs.read(reader);
-			if (changes.length === 0) {
-				badgeDisposable.clear();
-				return;
-			}
-
-			const message = changes.length === 1
-				? localize('changesView.oneFileChanged', '1 file changed')
-				: localize('changesView.filesChanged', '{0} files changed', changes.length);
-			badgeDisposable.value = this.activityService.showViewActivity(CHANGES_VIEW_ID, { badge: new NumberBadge(changes.length, () => message) });
+			this.viewModel.activeSessionResourceObs.read(reader);
+			this.updateActions();
 		}));
 	}
 
@@ -394,8 +400,11 @@ export class ChangesViewPane extends ViewPane {
 		// Actions container - positioned outside and above the card
 		this.actionsContainer = dom.append(this.bodyContainer, $('.chat-editing-session-actions.outside-card'));
 
-		// Main container with file icons support (the "card")
-		this.contentContainer = dom.append(this.bodyContainer, $('.chat-editing-session-container.show-file-icons'));
+		// SplitView container for resizable file tree / CI checks split
+		this.splitViewContainer = dom.append(this.bodyContainer, $('.changes-splitview-container'));
+
+		// Main container with file icons support (the "card") — top pane
+		this.contentContainer = dom.append(this.splitViewContainer, $('.chat-editing-session-container.show-file-icons'));
 		this._register(createFileIconThemableTreeContainerScope(this.contentContainer, this.themeService));
 
 		// Toggle class based on whether the file icon theme has file icons
@@ -405,16 +414,89 @@ export class ChangesViewPane extends ViewPane {
 		updateHasFileIcons();
 		this._register(this.themeService.onDidFileIconThemeChange(updateHasFileIcons));
 
+		// Files header
+		this.filesHeaderNode = dom.append(this.contentContainer, $('.changes-files-header'));
+		const filesTitle = dom.append(this.filesHeaderNode, $('.changes-files-title'));
+		filesTitle.textContent = localize('changesView.filesTitle', "Changed Files");
+		this.filesCountBadge = dom.append(this.filesHeaderNode, $('.changes-files-count'));
+
 		// Overview section (header with summary only - actions moved outside card)
 		this.overviewContainer = dom.append(this.contentContainer, $('.chat-editing-session-overview'));
 		this.summaryContainer = dom.append(this.overviewContainer, $('.changes-summary'));
 
+		// Changes card progress bar
+		const progressContainer = dom.append(this.contentContainer, $('.changes-progress'));
+		this.changesProgressBar = this._register(new ProgressBar(progressContainer, defaultProgressBarStyles));
+		this.changesProgressBar.stop().hide();
+
 		// List container
 		this.listContainer = dom.append(this.contentContainer, $('.chat-editing-session-list'));
 
-		// CI Status widget beneath the card
-		this.ciStatusWidget = this._register(this.instantiationService.createInstance(CIStatusWidget, this.bodyContainer));
-		this._register(this.ciStatusWidget.onDidChangeHeight(() => this.layoutTree()));
+		// CI Status widget — bottom pane
+		this.ciStatusWidget = this._register(this.instantiationService.createInstance(CIStatusWidget, this.splitViewContainer));
+
+		// Create SplitView
+		this.splitView = this._register(new SplitView(this.splitViewContainer, {
+			orientation: Orientation.VERTICAL,
+			proportionalLayout: false,
+		}));
+
+		// Shared constants for pane sizing
+		const ciMinHeight = CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.MIN_BODY_HEIGHT;
+		const treeMinHeight = 3 * ChangesTreeDelegate.ROW_HEIGHT;
+
+		// Top pane: file tree
+		const treePane: IView = {
+			element: this.contentContainer,
+			minimumSize: treeMinHeight,
+			maximumSize: Number.POSITIVE_INFINITY,
+			onDidChange: Event.None,
+			layout: (height) => {
+				this.contentContainer!.style.height = `${height}px`;
+				this._layoutTreeInPane(height);
+			},
+		};
+
+		// Bottom pane: CI checks
+		const ciElement = this.ciStatusWidget.element;
+		const ciWidget = this.ciStatusWidget;
+		const ciPane: IView = {
+			element: ciElement,
+			minimumSize: ciMinHeight,
+			maximumSize: Number.POSITIVE_INFINITY,
+			onDidChange: Event.map(this.ciStatusWidget.onDidChangeHeight, () => undefined),
+			layout: (height) => {
+				ciElement.style.height = `${height}px`;
+				const bodyHeight = Math.max(0, height - CIStatusWidget.HEADER_HEIGHT);
+				ciWidget.layout(bodyHeight);
+			},
+		};
+
+		this.splitView.addView(treePane, Sizing.Distribute, 0, true);
+		this.splitView.addView(ciPane, CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.PREFERRED_BODY_HEIGHT, 1, true);
+
+		// Style the sash as a visible separator between sections
+		const updateSplitViewStyles = () => {
+			const borderColor = this.themeService.getColorTheme().getColor(PANEL_SECTION_BORDER);
+			this.splitView!.style({ separatorBorder: borderColor ?? Color.transparent });
+		};
+		updateSplitViewStyles();
+		this._register(this.themeService.onDidColorThemeChange(updateSplitViewStyles));
+
+		// Initially hide CI pane until checks arrive
+		this.splitView.setViewVisible(1, false);
+
+		this._register(this.ciStatusWidget.onDidChangeHeight(() => {
+			if (!this.splitView || !this.ciStatusWidget) {
+				return;
+			}
+			const visible = this.ciStatusWidget.visible;
+			const isCurrentlyVisible = this.splitView.isViewVisible(1);
+			if (visible !== isCurrentlyVisible) {
+				this.splitView.setViewVisible(1, visible);
+			}
+			this.layoutSplitView();
+		}));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
@@ -526,22 +608,50 @@ export class ChangesViewPane extends ViewPane {
 
 			const lastCheckpointRef = lastCheckpointRefObs.read(reader);
 
-			return lastCheckpointRef
-				? new ObservablePromise(repository.diffBetweenWithStats(`${lastCheckpointRef}^`, lastCheckpointRef)).resolvedValue
-				: new ObservablePromise(repository.diffBetweenWithStats(`${headCommit}^`, headCommit)).resolvedValue;
+			const diffPromise = lastCheckpointRef
+				? repository.diffBetweenWithStats(`${lastCheckpointRef}^`, lastCheckpointRef)
+				: repository.diffBetweenWithStats(`${headCommit}^`, headCommit);
+
+			return new ObservablePromise(diffPromise).resolvedValue;
 		});
+
+		const isLoadingLastTurnObs = derived(reader => {
+			const versionMode = this.viewModel.versionModeObs.read(reader);
+			if (versionMode !== ChangesVersionMode.LastTurn) {
+				return false;
+			}
+
+			const headCommit = headCommitObs.read(reader);
+			const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
+			if (!repository || !headCommit) {
+				return false;
+			}
+
+			const result = lastTurnChangesObs.read(reader).read(reader);
+			return result === undefined;
+		});
+
+		this.renderDisposables.add(autorun(reader => {
+			const isLoading = isLoadingLastTurnObs.read(reader);
+			if (isLoading) {
+				this.changesProgressBar.infinite().show(200);
+			} else {
+				this.changesProgressBar.stop().hide();
+			}
+		}));
 
 		// Combine both entry sources for display
 		const combinedEntriesObs = derived(reader => {
 			const headCommit = headCommitObs.read(reader);
 			const sessionFiles = sessionFilesObs.read(reader);
-			const lastTurnDiffChanges = lastTurnChangesObs.read(reader).read(reader);
 			const versionMode = this.viewModel.versionModeObs.read(reader);
 
 			let sourceEntries: IChangesFileItem[];
 			if (versionMode === ChangesVersionMode.LastTurn) {
+				const lastCheckpointRef = lastCheckpointRefObs.read(reader);
+				const lastTurnDiffChanges = lastTurnChangesObs.read(reader).read(reader);
+
 				const diffChanges = lastTurnDiffChanges ?? [];
-				const lastCheckpointRef = lastCheckpointRefObs.read(undefined);
 
 				const ref = lastCheckpointRef
 					? lastCheckpointRef
@@ -610,9 +720,21 @@ export class ChangesViewPane extends ViewPane {
 		if (this.actionsContainer) {
 			dom.clearNode(this.actionsContainer);
 
+			let lastHasChanges = false;
 			this.renderDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, this.scopedContextKeyService, reader => {
+				if (isLoadingLastTurnObs.read(reader)) {
+					return lastHasChanges;
+				}
 				const { files } = topLevelStats.read(reader);
-				return files > 0;
+				lastHasChanges = files > 0;
+				return lastHasChanges;
+			}));
+
+			this.renderDisposables.add(bindContextKey(isolationModeContextKey, this.scopedContextKeyService, reader => {
+				const activeSession = this.sessionManagementService.activeSession.read(reader);
+				return activeSession?.workspace.read(reader)?.repositories[0].workingDirectory === undefined
+					? IsolationMode.Workspace
+					: IsolationMode.Worktree;
 			}));
 
 			this.renderDisposables.add(bindContextKey(isMergeBaseBranchProtectedContextKey, this.scopedContextKeyService, reader => {
@@ -724,6 +846,10 @@ export class ChangesViewPane extends ViewPane {
 							if (action.id === 'github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge') {
 								return { showIcon: true, showLabel: true, isSecondary: false };
 							}
+							if (action.id === 'github.copilot.sessions.commitChanges') {
+								return { showIcon: true, showLabel: true, isSecondary: false };
+							}
+
 							return undefined;
 						}
 					}
@@ -731,14 +857,23 @@ export class ChangesViewPane extends ViewPane {
 			}));
 		}
 
-		// Update visibility based on entries
+		// Update visibility and file count badge based on entries
 		this.renderDisposables.add(autorun(reader => {
+			if (isLoadingLastTurnObs.read(reader)) {
+				return;
+			}
+
 			const { files } = topLevelStats.read(reader);
 			const hasEntries = files > 0;
 
 			dom.setVisibility(hasEntries, this.contentContainer!);
 			dom.setVisibility(hasEntries, this.actionsContainer!);
+			dom.setVisibility(hasEntries, this.splitViewContainer!);
 			dom.setVisibility(!hasEntries, this.welcomeContainer!);
+
+			if (this.filesCountBadge) {
+				this.filesCountBadge.textContent = `${files}`;
+			}
 		}));
 
 		// Update summary text (line counts only, file count is shown in badge)
@@ -752,6 +887,10 @@ export class ChangesViewPane extends ViewPane {
 			this.summaryContainer.appendChild(linesRemovedSpan);
 
 			this.renderDisposables.add(autorun(reader => {
+				if (isLoadingLastTurnObs.read(reader)) {
+					return;
+				}
+
 				const { added, removed } = topLevelStats.read(reader);
 
 				linesAddedSpan.textContent = `+${added}`;
@@ -814,7 +953,7 @@ export class ChangesViewPane extends ViewPane {
 			const tree = this.tree;
 
 			// Re-layout when collapse state changes so the card height adjusts
-			this.renderDisposables.add(tree.onDidChangeContentHeight(() => this.layoutTree()));
+			this.renderDisposables.add(tree.onDidChangeContentHeight(() => this.layoutSplitView()));
 
 			const openFileItem = (item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean) => {
 				const { uri: modifiedFileUri, originalUri, isDeletion } = item;
@@ -900,8 +1039,9 @@ export class ChangesViewPane extends ViewPane {
 		this.renderDisposables.add(autorun(reader => {
 			const entries = combinedEntriesObs.read(reader);
 			const viewMode = this.viewModel.viewModeObs.read(reader);
+			const isLoading = isLoadingLastTurnObs.read(reader);
 
-			if (!this.tree) {
+			if (!this.tree || isLoading) {
 				return;
 			}
 
@@ -921,85 +1061,45 @@ export class ChangesViewPane extends ViewPane {
 				this.tree.setChildren(null, listChildren);
 			}
 
-			this.layoutTree();
+			this.layoutSplitView();
 		}));
 	}
 
-	private layoutTree(): void {
-		if (!this.tree || !this.listContainer) {
+	/** Layout the tree within its SplitView pane. */
+	private _layoutTreeInPane(paneHeight: number): void {
+		if (!this.tree) {
 			return;
 		}
+		// Subtract overview/padding within the content container
+		const overviewHeight = this.overviewContainer?.offsetHeight ?? 0;
+		const filesHeaderHeight = this.filesHeaderNode?.offsetHeight ?? 0;
+		const treeHeight = Math.max(0, paneHeight - filesHeaderHeight - overviewHeight);
+		this.tree.layout(treeHeight, this.currentBodyWidth);
+		this.tree.getHTMLElement().style.height = `${treeHeight}px`;
+	}
 
-		// Calculate remaining height for the tree by subtracting other elements
+	/** Layout the SplitView to fill available body space. */
+	private layoutSplitView(): void {
+		if (!this.splitView || !this.splitViewContainer) {
+			return;
+		}
 		const bodyHeight = this.currentBodyHeight;
 		if (bodyHeight <= 0) {
 			return;
 		}
-
-		// Measure non-list elements height (padding, actions, overview)
 		const bodyPadding = 16; // 8px top + 8px bottom from .changes-view-body
 		const actionsHeight = this.actionsContainer?.offsetHeight ?? 0;
-		const actionsMargin = actionsHeight > 0 ? 8 : 0; // margin-bottom on actions container
-		const overviewHeight = this.overviewContainer?.offsetHeight ?? 0;
-		const containerPadding = 8; // 4px top + 4px bottom from .chat-editing-session-container
-		const containerBorder = 2; // 1px top + 1px bottom border
-
-		const fixedUsed = bodyPadding + actionsHeight + actionsMargin + overviewHeight + containerPadding + containerBorder;
-
-		// Determine CI widget space needs
-		const ciWidget = this.ciStatusWidget;
-		const ciVisible = ciWidget?.visible ?? false;
-		const ciHeaderHeight = ciVisible ? CIStatusWidget.HEADER_HEIGHT : 0;
-		const ciMargin = ciVisible ? 8 : 0; // margin-top on CI widget
-		const ciDesiredHeight = ciWidget?.desiredHeight ?? 0;
-
-		const spaceForTreeAndCI = Math.max(0, bodyHeight - fixedUsed - ciMargin);
-
-		// Give the tree priority, then CI gets the rest (with min/max on CI body)
-		const treeContentHeight = this.tree.contentHeight;
-		let treeHeight: number;
-		let ciBodyHeight = 0;
-
-		if (!ciVisible) {
-			treeHeight = Math.min(spaceForTreeAndCI, treeContentHeight);
-		} else {
-			// Reserve space for the CI header
-			const spaceAfterCIHeader = Math.max(0, spaceForTreeAndCI - ciHeaderHeight);
-
-			// Give the tree what it needs first, up to available space
-			treeHeight = Math.min(spaceAfterCIHeader, treeContentHeight);
-
-			// Remaining goes to CI body
-			const remainingForCIBody = Math.max(0, spaceAfterCIHeader - treeHeight);
-			const ciDesiredBodyHeight = Math.max(0, ciDesiredHeight - ciHeaderHeight);
-
-			ciBodyHeight = Math.min(ciDesiredBodyHeight, remainingForCIBody);
-
-			// Ensure CI body gets at least MIN_BODY_HEIGHT if there's content
-			if (ciDesiredBodyHeight > 0 && ciBodyHeight < CIStatusWidget.MIN_BODY_HEIGHT) {
-				const minCIBody = Math.min(CIStatusWidget.MIN_BODY_HEIGHT, ciDesiredBodyHeight);
-				const needed = minCIBody - ciBodyHeight;
-				const canTake = Math.max(0, treeHeight - 0); // tree can shrink to 0
-				const taken = Math.min(needed, canTake);
-				treeHeight -= taken;
-				ciBodyHeight += taken;
-			}
-
-			// Cap CI body at MAX_BODY_HEIGHT
-			ciBodyHeight = Math.min(ciBodyHeight, CIStatusWidget.MAX_BODY_HEIGHT);
-
-			ciWidget!.layout(ciBodyHeight);
-		}
-
-		this.tree.layout(treeHeight, this.currentBodyWidth);
-		this.tree.getHTMLElement().style.height = `${treeHeight}px`;
+		const actionsMargin = actionsHeight > 0 ? 8 : 0;
+		const availableHeight = Math.max(0, bodyHeight - bodyPadding - actionsHeight - actionsMargin);
+		this.splitViewContainer.style.height = `${availableHeight}px`;
+		this.splitView.layout(availableHeight);
 	}
 
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.currentBodyHeight = height;
 		this.currentBodyWidth = width;
-		this.layoutTree();
+		this.layoutSplitView();
 	}
 
 	override focus(): void {
@@ -1040,8 +1140,10 @@ export class ChangesViewPaneContainer extends ViewPaneContainer {
 // --- Tree Delegate & Renderer
 
 class ChangesTreeDelegate implements IListVirtualDelegate<ChangesTreeElement> {
+	static readonly ROW_HEIGHT = 22;
+
 	getHeight(_element: ChangesTreeElement): number {
-		return 22;
+		return ChangesTreeDelegate.ROW_HEIGHT;
 	}
 
 	getTemplateId(_element: ChangesTreeElement): string {
@@ -1279,7 +1381,7 @@ registerAction2(SetChangesTreeViewModeAction);
 MenuRegistry.appendMenuItem(MenuId.ChatEditingSessionTitleToolbar, {
 	submenu: MenuId.ChatEditingSessionChangesVersionsSubmenu,
 	title: localize2('versionsActions', 'Versions'),
-	icon: Codicon.versions,
+	icon: Codicon.listFilter,
 	group: 'navigation',
 	order: 9,
 	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', CHANGES_VIEW_ID), IsSessionsWindowContext),

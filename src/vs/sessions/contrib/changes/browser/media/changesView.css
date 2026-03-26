@@ -3,16 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.flex-grow {
-	flex-grow: 1;
-}
-
 .changes-view-body {
 	display: flex;
 	flex-direction: column;
 	height: 100%;
 	padding: 8px;
-		box-sizing: border-box;
+	box-sizing: border-box;
+}
+
+/* SplitView container */
+.changes-view-body .changes-splitview-container {
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+}
+
+/* Progress bar */
+.changes-view-body .chat-editing-session-container .changes-progress {
+	position: relative;
 }
 
 /* Welcome/Empty state */
@@ -21,10 +29,10 @@
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
-		flex: 1;
-		padding: 20px;
-		text-align: center;
-		gap: 8px;
+	flex: 1;
+	padding: 20px;
+	text-align: center;
+	gap: 8px;
 }
 
 .changes-view-body .changes-welcome-icon.codicon {
@@ -38,17 +46,44 @@
 	font-size: 12px;
 }
 
-/* Main container - matches chat editing session styling */
+/* Main container */
 .changes-view-body .chat-editing-session-container {
-	padding: 4px 3px;
 	box-sizing: border-box;
-	background-color: var(--vscode-editor-background);
-	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: 4px;
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
 	overflow: hidden;
+}
+
+/* Files header */
+.changes-view-body .changes-files-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 8px;
+	min-height: 22px;
+	font-weight: 500;
+	font-size: 12px;
+}
+
+.changes-view-body .changes-files-title {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.changes-view-body .changes-files-count {
+	flex-shrink: 0;
+	font-size: 11px;
+	padding: 2px 0;
+	border-radius: 4px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	line-height: 1;
+	font-weight: 600;
+	min-width: 16px;
+	text-align: center;
 }
 
 /* Overview section (header) - hidden since actions moved outside card */
@@ -68,29 +103,27 @@
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	border: 1px solid var(--vscode-input-border);
-	border-radius: 4px;
 }
 
 /* Line counts in header */
 .changes-view-body .changes-summary .working-set-lines-added {
 	color: var(--vscode-chat-linesAddedForeground);
 	font-size: 11px;
-		font-weight: 500;
+	font-weight: 500;
 }
 
 .changes-view-body .changes-summary .working-set-lines-removed {
 	color: var(--vscode-chat-linesRemovedForeground);
 	font-size: 11px;
-		font-weight: 500;
+	font-weight: 500;
 }
 
 /* Actions container */
 .changes-view-body .chat-editing-session-actions {
 	display: flex;
 	flex-direction: row;
-		flex-wrap: nowrap;
-		gap: 6px;
+	flex-wrap: nowrap;
+	gap: 6px;
 	align-items: center;
 }
 
@@ -140,6 +173,7 @@
 	padding: 4px 8px;
 	font-size: 16px !important;
 }
+
 .changes-view-body .chat-editing-session-actions .monaco-button {
 	width: fit-content;
 	overflow: hidden;
@@ -185,6 +219,7 @@
 .changes-view-body .chat-editing-session-list .monaco-tl-twistie.force-no-twistie {
 	padding-left: 0 !important;
 }
+
 /* List rows */
 .changes-view-body .chat-editing-session-container:not(.has-file-icons) .monaco-list-row .monaco-icon-label {
 	margin-left: 6px;
@@ -231,6 +266,7 @@
 .changes-view-body .chat-editing-session-list .changes-decoration-badge.deleted {
 	color: var(--vscode-gitDecoration-deletedResourceForeground);
 }
+
 /* Line counts in list items */
 .changes-view-body .chat-editing-session-list .working-set-line-counts {
 	margin: 0 6px;
@@ -257,6 +293,21 @@
 }
 
 .changes-view-body .chat-editing-session-list .working-set-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+/* Line counts in buttons */
+.changes-view-body .chat-editing-session-actions .monaco-button.working-set-diff-stats {
+	flex-shrink: 0;
+	padding-left: 4px;
+	padding-right: 8px;
+}
+
+.changes-view-body .chat-editing-session-actions .monaco-button .working-set-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.changes-view-body .chat-editing-session-actions .monaco-button .working-set-lines-removed {
 	color: var(--vscode-chat-linesRemovedForeground);
 }
 
