@@ -1209,10 +1209,10 @@ export namespace ProxyChannel {
 					}
 
 					// Function
-					return async function (...args: any[]) {
+					return async function (...args: unknown[]) {
 
 						// Add context if any
-						let methodArgs: any[];
+						let methodArgs: unknown[];
 						if (options && !isUndefinedOrNull(options.context)) {
 							methodArgs = [options.context, ...args];
 						} else {

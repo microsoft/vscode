@@ -15,6 +15,10 @@ export class CommandLineSandboxRewriter extends Disposable implements ICommandLi
 	}
 
 	async rewrite(options: ICommandLineRewriterOptions): Promise<ICommandLineRewriterResult | undefined> {
+		if (options.requestUnsandboxedExecution) {
+			return undefined;
+		}
+
 		if (!(await this._sandboxService.isEnabled())) {
 			return undefined;
 		}
@@ -30,7 +34,8 @@ export class CommandLineSandboxRewriter extends Disposable implements ICommandLi
 		return {
 			rewritten: wrappedCommand,
 			reasoning: 'Wrapped command for sandbox execution',
-			forDisplay: options.commandLine, // show the command that is passed as input. In this case, the output from CommandLinePreventHistoryRewriter
+			forDisplay: options.commandLine, // show the command that is passed as input (after prior rewrites like cd prefix stripping)
+			isSandboxWrapped: true,
 		};
 	}
 }

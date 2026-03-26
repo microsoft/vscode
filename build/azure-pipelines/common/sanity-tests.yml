@@ -33,9 +33,9 @@ jobs:
       outputs:
         - output: pipelineArtifact
           targetPath: $(SCREENSHOTS_DIR)
-          artifactName: screenshots-${{ parameters.name }}
+          artifactName: screenshots-${{ parameters.name }}-$(System.JobAttempt)
           displayName: Publish Screenshots
-          condition: succeededOrFailed()
+          condition: and(succeededOrFailed(), eq(variables.HAS_SCREENSHOTS, 'true'))
           continueOnError: true
           sbomEnabled: false
     variables:
@@ -170,6 +170,25 @@ jobs:
             docker save -o "$(DOCKER_CACHE_FILE)" "${{ parameters.container }}"
           condition: and(succeeded(), ne(variables.DOCKER_CACHE_HIT, 'true'))
           displayName: Save Docker Image
+
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - script: |
+            @echo off
+            dir /b "$(SCREENSHOTS_DIR)" 2>nul | findstr . >nul
+            if %errorlevel%==0 (
+              echo ##vso[task.setvariable variable=HAS_SCREENSHOTS]true
+            )
+            exit /b 0
+          displayName: Check Screenshots
+          condition: succeededOrFailed()
+
+      - ${{ else }}:
+        - bash: |
+            if [ -n "$(ls -A "$(SCREENSHOTS_DIR)" 2>/dev/null)" ]; then
+              echo "##vso[task.setvariable variable=HAS_SCREENSHOTS]true"
+            fi
+          displayName: Check Screenshots
+          condition: succeededOrFailed()
 
       - task: PublishTestResults@2
         inputs:

@@ -159,7 +159,15 @@ function measureNodeWidth(label: string, sublabel?: string): number {
 }
 
 function subgraphHeaderLabel(node: FlowNode): string {
-	return node.description ? `${node.label}: ${node.description}` : node.label;
+	// For subagent nodes, the label already includes the description
+	// (e.g. "Subagent: Count markdown files"), so don't append it again.
+	if (node.kind === 'subagentInvocation') {
+		return node.label;
+	}
+	if (node.description && node.description !== node.label) {
+		return `${node.label}: ${node.description}`;
+	}
+	return node.label;
 }
 
 function measureSubgraphHeaderWidth(headerLabel: string): number {

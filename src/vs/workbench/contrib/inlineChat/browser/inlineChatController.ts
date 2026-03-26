@@ -51,10 +51,10 @@ import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../.
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
-import { CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_INLINE_CHAT_PENDING_CONFIRMATION, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_INLINE_CHAT_PENDING_CONFIRMATION, CTX_INLINE_CHAT_TERMINATED, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { InlineChatAffordance } from './inlineChatAffordance.js';
 import { InlineChatInputWidget, InlineChatSessionOverlayWidget } from './inlineChatOverlayWidget.js';
-import { IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
+import { continueInPanelChat, IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
 
@@ -158,6 +158,7 @@ export class InlineChatController implements IEditorContribution {
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 		const ctxFileBelongsToChat = CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.bindTo(contextKeyService);
 		const ctxPendingConfirmation = CTX_INLINE_CHAT_PENDING_CONFIRMATION.bindTo(contextKeyService);
+		const ctxTerminated = CTX_INLINE_CHAT_TERMINATED.bindTo(contextKeyService);
 		const notebookAgentConfig = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, this._configurationService);
 		this._renderMode = observableConfigValue(InlineChatConfigKeys.RenderMode, 'zone', this._configurationService);
 
@@ -321,6 +322,11 @@ export class InlineChatController implements IEditorContribution {
 				: localize('placeholderWithSelection', "Modify selected code");
 		});
 
+		this._store.add(autorun(r => {
+			const session = visibleSessionObs.read(r);
+			ctxTerminated.set(!!session?.terminationState.read(r));
+		}));
+
 
 		this._store.add(autorun(r => {
 
@@ -363,12 +369,13 @@ export class InlineChatController implements IEditorContribution {
 			const isInProgress = lastRequest?.response?.isInProgress.read(r);
 			const isPendingConfirmation = !!lastRequest?.response?.isPendingConfirmation.read(r);
 			const isError = !!lastRequest?.response?.result?.errorDetails;
+			const isTerminated = !!session.terminationState.read(r);
 			ctxPendingConfirmation.set(isPendingConfirmation);
 			const entry = session.editingSession.readEntry(session.uri, r);
 			// When there's no entry (no changes made) and the response is complete, the widget should be hidden.
 			// When there's an entry in Modified state, it needs to be settled (accepted/rejected).
 			const isNotSettled = entry ? entry.state.read(r) === ModifiedFileEntryState.Modified : false;
-			if (isInProgress || isNotSettled || isPendingConfirmation || isError) {
+			if (isInProgress || isNotSettled || isPendingConfirmation || isError || isTerminated) {
 				sessionOverlayWidget.show(session);
 			} else {
 				sessionOverlayWidget.hide();
@@ -415,7 +422,9 @@ export class InlineChatController implements IEditorContribution {
 
 
 		this._store.add(autorun(r => {
+			const session = visibleSessionObs.read(r);
 			const response = lastResponseObs.read(r);
+			const terminationState = session?.terminationState.read(r);
 
 			this._zone.rawValue?.widget.updateInfo('');
 
@@ -425,6 +434,8 @@ export class InlineChatController implements IEditorContribution {
 					// ERROR case
 					this._zone.rawValue?.widget.updateInfo(`$(error) ${response.result.errorDetails.message}`);
 					alert(response.result.errorDetails.message);
+				} else if (terminationState) {
+					this._zone.rawValue?.widget.updateInfo(`$(info) ${renderAsPlaintext(terminationState)}`);
 				}
 
 				// no response or not in progress
@@ -608,6 +619,35 @@ export class InlineChatController implements IEditorContribution {
 		await this._chatService.cancelCurrentRequestForSession(session.chatModel.sessionResource, 'inlineChatReject');
 		await session.editingSession.reject();
 		session.dispose();
+	}
+
+	async continueSessionInChat(): Promise<void> {
+		const session = this._currentSession.get();
+		if (!session) {
+			return;
+		}
+
+		await this._instaService.invokeFunction(continueInPanelChat, session);
+	}
+
+	async rephraseSession(): Promise<void> {
+		const session = this._currentSession.get();
+		if (!session) {
+			return;
+		}
+
+		const requestText = session.chatModel.getRequests().at(-1)?.message.text;
+		session.dispose();
+
+		if (!requestText) {
+			return;
+		}
+
+		const selection = this._editor.getSelection();
+		const placeholder = selection && !selection.isEmpty()
+			? localize('placeholderWithSelectionHover', "Describe how to change this")
+			: localize('placeholderNoSelectionHover', "Describe what to generate");
+		await this.inputOverlayWidget.showMenuAtSelection(placeholder, requestText);
 	}
 
 	private async _selectVendorDefaultModel(session: IInlineChatSession2): Promise<void> {

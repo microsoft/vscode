@@ -17,6 +17,10 @@ export type IntegratedBrowserOpenSource =
 	/** Opened via the "Open Integrated Browser" command with a URL argument.
 	 * This typically means another extension or component invoked the command programmatically. */
 	| 'commandWithUrl'
+	/** Opened via the quick open feature with no initial URL. */
+	| 'quickOpenWithoutUrl'
+	/** Opened via the quick open feature with an initial URL. */
+	| 'quickOpenWithUrl'
 	/** Opened via the "New Tab" command from an existing tab. */
 	| 'newTabCommand'
 	/** Opened via the localhost link opener when the `workbench.browser.openLocalhostLinks` setting
