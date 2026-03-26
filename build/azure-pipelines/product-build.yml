@@ -150,7 +150,7 @@ variables:
   - name: VSCODE_MIXIN_REPO
     value: microsoft/vscode-distro
   - name: skipComponentGovernanceDetection
-    value: true
+    value: false
   - name: ComponentDetection.Timeout
     value: 600
   - name: Codeql.SkipTaskAutoInjection
