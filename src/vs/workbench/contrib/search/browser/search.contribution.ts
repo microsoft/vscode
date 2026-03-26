@@ -207,11 +207,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('search.quickOpen.includeSymbols', "Whether to include results from a global symbol search in the file results for Quick Open."),
 			default: false
 		},
-		'search.ripgrep.maxThreads': {
-			type: 'number',
-			description: nls.localize('search.ripgrep.maxThreads', "Number of threads to use for searching. When set to 0, the engine automatically determines this value."),
-			default: 0
-		},
 		'search.quickOpen.includeHistory': {
 			type: 'boolean',
 			description: nls.localize('search.quickOpen.includeHistory', "Whether to include results from recently opened files in the file results for Quick Open."),
@@ -226,6 +221,22 @@ configurationRegistry.registerConfiguration({
 				nls.localize('filterSortOrder.recency', 'History entries are sorted by recency. More recently opened entries appear first.')
 			],
 			description: nls.localize('filterSortOrder', "Controls sorting order of editor history in quick open when filtering.")
+		},
+		'search.quickOpen.matchMode': {
+			type: 'string',
+			enum: ['fuzzy', 'wordBoundary', 'contiguous'],
+			default: 'fuzzy',
+			enumDescriptions: [
+				nls.localize('matchMode.fuzzy', 'Characters can match anywhere in the file name or path, even if they are not adjacent. For example, "hw" matches "HelloWorld.ts", "showMe.ts", etc.'),
+				nls.localize('matchMode.wordBoundary', 'Each character group in the query must start at a word boundary (start of name, after a separator like "-" or "_", or at a CamelCase transition). For example, "hw" matches "HelloWorld.ts" but not "showMe.ts".'),
+				nls.localize('matchMode.contiguous', 'All query characters must appear consecutively in the file name or path. For example, "hello" matches "helloWorld.ts" but "hw" does not.')
+			],
+			description: nls.localize('search.quickOpen.matchMode', "Controls how the Quick Open file picker matches query characters against file names.")
+		},
+		'search.ripgrep.maxThreads': {
+			type: 'number',
+			description: nls.localize('search.ripgrep.maxThreads', "Number of threads to use for searching. When set to 0, the engine automatically determines this value."),
+			default: 0
 		},
 		'search.followSymlinks': {
 			type: 'boolean',
