@@ -3211,6 +3211,25 @@ export class Repository {
 				} catch { }
 			}
 
+			// Fallback for shallow clones: for-each-ref returns empty upstream
+			// fields, so we read the branch tracking config directly
+			if (!branch.upstream && branch.type === RefType.Head && branch.name) {
+				try {
+					const remoteResult = await this.exec(['config', '--get', `branch.${branch.name}.remote`]);
+					const mergeResult = await this.exec(['config', '--get', `branch.${branch.name}.merge`]);
+
+					const remote = remoteResult.stdout.trim();
+					const merge = mergeResult.stdout.trim();
+
+					if (remote && merge) {
+						const upstreamName = merge.startsWith('refs/heads/') ? merge.substring(11) : merge;
+						(branch as Mutable<Branch>).upstream = { remote, name: upstreamName };
+					}
+				} catch {
+					// No tracking config found, upstream remains undefined
+				}
+			}
+
 			return branch;
 		}
 
