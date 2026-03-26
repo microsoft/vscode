@@ -40,18 +40,19 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 	}
 
 	private getToolDtos(): IToolDataDto[] {
-		return Array.from(this._languageModelToolsService.getAllToolsIncludingDisabled()).map(tool => ({
-			id: tool.id,
-			displayName: tool.displayName,
-			toolReferenceName: tool.toolReferenceName,
-			legacyToolReferenceFullNames: tool.legacyToolReferenceFullNames,
-			fullReferenceName: tool.source.type === 'mcp' ? this._languageModelToolsService.getFullReferenceName(tool) : undefined,
-			tags: tool.tags,
-			userDescription: tool.userDescription,
-			modelDescription: tool.modelDescription,
-			inputSchema: tool.inputSchema,
-			source: tool.source,
-		} satisfies IToolDataDto));
+		return Array.from(this._languageModelToolsService.getAllToolsIncludingDisabled())
+			.map(tool => ({
+				id: tool.id,
+				displayName: tool.displayName,
+				toolReferenceName: tool.toolReferenceName,
+				legacyToolReferenceFullNames: tool.legacyToolReferenceFullNames,
+				fullReferenceName: tool.source.type === 'mcp' ? this._languageModelToolsService.getFullReferenceName(tool) : undefined,
+				tags: tool.tags,
+				userDescription: tool.userDescription,
+				modelDescription: tool.modelDescription,
+				inputSchema: tool.inputSchema,
+				source: tool.source,
+			} satisfies IToolDataDto));
 	}
 
 	async $getTools(): Promise<IToolDataDto[]> {
