@@ -62,6 +62,16 @@ export function getSessionButtons(session: IAgentSession): IQuickInputButton[] {
 	return buttons;
 }
 
+export function getQuickPickSessionOpenOptions(inBackground: boolean): ISessionOpenOptions {
+	return {
+		sideBySide: false,
+		editorOptions: {
+			preserveFocus: inBackground,
+			pinned: inBackground
+		}
+	};
+}
+
 export interface IAgentSessionsPickerOptions {
 	overrideSessionOpen?(session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<void>;
 }
@@ -92,13 +102,7 @@ export class AgentSessionsPicker {
 		disposables.add(picker.onDidAccept(e => {
 			const pick = picker.selectedItems[0];
 			if (pick) {
-				const openOptions: ISessionOpenOptions = {
-					sideBySide: e.inBackground,
-					editorOptions: {
-						preserveFocus: e.inBackground,
-						pinned: e.inBackground
-					}
-				};
+				const openOptions = getQuickPickSessionOpenOptions(e.inBackground);
 
 				if (this.options?.overrideSessionOpen) {
 					this.options.overrideSessionOpen(pick.session, openOptions);

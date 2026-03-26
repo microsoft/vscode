@@ -15,7 +15,7 @@ import { IAgentSession } from './agentSessionsModel.js';
 import { openSession } from './agentSessionsOpener.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
-import { archiveButton, deleteButton, getSessionButtons, getSessionDescription, renameButton, unarchiveButton } from './agentSessionsPicker.js';
+import { archiveButton, deleteButton, getQuickPickSessionOpenOptions, getSessionButtons, getSessionDescription, renameButton, unarchiveButton } from './agentSessionsPicker.js';
 import { AgentSessionsFilter } from './agentSessionsFilter.js';
 
 export const AGENT_SESSIONS_QUICK_ACCESS_PREFIX = 'agent ';
@@ -94,13 +94,7 @@ export class AgentSessionsQuickAccessProvider extends PickerQuickAccessProvider<
 				}
 			},
 			accept: (keyMods: IKeyMods, event: IQuickPickDidAcceptEvent) => {
-				this.instantiationService.invokeFunction(openSession, session, {
-					sideBySide: event.inBackground,
-					editorOptions: {
-						preserveFocus: event.inBackground,
-						pinned: event.inBackground
-					}
-				});
+				this.instantiationService.invokeFunction(openSession, session, getQuickPickSessionOpenOptions(event.inBackground));
 			}
 		};
 	}
