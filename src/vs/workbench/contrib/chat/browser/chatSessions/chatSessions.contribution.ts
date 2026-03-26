@@ -31,26 +31,30 @@ import { ExtensionsRegistry } from '../../../../services/extensions/common/exten
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatService, IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
-import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
-import { AgentSessionProviders, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { BugIndicatingError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { assertNever } from '../../../../../base/common/assert.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
+import { slashReg } from '../../common/requestParser/chatRequestParser.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -221,6 +225,11 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					description: localize('chatSessionsExtPoint.autoAttachReferences', 'Whether to automatically attach instruction files to chat requests for this session type.'),
 					type: 'boolean',
 					default: false
+				},
+				useRequestToPopulateBuiltInPickers: {
+					description: localize('chatSessionsExtPoint.useRequestToPopulateBuiltInPickers', 'Whether to use ChatRequestTurn2 to populate built-in pickers such as the Agent and Model pickers.'),
+					type: 'boolean',
+					default: false
 				}
 			},
 			required: ['type', 'name', 'displayName', 'description'],
@@ -302,6 +311,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
 	private readonly _resourceAliases = new ResourceMap<URI>(); // real resource -> untitled resource
 
+	private readonly _customizationsProviders = new Map<string, IChatSessionCustomizationsProvider>();
+	private readonly _onDidChangeCustomizations = this._register(new Emitter<{ readonly chatSessionType: string }>());
+	readonly onDidChangeCustomizations = this._onDidChangeCustomizations.event;
+
 	private readonly _hasCanDelegateProvidersKey: IContextKey<boolean>;
 
 	constructor(
@@ -339,14 +352,29 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const builtinSessionProviders = [AgentSessionProviders.Local];
 		const contributedSessionProviders = observableFromEvent(
 			this.onDidChangeAvailability,
-			() => Array.from(this._contributions.keys()).filter(key => this._contributionDisposables.has(key) && isAgentSessionProviderType(key)) as AgentSessionProviders[],
+			() => Array.from(this._contributions.keys()).filter(key => this._contributionDisposables.has(key)),
 		).recomputeInitiallyAndOnChange(this._store);
 
 		this._register(autorun(reader => {
-			const activatedProviders = [...builtinSessionProviders, ...contributedSessionProviders.read(reader)];
-			for (const provider of Object.values(AgentSessionProviders)) {
-				if (activatedProviders.includes(provider)) {
-					reader.store.add(registerNewSessionInPlaceAction(provider, getAgentSessionProviderName(provider)));
+			const activatedProviders = contributedSessionProviders.read(reader);
+
+			// Register in-place actions for built-in enum providers
+			for (const provider of builtinSessionProviders) {
+				reader.store.add(registerNewSessionInPlaceAction(provider, getAgentSessionProviderName(provider)));
+			}
+
+			for (const type of activatedProviders) {
+				// TODO: Remove hardcoded providers from core
+				const knownProvider = getAgentSessionProvider(type);
+				if (knownProvider) {
+					// Well-known provider — use hardcoded name
+					reader.store.add(registerNewSessionInPlaceAction(type, getAgentSessionProviderName(knownProvider)));
+				} else {
+					// Extension-contributed — use contribution metadata
+					const contrib = this._contributions.get(type);
+					if (contrib) {
+						reader.store.add(registerNewSessionInPlaceAction(type, contrib.contribution.displayName ?? contrib.contribution.name ?? type));
+					}
 				}
 			}
 		}));
@@ -520,13 +548,22 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 				async run(accessor: ServicesAccessor, chatOptions?: { resource: UriComponents; prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
 					const chatService = accessor.get(IChatService);
+					const promptsService = accessor.get(IPromptsService);
+					const toolsService = accessor.get(ILanguageModelToolsService);
 					const { type } = contribution;
 
 					if (chatOptions) {
+						let attachedContext = chatOptions.attachedContext;
+
 						const resource = URI.revive(chatOptions.resource);
 						const ref = await chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 						try {
-							const result = await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
+							const promptFile = await resolvePromptSlashCommand(chatOptions.prompt, promptsService, toolsService);
+							if (promptFile) {
+								attachedContext = [promptFile, ...(attachedContext ?? [])];
+							}
+
+							const result = await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext });
 							if (result.kind === 'queued') {
 								await result.deferred;
 							} else if (result.kind === 'sent') {
@@ -937,6 +974,31 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		};
 	}
 
+	registerCustomizationsProvider(chatSessionType: string, provider: IChatSessionCustomizationsProvider): IDisposable {
+		this._customizationsProviders.set(chatSessionType, provider);
+		const onChangeDisposable = provider.onDidChangeCustomizations(() => {
+			this._onDidChangeCustomizations.fire({ chatSessionType });
+		});
+		return toDisposable(() => {
+			onChangeDisposable.dispose();
+			if (this._customizationsProviders.get(chatSessionType) === provider) {
+				this._customizationsProviders.delete(chatSessionType);
+			}
+		});
+	}
+
+	hasCustomizationsProvider(chatSessionType: string): boolean {
+		return this._customizationsProviders.has(chatSessionType);
+	}
+
+	async getCustomizations(chatSessionType: string, token: CancellationToken): Promise<IChatSessionCustomizationItemGroup[] | undefined> {
+		const provider = this._customizationsProviders.get(chatSessionType);
+		if (!provider) {
+			return undefined;
+		}
+		return provider.provideCustomizations(token);
+	}
+
 	public getInProgressSessionDescription(chatModel: IChatModel): string | undefined {
 		const requests = chatModel.getRequests();
 		if (requests.length === 0) {
@@ -1197,7 +1259,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public async forkChatSession(sessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken): Promise<IChatSessionItem> {
-		const session = this._sessions.get(this._resolveResource(sessionResource));
+		const session = this._sessions.get(sessionResource)
+			// Try to resolve in case an alias was used
+			?? this._sessions.get(this._resolveResource(sessionResource));
 		if (!session?.session.forkSession) {
 			throw new Error(`Session ${sessionResource.toString()} does not support forking`);
 		}
@@ -1283,6 +1347,8 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 	const logService = accessor.get(ILogService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const editorService = accessor.get(IEditorService);
+	const promptsService = accessor.get(IPromptsService);
+	const toolsService = accessor.get(ILanguageModelToolsService);
 
 	// Determine resource to open
 	const resource = getResourceForNewChatSession(openOptions);
@@ -1341,11 +1407,36 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 					});
 				}
 			}
-			await chatService.sendRequest(resource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext: chatSendOptions.attachedContext });
+			let attachedContext = chatSendOptions.attachedContext;
+			const promptFile = await resolvePromptSlashCommand(chatSendOptions.prompt, promptsService, toolsService);
+			if (promptFile) {
+				attachedContext = [promptFile, ...(attachedContext ?? [])];
+			}
+			await chatService.sendRequest(resource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext });
 		} catch (e) {
 			logService.error(`Failed to send initial request to '${openOptions.type}' chat session with contextOptions: ${JSON.stringify(chatSendOptions)}`, e);
 		}
 	}
+}
+
+/**
+ * Returns the variable entry for a slash command if the prompt starts with a slash command that can be resolved to a prompt file, otherwise returns undefined.
+ */
+async function resolvePromptSlashCommand(prompt: string, promptsService: IPromptsService, toolsService: ILanguageModelToolsService): Promise<IChatRequestVariableEntry | undefined> {
+	const slashMatch = prompt.match(slashReg);
+	// starts with a slash command, add the corresponding prompt file to the context if it exists
+	if (slashMatch) {
+		// need to resolve the slash command to get the prompt file
+		const slashCommand = await promptsService.resolvePromptSlashCommand(slashMatch[1], CancellationToken.None);
+		if (slashCommand) {
+			const parseResult = slashCommand.parsedPromptFile;
+			// add the prompt file to the context
+			const refs = parseResult.body?.variableReferences.map(({ name, offset }) => ({ name, range: new OffsetRange(offset, offset + name.length + 1) })) ?? [];
+			const toolReferences = toolsService.toToolReferences(refs);
+			return toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences);
+		}
+	}
+	return undefined;
 }
 
 export function getResourceForNewChatSession(options: NewChatSessionOpenOptions): URI {

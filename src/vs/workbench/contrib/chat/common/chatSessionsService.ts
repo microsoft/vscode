@@ -13,7 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
-import { IChatModel, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
+import { IChatModel, IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
 import { IChatProgress, IChatSessionTiming } from './chatService/chatService.js';
 import { Target } from './promptSyntax/promptTypes.js';
 
@@ -104,6 +104,10 @@ export interface IChatSessionsExtensionPoint {
 	 * for this session type. Defaults to false when not specified.
 	 */
 	readonly autoAttachReferences?: boolean;
+	/**
+	 * When true, uses the incoming request's mode instructions to populate the built-in pickers such as Agent and Model pickers. When false, the pickers are populated based on the session type as they have been before. This is useful for testing the new ChatRequestTurn2-based flow for populating pickers.
+	 */
+	readonly useRequestToPopulateBuiltInPickers?: boolean;
 }
 
 export interface IChatSessionItem {
@@ -147,6 +151,7 @@ export type IChatSessionHistoryItem = {
 	command?: string;
 	variableData?: IChatRequestVariableData;
 	modelId?: string;
+	modeInstructions?: IChatRequestModeInstructions;
 } | {
 	type: 'response';
 	parts: IChatProgress[];
@@ -275,6 +280,26 @@ export namespace ChatSessionOptionsMap {
  */
 export type ReadonlyChatSessionOptionsMap = ReadonlyMap<string, string | IChatSessionProviderOptionItem>;
 
+export interface IChatSessionCustomizationItem {
+	readonly label: string;
+	readonly description?: string;
+	readonly uri: URI;
+	readonly storageLocation: number;
+	readonly icon?: ThemeIcon;
+}
+
+export interface IChatSessionCustomizationItemGroup {
+	readonly id: string;
+	readonly items: IChatSessionCustomizationItem[];
+	readonly commands?: readonly { readonly id: string; readonly title: string; readonly arguments?: readonly unknown[] }[];
+	readonly itemCommands?: readonly { readonly id: string; readonly title: string; readonly arguments?: readonly unknown[] }[];
+}
+
+export interface IChatSessionCustomizationsProvider {
+	readonly onDidChangeCustomizations: Event<void>;
+	provideCustomizations(token: CancellationToken): Promise<IChatSessionCustomizationItemGroup[] | undefined>;
+}
+
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
 
@@ -397,6 +422,13 @@ export interface IChatSessionsService {
 	 * are redirected to the canonical (untitled) resource in the internal session map.
 	 */
 	registerSessionResourceAlias(untitledResource: URI, realResource: URI): void;
+
+	// #region Customizations provider support
+	readonly onDidChangeCustomizations: Event<{ readonly chatSessionType: string }>;
+	registerCustomizationsProvider(chatSessionType: string, provider: IChatSessionCustomizationsProvider): IDisposable;
+	hasCustomizationsProvider(chatSessionType: string): boolean;
+	getCustomizations(chatSessionType: string, token: CancellationToken): Promise<IChatSessionCustomizationItemGroup[] | undefined>;
+	// #endregion
 }
 
 export function isSessionInProgressStatus(state: ChatSessionStatus): boolean {

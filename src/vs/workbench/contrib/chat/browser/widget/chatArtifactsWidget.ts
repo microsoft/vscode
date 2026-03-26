@@ -15,6 +15,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
@@ -38,6 +39,7 @@ export class ChatArtifactsWidget extends Disposable {
 	private readonly _listStore = this._register(new DisposableStore());
 	private _expandIcon!: HTMLElement;
 	private _titleElement!: HTMLElement;
+	private _clearButton!: Button;
 
 	public static readonly ELEMENT_HEIGHT = 22;
 	private static readonly MAX_ITEMS_SHOWN = 6;
@@ -51,6 +53,7 @@ export class ChatArtifactsWidget extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IFileService private readonly _fileService: IFileService,
+		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 	) {
 		super();
 		this.domNode = dom.$('.chat-artifacts-widget');
@@ -78,6 +81,19 @@ export class ChatArtifactsWidget extends Disposable {
 		titleSection.appendChild(this._titleElement);
 		headerButton.element.appendChild(titleSection);
 
+		// Add clear button container
+		const clearButtonContainer = dom.$('.artifacts-clear-button-container');
+		this._clearButton = this._listStore.add(new Button(clearButtonContainer, {
+			supportIcons: true,
+			ariaLabel: localize('chat.artifacts.clearButton', 'Clear all artifacts'),
+		}));
+		this._clearButton.element.tabIndex = 0;
+		this._clearButton.icon = Codicon.clearAll;
+		this._listStore.add(this._clearButton.onDidClick(() => {
+			this._clearAllArtifacts();
+		}));
+		headerButton.element.appendChild(clearButtonContainer);
+
 		this.domNode.appendChild(expandoContainer);
 
 		const listContainer = dom.$('.chat-artifacts-list');
@@ -89,7 +105,7 @@ export class ChatArtifactsWidget extends Disposable {
 			'ChatArtifactsList',
 			listContainer,
 			new ChatArtifactsListDelegate(),
-			[new ChatArtifactsListRenderer()],
+			[new ChatArtifactsListRenderer(artifact => this._saveArtifact(artifact))],
 			{ alwaysConsumeMouseWheel: false },
 		));
 
@@ -158,6 +174,30 @@ export class ChatArtifactsWidget extends Disposable {
 		});
 	}
 
+	private _clearAllArtifacts(): void {
+		if (!this._sessionResource) {
+			return;
+		}
+		this._chatArtifactsService.setArtifacts(this._sessionResource, []);
+	}
+
+	private async _saveArtifact(artifact: IChatArtifact): Promise<void> {
+		const sourceUri = URI.parse(artifact.uri);
+		const defaultFileName = sourceUri.path.split('/').pop() ?? artifact.label;
+		const defaultPath = await this._fileDialogService.defaultFilePath();
+		const defaultUri = URI.joinPath(defaultPath, defaultFileName);
+
+		const targetUri = await this._fileDialogService.showSaveDialog({
+			defaultUri,
+			title: localize('chat.artifacts.saveDialog.title', "Save Artifact"),
+		});
+
+		if (targetUri) {
+			const content = await this._fileService.readFile(sourceUri);
+			await this._fileService.writeFile(targetUri, content.value);
+		}
+	}
+
 	hide(): void {
 		this._autorunDisposable.clear();
 		this.domNode.style.display = 'none';
@@ -177,17 +217,22 @@ interface IChatArtifactsListTemplate {
 	readonly container: HTMLElement;
 	readonly iconElement: HTMLElement;
 	readonly labelElement: HTMLElement;
+	readonly saveButton: HTMLElement;
 }
 
 class ChatArtifactsListRenderer implements IListRenderer<IChatArtifact, IChatArtifactsListTemplate> {
 	static readonly TEMPLATE_ID = 'chatArtifactsListRenderer';
 	readonly templateId = ChatArtifactsListRenderer.TEMPLATE_ID;
 
+	constructor(private readonly _onSave: (artifact: IChatArtifact) => void) { }
+
 	renderTemplate(container: HTMLElement): IChatArtifactsListTemplate {
 		const row = dom.append(container, dom.$('.chat-artifacts-list-row'));
 		const iconElement = dom.append(row, dom.$('.chat-artifacts-list-icon'));
 		const labelElement = dom.append(row, dom.$('.chat-artifacts-list-label'));
-		return { container: row, iconElement, labelElement };
+		const saveButton = dom.append(row, dom.$('.chat-artifacts-list-save' + ThemeIcon.asCSSSelector(Codicon.save)));
+		saveButton.title = localize('chat.artifacts.save', "Save artifact");
+		return { container: row, iconElement, labelElement, saveButton };
 	}
 
 	renderElement(artifact: IChatArtifact, _index: number, templateData: IChatArtifactsListTemplate): void {
@@ -195,6 +240,11 @@ class ChatArtifactsListRenderer implements IListRenderer<IChatArtifact, IChatArt
 		templateData.iconElement.className = 'chat-artifacts-list-icon ' + ThemeIcon.asClassName(icon);
 		templateData.labelElement.textContent = artifact.label;
 		templateData.container.title = artifact.uri;
+
+		templateData.saveButton.onclick = (e) => {
+			e.stopPropagation();
+			this._onSave(artifact);
+		};
 	}
 
 	disposeTemplate(): void { }

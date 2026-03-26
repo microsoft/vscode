@@ -12,9 +12,8 @@ import { IContextMenuService } from '../../../platform/contextview/browser/conte
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER } from '../../../workbench/common/theme.js';
-import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
-import { sessionsSidebarBorder, sessionsSidebarHeaderBackground, sessionsSidebarHeaderForeground } from '../../common/theme.js';
+import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER, SIDE_BAR_FOREGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER } from '../../../workbench/common/theme.js';
+import { sessionsSidebarBackground, sessionsSidebarHeaderBackground, sessionsSidebarHeaderForeground } from '../../common/theme.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { AnchorAlignment } from '../../../base/browser/ui/contextview/contextview.js';
@@ -33,13 +32,19 @@ import { Separator } from '../../../base/common/actions.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { Menus } from '../menus.js';
-import { $, append, getWindowId, prepend } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, getWindowId, prepend } from '../../../base/browser/dom.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { isMacintosh, isNative } from '../../../base/common/platform.js';
 import { isFullscreen, onDidChangeFullscreen } from '../../../base/browser/browser.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { hasNativeTitlebar, getTitleBarStyle } from '../../../platform/window/common/window.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { IAgentSessionsService } from '../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { countUnreadSessions } from '../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { localize } from '../../../nls.js';
 
 /**
  * Sidebar part specifically for agent sessions workbench.
@@ -59,6 +64,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	private static readonly FOOTER_ITEM_HEIGHT = 26;
 	private static readonly FOOTER_ITEM_GAP = 4;
 	private static readonly FOOTER_VERTICAL_PADDING = 6;
+	private static readonly FOOTER_BOTTOM_MARGIN = 12;
+	private static readonly FOOTER_BORDER_TOP = 1;
 
 	private footerContainer: HTMLElement | undefined;
 	private sideBarTitleArea: HTMLElement | undefined;
@@ -109,7 +116,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	) {
 		super(
 			Parts.SIDEBAR_PART,
-			{ hasTitle: true, trailingSeparator: false, borderWidth: () => (this.getColor(sessionsSidebarBorder) || this.getColor(contrastBorder)) ? 1 : 0 },
+			{ hasTitle: true, trailingSeparator: false, borderWidth: () => 0 },
 			SidebarPart.activeViewletSettingsKey,
 			ActiveViewletContext.bindTo(contextKeyService),
 			SidebarFocusContext.bindTo(contextKeyService),
@@ -151,6 +158,11 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			prepend(titleArea, $('div.titlebar-drag-region'));
 		}
 
+		// Session toggle widget (right side of title area)
+		if (titleArea) {
+			this.createSessionsToggle(titleArea);
+		}
+
 		// macOS native: the sidebar spans full height and the traffic lights
 		// overlay the top-left corner. Add a fixed-width spacer inside the
 		// title area to push content horizontally past the traffic lights.
@@ -175,6 +187,49 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}
 
 		return titleArea;
+	}
+
+	/**
+	 * Creates a standalone session toggle widget appended to the sidebar title area.
+	 * Displays a tasklist icon with an optional unread badge. Clicking hides the sidebar.
+	 */
+	private createSessionsToggle(titleArea: HTMLElement): void {
+		const widgetDisposables = this._register(new DisposableStore());
+
+		const widget = append(titleArea, $('button.session-status-toggle')) as HTMLButtonElement;
+		widget.type = 'button';
+		widget.tabIndex = 0;
+		widget.setAttribute('aria-label', localize('hideSidebar', "Hide Side Bar"));
+		append(widget, $(ThemeIcon.asCSSSelector(Codicon.tasklist)));
+		const badge = append(widget, $('span.session-status-toggle-badge'));
+
+		// Toggle sidebar on click
+		widgetDisposables.add(addDisposableListener(widget, EventType.CLICK, (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+		}));
+
+		// Update badge on session changes (deferred to avoid service unavailability)
+		const updateBadge = (svc: IAgentSessionsService) => {
+			const unread = countUnreadSessions(svc.model.sessions);
+			badge.textContent = unread > 0 ? `${unread}` : '';
+			badge.style.display = unread > 0 ? '' : 'none';
+			widget.setAttribute('aria-label', unread > 0
+				? localize('hideSidebarUnread', "Hide Side Bar, {0} unread session(s)", unread)
+				: localize('hideSidebar', "Hide Side Bar"));
+		};
+
+		setTimeout(() => {
+			try {
+				const svc = this.instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
+				updateBadge(svc);
+				widgetDisposables.add(svc.model.onDidChangeSessions(() => updateBadge(svc)));
+			} catch {
+				// Service not yet available
+				badge.style.display = 'none';
+			}
+		}, 0);
 	}
 
 	private createFooter(parent: HTMLElement): void {
@@ -203,7 +258,9 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 		return SidebarPart.FOOTER_VERTICAL_PADDING * 2
 			+ (actionCount * SidebarPart.FOOTER_ITEM_HEIGHT)
-			+ ((actionCount - 1) * SidebarPart.FOOTER_ITEM_GAP);
+			+ ((actionCount - 1) * SidebarPart.FOOTER_ITEM_GAP)
+			+ SidebarPart.FOOTER_BOTTOM_MARGIN
+			+ SidebarPart.FOOTER_BORDER_TOP;
 	}
 
 	private updateFooterVisibility(): void {
@@ -220,15 +277,14 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 		const container = assertReturnsDefined(this.getContainer());
 
-		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';
+		container.style.backgroundColor = this.getColor(sessionsSidebarBackground) || '';
 		container.style.color = this.getColor(SIDE_BAR_FOREGROUND) || '';
 		container.style.outlineColor = this.getColor(SIDE_BAR_DRAG_AND_DROP_BACKGROUND) ?? '';
 
-		// Right border to separate from the right section
-		const borderColor = this.getColor(sessionsSidebarBorder) || this.getColor(contrastBorder) || '';
-		container.style.borderRightWidth = borderColor ? '1px' : '';
-		container.style.borderRightStyle = borderColor ? 'solid' : '';
-		container.style.borderRightColor = borderColor;
+		// No right border in sessions sidebar
+		container.style.borderRightWidth = '';
+		container.style.borderRightStyle = '';
+		container.style.borderRightColor = '';
 
 		// Title area uses sessions-specific header colors
 		if (this.sideBarTitleArea) {
@@ -295,8 +351,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			iconSize: 16,
 			overflowActionSize: 30,
 			colors: theme => ({
-				activeBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
-				inactiveBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
+				activeBackgroundColor: theme.getColor(sessionsSidebarBackground),
+				inactiveBackgroundColor: theme.getColor(sessionsSidebarBackground),
 				activeBorderBottomColor: theme.getColor(ACTIVITY_BAR_TOP_ACTIVE_BORDER),
 				activeForegroundColor: theme.getColor(ACTIVITY_BAR_TOP_FOREGROUND),
 				inactiveForegroundColor: theme.getColor(ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND),

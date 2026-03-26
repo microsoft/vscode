@@ -274,7 +274,7 @@ export async function createRunInTerminalToolData(
 		modelDescription,
 		userDescription: localize('runInTerminalTool.userDescription', 'Run commands in the terminal'),
 		source: ToolDataSource.Internal,
-		icon: isSandboxEnabled ? Codicon.terminalSecure : Codicon.terminal,
+		icon: Codicon.terminal,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -1194,6 +1194,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				didUserEditCommand,
 				didToolEditCommand,
 				isBackground: args.isBackground,
+				isSandboxWrapped: toolSpecificData.commandLine.isSandboxWrapped === true,
 				shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
 				error,
 				isNewSession,
