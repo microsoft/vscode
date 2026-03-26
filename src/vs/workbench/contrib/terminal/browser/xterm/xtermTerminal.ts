@@ -281,7 +281,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
 				this._updateUnicodeVersion();
 			}
-			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) || e.affectsConfiguration(TerminalSettingId.EditorUseEditorBackground)) {
 				this._updateTheme();
 			}
 		}));

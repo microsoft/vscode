@@ -545,7 +545,7 @@ suite('RunInTerminalTool', () => {
 				requestUnsandboxedExecutionReason: 'Needs network access outside the sandbox',
 			});
 
-			assertConfirmationRequired(result, 'Run `bash` command outside the sandbox?');
+			assertConfirmationRequired(result, 'Run `bash` command outside the [sandbox](https://aka.ms/vscode-sandboxing)?');
 			strictEqual(result?.confirmationMessages?.allowAutoConfirm, undefined);
 			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.requestUnsandboxedExecution, true);

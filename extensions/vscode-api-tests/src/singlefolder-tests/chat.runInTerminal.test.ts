@@ -8,6 +8,10 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { DeferredPromise, assertNoRpc, closeAllEditors, disposeAll } from '../utils';
 
+const enum ShellIntegrationTimeoutOverride {
+	DisableForTests = -2
+}
+
 const isWindows = process.platform === 'win32';
 const isMacOS = process.platform === 'darwin';
 const sandboxFileSystemSetting = isMacOS
@@ -162,7 +166,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		setup(async () => {
 			const termConfig = vscode.workspace.getConfiguration('terminal.integrated');
 			await termConfig.update('shellIntegration.enabled', false, vscode.ConfigurationTarget.Global);
-			await termConfig.update('shellIntegration.timeout', 0, vscode.ConfigurationTarget.Global);
+			await termConfig.update('shellIntegration.timeout', ShellIntegrationTimeoutOverride.DisableForTests, vscode.ConfigurationTarget.Global);
 
 			const toolConfig = vscode.workspace.getConfiguration('chat.tools.terminal');
 			await toolConfig.update('idlePollInterval', 100, vscode.ConfigurationTarget.Global);
