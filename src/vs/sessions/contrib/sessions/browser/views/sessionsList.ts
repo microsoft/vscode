@@ -1139,82 +1139,95 @@ export class SessionsList extends Disposable implements ISessionsList {
 	// -- Sorting --
 
 	private sortSessions(sessions: ISessionData[]): ISessionData[] {
-		const sorting = this.options.sorting();
-		return [...sessions].sort((a, b) => {
-			// Sort by time
-			if (sorting === SessionsSorting.Updated) {
-				return b.updatedAt.get().getTime() - a.updatedAt.get().getTime();
-			}
-			return b.createdAt.getTime() - a.createdAt.getTime();
-		});
+		return sortSessions(sessions, this.options.sorting());
 	}
 
 	// -- Grouping --
 
 	private groupByWorkspace(sessions: ISessionData[]): ISessionSection[] {
-		const groups = new Map<string, ISessionData[]>();
-		const order: string[] = [];
-		for (const session of sessions) {
-			const workspace = session.workspace.get();
-			const label = workspace?.label ?? localize('noWorkspace', "No Workspace");
-			let group = groups.get(label);
-			if (!group) {
-				group = [];
-				groups.set(label, group);
-				order.push(label);
-			}
-			group.push(session);
-		}
-
-		return order.map(label => ({
-			id: `workspace:${label}`,
-			label,
-			sessions: groups.get(label)!,
-		}));
+		return groupByWorkspace(sessions);
 	}
 
 	private groupByDate(sessions: ISessionData[]): ISessionSection[] {
-		const now = new Date();
-		const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-		const startOfYesterday = startOfToday - 86_400_000;
-		const startOfWeek = startOfToday - 7 * 86_400_000;
-
-		const today: ISessionData[] = [];
-		const yesterday: ISessionData[] = [];
-		const week: ISessionData[] = [];
-		const older: ISessionData[] = [];
-
-		const sorting = this.options.sorting();
-		for (const session of sessions) {
-			const time = sorting === SessionsSorting.Updated
-				? session.updatedAt.get().getTime()
-				: session.createdAt.getTime();
-
-			if (time >= startOfToday) {
-				today.push(session);
-			} else if (time >= startOfYesterday) {
-				yesterday.push(session);
-			} else if (time >= startOfWeek) {
-				week.push(session);
-			} else {
-				older.push(session);
-			}
-		}
-
-		const sections: ISessionSection[] = [];
-		const addGroup = (id: string, label: string, groupSessions: ISessionData[]) => {
-			if (groupSessions.length > 0) {
-				sections.push({ id, label, sessions: groupSessions });
-			}
-		};
-
-		addGroup('today', localize('today', "Today"), today);
-		addGroup('yesterday', localize('yesterday', "Yesterday"), yesterday);
-		addGroup('thisWeek', localize('lastSevenDays', "Last 7 Days"), week);
-		addGroup('older', localize('older', "Older"), older);
-
-		return sections;
+		return groupByDate(sessions, this.options.sorting());
 	}
+}
+
+//#endregion
+
+//#region Sorting & Grouping Helpers
+
+export function sortSessions(sessions: ISessionData[], sorting: SessionsSorting): ISessionData[] {
+	return [...sessions].sort((a, b) => {
+		if (sorting === SessionsSorting.Updated) {
+			return b.updatedAt.get().getTime() - a.updatedAt.get().getTime();
+		}
+		return b.createdAt.getTime() - a.createdAt.getTime();
+	});
+}
+
+export function groupByWorkspace(sessions: ISessionData[]): ISessionSection[] {
+	const groups = new Map<string, ISessionData[]>();
+	for (const session of sessions) {
+		const workspace = session.workspace.get();
+		const label = workspace?.label ?? localize('noWorkspace', "No Workspace");
+		let group = groups.get(label);
+		if (!group) {
+			group = [];
+			groups.set(label, group);
+		}
+		group.push(session);
+	}
+
+	const order = [...groups.keys()].sort((a, b) => a.localeCompare(b));
+
+	return order.map(label => ({
+		id: `workspace:${label}`,
+		label,
+		sessions: groups.get(label)!,
+	}));
+}
+
+export function groupByDate(sessions: ISessionData[], sorting: SessionsSorting): ISessionSection[] {
+	const now = new Date();
+	const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+	const startOfYesterday = startOfToday - 86_400_000;
+	const startOfWeek = startOfToday - 7 * 86_400_000;
+
+	const today: ISessionData[] = [];
+	const yesterday: ISessionData[] = [];
+	const week: ISessionData[] = [];
+	const older: ISessionData[] = [];
+
+	for (const session of sessions) {
+		const time = sorting === SessionsSorting.Updated
+			? session.updatedAt.get().getTime()
+			: session.createdAt.getTime();
+
+		if (time >= startOfToday) {
+			today.push(session);
+		} else if (time >= startOfYesterday) {
+			yesterday.push(session);
+		} else if (time >= startOfWeek) {
+			week.push(session);
+		} else {
+			older.push(session);
+		}
+	}
+
+	const sections: ISessionSection[] = [];
+	const addGroup = (id: string, label: string, groupSessions: ISessionData[]) => {
+		if (groupSessions.length > 0) {
+			sections.push({ id, label, sessions: groupSessions });
+		}
+	};
+
+	addGroup('today', localize('today', "Today"), today);
+	addGroup('yesterday', localize('yesterday', "Yesterday"), yesterday);
+	addGroup('thisWeek', localize('lastSevenDays', "Last 7 Days"), week);
+	addGroup('older', localize('older', "Older"), older);
+
+	return sections;
 }
 
 //#endregion
