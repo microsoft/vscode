@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import { basename, delimiter } from 'path';
 import * as vscode from 'vscode';
 import azdSpec from './completions/azd';
+import cargoSpec from './completions/cargo';
 import cdSpec from './completions/cd';
 import codeCompletionSpec from './completions/code';
 import codeInsidersCompletionSpec from './completions/code-insiders';
@@ -64,6 +65,7 @@ function getCacheKey(machineId: string, remoteAuthority: string | undefined, she
 
 export const availableSpecs: Fig.Spec[] = [
 	azdSpec,
+	cargoSpec,
 	cdSpec,
 	codeInsidersCompletionSpec,
 	codeCompletionSpec,
