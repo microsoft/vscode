@@ -145,7 +145,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get extHostLogsPath(): URI { return joinPath(this.logsHome, 'exthost'); }
 
 	@memoize
-	get agentPluginsHome(): URI { return joinPath(dirname(this.userRoamingDataHome), 'agent-plugins'); }
+	get agentPluginsHome(): URI { return joinPath(this.userRoamingDataHome, 'agent-plugins'); }
 
 	private extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
 

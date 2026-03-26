@@ -25,7 +25,7 @@ import type { Dto } from '../../../../services/extensions/common/proxyIdentifier
 import { AutoUpdateConfigurationKey, AutoUpdateConfigurationValue } from '../../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../constants.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
-import { FileBackedInstalledPluginsStore } from './fileBackedInstalledPluginsStore.js';
+import { FileBackedInstalledPluginsStore, IStoredInstalledPlugin } from './fileBackedInstalledPluginsStore.js';
 import { IWorkspacePluginSettingsService } from './workspacePluginSettingsService.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { type IMarketplaceReference, deduplicateMarketplaceReferences, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences } from './marketplaceReference.js';
@@ -590,7 +590,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	 * that the derived {@link installedPlugins} observable re-evaluates with
 	 * the newly available metadata.
 	 */
-	private async _hydratePluginMetadata(entries: readonly import('./fileBackedInstalledPluginsStore.js').IStoredInstalledPlugin[]): Promise<void> {
+	private async _hydratePluginMetadata(entries: readonly IStoredInstalledPlugin[]): Promise<void> {
 		let hydrated = 0;
 
 		for (const entry of entries) {

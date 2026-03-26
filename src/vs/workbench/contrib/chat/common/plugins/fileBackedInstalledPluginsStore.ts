@@ -54,10 +54,10 @@ export interface IStoredInstalledPlugin {
  * the installed-plugin manifest discoverable by external tools (CLIs,
  * other editors, etc.) without depending on VS Code internals.
  *
- * The on-disk format stores only the plugin URI (as a string) and
- * enablement state. Plugin metadata (name, description, marketplace
- * provenance, etc.) is read from the plugin manifest on disk by the
- * discovery layer — keeping a single source of truth.
+ * The on-disk format stores only the plugin URI (as a string) and the
+ * marketplace identifier. Plugin metadata (name, description, etc.) is
+ * read from the plugin manifest on disk by the discovery layer -
+ * keeping a single source of truth.
  *
  * On construction the store:
  * 1. Attempts to read `installed.json` from the agent-plugins directory.
@@ -90,8 +90,6 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 		super();
 		this._fileUri = joinPath(_agentPluginsHome, INSTALLED_JSON_FILENAME);
 		this._writeDelayer = this._register(new ThrottledDelayer<void>(100));
-
-		// Kick off async initialization (read file / migrate).
 		void this._initialize();
 	}
 
