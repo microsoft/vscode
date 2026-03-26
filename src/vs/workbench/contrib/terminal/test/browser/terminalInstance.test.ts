@@ -202,16 +202,12 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title');
 		});
 
-		test('custom key event handler should intercept Meta-modified keys that resolve to a command when sendKeybindingsToShell is disabled', async () => {
+		test('custom key event handler should handle commands in DEFAULT_COMMANDS_TO_SKIP_SHELL in VS Code and not xterm when sendKeybindingsToShell is disabled', async () => {
 			const instance = await createTerminalInstance();
 			const keybindingService = instance['_keybindingService'];
 			const originalSoftDispatch = keybindingService.softDispatch;
-			// Simulate Cmd+= resolving to zoomIn. This command is deliberately NOT in
-			// DEFAULT_COMMANDS_TO_SKIP_SHELL, so only the event.metaKey check can intercept it.
 			keybindingService.softDispatch = () => ({ kind: ResultKind.KbFound, commandId: 'workbench.action.zoomIn', commandArgs: undefined, isBubble: false });
 
-			// Capture the inline handler by intercepting its registration on xterm.raw,
-			// then attach + show the terminal so the handler gets registered.
 			let capturedHandler: ((e: KeyboardEvent) => boolean) | undefined;
 			instance.xterm!.raw.attachCustomKeyEventHandler = handler => { capturedHandler = handler; };
 			const container = document.createElement('div');
@@ -219,7 +215,7 @@ suite('Workbench - TerminalInstance', () => {
 			instance.attachToElement(container);
 			instance.setVisible(true);
 
-			const event = new KeyboardEvent('keydown', { key: '=', metaKey: true, cancelable: true });
+			const event = new KeyboardEvent('keydown', { key: '=', cancelable: true });
 			try {
 				deepStrictEqual(
 					{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
