@@ -51,7 +51,9 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	}
 
 	private _render(parent: HTMLElement, options: IAICustomizationShortcutsWidgetOptions | undefined): void {
-		// Get initial collapsed state
+		// New profiles start with the shortcuts collapsed so the sessions list remains the primary
+		// focus in the sidebar. Once the user toggles the section, the stored profile value on this
+		// key takes precedence, so changing the fallback only affects users without a saved choice.
 		const isCollapsed = this.storageService.getBoolean(CUSTOMIZATIONS_COLLAPSED_KEY, StorageScope.PROFILE, true);
 
 		const container = DOM.append(parent, $('.ai-customization-toolbar'));

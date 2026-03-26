@@ -216,7 +216,10 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 		}));
 	}
 
-	// Override storage to set initial collapsed state
+	// The widget reads its initial state from profile storage. The fixture needs to be able to force
+	// both explicit states so screenshots stay stable even though the production fallback is now
+	// collapsed-by-default. Only override the storage service when the fixture provided a concrete
+	// value; otherwise, let the real fallback path run unchanged.
 	if (options?.collapsed !== undefined) {
 		const storageService = instantiationService.get(IStorageService);
 		instantiationService.set(IStorageService, new class extends mock<IStorageService>() {
