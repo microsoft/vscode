@@ -66,11 +66,20 @@
 	font-size: 12px;
 }
 
-.changes-view-body .changes-files-title {
+.changes-view-body .changes-files-header-toolbar {
 	flex: 1;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+}
+
+.changes-view-body .changes-files-header-toolbar .action-label {
+	font-size: 12px;
+	align-items: center;
+
+	> .codicon {
+		font-size: 10px !important;
+		padding-left: 4px;
+		width: 10px;
+		height: 10px;
+	}
 }
 
 .changes-view-body .changes-files-count {
