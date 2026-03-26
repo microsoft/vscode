@@ -28,7 +28,7 @@ import { TerminalConfigurationService } from '../../browser/terminalConfiguratio
 import { parseExitResult, TerminalInstance, TerminalInstanceColorProvider, TerminalLabelComputer } from '../../browser/terminalInstance.js';
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { EnvironmentVariableService } from '../../common/environmentVariableService.js';
-import { ITerminalProfileResolverService, ProcessState,  DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../common/terminal.js';
+import { ITerminalProfileResolverService, ProcessState, DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../common/terminal.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../../common/terminalColorRegistry.js';
 import { TestViewDescriptorService } from './xterm/xtermTerminal.test.js';
 import { fixPath } from '../../../../services/search/test/browser/queryBuilder.test.js';
