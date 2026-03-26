@@ -153,11 +153,15 @@
  * Subtle appear animation when parts transition from display:none → visible
  * (via split-view-view .visible class).
  *
- * Animated properties: opacity, margin, border-color, background.
+ * Auxiliary bar, panel, and chat bar animate their container via opacity,
+ * margin, border-color, and background. The sidebar reveal animation applies
+ * only to `.part.sidebar > .content`, using opacity + transform so the
+ * sidebar container, header, and footer stay visually fixed.
+ *
  * Opacity transiently creates a stacking context while it animates from 0 to 1
  * over 250ms — once settled at opacity: 1, no additional stacking context is
- * introduced by this animation. Margin shifts are purely visual within the
- * grid-allocated space.
+ * introduced by this animation. Margin and transform shifts are purely visual
+ * within the grid-allocated space.
  */
 
 .agent-sessions-workbench .part.auxiliarybar,
