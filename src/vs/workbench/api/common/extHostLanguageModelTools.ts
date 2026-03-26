@@ -63,14 +63,11 @@ class Tool {
 				description: this._data.modelDescription,
 				inputSchema: this._data.inputSchema,
 				tags: this._data.tags ?? [],
-				source: typeConvert.LanguageModelToolSource.to(this._data.source)
+				source: typeConvert.LanguageModelToolSource.to(this._data.source),
+				fullReferenceName: this._data.fullReferenceName
 			});
 		}
 		return this._apiObjectWithChatParticipantAdditions;
-	}
-
-	get fullReferenceName(): string | undefined {
-		return this._data.fullReferenceName;
 	}
 }
 
@@ -163,18 +160,9 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 	getTools(extension: IExtensionDescription): vscode.LanguageModelToolInformation[] {
 		const hasParticipantAdditions = isProposedApiEnabled(extension, 'chatParticipantPrivate');
-		const hasToolReference = isProposedApiEnabled(extension, 'languageModelToolReference');
-
-		const toApiObject = (tool: Tool): vscode.LanguageModelToolInformation => {
-			const base = hasParticipantAdditions ? tool.apiObjectWithChatParticipantAdditions : tool.apiObject;
-			if (hasToolReference && tool.fullReferenceName) {
-				return Object.freeze({ ...base, fullReferenceName: tool.fullReferenceName });
-			}
-			return base;
-		};
 
 		return Array.from(this._allTools.values())
-			.map(tool => toApiObject(tool))
+			.map(tool => hasParticipantAdditions ? tool.apiObjectWithChatParticipantAdditions : tool.apiObject)
 			.filter(tool => {
 				switch (tool.name) {
 					case InternalEditToolId:
