@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName, AgentSessionsSorter, groupAgentSessionsByDate } from '../../../browser/agentSessions/agentSessionsViewer.js';
-import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { ChatSessionStatus } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -982,6 +982,33 @@ suite('AgentSessionsDataSource', () => {
 
 			// Archived must come after Other
 			assert.ok(archivedIndex > otherIndex, 'Archived section should come after Other');
+		});
+
+		test('pinned sessions are top-level items before alphabetized repository sections', () => {
+			const now = Date.now();
+			const pinnedSession = createMockSession({ id: 'pinned', isPinned: true, startTime: now + 10, metadata: { repositoryPath: '/path/zebra' } });
+			const sessions = [
+				createMockSession({ id: 'other', startTime: now + 9 }),
+				createMockSession({ id: 'zebra', startTime: now + 8, metadata: { repositoryPath: '/path/zebra' } }),
+				createMockSession({ id: 'alpha', startTime: now + 7, metadata: { repositoryPath: '/path/Alpha' } }),
+				createMockSession({ id: 'archived', isArchived: true, startTime: now + 6, metadata: { repositoryPath: '/path/middle' } }),
+				pinnedSession,
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = Array.from(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.ok(isAgentSession(result[0]), 'first item should be the pinned session');
+			assert.strictEqual(result[0].resource.toString(), pinnedSession.resource.toString());
+
+			const sections = result.filter((item): item is IAgentSessionSection => isAgentSessionSection(item));
+			assert.deepStrictEqual(sections.map(section => ({ label: section.label, section: section.section, count: section.sessions.length })), [
+				{ label: 'Alpha', section: AgentSessionSection.Repository, count: 1 },
+				{ label: 'zebra', section: AgentSessionSection.Repository, count: 1 },
+				{ label: 'Other', section: AgentSessionSection.Repository, count: 1 },
+				{ label: 'Archived', section: AgentSessionSection.Archived, count: 1 },
+			]);
 		});
 	});
 
