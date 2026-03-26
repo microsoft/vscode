@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
 import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -139,7 +139,12 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 
 	private async onStateChange(startup = false) {
 		this.updateContext();
-		if (this.mode === 'none' || this.tooltipVisible || !await this.hostService.hadLastFocus()) {
+		if (this.mode === 'none') {
+			return;
+		}
+
+		if (this.tooltipVisible || !await this.hostService.hadLastFocus()) {
+			this.tooltip.renderState(this.state);
 			return;
 		}
 
@@ -216,6 +221,12 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 
 		this.action.run = () => this.runAction();
 		this._register(this.updateService.onStateChange(state => this.onStateChange(state)));
+		this._register(toDisposable(() => {
+			if (this.hintTimer !== undefined) {
+				clearTimeout(this.hintTimer);
+				this.hintTimer = undefined;
+			}
+		}));
 	}
 
 	public override render(container: HTMLElement) {
@@ -354,18 +365,19 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 	}
 
 	private flashHintOnce() {
-		if (!this.content) {
+		const content = this.content;
+		if (!content) {
 			return;
 		}
 
 		// Flash the hint once after a short delay
 		this.hintTimer = setTimeout(() => {
-			dom.getWindow(this.content!).requestAnimationFrame(() => {
-				this.content?.classList.add('hint-visible');
+			dom.getWindow(content).requestAnimationFrame(() => {
+				content.classList.add('hint-visible');
 			});
 
 			this.hintTimer = setTimeout(() => {
-				this.content?.classList.remove('hint-visible');
+				content.classList.remove('hint-visible');
 				this.hintTimer = undefined;
 			}, 3000);
 		}, 500);
