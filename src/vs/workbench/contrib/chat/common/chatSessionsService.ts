@@ -416,8 +416,6 @@ export interface IChatSessionsService {
 	getNewSessionOptionsForSessionType(chatSessionType: string): ReadonlyChatSessionOptionsMap | undefined;
 	setNewSessionOptionsForSessionType(chatSessionType: string, options: ReadonlyChatSessionOptionsMap): void;
 
-	getInProgressSessionDescription(chatModel: IChatModel): string | undefined;
-
 	/**
 	 * Creates a new chat session item using the controller's newChatSessionItemHandler.
 	 * Returns undefined if the controller doesn't have a handler or if no controller is registered.
