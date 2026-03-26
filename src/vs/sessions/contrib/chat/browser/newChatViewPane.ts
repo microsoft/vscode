@@ -645,10 +645,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	 * Requests folder trust if needed and creates a new session.
 	 */
 	private async _onWorkspaceSelected(selection: IWorkspaceSelection): Promise<void> {
-		// Check if the provider's session type requires workspace trust
-		const sessionTypes = this.sessionsProvidersService.getSessionTypesForProvider(selection.providerId);
-		const requiresTrust = sessionTypes.some(t => t.requiresWorkspaceTrust);
-		if (requiresTrust) {
+		if (selection.workspace.requiresWorkspaceTrust) {
 			const workspaceUri = selection.workspace.repositories[0]?.uri;
 			if (workspaceUri && !await this._requestFolderTrust(workspaceUri)) {
 				return;
@@ -676,6 +673,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			model.setValue(text);
 			this._send();
 		}
+	}
+
+	selectWorkspace(workspace: IWorkspaceSelection): void {
+		this._workspacePicker.setSelectedWorkspace(workspace);
 	}
 }
 
@@ -734,6 +735,10 @@ export class NewChatViewPane extends ViewPane {
 
 	sendQuery(text: string): void {
 		this._widget?.sendQuery(text);
+	}
+
+	selectWorkspace(workspace: IWorkspaceSelection): void {
+		this._widget?.selectWorkspace(workspace);
 	}
 
 	override setVisible(visible: boolean): void {
