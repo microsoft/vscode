@@ -15,6 +15,7 @@ import { IWorkspace, IWorkspaceContextService } from '../../../../platform/works
 import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../contrib/chat/common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../contrib/chat/common/plugins/agentPluginService.js';
+import { IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IPromptPath } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { AICustomizationManagementSection } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
@@ -99,10 +100,11 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 function createMockHarnessService(): ICustomizationHarnessService {
 	const descriptor = createVSCodeHarnessDescriptor([PromptsStorage.extension]);
 	return new class extends mock<ICustomizationHarnessService>() {
-		override readonly activeHarness = observableValue('activeHarness', CustomizationHarness.VSCode);
+		override readonly activeHarness = observableValue<string>('activeHarness', CustomizationHarness.VSCode);
 		override readonly availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('harnesses', [descriptor]);
 		override getStorageSourceFilter() { return defaultFilter; }
 		override getActiveDescriptor() { return descriptor; }
+		override registerContributedHarness() { return { dispose() { } }; }
 	}();
 }
 
@@ -150,6 +152,11 @@ async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFi
 			reg.defineInstance(IAICustomizationWorkspaceService, createMockWorkspaceService());
 			reg.defineInstance(ICustomizationHarnessService, createMockHarnessService());
 			reg.defineInstance(IWorkspaceContextService, createMockWorkspaceContextService());
+			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override async getCustomizations() { return undefined; }
+				override getRegisteredChatSessionItemProviders() { return []; }
+			}());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = observableValue('plugins', []);
 			}());
