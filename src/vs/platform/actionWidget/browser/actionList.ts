@@ -445,6 +445,7 @@ export class ActionListWidget<T> extends Disposable {
 	private readonly _list: List<IActionListItem<T>>;
 
 	protected readonly _actionLineHeight: number;
+	private readonly _baseLineHeight = 24;
 	protected readonly _headerLineHeight = 24;
 	protected readonly _separatorLineHeight = 8;
 
@@ -521,14 +522,7 @@ export class ActionListWidget<T> extends Disposable {
 
 		const virtualDelegate: IListVirtualDelegate<IActionListItem<T>> = {
 			getHeight: element => {
-				switch (element.kind) {
-					case ActionListItemKind.Header:
-						return this._headerLineHeight;
-					case ActionListItemKind.Separator:
-						return this._separatorLineHeight;
-					default:
-						return this._actionLineHeight;
-				}
+				return this._getItemHeight(element);
 			},
 			getTemplateId: element => element.kind
 		};
@@ -858,16 +852,30 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	/**
+	 * Returns the height for an action item, using the base line height
+	 * for items without a description when `descriptionBelow` is enabled.
+	 */
+	protected _getItemHeight(item: IActionListItem<T>): number {
+		switch (item.kind) {
+			case ActionListItemKind.Header:
+				return this._headerLineHeight;
+			case ActionListItemKind.Separator:
+				return this._separatorLineHeight;
+			default:
+				if (this._options?.descriptionBelow && !item.description) {
+					return this._baseLineHeight;
+				}
+				return this._actionLineHeight;
+		}
+	}
+
+	/**
 	 * Computes the total height of all items (including collapsed/filtered items).
 	 */
 	computeFullHeight(): number {
 		let fullHeight = 0;
 		for (const item of this._allMenuItems) {
-			switch (item.kind) {
-				case ActionListItemKind.Header: fullHeight += this._headerLineHeight; break;
-				case ActionListItemKind.Separator: fullHeight += this._separatorLineHeight; break;
-				default: fullHeight += this._actionLineHeight; break;
-			}
+			fullHeight += this._getItemHeight(item);
 		}
 		return fullHeight;
 	}
@@ -880,17 +888,7 @@ export class ActionListWidget<T> extends Disposable {
 		let listHeight = 0;
 		for (let i = 0; i < visibleCount; i++) {
 			const element = this._list.element(i);
-			switch (element.kind) {
-				case ActionListItemKind.Header:
-					listHeight += this._headerLineHeight;
-					break;
-				case ActionListItemKind.Separator:
-					listHeight += this._separatorLineHeight;
-					break;
-				default:
-					listHeight += this._actionLineHeight;
-					break;
-			}
+			listHeight += this._getItemHeight(element);
 		}
 		return listHeight;
 	}
@@ -930,11 +928,7 @@ export class ActionListWidget<T> extends Disposable {
 			this._list.splice(0, visibleCount, allItems);
 			let allItemsHeight = 0;
 			for (const item of allItems) {
-				switch (item.kind) {
-					case ActionListItemKind.Header: allItemsHeight += this._headerLineHeight; break;
-					case ActionListItemKind.Separator: allItemsHeight += this._separatorLineHeight; break;
-					default: allItemsHeight += this._actionLineHeight; break;
-				}
+				allItemsHeight += this._getItemHeight(item);
 			}
 			this._list.layout(allItemsHeight);
 
