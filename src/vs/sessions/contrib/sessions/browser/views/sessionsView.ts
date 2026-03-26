@@ -33,7 +33,6 @@ export const SessionsViewId = 'sessions.workbench.view.sessionsView';
 const ACTION_ID_NEW_SESSION = 'workbench.action.chat.newChat';
 const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
-const WORKSPACE_GROUP_CAPPED_STORAGE_KEY = 'sessionsListControl.workspaceGroupCapped';
 
 export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
 export const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
@@ -50,7 +49,6 @@ export class SessionsView extends ViewPane {
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
 	private groupingContextKey: IContextKey | undefined;
 	private sortingContextKey: IContextKey | undefined;
-	private workspaceGroupCappedContextKey: IContextKey<boolean> | undefined;
 	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; getDefault: () => boolean }>();
 
 	constructor(
@@ -87,8 +85,6 @@ export class SessionsView extends ViewPane {
 		this.groupingContextKey.set(this.currentGrouping);
 		this.sortingContextKey = SessionsViewSortingContext.bindTo(contextKeyService);
 		this.sortingContextKey.set(this.currentSorting);
-		this.workspaceGroupCappedContextKey = IsWorkspaceGroupCappedContext.bindTo(contextKeyService);
-		this.workspaceGroupCappedContextKey.set(this.storageService.getBoolean(WORKSPACE_GROUP_CAPPED_STORAGE_KEY, StorageScope.PROFILE, true));
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
