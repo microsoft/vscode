@@ -51,7 +51,11 @@
 		"inputValidation.errorBackground": "#5f0d0d",
 		"inputValidation.errorBorder": "#9d2f23",
 		"badge.background": "#7f5d38",
-		"progressBar.background": "#7f5d38"
+		"progressBar.background": "#7f5d38",
+		"diffEditor.insertedTextBackground": "#889b4a30",
+		"diffEditor.removedTextBackground": "#dc395830",
+		"diffEditor.insertedLineBackground": "#889b4a20",
+		"diffEditor.removedLineBackground": "#dc395820"
 	},
 	"tokenColors": [
 		{
