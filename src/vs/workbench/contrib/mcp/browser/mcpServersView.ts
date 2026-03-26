@@ -336,7 +336,8 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 	private async query(query: string): Promise<IQueryResult> {
 		const disposables = new DisposableStore();
 		if (query) {
-			const servers = await this.mcpWorkbenchService.queryGallery({ text: query.replace('@mcp', '') });
+			const text = query.replace('@mcp', '').replace(/@sort:(\w+)(-\w*)?/g, '').trim();
+			const servers = await this.mcpWorkbenchService.queryGallery({ text });
 			const model = disposables.add(new IterativePagedModel(servers));
 			return { model, disposables };
 		}
