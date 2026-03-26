@@ -592,7 +592,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		}
 	}
 
-	async $registerChatSessionCustomizationProvider(handle: number, id: string, metadata: IChatSessionCustomizationProviderMetadataDto, extensionId: ExtensionIdentifier): Promise<void> {
+	async $registerChatSessionCustomizationProvider(handle: number, chatSessionType: string, metadata: IChatSessionCustomizationProviderMetadataDto, extensionId: ExtensionIdentifier): Promise<void> {
 		const extension = await this._extensionService.getExtension(extensionId.value);
 		if (!extension) {
 			this._logService.error(`[MainThreadChatAgents2] Could not find extension for customization provider: ${extensionId.value}`);
@@ -632,7 +632,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		});
 
 		const descriptor: IHarnessDescriptor = {
-			id,
+			id: chatSessionType,
 			label: metadata.label,
 			icon: metadata.iconId ? ThemeIcon.fromId(metadata.iconId) : ThemeIcon.fromId(Codicon.extensions.id),
 			hiddenSections,

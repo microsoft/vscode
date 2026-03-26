@@ -143,12 +143,12 @@ declare module 'vscode' {
 		 * presentation and filtering, while {@link ChatSessionCustomizationProvider.provideChatSessionCustomizations}
 		 * supplies the actual items.
 		 *
-		 * @param id A unique identifier for this provider (e.g. `'cli'`, `'claude'`).
+		 * @param chatSessionType The session type this provider is for (e.g. `'cli'`, `'claude'`).
 		 * @param metadata Metadata describing the provider's capabilities and UI presentation.
 		 * @param provider The customization provider implementation.
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerChatSessionCustomizationProvider(id: string, metadata: ChatSessionCustomizationProviderMetadata, provider: ChatSessionCustomizationProvider): Disposable;
+		export function registerChatSessionCustomizationProvider(chatSessionType: string, metadata: ChatSessionCustomizationProviderMetadata, provider: ChatSessionCustomizationProvider): Disposable;
 	}
 
 	// #endregion

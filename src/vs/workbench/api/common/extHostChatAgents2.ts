@@ -664,7 +664,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return resources;
 	}
 
-	registerChatSessionCustomizationProvider(extension: IExtensionDescription, id: string, metadata: vscode.ChatSessionCustomizationProviderMetadata, provider: vscode.ChatSessionCustomizationProvider): vscode.Disposable {
+	registerChatSessionCustomizationProvider(extension: IExtensionDescription, chatSessionType: string, metadata: vscode.ChatSessionCustomizationProviderMetadata, provider: vscode.ChatSessionCustomizationProvider): vscode.Disposable {
 		const handle = ExtHostChatAgents2._customizationProviderIdPool++;
 		this._customizationProviders.set(handle, { extension, provider });
 
@@ -675,7 +675,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			workspaceSubpaths: metadata.workspaceSubpaths ? [...metadata.workspaceSubpaths] : undefined,
 		};
 
-		this._proxy.$registerChatSessionCustomizationProvider(handle, id, metadataDto, extension.identifier);
+		this._proxy.$registerChatSessionCustomizationProvider(handle, chatSessionType, metadataDto, extension.identifier);
 
 		const disposables = new DisposableStore();
 
