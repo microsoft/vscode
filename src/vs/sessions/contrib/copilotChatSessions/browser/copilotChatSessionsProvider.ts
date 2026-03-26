@@ -970,42 +970,32 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			modelRef.dispose();
 		}
 
+		const existingSessions = new ResourceSet([...this._sessionCache.values()].map(s => s.resource));
+
 		// Send request
-		const existingResources = new ResourceSet(this.agentSessionsService.model.sessions.map(s => s.resource));
 		const result = await this.chatService.sendRequest(session.resource, query, sendOptions);
 		if (result.kind === 'rejected') {
 			throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
 		}
 
 		// Wait for the agent session to appear
-		const newAgentSession = await this._waitForNewAgentSession(session.target, existingResources);
-		this._currentNewSession = undefined;
-		if (!newAgentSession) {
-			throw new Error('[DefaultCopilotProvider] Failed to create agent session');
-		}
-		return this._wrapAgentSession(newAgentSession);
+		return this._waitForNewAgentSession(session.target, existingSessions);
 	}
 
-	private async _waitForNewAgentSession(target: AgentSessionTarget, existingSessions: ResourceSet): Promise<IAgentSession | undefined> {
-		const found = this.agentSessionsService.model.sessions.find(s => s.providerType === target && !existingSessions.has(s.resource));
+	private async _waitForNewAgentSession(target: AgentSessionTarget, existingSessions: ResourceSet): Promise<ISessionData> {
+		const found = [...this._sessionCache.values()].find(s => s.sessionType === target && !existingSessions.has(s.resource));
 		if (found) {
 			return found;
 		}
-		return new Promise<IAgentSession | undefined>(resolve => {
-			const listener = this.agentSessionsService.model.onDidChangeSessions(() => {
-				const s = this.agentSessionsService.model.sessions.find(s => s.providerType === target && !existingSessions.has(s.resource));
+		return new Promise<ISessionData>(resolve => {
+			const listener = this.onDidChangeSessions((e) => {
+				const s = e.added.find(s => s.sessionType === target && !existingSessions.has(s.resource));
 				if (s) {
 					listener.dispose();
 					resolve(s);
 				}
 			});
 		});
-	}
-
-	private _wrapAgentSession(agentSession: IAgentSession): ISessionData {
-		const adapter = new AgentSessionAdapter(agentSession, this.id);
-		this._sessionCache.set(agentSession.resource.toString(), adapter);
-		return adapter;
 	}
 
 	// -- Private --
@@ -1062,11 +1052,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return Codicon.folder;
 	}
 
-	private _isOwnedSession(session: IAgentSession): boolean {
-		return session.providerType === AgentSessionProviders.Background
-			|| session.providerType === AgentSessionProviders.Cloud;
-	}
-
 	private _ensureSessionCache(): void {
 		if (this._sessionCache.size > 0) {
 			return;
@@ -1075,12 +1060,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private _refreshSessionCache(): void {
-		const currentSessions = this.agentSessionsService.model.sessions.filter(s => this._isOwnedSession(s));
 		const currentKeys = new Set<string>();
 		const added: ISessionData[] = [];
 		const changed: ISessionData[] = [];
 
-		for (const session of currentSessions) {
+		for (const session of this.agentSessionsService.model.sessions) {
+			if (session.resource.toString() === this._currentNewSession?.resource.toString()) {
+				continue;
+			}
+
+			if (session.providerType !== AgentSessionProviders.Background
+				&& session.providerType !== AgentSessionProviders.Cloud) {
+				continue;
+			}
+
 			const key = session.resource.toString();
 			currentKeys.add(key);
 
