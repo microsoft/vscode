@@ -29,36 +29,6 @@
 	-webkit-app-region: no-drag;
 }
 
-/* Keep the sidebar header/footer containers static during sidebar reveal
- * without disabling normal hover/pressed feedback on their interactive children. */
-.agent-sessions-workbench .part.sidebar > .composite.title,
-.agent-sessions-workbench .part.sidebar > .sidebar-footer,
-.agent-sessions-workbench .part.sidebar > .composite.title > .title-actions,
-.agent-sessions-workbench .part.sidebar > .composite.title > .composite-bar-container,
-.agent-sessions-workbench .part.sidebar > .composite.title > .global-actions,
-.agent-sessions-workbench .part.sidebar > .composite.title > .global-actions-left {
-	transition-property: none !important;
-	transition-duration: 0s !important;
-	transition-delay: 0s !important;
-	animation: none !important;
-}
-
-/* Avoid title action fade artifacts from pane composite drag-indicator pseudo-elements,
- * but keep the action items themselves free to use normal interaction feedback. */
-.agent-sessions-workbench .part.sidebar > .composite.title > .title-actions .action-item::before,
-.agent-sessions-workbench .part.sidebar > .composite.title > .title-actions .action-item::after,
-.agent-sessions-workbench .part.sidebar > .composite.title > .composite-bar-container .action-item::before,
-.agent-sessions-workbench .part.sidebar > .composite.title > .composite-bar-container .action-item::after,
-.agent-sessions-workbench .part.sidebar > .composite.title > .global-actions .action-item::before,
-.agent-sessions-workbench .part.sidebar > .composite.title > .global-actions .action-item::after,
-.agent-sessions-workbench .part.sidebar > .composite.title > .global-actions-left .action-item::before,
-.agent-sessions-workbench .part.sidebar > .composite.title > .global-actions-left .action-item::after {
-	transition-property: none !important;
-	transition-duration: 0s !important;
-	transition-delay: 0s !important;
-	animation: none !important;
-}
-
 /* Sidebar Footer Container */
 .agent-sessions-workbench .part.sidebar > .sidebar-footer {
 	display: flex;
