@@ -74,6 +74,7 @@ function makeAgentSession(opts: {
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
 		pullRequestUri: observableValue('test.pullRequestUri', undefined),
+		pullRequestStateIcon: observableValue('test.pullRequestStateIcon', undefined),
 	};
 }
 
@@ -104,6 +105,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
 		pullRequestUri: observableValue('test.pullRequestUri', undefined),
+		pullRequestStateIcon: observableValue('test.pullRequestStateIcon', undefined),
 	};
 }
 

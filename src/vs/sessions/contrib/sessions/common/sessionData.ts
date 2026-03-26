@@ -99,4 +99,6 @@ export interface ISessionData {
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** URI of the pull request associated with this session, if any. */
 	readonly pullRequestUri: IObservable<URI | undefined>;
+	/** Icon reflecting the PR state */
+	readonly pullRequestStateIcon: IObservable<ThemeIcon | undefined>;
 }
