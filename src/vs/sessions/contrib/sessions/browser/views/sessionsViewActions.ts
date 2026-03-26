@@ -384,12 +384,18 @@ registerAction2(class PinSessionAction extends Action2 {
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
+					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+				),
 			}, {
 				id: SessionItemContextMenuId,
 				group: '0_pin',
 				order: 0,
-				when: ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
+					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+				),
 			}]
 		});
 	}
@@ -413,12 +419,18 @@ registerAction2(class UnpinSessionAction extends Action2 {
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
+					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+				),
 			}, {
 				id: SessionItemContextMenuId,
 				group: '0_pin',
 				order: 0,
-				when: ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
+					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+				),
 			}]
 		});
 	}

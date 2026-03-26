@@ -774,15 +774,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const sorted = this.sortSessions(filtered);
 
-		// Separate pinned and archived sessions
+		// Separate pinned and archived sessions (archived always wins over pinned)
 		const pinned: ISessionData[] = [];
 		const archived: ISessionData[] = [];
 		const regular: ISessionData[] = [];
 		for (const session of sorted) {
-			if (this.isSessionPinned(session)) {
-				pinned.push(session);
-			} else if (session.isArchived.get()) {
+			if (session.isArchived.get()) {
 				archived.push(session);
+			} else if (this.isSessionPinned(session)) {
+				pinned.push(session);
 			} else {
 				regular.push(session);
 			}
