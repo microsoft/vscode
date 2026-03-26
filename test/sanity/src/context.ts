@@ -665,9 +665,9 @@ export class TestContext {
 	 * Runs a command with sudo if not running as root, and ensures it succeeds.
 	 * @param command The command to run.
 	 * @param args Optional arguments for the command.
-	 * @return The result of the spawnSync call.
+	 * @returns The result of the spawnSync call.
 	 */
-	public runSudoNoErrors(command: string, ...args: string[]): SpawnSyncReturns<string> {
+	private runSudoNoErrors(command: string, ...args: string[]): SpawnSyncReturns<string> {
 		if (this.isRootUser) {
 			return this.runNoErrors(command, ...args);
 		} else {
