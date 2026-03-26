@@ -22,7 +22,7 @@ import { IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSe
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
-import { ChatSessionContentContextDto, IChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatSessionRequestHistoryItemDto, IChatSessionProviderOptions, MainContext, MainThreadChatSessionsShape, IChatNewSessionRequestDto } from './extHost.protocol.js';
+import { ChatSessionContentContextDto, IChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatSessionRequestHistoryItemDto, IChatSessionProviderOptions, MainContext, MainThreadChatSessionsShape, IChatNewSessionRequestDto, IChatSessionCustomizationItemGroupDto } from './extHost.protocol.js';
 import { ChatAgentResponseStream } from './extHostChatAgents2.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
@@ -330,6 +330,9 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 	 * Store option groups with onSearch callbacks per provider handle
 	 */
 	private readonly _providerOptionGroups = new Map<number, readonly vscode.ChatSessionProviderOptionGroup[]>();
+
+	private _customizationsHandlePool = 0;
+	private readonly _customizationsProviders = new Map<number, { provider: vscode.ChatSessionCustomizationsProvider; chatSessionType: string; disposable: DisposableStore }>();
 
 	constructor(
 		private readonly commands: ExtHostCommands,
@@ -876,4 +879,44 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		item.archived = archived;
 		controllerData.onDidChangeChatSessionItemStateEmitter.fire(item);
 	}
+
+	registerChatSessionCustomizationsProvider(extension: IExtensionDescription, chatSessionType: string, provider: vscode.ChatSessionCustomizationsProvider): vscode.Disposable {
+		const handle = this._customizationsHandlePool++;
+		const disposables = new DisposableStore();
+
+		this._customizationsProviders.set(handle, { provider, chatSessionType, disposable: disposables });
+
+		if (provider.onDidChangeCustomizations) {
+			disposables.add(provider.onDidChangeCustomizations(() => {
+				this._proxy.$onDidChangeChatSessionCustomizations(handle);
+			}));
+		}
+
+		this._proxy.$registerChatSessionCustomizationsProvider(handle, chatSessionType);
+
+		disposables.add(toDisposable(() => {
+			this._customizationsProviders.delete(handle);
+			this._proxy.$unregisterChatSessionCustomizationsProvider(handle);
+		}));
+
+		return disposables;
+	}
+
+	async $provideChatSessionCustomizations(handle: number, token: CancellationToken): Promise<IChatSessionCustomizationItemGroupDto[] | undefined> {
+		const entry = this._customizationsProviders.get(handle);
+		if (!entry) {
+			return undefined;
+		}
+		try {
+			const result = await entry.provider.provideCustomizations(token);
+			if (!result) {
+				return undefined;
+			}
+			return result.map(g => typeConvert.ChatSessionCustomizations.fromGroup(g));
+		} catch (err) {
+			this._logService.error(`[ExtHostChatSessions] provideCustomizations failed:`, err);
+			return undefined;
+		}
+	}
+
 }
