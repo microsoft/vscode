@@ -47,7 +47,7 @@ import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/brows
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { MarkedKatexSupport } from '../../../../markdown/browser/markedKatexSupport.js';
 import { extractCodeblockUrisFromText, IMarkdownVulnerability } from '../../../common/widget/annotations.js';
-import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IEditSessionDiffStats, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
 import { IChatMarkdownContent, IChatService, IChatUndoStop } from '../../../common/chatService/chatService.js';
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -95,6 +95,13 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	// This Event exists for one specific scenario and the pattern shouldn't be copied without a good reason
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
+
+	private readonly _onDidChangeDiff = this._register(new Emitter<IEditSessionDiffStats>());
+	/**
+	 * Fires when any edit pill (CollapsedCodeBlock) in this markdown part updates its diff.
+	 * The aggregated stats reflect the total added/removed across all edit pills.
+	 */
+	readonly onDidChangeDiff: Event<IEditSessionDiffStats> = this._onDidChangeDiff.event;
 
 	private readonly allRefs: IDisposableReference<CodeBlockPart | CollapsedCodeBlock | MarkdownDiffBlockPart>[] = [];
 
@@ -301,7 +308,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 								this._codeblocks[codeBlockInfo.codeBlockPartIndex].codemapperUri = e.codemapperUri;
 							});
 						}
-						this.allRefs.push(ref);
 						const ownerMarkdownPartId = this.codeblocksPartId;
 						const info: IMarkdownPartCodeBlockInfo = new class implements IMarkdownPartCodeBlockInfo {
 							readonly ownerMarkdownPartId = ownerMarkdownPartId;
@@ -405,14 +411,37 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	private renderCodeBlockPill(sessionResource: URI, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined): IDisposableReference<CollapsedCodeBlock> {
 		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock, sessionResource, requestId, inUndoStop);
+		const diffListenerStore = new DisposableStore();
+		const ref: IDisposableReference<CollapsedCodeBlock> = {
+			object: codeBlock,
+			isStale: () => false,
+			dispose: () => {
+				codeBlock.dispose();
+				diffListenerStore.dispose();
+			}
+		};
+
+		// Push to allRefs and register the diff listener before calling render(),
+		// since diff observables may fire synchronously when the editing session
+		// already has finalized diff data (e.g. on session restore).
+		this.allRefs.push(ref);
+		diffListenerStore.add(codeBlock.onDidChangeDiff(() => this.fireAggregatedDiff()));
 		if (codemapperUri) {
 			codeBlock.render(codemapperUri);
 		}
-		return {
-			object: codeBlock,
-			isStale: () => false,
-			dispose: () => codeBlock.dispose()
-		};
+		return ref;
+	}
+
+	private fireAggregatedDiff(): void {
+		let totalAdded = 0;
+		let totalRemoved = 0;
+		for (const ref of this.allRefs) {
+			if (ref.object instanceof CollapsedCodeBlock && ref.object.diff) {
+				totalAdded += ref.object.diff.added;
+				totalRemoved += ref.object.diff.removed;
+			}
+		}
+		this._onDidChangeDiff.fire({ added: totalAdded, removed: totalRemoved });
 	}
 
 	private renderCodeBlock(data: ICodeBlockData, text: string, isComplete: boolean, currentWidth: number): IDisposableReference<CodeBlockPart> {
@@ -501,6 +530,12 @@ export class CollapsedCodeBlock extends Disposable {
 	private tooltip: string | undefined;
 
 	private currentDiff: IEditSessionEntryDiff | undefined;
+	get diff(): IEditSessionEntryDiff | undefined {
+		return this.currentDiff;
+	}
+
+	private readonly _onDidChangeDiff = this._register(new Emitter<IEditSessionEntryDiff>());
+	readonly onDidChangeDiff: Event<IEditSessionEntryDiff> = this._onDidChangeDiff.event;
 
 	private readonly progressStore = this._store.add(new DisposableStore());
 
@@ -672,6 +707,7 @@ export class CollapsedCodeBlock extends Disposable {
 			const labelRemoved = this.pillElement.querySelector('.label-removed') ?? this.pillElement.appendChild(dom.$('span.label-removed'));
 			if (changes && !changes?.identical && !changes?.quitEarly) {
 				this.currentDiff = changes;
+				this._onDidChangeDiff.fire(changes);
 				labelAdded.textContent = `+${changes.added}`;
 				labelRemoved.textContent = `-${changes.removed}`;
 				const insertionsFragment = changes.added === 1 ? localize('chat.codeblock.insertions.one', "1 insertion") : localize('chat.codeblock.insertions', "{0} insertions", changes.added);

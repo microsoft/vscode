@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -66,7 +67,7 @@ export enum CustomizationHarness {
  * Describes a single harness option for the UI toggle.
  */
 export interface IHarnessDescriptor {
-	readonly id: CustomizationHarness;
+	readonly id: string;
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	/**
@@ -134,7 +135,7 @@ export interface ICustomizationHarnessService {
 	/**
 	 * The currently active harness.
 	 */
-	readonly activeHarness: IObservable<CustomizationHarness>;
+	readonly activeHarness: IObservable<string>;
 
 	/**
 	 * All harnesses available in this window.
@@ -146,7 +147,13 @@ export interface ICustomizationHarnessService {
 	 * Changes the active harness. The new id must be present in
 	 * `availableHarnesses`.
 	 */
-	setActiveHarness(id: CustomizationHarness): void;
+	setActiveHarness(id: string): void;
+
+	/**
+	 * Registers a harness descriptor contributed by an extension's
+	 * customizations provider. Returns a disposable that removes the harness.
+	 */
+	registerContributedHarness(descriptor: IHarnessDescriptor): IDisposable;
 
 	/**
 	 * Convenience: returns the storage source filter for the active harness
@@ -240,7 +247,7 @@ interface IRestrictedHarnessOptions {
 }
 
 function createRestrictedHarnessDescriptor(
-	id: CustomizationHarness,
+	id: string,
 	label: string,
 	icon: ThemeIcon,
 	restrictedUserRoots: readonly URI[],
@@ -372,28 +379,44 @@ export function matchesInstructionFileFilter(filePath: string, filters: readonly
 export class CustomizationHarnessServiceBase implements ICustomizationHarnessService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _activeHarness: ISettableObservable<CustomizationHarness>;
-	readonly activeHarness: IObservable<CustomizationHarness>;
+	private readonly _activeHarness: ISettableObservable<string>;
+	readonly activeHarness: IObservable<string>;
 	readonly availableHarnesses: IObservable<readonly IHarnessDescriptor[]>;
 
 	private readonly _allHarnesses: readonly IHarnessDescriptor[];
+	private readonly _contributedHarnesses = observableValue<readonly IHarnessDescriptor[]>(this, []);
 
 	constructor(
 		harnesses: readonly IHarnessDescriptor[],
-		defaultHarness: CustomizationHarness,
-		availableHarnesses?: IObservable<readonly IHarnessDescriptor[]>,
+		defaultHarness: string,
+		builtInAvailable?: IObservable<readonly IHarnessDescriptor[]>,
 	) {
 		this._allHarnesses = harnesses;
-		this._activeHarness = observableValue<CustomizationHarness>(this, defaultHarness);
+		this._activeHarness = observableValue<string>(this, defaultHarness);
 		this.activeHarness = this._activeHarness;
-		this.availableHarnesses = availableHarnesses ?? constObservable(harnesses);
+
+		const builtIn = builtInAvailable ?? constObservable(harnesses);
+		this.availableHarnesses = derived(this, reader => {
+			const built = builtIn.read(reader);
+			const contributed = this._contributedHarnesses.read(reader);
+			return [...built, ...contributed];
+		});
 	}
 
-	setActiveHarness(id: CustomizationHarness): void {
+	setActiveHarness(id: string): void {
 		const available = this.availableHarnesses.get();
 		if (available.some(h => h.id === id)) {
 			this._activeHarness.set(id, undefined);
 		}
+	}
+
+	registerContributedHarness(descriptor: IHarnessDescriptor): IDisposable {
+		const current = this._contributedHarnesses.get();
+		this._contributedHarnesses.set([...current, descriptor], undefined);
+		return toDisposable(() => {
+			const updated = this._contributedHarnesses.get().filter(h => h !== descriptor);
+			this._contributedHarnesses.set(updated, undefined);
+		});
 	}
 
 	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
