@@ -55,10 +55,7 @@ import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../.
 import { isToolSet } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
-import {
-	PromptsType,
-	Target
-} from '../../../../common/promptSyntax/promptTypes.js';
+import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { resizeImage } from '../../../chatImageUtils.js';
@@ -67,7 +64,6 @@ import { IChatService } from '../../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../../common/chatDebugService.js';
 import { createDebugEventsAttachment } from '../../../chatDebug/chatDebugAttachment.js';
 import { getPromptFileType } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { getChatSessionType } from '../../../../common/model/chatUri.js';
 
 /**
  * Regex matching a slash command word (e.g. `/foo`). Uses `\p{L}` for Unicode
@@ -99,14 +95,6 @@ class SlashCommandCompletions extends Disposable {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
 					return null;
-				}
-
-
-				let customAgentTarget: Target | undefined = undefined;
-				if (widget.lockedAgentId) {
-					const sessionResource = widget.viewModel.model.sessionResource;
-					const ctx = sessionResource && chatService.getChatSessionFromInternalUri(sessionResource);
-					customAgentTarget = (ctx ? chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource)) : undefined) ?? Target.Undefined;
 				}
 
 				const range = computeCompletionRanges(model, position, SlashCommandWord);
@@ -147,9 +135,6 @@ class SlashCommandCompletions extends Disposable {
 								return true;
 							}
 							if (c.modes && c.modes.length && !c.modes.includes(ChatModeKind.Agent)) {
-								return false;
-							}
-							if (c.targets && customAgentTarget && !c.targets.includes(customAgentTarget)) {
 								return false;
 							}
 							return true;

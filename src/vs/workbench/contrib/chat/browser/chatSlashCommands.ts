@@ -27,8 +27,8 @@ import { CONFIGURE_PROMPTS_ACTION_ID } from './promptSyntax/runPromptAction.js';
 import { CONFIGURE_SKILLS_ACTION_ID } from './promptSyntax/skillActions.js';
 import { IChatWidgetService } from './chat.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
-import { Target } from '../common/promptSyntax/promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { AgentSessionProviders } from './agentSessions/agentSessions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 
 export class ChatSlashCommandsContribution extends Disposable {
@@ -53,6 +53,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			detail: nls.localize('clear', "Start a new chat and archive the current one"),
 			sortText: 'z2_clear',
 			executeImmediately: true,
+			silent: true,
 			locations: [ChatAgentLocation.Chat]
 		}, async (_prompt, _progress, _history, _location, sessionResource) => {
 			agentSessionsService.getSession(sessionResource)?.setArchived(true);
@@ -65,7 +66,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			when: ChatContextKeys.lockedToCodingAgent.negate(),
 		}, async () => {
 			await instantiationService.invokeFunction(showConfigureHooksQuickPick);
 		}));
@@ -75,7 +76,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_models',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat],
+			locations: [ChatAgentLocation.Chat]
 		}, async () => {
 			await commandService.executeCommand(OpenModelPickerAction.ID);
 		}));
@@ -86,7 +87,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			when: ChatContextKeys.lockedToCodingAgent.negate(),
 		}, async () => {
 			await commandService.executeCommand(ConfigureToolsAction.ID);
 		}));
@@ -97,7 +98,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			when: ChatContextKeys.lockedToCodingAgent.negate(),
 		}, async () => {
 			await commandService.executeCommand(ManagePluginsAction.ID);
 		}));
@@ -120,7 +121,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			when: ChatContextKeys.lockedToCodingAgent.negate(),
 		}, async () => {
 			await commandService.executeCommand(OpenModePickerAction.ID);
 		}));
@@ -131,7 +132,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			when: ChatContextKeys.lockedToCodingAgent.negate(),
 		}, async () => {
 			await commandService.executeCommand(CONFIGURE_SKILLS_ACTION_ID);
 		}));
@@ -142,7 +143,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			when: ChatContextKeys.lockedToCodingAgent.negate(),
 		}, async () => {
 			await commandService.executeCommand(CONFIGURE_INSTRUCTIONS_ACTION_ID);
 		}));
@@ -153,7 +154,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			when: ChatContextKeys.lockedToCodingAgent.negate(),
 		}, async () => {
 			await commandService.executeCommand(CONFIGURE_PROMPTS_ACTION_ID);
 		}));
@@ -178,7 +179,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: false,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			when: ChatContextKeys.lockedToCodingAgent.negate(),
 		}, async (prompt, _progress, _history, _location, sessionResource) => {
 			const title = prompt.trim();
 			if (title) {
@@ -200,7 +201,10 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				targets: [Target.VSCode, Target.GitHubCopilot]
+				when: ContextKeyExpr.or(
+					ChatContextKeys.lockedToCodingAgent.negate(),
+					ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Background),
+				),
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
 			}));
@@ -211,7 +215,10 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				targets: [Target.VSCode, Target.GitHubCopilot]
+				when: ContextKeyExpr.or(
+					ChatContextKeys.lockedToCodingAgent.negate(),
+					ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Background),
+				),
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
 			}));
@@ -222,7 +229,10 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				targets: [Target.VSCode, Target.GitHubCopilot]
+				when: ContextKeyExpr.or(
+					ChatContextKeys.lockedToCodingAgent.negate(),
+					ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Background),
+				),
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
 			}));
@@ -233,7 +243,10 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				targets: [Target.VSCode, Target.GitHubCopilot]
+				when: ContextKeyExpr.or(
+					ChatContextKeys.lockedToCodingAgent.negate(),
+					ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Background),
+				),
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
 			}));
@@ -245,7 +258,10 @@ export class ChatSlashCommandsContribution extends Disposable {
 					executeImmediately: true,
 					silent: true,
 					locations: [ChatAgentLocation.Chat],
-					targets: [Target.VSCode, Target.GitHubCopilot]
+					when: ContextKeyExpr.or(
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Background),
+					),
 				}, async (_prompt, _progress, _history, _location, sessionResource) => {
 					setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Autopilot);
 				}));
@@ -256,7 +272,10 @@ export class ChatSlashCommandsContribution extends Disposable {
 					executeImmediately: true,
 					silent: true,
 					locations: [ChatAgentLocation.Chat],
-					targets: [Target.VSCode, Target.GitHubCopilot]
+					when: ContextKeyExpr.or(
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Background),
+					),
 				}, async (_prompt, _progress, _history, _location, sessionResource) => {
 					setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
 				}));
@@ -269,7 +288,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			locations: [ChatAgentLocation.Chat],
 			modes: [ChatModeKind.Ask],
-			targets: [Target.VSCode]
+			when: ChatContextKeys.lockedToCodingAgent.negate(),
 		}, async (prompt, progress, _history, _location, sessionResource) => {
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			const agents = chatAgentService.getAgents();

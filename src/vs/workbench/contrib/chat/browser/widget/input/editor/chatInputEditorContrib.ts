@@ -474,7 +474,17 @@ class ChatTokenDeleter extends Disposable {
 			// If this was a simple delete, try to find out whether it was inside a token
 			if (!change.text && this.widget.viewModel) {
 				const attachmentCapabilities = previousSelectedAgent?.capabilities ?? this.widget.attachmentCapabilities;
-				const previousParsedValue = parser.parseChatRequestWithReferences(getDynamicVariablesForWidget(this.widget), getSelectedToolAndToolSetsForWidget(this.widget), previousInputValue, this.widget.location, { selectedAgent: previousSelectedAgent, mode: this.widget.input.currentModeKind, attachmentCapabilities });
+				const previousParsedValue = parser.parseChatRequestWithReferences(
+					getDynamicVariablesForWidget(this.widget),
+					getSelectedToolAndToolSetsForWidget(this.widget),
+					previousInputValue,
+					this.widget.location,
+					{
+						selectedAgent: previousSelectedAgent,
+						mode: this.widget.input.currentModeKind,
+						attachmentCapabilities,
+						contextMatchesRules: when => this.widget.scopedContextKeyService.contextMatchesRules(when)
+					});
 
 				// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
 				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestSlashPromptPart || p instanceof ChatRequestToolPart);
