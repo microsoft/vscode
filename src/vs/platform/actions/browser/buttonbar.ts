@@ -81,7 +81,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 		this._updateStore.clear();
 		this.clear();
 
-		// Support instamt hover between buttons
+		// Support instant hover between buttons
 		const hoverDelegate = this._updateStore.add(createInstantHoverDelegate());
 
 		for (let i = 0; i < actions.length; i++) {
@@ -90,13 +90,15 @@ export class WorkbenchButtonBar extends ButtonBar {
 			const actionOrSubmenu = actions[i];
 			let action: IAction;
 			let btn: IButton;
-			let tooltip = actionOrSubmenu.tooltip || actionOrSubmenu.label;
-			if (!(actionOrSubmenu instanceof SubmenuAction)) {
-				tooltip = this._keybindingService.appendKeybinding(tooltip, actionOrSubmenu.id);
-			}
-			if (actionOrSubmenu instanceof SubmenuAction && actionOrSubmenu.actions.length > 0) {
+			let tooltip: string;
+
+			if (actionOrSubmenu instanceof SubmenuAction && actionOrSubmenu.actions.length > 1) {
 				const [first, ...rest] = actionOrSubmenu.actions;
 				action = <MenuItemAction>first;
+
+				tooltip = action.tooltip || action.label;
+				tooltip = this._keybindingService.appendKeybinding(tooltip, action.id);
+
 				btn = this.addButtonWithDropdown({
 					secondary: conifgProvider(action, i)?.isSecondary ?? secondary,
 					actionRunner: this._actionRunner,
@@ -107,7 +109,13 @@ export class WorkbenchButtonBar extends ButtonBar {
 					small: this._options?.small,
 				});
 			} else {
-				action = actionOrSubmenu;
+				action = actionOrSubmenu instanceof SubmenuAction && actionOrSubmenu.actions.length === 1
+					? actionOrSubmenu.actions[0]
+					: actionOrSubmenu;
+
+				tooltip = action.tooltip || action.label;
+				tooltip = this._keybindingService.appendKeybinding(tooltip, action.id);
+
 				btn = this.addButton({
 					secondary: conifgProvider(action, i)?.isSecondary ?? secondary,
 					ariaLabel: tooltip,
