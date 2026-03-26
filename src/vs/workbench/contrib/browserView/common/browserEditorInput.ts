@@ -9,6 +9,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
+import { IBrowserEditorViewState } from './browserView.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -38,11 +39,8 @@ const MAX_TITLE_LENGTH = 30;
 /**
  * JSON-serializable type used during browser state serialization/deserialization
  */
-export interface IBrowserEditorInputData {
+export interface IBrowserEditorInputData extends IBrowserEditorViewState {
 	readonly id: string;
-	readonly url?: string;
-	readonly title?: string;
-	readonly favicon?: string;
 }
 
 export class BrowserEditorInput extends EditorInput {
@@ -51,7 +49,7 @@ export class BrowserEditorInput extends EditorInput {
 	private static readonly DEFAULT_LABEL = localize('browser.editorLabel', "Browser");
 
 	private readonly _id: string;
-	private readonly _initialData: IBrowserEditorInputData;
+	private _initialData: IBrowserEditorInputData;
 	private _model: IBrowserViewModel | undefined;
 	private _modelPromise: Promise<IBrowserViewModel> | undefined;
 
@@ -89,9 +87,27 @@ export class BrowserEditorInput extends EditorInput {
 		return this._model ? this._model.url : this._initialData.url;
 	}
 
+	get title(): string | undefined {
+		// Use model title if available, otherwise fall back to initial data
+		return this._model ? this._model.title : this._initialData.title;
+	}
+
 	get favicon(): string | undefined {
 		// Use model favicon if available, otherwise fall back to initial data
 		return this._model ? this._model.favicon : this._initialData.favicon;
+	}
+
+	navigate(url: string): void {
+		if (this._model) {
+			void this._model.loadURL(url);
+		} else {
+			// If the model isn't created yet, update the initial data so that the URL is correct when the model is created
+			this._initialData = {
+				id: this._id,
+				url
+			};
+			this._onDidChangeLabel.fire();
+		}
 	}
 
 	override async resolve(): Promise<IBrowserViewModel> {
@@ -144,8 +160,7 @@ export class BrowserEditorInput extends EditorInput {
 			return this._resourceBeforeDisposal;
 		}
 
-		const url = this._model?.url ?? this._initialData.url ?? '';
-		return BrowserViewUri.forUrl(url, this._id);
+		return BrowserViewUri.forId(this._id);
 	}
 
 	override getIcon(): ThemeIcon | URI | undefined {
@@ -226,20 +241,25 @@ export class BrowserEditorInput extends EditorInput {
 	override copy(): EditorInput {
 		logBrowserOpen(this.telemetryService, 'copyToNewWindow');
 
-		const currentUrl = this._model?.url ?? this._initialData.url;
 		return this.instantiationService.createInstance(BrowserEditorInput, {
 			id: generateUuid(),
-			url: currentUrl,
-			title: this._model?.title ?? this._initialData.title,
-			favicon: this._model?.favicon ?? this._initialData.favicon
+			url: this.url,
+			title: this.title,
+			favicon: this.favicon
 		});
 	}
 
 	override toUntyped(): IUntypedEditorInput {
+		const viewState: IBrowserEditorViewState = {
+			url: this.url,
+			title: this.title,
+			favicon: this.favicon
+		};
 		return {
 			resource: this.resource,
 			options: {
-				override: BrowserEditorInput.ID
+				override: BrowserEditorInput.EDITOR_ID,
+				viewState
 			}
 		};
 	}
@@ -259,9 +279,9 @@ export class BrowserEditorInput extends EditorInput {
 	serialize(): IBrowserEditorInputData {
 		return {
 			id: this._id,
-			url: this._model ? this._model.url : this._initialData.url,
-			title: this._model ? this._model.title : this._initialData.title,
-			favicon: this._model ? this._model.favicon : this._initialData.favicon
+			url: this.url,
+			title: this.title,
+			favicon: this.favicon
 		};
 	}
 }

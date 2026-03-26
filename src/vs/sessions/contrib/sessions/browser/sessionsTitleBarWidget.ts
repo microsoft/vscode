@@ -19,8 +19,9 @@ import { IMenuService, MenuId, MenuRegistry, SubmenuItemAction } from '../../../
 import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IMarshalledAgentSessionContext, getAgentChangesSummary, hasValidDiff } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { IMarshalledAgentSessionContext } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -32,11 +33,11 @@ import { AgentSessionsPicker } from '../../../../workbench/contrib/chat/browser/
 import { autorun } from '../../../../base/common/observable.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { basename } from '../../../../base/common/resources.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { ISessionsProvidersService } from './sessionsProvidersService.js';
+import { SessionStatus } from '../common/sessionData.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 /**
  * Sessions Title Bar Widget - renders the active chat session title
@@ -76,19 +77,33 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super(undefined, action, options);
 
-		// Re-render when the active session changes
+
+		// Re-render when the active session, its data, or the active provider changes
 		this._register(autorun(reader => {
-			const activeSession = this.activeSessionService.activeSession.read(reader);
-			this._trackModelTitleChanges(activeSession?.resource);
+			const sessionData = this.activeSessionService.activeSession.read(reader);
+			this._trackModelTitleChanges(sessionData?.resource);
+			if (sessionData) {
+				sessionData.title.read(reader);
+				sessionData.status.read(reader);
+			}
+			this.activeSessionService.activeProviderId.read(reader);
 			this._lastRenderState = undefined;
 			this._render();
 		}));
 
 		// Re-render when sessions data changes (e.g., changes info updated)
-		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
+		this._register(this.activeSessionService.onDidChangeSessions(() => {
+			this._lastRenderState = undefined;
+			this._render();
+		}));
+
+		// Re-render when providers change (affects provider picker visibility)
+		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
 			this._lastRenderState = undefined;
 			this._render();
 		}));
@@ -128,10 +143,9 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			const label = this._getActiveSessionLabel();
 			const icon = this._getActiveSessionIcon();
 			const repoLabel = this._getRepositoryLabel();
-			const changesSummary = this._getChangesSummary();
-
+			const unreadCount = this._countUnreadSessions();
 			// Build a render-state key from all displayed data
-			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${changesSummary?.insertions ?? ''}|${changesSummary?.deletions ?? ''}`;
+			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${unreadCount}`;
 
 			// Skip re-render if state hasn't changed
 			if (this._lastRenderState === renderState) {
@@ -176,28 +190,9 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				centerGroup.appendChild(repoEl);
 			}
 
-			// Changes summary shown next to the repo
-			if (changesSummary) {
-				const separator2 = $('span.agent-sessions-titlebar-separator');
-				separator2.textContent = '\u00B7';
-				centerGroup.appendChild(separator2);
-
-				const changesEl = $('span.agent-sessions-titlebar-changes');
-
-				const addedEl = $('span.agent-sessions-titlebar-changes-added');
-				addedEl.textContent = `+${changesSummary.insertions}`;
-				changesEl.appendChild(addedEl);
-
-				const removedEl = $('span.agent-sessions-titlebar-changes-removed');
-				removedEl.textContent = `-${changesSummary.deletions}`;
-				changesEl.appendChild(removedEl);
-
-				centerGroup.appendChild(changesEl);
-			}
-
 			sessionPill.appendChild(centerGroup);
 
-			// Click handler on pill - show sessions picker
+			// Click handler on pill
 			this._dynamicDisposables.add(addDisposableListener(sessionPill, EventType.MOUSE_DOWN, (e) => {
 				e.preventDefault();
 				e.stopPropagation();
@@ -214,6 +209,37 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			}));
 
 			this._container.appendChild(sessionPill);
+
+			// Session count widget (to the left of the pill) — toggles sidebar
+			const countWidget = $('button.agent-sessions-titlebar-count') as HTMLButtonElement;
+			countWidget.type = 'button';
+			countWidget.tabIndex = 0;
+			const countIcon = $(ThemeIcon.asCSSSelector(Codicon.tasklist));
+			countWidget.appendChild(countIcon);
+			if (unreadCount > 0) {
+				const countLabel = $('span.agent-sessions-titlebar-count-label');
+				countLabel.textContent = `${unreadCount}`;
+				countWidget.appendChild(countLabel);
+				countWidget.setAttribute('aria-label', localize('showSidebarUnread', "Show Side Bar, {0} unread session(s)", unreadCount));
+			} else {
+				countWidget.setAttribute('aria-label', localize('showSidebar', "Show Side Bar"));
+			}
+			// Hide when sidebar is visible (only shown when sidebar is hidden)
+			const updateVisibility = () => {
+				countWidget.style.display = this.layoutService.isVisible(Parts.SIDEBAR_PART) ? 'none' : '';
+			};
+			updateVisibility();
+			this._dynamicDisposables.add(this.layoutService.onDidChangePartVisibility(e => {
+				if (e.partId === Parts.SIDEBAR_PART) {
+					updateVisibility();
+				}
+			}));
+			this._dynamicDisposables.add(addDisposableListener(countWidget, EventType.CLICK, (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				this.layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
+			}));
+			this._container.insertBefore(countWidget, sessionPill);
 
 			// Hover
 			this._dynamicDisposables.add(this.hoverService.setupManagedHover(
@@ -263,49 +289,21 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 * Get the label of the active chat session.
 	 */
 	private _getActiveSessionLabel(): string {
-		const activeSession = this.activeSessionService.getActiveSession();
-		const label = activeSession?.label;
-		if (label) {
-			return label; // prefer session label to support renamed sessions
+		const sessionData = this.activeSessionService.activeSession.get();
+		if (sessionData) {
+			return sessionData.title.get() || localize('agentSessions.newSession', "New Session");
 		}
-
-		if (activeSession) {
-			const activeModel = this.chatService.getSession(activeSession.resource);
-			if (activeModel?.title) {
-				return activeModel.title; // fall back to chat model title if available
-			}
-		}
-
 		return localize('agentSessions.newSession', "New Session");
 	}
 
 	/**
-	 * Get the icon for the active session's kind/provider.
+	 * Get the icon for the active session's type.
 	 */
 	private _getActiveSessionIcon(): ThemeIcon | undefined {
-		const activeSession = this.activeSessionService.getActiveSession();
-		if (!activeSession) {
-			return undefined;
+		const sessionData = this.activeSessionService.activeSession.get();
+		if (sessionData) {
+			return sessionData.icon;
 		}
-
-		// Try to get icon from the agent session model (has provider-resolved icon)
-		const agentSession = this.agentSessionsService.getSession(activeSession.resource);
-		if (agentSession) {
-			// For background sessions, distinguish worktree vs folder based on metadata
-			if (agentSession.providerType === AgentSessionProviders.Background) {
-				const hasWorktree = typeof agentSession.metadata?.worktreePath === 'string';
-				return hasWorktree ? Codicon.worktree : Codicon.folder;
-			}
-
-			return agentSession.icon;
-		}
-
-		// Fall back to provider icon from the resource
-		const provider = getAgentSessionProvider(activeSession.resource);
-		if (provider !== undefined) {
-			return getAgentSessionProviderIcon(provider);
-		}
-
 		return undefined;
 	}
 
@@ -313,26 +311,33 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 * Get the repository label for the active session.
 	 */
 	private _getRepositoryLabel(): string | undefined {
-		const activeSession = this.activeSessionService.getActiveSession();
-		if (!activeSession) {
-			return undefined;
+		const sessionData = this.activeSessionService.activeSession.get();
+		if (sessionData) {
+			const workspace = sessionData.workspace.get();
+			if (workspace) {
+				return workspace.label;
+			}
 		}
+		return undefined;
+	}
 
-		const uri = activeSession.repository;
-		if (!uri) {
-			return undefined;
+	private _countUnreadSessions(): number {
+		let unread = 0;
+		for (const session of this.activeSessionService.getSessions()) {
+			if (!session.isArchived.get() && session.status.get() === SessionStatus.Completed && !session.isRead.get()) {
+				unread++;
+			}
 		}
-
-		return basename(uri);
+		return unread;
 	}
 
 	private _showContextMenu(e: MouseEvent): void {
-		const activeSession = this.activeSessionService.getActiveSession();
-		if (!activeSession) {
+		const sessionData = this.activeSessionService.activeSession.get();
+		if (!sessionData) {
 			return;
 		}
 
-		const agentSession = this.agentSessionsService.getSession(activeSession.resource);
+		const agentSession = this.agentSessionsService.getSession(sessionData.resource);
 		if (!agentSession) {
 			return;
 		}
@@ -341,6 +346,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 		const contextOverlay: Array<[string, boolean | string]> = [
 			[ChatContextKeys.isArchivedAgentSession.key, agentSession.isArchived()],
+			[ChatContextKeys.isPinnedAgentSession.key, agentSession.isPinned()],
 			[ChatContextKeys.isReadAgentSession.key, agentSession.isRead()],
 			[ChatContextKeys.agentSessionType.key, agentSession.providerType],
 		];
@@ -362,27 +368,9 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		menu.dispose();
 	}
 
-	/**
-	 * Get the changes summary for the active session.
-	 */
-	private _getChangesSummary(): { insertions: number; deletions: number } | undefined {
-		const activeSession = this.activeSessionService.getActiveSession();
-		if (!activeSession) {
-			return undefined;
-		}
-
-		const agentSession = this.agentSessionsService.getSession(activeSession.resource);
-		const changes = agentSession?.changes;
-		if (!changes || !hasValidDiff(changes)) {
-			return undefined;
-		}
-
-		return getAgentChangesSummary(changes);
-	}
-
 	private _showSessionsPicker(): void {
 		const picker = this.instantiationService.createInstance(AgentSessionsPicker, undefined, {
-			overrideSessionOpen: (session, openOptions) => this.activeSessionService.openSession(session.resource, openOptions)
+			overrideSessionOpen: (session, openOptions) => this.activeSessionService.openSession(session.resource)
 		});
 		picker.pickAgentSession();
 	}

@@ -24,4 +24,10 @@ export const Menus = {
 	SidebarFooter: new MenuId('SessionsSidebarFooter'),
 	SidebarCustomizations: new MenuId('SessionsSidebarCustomizations'),
 	AgentFeedbackEditorContent: new MenuId('AgentFeedbackEditorContent'),
+
+	// New session picker menus — providers contribute actions into these
+	// scoped by context keys (sessionsProviderId, sessionType, etc.)
+	NewSessionRepositoryConfig: new MenuId('NewSessions.RepositoryConfigMenu'),
+	NewSessionConfig: new MenuId('NewSessions.SessionConfigMenu'),
+	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),
 } as const;

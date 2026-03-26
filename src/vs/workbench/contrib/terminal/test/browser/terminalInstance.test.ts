@@ -139,6 +139,7 @@ suite('Workbench - TerminalInstance', () => {
 							fastScrollSensitivity: 2,
 							mouseWheelScrollSensitivity: 1,
 							unicodeVersion: '6',
+							commandsToSkipShell: [],
 							shellIntegration: {
 								enabled: true
 							}

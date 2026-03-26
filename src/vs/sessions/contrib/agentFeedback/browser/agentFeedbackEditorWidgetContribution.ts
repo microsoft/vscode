@@ -11,11 +11,12 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { Event } from '../../../../base/common/event.js';
 import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from '../../../../editor/common/editorCommon.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { $, addDisposableListener, clearNode, getTotalWidth } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, addStandardDisposableListener, clearNode, getTotalWidth } from '../../../../base/browser/dom.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { overviewRulerRangeHighlight } from '../../../../editor/common/core/editorColorRegistry.js';
@@ -26,8 +27,8 @@ import * as nls from '../../../../nls.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { getSessionForResource } from './agentFeedbackEditorUtils.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { createAgentFeedbackContext, getSessionForResource } from './agentFeedbackEditorUtils.js';
 import { ICodeReviewService, IPRReviewState } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments, groupNearbySessionEditorComments, ISessionEditorComment, SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -35,6 +36,13 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+
+interface ICommentItemActions {
+	editAction: Action;
+	convertAction: Action | undefined;
+	removeAction: Action;
+}
 
 /**
  * Widget that displays agent feedback comments for a group of nearby feedback items.
@@ -67,6 +75,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 	) {
 		super();
 
@@ -189,22 +198,42 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 			const actionBarContainer = $('div.agent-feedback-widget-item-actions');
 			const actionBar = this._eventStore.add(new ActionBar(actionBarContainer));
+
+			const itemActions: ICommentItemActions = { editAction: undefined!, convertAction: undefined, removeAction: undefined! };
+
+			// Edit action — only disabled for PR review comments
+			const isEditable = comment.source !== SessionEditorCommentSource.PRReview;
+			const editTooltip = isEditable
+				? nls.localize('editComment', "Edit")
+				: nls.localize('editPRCommentDisabled', "PR review comments cannot be edited");
+			itemActions.editAction = new Action(
+				'agentFeedback.widget.edit',
+				editTooltip,
+				ThemeIcon.asClassName(Codicon.edit),
+				isEditable,
+				(): void => { this._startEditing(comment, text, itemActions); },
+			);
+			actionBar.push(itemActions.editAction, { icon: true, label: false });
+
 			if (comment.canConvertToAgentFeedback) {
-				actionBar.push(new Action(
+				itemActions.convertAction = new Action(
 					'agentFeedback.widget.convert',
 					nls.localize('convertComment', "Convert to Agent Feedback"),
 					ThemeIcon.asClassName(Codicon.check),
 					true,
 					() => this._convertToAgentFeedback(comment),
-				), { icon: true, label: false });
+				);
+				actionBar.push(itemActions.convertAction, { icon: true, label: false });
 			}
-			actionBar.push(new Action(
+			itemActions.removeAction = new Action(
 				'agentFeedback.widget.remove',
 				nls.localize('removeComment', "Remove"),
 				ThemeIcon.asClassName(Codicon.close),
 				true,
 				() => this._removeComment(comment),
-			), { icon: true, label: false });
+			);
+			actionBar.push(itemActions.removeAction, { icon: true, label: false });
+
 			itemHeader.appendChild(actionBarContainer);
 			item.appendChild(itemHeader);
 
@@ -293,15 +322,112 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		this._agentFeedbackService.removeFeedback(this._sessionResource, comment.sourceId);
 	}
 
+	private _startEditing(comment: ISessionEditorComment, textContainer: HTMLElement, actions: ICommentItemActions): void {
+		if (comment.source === SessionEditorCommentSource.PRReview) {
+			return;
+		}
+
+		// Disable all actions while editing
+		actions.editAction.enabled = false;
+		if (actions.convertAction) {
+			actions.convertAction.enabled = false;
+		}
+		actions.removeAction.enabled = false;
+
+		const editStore = new DisposableStore();
+		this._eventStore.add(editStore);
+
+		clearNode(textContainer);
+		textContainer.classList.add('editing');
+
+		const textarea = $('textarea.agent-feedback-widget-edit-textarea') as HTMLTextAreaElement;
+		textarea.value = comment.text;
+		textarea.rows = 1;
+		textContainer.appendChild(textarea);
+
+		// Auto-size the textarea
+		const autoSize = () => {
+			textarea.style.height = 'auto';
+			textarea.style.height = `${textarea.scrollHeight}px`;
+			this._editor.layoutOverlayWidget(this);
+		};
+		autoSize();
+
+		editStore.add(addDisposableListener(textarea, 'input', autoSize));
+
+		editStore.add(addStandardDisposableListener(textarea, 'keydown', (e) => {
+			if (e.keyCode === KeyCode.Enter && !e.shiftKey) {
+				e.preventDefault();
+				e.stopPropagation();
+				const newText = textarea.value.trim();
+				if (newText) {
+					this._saveEdit(comment, newText);
+				}
+				// Widget will be rebuilt by the change event
+			} else if (e.keyCode === KeyCode.Escape) {
+				e.preventDefault();
+				e.stopPropagation();
+				this._stopEditing(comment, textContainer, editStore, actions);
+			}
+		}));
+
+		// Stop editing when focus is lost
+		editStore.add(addDisposableListener(textarea, 'blur', () => {
+			this._stopEditing(comment, textContainer, editStore, actions);
+		}));
+
+		textarea.focus();
+	}
+
+	private _saveEdit(comment: ISessionEditorComment, newText: string): void {
+		if (comment.source === SessionEditorCommentSource.AgentFeedback) {
+			this._agentFeedbackService.updateFeedback(this._sessionResource, comment.sourceId, newText);
+		} else if (comment.source === SessionEditorCommentSource.CodeReview) {
+			this._codeReviewService.updateComment(this._sessionResource, comment.sourceId, newText);
+		}
+	}
+
+	private _stopEditing(comment: ISessionEditorComment, textContainer: HTMLElement, editStore: DisposableStore, actions: ICommentItemActions): void {
+		editStore.dispose();
+
+		// Re-enable actions
+		actions.editAction.enabled = comment.source !== SessionEditorCommentSource.PRReview;
+		if (actions.convertAction) {
+			actions.convertAction.enabled = true;
+		}
+		actions.removeAction.enabled = true;
+
+		textContainer.classList.remove('editing');
+		clearNode(textContainer);
+		const rendered = this._markdownRendererService.render(new MarkdownString(comment.text));
+		this._eventStore.add(rendered);
+		textContainer.appendChild(rendered.element);
+		this._editor.layoutOverlayWidget(this);
+	}
+
 	private _convertToAgentFeedback(comment: ISessionEditorComment): void {
 		if (!comment.canConvertToAgentFeedback) {
 			return;
 		}
 
-		const feedback = this._agentFeedbackService.addFeedback(this._sessionResource, comment.resourceUri, comment.range, comment.text, comment.suggestion);
+		const sourcePRReviewCommentId = comment.source === SessionEditorCommentSource.PRReview
+			? comment.sourceId
+			: undefined;
+
+		const feedback = this._agentFeedbackService.addFeedback(
+			this._sessionResource,
+			comment.resourceUri,
+			comment.range,
+			comment.text,
+			comment.suggestion,
+			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
+			sourcePRReviewCommentId,
+		);
 		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedback.id));
 		if (comment.source === SessionEditorCommentSource.CodeReview) {
 			this._codeReviewService.removeComment(this._sessionResource, comment.sourceId);
+		} else if (comment.source === SessionEditorCommentSource.PRReview) {
+			this._codeReviewService.markPRReviewCommentConverted(this._sessionResource, comment.sourceId);
 		}
 	}
 
@@ -413,9 +539,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 		const widgetWidth = getTotalWidth(this._domNode) || 280;
 		const widgetHeight = this._domNode.offsetHeight || 0;
+		const headerHeight = this._headerNode.offsetHeight || lineHeight;
 
-		// Compute content-relative top and clamp to keep the widget within the editor content area
-		const contentRelativeTop = this._editor.getTopForLineNumber(startLineNumber) - lineHeight;
+		// Align the header center with the start line center before clamping within the editor content area.
+		const contentRelativeTop = this._editor.getTopForLineNumber(startLineNumber) + (lineHeight - headerHeight) / 2;
 		const scrollHeight = this._editor.getScrollHeight();
 		const clampedContentTop = Math.min(Math.max(0, contentRelativeTop), Math.max(0, scrollHeight - widgetHeight));
 
@@ -500,7 +627,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 		private readonly _editor: ICodeEditor,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -545,7 +672,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			this._sessionResource = undefined;
 			return;
 		}
-		this._sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._agentSessionsService);
+		this._sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._sessionsManagementService);
 	}
 
 	private _rebuildWidgets(
@@ -576,7 +703,11 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 
 		const groups = groupNearbySessionEditorComments(fileComments, 5);
 
-		for (const group of groups) {
+		// Create widgets in reverse file order so that widgets further up in the
+		// file are added to the DOM last and therefore render on top of widgets
+		// further down.
+		for (let i = groups.length - 1; i >= 0; i--) {
+			const group = groups[i];
 			const widget = this._instantiationService.createInstance(AgentFeedbackEditorWidget, this._editor, group, this._sessionResource);
 			this._widgets.push(widget);
 
@@ -602,8 +733,8 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			return undefined;
 		}
 
-		const changes = this._agentSessionsService.getSession(this._sessionResource)?.changes;
-		if (!(changes instanceof Array)) {
+		const changes = this._sessionsManagementService.getSession(this._sessionResource)?.changes.get();
+		if (!changes) {
 			return undefined;
 		}
 

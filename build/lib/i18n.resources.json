@@ -649,6 +649,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/copilotChatSessions",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/codeReview",
 			"project": "vscode-sessions"
 		},
@@ -669,6 +673,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/remoteAgentHost",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/sessions",
 			"project": "vscode-sessions"
 		},
@@ -678,6 +686,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/welcome",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/chatDebug",
 			"project": "vscode-sessions"
 		}
 	]

@@ -57,6 +57,18 @@ declare module 'vscode' {
 		 * @returns A new controller instance that can be used to manage chat session items for the given chat session type.
 		 */
 		export function createChatSessionItemController(chatSessionType: string, refreshHandler: ChatSessionItemControllerRefreshHandler): ChatSessionItemController;
+
+		/**
+		 * Registers a {@link ChatSessionCustomizationsProvider customizations provider} for a chat session type.
+		 *
+		 * The provider supplies customization items (agents, skills, instructions, prompts)
+		 * that appear in the Customizations management UI for the given session type.
+		 *
+		 * @param chatSessionType The chat session type to provide customizations for.
+		 * @param provider The customizations provider.
+		 * @returns A disposable that unregisters the provider when disposed.
+		 */
+		export function registerChatSessionCustomizationsProvider(chatSessionType: string, provider: ChatSessionCustomizationsProvider): Disposable;
 	}
 
 	/**
@@ -109,6 +121,20 @@ declare module 'vscode' {
 	export type ChatSessionItemControllerNewItemHandler = (context: ChatSessionItemControllerNewItemHandlerContext, token: CancellationToken) => Thenable<ChatSessionItem>;
 
 	/**
+	 * Extension callback invoked to fork an existing chat session item managed by a {@linkcode ChatSessionItemController}.
+	 *
+	 * The handler should create a new session on the provider's backend and
+	 * return the new {@link ChatSessionItem} representing the forked session.
+	 *
+	 * @param sessionResource The resource of the chat session being forked.
+	 * @param request The request turn that marks the fork point. The forked session includes all turns
+	 * upto this request turn and excludes this request turn itself. If undefined, fork the full session.
+	 * @param token A cancellation token.
+	 * @returns The forked session item.
+	 */
+	export type ChatSessionItemControllerForkHandler = (sessionResource: Uri, request: ChatRequestTurn2 | undefined, token: CancellationToken) => Thenable<ChatSessionItem> | ChatSessionItem;
+
+	/**
 	 * Manages chat sessions for a specific chat session type
 	 */
 	export interface ChatSessionItemController {
@@ -144,6 +170,14 @@ declare module 'vscode' {
 		 * The returned chat session is added to the collection and shown in the UI.
 		 */
 		newChatSessionItemHandler?: ChatSessionItemControllerNewItemHandler;
+
+		/**
+		 * Invoked when an existing chat session is forked.
+		 *
+		 * When both this handler and {@linkcode ChatSession.forkHandler} are registered,
+		 * this handler takes precedence.
+		 */
+		forkHandler?: ChatSessionItemControllerForkHandler;
 
 		/**
 		 * Fired when an item's archived state changes.
@@ -399,6 +433,22 @@ declare module 'vscode' {
 		// TODO: Revisit this to align with code.
 		// TODO: pass in options?
 		readonly requestHandler: ChatRequestHandler | undefined;
+
+		/**
+		 * Handles a request to fork the session.
+		 *
+		 * The handler should create a new session on the provider's backend and
+		 * return the new {@link ChatSessionItem} representing the forked session.
+		 *
+		 * @deprecated Use {@linkcode ChatSessionItemController.forkHandler} instead. This remains supported for backwards compatibility.
+		 *
+		 * @param sessionResource The resource of the chat session being forked.
+		 * @param request The request turn that marks the fork point. The forked session includes all turns
+		 * upto this request turn and excludes this request turn itself. If undefined, fork the full session.
+		 * @param token A cancellation token.
+		 * @returns The forked session item.
+		 */
+		readonly forkHandler?: ChatSessionItemControllerForkHandler;
 	}
 
 	/**
@@ -488,10 +538,11 @@ declare module 'vscode' {
 		 *
 		 * @param scheme The uri-scheme to register for. This must be unique.
 		 * @param provider The provider to register.
+		 * @param defaultChatParticipant The default {@link ChatParticipant chat participant} used in sessions provided by this provider.
 		 *
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerChatSessionContentProvider(scheme: string, provider: ChatSessionContentProvider, chatParticipant: ChatParticipant, capabilities?: ChatSessionCapabilities): Disposable;
+		export function registerChatSessionContentProvider(scheme: string, provider: ChatSessionContentProvider, defaultChatParticipant: ChatParticipant, capabilities?: ChatSessionCapabilities): Disposable;
 	}
 
 	export interface ChatContext {

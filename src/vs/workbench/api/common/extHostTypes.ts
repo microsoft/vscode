@@ -3530,6 +3530,7 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 		readonly editedFileEvents?: vscode.ChatRequestEditedFileEvent[],
 		readonly id?: string,
 		readonly modelId?: string,
+		readonly modeInstructions2?: vscode.ChatRequestModeInstructions,
 	) { }
 }
 
@@ -3567,6 +3568,23 @@ export enum ChatSessionStatus {
 	NeedsInput = 3
 }
 
+export enum ChatSessionCustomizationType {
+	Agents = 'agents',
+	Skills = 'skills',
+	AgentInstructions = 'agentInstructions',
+	ContextInstructions = 'contextInstructions',
+	OnDemandInstructions = 'onDemandInstructions',
+	Prompts = 'prompts',
+}
+
+export enum ChatSessionCustomizationStorageLocation {
+	Workspace = 1,
+	User = 2,
+	Extension = 3,
+	Plugin = 4,
+	BuiltIn = 5,
+}
+
 export enum ChatDebugLogLevel {
 	Trace = 0,
 	Info = 1,
@@ -3577,6 +3595,12 @@ export enum ChatDebugLogLevel {
 export enum ChatDebugToolCallResult {
 	Success = 0,
 	Error = 1
+}
+
+export enum ChatDebugHookResult {
+	Success = 0,
+	Error = 1,
+	NonBlockingError = 2
 }
 
 export class ChatDebugToolCallEvent {
@@ -3753,6 +3777,22 @@ export class ChatDebugEventModelTurnContent {
 
 	constructor(requestName: string) {
 		this.requestName = requestName;
+	}
+}
+
+export class ChatDebugEventHookContent {
+	readonly _kind = 'hookContent';
+	hookType: string;
+	command?: string;
+	result?: ChatDebugHookResult;
+	durationInMillis?: number;
+	input?: string;
+	output?: string;
+	exitCode?: number;
+	errorMessage?: string;
+
+	constructor(hookType: string) {
+		this.hookType = hookType;
 	}
 }
 

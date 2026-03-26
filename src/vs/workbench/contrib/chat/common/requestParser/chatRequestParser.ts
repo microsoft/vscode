@@ -17,7 +17,7 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynami
 
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
 const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
-const slashReg = /^\/([\p{L}\d_\-\.:]+)(?=(\s|$|\b))/iu; // A / command
+export const slashReg = /^\/([\p{L}\d_\-\.:]+)(?=(\s|$|\b))/iu; // A / command
 
 export interface IChatParserContext {
 	/** Used only as a disambiguator, when the query references an agent that has a duplicate with the same name. */
@@ -223,10 +223,14 @@ export class ChatRequestParser {
 			}
 		}
 
-		const capabilities = context?.attachmentCapabilities ?? usedAgent?.capabilities ?? context?.attachmentCapabilities;
-		if (!usedAgent || capabilities?.supportsPromptAttachments) {
-			const slashCommands = this.slashCommandService.getCommands(location, context?.mode ?? ChatModeKind.Ask);
-			const slashCommand = slashCommands.find(c => c.command === command);
+		const capabilities = context?.attachmentCapabilities ?? usedAgent?.capabilities;
+		const slashCommands = this.slashCommandService.getCommands(location, context?.mode ?? ChatModeKind.Ask);
+		const slashCommand = slashCommands.find(c => c.command === command);
+		// If there is no agent, we allow any slash command.
+		// If there is an agent, we let
+		// * silent ones go through since they are only UI-facing and don't influence chat history
+		// * slash commands that support prompt attachments, since those are meant to be used in conjunction with an agent and we can assume the agent can handle them.
+		if (!usedAgent || slashCommand?.silent || capabilities?.supportsPromptAttachments) {
 			if (slashCommand) {
 				// Valid standalone slash command
 				return new ChatRequestSlashCommandPart(slashRange, slashEditorRange, slashCommand);
