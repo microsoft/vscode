@@ -35,12 +35,9 @@ import { ChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessi
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
-import { IChatModel } from '../../common/model/chatModel.js';
-import { IChatService, IChatToolInvocation } from '../../common/chatService/chatService.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
 import { IChatRequestVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
-import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
@@ -997,60 +994,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			return undefined;
 		}
 		return provider.provideCustomizations(token);
-	}
-
-	public getInProgressSessionDescription(chatModel: IChatModel): string | undefined {
-		const requests = chatModel.getRequests();
-		if (requests.length === 0) {
-			return undefined;
-		}
-
-		// Get the last request to check its response status
-		const lastRequest = requests.at(-1);
-		const response = lastRequest?.response;
-		if (!response) {
-			return undefined;
-		}
-
-		// If the response is complete, show Finished
-		if (response.isComplete) {
-			return undefined;
-		}
-
-		// Get the response parts to find tool invocations and progress messages
-		const responseParts = response.response.value;
-		let description: string | IMarkdownString | undefined = '';
-
-		for (let i = responseParts.length - 1; i >= 0; i--) {
-			const part = responseParts[i];
-			if (description) {
-				break;
-			}
-
-			if (part.kind === 'confirmation' && typeof part.message === 'string') {
-				description = part.message;
-			} else if (part.kind === 'toolInvocation') {
-				const toolInvocation = part as IChatToolInvocation;
-				const state = toolInvocation.state.get();
-				description = toolInvocation.generatedTitle || toolInvocation.pastTenseMessage || toolInvocation.invocationMessage;
-				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-					const confirmationTitle = state.confirmationMessages?.title;
-					const titleMessage = confirmationTitle && (typeof confirmationTitle === 'string'
-						? confirmationTitle
-						: confirmationTitle.value);
-					const descriptionValue = typeof description === 'string' ? description : description.value;
-					description = titleMessage ?? localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation: {0}", descriptionValue);
-				}
-			} else if (part.kind === 'toolInvocationSerialized') {
-				description = part.invocationMessage;
-			} else if (part.kind === 'progressMessage') {
-				description = part.content;
-			} else if (part.kind === 'thinking') {
-				description = localize('chat.sessions.description.thinking', 'Thinking...');
-			}
-		}
-
-		return description ? renderAsPlaintext(description, { useLinkFormatter: true }) : '';
 	}
 
 	async createNewChatSessionItem(chatSessionType: string, request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined> {

@@ -65,7 +65,7 @@ import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/c
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { CIStatusWidget } from './ciStatusWidget.js';
 import { arrayEqualsC } from '../../../../base/common/equals.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionData.js';
+import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../sessions/common/sessionData.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../base/common/color.js';
@@ -740,6 +740,11 @@ export class ChangesViewPane extends ViewPane {
 				const { files } = topLevelStats.read(reader);
 				lastHasChanges = files > 0;
 				return lastHasChanges;
+			}));
+
+			this.renderDisposables.add(bindContextKey(ChatContextKeys.requestInProgress, this.scopedContextKeyService, reader => {
+				const activeSessionStatus = this.sessionManagementService.activeSession.read(reader)?.status.read(reader);
+				return activeSessionStatus !== SessionStatus.Completed && activeSessionStatus !== SessionStatus.Error;
 			}));
 
 			this.renderDisposables.add(bindContextKey(isolationModeContextKey, this.scopedContextKeyService, reader => {
