@@ -2460,7 +2460,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						() => ({ domNode: markdownPart.domNode, disposable: markdownPart }),
 						markdownPart.codeblocksPartId,
 						markdown,
-						templateData.value
+						templateData.value,
+						markdownPart.onDidChangeDiff
 					);
 				}
 
@@ -2474,7 +2475,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						() => ({ domNode: markdownPart.domNode, disposable: markdownPart }),
 						markdownPart.codeblocksPartId,
 						markdown,
-						templateData.value
+						templateData.value,
+						markdownPart.onDidChangeDiff
 					);
 				}
 			} else if (!this.shouldPinPart(markdown, context.element) && !isBlankMarkdown && !hasPendingEditCodeblock) {

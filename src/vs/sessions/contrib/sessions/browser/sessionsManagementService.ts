@@ -558,7 +558,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private _parsePRNumberFromSession(session: ISessionData): number | undefined {
-		const prUri = session.pullRequestUri.get();
+		const prUri = session.pullRequest.get()?.uri;
 		if (prUri) {
 			const match = /\/pull\/(\d+)/.exec(prUri.path);
 			if (match) {

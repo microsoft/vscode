@@ -39,6 +39,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
@@ -78,12 +79,22 @@ export class TestCoverageView extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@ITestCoverageService private readonly coverageService: ITestCoverageService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		const storedOrder = this.storageService.getNumber('testing.coverageSortOrder', StorageScope.WORKSPACE);
+		if (storedOrder !== undefined && storedOrder >= CoverageSortOrder.Coverage && storedOrder <= CoverageSortOrder.Name) {
+			this.sortOrder.set(storedOrder, undefined);
+		}
 	}
 
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
+
+		this._register(autorun(reader => {
+			const order = this.sortOrder.read(reader);
+			this.storageService.store('testing.coverageSortOrder', order, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}));
 
 		const labels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility }));
 
