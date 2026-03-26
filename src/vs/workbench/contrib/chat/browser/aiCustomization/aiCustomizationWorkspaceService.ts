@@ -93,6 +93,10 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 	async getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
 		return this.promptsService.getPromptSlashCommands(token);
 	}
+
+	getSkillUIIntegrations(): ReadonlyMap<string, string> {
+		return new Map();
+	}
 }
 
 registerSingleton(IAICustomizationWorkspaceService, AICustomizationWorkspaceService, InstantiationType.Delayed);
