@@ -59,7 +59,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		this.sessionTypes = [CopilotCLISessionType];
 
 		this.browseActions = [{
-			label: localize('browseRemote', "Browse Remote Folders..."),
+			label: localize('folders', "Folders"),
 			icon: Codicon.remote,
 			providerId: this.id,
 			execute: () => this._browseForFolder(),
@@ -121,6 +121,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			description: observableValue(this, undefined),
 			lastTurnEnd: observableValue(this, undefined),
 			pullRequestUri: observableValue(this, undefined),
+			pullRequestStateIcon: observableValue(this, undefined),
+
 		};
 	}
 

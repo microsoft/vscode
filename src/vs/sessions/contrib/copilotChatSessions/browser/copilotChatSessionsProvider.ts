@@ -5,9 +5,9 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
+import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -27,7 +27,7 @@ import { IsolationMode } from './isolationPicker.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { isBuiltinChatMode, IChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
@@ -80,6 +80,8 @@ export interface ICopilotNewSessionData extends ISessionData {
  */
 export class CopilotCLISession extends Disposable implements ISessionData {
 
+	static readonly COPILOT_WORKTREE_PATTERN = 'copilot-worktree-';
+
 	// -- ISessionData fields --
 
 	readonly sessionId: string;
@@ -106,7 +108,7 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 	private readonly _branchObservable = observableValue<string | undefined>(this, undefined);
 	readonly branchObservable: IObservable<string | undefined> = this._branchObservable;
 
-	private readonly _isolationModeObservable = observableValue<string | undefined>(this, undefined);
+	private readonly _isolationModeObservable = observableValue<string | undefined>(this, 'worktree');
 	readonly isolationModeObservable: IObservable<string | undefined> = this._isolationModeObservable;
 
 	readonly changes: IObservable<readonly IChatSessionFileChange[]> = observableValue<readonly IChatSessionFileChange[]>(this, []);
@@ -125,8 +127,20 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 	readonly description: IObservable<string | undefined> = observableValue(this, undefined);
 	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
 	readonly pullRequestUri: IObservable<URI | undefined> = observableValue(this, undefined);
+	readonly pullRequestStateIcon: IObservable<ThemeIcon | undefined> = observableValue(this, undefined);
 
 	private _gitRepository: IGitRepository | undefined;
+	private readonly _loadBranchesCts = this._register(new MutableDisposable<CancellationTokenSource>());
+
+	// -- Branch state --
+
+	private readonly _branches = observableValue<readonly string[]>(this, []);
+	readonly branches: IObservable<readonly string[]> = this._branches;
+
+	private readonly _branchesLoading = observableValue(this, false);
+	readonly branchesLoading: IObservable<boolean> = this._branchesLoading;
+
+	private _defaultBranch: string | undefined;
 
 	// -- New session configuration fields --
 
@@ -198,18 +212,73 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 			}
 		}
 		this._loading.set(false, undefined);
+
+		if (this._gitRepository) {
+			this._loadBranches();
+		}
+	}
+
+	private _loadBranches(): void {
+		const repo = this._gitRepository;
+		if (!repo) {
+			return;
+		}
+
+		this._loadBranchesCts.value?.cancel();
+		const cts = this._loadBranchesCts.value = new CancellationTokenSource();
+
+		this._branchesLoading.set(true, undefined);
+
+		repo.getRefs({ pattern: 'refs/heads' }, cts.token).then(refs => {
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+			const branches = refs
+				.map(r => r.name)
+				.filter((name): name is string => !!name)
+				.filter(name => !name.includes(CopilotCLISession.COPILOT_WORKTREE_PATTERN));
+
+			const defaultBranch = branches.find(b => b === repo.state.get().HEAD?.name)
+				?? branches.find(b => b === 'main')
+				?? branches.find(b => b === 'master')
+				?? branches[0];
+
+			this._defaultBranch = defaultBranch;
+
+			transaction(tx => {
+				this._branches.set(branches, tx);
+				this._branchesLoading.set(false, tx);
+			});
+
+			if (defaultBranch && !this._branch) {
+				this.setBranch(defaultBranch);
+			}
+		}).catch(() => {
+			if (!cts.token.isCancellationRequested) {
+				transaction(tx => {
+					this._branches.set([], tx);
+					this._branchesLoading.set(false, tx);
+				});
+			}
+		});
 	}
 
 	setIsolationMode(mode: IsolationMode): void {
 		if (this._isolationMode !== mode) {
 			this._isolationMode = mode;
+			this._isolationModeObservable.set(mode, undefined);
 			this.setOption(ISOLATION_OPTION_ID, mode);
+
+			if (mode === 'workspace' && this._defaultBranch) {
+				this.setBranch(this._defaultBranch);
+			}
 		}
 	}
 
 	setBranch(branch: string | undefined): void {
 		if (this._branch !== branch) {
 			this._branch = branch;
+			this._branchObservable.set(branch, undefined);
 			this.setOption(BRANCH_OPTION_ID, branch ?? '');
 		}
 	}
@@ -301,6 +370,7 @@ export class RemoteNewSession extends Disposable implements ISessionData {
 	readonly description: IObservable<string | undefined> = observableValue(this, undefined);
 	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
 	readonly pullRequestUri: IObservable<URI | undefined> = observableValue(this, undefined);
+	readonly pullRequestStateIcon: IObservable<ThemeIcon | undefined> = observableValue(this, undefined);
 
 	readonly _hasGitRepo = observableValue(this, false);
 	readonly hasGitRepo: IObservable<boolean> = this._hasGitRepo;
@@ -539,6 +609,9 @@ class AgentSessionAdapter implements ISessionData {
 	private readonly _pullRequestUri: ReturnType<typeof observableValue<URI | undefined>>;
 	readonly pullRequestUri: IObservable<URI | undefined>;
 
+	private readonly _pullRequestStateIcon: ReturnType<typeof observableValue<ThemeIcon | undefined>>;
+	readonly pullRequestStateIcon: IObservable<ThemeIcon | undefined>;
+
 	constructor(
 		session: IAgentSession,
 		providerId: string,
@@ -579,6 +652,8 @@ class AgentSessionAdapter implements ISessionData {
 		this.lastTurnEnd = this._lastTurnEnd;
 		this._pullRequestUri = observableValue(this, this._extractPullRequestUri(session));
 		this.pullRequestUri = this._pullRequestUri;
+		this._pullRequestStateIcon = observableValue(this, this._extractPullRequestStateIcon(session));
+		this.pullRequestStateIcon = this._pullRequestStateIcon;
 	}
 
 	/**
@@ -596,6 +671,7 @@ class AgentSessionAdapter implements ISessionData {
 			this._description.set(this._extractDescription(session), tx);
 			this._lastTurnEnd.set(session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx);
 			this._pullRequestUri.set(this._extractPullRequestUri(session), tx);
+			this._pullRequestStateIcon.set(this._extractPullRequestStateIcon(session), tx);
 		});
 	}
 
@@ -604,6 +680,24 @@ class AgentSessionAdapter implements ISessionData {
 			return undefined;
 		}
 		return typeof session.description === 'string' ? session.description : session.description.value;
+	}
+
+	private _extractPullRequestStateIcon(session: IAgentSession): ThemeIcon | undefined {
+		const metadata = session.metadata;
+		const state = metadata?.pullRequestState;
+		if (state) {
+			switch (state) {
+				case 'merged':
+					return { ...Codicon.gitPullRequestDone, color: themeColorFromId('charts.purple') };
+				case 'closed':
+					return { ...Codicon.gitPullRequestClosed, color: themeColorFromId('charts.red') };
+				case 'draft':
+					return { ...Codicon.gitPullRequestDraft, color: themeColorFromId('descriptionForeground') };
+				default:
+					return { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') };
+			}
+		}
+		return undefined;
 	}
 
 	private _extractPullRequestUri(session: IAgentSession): URI | undefined {
@@ -755,13 +849,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		this.browseActions = [
 			{
-				label: 'Browse Folders...',
+				label: localize('folders', "Folders"),
 				icon: Codicon.folderOpened,
 				providerId: this.id,
 				execute: () => this._browseForFolder(),
 			},
 			{
-				label: 'Browse Repositories...',
+				label: localize('repositories', "Repositories"),
 				icon: Codicon.repo,
 				providerId: this.id,
 				execute: () => this._browseForRepo(),
@@ -944,42 +1038,32 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			modelRef.dispose();
 		}
 
+		const existingSessions = new ResourceSet([...this._sessionCache.values()].map(s => s.resource));
+
 		// Send request
-		const existingResources = new ResourceSet(this.agentSessionsService.model.sessions.map(s => s.resource));
 		const result = await this.chatService.sendRequest(session.resource, query, sendOptions);
 		if (result.kind === 'rejected') {
 			throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
 		}
 
 		// Wait for the agent session to appear
-		const newAgentSession = await this._waitForNewAgentSession(session.target, existingResources);
-		this._currentNewSession = undefined;
-		if (!newAgentSession) {
-			throw new Error('[DefaultCopilotProvider] Failed to create agent session');
-		}
-		return this._wrapAgentSession(newAgentSession);
+		return this._waitForNewAgentSession(session.target, existingSessions);
 	}
 
-	private async _waitForNewAgentSession(target: AgentSessionTarget, existingSessions: ResourceSet): Promise<IAgentSession | undefined> {
-		const found = this.agentSessionsService.model.sessions.find(s => s.providerType === target && !existingSessions.has(s.resource));
+	private async _waitForNewAgentSession(target: AgentSessionTarget, existingSessions: ResourceSet): Promise<ISessionData> {
+		const found = [...this._sessionCache.values()].find(s => s.sessionType === target && !existingSessions.has(s.resource));
 		if (found) {
 			return found;
 		}
-		return new Promise<IAgentSession | undefined>(resolve => {
-			const listener = this.agentSessionsService.model.onDidChangeSessions(() => {
-				const s = this.agentSessionsService.model.sessions.find(s => s.providerType === target && !existingSessions.has(s.resource));
+		return new Promise<ISessionData>(resolve => {
+			const listener = this.onDidChangeSessions((e) => {
+				const s = e.added.find(s => s.sessionType === target && !existingSessions.has(s.resource));
 				if (s) {
 					listener.dispose();
 					resolve(s);
 				}
 			});
 		});
-	}
-
-	private _wrapAgentSession(agentSession: IAgentSession): ISessionData {
-		const adapter = new AgentSessionAdapter(agentSession, this.id);
-		this._sessionCache.set(agentSession.resource.toString(), adapter);
-		return adapter;
 	}
 
 	// -- Private --
@@ -1036,11 +1120,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return Codicon.folder;
 	}
 
-	private _isOwnedSession(session: IAgentSession): boolean {
-		return session.providerType === AgentSessionProviders.Background
-			|| session.providerType === AgentSessionProviders.Cloud;
-	}
-
 	private _ensureSessionCache(): void {
 		if (this._sessionCache.size > 0) {
 			return;
@@ -1049,12 +1128,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private _refreshSessionCache(): void {
-		const currentSessions = this.agentSessionsService.model.sessions.filter(s => this._isOwnedSession(s));
 		const currentKeys = new Set<string>();
 		const added: ISessionData[] = [];
 		const changed: ISessionData[] = [];
 
-		for (const session of currentSessions) {
+		for (const session of this.agentSessionsService.model.sessions) {
+			if (session.resource.toString() === this._currentNewSession?.resource.toString()) {
+				continue;
+			}
+
+			if (session.providerType !== AgentSessionProviders.Background
+				&& session.providerType !== AgentSessionProviders.Cloud) {
+				continue;
+			}
+
 			const key = session.resource.toString();
 			currentKeys.add(key);
 
