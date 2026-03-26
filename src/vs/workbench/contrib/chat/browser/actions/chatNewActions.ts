@@ -15,10 +15,12 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatEditingSession } from '../../common/editing/chatEditingService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
-import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction, EditingSessionActionContext, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
@@ -330,8 +332,10 @@ async function runNewChatAction(
 
 	await editingSession?.stop();
 
-	// Create a new session, preserving the session type (or using the specified one)
-	await clearChatSessionPreservingType(widget, viewsService, sessionType);
+	if (!shouldReuseCurrentUntitledSession(widget, sessionType)) {
+		// Create a new session, preserving the session type (or using the specified one)
+		await clearChatSessionPreservingType(widget, viewsService, sessionType);
+	}
 
 	widget.attachmentModel.clear(true);
 	widget.focusInput();
@@ -355,4 +359,18 @@ async function runNewChatAction(
 			widget.acceptInput(executeCommandContext.inputValue);
 		}
 	}
+}
+
+function shouldReuseCurrentUntitledSession(widget: IChatWidget, sessionType?: AgentSessionProviders): boolean {
+	if (sessionType !== undefined) {
+		return false;
+	}
+
+	const model = widget.viewModel?.model;
+	const sessionResource = model?.sessionResource;
+	if (!sessionResource || model.hasRequests) {
+		return false;
+	}
+
+	return isUntitledChatSession(sessionResource) && getChatSessionType(sessionResource) !== localChatSessionType;
 }
