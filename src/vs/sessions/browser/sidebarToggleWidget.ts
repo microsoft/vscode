@@ -16,7 +16,7 @@ import { IActionViewItemService } from '../../platform/actions/browser/actionVie
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../platform/hover/browser/hover.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../workbench/common/contributions.js';
-import { IsAuxiliaryWindowContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
+import { IsAuxiliaryWindowContext } from '../../workbench/common/contextkeys.js';
 import { IAgentSessionsService } from '../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { countUnreadSessions } from '../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { Menus } from './menus.js';
@@ -52,6 +52,7 @@ class SessionStatusToggleViewItem extends BaseActionViewItem {
 
 		this._container = container;
 		container.classList.add('session-status-toggle');
+		container.setAttribute('role', 'button');
 
 		append(container, $(ThemeIcon.asCSSSelector(Codicon.tasklist)));
 		this._badge = append(container, $('span.session-status-toggle-badge'));
@@ -106,7 +107,6 @@ class SessionStatusToggleContribution extends Disposable implements IWorkbenchCo
 				id: ToggleSidebarVisibilityAction.ID,
 				title: localize('hideSidebar', "Hide Side Bar"),
 				icon: Codicon.tasklist,
-				toggled: SideBarVisibleContext,
 			},
 			group: 'navigation',
 			order: 0,
