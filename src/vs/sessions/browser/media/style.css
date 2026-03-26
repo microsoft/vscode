@@ -84,6 +84,16 @@
 	box-sizing: border-box;
 }
 
+/* ---- Chat Output ---- */
+
+/* Top fade overlay: dims content scrolled near the top edge of the chat bar card.
+ * Use the Monaco scroll shadow element, which is only shown when scrollTop > 0. */
+.agent-sessions-workbench .part.chatbar .monaco-scrollable-element > .shadow.top {
+	height: 16px;
+	background: linear-gradient(to bottom, var(--part-background), transparent);
+	box-shadow: none;
+}
+
 /* ---- Chat Input ---- */
 
 .agent-sessions-workbench .interactive-session .chat-input-container {
