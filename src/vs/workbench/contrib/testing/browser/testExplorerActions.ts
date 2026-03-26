@@ -208,7 +208,7 @@ export class RunUsingProfileAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.RunUsingProfileAction,
-			title: localize2('testing.runUsing', 'Execute Using Profile...'),
+			title: localize2('testing.runUsing', 'Execute Using Test Profile...'),
 			icon: icons.testingDebugIcon,
 			menu: {
 				id: MenuId.TestItem,

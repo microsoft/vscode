@@ -1052,7 +1052,7 @@ abstract class RunTestDecoration {
 		});
 
 		if (capabilities & TestRunProfileBitset.HasNonDefaultProfile) {
-			testActions.push(new Action('testing.runUsing', localize('testing.runUsing', 'Execute Using Profile...'), undefined, undefined, async () => {
+			testActions.push(new Action('testing.runUsing', localize('testing.runUsing', 'Execute Using Test Profile...'), undefined, undefined, async () => {
 				const profile: ITestRunProfile | undefined = await this.commandService.executeCommand('vscode.pickTestProfile', { onlyForTest: test });
 				if (!profile) {
 					return;
