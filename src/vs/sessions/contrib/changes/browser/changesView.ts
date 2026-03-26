@@ -374,6 +374,12 @@ export class ChangesViewPane extends ViewPane {
 			return activeSession?.sessionType ?? '';
 		}));
 
+		// Title actions
+		this._register(autorun(reader => {
+			this.viewModel.activeSessionResourceObs.read(reader);
+			this.updateActions();
+		}));
+
 		// Badge
 		const badgeDisposable = this._register(new MutableDisposable());
 
