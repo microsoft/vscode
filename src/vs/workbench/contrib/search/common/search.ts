@@ -125,6 +125,7 @@ export interface IWorkbenchSearchConfigurationProperties extends ISearchConfigur
 	quickOpen?: {
 		includeSymbols?: boolean;
 		includeHistory?: boolean;
+		matchMode?: 'fuzzy' | 'wordBoundary' | 'contiguous';
 		history?: {
 			filterSortOrder?: 'default' | 'recency';
 		};
