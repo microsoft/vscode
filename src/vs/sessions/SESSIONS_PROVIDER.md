@@ -11,7 +11,7 @@ This design allows new compute environments (remote agent hosts, cloud backends,
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        UI Components                            │
-│  (SessionsView, TitleBar, NewSession, ChatWidget)               │
+│  (SessionsView, TitleBar, NewSession, Changes | Terminal)       │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                 ┌───────────▼────────────┐

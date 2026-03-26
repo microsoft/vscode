@@ -319,6 +319,16 @@
 		opacity: 0.7;
 		margin-right: 4px;
 	}
+
+	.session-section-toolbar {
+		margin-left: auto;
+		display: none;
+	}
+}
+
+.monaco-list-row:hover .session-section .session-section-toolbar,
+.monaco-list-row.focused .session-section .session-section-toolbar {
+	display: block;
 }
 
 .sessions-list-control {
