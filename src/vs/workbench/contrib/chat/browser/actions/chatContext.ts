@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isElectron } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -29,7 +30,8 @@ import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshot
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
 import { createDebugEventsAttachment } from '../chatDebug/chatDebugAttachment.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
-import { IChatService } from '../../common/chatService/chatService.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { getAgentSessionProviderIcon, AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -331,7 +333,7 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 	readonly ordinal = -400;
 
 	constructor(
-		@IChatService private readonly _chatService: IChatService,
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 	) { }
 
 	isEnabled(widget: IChatWidget): boolean {
@@ -342,22 +344,33 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 		const currentSessionResource = widget.viewModel?.sessionResource;
 		return {
 			placeholder: localize('chatContext.sessions.placeholder', 'Select a session'),
-			picks: this._chatService.getLocalSessionHistory().then(sessions => {
-				return sessions
-					.filter(s => !currentSessionResource || s.sessionResource.toString() !== currentSessionResource.toString())
-					.sort((a, b) => b.lastMessageDate - a.lastMessageDate)
-					.map(session => ({
-						label: session.title,
-						description: new Date(session.lastMessageDate).toLocaleString(),
-						asAttachment: (): IChatRequestVariableEntry => ({
-							kind: 'sessionReference',
-							id: session.sessionResource.toString(),
-							name: session.title,
-							value: session.sessionResource,
-							icon: Codicon.comment,
-						})
-					}));
-			})
+			picks: (async () => {
+				const picks: IChatContextPickerPickItem[] = [];
+				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.Claude];
+				for await (const group of this._chatSessionsService.getChatSessionItems(sessionProviderFilter, CancellationToken.None)) {
+					const providerIcon = getAgentSessionProviderIcon(group.chatSessionType);
+					for (const item of group.items) {
+						if (currentSessionResource && item.resource.toString() === currentSessionResource.toString()) {
+							continue;
+						}
+						const sessionResource = item.resource;
+						const icon = item.iconPath ?? providerIcon;
+						picks.push({
+							label: item.label,
+							description: new Date(item.timing.lastRequestEnded ?? item.timing.created).toLocaleString(),
+							asAttachment: (): IChatRequestVariableEntry => ({
+								kind: 'sessionReference',
+								id: sessionResource.toString(),
+								name: item.label,
+								value: sessionResource,
+								icon,
+							})
+						});
+					}
+				}
+				picks.sort((a, b) => (b.description ?? '').localeCompare(a.description ?? ''));
+				return picks;
+			})()
 		};
 	}
 }

@@ -68,6 +68,7 @@ import { IChatDebugService } from '../../../../common/chatDebugService.js';
 import { createDebugEventsAttachment } from '../../../chatDebug/chatDebugAttachment.js';
 import { getPromptFileType } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
+import { getAgentSessionProviderIcon, AgentSessionProviders } from '../../../agentSessions/agentSessions.js';
 
 /**
  * Regex matching a slash command word (e.g. `/foo`). Uses `\p{L}` for Unicode
@@ -878,7 +879,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
-		@IChatService private readonly chatService: IChatService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -976,14 +977,27 @@ class BuiltinDynamicCompletions extends Disposable {
 			const result: CompletionList = { suggestions: [] };
 
 			if (typedWord.toLowerCase().startsWith(`${sessionPrefix}:`)) {
-				// User has typed #session: — fetch sessions and show them inline
-				const sessions = await this.chatService.getLocalSessionHistory();
-				if (token.isCancellationRequested) {
-					return;
+				// User has typed #session: — fetch all sessions and show them inline
+				const allSessions: { title: string; sessionResource: URI; lastMessageDate: number; icon: ThemeIcon }[] = [];
+
+				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.Claude];
+				for await (const group of this.chatSessionsService.getChatSessionItems(sessionProviderFilter, token)) {
+					if (token.isCancellationRequested) {
+						return;
+					}
+					const providerIcon = getAgentSessionProviderIcon(group.chatSessionType);
+					for (const item of group.items) {
+						allSessions.push({
+							title: item.label,
+							sessionResource: item.resource,
+							lastMessageDate: item.timing.lastRequestEnded ?? item.timing.created,
+							icon: item.iconPath ?? providerIcon,
+						});
+					}
 				}
 
 				const currentSessionResource = widget.viewModel?.sessionResource;
-				const filteredSessions = sessions
+				const filteredSessions = allSessions
 					.filter(s => !currentSessionResource || s.sessionResource.toString() !== currentSessionResource.toString())
 					.sort((a, b) => b.lastMessageDate - a.lastMessageDate);
 
@@ -1000,6 +1014,7 @@ class BuiltinDynamicCompletions extends Disposable {
 						command: {
 							id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
 								id: session.sessionResource.toString(),
+								icon: session.icon,
 								range: { startLineNumber: range.replace.startLineNumber, startColumn: range.replace.startColumn, endLineNumber: range.replace.endLineNumber, endColumn: range.replace.startColumn + text.length },
 								data: session.sessionResource
 							})]
