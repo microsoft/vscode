@@ -251,6 +251,14 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		dom.setVisibility(!element.hideIcon, data.icon);
 
+		// Set aria-expanded for section toggle items
+		if (element.isSectionToggle) {
+			const expanded = element.group?.icon === Codicon.chevronDown;
+			data.container.setAttribute('aria-expanded', String(expanded));
+		} else {
+			data.container.removeAttribute('aria-expanded');
+		}
+
 		// Apply optional className - clean up previous to avoid stale classes
 		// from virtualized row reuse
 		if (data.previousClassName) {
@@ -1104,6 +1112,22 @@ export class ActionListWidget<T> extends Disposable {
 		const element = e.elements[0];
 		if (element.isSectionToggle) {
 			this._list.setSelection([]);
+			if (element.section) {
+				const wasCollapsed = this._collapsedSections.has(element.section);
+				this._toggleSection(element.section);
+				if (wasCollapsed) {
+					// Section was just expanded — focus the first item in it
+					const items = this._list;
+					for (let i = 0; i < items.length; i++) {
+						const item = items.element(i);
+						if (item.section === element.section && !item.isSectionToggle) {
+							items.setFocus([i]);
+							items.reveal(i);
+							break;
+						}
+					}
+				}
+			}
 			return;
 		}
 		// Don't select when clicking the submenu indicator
@@ -1412,11 +1436,8 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private onListClick(e: IListMouseEvent<IActionListItem<T>>): void {
-		if (e.element && e.element.isSectionToggle && e.element.section) {
-			const section = e.element.section;
-			queueMicrotask(() => this._toggleSection(section));
-			return;
-		}
+		// Section toggles are handled in onListSelection (which fires for both
+		// keyboard and mouse) so we don't toggle again here.
 		if (e.element && this.focusCondition(e.element)) {
 			this._list.setFocus([]);
 		}
