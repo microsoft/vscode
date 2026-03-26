@@ -5,23 +5,25 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { getMediaMime } from '../../../../../base/common/mime.js';
-import { autorun, IObservable, IReader } from '../../../../../base/common/observable.js';
+import { autorun, IReader } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
+import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
+import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { IChatArtifact, IChatArtifactsService } from '../../common/tools/chatArtifactsService.js';
+import { IChatArtifact, IChatArtifacts, IChatArtifactsService } from '../../common/tools/chatArtifactsService.js';
+import { IChatImageCarouselService } from '../chatImageCarouselService.js';
+import { getEditorOverrideForChatResource } from './chatContentParts/chatInlineAnchorWidget.js';
 
 const ARTIFACT_TYPE_ICONS: Record<string, ThemeIcon> = {
 	devServer: Codicon.globe,
@@ -29,14 +31,30 @@ const ARTIFACT_TYPE_ICONS: Record<string, ThemeIcon> = {
 	plan: Codicon.book,
 };
 
+/**
+ * A group node in the artifact tree. Groups artifacts by `groupName`.
+ */
+interface IArtifactGroupNode {
+	readonly kind: 'group';
+	readonly groupName: string;
+	readonly artifacts: IChatArtifact[];
+	readonly onlyShowGroup: boolean;
+}
+
+type ArtifactTreeElement = IArtifactGroupNode | IChatArtifact;
+
+function isGroupNode(element: ArtifactTreeElement): element is IArtifactGroupNode {
+	return 'kind' in element && element.kind === 'group';
+}
+
 export class ChatArtifactsWidget extends Disposable {
 	readonly domNode: HTMLElement;
 
 	private readonly _autorunDisposable = this._register(new MutableDisposable());
-	private _currentObs: IObservable<readonly IChatArtifact[]> | undefined;
-	private _isCollapsed = true;
-	private _list: WorkbenchList<IChatArtifact> | undefined;
-	private readonly _listStore = this._register(new DisposableStore());
+	private _currentArtifacts: IChatArtifacts | undefined;
+	private _isCollapsed = false;
+	private _tree: WorkbenchObjectTree<ArtifactTreeElement> | undefined;
+	private readonly _treeStore = this._register(new DisposableStore());
 	private _expandIcon!: HTMLElement;
 	private _titleElement!: HTMLElement;
 	private _clearButton!: Button;
@@ -44,16 +62,14 @@ export class ChatArtifactsWidget extends Disposable {
 	public static readonly ELEMENT_HEIGHT = 22;
 	private static readonly MAX_ITEMS_SHOWN = 6;
 
-	private _sessionResource: URI | undefined;
-
 	constructor(
 		@IChatArtifactsService private readonly _chatArtifactsService: IChatArtifactsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IFileService private readonly _fileService: IFileService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
+		@IChatImageCarouselService private readonly _chatImageCarouselService: IChatImageCarouselService,
 	) {
 		super();
 		this.domNode = dom.$('.chat-artifacts-widget');
@@ -61,14 +77,13 @@ export class ChatArtifactsWidget extends Disposable {
 	}
 
 	render(sessionResource: URI): void {
-		this._sessionResource = sessionResource;
-		this._currentObs = this._chatArtifactsService.artifacts(sessionResource);
+		this._currentArtifacts = this._chatArtifactsService.getArtifacts(sessionResource);
 
 		dom.clearNode(this.domNode);
-		this._listStore.clear();
+		this._treeStore.clear();
 
 		const expandoContainer = dom.$('.chat-artifacts-expand');
-		const headerButton = this._listStore.add(new Button(expandoContainer, { supportIcons: true }));
+		const headerButton = this._treeStore.add(new Button(expandoContainer, { supportIcons: true }));
 		headerButton.element.setAttribute('aria-expanded', String(!this._isCollapsed));
 
 		const titleSection = dom.$('.chat-artifacts-title-section');
@@ -83,13 +98,13 @@ export class ChatArtifactsWidget extends Disposable {
 
 		// Add clear button container
 		const clearButtonContainer = dom.$('.artifacts-clear-button-container');
-		this._clearButton = this._listStore.add(new Button(clearButtonContainer, {
+		this._clearButton = this._treeStore.add(new Button(clearButtonContainer, {
 			supportIcons: true,
 			ariaLabel: localize('chat.artifacts.clearButton', 'Clear all artifacts'),
 		}));
 		this._clearButton.element.tabIndex = 0;
 		this._clearButton.icon = Codicon.clearAll;
-		this._listStore.add(this._clearButton.onDidClick(() => {
+		this._treeStore.add(this._clearButton.onDidClick(() => {
 			this._clearAllArtifacts();
 		}));
 		headerButton.element.appendChild(clearButtonContainer);
@@ -100,26 +115,45 @@ export class ChatArtifactsWidget extends Disposable {
 		listContainer.style.display = this._isCollapsed ? 'none' : 'block';
 		this.domNode.appendChild(listContainer);
 
-		this._list = this._listStore.add(this._instantiationService.createInstance(
-			WorkbenchList<IChatArtifact>,
-			'ChatArtifactsList',
+		this._tree = this._treeStore.add(this._instantiationService.createInstance(
+			WorkbenchObjectTree<ArtifactTreeElement>,
+			'ChatArtifactsTree',
 			listContainer,
-			new ChatArtifactsListDelegate(),
-			[new ChatArtifactsListRenderer(artifact => this._saveArtifact(artifact))],
-			{ alwaysConsumeMouseWheel: false },
+			new ChatArtifactsTreeDelegate(),
+			[
+				new ChatArtifactGroupRenderer(),
+				new ChatArtifactLeafRenderer(artifact => this._saveArtifact(artifact)),
+			],
+			{
+				alwaysConsumeMouseWheel: false,
+				accessibilityProvider: new ChatArtifactsAccessibilityProvider(),
+			},
 		));
 
-		this._listStore.add(this._list.onDidOpen(e => {
-			if (e.element) {
-				if (e.element.type === 'screenshot' && this._configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
-					this._openScreenshotInCarousel(e.element);
-				} else {
-					this._openerService.open(URI.parse(e.element.uri));
+		this._treeStore.add(this._tree.onDidOpen(e => {
+			if (!e.element) {
+				return;
+			}
+			if (isGroupNode(e.element)) {
+				if (e.element.onlyShowGroup) {
+					this._openGroupInCarousel(e.element);
+				}
+			} else {
+				const artifact = e.element;
+				if (artifact.type === 'screenshot' && this._configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
+					this._openScreenshotInCarousel(artifact);
+				} else if (artifact.uri) {
+					const uri = URI.parse(artifact.uri);
+					const editorOverride = getEditorOverrideForChatResource(uri, this._configurationService);
+					this._openerService.open(uri, {
+						fromUserGesture: true,
+						editorOptions: { override: editorOverride },
+					});
 				}
 			}
 		}));
 
-		this._listStore.add(headerButton.onDidClick(() => {
+		this._treeStore.add(headerButton.onDidClick(() => {
 			this._isCollapsed = !this._isCollapsed;
 			this._expandIcon.classList.toggle('codicon-chevron-down', !this._isCollapsed);
 			this._expandIcon.classList.toggle('codicon-chevron-right', this._isCollapsed);
@@ -128,57 +162,49 @@ export class ChatArtifactsWidget extends Disposable {
 		}));
 
 		this._autorunDisposable.value = autorun((reader: IReader) => {
-			const artifacts: readonly IChatArtifact[] = this._currentObs!.read(reader);
+			const artifacts: readonly IChatArtifact[] = this._currentArtifacts!.artifacts.read(reader);
+			const mutable = this._currentArtifacts!.mutable.read(reader);
 			if (artifacts.length === 0) {
 				this.domNode.style.display = 'none';
 				return;
 			}
 			this.domNode.style.display = '';
+			this._clearButton.element.style.display = mutable ? '' : 'none';
 
 			this._titleElement.textContent = artifacts.length === 1
 				? localize('chat.artifacts.one', "1 Artifact")
 				: localize('chat.artifacts.count', "{0} Artifacts", artifacts.length);
 
-			const itemsShown = Math.min(artifacts.length, ChatArtifactsWidget.MAX_ITEMS_SHOWN);
-			const listHeight = itemsShown * ChatArtifactsWidget.ELEMENT_HEIGHT;
-			this._list!.layout(listHeight);
-			this._list!.getHTMLElement().style.height = `${listHeight}px`;
-			this._list!.splice(0, this._list!.length, [...artifacts]);
+			const treeElements = buildTreeElements(artifacts);
+			const visibleCount = countVisibleRows(treeElements);
+			const itemsShown = Math.min(visibleCount, ChatArtifactsWidget.MAX_ITEMS_SHOWN);
+			const treeHeight = itemsShown * ChatArtifactsWidget.ELEMENT_HEIGHT;
+			this._tree!.layout(treeHeight);
+			this._tree!.getHTMLElement().style.height = `${treeHeight}px`;
+			this._tree!.setChildren(null, treeElements);
 		});
+	}
+
+	private async _openGroupInCarousel(group: IArtifactGroupNode): Promise<void> {
+		// Open the first artifact in the group — the carousel service will collect
+		// all images from the chat widget session automatically.
+		const first = group.artifacts[0];
+		if (first?.uri) {
+			await this._chatImageCarouselService.openCarouselAtResource(URI.parse(first.uri));
+		}
 	}
 
 	private async _openScreenshotInCarousel(clicked: IChatArtifact): Promise<void> {
-		const allArtifacts = this._currentObs?.get() ?? [];
-		const screenshots = allArtifacts.filter(a => a.type === 'screenshot');
-		const startIndex = screenshots.indexOf(clicked);
-
-		const images = await Promise.all(screenshots.map(async a => {
-			const uri = URI.parse(a.uri);
-			const content = await this._fileService.readFile(uri);
-			const name = uri.path.split('/').pop() ?? 'image';
-			return {
-				id: a.uri,
-				name,
-				mimeType: getMediaMime(name) ?? 'image/png',
-				data: content.value.buffer,
-			};
-		}));
-
-		await this._commandService.executeCommand('workbench.action.chat.openImageInCarousel', {
-			collection: {
-				id: this._sessionResource!.toString() + '_artifacts_carousel',
-				title: localize('chat.artifacts.carousel', "Artifacts"),
-				sections: [{ title: '', images }],
-			},
-			startIndex: Math.max(0, startIndex),
-		});
+		if (clicked.uri) {
+			await this._chatImageCarouselService.openCarouselAtResource(URI.parse(clicked.uri));
+		}
 	}
 
 	private _clearAllArtifacts(): void {
-		if (!this._sessionResource) {
+		if (!this._currentArtifacts?.mutable.get()) {
 			return;
 		}
-		this._chatArtifactsService.setArtifacts(this._sessionResource, []);
+		this._currentArtifacts.clear();
 	}
 
 	private async _saveArtifact(artifact: IChatArtifact): Promise<void> {
@@ -204,29 +230,142 @@ export class ChatArtifactsWidget extends Disposable {
 	}
 }
 
-class ChatArtifactsListDelegate implements IListVirtualDelegate<IChatArtifact> {
+// --- Tree infrastructure ---
+
+function buildTreeElements(artifacts: readonly IChatArtifact[]): IObjectTreeElement<ArtifactTreeElement>[] {
+	const groups = new Map<string, { config: { groupName: string; onlyShowGroup: boolean }; artifacts: IChatArtifact[] }>();
+	const ungrouped: IChatArtifact[] = [];
+
+	for (const artifact of artifacts) {
+		if (artifact.groupName) {
+			let group = groups.get(artifact.groupName);
+			if (!group) {
+				group = { config: { groupName: artifact.groupName, onlyShowGroup: artifact.onlyShowGroup ?? false }, artifacts: [] };
+				groups.set(artifact.groupName, group);
+			}
+			group.artifacts.push(artifact);
+		} else {
+			ungrouped.push(artifact);
+		}
+	}
+
+	const elements: IObjectTreeElement<ArtifactTreeElement>[] = [];
+
+	for (const [, group] of groups) {
+		const groupNode: IArtifactGroupNode = {
+			kind: 'group',
+			groupName: group.config.groupName,
+			artifacts: group.artifacts,
+			onlyShowGroup: group.config.onlyShowGroup,
+		};
+
+		if (group.config.onlyShowGroup) {
+			// Only show group header, no children
+			elements.push({ element: groupNode, collapsible: false, collapsed: false });
+		} else {
+			// Show group with children
+			elements.push({
+				element: groupNode,
+				collapsible: true,
+				collapsed: false,
+				children: group.artifacts.map(a => ({ element: a })),
+			});
+		}
+	}
+
+	for (const artifact of ungrouped) {
+		elements.push({ element: artifact });
+	}
+
+	return elements;
+}
+
+function countVisibleRows(elements: IObjectTreeElement<ArtifactTreeElement>[]): number {
+	let count = 0;
+	for (const el of elements) {
+		count++; // The element itself
+		if (el.children && !el.collapsed) {
+			count += countVisibleRows([...el.children]);
+		}
+	}
+	return count;
+}
+
+class ChatArtifactsTreeDelegate implements IListVirtualDelegate<ArtifactTreeElement> {
 	getHeight(): number {
 		return ChatArtifactsWidget.ELEMENT_HEIGHT;
 	}
-	getTemplateId(): string {
-		return ChatArtifactsListRenderer.TEMPLATE_ID;
+	getTemplateId(element: ArtifactTreeElement): string {
+		return isGroupNode(element)
+			? ChatArtifactGroupRenderer.TEMPLATE_ID
+			: ChatArtifactLeafRenderer.TEMPLATE_ID;
 	}
 }
 
-interface IChatArtifactsListTemplate {
+class ChatArtifactsAccessibilityProvider implements IListAccessibilityProvider<ArtifactTreeElement> {
+	getAriaLabel(element: ArtifactTreeElement): string | null {
+		if (isGroupNode(element)) {
+			return localize('chat.artifacts.group.aria', "{0} ({1} items)", element.groupName, element.artifacts.length);
+		}
+		return element.label;
+	}
+	getWidgetAriaLabel(): string {
+		return localize('chat.artifacts.widget.aria', "Chat Artifacts");
+	}
+}
+
+// --- Group renderer ---
+
+interface IArtifactGroupTemplate {
+	readonly container: HTMLElement;
+	readonly iconElement: HTMLElement;
+	readonly labelElement: HTMLElement;
+}
+
+class ChatArtifactGroupRenderer implements ITreeRenderer<ArtifactTreeElement, void, IArtifactGroupTemplate> {
+	static readonly TEMPLATE_ID = 'chatArtifactGroupRenderer';
+	readonly templateId = ChatArtifactGroupRenderer.TEMPLATE_ID;
+
+	renderTemplate(container: HTMLElement): IArtifactGroupTemplate {
+		const row = dom.append(container, dom.$('.chat-artifacts-list-row'));
+		const iconElement = dom.append(row, dom.$('.chat-artifacts-list-icon'));
+		const labelElement = dom.append(row, dom.$('.chat-artifacts-list-label'));
+		return { container: row, iconElement, labelElement };
+	}
+
+	renderElement(node: ITreeNode<ArtifactTreeElement>, _index: number, templateData: IArtifactGroupTemplate): void {
+		const group = node.element;
+		if (!isGroupNode(group)) {
+			return;
+		}
+
+		// Pick an icon based on the first artifact's type
+		const firstType = group.artifacts[0]?.type;
+		const icon = (firstType && ARTIFACT_TYPE_ICONS[firstType]) || Codicon.archive;
+		templateData.iconElement.className = 'chat-artifacts-list-icon ' + ThemeIcon.asClassName(icon);
+		templateData.labelElement.textContent = `${group.groupName} (${group.artifacts.length})`;
+		templateData.container.title = group.groupName;
+	}
+
+	disposeTemplate(): void { }
+}
+
+// --- Leaf artifact renderer ---
+
+interface IArtifactLeafTemplate {
 	readonly container: HTMLElement;
 	readonly iconElement: HTMLElement;
 	readonly labelElement: HTMLElement;
 	readonly saveButton: HTMLElement;
 }
 
-class ChatArtifactsListRenderer implements IListRenderer<IChatArtifact, IChatArtifactsListTemplate> {
-	static readonly TEMPLATE_ID = 'chatArtifactsListRenderer';
-	readonly templateId = ChatArtifactsListRenderer.TEMPLATE_ID;
+class ChatArtifactLeafRenderer implements ITreeRenderer<ArtifactTreeElement, void, IArtifactLeafTemplate> {
+	static readonly TEMPLATE_ID = 'chatArtifactLeafRenderer';
+	readonly templateId = ChatArtifactLeafRenderer.TEMPLATE_ID;
 
 	constructor(private readonly _onSave: (artifact: IChatArtifact) => void) { }
 
-	renderTemplate(container: HTMLElement): IChatArtifactsListTemplate {
+	renderTemplate(container: HTMLElement): IArtifactLeafTemplate {
 		const row = dom.append(container, dom.$('.chat-artifacts-list-row'));
 		const iconElement = dom.append(row, dom.$('.chat-artifacts-list-icon'));
 		const labelElement = dom.append(row, dom.$('.chat-artifacts-list-label'));
@@ -235,7 +374,11 @@ class ChatArtifactsListRenderer implements IListRenderer<IChatArtifact, IChatArt
 		return { container: row, iconElement, labelElement, saveButton };
 	}
 
-	renderElement(artifact: IChatArtifact, _index: number, templateData: IChatArtifactsListTemplate): void {
+	renderElement(node: ITreeNode<ArtifactTreeElement>, _index: number, templateData: IArtifactLeafTemplate): void {
+		const artifact = node.element;
+		if (isGroupNode(artifact)) {
+			return;
+		}
 		const icon = (artifact.type && ARTIFACT_TYPE_ICONS[artifact.type]) || Codicon.archive;
 		templateData.iconElement.className = 'chat-artifacts-list-icon ' + ThemeIcon.asClassName(icon);
 		templateData.labelElement.textContent = artifact.label;
