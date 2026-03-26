@@ -213,6 +213,7 @@
 .changes-view-body .chat-editing-session-list .monaco-tl-twistie.force-no-twistie {
 	padding-left: 0 !important;
 }
+
 /* List rows */
 .changes-view-body .chat-editing-session-container:not(.has-file-icons) .monaco-list-row .monaco-icon-label {
 	margin-left: 6px;
