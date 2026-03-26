@@ -116,7 +116,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	 * Extracts subagent info (description, agentName, prompt) from a tool invocation.
 	 */
 	private static extractSubagentInfo(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): { description: string; agentName: string | undefined; prompt: string | undefined; modelName: string | undefined } {
-		const defaultDescription = localize('chat.subagent.defaultDescription', 'Running subagent...');
+		const defaultDescription = localize('chat.subagent.defaultDescription', 'Running subagent');
 
 		// Only parent subagent tools contain the full subagent info
 		if (!ChatSubagentContentPart.isParentSubagentTool(toolInvocation)) {

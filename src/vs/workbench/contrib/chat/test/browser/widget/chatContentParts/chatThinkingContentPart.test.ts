@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { $ } from '../../../../../../../base/browser/dom.js';
-import { Event } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -17,6 +17,7 @@ import { ChatThinkingContentPart } from '../../../../browser/widget/chatContentP
 import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
+import { IEditSessionDiffStats } from '../../../../common/editing/chatEditingService.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
@@ -1426,6 +1427,183 @@ suite('ChatThinkingContentPart', () => {
 
 			button.click();
 			assert.notStrictEqual(externalResources.style.display, 'none', 'Should show external resources again after collapsing');
+		});
+	});
+
+	suite('Diff aggregation in thinking header', () => {
+		setup(() => {
+			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
+		});
+
+		test('should show diff stats in finalized title when onDidChangeDiff fires', () => {
+			const content = createThinkingPart('**Editing files**');
+			const context = createMockRenderContext(true);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const diffEmitter = store.add(new Emitter<IEditSessionDiffStats>());
+
+			part.appendItem(
+				() => ({ domNode: $('div.test-edit-pill') }),
+				'edit-part-1',
+				undefined,
+				undefined,
+				diffEmitter.event
+			);
+
+			part.finalizeTitleIfDefault();
+
+			// Fire diff event
+			diffEmitter.fire({ added: 10, removed: 3 });
+
+			const addedEl = part.domNode.querySelector('.label-added');
+			const removedEl = part.domNode.querySelector('.label-removed');
+			assert.ok(addedEl, 'Should render +N element');
+			assert.ok(removedEl, 'Should render -N element');
+			assert.strictEqual(addedEl?.textContent, '+10');
+			assert.strictEqual(removedEl?.textContent, '-3');
+		});
+
+		test('should aggregate diffs from multiple edit parts', () => {
+			const content = createThinkingPart('**Editing files**');
+			const context = createMockRenderContext(true);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const diffEmitter1 = store.add(new Emitter<IEditSessionDiffStats>());
+			const diffEmitter2 = store.add(new Emitter<IEditSessionDiffStats>());
+
+			part.appendItem(
+				() => ({ domNode: $('div.test-edit-pill-1') }),
+				'edit-part-1',
+				undefined,
+				undefined,
+				diffEmitter1.event
+			);
+
+			part.appendItem(
+				() => ({ domNode: $('div.test-edit-pill-2') }),
+				'edit-part-2',
+				undefined,
+				undefined,
+				diffEmitter2.event
+			);
+
+			part.finalizeTitleIfDefault();
+
+			diffEmitter1.fire({ added: 5, removed: 2 });
+			diffEmitter2.fire({ added: 8, removed: 1 });
+
+			const addedEl = part.domNode.querySelector('.label-added');
+			const removedEl = part.domNode.querySelector('.label-removed');
+			assert.strictEqual(addedEl?.textContent, '+13');
+			assert.strictEqual(removedEl?.textContent, '-3');
+		});
+
+		test('should show +0 -0 when diff parts exist but have no changes', () => {
+			const content = createThinkingPart('**Editing files**');
+			const context = createMockRenderContext(true);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const diffEmitter = store.add(new Emitter<IEditSessionDiffStats>());
+
+			part.appendItem(
+				() => ({ domNode: $('div.test-edit-pill') }),
+				'edit-part-1',
+				undefined,
+				undefined,
+				diffEmitter.event
+			);
+
+			part.finalizeTitleIfDefault();
+			diffEmitter.fire({ added: 0, removed: 0 });
+
+			const addedEl = part.domNode.querySelector('.label-added');
+			const removedEl = part.domNode.querySelector('.label-removed');
+			assert.strictEqual(addedEl?.textContent, '+0');
+			assert.strictEqual(removedEl?.textContent, '-0');
+		});
+
+		test('should include diff stats in aria-label', () => {
+			const content = createThinkingPart('**Editing files**');
+			const context = createMockRenderContext(true);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const diffEmitter = store.add(new Emitter<IEditSessionDiffStats>());
+
+			part.appendItem(
+				() => ({ domNode: $('div.test-edit-pill') }),
+				'edit-part-1',
+				undefined,
+				undefined,
+				diffEmitter.event
+			);
+
+			part.finalizeTitleIfDefault();
+			diffEmitter.fire({ added: 7, removed: 2 });
+
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			assert.ok(button?.ariaLabel?.includes('7'), 'aria-label should include added count');
+			assert.ok(button?.ariaLabel?.includes('2'), 'aria-label should include removed count');
+		});
+
+		test('should not show diff stats when no diff events fired', () => {
+			const content = createThinkingPart('**Analyzing code**');
+			const context = createMockRenderContext(true);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			part.finalizeTitleIfDefault();
+
+			const diffContainer = part.domNode.querySelector('.chat-thinking-title-diff');
+			assert.strictEqual(diffContainer, null, 'Should not render diff container when no diffs exist');
 		});
 	});
 });
