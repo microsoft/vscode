@@ -90,6 +90,7 @@ jobs:
       - name: Set check title
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           REPORT="test/componentFixtures/.screenshots/report/report.json"
           STATE="success"
@@ -113,7 +114,7 @@ jobs:
             TITLE="✅ Screenshots match"
           fi
 
-          SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          SHA="${PR_HEAD_SHA}"
           DETAILS_URL="https://hediet-ghartifactpreview.azurewebsites.net/${{ github.repository }}/run/${{ github.run_id }}/component-explorer/___explorer.html?report=./screenshot-report/report.json&search=changed"
 
           gh api "repos/${{ github.repository }}/statuses/$SHA" \
