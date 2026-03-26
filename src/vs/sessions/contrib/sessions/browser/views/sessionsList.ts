@@ -757,13 +757,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			filtered = filtered.filter(s => !this.excludedSessionTypes.has(s.sessionType));
 		}
 		if (this.excludedStatuses.size > 0) {
-			filtered = filtered.filter(s => !this.excludedStatuses.has(s.status.get()) || this.isSessionPinned(s));
+			filtered = filtered.filter(s => !this.excludedStatuses.has(s.status.get()));
 		}
 		if (this._excludeArchived) {
-			filtered = filtered.filter(s => !s.isArchived.get() || this.isSessionPinned(s));
+			filtered = filtered.filter(s => !s.isArchived.get());
 		}
 		if (this._excludeRead) {
-			filtered = filtered.filter(s => !s.isRead.get() || this.isSessionPinned(s));
+			filtered = filtered.filter(s => !s.isRead.get());
 		}
 
 		const sorted = this.sortSessions(filtered);
