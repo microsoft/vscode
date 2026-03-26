@@ -28,6 +28,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IStyleOverride, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISessionData, ISessionWorkspace, SessionStatus } from '../../common/sessionData.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
@@ -215,20 +216,24 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.container.classList.toggle('archived', element.isArchived.read(reader));
 		}));
 
+
 		// Icon — reactive based on status, read state, and PR
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = element.status.read(reader);
 			const isRead = element.isRead.read(reader);
 			const isArchived = element.isArchived.read(reader);
 			const pullRequestUri = element.pullRequestUri.read(reader);
+			const pullRequestStateIcon = element.pullRequestStateIcon.read(reader);
 			DOM.clearNode(template.iconContainer);
-			const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, !!pullRequestUri, element.icon);
-			DOM.append(template.iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
-			template.iconContainer.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
-			template.iconContainer.classList.toggle('session-icon-active', sessionStatus === SessionStatus.InProgress);
-			template.iconContainer.classList.toggle('session-icon-error', sessionStatus === SessionStatus.Error);
-			template.iconContainer.classList.toggle('session-icon-unread', !isRead && !isArchived && sessionStatus !== SessionStatus.InProgress && sessionStatus !== SessionStatus.NeedsInput && sessionStatus !== SessionStatus.Error);
-			template.iconContainer.classList.toggle('session-icon-pr', !!pullRequestUri && sessionStatus === SessionStatus.Completed);
+			const hasPrIcon = !!pullRequestStateIcon;
+			const icon = pullRequestStateIcon ?? this.getStatusIcon(sessionStatus, isRead, isArchived, element.icon);
+			const iconSpan = DOM.append(template.iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
+			iconSpan.style.color = icon.color ? asCssVariable(icon.color.id) : '';
+			template.iconContainer.classList.toggle('session-icon-pulse', !hasPrIcon && sessionStatus === SessionStatus.NeedsInput);
+			template.iconContainer.classList.toggle('session-icon-active', !hasPrIcon && sessionStatus === SessionStatus.InProgress);
+			template.iconContainer.classList.toggle('session-icon-error', !hasPrIcon && sessionStatus === SessionStatus.Error);
+			template.iconContainer.classList.toggle('session-icon-unread', !hasPrIcon && !isRead && !isArchived && sessionStatus !== SessionStatus.InProgress && sessionStatus !== SessionStatus.NeedsInput && sessionStatus !== SessionStatus.Error);
+			template.iconContainer.classList.toggle('session-icon-pr', !!pullRequestUri && !hasPrIcon && sessionStatus === SessionStatus.Completed);
 		}));
 
 		// Title — reactive
@@ -386,15 +391,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}));
 	}
 
-	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, hasPR: boolean, _defaultIcon: ThemeIcon): ThemeIcon {
+	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, _defaultIcon: ThemeIcon): ThemeIcon {
 		switch (status) {
 			case SessionStatus.InProgress: return Codicon.sessionInProgress;
 			case SessionStatus.NeedsInput: return Codicon.circleFilled;
 			case SessionStatus.Error: return Codicon.error;
 			default:
-				if (hasPR) {
-					return Codicon.gitPullRequest;
-				}
 				if (!isRead && !isArchived) {
 					return Codicon.circleFilled;
 				}
