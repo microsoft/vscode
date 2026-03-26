@@ -33,6 +33,7 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISessionD
 			detail: undefined,
 			baseBranchProtected: undefined,
 		}],
+		requiresWorkspaceTrust: false,
 	} : undefined;
 	return {
 		sessionId: 'test:session',
@@ -53,8 +54,7 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISessionD
 		isRead: observableValue('isRead', true),
 		lastTurnEnd: observableValue('lastTurnEnd', undefined),
 		description: observableValue('description', undefined),
-		pullRequestUri: observableValue('pullRequestUri', undefined),
-		pullRequestStateIcon: observableValue('pullRequestStateIcon', undefined),
+		pullRequest: observableValue('pullRequest', undefined),
 	};
 }
 
