@@ -21,7 +21,7 @@ import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolb
 import { ISessionsManagementService, IsNewChatSessionContext } from '../sessionsManagementService.js';
 import { ISessionData, SessionStatus } from '../../common/sessionData.js';
 import { IsRepositoryGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
-import { SessionsViewId as NewChatViewId } from '../../../chat/browser/newChatViewPane.js';
+import { SessionsViewId as NewChatViewId, NewChatViewPane } from '../../../chat/browser/newChatViewPane.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 
@@ -261,7 +261,11 @@ registerAction2(class NewSessionForRepositoryAction extends Action2 {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const viewsService = accessor.get(IViewsService);
 		sessionsManagementService.openNewSessionView();
-		await viewsService.openView(NewChatViewId, true);
+		const view = await viewsService.openView<NewChatViewPane>(NewChatViewId, true);
+		const workspace = context.sessions[0].workspace.get();
+		if (view && workspace) {
+			view.selectWorkspace({ providerId: context.sessions[0].providerId, workspace });
+		}
 	}
 });
 

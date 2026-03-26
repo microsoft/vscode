@@ -225,10 +225,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const sessionStatus = element.status.read(reader);
 			const isRead = element.isRead.read(reader);
 			const isArchived = element.isArchived.read(reader);
-			const pullRequestStateIcon = element.pullRequestStateIcon.read(reader);
+			const pullRequest = element.pullRequest.read(reader);
 			DOM.clearNode(template.iconContainer);
-			const hasPrIcon = !!pullRequestStateIcon;
-			const icon = hasPrIcon ? pullRequestStateIcon : this.getStatusIcon(sessionStatus, isRead, isArchived);
+			const hasPrIcon = !!pullRequest;
+			const icon = hasPrIcon ? pullRequest.icon : this.getStatusIcon(sessionStatus, isRead, isArchived);
 			const iconSpan = DOM.append(template.iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 			iconSpan.style.color = icon.color ? asCssVariable(icon.color.id) : '';
 			template.iconContainer.classList.toggle('session-icon-pulse', !hasPrIcon && sessionStatus === SessionStatus.NeedsInput);
