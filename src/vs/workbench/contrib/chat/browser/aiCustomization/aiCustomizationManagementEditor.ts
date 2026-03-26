@@ -5,7 +5,7 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -1703,6 +1703,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (!this.shouldShowBuiltinSaveAction()) {
 			return ConfirmResult.DONT_SAVE;
 		}
+
+		// Wait for current keyboard events (e.g. Escape keyup) to fully
+		// propagate before opening the dialog, otherwise the same keyup
+		// event that triggered the modal close will immediately dismiss it.
+		await timeout(0);
 
 		const displayName = this.editorItemNameElement?.textContent ?? localize('customization', "customization");
 		const confirmation = await this.fileDialogService.showSaveConfirm([displayName]);
