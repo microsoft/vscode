@@ -57,6 +57,18 @@ declare module 'vscode' {
 		 * @returns A new controller instance that can be used to manage chat session items for the given chat session type.
 		 */
 		export function createChatSessionItemController(chatSessionType: string, refreshHandler: ChatSessionItemControllerRefreshHandler): ChatSessionItemController;
+
+		/**
+		 * Registers a {@link ChatSessionCustomizationsProvider customizations provider} for a chat session type.
+		 *
+		 * The provider supplies customization items (agents, skills, instructions, prompts)
+		 * that appear in the Customizations management UI for the given session type.
+		 *
+		 * @param chatSessionType The chat session type to provide customizations for.
+		 * @param provider The customizations provider.
+		 * @returns A disposable that unregisters the provider when disposed.
+		 */
+		export function registerChatSessionCustomizationsProvider(chatSessionType: string, provider: ChatSessionCustomizationsProvider): Disposable;
 	}
 
 	/**
