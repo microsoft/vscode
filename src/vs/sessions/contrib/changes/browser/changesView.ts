@@ -781,6 +781,10 @@ export class ChangesViewPane extends ViewPane {
 							if (action.id === 'github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge') {
 								return { showIcon: true, showLabel: true, isSecondary: false };
 							}
+							if (action.id === 'github.copilot.sessions.commitChanges') {
+								return { showIcon: true, showLabel: true, isSecondary: false };
+							}
+
 							return undefined;
 						}
 					}
