@@ -123,10 +123,6 @@
 			color: var(--vscode-errorForeground);
 		}
 
-		&.session-icon-pr > .codicon {
-			color: var(--vscode-charts-green);
-		}
-
 		/* Small dot for read sessions — subtle indicator */
 		> .codicon.codicon-circle-small-filled {
 			color: var(--vscode-agentSessionReadIndicator-foreground);
@@ -323,6 +319,16 @@
 		opacity: 0.7;
 		margin-right: 4px;
 	}
+
+	.session-section-toolbar {
+		margin-left: auto;
+		display: none;
+	}
+}
+
+.monaco-list-row:hover .session-section .session-section-toolbar,
+.monaco-list-row.focused .session-section .session-section-toolbar {
+	display: block;
 }
 
 .sessions-list-control {

@@ -1194,6 +1194,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				didUserEditCommand,
 				didToolEditCommand,
 				isBackground: args.isBackground,
+				isSandboxWrapped: toolSpecificData.commandLine.isSandboxWrapped === true,
 				shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
 				error,
 				isNewSession,
