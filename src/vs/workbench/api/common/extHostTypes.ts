@@ -3568,12 +3568,14 @@ export enum ChatSessionStatus {
 	NeedsInput = 3
 }
 
-export enum ChatCustomizationType {
-	Agent = 1,
-	Skill = 2,
-	Instructions = 3,
-	Prompt = 4,
-	Hook = 5,
+export class ChatCustomizationType {
+	static readonly Agent = new ChatCustomizationType('agent');
+	static readonly Skill = new ChatCustomizationType('skill');
+	static readonly Instructions = new ChatCustomizationType('instructions');
+	static readonly Prompt = new ChatCustomizationType('prompt');
+	static readonly Hook = new ChatCustomizationType('hook');
+
+	constructor(public readonly id: string) { }
 }
 
 export enum ChatDebugLogLevel {

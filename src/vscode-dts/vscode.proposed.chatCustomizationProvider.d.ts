@@ -3,21 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 1
+// version: 2
 
 declare module 'vscode' {
 
 	// #region Customization Provider Types
 
 	/**
-	 * The types of customizations that a provider can report.
+	 * Identifies the kind of customization an item represents.
+	 *
+	 * Use the built-in static instances (e.g. {@link ChatCustomizationType.Agent})
+	 * for well-known customization types, or create a new instance with a custom
+	 * string id for extension-defined types.
 	 */
-	export enum ChatCustomizationType {
-		Agent = 1,
-		Skill = 2,
-		Instructions = 3,
-		Prompt = 4,
-		Hook = 5,
+	export class ChatCustomizationType {
+		/** Agent customization (`.agent.md` files). */
+		static readonly Agent: ChatCustomizationType;
+		/** Skill customization (`SKILL.md` files). */
+		static readonly Skill: ChatCustomizationType;
+		/** Instruction customization (`.instructions.md` files). */
+		static readonly Instructions: ChatCustomizationType;
+		/** Prompt customization (`.prompt.md` files). */
+		static readonly Prompt: ChatCustomizationType;
+		/** Hook customization (event-driven automation). */
+		static readonly Hook: ChatCustomizationType;
+
+		/**
+		 * The string identifier for this customization type.
+		 */
+		readonly id: string;
+
+		/**
+		 * Create a new customization type.
+		 *
+		 * @param id A unique string identifier for this type (e.g. `'agent'`, `'skill'`).
+		 */
+		constructor(id: string);
 	}
 
 	/**
@@ -78,28 +99,39 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A provider that reports which customizations a harness or runtime supports.
+	 * A provider that reports which chat customizations are available.
 	 *
-	 * Implementing extensions (e.g. Copilot CLI, Claude) register a provider to
-	 * report the customizations they have loaded from their SDKs. This replaces
-	 * core-based harness filtering with extension-driven discovery.
+	 * Chat customizations are configuration artifacts — agents, skills,
+	 * instructions, prompts, and hooks — that augment LLM behavior during
+	 * a chat session. Extensions that manage their own customization files
+	 * (e.g. from an SDK's config directory) register a provider so the
+	 * management UI can discover and display them.
+	 *
+	 * ### Lifecycle
+	 *
+	 * 1. Register via {@link chat.registerCustomizationProvider}.
+	 * 2. The UI calls {@link provideChatCustomizations} once and caches
+	 *    the result.
+	 * 3. When the underlying files change, fire {@link onDidChange} to
+	 *    trigger a fresh call to {@link provideChatCustomizations}.
 	 */
 	export interface ChatCustomizationProvider {
 		/**
 		 * An optional event that fires when the provider's customizations change.
-		 * The UI will re-query {@link provideCustomizations} when this fires.
+		 * The UI caches the result of {@link provideChatCustomizations} and will
+		 * only re-query the provider when this event fires.
 		 */
 		readonly onDidChange?: Event<void>;
 
 		/**
 		 * Provide the customization items this provider supports.
 		 *
-		 * Called when the workspace changes and when {@link onDidChange} fires.
+		 * The result is cached by the UI until {@link onDidChange} fires.
 		 *
 		 * @param token A cancellation token.
 		 * @returns The list of customization items, or `undefined` if unavailable.
 		 */
-		provideCustomizations(token: CancellationToken): ProviderResult<ChatCustomizationItem[]>;
+		provideChatCustomizations(token: CancellationToken): ProviderResult<ChatCustomizationItem[]>;
 	}
 
 	// #endregion
@@ -110,7 +142,7 @@ declare module 'vscode' {
 		/**
 		 * Register a customization provider that reports what customizations
 		 * a harness or runtime supports. The provider's metadata drives UI
-		 * presentation and filtering, while {@link ChatCustomizationProvider.provideCustomizations}
+		 * presentation and filtering, while {@link ChatCustomizationProvider.provideChatCustomizations}
 		 * supplies the actual items.
 		 *
 		 * @param id A unique identifier for this provider (e.g. `'cli'`, `'claude'`).

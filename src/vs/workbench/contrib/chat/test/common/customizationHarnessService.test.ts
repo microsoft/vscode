@@ -37,7 +37,7 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideCustomizations: async () => [],
+					provideChatCustomizations: async () => [],
 				},
 			};
 
@@ -59,7 +59,7 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideCustomizations: async () => [],
+					provideChatCustomizations: async () => [],
 				},
 			};
 
@@ -81,7 +81,7 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideCustomizations: async () => [],
+					provideChatCustomizations: async () => [],
 				},
 			};
 
@@ -104,7 +104,7 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideCustomizations: async () => [],
+					provideChatCustomizations: async () => [],
 				},
 			};
 
@@ -130,7 +130,7 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => customFilter,
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideCustomizations: async () => [],
+					provideChatCustomizations: async () => [],
 				},
 			};
 
@@ -149,7 +149,7 @@ suite('CustomizationHarnessService', () => {
 
 			const itemProvider: IExternalCustomizationItemProvider = {
 				onDidChange: emitter.event,
-				provideCustomizations: async () => testItems,
+				provideChatCustomizations: async () => testItems,
 			};
 
 			const externalDescriptor: IHarnessDescriptor = {
@@ -163,7 +163,7 @@ suite('CustomizationHarnessService', () => {
 			store.add(service.registerExternalHarness(externalDescriptor));
 			service.setActiveHarness('test-ext');
 
-			const items = await service.getActiveDescriptor().itemProvider!.provideCustomizations(CancellationToken.None);
+			const items = await service.getActiveDescriptor().itemProvider!.provideChatCustomizations(CancellationToken.None);
 			assert.strictEqual(items?.length, 1);
 			assert.strictEqual(items![0].name, 'Test Skill');
 			assert.strictEqual(items![0].type, 'skill');
@@ -182,7 +182,7 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideCustomizations: async () => [],
+					provideChatCustomizations: async () => [],
 				},
 			};
 

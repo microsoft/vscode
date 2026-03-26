@@ -1640,7 +1640,7 @@ export class AICustomizationListWidget extends Disposable {
 	 * the provider's items into the list widget format.
 	 */
 	private async fetchItemsFromProvider(provider: IExternalCustomizationItemProvider, promptType: PromptsType): Promise<IAICustomizationListItem[]> {
-		const allItems = await provider.provideCustomizations(CancellationToken.None);
+		const allItems = await provider.provideChatCustomizations(CancellationToken.None);
 		if (!allItems) {
 			return [];
 		}

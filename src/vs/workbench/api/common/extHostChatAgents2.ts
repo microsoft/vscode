@@ -693,13 +693,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return disposables;
 	}
 
-	async $provideCustomizations(handle: number, token: CancellationToken): Promise<IChatCustomizationItemDto[] | undefined> {
+	async $provideChatCustomizations(handle: number, token: CancellationToken): Promise<IChatCustomizationItemDto[] | undefined> {
 		const providerData = this._customizationProviders.get(handle);
 		if (!providerData) {
 			return undefined;
 		}
 
-		const items = await providerData.provider.provideCustomizations(token);
+		const items = await providerData.provider.provideChatCustomizations(token);
 		if (!items) {
 			return undefined;
 		}

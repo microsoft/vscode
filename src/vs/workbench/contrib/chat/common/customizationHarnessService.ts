@@ -150,7 +150,7 @@ export interface IExternalCustomizationItemProvider {
 	/**
 	 * Provide the customization items this harness supports.
 	 */
-	provideCustomizations(token: CancellationToken): Promise<IExternalCustomizationItem[] | undefined>;
+	provideChatCustomizations(token: CancellationToken): Promise<IExternalCustomizationItem[] | undefined>;
 }
 
 /**
