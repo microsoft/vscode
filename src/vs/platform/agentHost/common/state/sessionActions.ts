@@ -26,8 +26,6 @@ export {
 	type ISessionReadyAction,
 	type ISessionReasoningAction,
 	type ISessionResponsePartAction,
-	type ISessionPermissionRequestAction,
-	type ISessionPermissionResolvedAction,
 	type ISessionToolCallCompleteAction,
 	type ISessionToolCallConfirmedAction,
 	type ISessionToolCallApprovedAction,
@@ -44,6 +42,9 @@ export {
 	type ISessionServerToolsChangedAction,
 	type ISessionActiveClientChangedAction,
 	type ISessionActiveClientToolsChangedAction,
+	type ISessionPendingMessageSetAction,
+	type ISessionPendingMessageRemovedAction,
+	type ISessionQueuedMessagesReorderedAction,
 	type IStateAction,
 } from './protocol/actions.js';
 
@@ -65,8 +66,6 @@ import type {
 	ISessionModelChangedAction,
 	ISessionReasoningAction,
 	ISessionResponsePartAction,
-	ISessionPermissionRequestAction,
-	ISessionPermissionResolvedAction,
 	ISessionToolCallCompleteAction,
 	ISessionToolCallConfirmedAction,
 	ISessionToolCallDeltaAction,
@@ -79,6 +78,9 @@ import type {
 	ISessionTurnStartedAction,
 	ISessionUsageAction,
 	IStateAction,
+	ISessionPendingMessageSetAction,
+	ISessionPendingMessageRemovedAction,
+	ISessionQueuedMessagesReorderedAction,
 } from './protocol/actions.js';
 
 import type { IProtocolNotification } from './protocol/notifications.js';
@@ -105,14 +107,16 @@ export type IToolCallDeniedAction = import('./protocol/actions.js').ISessionTool
 export type IToolCallConfirmedAction = ISessionToolCallConfirmedAction;
 export type IToolCallCompleteAction = ISessionToolCallCompleteAction;
 export type IToolCallResultConfirmedAction = ISessionToolCallResultConfirmedAction;
-export type IPermissionRequestAction = ISessionPermissionRequestAction;
-export type IPermissionResolvedAction = ISessionPermissionResolvedAction;
 export type ITurnCompleteAction = ISessionTurnCompleteAction;
 export type ITurnCancelledAction = ISessionTurnCancelledAction;
 export type ITitleChangedAction = ISessionTitleChangedAction;
 export type IUsageAction = ISessionUsageAction;
 export type IReasoningAction = ISessionReasoningAction;
 export type IModelChangedAction = ISessionModelChangedAction;
+
+export type IPendingMessageSetAction = ISessionPendingMessageSetAction;
+export type IPendingMessageRemovedAction = ISessionPendingMessageRemovedAction;
+export type IQueuedMessagesReorderedAction = ISessionQueuedMessagesReorderedAction;
 
 // Notifications
 export type INotification = IProtocolNotification;
