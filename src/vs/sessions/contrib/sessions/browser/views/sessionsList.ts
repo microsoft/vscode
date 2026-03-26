@@ -791,11 +791,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const grouping = this.options.grouping();
 		const sections: ISessionSection[] = [];
 
-		// Add pinned section at the top if there are pinned sessions
-		if (pinned.length > 0) {
-			sections.push({ id: 'pinned', label: localize('pinned', "Pinned"), sessions: pinned });
-		}
-
 		// Group remaining non-archived sessions
 		const grouped = grouping === SessionsGrouping.Workspace
 			? this.groupByWorkspace(regular)
@@ -809,9 +804,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const hasTodaySessions = sections.some(s => s.id === 'today' && s.sessions.length > 0);
 
-		const children: IObjectTreeElement<SessionListItem>[] = sections.map(section => {
+		// Pinned sessions appear flat at the top (no section header)
+		const children: IObjectTreeElement<SessionListItem>[] = [
+			...pinned.map(session => ({ element: session as SessionListItem })),
+		];
+
+		children.push(...sections.map(section => {
 			const isWorkspaceGroup = grouping === SessionsGrouping.Workspace
-				&& section.id !== 'pinned' && section.id !== 'archived';
+				&& section.id !== 'archived';
 			const isCapped = isWorkspaceGroup && this.workspaceGroupCapped
 				&& !this.expandedWorkspaceGroups.has(section.label)
 				&& section.sessions.length > SessionsList.WORKSPACE_GROUP_LIMIT;
@@ -846,7 +846,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				collapsed: this.getSavedCollapseState(section.id) ?? defaultCollapsed,
 				children: sectionChildren,
 			};
-		});
+		}));
 
 		this.tree.setChildren(null, children);
 		this._onDidUpdate.fire();
