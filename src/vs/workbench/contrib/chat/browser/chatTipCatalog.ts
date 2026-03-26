@@ -19,6 +19,7 @@ import {
 	GENERATE_PROMPT_COMMAND_ID,
 	GENERATE_SKILL_COMMAND_ID,
 	INSERT_FORK_CONVERSATION_COMMAND_ID,
+	INSERT_TROUBLESHOOT_COMMAND_ID,
 } from './actions/chatActions.js';
 
 export const enum ChatTipTier {
@@ -371,5 +372,42 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 		excludeWhenSettingsChanged: [ChatConfiguration.ThinkingPhrases],
 		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
+	},
+	{
+		id: 'tip.autoAcceptDelay',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize(
+					'tip.autoAcceptDelay',
+					"Configure [{0}](command:workbench.action.openSettings?%5B%22chat.editing.autoAcceptDelay%22%5D \"Open Settings\") to automatically accept changes from the agent after a short countdown.",
+					'auto-accept delay'
+				)
+			);
+		},
+		when: ContextKeyExpr.or(
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
+		),
+		excludeWhenSettingsChanged: ['chat.editing.autoAcceptDelay'],
+		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
+	},
+	{
+		id: 'tip.troubleshoot',
+		tier: ChatTipTier.Qol,
+		buildMessage(ctx) {
+			const kb = formatKeybinding(ctx, INSERT_TROUBLESHOOT_COMMAND_ID);
+			return new MarkdownString(
+				localize(
+					'tip.troubleshoot',
+					"Something not working? Type [{0}](command:{1} \"Run /troubleshoot\"){2} <question> to diagnose issues from debug logs.",
+					'/troubleshoot',
+					INSERT_TROUBLESHOOT_COMMAND_ID,
+					kb
+				)
+			);
+		},
+		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
+		excludeWhenToolsInvoked: ['listDebugEvents'],
 	},
 ];

@@ -6,6 +6,7 @@
 import { streamToBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { getErrorMessage } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
 import { localize } from '../../../nls.js';
@@ -15,6 +16,19 @@ import { ILogService } from '../../log/common/log.js';
 import { Registry } from '../../registry/common/platform.js';
 
 export const IRequestService = createDecorator<IRequestService>('requestService');
+
+/**
+ * Use as the {@link IRequestOptions.callSite} value to prevent
+ * request telemetry from being emitted. This is needed for
+ * callers such as the telemetry sender to avoid cyclical calls.
+ */
+export const NO_FETCH_TELEMETRY = 'NO_FETCH_TELEMETRY';
+
+export interface IRequestCompleteEvent {
+	readonly callSite: string;
+	readonly latency: number;
+	readonly statusCode: number | undefined;
+}
 
 export interface AuthInfo {
 	isProxy: boolean;
@@ -32,6 +46,11 @@ export interface Credentials {
 
 export interface IRequestService {
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Fires when a request completes (successfully or with an error response).
+	 */
+	readonly onDidCompleteRequest: Event<IRequestCompleteEvent>;
 
 	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 
@@ -70,6 +89,9 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 
 	private counter = 0;
 
+	private readonly _onDidCompleteRequest = this._register(new Emitter<IRequestCompleteEvent>());
+	readonly onDidCompleteRequest = this._onDidCompleteRequest.event;
+
 	constructor(protected readonly logService: ILogService) {
 		super();
 	}
@@ -77,9 +99,15 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 	protected async logAndRequest(options: IRequestOptions, request: () => Promise<IRequestContext>): Promise<IRequestContext> {
 		const prefix = `#${++this.counter}: ${options.url}`;
 		this.logService.trace(`${prefix} - begin`, options.type, new LoggableHeaders(options.headers ?? {}));
+		const startTime = Date.now();
 		try {
 			const result = await request();
 			this.logService.trace(`${prefix} - end`, options.type, result.res.statusCode, result.res.headers);
+			this._onDidCompleteRequest.fire({
+				callSite: options.callSite,
+				latency: Date.now() - startTime,
+				statusCode: result.res.statusCode,
+			});
 			return result;
 		} catch (error) {
 			this.logService.error(`${prefix} - error`, options.type, getErrorMessage(error));
@@ -282,6 +310,12 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 					type: 'boolean',
 					default: true,
 					markdownDescription: localize('fetchAdditionalSupport', "Controls whether Node.js' fetch implementation should be extended with additional support. Currently proxy support ({1}) and system certificates ({2}) are added when the corresponding settings are enabled. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`', '`#http.proxySupport#`', '`#http.systemCertificates#`'),
+					restricted: true
+				},
+				'http.webSocketAdditionalSupport': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: localize('webSocketAdditionalSupport', "Controls whether the built-in WebSocket implementation should be extended with additional support. Currently proxy support ({1}) and system certificates ({2}) are added when the corresponding settings are enabled. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`', '`#http.proxySupport#`', '`#http.systemCertificates#`'),
 					restricted: true
 				},
 				'http.experimental.networkInterfaceCheckInterval': {

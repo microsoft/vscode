@@ -56,6 +56,7 @@ export interface IChatReferenceListItem extends IChatContentReference {
 	description?: string;
 	state?: ModifiedFileEntryState;
 	excluded?: boolean;
+	showModifiedState?: boolean;
 }
 
 export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage;
@@ -433,7 +434,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		}
 
 		if (data.state !== undefined) {
-			if (templateData.actionBarContainer) {
+			if (templateData.actionBarContainer || data.showModifiedState) {
 				const diffMeta = data?.options?.diffMeta;
 				if (diffMeta) {
 					if (!templateData.fileDiffsContainer || !templateData.addedSpan || !templateData.removedSpan) {
