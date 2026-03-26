@@ -6,10 +6,11 @@
 import type * as vscode from 'vscode';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ExtHostCustomEditorOutlineShape, ICustomEditorOutlineItemDto, MainContext, MainThreadCustomEditorOutlineShape } from './extHost.protocol.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-import { ThemeIcon } from '../../../base/common/themables.js';
 import { IRPCProtocol } from '../../services/extensions/common/proxyIdentifier.js';
 
 export class ExtHostCustomEditorOutline implements ExtHostCustomEditorOutlineShape {
@@ -39,12 +40,12 @@ export class ExtHostCustomEditorOutline implements ExtHostCustomEditorOutlineSha
 		this._providers.set(viewType, { provider, disposables });
 		this._proxy.$registerCustomEditorOutlineProvider(viewType);
 
-		disposables.add(provider.onDidChangeOutline(() => {
-			this._proxy.$onDidChangeOutline(viewType);
+		disposables.add(provider.onDidChangeOutline(resource => {
+			this._proxy.$onDidChangeOutline(viewType, resource);
 		}));
 
-		disposables.add(provider.onDidChangeActiveItem(itemId => {
-			this._proxy.$onDidChangeActiveItem(viewType, itemId);
+		disposables.add(provider.onDidChangeActiveItem(({ uri, itemId }) => {
+			this._proxy.$onDidChangeActiveItem(viewType, uri, itemId);
 		}));
 
 		return toDisposable(() => {
@@ -54,22 +55,22 @@ export class ExtHostCustomEditorOutline implements ExtHostCustomEditorOutlineSha
 		});
 	}
 
-	async $provideOutline(viewType: string, token: CancellationToken): Promise<ICustomEditorOutlineItemDto[] | undefined> {
+	async $provideOutline(viewType: string, resource: UriComponents, token: CancellationToken): Promise<ICustomEditorOutlineItemDto[] | undefined> {
 		const entry = this._providers.get(viewType);
 		if (!entry) {
 			return undefined;
 		}
-		const items = await entry.provider.provideOutline(token);
+		const items = await entry.provider.provideOutline(URI.revive(resource), token);
 		if (!items) {
 			return undefined;
 		}
 		return items.map(item => this._convertItem(item));
 	}
 
-	$revealItem(viewType: string, itemId: string): void {
+	$revealItem(viewType: string, resource: UriComponents, itemId: string): void {
 		const entry = this._providers.get(viewType);
 		if (entry) {
-			entry.provider.revealItem(itemId);
+			entry.provider.revealItem(URI.revive(resource), itemId);
 		}
 	}
 

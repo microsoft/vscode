@@ -73,36 +73,39 @@ declare module 'vscode' {
 	export interface CustomEditorOutlineProvider {
 
 		/**
-		 * Fired when the outline data has changed and needs to be refreshed.
+		 * Fired when the outline data for a specific resource has changed and
+		 * needs to be refreshed.
 		 */
-		readonly onDidChangeOutline: Event<void>;
+		readonly onDidChangeOutline: Event<Uri>;
 
 		/**
 		 * Fired when the active (focused/selected) item in the custom editor
 		 * has changed. The outline view will follow the active item and
 		 * highlight it in the tree.
 		 *
-		 * Pass `undefined` if no item is currently active.
+		 * Pass `undefined` for `itemId` if no item is currently active.
 		 */
-		readonly onDidChangeActiveItem: Event<string | undefined>;
+		readonly onDidChangeActiveItem: Event<{ uri: Uri; itemId: string | undefined }>;
 
 		/**
-		 * Provide the outline items for the custom editor.
+		 * Provide the outline items for the custom editor displaying the given document.
 		 *
+		 * @param uri The URI of the document being displayed.
 		 * @param token A cancellation token.
 		 * @returns The root-level outline items, or `undefined` if no outline
 		 *   can be provided.
 		 */
-		provideOutline(token: CancellationToken): ProviderResult<CustomEditorOutlineItem[]>;
+		provideOutline(uri: Uri, token: CancellationToken): ProviderResult<CustomEditorOutlineItem[]>;
 
 		/**
 		 * Called when the user clicks an outline item. The extension should
 		 * reveal/scroll to the corresponding element in the custom editor.
 		 *
+		 * @param uri The URI of the document being displayed.
 		 * @param itemId The {@link CustomEditorOutlineItem.id id} of the item to reveal.
 		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
-		revealItem(itemId: string): void;
+		revealItem(uri: Uri, itemId: string): void;
 	}
 
 	export namespace window {

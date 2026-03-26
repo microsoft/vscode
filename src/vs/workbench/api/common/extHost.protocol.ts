@@ -1174,13 +1174,13 @@ export type { ICustomEditorOutlineItemDto } from '../../contrib/customEditor/com
 export interface MainThreadCustomEditorOutlineShape extends IDisposable {
 	$registerCustomEditorOutlineProvider(viewType: string): void;
 	$unregisterCustomEditorOutlineProvider(viewType: string): void;
-	$onDidChangeOutline(viewType: string): void;
-	$onDidChangeActiveItem(viewType: string, itemId: string | undefined): void;
+	$onDidChangeOutline(viewType: string, resource: UriComponents): void;
+	$onDidChangeActiveItem(viewType: string, resource: UriComponents, itemId: string | undefined): void;
 }
 
 export interface ExtHostCustomEditorOutlineShape {
-	$provideOutline(viewType: string, token: CancellationToken): Promise<ICustomEditorOutlineItemDto[] | undefined>;
-	$revealItem(viewType: string, itemId: string): void;
+	$provideOutline(viewType: string, resource: UriComponents, token: CancellationToken): Promise<ICustomEditorOutlineItemDto[] | undefined>;
+	$revealItem(viewType: string, resource: UriComponents, itemId: string): void;
 }
 
 export interface ExtHostWebviewViewsShape {

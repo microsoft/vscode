@@ -8,6 +8,8 @@
 
 A full proposed extension API was added so that extensions providing **Custom Editors** can also populate the **Outline view**, **Breadcrumbs**, and **Go to Symbol** quick-pick with their own tree of items — with support for active element tracking, reveal-on-click, context menus, and inline toolbar buttons.
 
+All provider methods and events are scoped per document URI, so multiple editors of the same view type can be open simultaneously (e.g. split view) with independent outlines.
+
 ### Architecture Overview
 
 ```
@@ -20,10 +22,11 @@ A full proposed extension API was added so that extensions providing **Custom Ed
 │ Your extension calls │          │         ▼                   │
 │ registerCustomEditor │          │ ICustomEditorOutline        │
 │ OutlineProvider(...) │          │   ProviderService           │
-│                      │          │         │                   │
-└──────────────────────┘          │         ▼                   │
+│                      │          │   (routes by viewType+URI)  │
+└──────────────────────┘          │         │                   │
+                                  │         ▼                   │
                                   │ CustomEditorExtensionOutline│
-                                  │   (IOutline<> impl)         │
+                                  │   (IOutline<> per editor)   │
                                   │         │                   │
                                   │         ▼                   │
                                   │   Outline Pane / Breadcrumbs│
@@ -84,47 +87,70 @@ export function activate(context: vscode.ExtensionContext) {
 
 ### 3. Implement `CustomEditorOutlineProvider`
 
+One provider is registered per `viewType`, but all methods receive a `Uri` so the provider can manage state for multiple open documents independently.
+
 ```typescript
 class MyOutlineProvider implements vscode.CustomEditorOutlineProvider {
 
-  // --- Events ---
+  // --- Events (scoped per document URI) ---
 
-  private readonly _onDidChangeOutline = new vscode.EventEmitter<void>();
+  private readonly _onDidChangeOutline = new vscode.EventEmitter<vscode.Uri>();
   readonly onDidChangeOutline = this._onDidChangeOutline.event;
 
-  private readonly _onDidChangeActiveItem = new vscode.EventEmitter<string | undefined>();
+  private readonly _onDidChangeActiveItem = new vscode.EventEmitter<{ uri: vscode.Uri; itemId: string | undefined }>();
   readonly onDidChangeActiveItem = this._onDidChangeActiveItem.event;
 
-  // --- State (updated from your webview) ---
+  // --- Per-document state ---
 
-  private _items: vscode.CustomEditorOutlineItem[] = [];
+  private readonly _state = new Map<string, {
+    items: vscode.CustomEditorOutlineItem[];
+    webview: vscode.Webview;
+  }>();
 
   // --- Provider methods ---
 
-  provideOutline(token: vscode.CancellationToken): vscode.CustomEditorOutlineItem[] {
-    return this._items;
+  provideOutline(uri: vscode.Uri, token: vscode.CancellationToken): vscode.CustomEditorOutlineItem[] {
+    return this._state.get(uri.toString())?.items ?? [];
   }
 
-  revealItem(itemId: string): void {
+  revealItem(uri: vscode.Uri, itemId: string): void {
     // Called when the user clicks an outline node.
-    // Post a message to your webview to scroll to / select the element.
-    this._currentWebview?.postMessage({
+    // Post a message to the correct webview to scroll to / select the element.
+    this._state.get(uri.toString())?.webview?.postMessage({
       type: 'revealElement',
       id: itemId,
     });
   }
 
-  // --- Methods you call from your code ---
+  // --- Methods you call from your editor provider ---
+
+  /** Call from resolveCustomTextEditor to register a webview for a document */
+  setWebview(uri: vscode.Uri, webview: vscode.Webview): void {
+    const existing = this._state.get(uri.toString());
+    if (existing) {
+      existing.webview = webview;
+    } else {
+      this._state.set(uri.toString(), { items: [], webview });
+    }
+  }
+
+  /** Call when a document's editor is disposed */
+  removeDocument(uri: vscode.Uri): void {
+    this._state.delete(uri.toString());
+  }
 
   /** Call when the document structure changes */
-  updateStructure(items: vscode.CustomEditorOutlineItem[]): void {
-    this._items = items;
-    this._onDidChangeOutline.fire();   // triggers a refresh in the Outline view
+  updateStructure(uri: vscode.Uri, items: vscode.CustomEditorOutlineItem[]): void {
+    const state = this._state.get(uri.toString());
+    if (state) {
+      state.items = items;
+    }
+    this._onDidChangeOutline.fire(uri);   // triggers a refresh for this document's outline
   }
 
   /** Call when the user selects/focuses a different element in the webview */
-  setActiveElement(itemId: string | undefined): void {
-    this._onDidChangeActiveItem.fire(itemId);   // highlights the item in the Outline
+  setActiveElement(uri: vscode.Uri, itemId: string | undefined): void {
+    this._onDidChangeActiveItem.fire({ uri, itemId });   // highlights the item in the Outline
   }
 }
 ```
@@ -172,19 +198,28 @@ const items: vscode.CustomEditorOutlineItem[] = [
 
 ### 5. Connect Your Webview
 
-Your webview should post messages when the structure changes or the user selects an element:
+Pass the document URI when calling outline provider methods from your custom editor:
 
 ```typescript
 // In your CustomTextEditorProvider.resolveCustomTextEditor():
+const uri = document.uri;
+
+outlineProvider.setWebview(uri, webviewPanel.webview);
+
 webviewPanel.webview.onDidReceiveMessage(message => {
   switch (message.type) {
     case 'structureChanged':
-      outlineProvider.updateStructure(message.items);
+      outlineProvider.updateStructure(uri, message.items);
       break;
     case 'selectionChanged':
-      outlineProvider.setActiveElement(message.elementId);
+      outlineProvider.setActiveElement(uri, message.elementId);
       break;
   }
+});
+
+// Clean up when the editor is disposed
+webviewPanel.onDidDispose(() => {
+  outlineProvider.removeDocument(uri);
 });
 ```
 
@@ -364,35 +399,52 @@ export function activate(context: vscode.ExtensionContext) {
 
 // ─── Outline Provider ──────────────────────────────────────────
 
+interface DocumentState {
+  items: vscode.CustomEditorOutlineItem[];
+  webview: vscode.Webview;
+}
+
 class DesignerOutlineProvider implements vscode.CustomEditorOutlineProvider {
-  private readonly _onDidChangeOutline = new vscode.EventEmitter<void>();
+  private readonly _onDidChangeOutline = new vscode.EventEmitter<vscode.Uri>();
   readonly onDidChangeOutline = this._onDidChangeOutline.event;
 
-  private readonly _onDidChangeActiveItem = new vscode.EventEmitter<string | undefined>();
+  private readonly _onDidChangeActiveItem = new vscode.EventEmitter<{ uri: vscode.Uri; itemId: string | undefined }>();
   readonly onDidChangeActiveItem = this._onDidChangeActiveItem.event;
 
-  private _items: vscode.CustomEditorOutlineItem[] = [];
-  private _webview: vscode.Webview | undefined;
+  private readonly _documents = new Map<string, DocumentState>();
 
-  setWebview(webview: vscode.Webview): void {
-    this._webview = webview;
+  setWebview(uri: vscode.Uri, webview: vscode.Webview): void {
+    const key = uri.toString();
+    const existing = this._documents.get(key);
+    if (existing) {
+      existing.webview = webview;
+    } else {
+      this._documents.set(key, { items: [], webview });
+    }
   }
 
-  updateItems(items: vscode.CustomEditorOutlineItem[]): void {
-    this._items = items;
-    this._onDidChangeOutline.fire();
+  removeDocument(uri: vscode.Uri): void {
+    this._documents.delete(uri.toString());
   }
 
-  setActive(itemId: string | undefined): void {
-    this._onDidChangeActiveItem.fire(itemId);
+  updateItems(uri: vscode.Uri, items: vscode.CustomEditorOutlineItem[]): void {
+    const state = this._documents.get(uri.toString());
+    if (state) {
+      state.items = items;
+    }
+    this._onDidChangeOutline.fire(uri);
   }
 
-  provideOutline(_token: vscode.CancellationToken): vscode.CustomEditorOutlineItem[] {
-    return this._items;
+  setActive(uri: vscode.Uri, itemId: string | undefined): void {
+    this._onDidChangeActiveItem.fire({ uri, itemId });
   }
 
-  revealItem(itemId: string): void {
-    this._webview?.postMessage({ type: 'reveal', id: itemId });
+  provideOutline(uri: vscode.Uri, _token: vscode.CancellationToken): vscode.CustomEditorOutlineItem[] {
+    return this._documents.get(uri.toString())?.items ?? [];
+  }
+
+  revealItem(uri: vscode.Uri, itemId: string): void {
+    this._documents.get(uri.toString())?.webview?.postMessage({ type: 'reveal', id: itemId });
   }
 }
 
@@ -408,11 +460,12 @@ class DesignerEditorProvider implements vscode.CustomTextEditorProvider {
     document: vscode.TextDocument,
     webviewPanel: vscode.WebviewPanel,
   ): Promise<void> {
+    const uri = document.uri;
     webviewPanel.webview.options = { enableScripts: true };
-    this.outline.setWebview(webviewPanel.webview);
+    this.outline.setWebview(uri, webviewPanel.webview);
 
     // Provide some initial outline items
-    this.outline.updateItems([
+    this.outline.updateItems(uri, [
       {
         id: 'root',
         label: 'Canvas',
@@ -438,8 +491,13 @@ class DesignerEditorProvider implements vscode.CustomTextEditorProvider {
     // Listen for webview messages
     webviewPanel.webview.onDidReceiveMessage(msg => {
       if (msg.type === 'selectionChanged') {
-        this.outline.setActive(msg.id);
+        this.outline.setActive(uri, msg.id);
       }
+    });
+
+    // Clean up when the editor is disposed
+    webviewPanel.onDidDispose(() => {
+      this.outline.removeDocument(uri);
     });
 
     webviewPanel.webview.html = `<!DOCTYPE html>
@@ -465,9 +523,10 @@ class DesignerEditorProvider implements vscode.CustomTextEditorProvider {
 
 | Feature | How It Works |
 |---------|-------------|
-| **Outline tree** | `provideOutline()` returns your items → they appear in the Outline view |
-| **Active element tracking** | Fire `onDidChangeActiveItem` with an item `id` → that node gets highlighted |
-| **Reveal on click** | User clicks outline node → `revealItem(id)` is called → you scroll the webview |
+| **Outline tree** | `provideOutline(uri)` returns your items → they appear in the Outline view |
+| **Multi-editor support** | Each method receives a `Uri`, so multiple editors of the same type get independent outlines |
+| **Active element tracking** | Fire `onDidChangeActiveItem` with `{ uri, itemId }` → that node gets highlighted |
+| **Reveal on click** | User clicks outline node → `revealItem(uri, id)` is called → you scroll the correct webview |
 | **Breadcrumbs** | Automatically built from the active item's parent chain |
 | **Go to Symbol** | Items appear in the Ctrl+Shift+O quick-pick |
 | **Inline buttons** | Contribute to `customEditor/outline/toolbar` with `"group": "inline"` |
