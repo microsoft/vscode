@@ -1113,21 +1113,8 @@ export class ActionListWidget<T> extends Disposable {
 		if (element.isSectionToggle && element.section) {
 			this._list.setSelection([]);
 			const section = element.section;
-			const wasCollapsed = this._collapsedSections.has(section);
 			queueMicrotask(() => {
 				this._toggleSection(section);
-				if (wasCollapsed) {
-					// Section was just expanded — focus the first item in it
-					const items = this._list;
-					for (let i = 0; i < items.length; i++) {
-						const item = items.element(i);
-						if (item.section === section && !item.isSectionToggle) {
-							items.setFocus([i]);
-							items.reveal(i);
-							break;
-						}
-					}
-				}
 			});
 			return;
 		}
