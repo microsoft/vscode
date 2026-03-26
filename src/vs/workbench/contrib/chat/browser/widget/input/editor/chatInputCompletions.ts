@@ -966,7 +966,7 @@ class BuiltinDynamicCompletions extends Disposable {
 
 		// Session Reference completion
 		const sessionWordPattern = new RegExp(`${chatVariableLeader}[^\\s]*`, 'g');
-		this.registerVariableCompletions('sessionReference', async ({ widget, range }) => {
+		this.registerVariableCompletions('sessionReference', async ({ widget, range }, token) => {
 			if (widget.location !== ChatAgentLocation.Chat) {
 				return;
 			}
@@ -978,6 +978,10 @@ class BuiltinDynamicCompletions extends Disposable {
 			if (typedWord.toLowerCase().startsWith(`${sessionPrefix}:`)) {
 				// User has typed #session: — fetch sessions and show them inline
 				const sessions = await this.chatService.getLocalSessionHistory();
+				if (token.isCancellationRequested) {
+					return;
+				}
+
 				const currentSessionResource = widget.viewModel?.sessionResource;
 				const filteredSessions = sessions
 					.filter(s => !currentSessionResource || s.sessionResource.toString() !== currentSessionResource.toString())

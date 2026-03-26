@@ -322,6 +322,7 @@ export interface IChatRequestDebugEventsVariableEntry extends IBaseChatRequestVa
 
 export interface IChatRequestSessionReferenceVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'sessionReference';
+	readonly value: URI;
 }
 
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry

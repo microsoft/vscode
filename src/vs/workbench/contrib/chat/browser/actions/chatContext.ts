@@ -328,7 +328,7 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 	readonly type = 'pickerPick';
 	readonly icon = Codicon.comment;
 	readonly label = localize('chatContext.sessions', 'Sessions...');
-	readonly ordinal = -500;
+	readonly ordinal = -400;
 
 	constructor(
 		@IChatService private readonly _chatService: IChatService,
