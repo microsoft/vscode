@@ -211,6 +211,15 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			},
 		));
 
+		if (terminalData.requestUnsandboxedExecution) {
+			const reasonText = (terminalData.requestUnsandboxedExecutionReason && terminalData.requestUnsandboxedExecutionReason.trim())
+				|| localize('chat.terminal.unsandboxedExecution.defaultReason', "The model did not provide a reason for requesting unsandboxed execution.");
+			const unsandboxedReasonMarkdown = new MarkdownString(undefined, { supportThemeIcons: true });
+			unsandboxedReasonMarkdown.appendMarkdown(`$(${Codicon.info.id}) `);
+			unsandboxedReasonMarkdown.appendText(reasonText);
+			this._appendMarkdownPart(elements.disclaimer, unsandboxedReasonMarkdown, codeBlockRenderOptions);
+		}
+
 		if (disclaimer) {
 			this._appendMarkdownPart(elements.disclaimer, disclaimer, codeBlockRenderOptions);
 		}

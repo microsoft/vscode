@@ -7,6 +7,7 @@ import { isWeb, isWindows } from '../../../base/common/platform.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
 import { localize } from '../../../nls.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -88,6 +89,21 @@ configurationRegistry.registerConfiguration({
 				localize('hidden', "The status bar entry is never shown."),
 				localize('actionable', "The status bar entry is shown when an action is required (e.g., download, install, or restart)."),
 				localize('detailed', "The status bar entry is shown for all update states including progress.")
+			]
+		},
+		'update.titleBar': {
+			type: 'string',
+			enum: ['none', 'actionable', 'detailed', 'always'],
+			default: product.quality !== 'stable' ? 'actionable' : 'none',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+			description: localize('titleBar', "Controls the experimental update title bar entry."),
+			enumDescriptions: [
+				localize('titleBarNone', "The title bar entry is never shown."),
+				localize('titleBarActionable', "The title bar entry is shown when an action is required (e.g., download, install, or restart)."),
+				localize('titleBarDetailed', "The title bar entry is shown for progress and actionable update states, but not for idle or disabled states."),
+				localize('titleBarAlways', "The title bar entry is shown for all update states.")
 			]
 		}
 	}

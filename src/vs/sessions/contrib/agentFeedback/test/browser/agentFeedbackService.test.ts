@@ -197,4 +197,14 @@ suite('AgentFeedbackService - Ordering', () => {
 		assert.strictEqual(items[0].id, f1.id);
 		assert.strictEqual(items[1].id, f2.id);
 	});
+
+	test('preserves optional feedback context fields', () => {
+		const feedback = service.addFeedback(session, fileA, r(10), 'with context', undefined, {
+			codeSelection: 'const value = 1;',
+			diffHunks: '@@ -1,1 +1,1 @@\n-const value = 0;\n+const value = 1;',
+		});
+
+		assert.strictEqual(feedback.codeSelection, 'const value = 1;');
+		assert.strictEqual(feedback.diffHunks, '@@ -1,1 +1,1 @@\n-const value = 0;\n+const value = 1;');
+	});
 });

@@ -716,6 +716,8 @@ export namespace RunOnOptions {
 		switch (value.toLowerCase()) {
 			case 'folderopen':
 				return Tasks.RunOnOptions.folderOpen;
+			case 'worktreecreated':
+				return Tasks.RunOnOptions.worktreeCreated;
 			case 'default':
 			default:
 				return Tasks.RunOnOptions.default;

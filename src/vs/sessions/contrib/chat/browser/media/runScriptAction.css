@@ -1,0 +1,57 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.run-script-action-widget {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	background-color: var(--vscode-quickInput-background);
+	padding: 8px 8px 12px;
+}
+
+.run-script-action-section {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.run-script-action-label {
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.run-script-action-input .monaco-inputbox {
+	width: 100%;
+}
+
+.run-script-action-option-row {
+	display: flex;
+	align-items: center;
+	min-height: 22px;
+	gap: 8px;
+}
+
+.run-script-action-option-text {
+	cursor: pointer;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.run-script-action-section .monaco-custom-radio {
+	width: fit-content;
+	max-width: 100%;
+}
+
+.run-script-action-hint {
+	font-size: 12px;
+	opacity: 0.8;
+}
+
+.run-script-action-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	padding-top: 4px;
+}
