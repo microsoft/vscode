@@ -15,6 +15,7 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { Event } from '../../../../base/common/event.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IObservableWithChange, ISettableObservable, ObservablePromise, observableSignalFromEvent, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { basename, dirname } from '../../../../base/common/path.js';
+import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -38,6 +39,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { fillEditorsDragData } from '../../../../workbench/browser/dnd.js';
 import { IResourceLabel, ResourceLabels } from '../../../../workbench/browser/labels.js';
@@ -321,6 +323,7 @@ export class ChangesViewPane extends ViewPane {
 	// Actions container is positioned outside the card for this layout experiment
 	private actionsContainer: HTMLElement | undefined;
 
+	private changesProgressBar!: ProgressBar;
 	private tree: WorkbenchCompressibleObjectTree<ChangesTreeElement> | undefined;
 	private ciStatusWidget: CIStatusWidget | undefined;
 	private splitView: SplitView | undefined;
@@ -420,6 +423,11 @@ export class ChangesViewPane extends ViewPane {
 		// Overview section (header with summary only - actions moved outside card)
 		this.overviewContainer = dom.append(this.contentContainer, $('.chat-editing-session-overview'));
 		this.summaryContainer = dom.append(this.overviewContainer, $('.changes-summary'));
+
+		// Changes card progress bar
+		const progressContainer = dom.append(this.contentContainer, $('.changes-progress'));
+		this.changesProgressBar = this._register(new ProgressBar(progressContainer, defaultProgressBarStyles));
+		this.changesProgressBar.stop().hide();
 
 		// List container
 		this.listContainer = dom.append(this.contentContainer, $('.chat-editing-session-list'));
@@ -600,10 +608,37 @@ export class ChangesViewPane extends ViewPane {
 
 			const lastCheckpointRef = lastCheckpointRefObs.read(reader);
 
-			return lastCheckpointRef
-				? new ObservablePromise(repository.diffBetweenWithStats(`${lastCheckpointRef}^`, lastCheckpointRef)).resolvedValue
-				: new ObservablePromise(repository.diffBetweenWithStats(`${headCommit}^`, headCommit)).resolvedValue;
+			const diffPromise = lastCheckpointRef
+				? repository.diffBetweenWithStats(`${lastCheckpointRef}^`, lastCheckpointRef)
+				: repository.diffBetweenWithStats(`${headCommit}^`, headCommit);
+
+			return new ObservablePromise(diffPromise).resolvedValue;
 		});
+
+		const isLoadingLastTurnObs = derived(reader => {
+			const versionMode = this.viewModel.versionModeObs.read(reader);
+			if (versionMode !== ChangesVersionMode.LastTurn) {
+				return false;
+			}
+
+			const headCommit = headCommitObs.read(reader);
+			const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
+			if (!repository || !headCommit) {
+				return false;
+			}
+
+			const result = lastTurnChangesObs.read(reader).read(reader);
+			return result === undefined;
+		});
+
+		this.renderDisposables.add(autorun(reader => {
+			const isLoading = isLoadingLastTurnObs.read(reader);
+			if (isLoading) {
+				this.changesProgressBar.infinite().show(200);
+			} else {
+				this.changesProgressBar.stop().hide();
+			}
+		}));
 
 		// Combine both entry sources for display
 		const combinedEntriesObs = derived(reader => {
@@ -685,9 +720,14 @@ export class ChangesViewPane extends ViewPane {
 		if (this.actionsContainer) {
 			dom.clearNode(this.actionsContainer);
 
+			let lastHasChanges = false;
 			this.renderDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, this.scopedContextKeyService, reader => {
+				if (isLoadingLastTurnObs.read(reader)) {
+					return lastHasChanges;
+				}
 				const { files } = topLevelStats.read(reader);
-				return files > 0;
+				lastHasChanges = files > 0;
+				return lastHasChanges;
 			}));
 
 			this.renderDisposables.add(bindContextKey(isolationModeContextKey, this.scopedContextKeyService, reader => {
@@ -819,6 +859,10 @@ export class ChangesViewPane extends ViewPane {
 
 		// Update visibility and file count badge based on entries
 		this.renderDisposables.add(autorun(reader => {
+			if (isLoadingLastTurnObs.read(reader)) {
+				return;
+			}
+
 			const { files } = topLevelStats.read(reader);
 			const hasEntries = files > 0;
 
@@ -843,6 +887,10 @@ export class ChangesViewPane extends ViewPane {
 			this.summaryContainer.appendChild(linesRemovedSpan);
 
 			this.renderDisposables.add(autorun(reader => {
+				if (isLoadingLastTurnObs.read(reader)) {
+					return;
+				}
+
 				const { added, removed } = topLevelStats.read(reader);
 
 				linesAddedSpan.textContent = `+${added}`;
@@ -991,8 +1039,9 @@ export class ChangesViewPane extends ViewPane {
 		this.renderDisposables.add(autorun(reader => {
 			const entries = combinedEntriesObs.read(reader);
 			const viewMode = this.viewModel.viewModeObs.read(reader);
+			const isLoading = isLoadingLastTurnObs.read(reader);
 
-			if (!this.tree) {
+			if (!this.tree || isLoading) {
 				return;
 			}
 
