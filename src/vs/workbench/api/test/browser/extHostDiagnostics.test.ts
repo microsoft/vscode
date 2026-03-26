@@ -568,12 +568,12 @@ suite('ExtHostDiagnostics', () => {
 			}];
 
 			const p1 = Event.toPromise(diags.onDidChangeDiagnostics);
-			diags.$acceptMarkersChange([[uri, data]]);
+			diags.$acceptMarkerServiceChange([[uri, data]]);
 			await p1;
 			assert.strictEqual(diags.getDiagnostics(uri).length, 1);
 
 			const p2 = Event.toPromise(diags.onDidChangeDiagnostics);
-			diags.$acceptMarkersChange([[uri, []]]);
+			diags.$acceptMarkerServiceChange([[uri, []]]);
 			await p2;
 			assert.strictEqual(diags.getDiagnostics(uri).length, 0);
 		});

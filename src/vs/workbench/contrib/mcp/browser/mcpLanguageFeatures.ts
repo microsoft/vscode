@@ -82,7 +82,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 			tree,
 			inConfig,
 			dispose: () => {
-				this._markerService.remove(diagnosticOwner, [uri]);
+				this._markerService.removeOriginForOwnerResources(undefined, diagnosticOwner, [uri]);
 				dispose(listeners);
 			}
 		};
@@ -132,9 +132,9 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 		});
 
 		if (diagnostics.length) {
-			this._markerService.changeOne(diagnosticOwner, tm.uri, diagnostics);
+			this._markerService.changeOne(undefined, diagnosticOwner, tm.uri, diagnostics);
 		} else {
-			this._markerService.remove(diagnosticOwner, [tm.uri]);
+			this._markerService.removeOriginForOwnerResources(undefined, diagnosticOwner, [tm.uri]);
 		}
 	}
 
