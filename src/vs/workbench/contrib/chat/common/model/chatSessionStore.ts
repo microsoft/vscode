@@ -77,6 +77,14 @@ export class ChatSessionStore extends Disposable {
 
 		this.transferredSessionStorageRoot = joinPath(this.userDataProfilesService.defaultProfile.globalStorageHome, 'transferredChatSessions');
 
+		// Eagerly populate the index cache before the storage service
+		// switches workspace storage. storageService.switch() fires
+		// onWillSaveState before closing the old storage, so this
+		// ensures indexCache holds the old index when migration runs.
+		this._register(this.storageService.onWillSaveState(() => {
+			this.internalGetIndex();
+		}));
+
 		// Listen to workspace transitions to migrate chat sessions
 		this._register(this.workspaceEditingService.onDidEnterWorkspace(event => {
 			const transitionPromise = this.storeQueue.queue(() => this.handleWorkspaceTransition(event.oldWorkspace, event.newWorkspace));
@@ -123,12 +131,21 @@ export class ChatSessionStore extends Disposable {
 		// Update storage root for the new workspace
 		this.storageRoot = newStorageRoot;
 
-		// Migrate session files from old to new location
+		// Migrate session files from old to new location.
+		// indexCache was populated before the switch via onWillSaveState,
+		// so it still holds the old workspace's index entries.
 		await this.migrateSessionsToNewWorkspace(oldStorageRoot, wasEmptyWindow, isNewWorkspaceEmpty);
 	}
 
 	private async migrateSessionsToNewWorkspace(oldStorageRoot: URI, wasEmptyWindow: boolean, isNewWorkspaceEmpty: boolean): Promise<void> {
 		try {
+			// Use the cached index as the source of truth for old entries.
+			// The cache was eagerly populated via onWillSaveState before
+			// storageService.switch() replaced the workspace storage, so it
+			// still contains the old workspace's index regardless of whether
+			// the old scope was APPLICATION or WORKSPACE.
+			const oldIndex = this.indexCache ?? { version: 1, entries: {} };
+
 			// Check if old storage location exists
 			const oldStorageExists = await this.fileService.exists(oldStorageRoot);
 			if (!oldStorageExists) {
@@ -168,8 +185,17 @@ export class ChatSessionStore extends Disposable {
 
 			this.logService.info(`ChatSessionStore: Copied ${migratedCount} chat session files from ${wasEmptyWindow ? 'empty window' : oldStorageRoot.toString()} to ${isNewWorkspaceEmpty ? 'empty window' : this.storageRoot.toString()} (originals preserved at old location)`);
 
-			// Clear the index cache and flush it to the new storage scope
-			this.indexCache = undefined;
+			// Merge old index entries into the new workspace's index.
+			// The new scope may already have entries (e.g. if sessions were
+			// created after the workspace switch but before migration ran).
+			// Preserve those and add old entries that don't conflict.
+			this.indexCache = undefined; // force re-read from new scope
+			const newIndex = this.internalGetIndex();
+			for (const [id, entry] of Object.entries(oldIndex.entries)) {
+				if (!newIndex.entries[id]) {
+					newIndex.entries[id] = entry;
+				}
+			}
 			try {
 				await this.flushIndex();
 			} catch (e) {
@@ -536,6 +562,7 @@ export class ChatSessionStore extends Disposable {
 	}
 
 	private indexCache: IChatSessionIndexData | undefined;
+
 	private internalGetIndex(): IChatSessionIndexData {
 		if (this.indexCache) {
 			return this.indexCache;
