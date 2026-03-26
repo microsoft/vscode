@@ -440,13 +440,13 @@ export class ChangesViewPane extends ViewPane {
 		}));
 
 		// Shared constants for pane sizing
-		const ciMarginTop = 8; // matches margin-top on .ci-status-widget
-		const ciMinHeight = CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.MIN_BODY_HEIGHT + ciMarginTop;
+		const ciMinHeight = CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.MIN_BODY_HEIGHT;
+		const treeMinHeight = 3 * 22; // three tree rows (row height = 22)
 
 		// Top pane: file tree
 		const treePane: IView = {
 			element: this.contentContainer,
-			minimumSize: ciMinHeight,
+			minimumSize: treeMinHeight,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.None,
 			layout: (height) => {
@@ -464,15 +464,14 @@ export class ChangesViewPane extends ViewPane {
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.map(this.ciStatusWidget.onDidChangeHeight, () => undefined),
 			layout: (height) => {
-				const innerHeight = Math.max(0, height - ciMarginTop);
-				ciElement.style.height = `${innerHeight}px`;
-				const bodyHeight = Math.max(0, innerHeight - CIStatusWidget.HEADER_HEIGHT);
+				ciElement.style.height = `${height}px`;
+				const bodyHeight = Math.max(0, height - CIStatusWidget.HEADER_HEIGHT);
 				ciWidget.layout(bodyHeight);
 			},
 		};
 
 		this.splitView.addView(treePane, Sizing.Distribute, 0, true);
-		this.splitView.addView(ciPane, CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.MIN_BODY_HEIGHT + ciMarginTop, 1, true);
+		this.splitView.addView(ciPane, CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.PREFERRED_BODY_HEIGHT, 1, true);
 
 		// Style the sash as a visible separator between sections
 		const updateSplitViewStyles = () => {

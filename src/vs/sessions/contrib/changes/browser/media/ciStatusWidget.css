@@ -9,7 +9,6 @@
 	flex-direction: column;
 	flex-shrink: 0;
 	box-sizing: border-box;
-	margin-top: 8px;
 	overflow: hidden;
 	font-size: 12px;
 }
@@ -52,7 +51,8 @@
 	padding-right: 8px;
 }
 
-.ci-status-widget.has-fix-actions:hover .ci-status-widget-counts {
+.ci-status-widget.has-fix-actions:hover .ci-status-widget-counts,
+.ci-status-widget.has-fix-actions:focus-within .ci-status-widget-counts {
 	visibility: hidden;
 }
 
@@ -91,7 +91,8 @@
 	align-items: center;
 }
 
-.ci-status-widget:hover .ci-status-widget-header-actions.has-actions {
+.ci-status-widget:hover .ci-status-widget-header-actions.has-actions,
+.ci-status-widget:focus-within .ci-status-widget-header-actions.has-actions {
 	display: flex;
 }
 
