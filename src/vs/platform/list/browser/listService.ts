@@ -1408,7 +1408,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[treeIndentKey]: {
 			type: 'number',
-			default: 8,
+			default: 16,
 			minimum: 4,
 			maximum: 40,
 			description: localize('tree indent setting', "Controls tree indentation in pixels.")
@@ -1416,7 +1416,7 @@ configurationRegistry.registerConfiguration({
 		[treeRenderIndentGuidesKey]: {
 			type: 'string',
 			enum: ['none', 'onHover', 'always'],
-			default: 'onHover',
+			default: 'always',
 			description: localize('render tree indent guides', "Controls whether the tree should render indent guides.")
 		},
 		[listSmoothScrolling]: {
