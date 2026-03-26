@@ -18,7 +18,7 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { IPluginInstallService, IUpdateAllPluginsOptions, IUpdateAllPluginsResult } from '../common/plugins/pluginInstallService.js';
+import { IPluginInstallService, IInstallPluginFromSourceOptions, IInstallPluginFromSourceResult, IUpdateAllPluginsOptions, IUpdateAllPluginsResult } from '../common/plugins/pluginInstallService.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, MarketplaceReferenceKind, MarketplaceType, hasSourceChanged, parseMarketplaceReference, parseMarketplaceReferences, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
 
 export class PluginInstallService implements IPluginInstallService {
@@ -57,7 +57,7 @@ export class PluginInstallService implements IPluginInstallService {
 		return this._installGitPlugin(plugin);
 	}
 
-	async installPluginFromSource(source: string): Promise<void> {
+	async installPluginFromSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<void> {
 		const reference = parseMarketplaceReference(source);
 		if (!reference) {
 			this._notificationService.notify({
@@ -75,7 +75,7 @@ export class PluginInstallService implements IPluginInstallService {
 			return;
 		}
 
-		const result = await this._doInstallFromSource(reference);
+		const result = await this._doInstallFromSource(reference, options);
 		if (!result.success && result.message) {
 			this._notificationService.notify({
 				severity: Severity.Error,
@@ -95,7 +95,7 @@ export class PluginInstallService implements IPluginInstallService {
 		return undefined;
 	}
 
-	async installPluginFromValidatedSource(source: string): Promise<{ success: boolean; message?: string }> {
+	async installPluginFromValidatedSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult> {
 		const reference = parseMarketplaceReference(source);
 		if (!reference) {
 			return {
@@ -110,10 +110,10 @@ export class PluginInstallService implements IPluginInstallService {
 			};
 		}
 
-		return this._doInstallFromSource(reference);
+		return this._doInstallFromSource(reference, options);
 	}
 
-	private async _doInstallFromSource(reference: IMarketplaceReference): Promise<{ success: boolean; message?: string }> {
+	private async _doInstallFromSource(reference: IMarketplaceReference, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult> {
 		// Build a source descriptor for the git clone.
 		const sourceDescriptor = reference.kind === MarketplaceReferenceKind.GitHubShorthand
 			? { kind: PluginSourceKind.GitHub as const, repo: reference.githubRepo! }
@@ -170,11 +170,23 @@ export class PluginInstallService implements IPluginInstallService {
 			};
 		}
 
+		// When targeting a specific plugin, find it, register it, and return.
+		if (options?.plugin) {
+			const matchedPlugin = discoveredPlugins.find(p => p.name === options.plugin);
+			if (!matchedPlugin) {
+				return {
+					success: false,
+					message: localize('pluginNotFound', "Plugin '{0}' not found in '{1}'.", options.plugin, reference.displayLabel),
+				};
+			}
+			await this._addMarketplaceToConfig(reference);
+			await this.installPlugin(matchedPlugin);
+			return { success: true, matchedPlugin };
+		}
+
 		if (discoveredPlugins.length === 1) {
-			const plugin = discoveredPlugins[0];
-			const pluginDir = plugin.source ? URI.joinPath(repoDir, plugin.source) : repoDir;
-			this._pluginMarketplaceService.addInstalledPlugin(pluginDir, plugin);
-			this._addMarketplaceToConfig(reference);
+			await this._addMarketplaceToConfig(reference);
+			await this.installPlugin(discoveredPlugins[0]);
 			return { success: true };
 		}
 
@@ -194,20 +206,19 @@ export class PluginInstallService implements IPluginInstallService {
 			return { success: false };
 		}
 
-		const plugin = selected.plugin;
-		const pluginDir = plugin.source ? URI.joinPath(repoDir, plugin.source) : repoDir;
-		this._pluginMarketplaceService.addInstalledPlugin(pluginDir, plugin);
-		this._addMarketplaceToConfig(reference);
+		await this._addMarketplaceToConfig(reference);
+		await this.installPlugin(selected.plugin);
+
 		return { success: true };
 	}
 
-	private _addMarketplaceToConfig(reference: IMarketplaceReference): void {
+	private _addMarketplaceToConfig(reference: IMarketplaceReference) {
 		const currentValues = this._configurationService.getValue<unknown[]>(ChatConfiguration.PluginMarketplaces) ?? [];
 		const existingRefs = parseMarketplaceReferences(currentValues);
 		if (existingRefs.some(r => r.canonicalId === reference.canonicalId)) {
 			return;
 		}
-		this._configurationService.updateValue(ChatConfiguration.PluginMarketplaces, [...currentValues, reference.rawValue]);
+		return this._configurationService.updateValue(ChatConfiguration.PluginMarketplaces, [...currentValues, reference.rawValue]);
 	}
 
 	async updatePlugin(plugin: IMarketplacePlugin, silent?: boolean): Promise<boolean> {

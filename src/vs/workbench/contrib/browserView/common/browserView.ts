@@ -198,7 +198,6 @@ export interface IBrowserViewModel extends IDisposable {
 	reload(hard?: boolean): Promise<void>;
 	toggleDevTools(): Promise<void>;
 	captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer>;
-	dispatchKeyEvent(keyEvent: IBrowserViewKeyDownEvent): Promise<void>;
 	focus(): Promise<void>;
 	findInPage(text: string, options?: IBrowserViewFindInPageOptions): Promise<void>;
 	stopFindInPage(keepSelection?: boolean): Promise<void>;
@@ -469,10 +468,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._screenshot = result;
 		}
 		return result;
-	}
-
-	async dispatchKeyEvent(keyEvent: IBrowserViewKeyDownEvent): Promise<void> {
-		return this.browserViewService.dispatchKeyEvent(this.id, keyEvent);
 	}
 
 	async focus(): Promise<void> {
