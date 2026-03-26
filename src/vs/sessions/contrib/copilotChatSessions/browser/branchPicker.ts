@@ -36,6 +36,7 @@ export class BranchPicker extends Disposable {
 	private _selectedBranch: string | undefined;
 	private _branches: string[] = [];
 	private _loading = false;
+	private _disabled = false;
 
 	private readonly _onDidChange = this._register(new Emitter<string | undefined>());
 	readonly onDidChange: Event<string | undefined> = this._onDidChange.event;
@@ -56,18 +57,26 @@ export class BranchPicker extends Disposable {
 			const session = this.sessionsManagementService.activeSession.read(reader);
 			if (session instanceof CopilotCLISession) {
 				const isLoading = session.loading.read(reader);
-				if (!isLoading && session.gitRepository) {
+				const isolationMode = session.isolationModeObservable.read(reader);
+				if (isolationMode === 'workspace') {
+					this._disabled = true;
+					this._updateTriggerLabel();
+				} else if (!isLoading && session.gitRepository) {
+					this._disabled = false;
 					this._loadBranches(session);
 				} else if (isLoading) {
 					// Session is still loading — show disabled state
+					this._disabled = false;
 					this._loading = true;
 					this._branches = [];
 					this._updateTriggerLabel();
 				} else {
 					// No git repo
+					this._disabled = false;
 					this._clearBranches();
 				}
 			} else {
+				this._disabled = false;
 				this._clearBranches();
 			}
 		}));
@@ -149,7 +158,7 @@ export class BranchPicker extends Disposable {
 	}
 
 	showPicker(): void {
-		if (!this._triggerElement || this.actionWidgetService.isVisible || this._branches.length === 0) {
+		if (!this._triggerElement || this.actionWidgetService.isVisible || this._branches.length === 0 || this._disabled) {
 			return;
 		}
 
@@ -219,12 +228,14 @@ export class BranchPicker extends Disposable {
 			return;
 		}
 
-		const isDisabled = this._branches.length === 0;
+		const isDisabled = this._disabled || this._branches.length === 0;
 		const label = this._selectedBranch ?? localize('branchPicker.select', "Branch");
 		dom.append(this._triggerElement, renderIcon(Codicon.gitBranch));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 		this._slotElement?.classList.toggle('disabled', isDisabled);
+		this._triggerElement.setAttribute('aria-disabled', String(isDisabled));
+		this._triggerElement.tabIndex = isDisabled ? -1 : 0;
 	}
 }

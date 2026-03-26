@@ -204,6 +204,7 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 	setIsolationMode(mode: IsolationMode): void {
 		if (this._isolationMode !== mode) {
 			this._isolationMode = mode;
+			this._isolationModeObservable.set(mode, undefined);
 			this.setOption(ISOLATION_OPTION_ID, mode);
 		}
 	}

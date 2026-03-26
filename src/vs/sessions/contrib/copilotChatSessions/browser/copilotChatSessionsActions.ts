@@ -34,6 +34,7 @@ import { CloudModelPicker } from './modelPicker.js';
 import { NewChatPermissionPicker } from '../../chat/browser/newChatPermissionPicker.js';
 
 const ActiveSessionHasGitRepositoryContext = new RawContextKey<boolean>('activeSessionHasGitRepository', false);
+const ActiveSessionIsolationIsFolderContext = new RawContextKey<boolean>('activeSessionIsolationIsFolder', false);
 const IsActiveSessionCopilotCLI = ContextKeyExpr.equals('activeSessionType', COPILOT_CLI_SESSION_TYPE);
 const IsActiveSessionCopilotCloud = ContextKeyExpr.equals('activeSessionType', COPILOT_CLOUD_SESSION_TYPE);
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals('activeSessionProviderId', COPILOT_PROVIDER_ID);
@@ -68,7 +69,7 @@ registerAction2(class extends Action2 {
 			id: 'sessions.defaultCopilot.branchPicker',
 			title: localize2('branchPicker', "Branch"),
 			f1: false,
-			precondition: ActiveSessionHasGitRepositoryContext,
+			precondition: ContextKeyExpr.and(ActiveSessionHasGitRepositoryContext, ActiveSessionIsolationIsFolderContext.toNegated()),
 			menu: [{
 				id: Menus.NewSessionRepositoryConfig,
 				group: 'navigation',
@@ -285,14 +286,18 @@ class CopilotActiveSessionContribution extends Disposable implements IWorkbenchC
 		super();
 
 		const hasRepositoryKey = ActiveSessionHasGitRepositoryContext.bindTo(contextKeyService);
+		const isolationIsFolderKey = ActiveSessionIsolationIsFolderContext.bindTo(contextKeyService);
 
 		this._register(autorun((reader: IReader) => {
 			const session = sessionsManagementService.activeSession.read(reader);
 			if (session instanceof CopilotCLISession) {
 				const isLoading = session.loading.read(reader);
 				hasRepositoryKey.set(!isLoading && !!session.gitRepository);
+				const isolationMode = session.isolationModeObservable.read(reader);
+				isolationIsFolderKey.set(isolationMode === 'workspace');
 			} else {
 				hasRepositoryKey.set(false);
+				isolationIsFolderKey.set(false);
 			}
 		}));
 	}
