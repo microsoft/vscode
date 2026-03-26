@@ -15,10 +15,12 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { localize } from '../../../../nls.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ContextScopedSuggestEnabledInputWithHistory, SuggestEnabledInputWithHistory, SuggestResultsProvider } from '../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
 import { testingFilterIcon } from './icons.js';
+import { TestingContextKeys } from '../common/testingContextKeys.js';
 import { StoredValue } from '../common/storedValue.js';
 import { ITestExplorerFilterState, TestFilterTerm } from '../common/testExplorerFilterState.js';
 import { ITestService } from '../common/testService.js';
@@ -47,6 +49,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 		@ITestExplorerFilterState private readonly state: ITestExplorerFilterState,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITestService private readonly testService: ITestService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(null, action, options);
 		this.history = this._register(instantiationService.createInstance(StoredValue, {
@@ -113,8 +116,13 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 			input.focus();
 		}));
 
+		const filterFocusContextKey = TestingContextKeys.explorerFilterInputFocus.bindTo(this.contextKeyService);
 		this._register(input.onDidFocus(() => {
+			filterFocusContextKey.set(true);
 			this.focusEmitter.fire();
+		}));
+		this._register(input.onDidBlur(() => {
+			filterFocusContextKey.set(false);
 		}));
 
 		this._register(input.onInputDidChange(() => updateDelayer.trigger(() => {
@@ -158,6 +166,14 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 	}
 
 	/**
+	 * Clears the filter input text.
+	 */
+	public clearText() {
+		this.input.setValue('');
+		this.state.setText('');
+	}
+
+	/**
 	 * @override
 	 */
 	public override dispose() {
@@ -183,6 +199,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 		actionRunner: IActionRunner,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITestService private readonly testService: ITestService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(action,
 			{ getActions: () => this.getActions() },

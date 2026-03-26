@@ -9,6 +9,7 @@ import { TestExplorerViewMode, TestExplorerViewSorting } from './constants.js';
 import { TestRunProfileBitset } from './testTypes.js';
 
 export namespace TestingContextKeys {
+	export const explorerFilterInputFocus = new RawContextKey<boolean>('testing.explorerFilterInputFocus', false, { type: 'boolean', description: localize('testing.explorerFilterInputFocus', 'Whether the test explorer filter input has focus') });
 	export const providerCount = new RawContextKey('testing.providerCount', 0);
 	export const canRefreshTests = new RawContextKey('testing.canRefresh', false, { type: 'boolean', description: localize('testing.canRefresh', 'Indicates whether any test controller has an attached refresh handler.') });
 	export const isRefreshingTests = new RawContextKey('testing.isRefreshing', false, { type: 'boolean', description: localize('testing.isRefreshing', 'Indicates whether any test controller is currently refreshing tests.') });

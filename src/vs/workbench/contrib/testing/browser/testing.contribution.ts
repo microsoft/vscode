@@ -10,6 +10,8 @@ import { registerAction2 } from '../../../../platform/actions/common/actions.js'
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -46,6 +48,7 @@ import { allTestActions, discoverAndRunTests } from './testExplorerActions.js';
 import './testingConfigurationUi.js';
 import { TestingDecorations, TestingDecorationService } from './testingDecorations.js';
 import { TestingExplorerView } from './testingExplorerView.js';
+import { ViewAction } from '../../../browser/parts/views/viewPane.js';
 import { CloseTestPeek, CollapsePeekStack, GoToNextMessageAction, GoToPreviousMessageAction, OpenMessageInEditorAction, TestingOutputPeekController, TestingPeekOpener, TestResultsView, ToggleTestingPeekHistory } from './testingOutputPeek.js';
 import { TestingProgressTrigger } from './testingProgressUiService.js';
 import { TestingViewPaneContainer } from './testingViewPaneContainer.js';
@@ -138,6 +141,25 @@ registerAction2(GoToNextMessageAction);
 registerAction2(CloseTestPeek);
 registerAction2(ToggleTestingPeekHistory);
 registerAction2(CollapsePeekStack);
+
+registerAction2(class extends ViewAction<TestingExplorerView> {
+	constructor() {
+		super({
+			id: TestCommandId.ClearFilterText,
+			title: localize('testing.clearFilterText', "Clear filter text"),
+			category: localize2('testing', 'Testing'),
+			keybinding: {
+				when: TestingContextKeys.explorerFilterInputFocus,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.Escape
+			},
+			viewId: Testing.ExplorerViewId
+		});
+	}
+	async runInView(_accessor: ServicesAccessor, view: TestingExplorerView): Promise<void> {
+		view.clearFilterText();
+	}
+});
 
 registerWorkbenchContribution2(TestingContentProvider.ID, TestingContentProvider, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(TestingPeekOpener.ID, TestingPeekOpener, WorkbenchPhase.Eventually);

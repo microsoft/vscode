@@ -56,6 +56,7 @@ export const testConfigurationGroupNames: Partial<Record<TestRunProfileBitset, s
 
 export const enum TestCommandId {
 	CancelTestRefreshAction = 'testing.cancelTestRefresh',
+	ClearFilterText = 'testing.clearFilterText',
 	CancelTestRunAction = 'testing.cancelRun',
 	ClearTestResultsAction = 'testing.clearTestResults',
 	CollapseAllAction = 'testing.collapseAll',

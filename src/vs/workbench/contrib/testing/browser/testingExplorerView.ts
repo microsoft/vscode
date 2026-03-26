@@ -536,6 +536,10 @@ export class TestingExplorerView extends ViewPane {
 		this.viewModel?.layout(height - this.treeHeader.clientHeight, width);
 		this.filter.value?.layout(width);
 	}
+
+	public clearFilterText(): void {
+		this.filter.value?.clearText();
+	}
 }
 
 const SUMMARY_RENDER_INTERVAL = 200;
