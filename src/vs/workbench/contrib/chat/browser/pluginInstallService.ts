@@ -9,14 +9,17 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
-import { IPluginInstallService, IUpdateAllPluginsOptions, IUpdateAllPluginsResult } from '../common/plugins/pluginInstallService.js';
-import { IMarketplacePlugin, IPluginMarketplaceService, hasSourceChanged, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
+import { ChatConfiguration } from '../common/constants.js';
+import { IPluginInstallService, IInstallPluginFromSourceOptions, IInstallPluginFromSourceResult, IUpdateAllPluginsOptions, IUpdateAllPluginsResult } from '../common/plugins/pluginInstallService.js';
+import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, MarketplaceReferenceKind, MarketplaceType, hasSourceChanged, parseMarketplaceReference, parseMarketplaceReferences, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
 
 export class PluginInstallService implements IPluginInstallService {
 	declare readonly _serviceBrand: undefined;
@@ -30,6 +33,8 @@ export class PluginInstallService implements IPluginInstallService {
 		@ILogService private readonly _logService: ILogService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) { }
 
 	async installPlugin(plugin: IMarketplacePlugin): Promise<void> {
@@ -50,6 +55,170 @@ export class PluginInstallService implements IPluginInstallService {
 
 		// GitHub / GitUrl
 		return this._installGitPlugin(plugin);
+	}
+
+	async installPluginFromSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<void> {
+		const reference = parseMarketplaceReference(source);
+		if (!reference) {
+			this._notificationService.notify({
+				severity: Severity.Error,
+				message: localize('invalidSource', "'{0}' is not a valid plugin source. Enter a GitHub repository (owner/repo) or a git clone URL.", source),
+			});
+			return;
+		}
+
+		if (reference.kind === MarketplaceReferenceKind.LocalFileUri) {
+			this._notificationService.notify({
+				severity: Severity.Error,
+				message: localize('localSourceNotSupported', "Local file paths are not supported. Enter a GitHub repository (owner/repo) or a git clone URL."),
+			});
+			return;
+		}
+
+		const result = await this._doInstallFromSource(reference, options);
+		if (!result.success && result.message) {
+			this._notificationService.notify({
+				severity: Severity.Error,
+				message: result.message,
+			});
+		}
+	}
+
+	validatePluginSource(source: string): string | undefined {
+		const reference = parseMarketplaceReference(source);
+		if (!reference) {
+			return localize('invalidSource', "'{0}' is not a valid plugin source. Enter a GitHub repository (owner/repo) or a git clone URL.", source);
+		}
+		if (reference.kind === MarketplaceReferenceKind.LocalFileUri) {
+			return localize('localSourceNotSupported', "Local file paths are not supported. Enter a GitHub repository (owner/repo) or a git clone URL.");
+		}
+		return undefined;
+	}
+
+	async installPluginFromValidatedSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult> {
+		const reference = parseMarketplaceReference(source);
+		if (!reference) {
+			return {
+				success: false,
+				message: localize('invalidSource', "'{0}' is not a valid plugin source. Enter a GitHub repository (owner/repo) or a git clone URL.", source),
+			};
+		}
+		if (reference.kind === MarketplaceReferenceKind.LocalFileUri) {
+			return {
+				success: false,
+				message: localize('localSourceNotSupported', "Local file paths are not supported. Enter a GitHub repository (owner/repo) or a git clone URL."),
+			};
+		}
+
+		return this._doInstallFromSource(reference, options);
+	}
+
+	private async _doInstallFromSource(reference: IMarketplaceReference, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult> {
+		// Build a source descriptor for the git clone.
+		const sourceDescriptor = reference.kind === MarketplaceReferenceKind.GitHubShorthand
+			? { kind: PluginSourceKind.GitHub as const, repo: reference.githubRepo! }
+			: { kind: PluginSourceKind.GitUrl as const, url: reference.cloneUrl };
+
+		// Build a temporary plugin object for the trust gate and clone step.
+		const tempPlugin: IMarketplacePlugin = {
+			name: reference.displayLabel,
+			description: '',
+			version: '',
+			source: '',
+			sourceDescriptor,
+			marketplace: reference.displayLabel,
+			marketplaceReference: reference,
+			marketplaceType: MarketplaceType.OpenPlugin,
+		};
+
+		if (!await this._ensureMarketplaceTrusted(tempPlugin)) {
+			return { success: false };
+		}
+
+		// Clone the repository.
+		let repoDir: URI;
+		try {
+			repoDir = await this._pluginRepositoryService.ensurePluginSource(tempPlugin, {
+				progressTitle: localize('cloningSource', "Cloning plugin source '{0}'...", reference.displayLabel),
+				failureLabel: reference.displayLabel,
+				marketplaceType: MarketplaceType.OpenPlugin,
+			});
+		} catch (e) {
+			const detail = e instanceof Error ? e.message : String(e);
+			return {
+				success: false,
+				message: localize('cloneFailedDetail', "Failed to clone plugin source '{0}': {1}", reference.displayLabel, detail),
+			};
+		}
+
+		const repoExists = await this._fileService.exists(repoDir);
+		if (!repoExists) {
+			return {
+				success: false,
+				message: localize('cloneFailed', "Failed to clone plugin source '{0}'.", reference.displayLabel),
+			};
+		}
+
+		// Scan for marketplace.json to discover plugins.
+		const discoveredPlugins = await this._pluginMarketplaceService.readPluginsFromDirectory(repoDir, reference);
+
+		if (discoveredPlugins.length === 0) {
+			void this._pluginRepositoryService.cleanupPluginSource(tempPlugin);
+			return {
+				success: false,
+				message: localize('noPluginsFound', "No plugins found in '{0}'. This does not appear to be a valid plugin marketplace.", reference.displayLabel),
+			};
+		}
+
+		// When targeting a specific plugin, find it, register it, and return.
+		if (options?.plugin) {
+			const matchedPlugin = discoveredPlugins.find(p => p.name === options.plugin);
+			if (!matchedPlugin) {
+				return {
+					success: false,
+					message: localize('pluginNotFound', "Plugin '{0}' not found in '{1}'.", options.plugin, reference.displayLabel),
+				};
+			}
+			await this._addMarketplaceToConfig(reference);
+			await this.installPlugin(matchedPlugin);
+			return { success: true, matchedPlugin };
+		}
+
+		if (discoveredPlugins.length === 1) {
+			await this._addMarketplaceToConfig(reference);
+			await this.installPlugin(discoveredPlugins[0]);
+			return { success: true };
+		}
+
+		// Multiple plugins — let the user choose.
+		const picks: (IQuickPickItem & { plugin: IMarketplacePlugin })[] = discoveredPlugins.map(p => ({
+			label: p.name,
+			description: p.description,
+			plugin: p,
+		}));
+
+		const selected = await this._quickInputService.pick(picks, {
+			placeHolder: localize('selectPlugin', "Select a plugin to install from '{0}'", reference.displayLabel),
+			canPickMany: false,
+		});
+
+		if (!selected) {
+			return { success: false };
+		}
+
+		await this._addMarketplaceToConfig(reference);
+		await this.installPlugin(selected.plugin);
+
+		return { success: true };
+	}
+
+	private _addMarketplaceToConfig(reference: IMarketplaceReference) {
+		const currentValues = this._configurationService.getValue<unknown[]>(ChatConfiguration.PluginMarketplaces) ?? [];
+		const existingRefs = parseMarketplaceReferences(currentValues);
+		if (existingRefs.some(r => r.canonicalId === reference.canonicalId)) {
+			return;
+		}
+		return this._configurationService.updateValue(ChatConfiguration.PluginMarketplaces, [...currentValues, reference.rawValue]);
 	}
 
 	async updatePlugin(plugin: IMarketplacePlugin, silent?: boolean): Promise<boolean> {

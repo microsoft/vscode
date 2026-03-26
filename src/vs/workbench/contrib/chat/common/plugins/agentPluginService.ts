@@ -20,6 +20,8 @@ export const IAgentPluginService = createDecorator<IAgentPluginService>('agentPl
 export interface IAgentPluginHook {
 	readonly type: HookType;
 	readonly hooks: readonly IHookCommand[];
+	/** URI where this hook is defined -- not unique, multiple hooks may be in a manifest */
+	readonly uri: URI;
 	readonly originalId: string;
 }
 
@@ -38,9 +40,15 @@ export interface IAgentPluginAgent {
 	readonly name: string;
 }
 
+export interface IAgentPluginInstruction {
+	readonly uri: URI;
+	readonly name: string;
+}
+
 export interface IAgentPluginMcpServerDefinition {
 	readonly name: string;
 	readonly configuration: IMcpServerConfiguration;
+	readonly uri: URI;
 }
 
 export interface IAgentPlugin {
@@ -54,6 +62,7 @@ export interface IAgentPlugin {
 	readonly commands: IObservable<readonly IAgentPluginCommand[]>;
 	readonly skills: IObservable<readonly IAgentPluginSkill[]>;
 	readonly agents: IObservable<readonly IAgentPluginAgent[]>;
+	readonly instructions: IObservable<readonly IAgentPluginInstruction[]>;
 	readonly mcpServerDefinitions: IObservable<readonly IAgentPluginMcpServerDefinition[]>;
 	/** Set when the plugin was installed from a marketplace repository. */
 	readonly fromMarketplace?: IMarketplacePlugin;

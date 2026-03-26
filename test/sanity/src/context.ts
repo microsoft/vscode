@@ -34,6 +34,7 @@ export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
 	private static readonly versionInfoInclude = /^.+\.(exe|dll|node|msi)$/i;
 	private static readonly versionInfoExclude = /^(dxil\.dll|ffmpeg\.dll|msalruntime\.dll)$/i;
+	private static readonly dpkgLockError = /dpkg frontend lock was locked by another process|unable to acquire the dpkg frontend lock|could not get lock \/var\/lib\/dpkg\/lock-frontend/i;
 
 	private readonly tempDirs = new Set<string>();
 	private readonly wslTempDirs = new Set<string>();
@@ -141,8 +142,25 @@ export class TestContext {
 	public error(message: string): never {
 		const line = `[${new Date().toISOString()}] ERROR: ${message}`;
 		this.consoleOutputs.push(line);
-		console.error(line);
+		console.error(`##vso[task.logissue type=error]${line}`);
 		throw new Error(message);
+	}
+
+	/**
+	 * Logs a warning message with a timestamp.
+	 */
+	public warn(message: string) {
+		const line = `[${new Date().toISOString()}] WARNING: ${message}`;
+		this.consoleOutputs.push(line);
+		console.warn(`##vso[task.logissue type=warning]${line}`);
+	}
+
+	/**
+	 * Returns a promise that resolves after the specified delay in milliseconds.
+	 * @param delay The delay in milliseconds to wait before resolving the promise.
+	 */
+	private timeout(delay: number) {
+		return new Promise(resolve => setTimeout(resolve, delay));
 	}
 
 	/**
@@ -220,7 +238,7 @@ export class TestContext {
 				fs.rmSync(dir, { recursive: true, force: true });
 				this.log(`Deleted temp directory: ${dir}`);
 			} catch (error) {
-				this.log(`Failed to delete temp directory: ${dir}: ${error}`);
+				this.warn(`Failed to delete temp directory: ${dir}: ${error}`);
 			}
 		}
 		this.tempDirs.clear();
@@ -229,7 +247,7 @@ export class TestContext {
 			try {
 				this.deleteWslDir(dir);
 			} catch (error) {
-				this.log(`Failed to delete WSL temp directory: ${dir}: ${error}`);
+				this.warn(`Failed to delete WSL temp directory: ${dir}: ${error}`);
 			}
 		}
 		this.wslTempDirs.clear();
@@ -247,8 +265,8 @@ export class TestContext {
 		for (let attempt = 0; attempt < maxRetries; attempt++) {
 			if (attempt > 0) {
 				const delay = Math.pow(2, attempt - 1) * 1000;
-				this.log(`Retrying fetch (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
-				await new Promise(resolve => setTimeout(resolve, delay));
+				this.warn(`Retrying fetch (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
+				await this.timeout(delay);
 			}
 
 			try {
@@ -266,7 +284,7 @@ export class TestContext {
 				return response as Response & { body: NodeJS.ReadableStream };
 			} catch (error) {
 				lastError = error instanceof Error ? error : new Error(String(error));
-				this.log(`Fetch attempt ${attempt + 1} failed: ${lastError.message}`);
+				this.warn(`Fetch attempt ${attempt + 1} failed: ${lastError.message}`);
 			}
 		}
 
@@ -644,6 +662,58 @@ export class TestContext {
 	}
 
 	/**
+	 * Runs a command with sudo if not running as root, and ensures it succeeds.
+	 * @param command The command to run.
+	 * @param args Optional arguments for the command.
+	 * @returns The result of the spawnSync call.
+	 */
+	private runSudoNoErrors(command: string, ...args: string[]): SpawnSyncReturns<string> {
+		if (this.isRootUser) {
+			return this.runNoErrors(command, ...args);
+		} else {
+			return this.runNoErrors('sudo', command, ...args);
+		}
+	}
+
+	/**
+	 * Runs a dpkg command with retries if the frontend lock is busy, and ensures it succeeds.
+	 */
+	private async runDpkgNoErrors(...args: string[]) {
+		const command = this.isRootUser ? 'dpkg' : 'sudo';
+		const commandArgs = this.isRootUser ? args : ['dpkg', ...args];
+		const maxRetries = 5;
+		let lastError: string | undefined;
+
+		for (let attempt = 0; attempt < maxRetries; attempt++) {
+			if (attempt > 0) {
+				const delay = Math.pow(2, attempt - 1) * 1000;
+				this.log(`Retrying dpkg command (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
+				await this.timeout(delay);
+			}
+
+			const result = this.run(command, ...commandArgs);
+			if (result.error !== undefined) {
+				lastError = `Failed to run command: ${result.error.message}`;
+				break;
+			}
+
+			if (result.status === 0) {
+				return;
+			}
+
+			lastError = `Command exited with code ${result.status}: ${result.stderr}`;
+			const output = `${result.stdout}${result.stderr}`;
+			if (!TestContext.dpkgLockError.test(output)) {
+				break;
+			}
+
+			this.log(`dpkg lock is busy, waiting for the other package manager process to finish`);
+		}
+
+		this.error(lastError ?? `Command failed after ${maxRetries} attempts because the dpkg frontend lock remained busy`);
+	}
+
+	/**
 	 * Kills a process and all its child processes.
 	 * @param pid The process ID to kill.
 	 */
@@ -727,7 +797,7 @@ export class TestContext {
 		this.runNoErrors(uninstallerPath, '/silent');
 		this.log(`Uninstalled VS Code from ${appDir} successfully`);
 
-		await new Promise(resolve => setTimeout(resolve, 2000));
+		await this.timeout(2000);
 		if (fs.existsSync(appDir)) {
 			this.error(`Installation directory still exists after uninstall: ${appDir}`);
 		}
@@ -738,13 +808,9 @@ export class TestContext {
 	 * @param packagePath The path to the DEB file.
 	 * @returns The path to the installed VS Code executable.
 	 */
-	public installDeb(packagePath: string): string {
+	public async installDeb(packagePath: string): Promise<string> {
 		this.log(`Installing ${packagePath} using DEB package manager`);
-		if (this.isRootUser) {
-			this.runNoErrors('dpkg', '-i', packagePath);
-		} else {
-			this.runNoErrors('sudo', 'dpkg', '-i', packagePath);
-		}
+		await this.runDpkgNoErrors('-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
 		const name = this.getLinuxBinaryName();
@@ -761,14 +827,10 @@ export class TestContext {
 		const packagePath = path.join('/usr/share', name, name);
 
 		this.log(`Uninstalling DEB package ${packagePath}`);
-		if (this.isRootUser) {
-			this.runNoErrors('dpkg', '-r', name);
-		} else {
-			this.runNoErrors('sudo', 'dpkg', '-r', name);
-		}
+		await this.runDpkgNoErrors('-r', name);
 		this.log(`Uninstalled DEB package ${packagePath} successfully`);
 
-		await new Promise(resolve => setTimeout(resolve, 1000));
+		await this.timeout(1000);
 		if (fs.existsSync(packagePath)) {
 			this.error(`Package still exists after uninstall: ${packagePath}`);
 		}
@@ -781,11 +843,7 @@ export class TestContext {
 	 */
 	public installRpm(packagePath: string): string {
 		this.log(`Installing ${packagePath} using RPM package manager`);
-		if (this.isRootUser) {
-			this.runNoErrors('rpm', '-i', packagePath);
-		} else {
-			this.runNoErrors('sudo', 'rpm', '-i', packagePath);
-		}
+		this.runSudoNoErrors('rpm', '-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
 		const name = this.getLinuxBinaryName();
@@ -802,14 +860,10 @@ export class TestContext {
 		const packagePath = path.join('/usr/bin', name);
 
 		this.log(`Uninstalling RPM package ${packagePath}`);
-		if (this.isRootUser) {
-			this.runNoErrors('rpm', '-e', name);
-		} else {
-			this.runNoErrors('sudo', 'rpm', '-e', name);
-		}
+		this.runSudoNoErrors('rpm', '-e', name);
 		this.log(`Uninstalled RPM package ${packagePath} successfully`);
 
-		await new Promise(resolve => setTimeout(resolve, 1000));
+		await this.timeout(1000);
 		if (fs.existsSync(packagePath)) {
 			this.error(`Package still exists after uninstall: ${packagePath}`);
 		}
@@ -822,11 +876,7 @@ export class TestContext {
 	 */
 	public installSnap(packagePath: string): string {
 		this.log(`Installing ${packagePath} using Snap package manager`);
-		if (this.isRootUser) {
-			this.runNoErrors('snap', 'install', packagePath, '--classic', '--dangerous');
-		} else {
-			this.runNoErrors('sudo', 'snap', 'install', packagePath, '--classic', '--dangerous');
-		}
+		this.runSudoNoErrors('snap', 'install', packagePath, '--classic', '--dangerous');
 		this.log(`Installed ${packagePath} successfully`);
 
 		// Snap wrapper scripts are in /snap/bin, but actual Electron binary is in /snap/<package>/current/usr/share/
@@ -844,14 +894,10 @@ export class TestContext {
 		const packagePath = path.join('/snap/bin', name);
 
 		this.log(`Uninstalling Snap package ${packagePath}`);
-		if (this.isRootUser) {
-			this.runNoErrors('snap', 'remove', name);
-		} else {
-			this.runNoErrors('sudo', 'snap', 'remove', name);
-		}
+		this.runSudoNoErrors('snap', 'remove', name);
 		this.log(`Uninstalled Snap package ${packagePath} successfully`);
 
-		await new Promise(resolve => setTimeout(resolve, 1000));
+		await this.timeout(1000);
 		if (fs.existsSync(packagePath)) {
 			this.error(`Package still exists after uninstall: ${packagePath}`);
 		}
@@ -1091,7 +1137,7 @@ export class TestContext {
 			await page.screenshot({ path: screenshotPath, fullPage: true });
 			this.log(`Screenshot saved to: ${screenshotPath}`);
 		} catch (e) {
-			this.log(`Failed to capture screenshot: ${e instanceof Error ? e.message : String(e)}`);
+			this.warn(`Failed to capture screenshot: ${e instanceof Error ? e.message : String(e)}`);
 		}
 	}
 

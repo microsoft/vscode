@@ -20,10 +20,12 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { URI } from '../../../../../base/common/uri.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { isContributionEnabled } from '../../common/enablement.js';
@@ -32,7 +34,7 @@ import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plug
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { pluginIcon } from './aiCustomizationIcons.js';
-import { formatDisplayName, truncateToFirstSentence } from './aiCustomizationListWidget.js';
+import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 
@@ -131,7 +133,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		templateData.name.textContent = formatDisplayName(element.item.name);
 
 		if (element.item.description) {
-			templateData.description.textContent = truncateToFirstSentence(element.item.description);
+			templateData.description.textContent = truncateToFirstLine(element.item.description);
 			templateData.description.style.display = '';
 		} else {
 			templateData.description.style.display = 'none';
@@ -275,6 +277,9 @@ export class PluginListWidget extends Disposable {
 	private readonly _onDidSelectPlugin = this._register(new Emitter<IAgentPluginItem>());
 	readonly onDidSelectPlugin = this._onDidSelectPlugin.event;
 
+	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
+	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
+
 	private sectionHeader!: HTMLElement;
 	private sectionDescription!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
@@ -293,6 +298,8 @@ export class PluginListWidget extends Disposable {
 	private marketplaceItems: IMarketplacePluginItem[] = [];
 	private searchQuery: string = '';
 	private browseMode: boolean = false;
+	private lastHeight: number = 0;
+	private lastWidth: number = 0;
 	private readonly collapsedGroups = new Set<string>();
 	private marketplaceCts: CancellationTokenSource | undefined;
 	private readonly delayedFilter = new Delayer<void>(200);
@@ -308,6 +315,7 @@ export class PluginListWidget extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget'); // reuse MCP list widget CSS
@@ -339,7 +347,7 @@ export class PluginListWidget extends Disposable {
 			}
 		}));
 
-		// Button container (Browse Marketplace)
+		// Button container (Browse Marketplace + Install from Source)
 		const buttonContainer = DOM.append(this.searchAndButtonContainer, $('.list-button-group'));
 
 		const browseButtonContainer = DOM.append(buttonContainer, $('.list-add-button-container'));
@@ -348,6 +356,24 @@ export class PluginListWidget extends Disposable {
 		this.browseButton.element.classList.add('list-add-button');
 		this._register(this.browseButton.onDidClick(() => {
 			this.toggleBrowseMode(!this.browseMode);
+		}));
+
+		const installFromSourceButton = this._register(new Button(buttonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		installFromSourceButton.label = `$(${Codicon.add.id})`;
+		installFromSourceButton.setTitle(localize('installFromSource', "Install Plugin from Source"));
+		installFromSourceButton.element.classList.add('list-icon-button');
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), installFromSourceButton.element, localize('installFromSourceTooltip', "Install Plugin from Source")));
+		this._register(installFromSourceButton.onDidClick(() => {
+			this.commandService.executeCommand('workbench.action.chat.installPluginFromSource');
+		}));
+
+		const createPluginButton = this._register(new Button(buttonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		createPluginButton.label = `$(${Codicon.save.id})`;
+		createPluginButton.setTitle(localize('createPlugin', "Create Plugin"));
+		createPluginButton.element.classList.add('list-icon-button');
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), createPluginButton.element, localize('createPluginTooltip', "Create Plugin")));
+		this._register(createPluginButton.onDidClick(() => {
+			this.commandService.executeCommand('workbench.action.chat.createPlugin');
 		}));
 
 		// Back to installed link (shown only in browse mode)
@@ -372,9 +398,10 @@ export class PluginListWidget extends Disposable {
 
 		// Empty state
 		this.emptyContainer = DOM.append(this.element, $('.mcp-empty-state'));
-		const emptyIcon = DOM.append(this.emptyContainer, $('.empty-icon'));
+		const emptyHeader = DOM.append(this.emptyContainer, $('.empty-state-header'));
+		const emptyIcon = DOM.append(emptyHeader, $('.empty-icon'));
 		emptyIcon.classList.add(...ThemeIcon.asClassNameArray(pluginIcon));
-		this.emptyText = DOM.append(this.emptyContainer, $('.empty-text'));
+		this.emptyText = DOM.append(emptyHeader, $('.empty-text'));
 		this.emptySubtext = DOM.append(this.emptyContainer, $('.empty-subtext'));
 
 		// List container
@@ -386,7 +413,7 @@ export class PluginListWidget extends Disposable {
 		this.sectionDescription.textContent = localize('pluginsDescription', "Extend your AI agent with plugins that add commands, skills, agents, hooks, and MCP servers from reusable packages.");
 		this.sectionLink = DOM.append(this.sectionHeader, $('a.section-footer-link')) as HTMLAnchorElement;
 		this.sectionLink.textContent = localize('learnMorePlugins', "Learn more about agent plugins");
-		this.sectionLink.href = 'https://code.visualstudio.com/docs/copilot/chat/agent-plugins';
+		this.sectionLink.href = 'https://code.visualstudio.com/docs/copilot/customization/agent-plugins';
 		this._register(DOM.addDisposableListener(this.sectionLink, 'click', (e) => {
 			e.preventDefault();
 			const href = this.sectionLink.href;
@@ -502,6 +529,11 @@ export class PluginListWidget extends Disposable {
 			this.marketplaceCts?.dispose(true);
 			this.marketplaceItems = [];
 			this.filterPlugins();
+		}
+
+		// Re-layout to account for the back link height change
+		if (this.lastHeight > 0) {
+			this.layout(this.lastHeight, this.lastWidth);
 		}
 	}
 
@@ -645,6 +677,25 @@ export class PluginListWidget extends Disposable {
 
 		this.displayEntries = entries;
 		this.list.splice(0, this.list.length, this.displayEntries);
+
+		// Compute sidebar badge directly from the data array (same source as group headers)
+		this._onDidChangeItemCount.fire(this.itemCount);
+	}
+
+	/**
+	 * Gets the total item count from the underlying data array
+	 * (the same source used to build group headers).
+	 */
+	get itemCount(): number {
+		return this.installedItems.length;
+	}
+
+	/**
+	 * Re-fires the current item count. Call after subscribing to onDidChangeItemCount
+	 * to ensure the subscriber receives the latest count.
+	 */
+	fireItemCount(): void {
+		this._onDidChangeItemCount.fire(this.itemCount);
 	}
 
 	private toggleGroup(entry: IPluginGroupHeaderEntry): void {
@@ -657,31 +708,36 @@ export class PluginListWidget extends Disposable {
 	}
 
 	layout(height: number, width: number): void {
-		const sectionFooterHeight = this.sectionHeader.offsetHeight || 0;
-		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 52;
-		const backLinkHeight = this.browseMode ? (this.backLink.offsetHeight || 28) : 0;
-		const listHeight = height - sectionFooterHeight - searchBarHeight - backLinkHeight;
+		this.lastHeight = height;
+		this.lastWidth = width;
 
-		this.listContainer.style.height = `${Math.max(0, listHeight)}px`;
-		this.list.layout(Math.max(0, listHeight), width);
+		this.element.style.height = `${height}px`;
 
-		if (sectionFooterHeight === 0) {
-			DOM.getWindow(this.listContainer).requestAnimationFrame(() => {
-				if (this._store.isDisposed) {
-					return;
-				}
-				const actualFooterHeight = this.sectionHeader.offsetHeight;
-				if (actualFooterHeight > 0) {
-					const correctedHeight = height - actualFooterHeight - searchBarHeight - backLinkHeight;
-					this.listContainer.style.height = `${Math.max(0, correctedHeight)}px`;
-					this.list.layout(Math.max(0, correctedHeight), width);
-				}
-			});
+		// Measure sibling elements to calculate the list height.
+		// When offsetHeight returns 0 the container just became visible
+		// after display:none and the browser hasn't reflowed yet — defer
+		// layout to the next frame so measurements are accurate.
+		const searchBarHeight = this.searchAndButtonContainer.offsetHeight;
+		if (searchBarHeight === 0) {
+			DOM.getWindow(this.element).requestAnimationFrame(() => this.layout(this.lastHeight, this.lastWidth));
+			return;
 		}
+		const footerHeight = this.sectionHeader.offsetHeight;
+		const backLinkHeight = this.browseMode ? this.backLink.offsetHeight : 0;
+		const listHeight = Math.max(0, height - searchBarHeight - footerHeight - backLinkHeight);
+
+		this.listContainer.style.height = `${listHeight}px`;
+		this.list.layout(listHeight, width);
 	}
 
 	focusSearch(): void {
 		this.searchInput.focus();
+	}
+
+	revealLastItem(): void {
+		if (this.list.length > 0) {
+			this.list.reveal(this.list.length - 1);
+		}
 	}
 
 	focus(): void {

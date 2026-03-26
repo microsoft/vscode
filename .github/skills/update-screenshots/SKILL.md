@@ -72,7 +72,16 @@ git add test/componentFixtures/.screenshots/baseline/
 git commit -m "update screenshot baselines from CI"
 ```
 
-### 7. Verify
+### 7. Push LFS objects before pushing
+
+Screenshot baselines are stored in Git LFS. The `git lfs pre-push` hook is not active in this repo (husky overwrites it), so LFS objects are NOT automatically uploaded on `git push`. You must push them manually before pushing the branch, otherwise the push will fail with `GH008: Your push referenced unknown Git LFS objects`.
+
+```bash
+git lfs push --all origin <branch-name>
+git push
+```
+
+### 8. Verify
 
 Confirm the baselines are updated by listing the files:
 

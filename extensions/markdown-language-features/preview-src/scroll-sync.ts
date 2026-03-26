@@ -9,7 +9,7 @@ const codeLineClass = 'code-line';
 
 
 export class CodeLineElement {
-	private readonly _detailParentElements: readonly HTMLDetailsElement[];
+	readonly #detailParentElements: readonly HTMLDetailsElement[];
 
 	constructor(
 		readonly element: HTMLElement,
@@ -17,11 +17,11 @@ export class CodeLineElement {
 		readonly codeElement?: HTMLElement,
 		readonly endLine?: number,
 	) {
-		this._detailParentElements = Array.from(getParentsWithTagName<HTMLDetailsElement>(element, 'DETAILS'));
+		this.#detailParentElements = Array.from(getParentsWithTagName<HTMLDetailsElement>(element, 'DETAILS'));
 	}
 
 	get isVisible(): boolean {
-		if (this._detailParentElements.some(x => !x.open)) {
+		if (this.#detailParentElements.some(x => !x.open)) {
 			return false;
 		}
 
