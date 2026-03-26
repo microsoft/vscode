@@ -2249,6 +2249,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	font-size: 13px;
+	flex: 1;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-save {
+	display: none;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	padding: 2px;
+	border-radius: 2px;
+	margin-left: auto;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-row:hover .chat-artifacts-list-save {
+	display: flex;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-save:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .chat-artifacts-widget .artifacts-clear-button-container {
