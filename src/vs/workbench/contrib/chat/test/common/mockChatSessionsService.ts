@@ -9,7 +9,7 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ReadonlyChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, ChatSessionOptionsMap } from '../../common/chatSessionsService.js';
+import { ReadonlyChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, ChatSessionOptionsMap, IChatSessionCustomizationsProvider, IChatSessionCustomizationItemGroup } from '../../common/chatSessionsService.js';
 import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 
@@ -252,4 +252,20 @@ export class MockChatSessionsService implements IChatSessionsService {
 			}
 		};
 	}
+
+	private readonly _onDidChangeCustomizations = new Emitter<{ readonly chatSessionType: string }>();
+	readonly onDidChangeCustomizations = this._onDidChangeCustomizations.event;
+
+	registerCustomizationsProvider(_chatSessionType: string, _provider: IChatSessionCustomizationsProvider): IDisposable {
+		return { dispose: () => { } };
+	}
+
+	hasCustomizationsProvider(_chatSessionType: string): boolean {
+		return false;
+	}
+
+	async getCustomizations(_chatSessionType: string, _token: CancellationToken): Promise<IChatSessionCustomizationItemGroup[] | undefined> {
+		return undefined;
+	}
+
 }
