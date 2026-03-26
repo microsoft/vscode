@@ -94,8 +94,10 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		return this.promptsService.getPromptSlashCommands(token);
 	}
 
+	private static readonly _emptyIntegrations: ReadonlyMap<string, string> = new Map();
+
 	getSkillUIIntegrations(): ReadonlyMap<string, string> {
-		return new Map();
+		return AICustomizationWorkspaceService._emptyIntegrations;
 	}
 }
 

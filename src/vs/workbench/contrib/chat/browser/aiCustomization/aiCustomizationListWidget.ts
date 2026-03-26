@@ -1299,7 +1299,8 @@ export class AICustomizationListWidget extends Disposable {
 				const filename = basename(skill.uri);
 				const skillName = skill.name || basename(dirname(skill.uri)) || filename;
 				seenUris.add(skill.uri);
-				const uiTooltip = uiIntegrations.get(skillName);
+				const skillFolderName = basename(dirname(skill.uri));
+				const uiTooltip = uiIntegrations.get(skillFolderName);
 				items.push({
 					id: skill.uri.toString(),
 					uri: skill.uri,
@@ -1320,7 +1321,8 @@ export class AICustomizationListWidget extends Disposable {
 					if (!seenUris.has(file.uri) && disabledUris.has(file.uri)) {
 						const filename = basename(file.uri);
 						const disabledName = file.name || basename(dirname(file.uri)) || filename;
-						const uiTooltip = uiIntegrations.get(disabledName);
+						const disabledFolderName = basename(dirname(file.uri));
+						const uiTooltip = uiIntegrations.get(disabledFolderName);
 						items.push({
 							id: file.uri.toString(),
 							uri: file.uri,

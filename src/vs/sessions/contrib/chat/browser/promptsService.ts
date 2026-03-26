@@ -181,8 +181,12 @@ export class AgenticPromptsService extends PromptsService {
 	}
 
 	public override async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> {
-		if (storage === BUILTIN_STORAGE && type === PromptsType.skill) {
-			return this.getBuiltinSkillPaths() as Promise<readonly IPromptPath[]>;
+		if (storage === BUILTIN_STORAGE) {
+			if (type === PromptsType.skill) {
+				return this.getBuiltinSkillPaths() as Promise<readonly IPromptPath[]>;
+			}
+			// Built-in storage is only valid for skills; for other types, there are no items.
+			return [];
 		}
 		return super.listPromptFilesForStorage(type, storage, token);
 	}
