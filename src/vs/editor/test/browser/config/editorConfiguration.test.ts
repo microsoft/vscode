@@ -268,6 +268,78 @@ suite('Common Editor Config', () => {
 		);
 		config.dispose();
 	});
+
+	suite('backgroundImage options', () => {
+
+		test('backgroundImage defaults to empty string', () => {
+			const config = new TestConfiguration({});
+			assert.strictEqual(config.options.get(EditorOption.backgroundImage), '');
+			config.dispose();
+		});
+
+		test('backgroundImage accepts valid string', () => {
+			const config = new TestConfiguration({ backgroundImage: 'file:///path/to/image.png' });
+			assert.strictEqual(config.options.get(EditorOption.backgroundImage), 'file:///path/to/image.png');
+			config.dispose();
+		});
+
+		test('backgroundImage rejects non-string as empty string', () => {
+			// eslint-disable-next-line local/code-no-any-casts
+			const config = new TestConfiguration({ backgroundImage: <any>42 });
+			assert.strictEqual(config.options.get(EditorOption.backgroundImage), '');
+			config.dispose();
+		});
+
+		test('backgroundOpacity defaults to 0.3', () => {
+			const config = new TestConfiguration({});
+			assert.strictEqual(config.options.get(EditorOption.backgroundOpacity), 0.3);
+			config.dispose();
+		});
+
+		test('backgroundOpacity clamps below 0', () => {
+			const config = new TestConfiguration({ backgroundOpacity: -1 });
+			assert.strictEqual(config.options.get(EditorOption.backgroundOpacity), 0.0);
+			config.dispose();
+		});
+
+		test('backgroundOpacity clamps above 1', () => {
+			const config = new TestConfiguration({ backgroundOpacity: 5 });
+			assert.strictEqual(config.options.get(EditorOption.backgroundOpacity), 1.0);
+			config.dispose();
+		});
+
+		test('backgroundOpacity accepts valid value', () => {
+			const config = new TestConfiguration({ backgroundOpacity: 0.7 });
+			assert.strictEqual(config.options.get(EditorOption.backgroundOpacity), 0.7);
+			config.dispose();
+		});
+
+		test('backgroundSize defaults to cover', () => {
+			const config = new TestConfiguration({});
+			assert.strictEqual(config.options.get(EditorOption.backgroundSize), 'cover');
+			config.dispose();
+		});
+
+		test('backgroundSize accepts valid string', () => {
+			const config = new TestConfiguration({ backgroundSize: 'contain' });
+			assert.strictEqual(config.options.get(EditorOption.backgroundSize), 'contain');
+			config.dispose();
+		});
+
+		test('backgroundPosition defaults to center', () => {
+			const config = new TestConfiguration({});
+			assert.strictEqual(config.options.get(EditorOption.backgroundPosition), 'center');
+			config.dispose();
+		});
+
+		test('backgroundPosition accepts valid string', () => {
+			const config = new TestConfiguration({ backgroundPosition: 'top left' });
+			assert.strictEqual(config.options.get(EditorOption.backgroundPosition), 'top left');
+			config.dispose();
+		});
+
+	});
+
 });
 
 suite('migrateOptions', () => {

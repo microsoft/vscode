@@ -173,6 +173,26 @@ export interface IEditorOptions {
 	 */
 	extraEditorClassName?: string;
 	/**
+	 * Specifies a background image URL for the editor (e.g., `file:///path/to/image.png`).
+	 * Defaults to `''` (no background image).
+	 */
+	backgroundImage?: string;
+	/**
+	 * Controls the opacity of the editor background image, from 0.0 (fully transparent) to 1.0 (fully opaque).
+	 * Defaults to 0.3.
+	 */
+	backgroundOpacity?: number;
+	/**
+	 * CSS `background-size` value for the editor background image (e.g., `'cover'`, `'contain'`, `'auto'`).
+	 * Defaults to `'cover'`.
+	 */
+	backgroundSize?: string;
+	/**
+	 * CSS `background-position` value for the editor background image (e.g., `'center'`, `'top left'`).
+	 * Defaults to `'center'`.
+	 */
+	backgroundPosition?: string;
+	/**
 	 * Should the editor be read only. See also `domReadOnly`.
 	 * Defaults to false.
 	 */
@@ -5791,6 +5811,10 @@ export const enum EditorOption {
 	autoIndentOnPasteWithinString,
 	automaticLayout,
 	autoSurround,
+	backgroundImage,
+	backgroundOpacity,
+	backgroundPosition,
+	backgroundSize,
 	bracketPairColorization,
 	guides,
 	codeLens,
@@ -6115,6 +6139,25 @@ export const EditorOptions = {
 			],
 			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections when typing quotes or brackets.")
 		}
+	)),
+	backgroundImage: register(new EditorStringOption(
+		EditorOption.backgroundImage, 'backgroundImage', '',
+		{ markdownDescription: nls.localize('backgroundImage', "Specifies a background image for the editor. Use the **Select Editor Background Image** command to pick an image from your computer.") }
+	)),
+	backgroundOpacity: register(new EditorFloatOption(
+		EditorOption.backgroundOpacity, 'backgroundOpacity', 0.2,
+		x => EditorFloatOption.clamp(x, 0, 1),
+		{ description: nls.localize('backgroundOpacity', "Controls the opacity of the editor background image, from 0.0 (fully transparent) to 1.0 (fully opaque).") },
+		0,
+		1
+	)),
+	backgroundPosition: register(new EditorStringOption(
+		EditorOption.backgroundPosition, 'backgroundPosition', 'center',
+		{ description: nls.localize('backgroundPosition', "Specifies the CSS background-position of the editor background image (e.g., `center`, `top left`).") }
+	)),
+	backgroundSize: register(new EditorStringOption(
+		EditorOption.backgroundSize, 'backgroundSize', 'cover',
+		{ description: nls.localize('backgroundSize', "Specifies the CSS background-size of the editor background image (e.g., `cover`, `contain`, `auto`).") }
 	)),
 	bracketPairColorization: register(new BracketPairColorization()),
 	bracketPairGuides: register(new GuideOptions()),

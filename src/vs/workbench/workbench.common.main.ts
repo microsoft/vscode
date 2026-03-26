@@ -442,4 +442,7 @@ import './contrib/editTelemetry/browser/editTelemetry.contribution.js';
 // Opener
 import './contrib/opener/browser/opener.contribution.js';
 
+// Editor Background Image
+import './contrib/editorBackground/browser/editorBackground.contribution.js';
+
 //#endregion

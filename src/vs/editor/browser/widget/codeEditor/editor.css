@@ -61,6 +61,20 @@
 	overflow: hidden;
 }
 
+.monaco-editor .overflow-guard .editor-background-overlay {
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 2;
+	pointer-events: none;
+}
+
+.monaco-editor.has-background-image,
+.monaco-editor.has-background-image .monaco-editor-background {
+	background-color: transparent !important;
+}
+
 .monaco-editor .view-overlays {
 	position: absolute;
 	top: 0;

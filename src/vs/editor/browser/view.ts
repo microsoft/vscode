@@ -125,6 +125,7 @@ export class View extends ViewEventHandler {
 	private readonly _linesContent: FastDomNode<HTMLElement>;
 	public readonly domNode: FastDomNode<HTMLElement>;
 	private readonly _overflowGuardContainer: FastDomNode<HTMLElement>;
+	private readonly _backgroundOverlay: FastDomNode<HTMLElement>;
 
 	// Actual mutable state
 	private _shouldRecomputeGlyphMarginLanes: boolean = false;
@@ -159,6 +160,10 @@ export class View extends ViewEventHandler {
 		this._overflowGuardContainer = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this._overflowGuardContainer, PartFingerprint.OverflowGuard);
 		this._overflowGuardContainer.setClassName('overflow-guard');
+
+		this._backgroundOverlay = createFastDomNode(document.createElement('div'));
+		this._backgroundOverlay.setClassName('editor-background-overlay');
+		this._backgroundOverlay.setPosition('absolute');
 
 		this._viewController = new ViewController(configuration, model, userInputEvents, commandDelegate);
 
@@ -278,6 +283,7 @@ export class View extends ViewEventHandler {
 		this._linesContent.appendChild(this._viewLines.getDomNode());
 		this._linesContent.appendChild(this._contentWidgets.domNode);
 		this._linesContent.appendChild(this._viewCursors.getDomNode());
+		this._overflowGuardContainer.domNode.insertBefore(this._backgroundOverlay.domNode, this._overflowGuardContainer.domNode.firstChild);
 		this._overflowGuardContainer.appendChild(margin.getDomNode());
 		this._overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
 		if (this._viewGpuContext) {
@@ -298,6 +304,7 @@ export class View extends ViewEventHandler {
 		}
 
 		this._applyLayout();
+		this._applyBackground();
 
 		// Pointer handler
 		this._pointerHandler = this._register(new PointerHandler(this._context, this._viewController, this._createPointerHandlerHelper()));
@@ -461,6 +468,24 @@ export class View extends ViewEventHandler {
 		return this._context.configuration.options.get(EditorOption.editorClassName) + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
 	}
 
+	private _applyBackground(): void {
+		const options = this._context.configuration.options;
+		const backgroundImage = options.get(EditorOption.backgroundImage);
+		if (backgroundImage) {
+			this.domNode.domNode.classList.add('has-background-image');
+			this._backgroundOverlay.domNode.style.backgroundImage = `url('${backgroundImage}')`;
+			this._backgroundOverlay.domNode.style.backgroundSize = options.get(EditorOption.backgroundSize);
+			this._backgroundOverlay.domNode.style.backgroundPosition = options.get(EditorOption.backgroundPosition);
+			this._backgroundOverlay.domNode.style.backgroundRepeat = 'no-repeat';
+			this._backgroundOverlay.domNode.style.opacity = String(options.get(EditorOption.backgroundOpacity));
+			this._backgroundOverlay.domNode.style.display = '';
+		} else {
+			this.domNode.domNode.classList.remove('has-background-image');
+			this._backgroundOverlay.domNode.style.backgroundImage = '';
+			this._backgroundOverlay.domNode.style.display = 'none';
+		}
+	}
+
 	// --- begin event handlers
 	public override handleEvents(events: viewEvents.ViewEvent[]): void {
 		super.handleEvents(events);
@@ -470,6 +495,12 @@ export class View extends ViewEventHandler {
 		this.domNode.setClassName(this._getEditorClassName());
 		this._updateEditContext();
 		this._applyLayout();
+		if (e.hasChanged(EditorOption.backgroundImage)
+			|| e.hasChanged(EditorOption.backgroundOpacity)
+			|| e.hasChanged(EditorOption.backgroundSize)
+			|| e.hasChanged(EditorOption.backgroundPosition)) {
+			this._applyBackground();
+		}
 		return false;
 	}
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
