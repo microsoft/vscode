@@ -20,13 +20,15 @@ import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/brow
 import { EnhancedModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem2.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IContextKeyService, ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { SessionItemContextMenuId } from '../../sessions/browser/views/sessionsList.js';
 import { ISessionData } from '../../sessions/common/sessionData.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { CopilotCLISession, COPILOT_PROVIDER_ID, COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE } from './copilotChatSessionsProvider.js';
+import { CopilotCLISession, COPILOT_PROVIDER_ID } from './copilotChatSessionsProvider.js';
+import { COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE } from '../../sessions/browser/sessionTypes.js';
 import { IsolationPicker } from './isolationPicker.js';
 import { BranchPicker } from './branchPicker.js';
 import { ModePicker } from './modePicker.js';
@@ -181,6 +183,7 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
 
@@ -213,6 +216,7 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 					currentModel,
 					setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 						currentModel.set(model, undefined);
+						storageService.store('sessions.localModelPicker.selectedModelId', model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
 						const session = sessionsManagementService.activeSession.get();
 						if (session) {
 							const provider = sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
@@ -232,12 +236,14 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 				const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
 				const modelPicker = instantiationService.createInstance(EnhancedModelPickerActionItem, action, delegate, pickerOptions);
 
-				// Initialize with first available model, or wait for models to load
+				// Initialize with remembered model or first available model
+				const rememberedModelId = storageService.get('sessions.localModelPicker.selectedModelId', StorageScope.PROFILE);
 				const initModel = () => {
 					const models = getAvailableModels(languageModelsService);
 					modelPicker.setEnabled(models.length > 0);
-					if (!currentModel.get() && models[0]) {
-						currentModel.set(models[0], undefined);
+					if (!currentModel.get() && models.length > 0) {
+						const remembered = rememberedModelId ? models.find(m => m.identifier === rememberedModelId) : undefined;
+						currentModel.set(remembered ?? models[0], undefined);
 					}
 				};
 				initModel();

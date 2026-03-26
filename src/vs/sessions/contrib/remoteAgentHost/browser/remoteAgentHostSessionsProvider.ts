@@ -14,17 +14,10 @@ import { localize } from '../../../../nls.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ISessionData, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
 import { ISendRequestOptions, ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
+import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
 import { IChatSessionFileChange } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { agentHostUri } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-
-const CopilotCLISessionType: ISessionType = {
-	id: AgentSessionProviders.AgentHostCopilot,
-	label: localize('copilotCLI', "Copilot"),
-	icon: Codicon.copilot,
-	requiresWorkspaceTrust: true,
-};
 
 /**
  * A sessions provider for a single agent on a remote agent host connection.
@@ -73,6 +66,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			label: repositoryUri.path.split('/').pop() || repositoryUri.path,
 			icon: Codicon.remote,
 			repositories: [{ uri: repositoryUri, workingDirectory: undefined, detail: this.label, baseBranchProtected: undefined }],
+			requiresWorkspaceTrust: true
 		};
 	}
 
@@ -108,6 +102,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 				label: workspaceUri.path.split('/').pop() || workspaceUri.path,
 				icon: Codicon.remote,
 				repositories: [{ uri: workspaceUri, workingDirectory: undefined, detail: this.label, baseBranchProtected: undefined }],
+				requiresWorkspaceTrust: true
 			}),
 			title: observableValue(this, ''),
 			updatedAt: observableValue(this, new Date()),
@@ -120,8 +115,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			isRead: observableValue(this, true),
 			description: observableValue(this, undefined),
 			lastTurnEnd: observableValue(this, undefined),
-			pullRequestUri: observableValue(this, undefined),
-			pullRequestStateIcon: observableValue(this, undefined),
+			pullRequest: observableValue(this, undefined),
 
 		};
 	}
@@ -183,6 +177,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 					label,
 					icon: Codicon.remote,
 					repositories: [{ uri, workingDirectory: undefined, detail: this.label, baseBranchProtected: undefined }],
+					requiresWorkspaceTrust: true
 				};
 			}
 		} catch {
