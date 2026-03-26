@@ -456,7 +456,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private _watchForServerInitiatedTurns(backendSession: URI, sessionResource: URI): void {
 		const resourceKey = sessionResource.path.substring(1);
 		const sessionStr = backendSession.toString();
-		let lastSeenTurnId: string | undefined;
+
+		// Seed from the current state so we don't treat any pre-existing active
+		// turn (e.g. one being handled by _reconnectToActiveTurn) as new.
+		const currentState = this._clientState.getSessionState(sessionStr);
+		let lastSeenTurnId: string | undefined = currentState?.activeTurn?.id;
 		let previousQueuedIds: Set<string> | undefined;
 
 		const disposables = new DisposableStore();

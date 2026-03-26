@@ -1727,7 +1727,6 @@ suite('AgentHostChatContribution', () => {
 					confirmationTitle: 'Clean up',
 					toolInput: 'rm -rf /tmp/test',
 					status: ToolCallStatus.PendingConfirmation,
-					confirmed: ToolCallConfirmationReason.NotNeeded,
 				},
 			});
 			agentHostService.sessionStates.set(sessionUri.toString(), sessionState);
