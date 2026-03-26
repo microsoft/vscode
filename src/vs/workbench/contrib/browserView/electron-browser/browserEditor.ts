@@ -348,7 +348,6 @@ export class BrowserEditor extends EditorPane {
 
 	private _overlayVisible = false;
 	private _editorVisible = false;
-	private _currentKeyDownEvent: IBrowserViewKeyDownEvent | undefined;
 
 	private _navigationBar!: BrowserNavigationBar;
 	private _browserContainerWrapper!: HTMLElement;
@@ -479,8 +478,14 @@ export class BrowserEditor extends EditorPane {
 			// When the browser container gets focus, make sure the browser view also gets focused.
 			// But only if focus was already in the workbench (and not e.g. clicking back into the workbench from the browser view).
 			if (event.relatedTarget && this._model && this.shouldShowView) {
-				void this._model.focus();
+				this.requestFocus();
 			}
+		}));
+
+		this._register(addDisposableListener(this._browserContainer, EventType.BLUR, () => {
+			// If the container becomes blurred, cancel any scheduled focus call.
+			// This can happen when e.g. a menu closes and focus shifts back to the browser, then immediately focuses another element.
+			this.cancelFocus();
 		}));
 
 		// Register external focus checker so that cross-window focus logic knows when
@@ -494,9 +499,30 @@ export class BrowserEditor extends EditorPane {
 
 	override focus(): void {
 		if (this._model?.url && !this._model.error) {
-			void this._model.focus();
+			this.requestFocus();
 		} else {
 			this.focusUrlInput();
+		}
+	}
+
+	private _focusTimeout: ReturnType<typeof setTimeout> | undefined;
+	private requestFocus(): void {
+		this.ensureBrowserFocus();
+		if (this._focusTimeout) {
+			return;
+		}
+		this._focusTimeout = setTimeout(() => {
+			this._focusTimeout = undefined;
+			if (this._model) {
+				void this._model.focus();
+			}
+		}, 0);
+	}
+
+	private cancelFocus(): void {
+		if (this._focusTimeout) {
+			clearTimeout(this._focusTimeout);
+			this._focusTimeout = undefined;
 		}
 	}
 
@@ -643,7 +669,7 @@ export class BrowserEditor extends EditorPane {
 					this._browserContainer.ownerDocument.activeElement === this._browserContainer
 				) {
 					// If the editor is focused, ensure the browser view also gets focus
-					void this._model.focus();
+					this.requestFocus();
 				}
 			} else {
 				this.doScreenshot();
@@ -961,29 +987,14 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
-	forwardCurrentEvent(): boolean {
-		if (this._currentKeyDownEvent && this._model) {
-			void this._model.dispatchKeyEvent(this._currentKeyDownEvent);
-			return true;
-		}
-		return false;
-	}
-
 	private async handleKeyEventFromBrowserView(keyEvent: IBrowserViewKeyDownEvent): Promise<void> {
-		this._currentKeyDownEvent = keyEvent;
-
 		try {
 			const syntheticEvent = new KeyboardEvent('keydown', keyEvent);
 			const standardEvent = new StandardKeyboardEvent(syntheticEvent);
 
-			const handled = this.keybindingService.dispatchEvent(standardEvent, this._browserContainer);
-			if (!handled) {
-				this.forwardCurrentEvent();
-			}
+			this.keybindingService.dispatchEvent(standardEvent, this._browserContainer);
 		} catch (error) {
 			this.logService.error('BrowserEditor.handleKeyEventFromBrowserView: Error dispatching key event', error);
-		} finally {
-			this._currentKeyDownEvent = undefined;
 		}
 	}
 
@@ -1031,8 +1042,9 @@ export class BrowserEditor extends EditorPane {
 	override clearInput(): void {
 		this._inputDisposables.clear();
 
-		// Cancel any scheduled screenshots
+		// Cancel any scheduled timers
 		this.cancelScheduledScreenshot();
+		this.cancelFocus();
 
 		void this._model?.setVisible(false);
 		this._model = undefined;

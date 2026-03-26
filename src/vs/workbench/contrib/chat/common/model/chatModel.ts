@@ -862,6 +862,9 @@ export class Response extends AbstractResponse implements IDisposable {
 		);
 
 		if (existingInvocation) {
+			if (progress.toolSpecificData !== undefined) {
+				existingInvocation.toolSpecificData = progress.toolSpecificData;
+			}
 			if (progress.isComplete) {
 				existingInvocation.didExecuteTool({
 					content: [],
@@ -869,9 +872,6 @@ export class Response extends AbstractResponse implements IDisposable {
 					toolResultError: progress.errorMessage,
 					toolResultDetails: progress.resultDetails
 				});
-			}
-			if (progress.toolSpecificData !== undefined) {
-				existingInvocation.toolSpecificData = progress.toolSpecificData;
 			}
 			return;
 		}
@@ -900,15 +900,15 @@ export class Response extends AbstractResponse implements IDisposable {
 
 		if (progress.isComplete) {
 			// Already completed on first push
+			if (progress.toolSpecificData !== undefined) {
+				invocation.toolSpecificData = progress.toolSpecificData;
+			}
 			invocation.didExecuteTool({
 				content: [],
 				toolResultMessage: progress.pastTenseMessage,
 				toolResultError: progress.errorMessage,
 				toolResultDetails: progress.resultDetails
 			});
-			if (progress.toolSpecificData !== undefined) {
-				invocation.toolSpecificData = progress.toolSpecificData;
-			}
 		}
 
 		this._responseParts.push(invocation);
@@ -1664,6 +1664,9 @@ export interface IChatModelInputState {
 	/** Current selection ranges */
 	selections: ISelection[];
 
+	/** Current permission level for tool auto-approval */
+	permissionLevel?: ChatPermissionLevel;
+
 	/** Contributed stored state */
 	contrib: Record<string, unknown>;
 }
@@ -1683,6 +1686,7 @@ export interface ISerializableChatModelInputState {
 	} | undefined;
 	inputText: string;
 	selections: ISelection[];
+	permissionLevel?: ChatPermissionLevel;
 	contrib: Record<string, unknown>;
 }
 
@@ -1905,7 +1909,8 @@ class InputModel implements IInputModel {
 				metadata: value.selectedModel.metadata
 			} : undefined,
 			inputText: value.inputText,
-			selections: value.selections
+			selections: value.selections,
+			permissionLevel: value.permissionLevel,
 		};
 	}
 }
@@ -2197,7 +2202,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			},
 			contrib: serializedInputState.contrib,
 			inputText: serializedInputState.inputText,
-			selections: serializedInputState.selections
+			selections: serializedInputState.selections,
+			permissionLevel: serializedInputState.permissionLevel,
 		});
 
 		this.dataSerializer = dataRef?.serializer;

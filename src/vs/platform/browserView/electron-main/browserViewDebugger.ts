@@ -20,6 +20,10 @@ export class BrowserViewDebugger extends Disposable implements ICDPTarget {
 	/** Map from CDP sessionId to the per-connection event emitter */
 	private readonly _sessions = this._register(new DisposableMap<string, DebugSession>());
 
+	/** Whether any attached debugger session has paused JavaScript execution. */
+	private _isPaused = false;
+	get isPaused(): boolean { return this._isPaused; }
+
 	/**
 	 * The real CDP targetId discovered from Target.getTargets().
 	 * Ideally this could be fetched synchronously from the WebContents,
@@ -139,6 +143,13 @@ export class BrowserViewDebugger extends Disposable implements ICDPTarget {
 		if (!sessionId) {
 			// Events without a sessionId are managed at a higher level, so we can ignore them here.
 			return;
+		}
+
+		// Track debugger pause state
+		if (method === 'Debugger.paused') {
+			this._isPaused = true;
+		} else if (method === 'Debugger.resumed') {
+			this._isPaused = false;
 		}
 
 		// Find the session for this sessionId and fire the event

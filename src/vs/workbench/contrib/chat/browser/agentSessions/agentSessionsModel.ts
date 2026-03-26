@@ -158,6 +158,16 @@ export function isAgentSessionsModel(obj: unknown): obj is IAgentSessionsModel {
 	return Array.isArray(sessionsModel?.sessions) && typeof sessionsModel?.getSession === 'function';
 }
 
+export function countUnreadSessions(sessions: IAgentSession[]): number {
+	let unread = 0;
+	for (const session of sessions) {
+		if (!session.isArchived() && session.status === AgentSessionStatus.Completed && !session.isRead()) {
+			unread++;
+		}
+	}
+	return unread;
+}
+
 interface IAgentSessionState {
 	readonly archived?: boolean;
 	readonly pinned?: boolean;
@@ -193,6 +203,33 @@ export function isAgentSessionSection(obj: unknown): obj is IAgentSessionSection
 	const candidate = obj as IAgentSessionSection;
 
 	return typeof candidate.section === 'string' && Array.isArray(candidate.sessions);
+}
+
+/**
+ * A "Show N More..." item that appears as the last child
+ * of a capped repository group section.
+ */
+export interface IAgentSessionShowMore {
+	readonly showMore: true;
+	readonly sectionLabel: string;
+	readonly remainingCount: number;
+}
+
+export function isAgentSessionShowMore(obj: unknown): obj is IAgentSessionShowMore {
+	return (obj as IAgentSessionShowMore)?.showMore === true;
+}
+
+/**
+ * A "Show less" item that appears as the last child
+ * of an expanded repository group section to allow collapsing back.
+ */
+export interface IAgentSessionShowLess {
+	readonly showLess: true;
+	readonly sectionLabel: string;
+}
+
+export function isAgentSessionShowLess(obj: unknown): obj is IAgentSessionShowLess {
+	return (obj as IAgentSessionShowLess)?.showLess === true;
 }
 
 export interface IMarshalledAgentSessionContext {
@@ -331,6 +368,15 @@ class AgentSessionsLogger extends Disposable {
 				const summary = getAgentChangesSummary(session.changes);
 				if (summary) {
 					lines.push(`  Changes: ${summary.files} files, +${summary.insertions} -${summary.deletions}`);
+				}
+			}
+
+			// Metadata
+			if (session.metadata && Object.keys(session.metadata).length > 0) {
+				lines.push(`  Metadata:`);
+				for (const [key, value] of Object.entries(session.metadata)) {
+					const renderedValue = typeof value === 'string' ? value : safeStringify(value);
+					lines.push(`    ${key}: ${renderedValue}`);
 				}
 			}
 

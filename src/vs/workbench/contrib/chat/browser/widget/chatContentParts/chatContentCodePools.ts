@@ -10,6 +10,7 @@ import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatEditorOptions } from '../chatOptions.js';
 import { CodeBlockPart, CodeCompareBlockPart } from './codeBlockPart.js';
 import { ResourcePool, IDisposableReference } from './chatCollections.js';
+import { createSingleCallFunction } from '../../../../../../base/common/functional.js';
 
 export class EditorPool extends Disposable {
 
@@ -38,11 +39,11 @@ export class EditorPool extends Disposable {
 		return {
 			object: codeBlock,
 			isStale: () => stale,
-			dispose: () => {
+			dispose: createSingleCallFunction(() => {
 				codeBlock.reset();
 				stale = true;
 				this._pool.release(codeBlock);
-			}
+			})
 		};
 	}
 
@@ -78,11 +79,11 @@ export class DiffEditorPool extends Disposable {
 		return {
 			object: codeBlock,
 			isStale: () => stale,
-			dispose: () => {
+			dispose: createSingleCallFunction(() => {
 				codeBlock.reset();
 				stale = true;
 				this._pool.release(codeBlock);
-			}
+			})
 		};
 	}
 

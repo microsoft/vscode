@@ -15,10 +15,12 @@ import { IWorkspace, IWorkspaceContextService } from '../../../../platform/works
 import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../contrib/chat/common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../contrib/chat/common/plugins/agentPluginService.js';
+import { IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IPromptPath } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { AICustomizationManagementSection } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationListWidget } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationListWidget.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
 import { ParsedPromptFile, PromptHeader } from '../../../contrib/chat/common/promptSyntax/promptFileParser.js';
@@ -98,10 +100,11 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 function createMockHarnessService(): ICustomizationHarnessService {
 	const descriptor = createVSCodeHarnessDescriptor([PromptsStorage.extension]);
 	return new class extends mock<ICustomizationHarnessService>() {
-		override readonly activeHarness = observableValue('activeHarness', CustomizationHarness.VSCode);
+		override readonly activeHarness = observableValue<string>('activeHarness', CustomizationHarness.VSCode);
 		override readonly availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('harnesses', [descriptor]);
 		override getStorageSourceFilter() { return defaultFilter; }
 		override getActiveDescriptor() { return descriptor; }
+		override registerContributedHarness() { return { dispose() { } }; }
 	}();
 }
 
@@ -149,12 +152,18 @@ async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFi
 			reg.defineInstance(IAICustomizationWorkspaceService, createMockWorkspaceService());
 			reg.defineInstance(ICustomizationHarnessService, createMockHarnessService());
 			reg.defineInstance(IWorkspaceContextService, createMockWorkspaceContextService());
+			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override async getCustomizations() { return undefined; }
+				override getRegisteredChatSessionItemProviders() { return []; }
+			}());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = observableValue('plugins', []);
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;
 			}());
+			reg.defineInstance(IProductService, new class extends mock<IProductService>() { }());
 			reg.defineInstance(IPathService, new class extends mock<IPathService>() {
 				override readonly defaultUriScheme = 'file';
 				override userHome(): URI;
