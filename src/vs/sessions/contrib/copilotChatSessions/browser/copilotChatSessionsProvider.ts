@@ -533,16 +533,7 @@ export class RemoteNewSession extends Disposable implements ISessionData {
 		return group.items.find(i => i.default === true) ?? group.items[0];
 	}
 
-	update(session: ISessionData): void {
-		transaction(tx => {
-			this._title.set(session.title.get(), tx);
-			this._updatedAt.set(session.updatedAt.get(), tx);
-			this._status.set(session.status.get(), tx);
-			this._permissionLevel.set((session as ICopilotNewSessionData).permissionLevel.get(), tx);
-			this._workspaceData.set(session.workspace.get(), tx);
-			this._modelIdObservable.set(session.modelId.get(), tx);
-		});
-	}
+	update(session: ISessionData): void { }
 }
 
 /**
@@ -676,11 +667,11 @@ class AgentSessionAdapter implements ISessionData {
 
 	private _extractPullRequest(session: IAgentSession): ISessionPullRequest | undefined {
 		const uri = this._extractPullRequestUri(session);
-		const icon = this._extractPullRequestStateIcon(session);
-		if (uri && icon) {
-			return { uri, icon };
+		if (!uri) {
+			return undefined;
 		}
-		return undefined;
+		const icon = this._extractPullRequestStateIcon(session);
+		return { uri, icon: icon };
 	}
 
 	private _extractPullRequestStateIcon(session: IAgentSession): ThemeIcon | undefined {

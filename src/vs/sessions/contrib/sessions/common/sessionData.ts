@@ -61,7 +61,7 @@ export interface ISessionPullRequest {
 	/** URI of the pull request. */
 	readonly uri: URI;
 	/** Icon reflecting the PR state. */
-	readonly icon: ThemeIcon;
+	readonly icon?: ThemeIcon;
 }
 
 /**

@@ -228,7 +228,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const pullRequest = element.pullRequest.read(reader);
 			DOM.clearNode(template.iconContainer);
 			const hasPrIcon = !!pullRequest;
-			const icon = hasPrIcon ? pullRequest.icon : this.getStatusIcon(sessionStatus, isRead, isArchived);
+			const icon = pullRequest?.icon ? pullRequest.icon : this.getStatusIcon(sessionStatus, isRead, isArchived);
 			const iconSpan = DOM.append(template.iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 			iconSpan.style.color = icon.color ? asCssVariable(icon.color.id) : '';
 			template.iconContainer.classList.toggle('session-icon-pulse', !hasPrIcon && sessionStatus === SessionStatus.NeedsInput);
