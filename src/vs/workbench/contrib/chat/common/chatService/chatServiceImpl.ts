@@ -725,7 +725,11 @@ export class ChatService extends Disposable implements IChatService {
 			lastRequest?.response?.complete();
 		}
 
-		if (providedSession.progressObs && lastRequest && providedSession.interruptActiveResponseCallback) {
+		// Set up progress streaming and cancellation for contributed sessions.
+		// This handles both the initial in-flight response (from session load)
+		// and any subsequent server-initiated turns (e.g. consumed queued messages).
+		const hasProgressStreaming = providedSession.progressObs && providedSession.interruptActiveResponseCallback;
+		if (hasProgressStreaming && lastRequest) {
 			const initialCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined, undefined, undefined);
 			this._pendingRequests.set(model.sessionResource, initialCancellationRequest);
 			this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'remoteSession', chatSessionId: chatSessionResourceToId(model.sessionResource) });
@@ -753,7 +757,7 @@ export class ChatService extends Disposable implements IChatService {
 				const isComplete = providedSession.isCompleteObs?.read(reader) ?? false;
 
 				// Process only new progress items
-				if (progressArray.length > lastProgressLength) {
+				if (lastRequest && progressArray.length > lastProgressLength) {
 					const newProgress = progressArray.slice(lastProgressLength);
 					for (const progress of newProgress) {
 						model?.acceptResponseProgress(lastRequest, progress);
@@ -762,17 +766,91 @@ export class ChatService extends Disposable implements IChatService {
 				}
 
 				// Handle completion
-				if (isComplete) {
+				if (isComplete && lastRequest) {
 					lastRequest.response?.complete();
 					cancellationListener.clear();
 				}
 			}));
-		} else {
+		} else if (!hasProgressStreaming) {
 			this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'notCancelable', source: 'remoteSession', chatSessionId: chatSessionResourceToId(model.sessionResource) });
 			if (lastRequest && model.editingSession) {
 				// wait for timeline to load so that a 'changes' part is added when the response completes
 				await chatEditingSessionIsReady(model.editingSession);
 				lastRequest.response?.complete();
+			}
+		}
+
+		// Handle server-initiated requests (e.g. consumed queued messages).
+		// When the session signals a new server-initiated turn, create a new
+		// request+response pair in the model and prepare to receive progress.
+		if (providedSession.onDidStartServerRequest && providedSession.progressObs && providedSession.interruptActiveResponseCallback) {
+			let lastProgressLength = 0;
+
+			disposables.add(providedSession.onDidStartServerRequest(({ prompt }) => {
+				// Complete any in-flight request
+				if (lastRequest?.response && !lastRequest.response.isComplete) {
+					lastRequest.response.complete();
+				}
+
+				// Create a new request in the model
+				const requestText = prompt;
+				const parsedRequest: IParsedChatRequest = {
+					text: requestText,
+					parts: [new ChatRequestTextPart(
+						new OffsetRange(0, requestText.length),
+						{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: requestText.length + 1 },
+						requestText
+					)]
+				};
+				const agent = this.chatAgentService.getAgent(chatSessionType);
+				lastRequest = model.addRequest(parsedRequest, { variables: [] }, 0, undefined, agent);
+
+				// Reset progress tracking for the new turn
+				lastProgressLength = 0;
+
+				// Ensure cancellation tracking is active
+				if (!this._pendingRequests.has(model.sessionResource)) {
+					const cts = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined, undefined, undefined);
+					this._pendingRequests.set(model.sessionResource, cts);
+					this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'serverRequest', chatSessionId: chatSessionResourceToId(model.sessionResource) });
+				}
+			}));
+
+			// If the progressObs autorun wasn't set up above (no initial lastRequest),
+			// set it up now so server-initiated turns can stream progress.
+			if (!lastRequest) {
+				const cancellationListener = disposables.add(new MutableDisposable());
+
+				const createCancellationListener = (token: CancellationToken) => {
+					return token.onCancellationRequested(() => {
+						providedSession.interruptActiveResponseCallback?.().then(userConfirmedInterruption => {
+							if (!userConfirmedInterruption) {
+								const newCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined, undefined, undefined);
+								this._pendingRequests.set(model.sessionResource, newCancellationRequest);
+								this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'remoteSession', chatSessionId: chatSessionResourceToId(model.sessionResource) });
+								cancellationListener.value = createCancellationListener(newCancellationRequest.cancellationTokenSource.token);
+							}
+						});
+					});
+				};
+
+				disposables.add(autorun(reader => {
+					const progressArray = providedSession.progressObs?.read(reader) ?? [];
+					const isComplete = providedSession.isCompleteObs?.read(reader) ?? false;
+
+					if (lastRequest && progressArray.length > lastProgressLength) {
+						const newProgress = progressArray.slice(lastProgressLength);
+						for (const progress of newProgress) {
+							model?.acceptResponseProgress(lastRequest, progress);
+						}
+						lastProgressLength = progressArray.length;
+					}
+
+					if (isComplete && lastRequest) {
+						lastRequest.response?.complete();
+						cancellationListener.clear();
+					}
+				}));
 			}
 		}
 
@@ -1391,11 +1469,26 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	/**
+	 * Returns true if the session is backed by an agent host server, which
+	 * controls queued-message dequeuing on the server side.
+	 */
+	private _isServerManagedQueue(sessionResource: URI): boolean {
+		return sessionResource.scheme.startsWith('agent-host-');
+	}
+
+	/**
 	 * Process the next pending request from the model's queue, if any.
 	 * Called after a request completes to continue processing queued requests.
 	 * Multiple consecutive steering requests are combined into a single request.
 	 */
 	private processNextPendingRequest(model: ChatModel): void {
+		// Agent host sessions delegate queue management to the server.
+		// The server dispatches SessionTurnStarted with queuedMessageId when
+		// it consumes a queued message, so the client should not dequeue eagerly.
+		if (this._isServerManagedQueue(model.sessionResource)) {
+			return;
+		}
+
 		// Dequeue all consecutive steering requests and combine them into one
 		const steeringRequests = model.dequeueAllSteeringRequests();
 

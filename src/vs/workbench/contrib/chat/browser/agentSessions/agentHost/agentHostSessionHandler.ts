@@ -51,6 +51,9 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
+	private readonly _onDidStartServerRequest = this._register(new Emitter<{ prompt: string }>());
+	readonly onDidStartServerRequest = this._onDidStartServerRequest.event;
+
 	readonly requestHandler: IChatSession['requestHandler'];
 	readonly interruptActiveResponseCallback: IChatSession['interruptActiveResponseCallback'];
 
@@ -76,6 +79,18 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		this.interruptActiveResponseCallback = history.length > 0 ? undefined : async () => {
 			return true;
 		};
+	}
+
+	/**
+	 * Called by the session handler when a server-initiated turn starts.
+	 * Resets the progress observable and signals listeners to create a new
+	 * request+response pair in the chat model.
+	 */
+	startServerRequest(prompt: string): void {
+		this._logService.info('[AgentHost] Server-initiated request started');
+		this.progressObs.set([], undefined);
+		this.isCompleteObs.set(false, undefined);
+		this._onDidStartServerRequest.fire({ prompt });
 	}
 }
 
@@ -117,6 +132,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _sessionToBackend = new Map<string, URI>();
 	/** Per-session subscription to chat model pending request changes. */
 	private readonly _pendingMessageSubscriptions = this._register(new DisposableMap<string>());
+	/** Per-session subscription watching for server-initiated turns. */
+	private readonly _serverTurnWatchers = this._register(new DisposableMap<string>());
+	/** Turn IDs dispatched by this client, used to distinguish server-originated turns. */
+	private readonly _clientDispatchedTurnIds = new Set<string>();
 	private readonly _config: IAgentHostSessionHandlerConfig;
 
 	/** Client state manager shared across all sessions for this handler. */
@@ -188,6 +207,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._activeSessions.delete(resourceKey);
 				this._sessionToBackend.delete(resourceKey);
 				this._pendingMessageSubscriptions.deleteAndDispose(resourceKey);
+				this._serverTurnWatchers.deleteAndDispose(resourceKey);
 				if (resolvedSession) {
 					this._clientState.unsubscribe(resolvedSession.toString());
 					this._config.connection.unsubscribe(resolvedSession);
@@ -196,6 +216,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			},
 		);
 		this._activeSessions.set(resourceKey, session);
+
+		// For existing (non-untitled) sessions, start watching for server-initiated turns
+		// immediately. For untitled sessions, this is deferred to _createAndSubscribe.
+		if (resolvedSession) {
+			this._watchForServerInitiatedTurns(resolvedSession, sessionResource);
+		}
+
 		return session;
 	}
 
@@ -352,6 +379,207 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._config.connection.dispatchAction(action, this._clientState.clientId, seq);
 	}
 
+	// ---- Server-initiated turn detection ------------------------------------
+
+	/**
+	 * Sets up a persistent listener on the session's protocol state that
+	 * detects server-initiated turns (e.g. auto-consumed queued messages).
+	 * When a new `activeTurn` appears whose `turnId` was NOT dispatched by
+	 * this client, it signals the {@link AgentHostChatSession} to create a
+	 * new request in the chat model, removes the consumed pending request
+	 * if applicable, and pipes turn progress through `progressObs`.
+	 */
+	private _watchForServerInitiatedTurns(backendSession: URI, sessionResource: URI): void {
+		const resourceKey = sessionResource.path.substring(1);
+		const sessionStr = backendSession.toString();
+		let lastSeenTurnId: string | undefined;
+		let previousQueuedIds: Set<string> | undefined;
+
+		const disposables = new DisposableStore();
+
+		// Disposable store for per-turn progress tracking (replaced each turn)
+		let turnProgressDisposables: DisposableStore | undefined;
+
+		disposables.add(this._clientState.onDidChangeSessionState(e => {
+			if (e.session !== sessionStr) {
+				return;
+			}
+
+			// Track queued message IDs so we can detect which one was consumed
+			const currentQueuedIds = new Set((e.state.queuedMessages ?? []).map(m => m.id));
+
+			const activeTurn = e.state.activeTurn;
+			if (!activeTurn || activeTurn.id === lastSeenTurnId) {
+				previousQueuedIds = currentQueuedIds;
+				return;
+			}
+			lastSeenTurnId = activeTurn.id;
+
+			// If we dispatched this turn, the existing _handleTurn flow handles it
+			if (this._clientDispatchedTurnIds.has(activeTurn.id)) {
+				previousQueuedIds = currentQueuedIds;
+				return;
+			}
+
+			const chatSession = this._activeSessions.get(resourceKey);
+			if (!chatSession) {
+				previousQueuedIds = currentQueuedIds;
+				return;
+			}
+
+			this._logService.info(`[AgentHost] Server-initiated turn detected: ${activeTurn.id}`);
+
+			// Determine which queued message was consumed by diffing queue state
+			if (previousQueuedIds) {
+				for (const prevId of previousQueuedIds) {
+					if (!currentQueuedIds.has(prevId)) {
+						this._chatService.removePendingRequest(sessionResource, prevId);
+					}
+				}
+			}
+			previousQueuedIds = currentQueuedIds;
+
+			// Signal the session to create a new request+response pair
+			chatSession.startServerRequest(activeTurn.userMessage.text);
+
+			// Set up turn progress tracking — reuse the same state-to-progress
+			// translation as _handleTurn, but pipe output to progressObs/isCompleteObs
+			turnProgressDisposables?.dispose();
+			turnProgressDisposables = new DisposableStore();
+			disposables.add(turnProgressDisposables);
+			this._trackServerTurnProgress(backendSession, activeTurn.id, chatSession, sessionResource, turnProgressDisposables);
+		}));
+
+		this._serverTurnWatchers.set(resourceKey, disposables);
+	}
+
+	/**
+	 * Tracks protocol state changes for a specific server-initiated turn and
+	 * pushes `IChatProgress[]` items into the session's `progressObs`.
+	 * When the turn finishes, sets `isCompleteObs` to true.
+	 */
+	private _trackServerTurnProgress(
+		backendSession: URI,
+		turnId: string,
+		chatSession: AgentHostChatSession,
+		sessionResource: URI,
+		turnDisposables: DisposableStore,
+	): void {
+		const sessionStr = backendSession.toString();
+		const activeToolInvocations = new Map<string, ChatToolInvocation>();
+		const lastEmittedLengths = new Map<string, number>();
+		const throttler = new Throttler();
+		turnDisposables.add(throttler);
+
+		const progress = (parts: IChatProgress[]) => {
+			const current = chatSession.progressObs.get();
+			chatSession.progressObs.set([...current, ...parts], undefined);
+		};
+
+		let finished = false;
+		const finish = () => throttler.queue(async () => {
+			if (finished) {
+				return;
+			}
+			finished = true;
+			for (const [, invocation] of activeToolInvocations) {
+				invocation.didExecuteTool(undefined);
+			}
+			activeToolInvocations.clear();
+			chatSession.isCompleteObs.set(true, undefined);
+		});
+
+		turnDisposables.add(this._clientState.onDidChangeSessionState(e => {
+			throttler.queue(async () => {
+				if (e.session !== sessionStr) {
+					return;
+				}
+
+				const activeTurn = e.state.activeTurn;
+				const isActive = activeTurn?.id === turnId;
+				const responseParts = isActive
+					? activeTurn.responseParts
+					: e.state.turns.find(t => t.id === turnId)?.responseParts;
+
+				if (responseParts) {
+					for (const rp of responseParts) {
+						switch (rp.kind) {
+							case ResponsePartKind.Markdown: {
+								const lastLen = lastEmittedLengths.get(rp.id) ?? 0;
+								if (rp.content.length > lastLen) {
+									const delta = rp.content.substring(lastLen);
+									lastEmittedLengths.set(rp.id, rp.content.length);
+									progress([{ kind: 'markdownContent', content: new MarkdownString(delta, { supportHtml: true }) }]);
+								}
+								break;
+							}
+							case ResponsePartKind.Reasoning: {
+								const lastLen = lastEmittedLengths.get(rp.id) ?? 0;
+								if (rp.content.length > lastLen) {
+									const delta = rp.content.substring(lastLen);
+									lastEmittedLengths.set(rp.id, rp.content.length);
+									progress([{ kind: 'thinking', value: delta }]);
+								}
+								break;
+							}
+							case ResponsePartKind.ToolCall: {
+								const tc = rp.toolCall;
+								const toolCallId = tc.toolCallId;
+								let existing = activeToolInvocations.get(toolCallId);
+
+								if (!existing) {
+									existing = toolCallStateToInvocation(tc);
+									activeToolInvocations.set(toolCallId, existing);
+									progress([existing]);
+
+									if (tc.status === ToolCallStatus.PendingConfirmation) {
+										this._awaitToolConfirmation(existing, toolCallId, backendSession, turnId, CancellationToken.None);
+									}
+								} else if (tc.status === ToolCallStatus.PendingConfirmation) {
+									existing.didExecuteTool(undefined);
+									const confirmInvocation = toolCallStateToInvocation(tc);
+									activeToolInvocations.set(toolCallId, confirmInvocation);
+									progress([confirmInvocation]);
+									this._awaitToolConfirmation(confirmInvocation, toolCallId, backendSession, turnId, CancellationToken.None);
+								} else if (tc.status === ToolCallStatus.Running) {
+									existing.invocationMessage = typeof tc.invocationMessage === 'string'
+										? tc.invocationMessage
+										: new MarkdownString(tc.invocationMessage.markdown);
+									if (getToolKind(tc) === 'terminal' && tc.toolInput) {
+										existing.toolSpecificData = {
+											kind: 'terminal',
+											commandLine: { original: tc.toolInput },
+											language: getToolLanguage(tc) ?? 'shellscript',
+										};
+									}
+								}
+
+								if (existing && (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(existing)) {
+									activeToolInvocations.delete(toolCallId);
+									const fileEdits = finalizeToolInvocation(existing, tc);
+									if (fileEdits.length > 0) {
+										// File edits from server-initiated turns are not routed through
+										// the editing session here; the request is not yet available
+										// in the ChatModel at this point.
+									}
+								}
+								break;
+							}
+						}
+					}
+				}
+
+				if (!isActive && !finished) {
+					const lastTurn = e.state.turns.find(t => t.id === turnId);
+					if (lastTurn?.state === TurnState.Error && lastTurn.error) {
+						progress([{ kind: 'markdownContent', content: new MarkdownString(`\n\nError: (${lastTurn.error.errorType}) ${lastTurn.error.message}`) }]);
+					}
+					finish();
+				}
+			});
+		}));
+	}
+
 	// ---- Turn handling (state-driven) ---------------------------------------
 
 	private async _handleTurn(
@@ -365,6 +593,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		const turnId = generateUuid();
+		this._clientDispatchedTurnIds.add(turnId);
 		const attachments = this._convertVariablesToAttachments(request);
 		const messageAttachments: IMessageAttachment[] = attachments.map(a => ({
 			type: a.type,
@@ -510,7 +739,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 								// Finalize terminal-state tools (whether just created or pre-existing)
 								if (existing && (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(existing)) {
-									activeToolInvocations.delete(toolCallId);
 									const fileEdits = finalizeToolInvocation(existing, tc);
 									if (fileEdits.length > 0) {
 										await this._applyFileEdits(request.sessionResource, request, fileEdits, progress);
@@ -699,6 +927,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._syncPendingMessages(sessionResource, session);
 			}));
 		}
+
+		// Start watching for server-initiated turns on this session
+		this._watchForServerInitiatedTurns(session, sessionResource);
 
 		return session;
 	}
