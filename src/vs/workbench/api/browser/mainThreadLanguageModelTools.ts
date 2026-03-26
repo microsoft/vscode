@@ -40,19 +40,27 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 	}
 
 	private getToolDtos(): IToolDataDto[] {
-		return Array.from(this._languageModelToolsService.getAllToolsIncludingDisabled())
-			.map(tool => ({
-				id: tool.id,
-				displayName: tool.displayName,
-				toolReferenceName: tool.toolReferenceName,
-				legacyToolReferenceFullNames: tool.legacyToolReferenceFullNames,
-				fullReferenceName: tool.source.type === 'mcp' ? this._languageModelToolsService.getFullReferenceNameById(tool.id) : undefined,
-				tags: tool.tags,
-				userDescription: tool.userDescription,
-				modelDescription: tool.modelDescription,
-				inputSchema: tool.inputSchema,
-				source: tool.source,
-			} satisfies IToolDataDto));
+		const tools = Array.from(this._languageModelToolsService.getAllToolsIncludingDisabled());
+
+		const fullReferenceNamesById = new Map<string, string | undefined>();
+		for (const tool of tools) {
+			if (tool.source.type === 'mcp') {
+				fullReferenceNamesById.set(tool.id, this._languageModelToolsService.getFullReferenceNameById(tool.id));
+			}
+		}
+
+		return tools.map(tool => ({
+			id: tool.id,
+			displayName: tool.displayName,
+			toolReferenceName: tool.toolReferenceName,
+			legacyToolReferenceFullNames: tool.legacyToolReferenceFullNames,
+			fullReferenceName: tool.source.type === 'mcp' ? fullReferenceNamesById.get(tool.id) : undefined,
+			tags: tool.tags,
+			userDescription: tool.userDescription,
+			modelDescription: tool.modelDescription,
+			inputSchema: tool.inputSchema,
+			source: tool.source,
+		} satisfies IToolDataDto));
 	}
 
 	async $getTools(): Promise<IToolDataDto[]> {
