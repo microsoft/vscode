@@ -17,6 +17,7 @@ import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../keybinding/common/keybindingsRegistry.js';
+import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { inputActiveOptionBackground, registerColor } from '../../theme/common/colorRegistry.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
@@ -56,13 +57,21 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILayoutService private readonly _layoutService: ILayoutService,
 	) {
 		super();
 	}
 
 	show<T>(user: string, supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: HTMLElement | StandardMouseEvent | IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[], accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>, listOptions?: IActionListOptions): void {
 		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
+
+		// When no container is specified but the anchor is an HTMLElement,
+		// derive the container from the anchor's window so that the widget
+		// renders in the correct window (e.g. auxiliary windows).
+		if (!container && dom.isHTMLElement(anchor)) {
+			container = this._layoutService.getContainer(dom.getWindow(anchor));
+		}
 
 		const list = this._instantiationService.createInstance(ActionList, user, supportsPreview, items, delegate, accessibilityProvider, listOptions, anchor);
 		this._contextViewService.showContextView({
