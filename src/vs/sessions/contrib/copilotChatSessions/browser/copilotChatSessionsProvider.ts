@@ -7,7 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
+import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -125,6 +125,7 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 	readonly description: IObservable<string | undefined> = observableValue(this, undefined);
 	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
 	readonly pullRequestUri: IObservable<URI | undefined> = observableValue(this, undefined);
+	readonly pullRequestStateIcon: IObservable<ThemeIcon | undefined> = observableValue(this, undefined);
 
 	private _gitRepository: IGitRepository | undefined;
 
@@ -301,6 +302,7 @@ export class RemoteNewSession extends Disposable implements ISessionData {
 	readonly description: IObservable<string | undefined> = observableValue(this, undefined);
 	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
 	readonly pullRequestUri: IObservable<URI | undefined> = observableValue(this, undefined);
+	readonly pullRequestStateIcon: IObservable<ThemeIcon | undefined> = observableValue(this, undefined);
 
 	readonly _hasGitRepo = observableValue(this, false);
 	readonly hasGitRepo: IObservable<boolean> = this._hasGitRepo;
@@ -539,6 +541,9 @@ class AgentSessionAdapter implements ISessionData {
 	private readonly _pullRequestUri: ReturnType<typeof observableValue<URI | undefined>>;
 	readonly pullRequestUri: IObservable<URI | undefined>;
 
+	private readonly _pullRequestStateIcon: ReturnType<typeof observableValue<ThemeIcon | undefined>>;
+	readonly pullRequestStateIcon: IObservable<ThemeIcon | undefined>;
+
 	constructor(
 		session: IAgentSession,
 		providerId: string,
@@ -579,6 +584,8 @@ class AgentSessionAdapter implements ISessionData {
 		this.lastTurnEnd = this._lastTurnEnd;
 		this._pullRequestUri = observableValue(this, this._extractPullRequestUri(session));
 		this.pullRequestUri = this._pullRequestUri;
+		this._pullRequestStateIcon = observableValue(this, this._extractPullRequestStateIcon(session));
+		this.pullRequestStateIcon = this._pullRequestStateIcon;
 	}
 
 	/**
@@ -596,6 +603,7 @@ class AgentSessionAdapter implements ISessionData {
 			this._description.set(this._extractDescription(session), tx);
 			this._lastTurnEnd.set(session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx);
 			this._pullRequestUri.set(this._extractPullRequestUri(session), tx);
+			this._pullRequestStateIcon.set(this._extractPullRequestStateIcon(session), tx);
 		});
 	}
 
@@ -604,6 +612,24 @@ class AgentSessionAdapter implements ISessionData {
 			return undefined;
 		}
 		return typeof session.description === 'string' ? session.description : session.description.value;
+	}
+
+	private _extractPullRequestStateIcon(session: IAgentSession): ThemeIcon | undefined {
+		const metadata = session.metadata;
+		const state = metadata?.pullRequestState;
+		if (state) {
+			switch (state) {
+				case 'merged':
+					return { ...Codicon.gitPullRequestDone, color: themeColorFromId('charts.purple') };
+				case 'closed':
+					return { ...Codicon.gitPullRequestClosed, color: themeColorFromId('charts.red') };
+				case 'draft':
+					return { ...Codicon.gitPullRequestDraft, color: themeColorFromId('descriptionForeground') };
+				default:
+					return { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') };
+			}
+		}
+		return undefined;
 	}
 
 	private _extractPullRequestUri(session: IAgentSession): URI | undefined {
@@ -755,13 +781,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		this.browseActions = [
 			{
-				label: 'Browse Folders...',
+				label: localize('folders', "Folders"),
 				icon: Codicon.folderOpened,
 				providerId: this.id,
 				execute: () => this._browseForFolder(),
 			},
 			{
-				label: 'Browse Repositories...',
+				label: localize('repositories', "Repositories"),
 				icon: Codicon.repo,
 				providerId: this.id,
 				execute: () => this._browseForRepo(),
