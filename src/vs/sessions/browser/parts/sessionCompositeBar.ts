@@ -22,11 +22,10 @@ interface ISessionTab {
 }
 
 /**
- * A composite bar that displays agent sessions as tabs.
- * Selecting a tab loads that session's chat in the chat view pane
- * instead of switching view containers.
+ * A composite bar that displays chats within the active agent session as tabs.
+ * Selecting a tab loads that chat in the chat view pane instead of switching view containers.
  *
- * The bar auto-hides when there is only one session and shows when there are multiple.
+ * The bar auto-hides when there is only one chat in the active session and shows when there are multiple.
  */
 export class SessionCompositeBar extends Disposable {
 
