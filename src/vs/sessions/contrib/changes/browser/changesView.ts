@@ -1476,6 +1476,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 			: localize('sessionsChanges.versionsAllChanges', "All Changes");
 
 		dom.reset(element, dom.$('span', undefined, label), ...renderLabelWithIcons('$(chevron-down)'));
+		this.updateAriaLabel();
 		return null;
 	}
 }
