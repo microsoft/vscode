@@ -5,7 +5,7 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -69,7 +69,7 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../../edit
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
-import { ConfirmResult, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -1202,7 +1202,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.inEditorContextKey.set(true);
 		this.sectionContextKey.set(this.selectedSection);
 
-		input.setConfirmHandler(() => this.handleBuiltinCloseConfirmation());
+		input.setSaveHandler(() => this.handleBuiltinSave());
 
 		this.telemetryService.publicLog2<CustomizationEditorOpenedEvent, CustomizationEditorOpenedClassification>('chatCustomizationEditor.opened', {
 			section: this.selectedSection,
@@ -1218,7 +1218,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	override clearInput(): void {
 		const input = this.input;
 		if (input instanceof AICustomizationManagementEditorInput) {
-			input.setConfirmHandler(undefined);
+			input.setSaveHandler(undefined);
 			input.setDirty(false);
 		}
 
@@ -1699,47 +1699,42 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private async handleBuiltinCloseConfirmation(): Promise<ConfirmResult> {
+	private async handleBuiltinSave(): Promise<boolean> {
 		if (!this.shouldShowBuiltinSaveAction()) {
-			return ConfirmResult.DONT_SAVE;
+			return false;
 		}
 
-		// Wait for current keyboard events (e.g. Escape keyup) to fully
-		// propagate before opening the dialog, otherwise the same keyup
-		// event that triggered the modal close will immediately dismiss it.
-		await timeout(0);
-
-		const displayName = this.editorItemNameElement?.textContent ?? localize('customization', "customization");
-		const confirmation = await this.fileDialogService.showSaveConfirm([displayName]);
-
-		if (confirmation === ConfirmResult.SAVE) {
-			const target = await this.pickBuiltinPromptSaveTarget();
-			if (!target || target.target === 'cancel') {
-				return ConfirmResult.CANCEL;
-			}
-
-			const saveRequest = this.createBuiltinPromptSaveRequest(target);
-			if (saveRequest) {
-				try {
-					await this.saveBuiltinPromptCopy(saveRequest);
-					this.telemetryService.publicLog2<CustomizationEditorSaveItemEvent, CustomizationEditorSaveItemClassification>('chatCustomizationEditor.saveItem', {
-						promptType: this.currentEditingPromptType ?? '',
-						storage: String(this.currentEditingStorage ?? ''),
-						saveTarget: target.target,
-					});
-				} catch (error) {
-					console.error('Failed to save built-in override:', error);
-					this.notificationService.warn(target.target === 'workspace'
-						? localize('saveBuiltinCopyFailedWorkspace', "Could not save the override to the workspace.")
-						: localize('saveBuiltinCopyFailedUser', "Could not save the override to your user folder."));
-					return ConfirmResult.CANCEL;
-				}
-			}
-
-			return ConfirmResult.DONT_SAVE;
+		const target = await this.pickBuiltinPromptSaveTarget();
+		if (!target || target.target === 'cancel') {
+			return false;
 		}
 
-		return confirmation;
+		const saveRequest = this.createBuiltinPromptSaveRequest(target);
+		if (!saveRequest) {
+			return false;
+		}
+
+		try {
+			await this.saveBuiltinPromptCopy(saveRequest);
+			this.telemetryService.publicLog2<CustomizationEditorSaveItemEvent, CustomizationEditorSaveItemClassification>('chatCustomizationEditor.saveItem', {
+				promptType: this.currentEditingPromptType ?? '',
+				storage: String(this.currentEditingStorage ?? ''),
+				saveTarget: target.target,
+			});
+
+			const input = this.input;
+			if (input instanceof AICustomizationManagementEditorInput) {
+				input.setDirty(false);
+			}
+
+			return true;
+		} catch (error) {
+			console.error('Failed to save built-in override:', error);
+			this.notificationService.warn(target.target === 'workspace'
+				? localize('saveBuiltinCopyFailedWorkspace', "Could not save the override to the workspace.")
+				: localize('saveBuiltinCopyFailedUser', "Could not save the override to your user folder."));
+			return false;
+		}
 	}
 
 	private resetEditorSaveIndicator(): void {

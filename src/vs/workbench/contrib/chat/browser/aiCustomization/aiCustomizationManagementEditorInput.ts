@@ -6,9 +6,8 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
-import { ConfirmResult } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IUntypedEditorInput, EditorInputCapabilities } from '../../../../common/editor.js';
-import { EditorInput, IEditorCloseHandler } from '../../../../common/editor/editorInput.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID } from './aiCustomizationManagement.js';
 
 /**
@@ -22,14 +21,7 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 	readonly resource = undefined;
 
 	private _isDirty = false;
-	private _confirmHandler?: () => Promise<ConfirmResult>;
-
-	override readonly closeHandler: IEditorCloseHandler = {
-		showConfirm: () => this._isDirty,
-		confirm: async () => {
-			return this._confirmHandler?.() ?? ConfirmResult.DONT_SAVE;
-		},
-	};
+	private _saveHandler?: () => Promise<boolean>;
 
 	override get capabilities(): EditorInputCapabilities {
 		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
@@ -75,6 +67,14 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 		return this._isDirty;
 	}
 
+	override async save(): Promise<EditorInput | undefined> {
+		if (this._saveHandler) {
+			const saved = await this._saveHandler();
+			return saved ? this : undefined;
+		}
+		return undefined;
+	}
+
 	override async revert(): Promise<void> {
 		this.setDirty(false);
 	}
@@ -86,7 +86,7 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 		}
 	}
 
-	setConfirmHandler(handler: (() => Promise<ConfirmResult>) | undefined): void {
-		this._confirmHandler = handler;
+	setSaveHandler(handler: (() => Promise<boolean>) | undefined): void {
+		this._saveHandler = handler;
 	}
 }
