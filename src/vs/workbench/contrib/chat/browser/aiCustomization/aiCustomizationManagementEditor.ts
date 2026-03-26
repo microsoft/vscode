@@ -69,7 +69,7 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../../edit
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
-import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { ConfirmResult, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -1202,6 +1202,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.inEditorContextKey.set(true);
 		this.sectionContextKey.set(this.selectedSection);
 
+		input.setConfirmHandler(() => this.handleBuiltinCloseConfirmation());
+
 		this.telemetryService.publicLog2<CustomizationEditorOpenedEvent, CustomizationEditorOpenedClassification>('chatCustomizationEditor.opened', {
 			section: this.selectedSection,
 		});
@@ -1214,6 +1216,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	override clearInput(): void {
+		const input = this.input;
+		if (input instanceof AICustomizationManagementEditorInput) {
+			input.setConfirmHandler(undefined);
+			input.setDirty(false);
+		}
+
 		this.inEditorContextKey.set(false);
 		if (this.viewMode === 'editor') {
 			this.goBackToList();
@@ -1661,6 +1669,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private updateEditorActionButton(): void {
+		this.updateInputDirtyState();
+
 		if (!this.editorActionButton || !this.editorActionButtonIcon) {
 			return;
 		}
@@ -1680,6 +1690,51 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return this._editorContentChanged
 			&& this.currentEditingStorage === BUILTIN_STORAGE
 			&& (this.currentEditingPromptType === PromptsType.prompt || this.currentEditingPromptType === PromptsType.skill);
+	}
+
+	private updateInputDirtyState(): void {
+		const input = this.input;
+		if (input instanceof AICustomizationManagementEditorInput) {
+			input.setDirty(this.shouldShowBuiltinSaveAction());
+		}
+	}
+
+	private async handleBuiltinCloseConfirmation(): Promise<ConfirmResult> {
+		if (!this.shouldShowBuiltinSaveAction()) {
+			return ConfirmResult.DONT_SAVE;
+		}
+
+		const displayName = this.editorItemNameElement?.textContent ?? localize('customization', "customization");
+		const confirmation = await this.fileDialogService.showSaveConfirm([displayName]);
+
+		if (confirmation === ConfirmResult.SAVE) {
+			const target = await this.pickBuiltinPromptSaveTarget();
+			if (!target || target.target === 'cancel') {
+				return ConfirmResult.CANCEL;
+			}
+
+			const saveRequest = this.createBuiltinPromptSaveRequest(target);
+			if (saveRequest) {
+				try {
+					await this.saveBuiltinPromptCopy(saveRequest);
+					this.telemetryService.publicLog2<CustomizationEditorSaveItemEvent, CustomizationEditorSaveItemClassification>('chatCustomizationEditor.saveItem', {
+						promptType: this.currentEditingPromptType ?? '',
+						storage: String(this.currentEditingStorage ?? ''),
+						saveTarget: target.target,
+					});
+				} catch (error) {
+					console.error('Failed to save built-in override:', error);
+					this.notificationService.warn(target.target === 'workspace'
+						? localize('saveBuiltinCopyFailedWorkspace', "Could not save the override to the workspace.")
+						: localize('saveBuiltinCopyFailedUser', "Could not save the override to your user folder."));
+					return ConfirmResult.CANCEL;
+				}
+			}
+
+			return ConfirmResult.DONT_SAVE;
+		}
+
+		return confirmation;
 	}
 
 	private resetEditorSaveIndicator(): void {

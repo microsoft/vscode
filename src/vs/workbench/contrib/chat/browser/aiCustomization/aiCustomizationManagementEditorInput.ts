@@ -6,8 +6,9 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
+import { ConfirmResult } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IUntypedEditorInput, EditorInputCapabilities } from '../../../../common/editor.js';
-import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { EditorInput, IEditorCloseHandler } from '../../../../common/editor/editorInput.js';
 import { AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID } from './aiCustomizationManagement.js';
 
 /**
@@ -19,6 +20,16 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 	static readonly ID: string = AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID;
 
 	readonly resource = undefined;
+
+	private _isDirty = false;
+	private _confirmHandler?: () => Promise<ConfirmResult>;
+
+	override readonly closeHandler: IEditorCloseHandler = {
+		showConfirm: () => this._isDirty,
+		confirm: async () => {
+			return this._confirmHandler?.() ?? ConfirmResult.DONT_SAVE;
+		},
+	};
 
 	override get capabilities(): EditorInputCapabilities {
 		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
@@ -58,5 +69,24 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 
 	override async resolve(): Promise<null> {
 		return null;
+	}
+
+	override isDirty(): boolean {
+		return this._isDirty;
+	}
+
+	override async revert(): Promise<void> {
+		this.setDirty(false);
+	}
+
+	setDirty(dirty: boolean): void {
+		if (this._isDirty !== dirty) {
+			this._isDirty = dirty;
+			this._onDidChangeDirty.fire();
+		}
+	}
+
+	setConfirmHandler(handler: (() => Promise<ConfirmResult>) | undefined): void {
+		this._confirmHandler = handler;
 	}
 }
