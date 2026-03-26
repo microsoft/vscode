@@ -54,8 +54,25 @@
 		}
 	}
 
+	.monaco-list-row .session-pinned-indicator {
+		display: none;
+		height: 16px;
+		align-items: center;
+		color: var(--vscode-descriptionForeground);
+		font-size: 12px;
+		pointer-events: none;
+
+		&.visible {
+			display: flex;
+		}
+	}
+
 	.monaco-list-row:hover,
 	.monaco-list-row.focused:not(.selected) {
+		.session-pinned-indicator {
+			display: none;
+		}
+
 		.session-title-toolbar {
 			display: block;
 		}
@@ -319,6 +336,16 @@
 		opacity: 0.7;
 		margin-right: 4px;
 	}
+
+	.session-section-toolbar {
+		margin-left: auto;
+		display: none;
+	}
+}
+
+.monaco-list-row:hover .session-section .session-section-toolbar,
+.monaco-list-row.focused .session-section .session-section-toolbar {
+	display: block;
 }
 
 .sessions-list-control {
