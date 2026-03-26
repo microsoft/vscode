@@ -8,6 +8,7 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../../base/com
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
+import { AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -43,6 +44,7 @@ import { IChatService } from '../common/chatService/chatService.js';
 import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
+import { ChatArtifactsService, IChatArtifactsService } from '../common/tools/chatArtifactsService.js';
 import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatTodoListService.js';
 import { ChatTransferService, IChatTransferService } from '../common/model/chatTransferService.js';
 import { IChatVariablesService } from '../common/attachments/chatVariables.js';
@@ -57,7 +59,7 @@ import { agentPluginDiscoveryRegistry, IAgentPluginService } from '../common/plu
 import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
 import { isTildePath, PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION, DEFAULT_SKILL_SOURCE_FOLDERS, AGENTS_SOURCE_FOLDER, AGENT_FILE_EXTENSION, SKILL_FILENAME, CLAUDE_AGENTS_SOURCE_FOLDER, DEFAULT_HOOK_FILE_PATHS, DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS, PromptFileSource, COPILOT_USER_AGENTS_SOURCE_FOLDER } from '../common/promptSyntax/config/promptFileLocations.js';
-import { PromptLanguageFeaturesProvider } from '../common/promptSyntax/promptFileContributions.js';
+import { PromptLanguageFeaturesProvider } from './promptSyntax/promptFileContributions.js';
 import { AGENT_DOCUMENTATION_URL, INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL, SKILL_DOCUMENTATION_URL, HOOK_DOCUMENTATION_URL, PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { hookFileSchema, HOOK_SCHEMA_URI } from '../common/promptSyntax/hookSchema.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -126,6 +128,7 @@ import { ChatLayoutService } from './widget/chatLayoutService.js';
 import { ChatLanguageModelsDataContribution, LanguageModelsConfigurationService } from './languageModelsConfigurationService.js';
 import './chatManagement/chatManagement.contribution.js';
 import './aiCustomization/aiCustomizationWorkspaceService.js';
+import './aiCustomization/customizationHarnessService.js';
 import './aiCustomization/aiCustomizationManagement.contribution.js';
 
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
@@ -146,7 +149,7 @@ import './widget/input/editor/chatInputEditorContrib.js';
 import './widget/input/editor/chatInputEditorHover.js';
 import { LanguageModelToolsConfirmationService } from './tools/languageModelToolsConfirmationService.js';
 import { LanguageModelToolsService, globalAutoApproveDescription } from './tools/languageModelToolsService.js';
-import { AgentPluginService, ConfiguredAgentPluginDiscovery, MarketplaceAgentPluginDiscovery } from '../common/plugins/agentPluginServiceImpl.js';
+import { AgentPluginService, ConfiguredAgentPluginDiscovery, ExtensionAgentPluginDiscovery, MarketplaceAgentPluginDiscovery } from '../common/plugins/agentPluginServiceImpl.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
@@ -160,6 +163,7 @@ import { PluginInstallService } from './pluginInstallService.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
 import { ChatSlashCommandsContribution } from './chatSlashCommands.js';
+import { PluginUrlHandler } from './pluginUrlHandler.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
@@ -172,6 +176,7 @@ import { ChatTipService, IChatTipService } from './chatTipService.js';
 import { ChatQueuePickerRendering } from './widget/input/chatQueuePickerActionItem.js';
 import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
 import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
+import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
 
 const toolReferenceNameEnumValues: string[] = [];
 const toolReferenceNameEnumDescriptions: string[] = [];
@@ -232,9 +237,15 @@ configurationRegistry.registerConfiguration({
 			default: 0
 		},
 		[ChatConfiguration.AgentStatusEnabled]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the 'Agent Status' indicator is shown in the title bar command center. Enabling this setting will automatically enable {0}. The unread/in-progress session indicators require {1} to be enabled.", '`#window.commandCenter#`', '`#chat.viewSessions.enabled#`'),
-			default: true,
+			type: 'string',
+			enum: ['hidden', 'badge', 'compact'],
+			enumDescriptions: [
+				nls.localize('chat.agentsControl.hidden', "The agent status indicator is hidden from the title bar."),
+				nls.localize('chat.agentsControl.badge', "Shows the agent status as a badge next to the command center."),
+				nls.localize('chat.agentsControl.compact', "Replaces the command center search box with a compact agent status indicator and unified chat widget."),
+			],
+			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls how the 'Agent Status' indicator appears in the title bar command center. When set to `hidden`, the indicator is not shown. Other values show the indicator and automatically enable {0}. The unread and in-progress session indicators require {1} to be enabled.", '`#window.commandCenter#`', '`#chat.viewSessions.enabled#`'),
+			default: 'compact',
 			tags: ['experimental']
 		},
 		[ChatConfiguration.UnifiedAgentsBar]: {
@@ -303,15 +314,16 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		[ChatConfiguration.RevealNextChangeOnResolve]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.editing.revealNextChangeOnResolve', "Controls whether the editor automatically reveals the next change after keeping or undoing a chat edit."),
+			default: true,
+		},
 		'chat.tips.enabled': {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
 			description: nls.localize('chat.tips.enabled', "Controls whether tips are shown above user messages in chat. New tips are added frequently, so this is a helpful way to stay up to date with the latest features."),
-			default: false,
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			}
+			default: true,
 		},
 		'chat.upvoteAnimation': {
 			type: 'string',
@@ -482,11 +494,50 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['experimental']
 		},
-		[ChatConfiguration.ImageCarouselEnabled]: {
+		[ChatConfiguration.ArtifactsEnabled]: {
 			default: false,
-			description: nls.localize('chat.imageCarousel.enabled', "Controls whether clicking an image attachment in chat opens the image carousel viewer."),
+			description: nls.localize('chat.artifacts.enabled', "Controls whether the artifacts view is available in chat."),
 			type: 'boolean',
-			tags: ['preview']
+			tags: ['experimental']
+		},
+		[ChatConfiguration.ArtifactsMode]: {
+			default: 'rules',
+			description: nls.localize('chat.artifacts.mode', "Controls how artifacts are populated. 'rules' extracts artifacts deterministically from the conversation. 'tool' lets the model set artifacts via a tool call."),
+			type: 'string',
+			enum: ['rules', 'tool'],
+			tags: ['experimental']
+		},
+		[ChatConfiguration.ArtifactsRulesByMimeType]: {
+			default: {
+				'image/*': { groupName: 'Screenshots', onlyShowGroup: true }
+			},
+			description: nls.localize('chat.artifacts.rules.byMimeType', "Rules for extracting artifacts from tool results by MIME type. Maps MIME type patterns (e.g. 'image/*') to group configuration."),
+			type: 'object',
+			additionalProperties: {
+				type: 'object',
+				properties: {
+					groupName: { type: 'string', description: nls.localize('chat.artifacts.rules.groupName', "Display name for the artifact group.") },
+					onlyShowGroup: { type: 'boolean', description: nls.localize('chat.artifacts.rules.onlyShowGroup', "When true, show only the group header instead of individual items.") }
+				},
+				required: ['groupName']
+			},
+			tags: ['experimental']
+		},
+		[ChatConfiguration.ArtifactsRulesByFilePath]: {
+			default: {
+				'**/*plan*.md': { groupName: 'Plans' }
+			},
+			description: nls.localize('chat.artifacts.rules.byFilePath', "Rules for extracting artifacts from written files by file path pattern. Maps glob patterns to group configuration."),
+			type: 'object',
+			additionalProperties: {
+				type: 'object',
+				properties: {
+					groupName: { type: 'string', description: nls.localize('chat.artifacts.rules.byFilePath.groupName', "Display name for the artifact group.") },
+					onlyShowGroup: { type: 'boolean', description: nls.localize('chat.artifacts.rules.byFilePath.onlyShowGroup', "When true, show only the group header instead of individual items.") }
+				},
+				required: ['groupName']
+			},
+			tags: ['experimental']
 		},
 		'chat.undoRequests.restoreInput': {
 			default: true,
@@ -706,6 +757,20 @@ configurationRegistry.registerConfiguration({
 					}
 				}
 			}
+		},
+		[AgentHostEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostIpcLoggingSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.ipcLogging', "When enabled, logs all IPC traffic for each agent host to a dedicated output channel."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
 		},
 		[ChatConfiguration.PlanAgentDefaultModel]: {
 			type: 'string',
@@ -1220,11 +1285,11 @@ configurationRegistry.registerConfiguration({
 					type: 'array',
 					items: { type: 'string' },
 					default: [],
-					description: nls.localize('chat.agent.thinking.phrases.phrases', "Custom loading messages to show during thinking, terminal, and tool operations.")
+					description: nls.localize('chat.agent.thinking.phrases.phrases', "Custom loading messages to show during thinking, working progress, terminal, and tool operations.")
 				}
 			},
 			additionalProperties: false,
-			markdownDescription: nls.localize('chat.agent.thinking.phrases', "Customize the loading messages shown during agent operations. Use `\"mode\": \"replace\"` to use only your phrases, or `\"mode\": \"append\"` to add them to the defaults."),
+			markdownDescription: nls.localize('chat.agent.thinking.phrases', "Customize the loading messages shown during agent thinking and progress indicators. Use `\"mode\": \"replace\"` to use only your phrases, or `\"mode\": \"append\"` to add them to the defaults."),
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.AutoExpandToolFailures]: {
@@ -1284,11 +1349,32 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		[ChatConfiguration.SubagentsAllowInvocationsFromSubagents]: {
+			type: 'boolean',
+			description: nls.localize('chat.subagents.allowInvocationsFromSubagents', "Allow subagents to invoke subagents."),
+			markdownDescription: nls.localize('chat.subagents.allowInvocationsFromSubagents.md', "Controls whether subagents can invoke other subagents. When enabled, nesting is limited to a maximum depth of 5."),
+			default: false,
+			experiment: {
+				mode: 'auto'
+			}
+		},
 		[ChatConfiguration.ChatCustomizationMenuEnabled]: {
 			type: 'boolean',
 			tags: ['preview'],
-			description: nls.localize('chat.aiCustomizationMenu.enabled', "Controls whether the Chat Customizations editor is available in the Command Palette. When disabled, the Chat Customizations editor and related commands are hidden."),
+			description: nls.localize('chat.aiCustomizationMenu.enabled', "Controls whether the Chat Customizations editor is enabled. When enabled, the gear icon in the Chat view opens the Customizations editor directly and additional actions are moved to the overflow menu. When disabled, the gear icon shows the legacy configuration dropdown."),
 			default: true,
+		},
+		[ChatConfiguration.ChatCustomizationHarnessSelectorEnabled]: {
+			type: 'boolean',
+			tags: ['preview'],
+			description: nls.localize('chat.customizations.harnessSelector.enabled', "Controls whether the harness selector (Local, Copilot CLI, Claude) is shown in the Chat Customizations editor sidebar. When disabled, the editor always shows all customizations without filtering."),
+			default: true,
+		},
+		[ChatConfiguration.CustomizationsProviderApi]: {
+			type: 'boolean',
+			description: nls.localize('chat.customizations.providerApi.enabled', "When enabled, the Customizations management UI reads items from the session type's customizations provider instead of built-in discovery."),
+			default: false,
+			tags: ['experimental'],
 		},
 	}
 });
@@ -1788,6 +1874,7 @@ registerWorkbenchContribution2(ChatEditingEditorContextKeys.ID, ChatEditingEdito
 registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContributions, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(PluginUrlHandler.ID, PluginUrlHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatResponseResourceWorkbenchContribution.ID, ChatResponseResourceWorkbenchContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContributions, WorkbenchPhase.Eventually);
@@ -1825,6 +1912,7 @@ registerEditorFeature(ChatPasteProvidersFeature);
 
 agentPluginDiscoveryRegistry.register(new SyncDescriptor(ConfiguredAgentPluginDiscovery));
 agentPluginDiscoveryRegistry.register(new SyncDescriptor(MarketplaceAgentPluginDiscovery));
+agentPluginDiscoveryRegistry.register(new SyncDescriptor(ExtensionAgentPluginDiscovery));
 
 registerSingleton(IChatResponseResourceFileSystemProvider, ChatResponseResourceFileSystemProvider, InstantiationType.Delayed);
 registerSingleton(IChatTransferService, ChatTransferService, InstantiationType.Delayed);
@@ -1859,9 +1947,11 @@ registerSingleton(IChatModeService, ChatModeService, InstantiationType.Delayed);
 registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, InstantiationType.Delayed);
 registerSingleton(IChatAttachmentWidgetRegistry, ChatAttachmentWidgetRegistry, InstantiationType.Delayed);
 registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.Delayed);
+registerSingleton(IChatArtifactsService, ChatArtifactsService, InstantiationType.Delayed);
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
 registerSingleton(IChatTipService, ChatTipService, InstantiationType.Delayed);
 registerSingleton(IChatDebugService, ChatDebugServiceImpl, InstantiationType.Delayed);
+registerSingleton(IChatImageCarouselService, ChatImageCarouselService, InstantiationType.Delayed);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

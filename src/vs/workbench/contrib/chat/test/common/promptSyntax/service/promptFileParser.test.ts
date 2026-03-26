@@ -165,6 +165,27 @@ suite('PromptFileParser', () => {
 		assert.deepEqual(result.header.handOffs[0].showContinueOn, undefined);
 	});
 
+	test('handoff with whitespace-only label is skipped', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			/* 01 */'---',
+			/* 02 */`description: "Agent test"`,
+			/* 03 */'handoffs:',
+			/* 04 */'  - label: "   "',
+			/* 05 */'    agent: Default',
+			/* 06 */'    prompt: "Do something"',
+			/* 07 */'  - label: "Valid"',
+			/* 08 */'    agent: Default',
+			/* 09 */'    prompt: "Also do something"',
+			/* 10 */'---',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.header);
+		assert.deepStrictEqual(result.header.handOffs, [
+			{ agent: 'Default', label: 'Valid', prompt: 'Also do something' }
+		]);
+	});
+
 	test('instructions', async () => {
 		const uri = URI.parse('file:///test/prompt1.md');
 		const content = [

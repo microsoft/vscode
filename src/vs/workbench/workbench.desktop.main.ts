@@ -91,6 +91,7 @@ import '../platform/userDataProfile/electron-browser/userDataProfileStorageServi
 import './services/auxiliaryWindow/electron-browser/auxiliaryWindowService.js';
 import '../platform/extensionManagement/electron-browser/extensionsProfileScannerService.js';
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
+import '../platform/agentHost/electron-browser/agentHostService.js';
 import './services/browserView/electron-browser/playwrightWorkbenchService.js';
 import './services/process/electron-browser/processService.js';
 import './services/power/electron-browser/powerService.js';
@@ -190,6 +191,9 @@ import './contrib/mcp/electron-browser/mcp.contribution.js';
 
 // Policy Export
 import './contrib/policyExport/electron-browser/policyExport.contribution.js';
+
+// Keybindings Export
+import './contrib/keybindingsExport/electron-browser/keybindingsExport.contribution.js';
 
 //#endregion
 

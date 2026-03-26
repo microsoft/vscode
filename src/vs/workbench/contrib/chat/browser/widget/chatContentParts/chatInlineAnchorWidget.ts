@@ -44,16 +44,18 @@ import { ExplorerFolderContext } from '../../../../files/common/files.js';
 import { IWorkspaceSymbol } from '../../../../search/common/search.js';
 import { IChatContentInlineReference } from '../../../common/chatService/chatService.js';
 import { IChatWidgetService } from '../../chat.js';
+import { IChatImageCarouselService } from '../../chatImageCarouselService.js';
 import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from '../../attachments/chatAttachmentWidgets.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { getMediaMime } from '../../../../../../base/common/mime.js';
 
 /**
  * Returns the editor ID to use when opening a resource from chat pills (inline anchors), based on the
  * `chat.editorAssociations` setting. Returns undefined if no association matches.
  */
-function getEditorOverrideForChatResource(resource: URI, configurationService: IConfigurationService): string | undefined {
+export function getEditorOverrideForChatResource(resource: URI, configurationService: IConfigurationService): string | undefined {
 	const associations = configurationService.getValue<Record<string, string>>(ChatConfiguration.EditorAssociations) ?? {};
 	// Sort patterns by length (longer patterns are more specific)
 	const sortedPatterns = Object.keys(associations).sort((a, b) => b.length - a.length);
@@ -136,6 +138,7 @@ export class InlineAnchorWidget extends Disposable {
 		private readonly element: HTMLAnchorElement | HTMLElement,
 		public readonly inlineReference: IChatContentInlineReference,
 		private readonly metadata: InlineAnchorWidgetMetadata | undefined,
+		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService originalContextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -277,14 +280,6 @@ export class InlineAnchorWidget extends Disposable {
 		const relativeLabel = labelService.getUriLabel(location.uri, { relative: true });
 		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, relativeLabel));
 
-		// Apply link-style if configured
-		this.updateAppearance();
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.InlineReferencesStyle)) {
-				this.updateAppearance();
-			}
-		}));
-
 		// Drag and drop
 		if (this.data.kind !== 'symbol') {
 			element.draggable = true;
@@ -303,6 +298,14 @@ export class InlineAnchorWidget extends Disposable {
 		// Click handler to open with custom editor association from chat.editorAssociations setting
 		this._register(dom.addDisposableListener(element, 'click', async (e) => {
 			dom.EventHelper.stop(e, true);
+
+			// If the reference is an image file and the carousel is enabled, open the carousel
+			const mimeType = getMediaMime(location.uri.path);
+			if (mimeType?.startsWith('image/') && this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
+				await this.chatImageCarouselService.openCarouselAtResource(location.uri);
+				return;
+			}
+
 			const editorOverride = getEditorOverrideForChatResource(location.uri, this.configurationService);
 			const editorOptions: { override: string | undefined; selection?: IRange } = {
 				override: editorOverride,
@@ -319,12 +322,6 @@ export class InlineAnchorWidget extends Disposable {
 
 	getHTMLElement(): HTMLElement {
 		return this.element;
-	}
-
-	private updateAppearance(): void {
-		const style = this.configurationService.getValue<string>(ChatConfiguration.InlineReferencesStyle);
-		const useLinkStyle = style === 'link';
-		this.element.classList.toggle('link-style', useLinkStyle);
 	}
 
 	private getCellIndex(location: URI) {

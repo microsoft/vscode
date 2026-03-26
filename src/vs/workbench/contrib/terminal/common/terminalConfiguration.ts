@@ -476,7 +476,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.WindowsUseConptyDll]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.23.251008001) shipped with VS Code, instead of the one bundled with Windows."),
+		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.25.260303002) shipped with VS Code, instead of the one bundled with Windows."),
 		type: 'boolean',
 		tags: ['preview'],
 		default: false,
@@ -604,15 +604,6 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			mode: 'auto'
 		}
 	},
-	[TerminalSettingId.ExperimentalAiProfileGrouping]: {
-		markdownDescription: localize('terminal.integrated.experimental.aiProfileGrouping', "Whether to elevate AI-contributed terminal profiles (for example Copilot CLI and Claude Agent) in the new terminal dropdown."),
-		type: 'boolean',
-		default: false,
-		tags: ['experimental'],
-		experiment: {
-			mode: 'auto'
-		}
-	},
 	[TerminalSettingId.ShellIntegrationEnabled]: {
 		restricted: true,
 		markdownDescription: localize('terminal.integrated.shellIntegration.enabled', "Determines whether or not shell integration is auto-injected to support features like enhanced command tracking and current working directory detection. \n\nShell integration works by injecting the shell with a startup script. The script gives VS Code insight into what is happening within the terminal.\n\nSupported shells:\n\n- Linux/macOS: bash, fish, pwsh, zsh\n - Windows: pwsh, git bash\n\nThis setting applies only when terminals are created, so you will need to restart your terminals for it to take effect.\n\n Note that the script injection may not work if you have custom arguments defined in the terminal profile, have enabled {1}, have a [complex bash `PROMPT_COMMAND`](https://code.visualstudio.com/docs/editor/integrated-terminal#_complex-bash-promptcommand), or other unsupported setup. To disable decorations, see {0}", '`#terminal.integrated.shellIntegration.decorationsEnabled#`', '`#editor.accessibilitySupport#`'),
@@ -634,7 +625,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.ShellIntegrationTimeout]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration after launch before declaring it's not there. Set to {0} to wait the minimum time (500ms), the default value {1} means the wait time is variable based on whether shell integration injection is enabled and whether it's a remote window. Consider setting this to a small value if you intentionally disabled shell integration, or a large value if your shell starts very slowly.", '`0`', '`-1`'),
+		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration after launch before declaring it's not there. Set to {0} to skip the wait entirely. The default value {1} uses a variable wait time based on whether shell integration injection is enabled and whether it's a remote window. Values between 1 and 499 are clamped to 500ms. Consider setting this to {0} if you intentionally disabled shell integration, or a large value if your shell starts very slowly.", '`0`', '`-1`'),
 		type: 'integer',
 		minimum: -1,
 		maximum: 60000,
@@ -731,6 +722,25 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 			configurationKeyValuePairs.push(['accessibility.signals.terminalBell', { value: { sound: enableBell ? 'on' : 'off', announcement } }]);
 			configurationKeyValuePairs.push([TerminalSettingId.EnableBell, { value: undefined }]);
 			configurationKeyValuePairs.push([TerminalSettingId.EnableVisualBell, { value: enableBell }]);
+			return configurationKeyValuePairs;
+		}
+	}]);
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: TerminalContribSettingId.DeprecatedTerminalSandboxNetwork,
+		migrateFn: (value: { allowedDomains?: string[]; deniedDomains?: string[]; allowTrustedDomains?: boolean }, valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value?.allowedDomains !== undefined && valueAccessor(TerminalContribSettingId.TerminalSandboxNetworkAllowedDomains) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.TerminalSandboxNetworkAllowedDomains, { value: value.allowedDomains }]);
+			}
+			if (value?.deniedDomains !== undefined && valueAccessor(TerminalContribSettingId.TerminalSandboxNetworkDeniedDomains) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.TerminalSandboxNetworkDeniedDomains, { value: value.deniedDomains }]);
+			}
+			if (value?.allowTrustedDomains !== undefined && valueAccessor(TerminalContribSettingId.TerminalSandboxNetworkAllowTrustedDomains) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.TerminalSandboxNetworkAllowTrustedDomains, { value: value.allowTrustedDomains }]);
+			}
+			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxNetwork, { value: undefined }]);
 			return configurationKeyValuePairs;
 		}
 	}]);

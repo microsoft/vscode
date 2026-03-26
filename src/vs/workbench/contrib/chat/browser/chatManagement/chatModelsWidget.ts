@@ -792,6 +792,21 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IActionsColumnTemplateData): void {
+		const configActions = this.languageModelsService.getModelConfigurationActions(entry.model.identifier);
+		if (configActions.length === 0 && !entry.model.metadata.configurationSchema) {
+			return;
+		}
+
+		const secondaryActions: IAction[] = [...configActions];
+
+		// Always add "Configure..." as fallback for complex properties
+		secondaryActions.push(toAction({
+			id: 'configureModel',
+			label: localize('models.configureModel', 'Configure...'),
+			run: () => this.languageModelsService.configureModel(entry.model.identifier)
+		}));
+
+		templateData.actionBar.setActions([], secondaryActions);
 	}
 }
 
@@ -845,6 +860,10 @@ export class ChatModelsWidget extends Disposable {
 	private static NUM_INSTANCES: number = 0;
 
 	readonly element: HTMLElement;
+
+	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
+	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
+
 	private searchWidget!: SuggestEnabledInput;
 	private searchActionsContainer!: HTMLElement;
 	private table!: WorkbenchTable<IViewModelEntry>;
@@ -1177,6 +1196,15 @@ export class ChatModelsWidget extends Disposable {
 					run: () => this.viewModel.setModelsVisibility(selectedModelEntries, true)
 				}));
 
+				// Show per-model configuration actions for a single model
+				if (selectedModelEntries.length === 1) {
+					const configActions = this.languageModelsService.getModelConfigurationActions(selectedModelEntries[0].model.identifier);
+					if (configActions.length) {
+						actions.push(new Separator());
+						actions.push(...configActions);
+					}
+				}
+
 				// Show configure action if all models are from the same group
 				configureGroup = selectedModelEntries[0].model.provider.group.name;
 				configureVendor = selectedModelEntries[0].model.provider.vendor;
@@ -1237,8 +1265,10 @@ export class ChatModelsWidget extends Disposable {
 		}));
 
 		this.table.splice(0, this.table.length, this.viewModel.viewModelEntries);
+		this._onDidChangeItemCount.fire(this.itemCount);
 		this.tableDisposables.add(this.viewModel.onDidChange(({ at, removed, added }) => {
 			this.table.splice(at, removed, added);
+			this._onDidChangeItemCount.fire(this.itemCount);
 			if (this.viewModel.selectedEntry) {
 				const selectedEntryIndex = this.viewModel.viewModelEntries.indexOf(this.viewModel.selectedEntry);
 				this.table.setFocus([selectedEntryIndex]);
@@ -1330,6 +1360,23 @@ export class ChatModelsWidget extends Disposable {
 		if (this.viewModel.shouldRefilter()) {
 			this.viewModel.filter(this.searchWidget.getValue());
 		}
+	}
+
+	/**
+	 * Gets the total model count (excluding vendor/group/status headers).
+	 */
+	get itemCount(): number {
+		return this.viewModel.viewModelEntries
+			.filter(e => !isLanguageModelProviderEntry(e) && !isLanguageModelGroupEntry(e) && !isStatusEntry(e))
+			.length;
+	}
+
+	/**
+	 * Re-fires the current item count. Call after subscribing to onDidChangeItemCount
+	 * to ensure the subscriber receives the latest count.
+	 */
+	fireItemCount(): void {
+		this._onDidChangeItemCount.fire(this.itemCount);
 	}
 
 }

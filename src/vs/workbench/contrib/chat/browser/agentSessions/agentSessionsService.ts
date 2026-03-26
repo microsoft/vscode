@@ -7,6 +7,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 import { AgentSessionsModel, IAgentSession, IAgentSessionsModel } from './agentSessionsModel.js';
 
 export interface IAgentSessionsService {
@@ -29,14 +30,23 @@ export class AgentSessionsService extends Disposable implements IAgentSessionsSe
 	get model(): IAgentSessionsModel {
 		if (!this._model) {
 			this._model = this._register(this.instantiationService.createInstance(AgentSessionsModel));
-			this._register(this._model.onDidChangeSessionArchivedState(session => this._onDidChangeSessionArchivedState.fire(session)));
+			this._register(this._model.onDidChangeSessionArchivedState(session => {
+				if (session.isArchived()) {
+					void this.chatService.cancelCurrentRequestForSession(session.resource, 'archive');
+				}
+
+				this._onDidChangeSessionArchivedState.fire(session);
+			}));
 			this._model.resolve(undefined /* all providers */);
 		}
 
 		return this._model;
 	}
 
-	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatService private readonly chatService: IChatService,
+	) {
 		super();
 	}
 
