@@ -616,9 +616,9 @@ class AgentSessionAdapter implements ISessionData {
 
 	private _extractPullRequestStateIcon(session: IAgentSession): ThemeIcon | undefined {
 		const metadata = session.metadata;
-		const url = metadata?.pullRequestState;
-		if (url) {
-			switch (url) {
+		const state = metadata?.pullRequestState;
+		if (state) {
+			switch (state) {
 				case 'merged':
 					return { ...Codicon.gitPullRequestDone, color: themeColorFromId('charts.purple') };
 				case 'closed':
