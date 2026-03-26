@@ -10,8 +10,7 @@ import { NullLogService, ILogService } from '../../../../../platform/log/common/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { GitHubService } from '../../browser/githubService.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../../sessions/common/sessionWorkspace.js';
-import { IActiveSessionItem } from '../../../sessions/browser/sessionsManagementService.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../../sessions/common/sessionData.js';
 
 suite('GitHubService', () => {
 
@@ -79,16 +78,9 @@ suite('getGitHubContext', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function makeSession(overrides: Partial<IActiveSessionItem>): IActiveSessionItem {
+	function makeSession(overrides: { repository?: URI }): { repository: URI | undefined } {
 		return {
-			resource: URI.parse('test://session/1'),
-			isUntitled: false,
-			label: 'Test Session',
 			repository: undefined,
-			worktree: undefined,
-			worktreeBranchName: undefined,
-			worktreeBaseBranchProtected: undefined,
-			providerType: 'copilot-cloud-agent',
 			...overrides,
 		};
 	}
