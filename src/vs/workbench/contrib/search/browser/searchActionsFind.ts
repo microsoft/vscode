@@ -34,7 +34,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { forcedExpandRecursively } from './searchActionsTopBar.js';
-import { RenderableMatch, ISearchTreeFileMatch, ISearchTreeFolderMatchWithResource, ISearchResult, isSearchTreeFileMatch, isSearchTreeMatch } from './searchTreeModel/searchTreeCommon.js';
+import { RenderableMatch, ISearchTreeFileMatch, ISearchTreeFolderMatchWithResource, ISearchResult, isSearchTreeFileMatch, isSearchTreeMatch, isSearchResult } from './searchTreeModel/searchTreeCommon.js';
 
 //#region Interfaces
 export interface IFindInFilesArgs {
@@ -104,6 +104,52 @@ registerAction2(class ExpandSelectedTreeCommandAction extends Action2 {
 	}
 });
 
+
+registerAction2(class CollapseOtherResultsAction extends Action2 {
+	constructor() {
+		super({
+			id: Constants.SearchCommandIds.CollapseOtherSearchResultsActionId,
+			title: nls.localize('search.collapseOtherResults', "Collapse Other Results"),
+			category,
+			menu: [{
+				id: MenuId.SearchContext,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(Constants.SearchContext.FolderFocusKey, Constants.SearchContext.FileFocusKey),
+					Constants.SearchContext.HasSearchResults
+				),
+				group: 'search',
+				order: 5
+			}]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor) {
+		const viewsService = accessor.get(IViewsService);
+		const searchView = getSearchView(viewsService);
+		if (!searchView) {
+			return;
+		}
+
+		const viewer = searchView.getControl();
+		const focusedElements = viewer.getFocus();
+		if (!focusedElements.length) {
+			return;
+		}
+
+		const focusedElement = focusedElements[0];
+		if (!focusedElement) {
+			return;
+		}
+
+		const parentElement = focusedElement.parent();
+		const parentNode = viewer.getNode(isSearchResult(parentElement) ? undefined : parentElement);
+		for (const child of parentNode.children) {
+			if (child.element && !isSearchResult(child.element) && child.element !== focusedElement && viewer.hasNode(child.element) && !viewer.isCollapsed(child.element)) {
+				viewer.collapse(child.element, true);
+			}
+		}
+	}
+});
 registerAction2(class ExcludeFolderFromSearchAction extends Action2 {
 	constructor() {
 		super({
