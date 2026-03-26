@@ -54,6 +54,19 @@
 		.chat-thinking-title-detail-text {
 			opacity: 0.7;
 		}
+
+		.chat-thinking-title-diff {
+			padding-left: 6px;
+
+			> .label-added {
+				color: var(--vscode-chat-linesAddedForeground);
+			}
+
+			> .label-removed {
+				padding-left: 4px;
+				color: var(--vscode-chat-linesRemovedForeground);
+			}
+		}
 	}
 
 	&.chat-thinking-active > .chat-used-context-label .monaco-button.monaco-icon-button {
