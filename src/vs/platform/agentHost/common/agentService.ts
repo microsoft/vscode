@@ -311,12 +311,12 @@ export interface IAgent {
 	sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void>;
 
 	/**
-	 * Called when the session's pending messages change. The agent harness
-	 * can react however it chooses — e.g. inject steering mid-turn,
-	 * auto-start queued messages when idle, etc.
+	 * Called when the session's pending (steering) message changes.
+	 * The agent harness decides how to react — e.g. inject steering
+	 * mid-turn via `mode: 'immediate'`.
 	 *
-	 * The server keeps this in sync with the protocol state; the agent
-	 * owns the decision of what to do with the messages.
+	 * Queued messages are consumed on the server side and are not
+	 * forwarded to the agent; `queuedMessages` will always be empty.
 	 */
 	setPendingMessages?(session: URI, steeringMessage: IPendingMessage | undefined, queuedMessages: readonly IPendingMessage[]): void;
 

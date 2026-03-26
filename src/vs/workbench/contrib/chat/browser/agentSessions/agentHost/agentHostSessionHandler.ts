@@ -7,7 +7,7 @@ import { Throttler } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -201,6 +201,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					resolvedSession = backendSession;
 					this._sessionToBackend.set(resourceKey, backendSession);
 				}
+				// For existing sessions, set up pending message sync on the first turn
+				// (after the ChatModel becomes available in the ChatService).
+				this._ensurePendingMessageSubscription(resourceKey, sessionResource, backendSession);
 				return this._handleTurn(backendSession, request, progress, token);
 			},
 			() => {
@@ -397,8 +400,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const disposables = new DisposableStore();
 
-		// Disposable store for per-turn progress tracking (replaced each turn)
-		let turnProgressDisposables: DisposableStore | undefined;
+		// MutableDisposable for per-turn progress tracking (replaced each turn)
+		const turnProgressDisposable = new MutableDisposable<DisposableStore>();
+		disposables.add(turnProgressDisposable);
 
 		disposables.add(this._clientState.onDidChangeSessionState(e => {
 			if (e.session !== sessionStr) {
@@ -444,10 +448,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			// Set up turn progress tracking — reuse the same state-to-progress
 			// translation as _handleTurn, but pipe output to progressObs/isCompleteObs
-			turnProgressDisposables?.dispose();
-			turnProgressDisposables = new DisposableStore();
-			disposables.add(turnProgressDisposables);
-			this._trackServerTurnProgress(backendSession, activeTurn.id, chatSession, sessionResource, turnProgressDisposables);
+			const turnStore = new DisposableStore();
+			turnProgressDisposable.value = turnStore;
+			this._trackServerTurnProgress(backendSession, activeTurn.id, chatSession, sessionResource, turnStore);
 		}));
 
 		this._serverTurnWatchers.set(resourceKey, disposables);
@@ -594,6 +597,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const turnId = generateUuid();
 		this._clientDispatchedTurnIds.add(turnId);
+		const cleanUpTurnId = () => this._clientDispatchedTurnIds.delete(turnId);
 		const attachments = this._convertVariablesToAttachments(request);
 		const messageAttachments: IMessageAttachment[] = attachments.map(a => ({
 			type: a.type,
@@ -654,6 +658,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			finished = true;
+			cleanUpTurnId();
 			// Finalize any outstanding tool invocations
 			for (const [, invocation] of activeToolInvocations) {
 				invocation.didExecuteTool(undefined);
@@ -921,17 +926,28 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		// Start syncing the chat model's pending requests to the protocol
-		const chatModel = this._chatService?.getSession(sessionResource);
-		if (chatModel) {
-			this._pendingMessageSubscriptions.set(resourceKey, chatModel.onDidChangePendingRequests(() => {
-				this._syncPendingMessages(sessionResource, session);
-			}));
-		}
+		this._ensurePendingMessageSubscription(resourceKey, sessionResource, session);
 
 		// Start watching for server-initiated turns on this session
 		this._watchForServerInitiatedTurns(session, sessionResource);
 
 		return session;
+	}
+
+	/**
+	 * Ensures that the chat model's pending request changes are synced to the
+	 * protocol for a given session. No-ops if already subscribed.
+	 */
+	private _ensurePendingMessageSubscription(resourceKey: string, sessionResource: URI, backendSession: URI): void {
+		if (this._pendingMessageSubscriptions.has(resourceKey)) {
+			return;
+		}
+		const chatModel = this._chatService?.getSession(sessionResource);
+		if (chatModel) {
+			this._pendingMessageSubscriptions.set(resourceKey, chatModel.onDidChangePendingRequests(() => {
+				this._syncPendingMessages(sessionResource, backendSession);
+			}));
+		}
 	}
 
 	/**
