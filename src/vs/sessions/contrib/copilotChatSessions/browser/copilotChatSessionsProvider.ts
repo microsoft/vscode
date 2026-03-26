@@ -972,6 +972,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		// Send request
 		const existingResources = new ResourceSet(this.agentSessionsService.model.sessions.map(s => s.resource));
+		// TODO@sandy081 - this is a temporary fix in order to avoid being sent
+		// back to the new sesssion screen after sending the first chat message.
+		existingResources.add(session.resource);
+
 		const result = await this.chatService.sendRequest(session.resource, query, sendOptions);
 		if (result.kind === 'rejected') {
 			throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
@@ -1063,6 +1067,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private _isOwnedSession(session: IAgentSession): boolean {
+		if (session.resource.toString() === this._currentNewSession?.resource.toString()) {
+			return false;
+		}
+
 		return session.providerType === AgentSessionProviders.Background
 			|| session.providerType === AgentSessionProviders.Cloud;
 	}
