@@ -45,6 +45,7 @@ import { ExtHostChatAgentsShape2, ExtHostContext, IChatCustomizationItemDto, ICh
 import { NotebookDto } from './mainThreadNotebookDto.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
+import { AICustomizationManagementSection } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -620,14 +621,12 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 		// Convert metadata to a harness descriptor
 		const hiddenSections = metadata.unsupportedTypes?.map(type => {
-			// Map PromptsType strings to AICustomizationManagementSection values
-			// The section IDs match the PromptsType values for the common types
 			switch (type) {
-				case 'agent': return 'agents';
-				case 'skill': return 'skills';
-				case 'instructions': return 'instructions';
-				case 'prompt': return 'prompts';
-				case 'hook': return 'hooks';
+				case 'agent': return AICustomizationManagementSection.Agents;
+				case 'skill': return AICustomizationManagementSection.Skills;
+				case 'instructions': return AICustomizationManagementSection.Instructions;
+				case 'prompt': return AICustomizationManagementSection.Prompts;
+				case 'hook': return AICustomizationManagementSection.Hooks;
 				default: return type;
 			}
 		});

@@ -1709,7 +1709,19 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		}
 
-		// Group items — instructions use category-based grouping; other sections use storage-based
+		// When items come from an external provider, skip storage-based grouping
+		// and render a flat list. The provider controls the full item set, so
+		// Workspace/User/Extension categories don't apply.
+		const activeDescriptor = this.harnessService.getActiveDescriptor();
+		if (activeDescriptor.itemProvider) {
+			matchedItems.sort((a, b) => a.name.localeCompare(b.name));
+			this.displayEntries = matchedItems.map(item => ({ type: 'file-item' as const, item }));
+			this.list.splice(0, this.list.length, this.displayEntries);
+			this.updateEmptyState();
+			return matchedItems.length;
+		}
+
+		// Group items by storage
 		const promptType = sectionToPromptType(this.currentSection);
 		const visibleSources = new Set(this.workspaceService.getStorageSourceFilter(promptType).sources);
 		const groups: { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] =
