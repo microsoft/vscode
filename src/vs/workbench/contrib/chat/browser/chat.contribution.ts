@@ -500,6 +500,45 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['experimental']
 		},
+		[ChatConfiguration.ArtifactsMode]: {
+			default: 'rules',
+			description: nls.localize('chat.artifacts.mode', "Controls how artifacts are populated. 'rules' extracts artifacts deterministically from the conversation. 'tool' lets the model set artifacts via a tool call."),
+			type: 'string',
+			enum: ['rules', 'tool'],
+			tags: ['experimental']
+		},
+		[ChatConfiguration.ArtifactsRulesByMimeType]: {
+			default: {
+				'image/*': { groupName: 'Screenshots', onlyShowGroup: true }
+			},
+			description: nls.localize('chat.artifacts.rules.byMimeType', "Rules for extracting artifacts from tool results by MIME type. Maps MIME type patterns (e.g. 'image/*') to group configuration."),
+			type: 'object',
+			additionalProperties: {
+				type: 'object',
+				properties: {
+					groupName: { type: 'string', description: nls.localize('chat.artifacts.rules.groupName', "Display name for the artifact group.") },
+					onlyShowGroup: { type: 'boolean', description: nls.localize('chat.artifacts.rules.onlyShowGroup', "When true, show only the group header instead of individual items.") }
+				},
+				required: ['groupName']
+			},
+			tags: ['experimental']
+		},
+		[ChatConfiguration.ArtifactsRulesByFilePath]: {
+			default: {
+				'**/*plan*.md': { groupName: 'Plans' }
+			},
+			description: nls.localize('chat.artifacts.rules.byFilePath', "Rules for extracting artifacts from written files by file path pattern. Maps glob patterns to group configuration."),
+			type: 'object',
+			additionalProperties: {
+				type: 'object',
+				properties: {
+					groupName: { type: 'string', description: nls.localize('chat.artifacts.rules.byFilePath.groupName', "Display name for the artifact group.") },
+					onlyShowGroup: { type: 'boolean', description: nls.localize('chat.artifacts.rules.byFilePath.onlyShowGroup', "When true, show only the group header instead of individual items.") }
+				},
+				required: ['groupName']
+			},
+			tags: ['experimental']
+		},
 		'chat.undoRequests.restoreInput': {
 			default: true,
 			markdownDescription: nls.localize('chat.undoRequests.restoreInput', "Controls whether the input of the chat should be restored when an undo request is made. The input will be filled with the text of the request that was restored."),
