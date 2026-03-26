@@ -121,6 +121,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			description: observableValue(this, undefined),
 			lastTurnEnd: observableValue(this, undefined),
 			pullRequestUri: observableValue(this, undefined),
+			pullRequestStateIcon: observableValue(this, undefined),
+
 		};
 	}
 
