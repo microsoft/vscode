@@ -77,7 +77,12 @@ export class IsolationPicker extends Disposable {
 		if (!hasRepo) {
 			this._setMode('workspace');
 		} else {
-			this._setMode('worktree');
+			// Restore the session's current isolation mode rather than
+			// unconditionally resetting to 'worktree', so user selection
+			// survives picker recreation.
+			const session = this.sessionsManagementService.activeSession.get();
+			const currentMode = session instanceof CopilotCLISession ? session.isolationMode : 'worktree';
+			this._setMode(currentMode);
 		}
 		this._updateTriggerLabel();
 	}
