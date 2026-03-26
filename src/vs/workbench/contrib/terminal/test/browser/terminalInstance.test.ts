@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -155,20 +154,10 @@ suite('Workbench - TerminalInstance', () => {
 			return instance;
 		}
 
-		async function waitForShellLaunchConfigEnv(instance: ITerminalInstance): Promise<void> {
-			for (let i = 0; i < 50; i++) {
-				if (instance.shellLaunchConfig.env) {
-					return;
-				}
-				await timeout(0);
-			}
-
-			throw new Error('Timed out waiting for shell launch config env');
-		}
-
 		test('should create an instance of TerminalInstance with env from default profile', async () => {
 			terminalInstance = await createTerminalInstance();
-			await waitForShellLaunchConfigEnv(terminalInstance);
+			// Wait for the terminal instance to resolve shell launch config env.
+			await new Promise(resolve => setTimeout(resolve, 100));
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
 		});
 
