@@ -94,9 +94,11 @@ export class SessionCompositeBar extends Disposable {
 		tab.tabIndex = 0;
 		tab.setAttribute('role', 'tab');
 
-		const label = chat.title.get();
 		const labelEl = $('.session-composite-bar-tab-label');
-		labelEl.textContent = label;
+		this._tabDisposables.add(autorun(reader => {
+			const title = chat.title.read(reader);
+			labelEl.textContent = title;
+		}));
 		tab.appendChild(labelEl);
 
 		const indicator = $('.session-composite-bar-tab-indicator');
