@@ -210,8 +210,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		template.titleToolbar.context = element;
 
 		// Context key: isPinned
-		IsSessionPinnedContext.bindTo(template.contextKeyService).set(this.options.isPinned(element));
+		const isPinned = this.options.isPinned(element);
+		IsSessionPinnedContext.bindTo(template.contextKeyService).set(isPinned);
 		IsSessionArchivedContext.bindTo(template.contextKeyService).set(element.isArchived.get());
+
+		// Pinned styling — show toolbar persistently for pinned sessions
+		template.container.classList.toggle('pinned', isPinned);
 		IsSessionReadContext.bindTo(template.contextKeyService).set(element.isRead.get());
 
 		// Archived styling — reactive
@@ -750,13 +754,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			filtered = filtered.filter(s => !this.excludedSessionTypes.has(s.sessionType));
 		}
 		if (this.excludedStatuses.size > 0) {
-			filtered = filtered.filter(s => !this.excludedStatuses.has(s.status.get()));
+			filtered = filtered.filter(s => !this.excludedStatuses.has(s.status.get()) || this.isSessionPinned(s));
 		}
 		if (this._excludeArchived) {
-			filtered = filtered.filter(s => !s.isArchived.get());
+			filtered = filtered.filter(s => !s.isArchived.get() || this.isSessionPinned(s));
 		}
 		if (this._excludeRead) {
-			filtered = filtered.filter(s => !s.isRead.get());
+			filtered = filtered.filter(s => !s.isRead.get() || this.isSessionPinned(s));
 		}
 
 		const sorted = this.sortSessions(filtered);

@@ -55,7 +55,8 @@
 	}
 
 	.monaco-list-row:hover,
-	.monaco-list-row.focused:not(.selected) {
+	.monaco-list-row.focused:not(.selected),
+	.monaco-list-row:has(.session-item.pinned) {
 		.session-title-toolbar {
 			display: block;
 		}
