@@ -26,6 +26,7 @@ export class SessionLayoutController extends Disposable {
 
 	private readonly pendingTurnStateByResource = new ResourceMap<IPendingTurnState>();
 	private readonly panelVisibilityByResource = new ResourceMap<boolean>();
+	private previousSessionResource: URI | undefined;
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -109,15 +110,25 @@ export class SessionLayoutController extends Disposable {
 			}
 		}));
 
-		// Switch between sessions: sync panel visibility
+		// Switch between sessions: sync panel visibility.
+		// Save the outgoing session's panel state, then restore the incoming
+		// session's state only if it was previously recorded. First visits
+		// inherit the current panel visibility.
 		this._register(autorun(reader => {
 			const sessionResource = activeSessionResourceObs.read(reader);
 			if (!sessionResource) {
 				return;
 			}
 
-			const panelVisible = this.panelVisibilityByResource.get(sessionResource) ?? false;
-			this.layoutService.setPartHidden(!panelVisible, Parts.PANEL_PART);
+			if (this.previousSessionResource && !isEqual(this.previousSessionResource, sessionResource)) {
+				this.panelVisibilityByResource.set(this.previousSessionResource, this.layoutService.isVisible(Parts.PANEL_PART));
+			}
+			this.previousSessionResource = sessionResource;
+
+			const panelVisible = this.panelVisibilityByResource.get(sessionResource);
+			if (panelVisible !== undefined) {
+				this.layoutService.setPartHidden(!panelVisible, Parts.PANEL_PART);
+			}
 		}));
 	}
 
