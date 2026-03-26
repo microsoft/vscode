@@ -442,6 +442,8 @@ The `SidebarPart` includes a footer section (35px height) positioned below the p
 
 On macOS native with custom titlebar, the sidebar title area includes a traffic light spacer (70px) to push content past the system window controls. The spacer is hidden in fullscreen mode and is not created when using native titlebar (since the OS renders traffic lights in its own title bar).
 
+The sessions appear animation keeps the sidebar container, title area, and footer visually pinned. Only the sidebar body (`.part.sidebar > .content`) animates in with the left-to-right slide/fade effect, so the header actions do not shift during reveal.
+
 ---
 
 ## 10. Workbench Contributions
@@ -640,6 +642,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-03-26 | Updated the sessions sidebar appear animation so the sidebar title/header and footer stay fixed while only the body content (`.part.sidebar > .content`) slides/fades in during reveal |
 | 2026-03-02 | Fixed macOS sidebar traffic light spacer to only render with custom titlebar; added `!hasNativeTitlebar()` guard to `SidebarPart.createTitleArea()` so the 70px spacer is not created when using native titlebar (traffic lights are in the OS title bar, not overlapping the sidebar) |
 | 2026-02-20 | Replaced custom `EditorModal` with standard `ModalEditorPart` via `MODAL_GROUP`; main editor part created but hidden; changed `workbench.editor.useModal` from boolean to enum (`off`/`some`/`all`); sessions config uses `all`; removed `editorModal.ts` and editor modal CSS |
 | 2026-02-17 | Added `-webkit-app-region: drag` to sidebar title area so it can be used to drag the window; interactive children (actions, composite bar, labels) marked `no-drag`; CSS rules scoped to `.agent-sessions-workbench` in `parts/media/sidebarPart.css` |
