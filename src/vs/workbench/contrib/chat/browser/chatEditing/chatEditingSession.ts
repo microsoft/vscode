@@ -786,7 +786,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 					try {
 						const data = await this._fileService.readFile(contentSource);
 						afterSnapshot = data.value.toString();
-					} catch {
+					} catch (_e) {
 						afterSnapshot = '';
 					}
 				} else {

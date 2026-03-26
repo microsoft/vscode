@@ -26,6 +26,7 @@ suite('AgentService (node dispatcher)', () => {
 			_serviceBrand: undefined,
 			getSessionDataDir: () => URI.parse('inmemory:/session-data'),
 			getSessionDataDirById: () => URI.parse('inmemory:/session-data'),
+			openDatabase: () => { throw new Error('not implemented'); },
 			deleteSessionData: async () => { },
 			cleanupOrphanedData: async () => { },
 		};
