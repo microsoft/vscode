@@ -26,7 +26,7 @@ import { localize } from '../../../../../../nls.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -37,6 +37,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { extractImagesFromToolInvocationOutputDetails } from '../../../common/chatImageExtraction.js';
 import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js';
 import { ChatThinkingExternalResourceWidget } from './chatThinkingExternalResourcesWidget.js';
+import { IEditSessionDiffStats } from '../../../common/editing/chatEditingService.js';
 
 
 function extractTextFromPart(content: IChatThinkingPart): string {
@@ -243,6 +244,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private titleDetailContainer: HTMLElement | undefined;
 	private readonly _externalResourceWidget: ChatThinkingExternalResourceWidget;
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private readonly diffStatsByPartId = new Map<string, IEditSessionDiffStats>();
+	private _aggregatedDiff: IEditSessionDiffStats = { added: 0, removed: 0 };
+
+	get aggregatedDiff(): IEditSessionDiffStats { return this._aggregatedDiff; }
 
 	private getRandomWorkingMessage(category: WorkingMessageCategory = WorkingMessageCategory.Tool): string {
 		let pool = this.availableMessagesByCategory.get(category);
@@ -676,6 +681,15 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			const restSpan = $('span.chat-thinking-title-detail-text');
 			restSpan.textContent = rest;
 			labelElement.appendChild(restSpan);
+		}
+
+		// Show aggregated diff stats from edit pills
+		if (this.diffStatsByPartId.size > 0) {
+			const { added, removed } = this._aggregatedDiff;
+			const diffContainer = $('span.chat-thinking-title-diff');
+			diffContainer.appendChild($('span.label-added', {}, `+${added}`));
+			diffContainer.appendChild($('span.label-removed', {}, `-${removed}`));
+			labelElement.appendChild(diffContainer);
 		}
 
 		this._collapseButton.element.ariaLabel = title;
@@ -1145,6 +1159,22 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		return true;
 	}
 
+	private updateAggregatedDiff(): void {
+		let totalAdded = 0;
+		let totalRemoved = 0;
+		for (const stats of this.diffStatsByPartId.values()) {
+			totalAdded += stats.added;
+			totalRemoved += stats.removed;
+		}
+		this._aggregatedDiff = { added: totalAdded, removed: totalRemoved };
+
+		// Re-render the finalized title if streaming is already complete,
+		// since diff events from edit pills may arrive after the title was set.
+		if (this.streamingCompleted || this.element.isComplete) {
+			this.setFinalizedTitle(this.currentTitle);
+		}
+	}
+
 	private setFallbackTitle(): void {
 		const finalLabel = this.appendedItemCount > 0
 			? localize('chat.thinking.finished.withSteps', 'Finished with {0} step{1}', this.appendedItemCount, this.appendedItemCount === 1 ? '' : 's')
@@ -1175,13 +1205,22 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		factory: () => { domNode: HTMLElement; disposable?: IDisposable },
 		toolInvocationId?: string,
 		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent,
-		originalParent?: HTMLElement
+		originalParent?: HTMLElement,
+		onDidChangeDiff?: Event<IEditSessionDiffStats>
 	): void {
 		this.processPendingRemovals();
 
 		// Track tool invocation metadata immediately (for title generation)
 		this.trackToolMetadata(toolInvocationId, toolInvocationOrMarkdown);
 		this.appendedItemCount++;
+
+		// Listen for diff changes from edit pills
+		if (onDidChangeDiff && toolInvocationId) {
+			this._register(onDidChangeDiff(stats => {
+				this.diffStatsByPartId.set(toolInvocationId, stats);
+				this.updateAggregatedDiff();
+			}));
+		}
 
 		// get random message based on tool type
 		if (this.workingSpinnerLabel) {
