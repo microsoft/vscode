@@ -73,6 +73,7 @@ import { IOutputAnalyzer } from './outputAnalyzer.js';
 import { SandboxOutputAnalyzer } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
 import { ITerminalSandboxService, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
+import { LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
 
 // #region Tool data
 
@@ -1334,6 +1335,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						mimeType,
 						data: fileContent.value,
 					},
+					audience: [LanguageModelPartAudience.User],
 				});
 			} catch {
 				// Ignore files that can't be read

@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -17,8 +17,9 @@ import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browse
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
-import { ISessionType, ISendRequestOptions, ISessionsChangeEvent } from './sessionsProvider.js';
-import { ISessionData, ISessionWorkspace, GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionData.js';
+import { ISessionType, ISendRequestOptions, IChatChangeEvent } from './sessionsProvider.js';
+import { SessionsGroupModel } from './sessionsGroupModel.js';
+import { ISessionData, ISessionWorkspace, GITHUB_REMOTE_FILE_SCHEME, IChatData } from '../common/sessionData.js';
 import { IGitHubSessionContext } from '../../github/common/types.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -47,6 +48,15 @@ export const IsActiveSessionBackgroundProviderContext = new RawContextKey<boolea
 
 const LAST_SELECTED_SESSION_KEY = 'agentSessions.lastSelectedSession';
 const ACTIVE_PROVIDER_KEY = 'sessions.activeProviderId';
+
+/**
+ * Event fired when sessions change within a provider.
+ */
+export interface ISessionsChangeEvent {
+	readonly added: readonly ISessionData[];
+	readonly removed: readonly ISessionData[];
+	readonly changed: readonly ISessionData[];
+}
 
 /**
  * An active session item extends IChatSessionItem with repository information.
@@ -103,9 +113,15 @@ export interface ISessionsManagementService {
 
 	/**
 	 * Select an existing session as the active session.
-	 * Sets `isNewChatSession` context to false and opens the session.
+	 * Sets `isNewChatSession` context to false and opens the active chat belonging to the session.
 	 */
 	openSession(sessionResource: URI): Promise<void>;
+
+	/**
+	 * Select an existing session as the active session.
+	 * Sets `isNewChatSession` context to false and opens the session.
+	 */
+	openChat(chatResource: URI): Promise<void>;
 
 	/**
 	 * Switch to the new-session view.
@@ -125,16 +141,21 @@ export interface ISessionsManagementService {
 	createNewSession(providerId: string, workspace: ISessionWorkspace): ISessionData;
 
 	/**
+	 * Send a request to an existing session
+	 */
+	sendAndCreateChat(options: ISendRequestOptions, session: ISessionData): Promise<void>;
+
+	/**
 	 * Send the initial request for a session.
 	 */
-	sendRequest(session: ISessionData, options: ISendRequestOptions): Promise<void>;
+	sendRequest(chat: IChatData, options: ISendRequestOptions, session?: ISessionData): Promise<void>;
 
 	/**
 	 * Update the session type for a new session.
 	 * The provider may recreate the session object.
 	 * If the session is the active session, the active session data is updated.
 	 */
-	setSessionType(session: ISessionData, type: ISessionType): Promise<void>;
+	setSessionType(chat: IChatData, type: ISessionType): Promise<void>;
 
 	/**
 	 * Commit files in a worktree and refresh the agent sessions model
@@ -175,6 +196,17 @@ export interface ISessionsManagementService {
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');
 
+function latestDateAcrossChats(chats: readonly IChatData[], getter: (chat: IChatData) => Date | undefined): Date | undefined {
+	let latest: Date | undefined;
+	for (const chat of chats) {
+		const d = getter(chat);
+		if (d && (!latest || d > latest)) {
+			latest = d;
+		}
+	}
+	return latest;
+}
+
 export class SessionsManagementService extends Disposable implements ISessionsManagementService {
 
 	declare readonly _serviceBrand: undefined;
@@ -189,8 +221,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _activeSession = observableValue<ISessionData | undefined>(this, undefined);
 	readonly activeSession: IObservable<ISessionData | undefined> = this._activeSession;
-	private readonly _newSessionObservable = observableValue<ISessionData | undefined>(this, undefined);
-	readonly newSession: IObservable<ISessionData | undefined> = this._newSessionObservable;
 	private readonly _activeProviderId = observableValue<string | undefined>(this, undefined);
 	readonly activeProviderId: IObservable<string | undefined> = this._activeProviderId;
 	private lastSelectedSession: URI | undefined;
@@ -198,6 +228,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _activeSessionProviderId: IContextKey<string>;
 	private readonly _activeSessionType: IContextKey<string>;
 	private readonly _isBackgroundProvider: IContextKey<boolean>;
+	private readonly _groupModel: SessionsGroupModel;
+	private readonly _sessionDataCache = new Map<string, ISessionData>();
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -221,6 +253,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// Load last selected session
 		this.lastSelectedSession = this.loadLastSelectedSession();
 
+		// Initialize group model
+		this._groupModel = this._register(new SessionsGroupModel(storageService));
+
 		// Save on shutdown
 		this._register(this.storageService.onWillSaveState(() => this.saveLastSelectedSession()));
 
@@ -233,6 +268,28 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._initActiveProvider();
 			this._updateSessionTypes();
 		}));
+
+		// Track active chat in the group model when the focused session changes in the chat widget
+		this._register(this.chatWidgetService.onDidChangeFocusedSession(() => this._syncActiveChatFromWidget()));
+		// The chat might have been added to the widget before it was added to the model due to the async approach of the current send implemenation
+		this._register(this._groupModel.onDidAddChatToSession(() => this._syncActiveChatFromWidget()));
+	}
+
+	private _syncActiveChatFromWidget(): void {
+		const widget = this.chatWidgetService.lastFocusedWidget;
+		const sessionResource = widget?.viewModel?.sessionResource;
+		if (!sessionResource) {
+			return;
+		}
+
+		// Find the chat data matching this session resource
+		const chat = this._getChat(sessionResource);
+		if (!chat) {
+			return;
+		}
+
+		// Update the group model's active chat
+		this._groupModel.setActiveChatId(chat.chatId);
 	}
 
 	private _initActiveProvider(): void {
@@ -263,28 +320,74 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.storageService.store(ACTIVE_PROVIDER_KEY, providerId, StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
-	private onDidChangeSessionsFromSessionsProviders(e: ISessionsChangeEvent): void {
-		this._onDidChangeSessions.fire(e);
+	/**
+	 * Convert an array of chats into deduplicated sessions using the group model.
+	 * Multiple chats may map to the same session group; this returns one
+	 * {@link ISessionData} per unique group.
+	 */
+	private _chatsToSessions(chats: readonly IChatData[]): ISessionData[] {
+		const seen = new Set<string>();
+		const sessions: ISessionData[] = [];
+		for (const chat of chats) {
+			const groupId = this._groupModel.getSessionIdForChat(chat.chatId) ?? chat.chatId;
+			if (!seen.has(groupId)) {
+				seen.add(groupId);
+				sessions.push(this._chatToSession(chat));
+			}
+		}
+		return sessions;
+	}
+
+	private onDidChangeSessionsFromSessionsProviders(e: IChatChangeEvent): void {
+		const sessionEvent: ISessionsChangeEvent = {
+			added: this._chatsToSessions(e.added),
+			removed: this._chatsToSessions(e.removed),
+			changed: this._chatsToSessions(e.changed),
+		};
+		this._onDidChangeSessions.fire(sessionEvent);
 		const currentActive = this._activeSession.get();
+
+		// Remove chats from the group model and clean up session cache
+		for (const removed of e.removed) {
+			const sessionId = this._groupModel.getSessionIdForChat(removed.chatId);
+			this._groupModel.removeChat(removed.chatId);
+			if (sessionId && this._groupModel.getChatIds(sessionId).length === 0) {
+				this._sessionDataCache.delete(sessionId);
+			}
+		}
+
 		if (!currentActive) {
 			return;
 		}
 
 		if (e.removed.length) {
-			if (e.removed.some(r => r.sessionId === currentActive.sessionId)) {
-				this.openNewSessionView();
+			if (e.removed.some(r => currentActive.chats.get().find(c => c.chatId === r.chatId))) {
+				// Only open new session view if the group has no remaining chats
+				if (this._groupModel.getChatIds(currentActive.sessionId).length === 0) {
+					this.openNewSessionView();
+				}
 				return;
 			}
 		}
 
 		if (e.changed.length) {
-			const updated = e.changed.find(s => s.sessionId === currentActive.sessionId);
+			const updated = e.changed.find(s => currentActive.chats.get().find(c => c.chatId === s.chatId));
 			if (updated?.isArchived.get()) {
-				this.openNewSessionView();
+				// Only open new session view if all chats in the group are archived
+				const groupId = this._groupModel.getSessionIdForChat(currentActive.sessionId);
+				const chatIds = groupId ? this._groupModel.getChatIds(groupId) : [];
+				const allChats = this.sessionsProvidersService.getSessions();
+				const allArchived = chatIds.length === 0 || chatIds.every(id => {
+					const chat = allChats.find(c => c.chatId === id);
+					return !chat || chat.isArchived.get();
+				});
+				if (allArchived) {
+					this.openNewSessionView();
+				}
 				return;
 			}
 			if (updated) {
-				this._activeSession.set(updated, undefined);
+				this.setActiveSession(this._chatToSession(updated));
 				return;
 			}
 		}
@@ -329,11 +432,50 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	getSessions(): ISessionData[] {
-		return this.sessionsProvidersService.getSessions();
+		const allChats = this.sessionsProvidersService.getSessions();
+		const chatById = new Map<string, IChatData>();
+		for (const chat of allChats) {
+			chatById.set(chat.chatId, chat);
+		}
+
+		const groupedChats = new Map<string, IChatData[]>();
+
+		for (const chat of allChats) {
+			let groupId = this._groupModel.getSessionIdForChat(chat.chatId);
+			if (!groupId) {
+				// No group exists — create a single-chat group
+				groupId = chat.chatId;
+				this._groupModel.addChat(groupId, chat.chatId);
+			}
+			if (!groupedChats.has(groupId)) {
+				groupedChats.set(groupId, []);
+			}
+		}
+
+		// Order chats within each group according to the group model
+		const sessions: ISessionData[] = [];
+		for (const [groupId, chats] of groupedChats) {
+			const orderedChatIds = this._groupModel.getChatIds(groupId);
+			for (const chatId of orderedChatIds) {
+				const chat = chatById.get(chatId);
+				if (chat) {
+					chats.push(chat);
+				}
+			}
+			if (chats.length > 0) {
+				sessions.push(this._chatToSession(chats[0]));
+			}
+		}
+		return sessions;
+	}
+
+	private _getChat(resource: URI): IChatData | undefined {
+		return this.sessionsProvidersService.getSessions().find(s => this.uriIdentityService.extUri.isEqual(s.resource, resource));
 	}
 
 	getSession(resource: URI): ISessionData | undefined {
-		return this.sessionsProvidersService.getSessions().find(s => this.uriIdentityService.extUri.isEqual(s.resource, resource));
+		const chat = this._getChat(resource);
+		return chat ? this._chatToSession(chat) : undefined;
 	}
 
 	getAllSessionTypes(): ISessionType[] {
@@ -364,6 +506,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
+	async openChat(chatResource: URI): Promise<void> {
+		const sessionData = this.getSession(chatResource);
+		const chat = this._getChat(chatResource);
+
+		this.logService.info(`[SessionsManagement] openChat: ${chatResource.toString()} provider=${chat?.providerId}`);
+		this.isNewChatSessionContext.set(false);
+		this.setActiveSession(sessionData);
+
+		await this.chatWidgetService.openSession(chatResource, ChatViewPaneTarget);
+	}
+
 	async openSession(sessionResource: URI): Promise<void> {
 		const sessionData = this.getSession(sessionResource);
 		if (!sessionData) {
@@ -374,7 +527,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.isNewChatSessionContext.set(false);
 		this.setActiveSession(sessionData);
 
-		await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
+		const activeChatResource = sessionData.activeChat.get().resource;
+		await this.chatWidgetService.openSession(activeChatResource, ChatViewPaneTarget);
 	}
 
 	createNewSession(providerId: string, workspace: ISessionWorkspace): ISessionData {
@@ -387,47 +541,69 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(`Sessions provider '${providerId}' not found`);
 		}
 
-		const sessionData = provider.createNewSession(workspace);
+		const chatData = provider.createNewSession(workspace);
+		const sessionData = this._chatToSession(chatData);
 
-		this._newSessionObservable.set(sessionData, undefined);
 		this.setActiveSession(sessionData);
-		this._activeSession.set(sessionData, undefined);
 		return sessionData;
 	}
 
-	async setSessionType(session: ISessionData, type: ISessionType): Promise<void> {
-		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
+	async setSessionType(chat: IChatData, type: ISessionType): Promise<void> {
+		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === chat.providerId);
 		if (!provider) {
-			throw new Error(`Sessions provider '${session.providerId}' not found`);
+			throw new Error(`Sessions provider '${chat.providerId}' not found`);
 		}
 
-		const updatedSession = provider.setSessionType(session.sessionId, type);
+		const updatedChat = provider.setSessionType(chat.chatId, type);
+		const updatedSession = this._chatToSession(updatedChat);
 
 		const activeSession = this._activeSession.get();
-		if (activeSession && activeSession.sessionId === session.sessionId) {
-			this._newSessionObservable.set(updatedSession, undefined);
-			this._activeSession.set(updatedSession, undefined);
+		if (activeSession && activeSession.sessionId === updatedSession.sessionId) {
+			this.setActiveSession(updatedSession);
 		}
 	}
 
-	async sendRequest(session: ISessionData, options: ISendRequestOptions): Promise<void> {
-		this.isNewChatSessionContext.set(false);
-
+	async sendAndCreateChat(options: ISendRequestOptions, session: ISessionData): Promise<void> {
 		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
 		if (!provider) {
 			throw new Error(`Sessions provider '${session.providerId}' not found`);
 		}
 
-		// Delegate to the provider
-		const result = await provider.sendRequest(session.sessionId, options);
+		const chatData = provider.createNewSessionFrom(session.chats.get()[0].chatId);
+
+		const newChat = await provider.sendRequest(chatData.chatId, options);
 
 		// Set the new agent session as active
-		if (result) {
-			this._activeSession.set(result, undefined);
+		if (newChat) {
+			// It's likely that the provider has already added the new chat to the group before provider.sendRequest returns.
+			// This will cause a new group to be created for the new chat which actually belongs to the same session.
+			if (this._groupModel.hasGroupForSession(newChat.chatId)) {
+				this._groupModel.deleteSession(newChat.chatId);
+			}
+			// Add the new chat to the session's group
+			this._groupModel.addChat(session.sessionId, newChat.chatId);
 		}
 
-		// Clean up
-		this._newSessionObservable.set(undefined, undefined);
+		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
+	}
+
+	async sendRequest(chat: IChatData, options: ISendRequestOptions): Promise<void> {
+		this.isNewChatSessionContext.set(false);
+
+		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === chat.providerId);
+		if (!provider) {
+			throw new Error(`Sessions provider '${chat.providerId}' not found`);
+		}
+
+		// Delegate to the provider
+		const newChat = await provider.sendRequest(chat.chatId, options);
+
+		// Set the new agent session as active
+		if (newChat) {
+			// Add the new chat to the session's group
+			this._groupModel.addChat(newChat.chatId, newChat.chatId);
+			this.setActiveSession(this._chatToSession(newChat));
+		}
 	}
 
 	openNewSessionView(): void {
@@ -524,7 +700,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	getGitHubContextForSession(sessionResource: URI): IGitHubSessionContext | undefined {
 		// Try finding the ISessionData first (preferred path)
-		const sessionData = this.sessionsProvidersService.getSessions().find(s => s.resource.toString() === sessionResource.toString());
+		const sessionData = this.getSession(sessionResource);
 		if (sessionData) {
 			return this.getGitHubContext(sessionData);
 		}
@@ -568,6 +744,68 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return undefined;
 	}
 
+	/**
+	 * Wraps a primary {@link IChatData} and its sibling chats into an {@link ISessionData}.
+	 * Uses `Object.create` so that all properties of the primary chat are inherited
+	 * through the prototype chain, avoiding issues with class getters.
+	 *
+	 * The `chats` and `activeChat` observables are derived from the group model
+	 * and update automatically when the group model fires a change event.
+	 */
+	private _chatToSession(chat: IChatData): ISessionData {
+		const sessionId = this._groupModel.getSessionIdForChat(chat.chatId) ?? chat.chatId;
+
+		/* const cached = this._sessionDataCache.get(sessionId);
+		if (cached) {
+			return cached;
+		} */
+
+		const chatsObs = observableFromEvent(
+			this,
+			Event.filter(this._groupModel.onDidChange, e => e.sessionId === sessionId),
+			() => {
+				const chatIds = this._groupModel.getChatIds(sessionId);
+				if (chatIds.length === 0) {
+					return [chat];
+				}
+				const provider = this.sessionsProvidersService.getProviders().find(p => p.id === chat.providerId);
+				const providerChats = provider?.getSessions() || [];
+				const chatById = new Map(providerChats.map(c => [c.chatId, c]));
+				const chatOrder = new Map(chatIds.map((id, index) => [id, index]));
+				const resolved = chatIds.map(id => chatById.get(id)).filter((c): c is IChatData => !!c);
+				if (resolved.length === 0) {
+					return [chat];
+				}
+				return resolved.sort((a, b) => (chatOrder.get(a.chatId) ?? Infinity) - (chatOrder.get(b.chatId) ?? Infinity));
+			},
+		);
+		const activeChatObs = chatsObs.map(chats => {
+			if (!this._groupModel.hasGroupForSession(sessionId)) {
+				return chat; //new Sessions might not be in the group model
+			}
+			const activeChatId = this._groupModel.getActiveChatId(sessionId);
+			const activeChat = chats.find(c => c.chatId === activeChatId);
+			if (!activeChat) {
+				throw new Error(`Active chat with ID ${activeChatId} not found in session ${sessionId}`);
+			}
+			return activeChat;
+		});
+
+		const updatedAtObs = chatsObs.map(chats => latestDateAcrossChats(chats, c => c.updatedAt.get())!);
+		const lastTurnEndObs = chatsObs.map(chats => latestDateAcrossChats(chats, c => c.lastTurnEnd.get()));
+
+		const sessionData: ISessionData = {
+			...chatsObs.get()[0], // Inherit properties from the primary chat
+			sessionId,
+			updatedAt: updatedAtObs,
+			lastTurnEnd: lastTurnEndObs,
+			chats: chatsObs,
+			activeChat: activeChatObs,
+		};
+		this._sessionDataCache.set(sessionId, sessionData);
+		return sessionData;
+	}
+
 	private loadLastSelectedSession(): URI | undefined {
 		const cached = this.storageService.get(LAST_SELECTED_SESSION_KEY, StorageScope.WORKSPACE);
 		if (!cached) {
@@ -590,25 +828,34 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	// -- Session Actions --
 
 	async archiveSession(session: ISessionData): Promise<void> {
-		await this.sessionsProvidersService.archiveSession(session.sessionId);
+		for (const chat of session.chats.get()) {
+			await this.sessionsProvidersService.archiveSession(chat.chatId);
+		}
 	}
 
 	async unarchiveSession(session: ISessionData): Promise<void> {
-		await this.sessionsProvidersService.unarchiveSession(session.sessionId);
+		for (const chat of session.chats.get()) {
+			await this.sessionsProvidersService.unarchiveSession(chat.chatId);
+		}
 	}
 
 	async deleteSession(session: ISessionData): Promise<void> {
-		// Clear the chat widget before removing from storage
-		await this.chatWidgetService.getWidgetBySessionResource(session.resource)?.clear();
-		await this.sessionsProvidersService.deleteSession(session.sessionId);
+		this._sessionDataCache.delete(session.sessionId);
+		for (const chat of session.chats.get()) {
+			// Clear the chat widget before removing from storage
+			await this.chatWidgetService.getWidgetBySessionResource(chat.resource)?.clear();
+			await this.sessionsProvidersService.deleteSession(chat.chatId);
+		}
 	}
 
 	async renameSession(session: ISessionData, title: string): Promise<void> {
-		await this.sessionsProvidersService.renameSession(session.sessionId, title);
+		await this.sessionsProvidersService.renameSession(session.chats.get()[0].chatId, title);
 	}
 
 	setRead(session: ISessionData, read: boolean): void {
-		this.sessionsProvidersService.setRead(session.sessionId, read);
+		for (const chat of session.chats.get()) {
+			this.sessionsProvidersService.setRead(chat.chatId, read);
+		}
 	}
 }
 
