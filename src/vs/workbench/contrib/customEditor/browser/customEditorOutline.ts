@@ -71,6 +71,7 @@ class CustomEditorOutlineRenderer implements ITreeRenderer<CustomEditorOutlineEn
 
 	constructor(
 		private readonly _target: OutlineTarget,
+		private readonly _resource: URI,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMenuService private readonly _menuService: IMenuService,
@@ -122,7 +123,7 @@ class CustomEditorOutlineRenderer implements ITreeRenderer<CustomEditorOutlineEn
 			}));
 
 			const menu = template.elementDisposables.add(this._menuService.createMenu(MenuId.CustomEditorOutlineActionMenu, scopedContextKeyService));
-			const menuArg = { id: entry.id };
+			const menuArg = { id: entry.id, uri: this._resource };
 			const actions = getActionBarActions(menu.getActions({ shouldForwardArgs: true, arg: menuArg }), g => /^inline/.test(g));
 			toolbar.setActions(actions.primary, actions.secondary);
 
@@ -224,7 +225,7 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 		this._viewType = editorInput.viewType;
 
 		const delegate = new CustomEditorOutlineVirtualDelegate();
-		const renderers = [instantiationService.createInstance(CustomEditorOutlineRenderer, target)];
+		const renderers = [instantiationService.createInstance(CustomEditorOutlineRenderer, target, this._resource)];
 		const comparator = new CustomEditorOutlineComparator();
 
 		const treeDataSource: IDataSource<this, CustomEditorOutlineEntry> = {
@@ -289,18 +290,18 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 				return [['customEditorOutlineItem', entry.contextValue ?? '']];
 			},
 			getActionsContext: (entry: CustomEditorOutlineEntry) => {
-				return { id: entry.id };
+				return { id: entry.id, uri: this._resource };
 			},
 			alwaysRevealActiveElement: true,
 		};
 
 		// Listen for outline data changes from the extension provider
-		this._disposables.add(this._providerService.onDidChangeOutline(this._viewType)(() => {
+		this._disposables.add(this._providerService.onDidChangeOutline(this._viewType, this._resource)(() => {
 			this._loadItems();
 		}));
 
 		// Listen for active item changes from the extension provider
-		this._disposables.add(this._providerService.onDidChangeActiveItem(this._viewType)(itemId => {
+		this._disposables.add(this._providerService.onDidChangeActiveItem(this._viewType, this._resource)(itemId => {
 			this._activeEntry = itemId ? this._flatMap.get(itemId) : undefined;
 			this._onDidChange.fire({ affectOnlyActiveElement: true });
 		}));
@@ -315,7 +316,7 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 		this._loadCts?.dispose();
 		const cts = this._loadCts = new CancellationTokenSource();
 		try {
-			const dtos = await this._providerService.provideOutline(this._viewType, cts.token);
+			const dtos = await this._providerService.provideOutline(this._viewType, this._resource, cts.token);
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
@@ -323,7 +324,7 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 			this._entries = dtos ? this._convertItems(dtos, undefined) : [];
 
 			// Restore active entry from the provider's cached active item
-			const activeId = this._providerService.getActiveItemId(this._viewType);
+			const activeId = this._providerService.getActiveItemId(this._viewType, this._resource);
 			this._activeEntry = activeId ? this._flatMap.get(activeId) : undefined;
 
 			this._onDidChange.fire({});
@@ -355,7 +356,7 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 	}
 
 	reveal(entry: CustomEditorOutlineEntry, _options: IEditorOptions, _sideBySide: boolean, _select: boolean): void {
-		this._providerService.revealItem(this._viewType, entry.id);
+		this._providerService.revealItem(this._viewType, this._resource, entry.id);
 	}
 
 	preview(_entry: CustomEditorOutlineEntry): IDisposable {
