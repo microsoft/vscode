@@ -450,7 +450,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					comment: 'This is used to know if terminal sandbox is enabled or not';
 					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('chat.tools.terminal.sandbox.enabled', { settingValue: this.getValueToReport(key, target), source });
+				}>('chat.agent.sandbox', { settingValue: this.getValueToReport(key, target), source });
 				return;
 		}
 	}

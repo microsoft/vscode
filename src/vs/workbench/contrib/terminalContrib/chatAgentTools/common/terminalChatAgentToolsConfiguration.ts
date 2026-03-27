@@ -20,7 +20,7 @@ export const enum TerminalChatAgentToolsSettingId {
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
 	AutoReplyToPrompts = 'chat.tools.terminal.autoReplyToPrompts',
 	OutputLocation = 'chat.tools.terminal.outputLocation',
-	TerminalSandboxEnabled = 'chat.tools.terminal.sandbox.enabled',
+	TerminalSandboxEnabled = 'chat.agent.sandbox',
 	TerminalSandboxNetworkAllowedDomains = 'chat.tools.terminal.sandbox.network.allowedDomains',
 	TerminalSandboxNetworkDeniedDomains = 'chat.tools.terminal.sandbox.network.deniedDomains',
 	TerminalSandboxNetworkAllowTrustedDomains = 'chat.tools.terminal.sandbox.network.allowTrustedDomains',
@@ -34,6 +34,7 @@ export const enum TerminalChatAgentToolsSettingId {
 	TerminalProfileMacOs = 'chat.tools.terminal.terminalProfile.osx',
 	TerminalProfileWindows = 'chat.tools.terminal.terminalProfile.windows',
 
+	DeprecatedTerminalSandboxEnabled = 'chat.tools.terminal.sandbox.enabled',
 	DeprecatedTerminalSandboxNetwork = 'chat.tools.terminal.sandbox.network',
 	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
 	DeprecatedAutoApprove1 = 'chat.agent.terminal.allowList',
@@ -525,7 +526,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		}
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxEnabled]: {
-		markdownDescription: localize('terminalSandbox.enabledSetting', "Controls whether to run commands in a sandboxed terminal for the run in terminal tool."),
+		markdownDescription: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system."),
 		type: 'boolean',
 		default: false,
 		tags: ['preview'],
@@ -665,4 +666,10 @@ terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedTe
 		`\`#${TerminalChatAgentToolsSettingId.TerminalSandboxNetworkDeniedDomains}#\``,
 		`\`#${TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowTrustedDomains}#\``,
 	),
+};
+
+terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxEnabled] = {
+	type: 'boolean',
+	deprecated: true,
+	markdownDeprecationMessage: localize('terminalSandboxEnabled.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
 };
