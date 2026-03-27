@@ -482,6 +482,22 @@ export function sectionToPromptType(section: AICustomizationManagementSection): 
 	}
 }
 
+function sectionToIcon(section: AICustomizationManagementSection): ThemeIcon {
+	switch (section) {
+		case AICustomizationManagementSection.Agents:
+			return agentIcon;
+		case AICustomizationManagementSection.Skills:
+			return skillIcon;
+		case AICustomizationManagementSection.Instructions:
+			return instructionsIcon;
+		case AICustomizationManagementSection.Hooks:
+			return hookIcon;
+		case AICustomizationManagementSection.Prompts:
+		default:
+			return promptIcon;
+	}
+}
+
 /**
  * An ordered create action for the add button.
  */
@@ -1554,6 +1570,9 @@ export class AICustomizationListWidget extends Disposable {
 				description: item.description,
 				promptType,
 				disabled: false,
+				groupKey: item.groupKey,
+				badge: item.badge,
+				badgeTooltip: item.badgeTooltip,
 			}))
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}
@@ -1608,13 +1627,82 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		}
 
-		// When items come from an external provider, skip storage-based grouping
-		// and render a flat list. The provider controls the full item set, so
-		// Workspace/User/Extension categories don't apply.
+		// When items come from an external provider, group by groupKey if
+		// any items define one; otherwise fall back to a flat list.
 		const activeDescriptor = this.harnessService.getActiveDescriptor();
 		if (activeDescriptor.itemProvider) {
-			matchedItems.sort((a, b) => a.name.localeCompare(b.name));
-			this.displayEntries = matchedItems.map(item => ({ type: 'file-item' as const, item }));
+			const hasGroups = matchedItems.some(item => item.groupKey !== undefined);
+			if (!hasGroups) {
+				matchedItems.sort((a, b) => a.name.localeCompare(b.name));
+				this.displayEntries = matchedItems.map(item => ({ type: 'file-item' as const, item }));
+				this.list.splice(0, this.list.length, this.displayEntries);
+				this.updateEmptyState();
+				return matchedItems.length;
+			}
+
+			// Auto-build group definitions from the items' groupKey values,
+			// preserving the order of first appearance.
+			const groupOrder: string[] = [];
+			const ungroupedKey = '__ungrouped__';
+			for (const item of matchedItems) {
+				const key = item.groupKey ?? ungroupedKey;
+				if (!groupOrder.includes(key)) {
+					groupOrder.push(key);
+				}
+			}
+
+			const groups: { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] =
+				groupOrder.map(key => ({
+					groupKey: key,
+					label: key === ungroupedKey ? localize('otherGroup', "Other") : key,
+					icon: sectionToIcon(this.currentSection),
+					description: '',
+					items: [],
+				}));
+
+			for (const item of matchedItems) {
+				const key = item.groupKey ?? ungroupedKey;
+				const group = groups.find(g => g.groupKey === key);
+				if (group) {
+					group.items.push(item);
+				}
+			}
+
+			// Sort items within each group
+			for (const group of groups) {
+				group.items.sort((a, b) => a.name.localeCompare(b.name));
+			}
+
+			// Build display entries with group headers
+			this.displayEntries = [];
+			let isFirstGroup = true;
+			for (const group of groups) {
+				if (group.items.length === 0) {
+					continue;
+				}
+
+				const collapsed = this.collapsedGroups.has(group.groupKey);
+
+				this.displayEntries.push({
+					type: 'group-header',
+					id: `group-${group.groupKey}`,
+					groupKey: group.groupKey,
+					label: group.label,
+					icon: group.icon,
+					count: group.items.length,
+					isFirst: isFirstGroup,
+					description: group.description,
+					collapsed,
+				});
+				isFirstGroup = false;
+
+				if (!collapsed) {
+					for (const item of group.items) {
+						this.displayEntries.push({ type: 'file-item', item });
+					}
+				}
+			}
+
 			this.list.splice(0, this.list.length, this.displayEntries);
 			this.updateEmptyState();
 			return matchedItems.length;
