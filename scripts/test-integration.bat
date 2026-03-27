@@ -1,7 +1,10 @@
 @echo off
 setlocal
 
-pushd %~dp0\..
+:: Capture script directory before any call :label changes %~dp0
+set "SCRIPT_DIR=%~dp0"
+
+pushd %SCRIPT_DIR%\..
 
 :: Parse arguments for help and filters
 set "HAS_FILTER="
@@ -71,8 +74,8 @@ if defined SHOW_HELP (
 )
 
 set VSCODEUSERDATADIR=%TEMP%\vscodeuserfolder-%RANDOM%-%TIME:~6,2%
-set VSCODECRASHDIR=%~dp0\..\.build\crashes
-set VSCODELOGSDIR=%~dp0\..\.build\logs\integration-tests
+set VSCODECRASHDIR=%SCRIPT_DIR%\..\.build\crashes
+set VSCODELOGSDIR=%SCRIPT_DIR%\..\.build\logs\integration-tests
 
 :: Seed user settings to disable OS notifications (dock bounce, toast, etc.)
 if not exist "%VSCODEUSERDATADIR%\User" mkdir "%VSCODEUSERDATADIR%\User"
@@ -149,14 +152,14 @@ set API_TESTS_EXTRA_ARGS=--disable-telemetry --disable-experiments --skip-welcom
 call :should_run_suite api-folder || goto skip_api_folder
 echo.
 echo ### API tests (folder)
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\vscode-api-tests\testWorkspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=%~dp0\..\extensions\vscode-api-tests --extensionTestsPath=%~dp0\..\extensions\vscode-api-tests\out\singlefolder-tests %API_TESTS_EXTRA_ARGS%
+call "%INTEGRATION_TEST_ELECTRON_PATH%" %SCRIPT_DIR%\..\extensions\vscode-api-tests\testWorkspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=%SCRIPT_DIR%\..\extensions\vscode-api-tests --extensionTestsPath=%SCRIPT_DIR%\..\extensions\vscode-api-tests\out\singlefolder-tests %API_TESTS_EXTRA_ARGS%
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_api_folder
 
 call :should_run_suite api-workspace || goto skip_api_workspace
 echo.
 echo ### API tests (workspace)
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\vscode-api-tests\testworkspace.code-workspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=%~dp0\..\extensions\vscode-api-tests --extensionTestsPath=%~dp0\..\extensions\vscode-api-tests\out\workspace-tests %API_TESTS_EXTRA_ARGS%
+call "%INTEGRATION_TEST_ELECTRON_PATH%" %SCRIPT_DIR%\..\extensions\vscode-api-tests\testworkspace.code-workspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=%SCRIPT_DIR%\..\extensions\vscode-api-tests --extensionTestsPath=%SCRIPT_DIR%\..\extensions\vscode-api-tests\out\workspace-tests %API_TESTS_EXTRA_ARGS%
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_api_workspace
 
@@ -185,7 +188,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 call :should_run_suite typescript || goto skip_typescript
 echo.
 echo ### TypeScript tests
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\typescript-language-features\test-workspace --extensionDevelopmentPath=%~dp0\..\extensions\typescript-language-features --extensionTestsPath=%~dp0\..\extensions\typescript-language-features\out\test\unit %API_TESTS_EXTRA_ARGS%
+call "%INTEGRATION_TEST_ELECTRON_PATH%" %SCRIPT_DIR%\..\extensions\typescript-language-features\test-workspace --extensionDevelopmentPath=%SCRIPT_DIR%\..\extensions\typescript-language-features --extensionTestsPath=%SCRIPT_DIR%\..\extensions\typescript-language-features\out\test\unit %API_TESTS_EXTRA_ARGS%
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_typescript
 
@@ -203,7 +206,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 call :should_run_suite emmet || goto skip_emmet
 echo.
 echo ### Emmet tests
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\emmet\test-workspace --extensionDevelopmentPath=%~dp0\..\extensions\emmet --extensionTestsPath=%~dp0\..\extensions\emmet\out\test %API_TESTS_EXTRA_ARGS%
+call "%INTEGRATION_TEST_ELECTRON_PATH%" %SCRIPT_DIR%\..\extensions\emmet\test-workspace --extensionDevelopmentPath=%SCRIPT_DIR%\..\extensions\emmet --extensionTestsPath=%SCRIPT_DIR%\..\extensions\emmet\out\test %API_TESTS_EXTRA_ARGS%
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_emmet
 
@@ -213,7 +216,7 @@ echo ### Git tests
 for /f "delims=" %%i in ('node -p "require('fs').realpathSync.native(require('os').tmpdir())"') do set TEMPDIR=%%i
 set GITWORKSPACE=%TEMPDIR%\git-%RANDOM%
 mkdir %GITWORKSPACE%
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %GITWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\git --extensionTestsPath=%~dp0\..\extensions\git\out\test %API_TESTS_EXTRA_ARGS%
+call "%INTEGRATION_TEST_ELECTRON_PATH%" %GITWORKSPACE% --extensionDevelopmentPath=%SCRIPT_DIR%\..\extensions\git --extensionTestsPath=%SCRIPT_DIR%\..\extensions\git\out\test %API_TESTS_EXTRA_ARGS%
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_git
 
@@ -277,14 +280,14 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 call :should_run_suite css || goto skip_css
 echo.
 echo ### CSS tests
-call %~dp0\node-electron.bat %~dp0\..\extensions\css-language-features/server/test/index.js
+call %SCRIPT_DIR%\node-electron.bat %SCRIPT_DIR%\..\extensions\css-language-features/server/test/index.js
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_css
 
 call :should_run_suite html || goto skip_html
 echo.
 echo ### HTML tests
-call %~dp0\node-electron.bat %~dp0\..\extensions\html-language-features/server/test/index.js
+call %SCRIPT_DIR%\node-electron.bat %SCRIPT_DIR%\..\extensions\html-language-features/server/test/index.js
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_html
 
