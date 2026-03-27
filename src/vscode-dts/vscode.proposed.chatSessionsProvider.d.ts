@@ -201,8 +201,6 @@ declare module 'vscode' {
 
 		/**
 		 * Create a new managed ChatSessionInputState object.
-		 *
-		 *
 		 */
 		createChatSessionInputState(groups: ChatSessionProviderOptionGroup[]): ChatSessionInputState;
 	}
