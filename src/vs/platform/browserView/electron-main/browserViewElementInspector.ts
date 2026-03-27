@@ -81,18 +81,23 @@ export class BrowserViewElementInspector extends Disposable {
 
 		this._connectionPromise = browser.attach().then(
 			async conn => {
-				// Important: don't use `Runtime.*` commands so we can support inspection during debugging.
-				// We also initialize here rather than during selection as CSS.enable will hang if debugging is paused, but works if enabled beforehand.
-				await conn.sendCommand('DOM.enable');
-				await conn.sendCommand('Overlay.enable');
-				await conn.sendCommand('CSS.enable');
+				try {
+					// Important: don't use `Runtime.*` commands so we can support inspection during debugging.
+					// We also initialize here rather than during selection as CSS.enable will hang if debugging is paused, but works if enabled beforehand.
+					await conn.sendCommand('DOM.enable');
+					await conn.sendCommand('Overlay.enable');
+					await conn.sendCommand('CSS.enable');
 
-				if (this._store.isDisposed) {
+					if (this._store.isDisposed) {
+						conn.dispose();
+						throw new Error('Inspector disposed before connection was ready');
+					}
+					this._register(conn);
+					return conn;
+				} catch (error) {
 					conn.dispose();
-					throw new Error('Inspector disposed before connection was ready');
+					throw error;
 				}
-				this._register(conn);
-				return conn;
 			}
 		);
 	}
