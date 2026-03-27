@@ -15,7 +15,8 @@ import { combinedDisposable, Disposable, MutableDisposable } from '../../../../.
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { assertType } from '../../../../../../base/common/types.js';
-import { URI, UriComponents } from '../../../../../../base/common/uri.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { IEditorConstructionOptions } from '../../../../../../editor/browser/config/editorConfiguration.js';
 import { IDiffEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { EditorExtensionsRegistry } from '../../../../../../editor/browser/editorExtensions.js';
@@ -24,14 +25,15 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../../ed
 import { DiffEditorWidget } from '../../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { EditorOption, IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
 import { EDITOR_FONT_DEFAULTS } from '../../../../../../editor/common/config/fontInfo.js';
-import { IRange, Range } from '../../../../../../editor/common/core/range.js';
-import { ScrollType } from '../../../../../../editor/common/editorCommon.js';
-import { TextEdit } from '../../../../../../editor/common/languages.js';
 import { EndOfLinePreference, ITextModel } from '../../../../../../editor/common/model.js';
+import { TextEdit } from '../../../../../../editor/common/languages.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../../editor/common/languages/modesRegistry.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
 import { TextModelText } from '../../../../../../editor/common/model/textModelText.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { DefaultModelSHA1Computer } from '../../../../../../editor/common/services/modelService.js';
-import { ITextModelContentProvider, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { BracketMatchingController } from '../../../../../../editor/contrib/bracketMatching/browser/bracketMatching.js';
 import { ColorDetector } from '../../../../../../editor/contrib/colorPicker/browser/colorDetector.js';
 import { ContextMenuController } from '../../../../../../editor/contrib/contextmenu/browser/contextmenu.js';
@@ -45,6 +47,7 @@ import { SmartSelectController } from '../../../../../../editor/contrib/smartSel
 import { WordHighlighterContribution } from '../../../../../../editor/contrib/wordHighlighter/browser/wordHighlighter.js';
 import { localize } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -78,59 +81,23 @@ const $ = dom.$;
 
 export interface ICodeBlockData {
 	readonly codeBlockIndex: number;
-	readonly codeBlockPartIndex: number;
 	readonly element: IChatRequestViewModel | IChatResponseViewModel;
 
-	readonly textModel: Promise<ITextModel> | undefined;
+	/**
+	 * Text content for the code block. The CodeBlockPart will manage
+	 * creating and updating its own text model from this text.
+	 */
+	readonly text: string;
 	readonly languageId: string;
 
 	readonly codemapperUri?: URI;
 
 	readonly vulns?: readonly IMarkdownVulnerability[];
-	readonly range?: Range;
 
 	readonly parentContextKeyService?: IContextKeyService;
 	readonly renderOptions?: ICodeBlockRenderOptions;
 
 	readonly chatSessionResource: URI;
-}
-
-/**
- * Special markdown code block language id used to render a local file.
- *
- * The text of the code path should be a {@link LocalFileCodeBlockData} json object.
- */
-export const localFileLanguageId = 'vscode-local-file';
-
-
-export function parseLocalFileData(text: string) {
-
-	interface RawLocalFileCodeBlockData {
-		readonly uri: UriComponents;
-		readonly range?: IRange;
-	}
-
-	let data: RawLocalFileCodeBlockData;
-	try {
-		data = JSON.parse(text);
-	} catch (e) {
-		throw new Error('Could not parse code block local file data');
-	}
-
-	let uri: URI;
-	try {
-		uri = URI.revive(data?.uri);
-	} catch (e) {
-		throw new Error('Invalid code block local file data URI');
-	}
-
-	let range: IRange | undefined;
-	if (data.range) {
-		// Note that since this is coming from extensions, position are actually zero based and must be converted.
-		range = new Range(data.range.startLineNumber + 1, data.range.startColumn + 1, data.range.endLineNumber + 1, data.range.endColumn + 1);
-	}
-
-	return { uri, range };
 }
 
 export interface ICodeBlockActionContext {
@@ -162,6 +129,8 @@ export class CodeBlockPart extends Disposable {
 	private readonly vulnsButton: Button;
 	private readonly vulnsListElement: HTMLElement;
 
+	private readonly _ownedTextModel = this._register(new MutableDisposable<ITextModel>());
+
 	private currentCodeBlockData: ICodeBlockData | undefined;
 	private currentScrollWidth = 0;
 	private lastLayoutWidth: number | undefined;
@@ -183,8 +152,10 @@ export class CodeBlockPart extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModelService protected readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this.element = $('.interactive-result-code-block');
@@ -403,15 +374,10 @@ export class CodeBlockPart extends Disposable {
 	}
 
 	private getContentHeight() {
-		if (this.currentCodeBlockData?.range) {
-			const lineCount = this.currentCodeBlockData.range.endLineNumber - this.currentCodeBlockData.range.startLineNumber + 1;
-			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
-			return lineCount * lineHeight + 2 * this.verticalPadding;
-		}
 		return this.editor.getContentHeight();
 	}
 
-	async render(data: ICodeBlockData, width: number) {
+	render(data: ICodeBlockData, width: number) {
 		this.currentCodeBlockData = data;
 		if (data.parentContextKeyService) {
 			this.contextKeyService.updateParent(data.parentContextKeyService);
@@ -423,7 +389,7 @@ export class CodeBlockPart extends Disposable {
 			this.layout(width);
 		}
 
-		const didUpdate = await this.updateEditor(data);
+		const didUpdate = this.updateEditor(data);
 		if (!didUpdate || this.isDisposed || this.currentCodeBlockData !== data) {
 			return;
 		}
@@ -460,7 +426,9 @@ export class CodeBlockPart extends Disposable {
 
 	reset() {
 		this.clearWidgets();
+		this.editor.setModel(null);
 		this.currentCodeBlockData = undefined;
+		this._ownedTextModel.clear();
 	}
 
 	onDidRemount(): void {
@@ -477,21 +445,32 @@ export class CodeBlockPart extends Disposable {
 		GlyphHoverController.get(this.editor)?.hideGlyphHover();
 	}
 
-	private async updateEditor(data: ICodeBlockData): Promise<boolean> {
-		const textModel = await data.textModel;
-		if (this.isDisposed || this.currentCodeBlockData !== data || !textModel || textModel.isDisposed()) {
+	private updateEditor(data: ICodeBlockData): boolean {
+		if (this.isDisposed || this.currentCodeBlockData !== data) {
 			return false;
 		}
 
-		this.editor.setModel(textModel);
-		if (data.range) {
-			this.editor.setSelection(data.range);
-			this.editor.revealRangeInCenter(data.range, ScrollType.Immediate);
+		// Create or reuse the internal model based on a stable URI
+		const uri = this.getCodeBlockUri(data);
+		if (!this._ownedTextModel.value || !isEqual(this._ownedTextModel.value.uri, uri)) {
+			this._ownedTextModel.value = this.modelService.createModel('', null, uri, true);
 		}
+		this.editor.setModel(this._ownedTextModel.value);
+		this.setText(data.text);
+		this.setLanguage(data.languageId);
 
 		this.updateContexts(data);
 
 		return true;
+	}
+
+	private getCodeBlockUri(data: ICodeBlockData): URI {
+		const encodedSessionId = encodeBase64(VSBuffer.wrap(new TextEncoder().encode(data.chatSessionResource.toString())), false, true);
+		return URI.from({
+			scheme: Schemas.vscodeChatCodeBlock,
+			authority: encodedSessionId,
+			path: `/${data.element.id}/${data.codeBlockIndex}`,
+		});
 	}
 
 	private getVulnerabilitiesLabel(): string {
@@ -513,7 +492,7 @@ export class CodeBlockPart extends Disposable {
 		}
 
 		this.toolbar.context = {
-			code: textModel.getTextBuffer().getValueInRange(data.range ?? textModel.getFullModelRange(), EndOfLinePreference.TextDefined),
+			code: textModel.getTextBuffer().getValueInRange(textModel.getFullModelRange(), EndOfLinePreference.TextDefined),
 			codeBlockIndex: data.codeBlockIndex,
 			element: data.element,
 			languageId: textModel.getLanguageId(),
@@ -522,24 +501,39 @@ export class CodeBlockPart extends Disposable {
 		} satisfies ICodeBlockActionContext;
 		this.resourceContextKey.set(textModel.uri);
 	}
-}
 
-export class ChatCodeBlockContentProvider extends Disposable implements ITextModelContentProvider {
+	private setText(newText: string): void {
+		if (!this._ownedTextModel.value) {
+			return;
+		}
 
-	constructor(
-		@ITextModelService textModelService: ITextModelService,
-		@IModelService private readonly _modelService: IModelService,
-	) {
-		super();
-		this._register(textModelService.registerTextModelContentProvider(Schemas.vscodeChatCodeBlock, this));
+		const currentText = this._ownedTextModel.value.getValue(EndOfLinePreference.LF);
+		if (newText === currentText) {
+			return;
+		}
+
+		if (newText.startsWith(currentText)) {
+			const text = newText.slice(currentText.length);
+			const lastLine = this._ownedTextModel.value.getLineCount();
+			const lastCol = this._ownedTextModel.value.getLineMaxColumn(lastLine);
+			this._ownedTextModel.value.applyEdits([{ range: new Range(lastLine, lastCol, lastLine, lastCol), text }]);
+		} else {
+			this.logService.trace('[CodeBlockPart] setText could not optimize, falling back to setValue');
+			this._ownedTextModel.value.setValue(newText);
+		}
 	}
 
-	async provideTextContent(resource: URI): Promise<ITextModel | null> {
-		const existing = this._modelService.getModel(resource);
-		if (existing) {
-			return existing;
+	private setLanguage(languageId: string): void {
+		if (!this._ownedTextModel.value) {
+			return;
 		}
-		return this._modelService.createModel('', null, resource);
+
+		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(languageId);
+		if (vscodeLanguageId && vscodeLanguageId !== this._ownedTextModel.value.getLanguageId()) {
+			this._ownedTextModel.value.setLanguage(vscodeLanguageId);
+		} else if (!vscodeLanguageId && this._ownedTextModel.value.getLanguageId() !== PLAINTEXT_LANGUAGE_ID) {
+			this._ownedTextModel.value.setLanguage(PLAINTEXT_LANGUAGE_ID);
+		}
 	}
 }
 

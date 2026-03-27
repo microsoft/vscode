@@ -22,7 +22,7 @@ import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, dispose, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { FileAccess, Schemas } from '../../../../../base/common/network.js';
@@ -59,7 +59,6 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
-import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
@@ -97,7 +96,7 @@ import { ChatWorkspaceEditContentPart } from './chatContentParts/chatWorkspaceEd
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
-import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/codeBlockPart.js';
+import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -232,11 +231,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private _elementBeingRendered: ChatTreeItem | undefined;
 	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 
-	/**
-	 * Tool invocations get their own so that the ChatViewModel doesn't overwrite it.
-	 * TODO@roblourens shouldn't use the CodeBlockModelCollection at all
-	 */
-	private readonly _toolInvocationCodeBlockCollection: CodeBlockModelCollection;
 	private readonly _inlineTextModels: InlineTextModelCollection;
 
 	/**
@@ -249,7 +243,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		editorOptions: ChatEditorOptions,
 		private rendererOptions: IChatListItemRendererOptions,
 		private readonly delegate: IChatRendererDelegate,
-		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		overflowWidgetsDomNode: HTMLElement | undefined,
 		private viewModel: IChatViewModel | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -276,9 +269,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._treePool = this._register(this.instantiationService.createInstance(TreePool, this._onDidChangeVisibility.event));
 		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, undefined, undefined));
 
-		this._register(this.instantiationService.createInstance(ChatCodeBlockContentProvider));
 		this._inlineTextModels = this._register(this.instantiationService.createInstance(InlineTextModelCollection));
-		this._toolInvocationCodeBlockCollection = this._register(this.instantiationService.createInstance(CodeBlockModelCollection, 'tools'));
 		// Auto-skip pending question carousels when user submits a new chat message
 		this._register(this.chatService.onDidSubmitRequest(e => {
 			const carousels = this.pendingQuestionCarousels.get(e.chatSessionResource);
@@ -1163,7 +1154,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				container: templateData.rowContainer,
 				editorPool: this._editorPool,
 				diffEditorPool: this._diffEditorPool,
-				codeBlockModelCollection: this.codeBlockModelCollection,
 				currentWidth: this._currentLayoutWidth,
 				onDidChangeVisibility: this._onDidChangeVisibility.event,
 				inlineTextModels: this._inlineTextModels,
@@ -1317,7 +1307,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				container: templateData.rowContainer,
 				editorPool: this._editorPool,
 				diffEditorPool: this._diffEditorPool,
-				codeBlockModelCollection: this.codeBlockModelCollection,
 				currentWidth: this._currentLayoutWidth,
 				onDidChangeVisibility: this._onDidChangeVisibility.event,
 				inlineTextModels: this._inlineTextModels,
@@ -1705,7 +1694,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this._contentReferencesListPool,
 			this._toolEditorPool,
 			() => this._currentLayoutWidth.get(),
-			this._toolInvocationCodeBlockCollection,
 			this._announcedToolProgressKeys,
 		);
 		// Don't append the parent subagent tool itself - its description is already shown in the title
@@ -1941,11 +1929,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		part.codeblocks?.forEach((info, i) => {
 			codeBlocksByResponseId[codeBlockStartIndex + i] = info;
-			part.addDisposable!(thenIfNotDisposed(info.uriPromise, uri => {
-				if (!uri) {
-					return;
-				}
 
+			const uri = info.uri;
+			if (uri) {
 				this.codeBlocksByEditorUri.set(uri, info);
 				part.addDisposable!(toDisposable(() => {
 					const codeblock = this.codeBlocksByEditorUri.get(uri);
@@ -1953,7 +1939,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						this.codeBlocksByEditorUri.delete(uri);
 					}
 				}));
-			}));
+			}
 		});
 
 	}
@@ -1968,7 +1954,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Factory that creates the tool invocation part with all necessary setup
 		let lazilyCreatedPart: ChatToolInvocationPart | undefined = undefined;
 		const createToolPart = (): { domNode: HTMLElement; disposable: ChatToolInvocationPart; part: ChatToolInvocationPart } => {
-			lazilyCreatedPart = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.chatContentMarkdownRenderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth.get(), this._toolInvocationCodeBlockCollection, this._announcedToolProgressKeys, codeBlockStartIndex);
+			lazilyCreatedPart = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.chatContentMarkdownRenderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth.get(), this._announcedToolProgressKeys, codeBlockStartIndex);
 			this.handleRenderedCodeblocks(context.element, lazilyCreatedPart, codeBlockStartIndex);
 			return { domNode: lazilyCreatedPart.domNode, disposable: lazilyCreatedPart, part: lazilyCreatedPart };
 		};
@@ -2370,7 +2356,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
 		const codeBlockStartIndex = context.codeBlockStartIndex;
-		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.chatContentMarkdownRenderer, undefined, this._currentLayoutWidth.get(), this.codeBlockModelCollection, {});
+		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.chatContentMarkdownRenderer, undefined, this._currentLayoutWidth.get(), {});
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => this.fireItemHeightChange(templateData)));
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;

@@ -18,7 +18,6 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatViewModel } from '../../common/model/chatViewModel.js';
-import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatListWidget } from '../widget/chatListWidget.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
@@ -109,11 +108,9 @@ export class AgentSessionHoverWidget extends Disposable {
 		this.loadingElement.remove();
 
 		// Create view model - only show last request+response pair
-		const codeBlockCollection = this._register(this.instantiationService.createInstance(CodeBlockModelCollection, 'agentSessionHover'));
 		const viewModel = this._register(this.instantiationService.createInstance(
 			ChatViewModel,
 			model,
-			codeBlockCollection,
 			{ maxVisibleItems: 2 }
 		));
 
