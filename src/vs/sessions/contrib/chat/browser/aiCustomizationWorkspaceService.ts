@@ -261,4 +261,18 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			return applyStorageSourceFilter([cmd.promptPath], filter).length > 0;
 		});
 	}
+
+	private static readonly _skillUIIntegrations: ReadonlyMap<string, string> = new Map([
+		['act-on-feedback', localize('skillUI.actOnFeedback', "Used by the Submit Feedback button in the Changes toolbar")],
+		['generate-run-commands', localize('skillUI.generateRunCommands', "Used by the Run button in the title bar")],
+		['create-pr', localize('skillUI.createPr', "Used by the Create Pull Request button in the Changes toolbar")],
+		['create-draft-pr', localize('skillUI.createDraftPr', "Used by the Create Draft Pull Request button in the Changes toolbar")],
+		['update-pr', localize('skillUI.updatePr', "Used by the Update Pull Request button in the Changes toolbar")],
+		['merge-changes', localize('skillUI.mergeChanges', "Used by the Merge button in the Changes toolbar")],
+		['commit', localize('skillUI.commit', "Used by the Commit button in the Changes toolbar")],
+	]);
+
+	getSkillUIIntegrations(): ReadonlyMap<string, string> {
+		return SessionsAICustomizationWorkspaceService._skillUIIntegrations;
+	}
 }

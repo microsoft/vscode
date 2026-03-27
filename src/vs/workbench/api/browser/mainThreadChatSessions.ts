@@ -5,7 +5,6 @@
 
 import { raceCancellationError } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter } from '../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
@@ -13,11 +12,9 @@ import { ResourceMap } from '../../../base/common/map.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { autorun, IObservable, observableValue } from '../../../base/common/observable.js';
 import { isEqual } from '../../../base/common/resources.js';
-import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { hasValidDiff, IAgentSession } from '../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
@@ -27,15 +24,14 @@ import { IChatEditorOptions } from '../../contrib/chat/browser/widgetHosts/edito
 import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { awaitStatsForSession } from '../../contrib/chat/common/chat.js';
+import { getInProgressSessionDescription } from '../../contrib/chat/browser/chatSessions/chatSessionDescription.js';
 import { IChatContentInlineReference, IChatProgress, IChatService, ResponseModelState } from '../../contrib/chat/common/chatService/chatService.js';
-import { ChatSessionOptionsMap, ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionCustomizationsProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsService, ReadonlyChatSessionOptionsMap } from '../../contrib/chat/common/chatSessionsService.js';
-import { ChatAgentLocation, ChatConfiguration } from '../../contrib/chat/common/constants.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsService, ReadonlyChatSessionOptionsMap } from '../../contrib/chat/common/chatSessionsService.js';
+import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IChatDebugService } from '../../contrib/chat/common/chatDebugService.js';
-import { ICustomizationHarnessService, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
-import { PromptsStorage } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IChatArtifactsService } from '../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatTodoListService } from '../../contrib/chat/common/tools/chatTodoListService.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
@@ -442,7 +438,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		readonly controller: MainThreadChatSessionItemController;
 	}>());
 	private readonly _contentProvidersRegistrations = this._register(new DisposableMap<number>());
-	private readonly _customizationsProviderRegistrations = new Map<number, { chatSessionType: string; emitter: Emitter<void>; dispose: () => void }>();
 	private readonly _sessionTypeToHandle = new Map<string, number>();
 
 	private readonly _activeSessions = new ResourceMap<ObservableChatSession>();
@@ -464,8 +459,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ICustomizationHarnessService private readonly _harnessService: ICustomizationHarnessService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -678,7 +671,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		// Override description if there's an in-progress count
 		const inProgress = model.getRequests().filter(r => r.response && !r.response.isComplete);
 		if (inProgress.length) {
-			outgoingSession.description = this._chatSessionsService.getInProgressSessionDescription(model);
+			outgoingSession.description = getInProgressSessionDescription(model);
 		}
 
 		// Override changes
@@ -846,68 +839,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		}).catch(err => this._logService.error('Error fetching chat session options', err));
 	}
 
-	$registerChatSessionCustomizationsProvider(handle: number, chatSessionType: string): void {
-		// Kill switch: when disabled, ignore all extension customizations providers
-		if (!this._configurationService.getValue<boolean>(ChatConfiguration.CustomizationsProviderApi)) {
-			return;
-		}
-
-		const disposables = new DisposableStore();
-		const emitter = disposables.add(new Emitter<void>());
-
-		const provider: IChatSessionCustomizationsProvider = {
-			onDidChangeCustomizations: emitter.event,
-			provideCustomizations: (token) => {
-				return this._proxy.$provideChatSessionCustomizations(handle, token).then(groups => {
-					if (!groups) { return undefined; }
-					return groups.map(g => ({
-						...g,
-						items: g.items.map(item => ({
-							...item,
-							uri: URI.revive(item.uri),
-						})),
-					}));
-				});
-			},
-		};
-
-		disposables.add(this._chatSessionsService.registerCustomizationsProvider(chatSessionType, provider));
-
-		// Register as a harness so it appears in the harness picker
-		const contribution = this._chatSessionsService.getChatSessionContribution(chatSessionType);
-		if (contribution) {
-			const icon = ThemeIcon.isThemeIcon(contribution.icon)
-				? contribution.icon
-				: ThemeIcon.fromId(Codicon.copilot.id);
-			const filter = { sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin] };
-			const harnessDescriptor: IHarnessDescriptor = {
-				id: chatSessionType,
-				label: contribution.displayName ?? chatSessionType,
-				icon,
-				hideGenerateButton: true,
-				getStorageSourceFilter: () => filter,
-			};
-			disposables.add(this._harnessService.registerContributedHarness(harnessDescriptor));
-		}
-
-		this._customizationsProviderRegistrations.set(handle, { chatSessionType, emitter, dispose: () => disposables.dispose() });
-	}
-
-	$unregisterChatSessionCustomizationsProvider(handle: number): void {
-		const reg = this._customizationsProviderRegistrations.get(handle);
-		if (reg) {
-			reg.dispose();
-			this._customizationsProviderRegistrations.delete(handle);
-		}
-	}
-
-	$onDidChangeChatSessionCustomizations(handle: number): void {
-		const reg = this._customizationsProviderRegistrations.get(handle);
-		if (reg) {
-			reg.emitter.fire();
-		}
-	}
-
 	override dispose(): void {
 		for (const session of this._activeSessions.values()) {
 			session.dispose();
@@ -918,11 +849,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			disposable.dispose();
 		}
 		this._sessionDisposables.clear();
-
-		for (const reg of this._customizationsProviderRegistrations.values()) {
-			reg.dispose();
-		}
-		this._customizationsProviderRegistrations.clear();
 
 		super.dispose();
 	}

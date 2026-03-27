@@ -176,7 +176,7 @@ function createMockHarnessService(activeHarness: CustomizationHarness, descripto
 			return descriptors.find(h => h.id === active.get()) ?? descriptors[0];
 		}
 		override setActiveHarness(id: string) { active.set(id, undefined); }
-		override registerContributedHarness() { return { dispose() { } }; }
+		override registerExternalHarness() { return { dispose() { } }; }
 	}();
 }
 
@@ -290,6 +290,11 @@ const allFiles: IFixtureFile[] = [
 	// Skills - extension (built-in + third-party)
 	{ uri: URI.file('/extensions/github.copilot-chat/skills/workspace/SKILL.md'), storage: PromptsStorage.extension, type: PromptsType.skill, name: 'Workspace Search', description: 'Built-in workspace search skill', extensionId: 'GitHub.copilot-chat', extensionDisplayName: 'GitHub Copilot Chat' },
 	{ uri: URI.file('/extensions/acme.tools/skills/audit/SKILL.md'), storage: PromptsStorage.extension, type: PromptsType.skill, name: 'Audit', description: 'Third-party audit skill', extensionId: 'acme.tools', extensionDisplayName: 'Acme Tools' },
+	// Skills - built-in (sessions bundled skills with UI integrations)
+	{ uri: URI.file('/app/skills/act-on-feedback/SKILL.md'), storage: BUILTIN_STORAGE as PromptsStorage, type: PromptsType.skill, name: 'act-on-feedback', description: 'Act on user feedback attached to the current session' },
+	{ uri: URI.file('/app/skills/generate-run-commands/SKILL.md'), storage: BUILTIN_STORAGE as PromptsStorage, type: PromptsType.skill, name: 'generate-run-commands', description: 'Generate or modify run commands for the current session' },
+	{ uri: URI.file('/app/skills/commit/SKILL.md'), storage: BUILTIN_STORAGE as PromptsStorage, type: PromptsType.skill, name: 'commit', description: 'Commit staged or unstaged changes with an AI-generated commit message' },
+	{ uri: URI.file('/app/skills/create-pr/SKILL.md'), storage: BUILTIN_STORAGE as PromptsStorage, type: PromptsType.skill, name: 'create-pr', description: 'Create a pull request for the current session' },
 	// Prompts — workspace
 	{ uri: URI.file('/workspace/.github/prompts/explain.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, name: 'Explain', description: 'Explain selected code' },
 	{ uri: URI.file('/workspace/.github/prompts/review.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, name: 'Review', description: 'Review changes' },
@@ -353,6 +358,7 @@ interface IRenderEditorOptions {
 	readonly scrollToBottom?: boolean;
 	readonly width?: number;
 	readonly height?: number;
+	readonly skillUIIntegrations?: ReadonlyMap<string, string>;
 }
 
 async function waitForAnimationFrames(count: number): Promise<void> {
@@ -423,6 +429,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	ctx.container.style.height = `${height}px`;
 
 	const isSessionsWindow = options.isSessionsWindow ?? false;
+	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Skills,
@@ -470,12 +477,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override setOverrideProjectRoot() { }
 				override readonly managementSections = managementSections;
 				override async generateCustomization() { }
+				override getSkillUIIntegrations() { return skillUIIntegrations; }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, harnessService);
 			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
 				override readonly onDidChangeCustomizations = Event.None;
 				override async getCustomizations() { return undefined; }
 				override getRegisteredChatSessionItemProviders() { return []; }
+				override hasCustomizationsProvider() { return false; }
 			}());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
@@ -644,7 +653,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly activeHarness = observableValue<string>('activeHarness', CustomizationHarness.VSCode);
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
-				override registerContributedHarness() { return { dispose() { } }; }
+				override registerExternalHarness() { return { dispose() { } }; }
 			}());
 		},
 	});
@@ -809,6 +818,32 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				AICustomizationManagementSection.McpServers,
 				AICustomizationManagementSection.Plugins,
 			],
+		}),
+	}),
+
+	// Sessions Skills tab showing UI Integration badges on built-in skills
+	SessionsSkillsTab: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.CLI,
+			isSessionsWindow: true,
+			selectedSection: AICustomizationManagementSection.Skills,
+			availableHarnesses: [
+				createCliHarnessDescriptor(getCliUserRoots(userHome), [BUILTIN_STORAGE]),
+			],
+			managementSections: [
+				AICustomizationManagementSection.Agents,
+				AICustomizationManagementSection.Skills,
+				AICustomizationManagementSection.Instructions,
+				AICustomizationManagementSection.Prompts,
+				AICustomizationManagementSection.Hooks,
+				AICustomizationManagementSection.McpServers,
+				AICustomizationManagementSection.Plugins,
+			],
+			skillUIIntegrations: new Map([
+				['act-on-feedback', 'Used by the Submit Feedback button in the Changes toolbar'],
+				['generate-run-commands', 'Used by the Run button in the title bar'],
+			]),
 		}),
 	}),
 

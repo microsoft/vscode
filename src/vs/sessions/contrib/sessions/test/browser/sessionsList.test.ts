@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISessionData, SessionStatus } from '../../common/sessionData.js';
+import { IChatData, ISessionData, SessionStatus } from '../../common/sessionData.js';
 import { groupByWorkspace, sortSessions, SessionsSorting } from '../../browser/views/sessionsList.js';
 
 function createSession(id: string, opts: {
@@ -44,6 +44,8 @@ function createSession(id: string, opts: {
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		pullRequest: observableValue(`pullRequest-${id}`, undefined),
+		chats: observableValue<readonly IChatData[]>(`chats-${id}`, []),
+		activeChat: observableValue<IChatData>(`activeChat-${id}`, undefined!),
 	};
 }
 
@@ -65,7 +67,7 @@ suite('Sessions - SessionsList Helpers', () => {
 			assert.deepStrictEqual(groups.map(g => g.label), ['Apple', 'Mango', 'Zebra']);
 		});
 
-		test('sessions without workspace are grouped under "No Workspace"', () => {
+		test('sessions without workspace are grouped under "Unknown"', () => {
 			const sessions = [
 				createSession('1', { workspaceLabel: 'Beta' }),
 				createSession('2', {}),
@@ -74,7 +76,7 @@ suite('Sessions - SessionsList Helpers', () => {
 
 			const groups = groupByWorkspace(sessions);
 
-			assert.deepStrictEqual(groups.map(g => g.label), ['Alpha', 'Beta', 'No Workspace']);
+			assert.deepStrictEqual(groups.map(g => g.label), ['Alpha', 'Beta', 'Unknown']);
 		});
 
 		test('multiple sessions in same workspace are grouped together', () => {
@@ -89,6 +91,30 @@ suite('Sessions - SessionsList Helpers', () => {
 			assert.deepStrictEqual(groups.map(g => g.label), ['Repo-A', 'Repo-B']);
 			assert.strictEqual(groups[0].sessions.length, 1);
 			assert.strictEqual(groups[1].sessions.length, 2);
+		});
+
+		test('"No Workspace" appears after workspaces that sort alphabetically later', () => {
+			const sessions = [
+				createSession('1', {}),
+				createSession('2', { workspaceLabel: 'Zulu' }),
+				createSession('3', { workspaceLabel: 'Alpha' }),
+			];
+
+			const groups = groupByWorkspace(sessions);
+
+			assert.deepStrictEqual(groups.map(g => g.label), ['Alpha', 'Zulu', 'Unknown']);
+		});
+
+		test('empty workspace label is treated as "Unknown"', () => {
+			const sessions = [
+				createSession('1', { workspaceLabel: 'Zulu' }),
+				createSession('2', { workspaceLabel: '' }),
+			];
+
+			const groups = groupByWorkspace(sessions);
+
+			assert.deepStrictEqual(groups.map(g => g.label), ['Zulu', 'Unknown']);
+			assert.strictEqual(groups[1].sessions.length, 1);
 		});
 
 		test('group ids are prefixed with workspace:', () => {

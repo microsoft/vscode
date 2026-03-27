@@ -74,7 +74,6 @@ suite('ObservableChatSession', function () {
 			$onDidChangeChatSessionItemState: sinon.stub(),
 			$newChatSessionItem: sinon.stub().resolves(undefined),
 			$forkChatSession: sinon.stub().resolves(undefined),
-			$provideChatSessionCustomizations: sinon.stub().resolves(undefined),
 		};
 	});
 
@@ -525,7 +524,6 @@ suite('MainThreadChatSessions', function () {
 			$onDidChangeChatSessionItemState: sinon.stub(),
 			$newChatSessionItem: sinon.stub().resolves(undefined),
 			$forkChatSession: sinon.stub().resolves(undefined),
-			$provideChatSessionCustomizations: sinon.stub().resolves(undefined),
 		};
 
 		const extHostContext = new class implements IExtHostContext {
@@ -906,47 +904,6 @@ suite('MainThreadChatSessions', function () {
 
 		// Now getSessionOption should return the value
 		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'models'), 'gpt-4');
-
-		mainThread.$unregisterChatSessionContentProvider(1);
-	});
-
-	test('hasAnySessionOptions returns correct values', async function () {
-		const sessionScheme = 'test-session-type';
-		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
-
-		const resourceWithOptions = URI.parse(`${sessionScheme}:/session-with-options`);
-		const resourceWithoutOptions = URI.parse(`${sessionScheme}:/session-without-options`);
-
-		// Session with options
-		const sessionContentWithOptions: IChatSessionDto = {
-			resource: resourceWithOptions,
-			history: [],
-			hasActiveResponseCallback: false,
-			hasRequestHandler: false,
-			hasForkHandler: false,
-			supportsInterruption: false,
-			options: { 'models': 'gpt-4' }
-		};
-
-		// Session without options
-		const sessionContentWithoutOptions: IChatSessionDto = {
-			resource: resourceWithoutOptions,
-			history: [],
-			hasActiveResponseCallback: false,
-			hasRequestHandler: false,
-			hasForkHandler: false,
-			supportsInterruption: false,
-		};
-
-		asSinonMethodStub(proxy.$provideChatSessionContent)
-			.onFirstCall().resolves(sessionContentWithOptions)
-			.onSecondCall().resolves(sessionContentWithoutOptions);
-
-		await chatSessionsService.getOrCreateChatSession(resourceWithOptions, CancellationToken.None);
-		await chatSessionsService.getOrCreateChatSession(resourceWithoutOptions, CancellationToken.None);
-
-		assert.strictEqual(chatSessionsService.hasAnySessionOptions(resourceWithOptions), true);
-		assert.strictEqual(chatSessionsService.hasAnySessionOptions(resourceWithoutOptions), false);
 
 		mainThread.$unregisterChatSessionContentProvider(1);
 	});

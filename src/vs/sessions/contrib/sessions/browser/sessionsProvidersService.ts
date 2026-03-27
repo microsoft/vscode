@@ -7,8 +7,8 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ISessionData, ISessionWorkspace } from '../common/sessionData.js';
-import { ISessionsChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
+import { IChatData, ISessionWorkspace } from '../common/sessionData.js';
+import { IChatChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
 import { URI } from '../../../../base/common/uri.js';
 
 export const ISessionsProvidersService = createDecorator<ISessionsProvidersService>('sessionsProvidersService');
@@ -35,16 +35,16 @@ export interface ISessionsProvidersService {
 	/** Get available session types for a provider. */
 	getSessionTypesForProvider(providerId: string): ISessionType[];
 	/** Get available session types for a session from its provider. */
-	getSessionTypes(session: ISessionData): ISessionType[];
+	getSessionTypes(session: IChatData): ISessionType[];
 
 	// -- Aggregated Sessions --
 
-	/** Get all sessions from all providers. */
-	getSessions(): ISessionData[];
-	/** Get a session by its globally unique ID. */
-	getSession(sessionId: string): ISessionData | undefined;
+	/** Get all chats from all providers. */
+	getSessions(): IChatData[];
+	/** Get a chat by its globally unique ID. */
+	getSession(chatId: string): IChatData | undefined;
 	/** Fires when sessions change across any provider. */
-	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
+	readonly onDidChangeSessions: Event<IChatChangeEvent>;
 
 	// -- Session Actions (routed to the correct provider via sessionId) --
 
@@ -75,8 +75,8 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 	private readonly _onDidChangeProviders = this._register(new Emitter<void>());
 	readonly onDidChangeProviders: Event<void> = this._onDidChangeProviders.event;
 
-	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionsChangeEvent>());
-	readonly onDidChangeSessions: Event<ISessionsChangeEvent> = this._onDidChangeSessions.event;
+	private readonly _onDidChangeSessions = this._register(new Emitter<IChatChangeEvent>());
+	readonly onDidChangeSessions: Event<IChatChangeEvent> = this._onDidChangeSessions.event;
 
 	// -- Provider Registry --
 
@@ -119,7 +119,7 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		return [...entry.provider.sessionTypes];
 	}
 
-	getSessionTypes(session: ISessionData): ISessionType[] {
+	getSessionTypes(session: IChatData): ISessionType[] {
 		const entry = this._providers.get(session.providerId);
 		if (!entry) {
 			return [];
@@ -129,56 +129,56 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 
 	// -- Aggregated Sessions --
 
-	getSessions(): ISessionData[] {
-		const sessions: ISessionData[] = [];
+	getSessions(): IChatData[] {
+		const sessions: IChatData[] = [];
 		for (const { provider } of this._providers.values()) {
 			sessions.push(...provider.getSessions());
 		}
 		return sessions;
 	}
 
-	getSession(sessionId: string): ISessionData | undefined {
-		const { provider } = this._resolveProvider(sessionId);
+	getSession(chatId: string): IChatData | undefined {
+		const { provider } = this._resolveProvider(chatId);
 		if (!provider) {
 			return undefined;
 		}
-		return provider.getSessions().find(s => s.sessionId === sessionId);
+		return provider.getSessions().find(s => s.chatId === chatId);
 	}
 
 	// -- Session Actions --
 
-	async archiveSession(sessionId: string): Promise<void> {
-		const { provider } = this._resolveProvider(sessionId);
+	async archiveSession(chatId: string): Promise<void> {
+		const { provider } = this._resolveProvider(chatId);
 		if (provider) {
-			await provider.archiveSession(sessionId);
+			await provider.archiveSession(chatId);
 		}
 	}
 
-	async unarchiveSession(sessionId: string): Promise<void> {
-		const { provider } = this._resolveProvider(sessionId);
+	async unarchiveSession(chatId: string): Promise<void> {
+		const { provider } = this._resolveProvider(chatId);
 		if (provider) {
-			await provider.unarchiveSession(sessionId);
+			await provider.unarchiveSession(chatId);
 		}
 	}
 
-	async deleteSession(sessionId: string): Promise<void> {
-		const { provider } = this._resolveProvider(sessionId);
+	async deleteSession(chatId: string): Promise<void> {
+		const { provider } = this._resolveProvider(chatId);
 		if (provider) {
-			await provider.deleteSession(sessionId);
+			await provider.deleteSession(chatId);
 		}
 	}
 
-	async renameSession(sessionId: string, title: string): Promise<void> {
-		const { provider } = this._resolveProvider(sessionId);
+	async renameSession(chatId: string, title: string): Promise<void> {
+		const { provider } = this._resolveProvider(chatId);
 		if (provider) {
-			await provider.renameSession(sessionId, title);
+			await provider.renameSession(chatId, title);
 		}
 	}
 
-	setRead(sessionId: string, read: boolean): void {
-		const { provider } = this._resolveProvider(sessionId);
+	setRead(chatId: string, read: boolean): void {
+		const { provider } = this._resolveProvider(chatId);
 		if (provider) {
-			provider.setRead(sessionId, read);
+			provider.setRead(chatId, read);
 		}
 	}
 
@@ -192,13 +192,13 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 	/**
 	 * Extract provider ID from a globally unique session ID and look up the provider.
 	 */
-	private _resolveProvider(sessionId: string): { provider: ISessionsProvider | undefined; localId: string } {
-		const separatorIndex = sessionId.indexOf(SESSION_ID_SEPARATOR);
+	private _resolveProvider(chatId: string): { provider: ISessionsProvider | undefined; localId: string } {
+		const separatorIndex = chatId.indexOf(SESSION_ID_SEPARATOR);
 		if (separatorIndex === -1) {
-			return { provider: undefined, localId: sessionId };
+			return { provider: undefined, localId: chatId };
 		}
-		const providerId = sessionId.substring(0, separatorIndex);
-		const localId = sessionId.substring(separatorIndex + 1);
+		const providerId = chatId.substring(0, separatorIndex);
+		const localId = chatId.substring(separatorIndex + 1);
 		const entry = this._providers.get(providerId);
 		return { provider: entry?.provider, localId };
 	}

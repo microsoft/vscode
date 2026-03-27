@@ -39,20 +39,21 @@ export class BranchPicker extends Disposable {
 
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
-			if (session instanceof CopilotCLISession) {
-				session.loading.read(reader);
-				session.branches.read(reader);
-				session.branchesLoading.read(reader);
-				session.branchObservable.read(reader);
-				session.isolationModeObservable.read(reader);
+			const chat = session?.activeChat.read(reader);
+			if (chat instanceof CopilotCLISession) {
+				chat.loading.read(reader);
+				chat.branches.read(reader);
+				chat.branchesLoading.read(reader);
+				chat.branchObservable.read(reader);
+				chat.isolationModeObservable.read(reader);
 			}
 			this._updateTriggerLabel();
 		}));
 	}
 
 	private _getSession(): CopilotCLISession | undefined {
-		const session = this.sessionsManagementService.activeSession.get();
-		return session instanceof CopilotCLISession ? session : undefined;
+		const chat = this.sessionsManagementService.activeSession.get()?.activeChat.get();
+		return chat instanceof CopilotCLISession ? chat : undefined;
 	}
 
 	render(container: HTMLElement): void {
