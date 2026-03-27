@@ -80,15 +80,15 @@ export enum ChatEntitlement {
 	/** Signed-up to Free */
 	Free = 5,
 	/** Signed-up to EDU */
-	EDU = 6,
+	EDU = 10,
 	/** Signed-up to Pro */
-	Pro = 7,
+	Pro = 6,
 	/** Signed-up to Pro Plus */
-	ProPlus = 8,
+	ProPlus = 7,
 	/** Signed-up to Business */
-	Business = 9,
+	Business = 8,
 	/** Signed-up to Enterprise */
-	Enterprise = 10,
+	Enterprise = 9,
 }
 
 export interface IChatSentiment {
