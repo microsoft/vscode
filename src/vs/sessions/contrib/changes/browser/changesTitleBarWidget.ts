@@ -5,7 +5,7 @@
 
 import './media/changesTitleBarWidget.css';
 
-import { $, append } from '../../../../base/browser/dom.js';
+import { $, append, EventLike } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction } from '../../../../base/common/actions.js';
@@ -78,13 +78,15 @@ class ChangesTitleBarActionViewItem extends BaseActionViewItem {
 
 		this._container = container;
 		container.classList.add('changes-titlebar-indicator');
+		container.setAttribute('role', 'button');
+		container.setAttribute('aria-label', localize('showChanges', "Show Changes"));
 
 		this._rebuildIndicators();
 		this._updateActiveState();
 	}
 
-	override onClick(): void {
-		this._action.run();
+	override onClick(event: EventLike, preserveFocus?: boolean): void {
+		super.onClick(event, preserveFocus);
 	}
 
 	private _updateActiveState(): void {
@@ -121,11 +123,13 @@ class ChangesTitleBarActionViewItem extends BaseActionViewItem {
 		}
 
 		if (summary) {
+			const label = localize('changesSummary', "{0} file(s) changed, {1} insertion(s), {2} deletion(s)", summary.files, summary.insertions, summary.deletions);
+			btn.setAttribute('aria-label', label);
 			this._indicatorDisposables.add(this.hoverService.setupManagedHover(
-				this._hoverDelegate, btn,
-				localize('changesSummary', "{0} file(s) changed, {1} insertion(s), {2} deletion(s)", summary.files, summary.insertions, summary.deletions)
+				this._hoverDelegate, btn, label
 			));
 		} else {
+			btn.setAttribute('aria-label', localize('showChanges', "Show Changes"));
 			this._indicatorDisposables.add(this.hoverService.setupManagedHover(
 				this._hoverDelegate, btn,
 				localize('showChanges', "Show Changes")
