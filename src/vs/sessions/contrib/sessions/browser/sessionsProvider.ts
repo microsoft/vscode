@@ -44,6 +44,8 @@ export interface IChatChangeEvent {
 	readonly added: readonly IChatData[];
 	readonly removed: readonly IChatData[];
 	readonly changed: readonly IChatData[];
+	/** Chats whose identity (chatId/resource) changed, e.g. after a URI swap. */
+	readonly replaced?: readonly { readonly oldChatId: string; readonly newChat: IChatData }[];
 }
 
 /**

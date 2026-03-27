@@ -837,6 +837,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	/** Cache of adapted sessions, keyed by resource URI string. */
 	private readonly _sessionCache = new Map<string, IChatData>();
 
+	/**
+	 * Tracks the chatId of a recently created session whose URI may be swapped
+	 * by the agent host after the first turn completes.
+	 */
+	private _pendingSwapChatId: string | undefined;
+
 	readonly browseActions: readonly ISessionsBrowseAction[];
 
 	constructor(
@@ -1178,6 +1184,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				currentKeys.add(key);
 				this._sessionCache.set(key, adapter);
 				changed.push(adapter);
+				// Track the chatId for URI swap detection after the first turn
+				this._pendingSwapChatId = adapter.chatId;
 				this._currentNewSession.dispose();
 				this._currentNewSession = undefined;
 				continue;
@@ -1203,15 +1211,30 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 
 		const removed: IChatData[] = [];
+		const replaced: { oldChatId: string; newChat: IChatData }[] = [];
 		for (const [key, session] of this._sessionCache) {
 			if (!currentKeys.has(key) && session !== this._currentNewSession) {
 				this._sessionCache.delete(key);
+
+				// Detect URI swap: the pending-swap session disappeared and a new
+				// session of the same type was added in the same refresh cycle.
+				if (this._pendingSwapChatId && session.chatId === this._pendingSwapChatId) {
+					const swapTarget = added.find(a => a.sessionType === session.sessionType);
+					if (swapTarget) {
+						// Treat as a replacement instead of remove + add
+						added.splice(added.indexOf(swapTarget), 1);
+						replaced.push({ oldChatId: session.chatId, newChat: swapTarget });
+						this._pendingSwapChatId = undefined;
+						continue;
+					}
+				}
+
 				removed.push(session);
 			}
 		}
 
-		if (added.length > 0 || removed.length > 0 || changed.length > 0) {
-			this._onDidChangeSessions.fire({ added, removed, changed });
+		if (added.length > 0 || removed.length > 0 || changed.length > 0 || replaced.length > 0) {
+			this._onDidChangeSessions.fire({ added, removed, changed, replaced });
 		}
 	}
 
