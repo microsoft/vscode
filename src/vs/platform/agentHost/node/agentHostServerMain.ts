@@ -40,7 +40,9 @@ import { IFileService } from '../../files/common/files.js';
 import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
 import { Schemas } from '../../../base/common/network.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { IAgentPluginManager } from '../common/agentPluginManager.js';
 import { SessionDataService } from './sessionDataService.js';
+import { AgentPluginManager } from './agentPluginManager.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -154,7 +156,11 @@ async function main(): Promise<void> {
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
 
 	// Session data service
-	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
+	const userDataUri = URI.file(environmentService.userDataPath);
+	const sessionDataService = new SessionDataService(userDataUri, fileService, logService);
+
+	// Plugin manager
+	const pluginManager = new AgentPluginManager(userDataUri, fileService, logService);
 
 	// Shared side-effect handler
 	const sideEffects = disposables.add(new AgentSideEffects(stateManager, {
@@ -182,6 +188,7 @@ async function main(): Promise<void> {
 		diServices.set(ILogService, logService);
 		diServices.set(IFileService, fileService);
 		diServices.set(ISessionDataService, sessionDataService);
+		diServices.set(IAgentPluginManager, pluginManager);
 		const instantiationService = new InstantiationService(diServices);
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		registerAgent(copilotAgent);

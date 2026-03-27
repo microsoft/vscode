@@ -92,7 +92,8 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			} catch {
 				models = [];
 			}
-			return { provider: d.provider, displayName: d.displayName, description: d.description, models };
+			const customizations = a.getCustomizations?.();
+			return { provider: d.provider, displayName: d.displayName, description: d.description, models, customizations };
 		}));
 		this._stateManager.dispatchServerAction({ type: ActionType.RootAgentsChanged, agents: infos });
 	}
@@ -196,6 +197,29 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				agent?.changeModel?.(URI.parse(action.session), action.model).catch(err => {
 					this._logService.error('[AgentSideEffects] changeModel failed', err);
 				});
+				break;
+			}
+			case ActionType.SessionActiveClientChanged: {
+				const customizations = action.activeClient?.customizations;
+				if (customizations && customizations.length > 0) {
+					const agent = this._options.getAgent(action.session);
+					if (agent?.setClientCustomizations) {
+						agent.setClientCustomizations(customizations, results => {
+							this._stateManager.dispatchServerAction({
+								type: ActionType.SessionCustomizationsChanged,
+								session: action.session,
+								customizations: results.map(r => r.customization),
+							});
+						}).catch(err => {
+							this._logService.error('[AgentSideEffects] setClientCustomizations failed', err);
+						});
+					}
+				}
+				break;
+			}
+			case ActionType.SessionCustomizationToggled: {
+				const agent = this._options.getAgent(action.session);
+				agent?.setCustomizationEnabled?.(action.uri, action.enabled);
 				break;
 			}
 		}

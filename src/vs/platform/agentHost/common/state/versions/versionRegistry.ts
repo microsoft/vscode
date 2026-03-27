@@ -45,6 +45,13 @@ export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: numbe
 	'session/serverToolsChanged': 1,
 	'session/activeClientChanged': 1,
 	'session/activeClientToolsChanged': 1,
+	// Customizations (v1)
+	'session/customizationsChanged': 1,
+	'session/customizationToggled': 1,
+	// Pending / queued messages (v1)
+	'session/pendingMessageSet': 1,
+	'session/pendingMessageRemoved': 1,
+	'session/queuedMessagesReordered': 1,
 };
 
 /** Maps every notification type string to the protocol version that introduced it. */

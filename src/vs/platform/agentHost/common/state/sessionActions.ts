@@ -42,6 +42,8 @@ export {
 	type ISessionServerToolsChangedAction,
 	type ISessionActiveClientChangedAction,
 	type ISessionActiveClientToolsChangedAction,
+	type ISessionCustomizationsChangedAction,
+	type ISessionCustomizationToggledAction,
 	type IStateAction,
 } from './protocol/actions.js';
 
@@ -107,6 +109,8 @@ export type ITitleChangedAction = ISessionTitleChangedAction;
 export type IUsageAction = ISessionUsageAction;
 export type IReasoningAction = ISessionReasoningAction;
 export type IModelChangedAction = ISessionModelChangedAction;
+export type ICustomizationsChangedAction = import('./protocol/actions.js').ISessionCustomizationsChangedAction;
+export type ICustomizationToggledAction = import('./protocol/actions.js').ISessionCustomizationToggledAction;
 
 // Notifications
 export type INotification = IProtocolNotification;

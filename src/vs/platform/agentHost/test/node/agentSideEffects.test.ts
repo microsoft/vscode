@@ -16,7 +16,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type IMarkdownResponsePart, type IToolCallCompletedState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
+import { ResponsePartKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type ICustomizationRef, type IMarkdownResponsePart, type ISessionCustomization, type IToolCallCompletedState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { SessionStateManager } from '../../node/sessionStateManager.js';
 import { MockAgent } from './mockAgent.js';
@@ -520,6 +520,147 @@ suite('AgentSideEffects', () => {
 
 			const result = await sideEffects.handleAuthenticate({ resource: 'https://unknown.example.com', token: 'test-token' });
 			assert.deepStrictEqual(result, { authenticated: false });
+		});
+	});
+
+	// ---- handleAction: session/activeClientChanged ----------------------
+
+	suite('handleAction — session/activeClientChanged', () => {
+
+		test('calls setClientCustomizations when active client has customizations', async () => {
+			setupSession();
+			const customizations: ICustomizationRef[] = [{
+				uri: 'https://plugins.example.com/my-plugin',
+				displayName: 'My Plugin',
+				nonce: 'abc',
+			}];
+
+			sideEffects.handleAction({
+				type: ActionType.SessionActiveClientChanged,
+				session: sessionUri.toString(),
+				activeClient: {
+					clientId: 'test-client',
+					displayName: 'Test Client',
+					tools: [],
+					customizations,
+				},
+			});
+
+			await new Promise(r => setTimeout(r, 10));
+
+			assert.deepStrictEqual(agent.setClientCustomizationsCalls, [customizations]);
+		});
+
+		test('dispatches customizationsChanged via progress callback', async () => {
+			setupSession();
+			const customizations: ICustomizationRef[] = [{
+				uri: 'https://plugins.example.com/plugin-a',
+				displayName: 'Plugin A',
+			}];
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			sideEffects.handleAction({
+				type: ActionType.SessionActiveClientChanged,
+				session: sessionUri.toString(),
+				activeClient: {
+					clientId: 'test-client',
+					tools: [],
+					customizations,
+				},
+			});
+
+			await new Promise(r => setTimeout(r, 50));
+
+			const customizationActions = envelopes.filter(e => e.action.type === ActionType.SessionCustomizationsChanged);
+			assert.ok(customizationActions.length >= 1, 'should dispatch at least one customizationsChanged');
+			const lastAction = customizationActions[customizationActions.length - 1];
+			assert.strictEqual(
+				(lastAction.action as { customizations: ISessionCustomization[] }).customizations.length,
+				1,
+			);
+		});
+
+		test('does not dispatch loading and does not call setClientCustomizations when no customizations provided', async () => {
+			setupSession();
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			sideEffects.handleAction({
+				type: ActionType.SessionActiveClientChanged,
+				session: sessionUri.toString(),
+				activeClient: {
+					clientId: 'test-client',
+					tools: [],
+				},
+			});
+
+			await new Promise(r => setTimeout(r, 10));
+
+			assert.strictEqual(agent.setClientCustomizationsCalls.length, 0);
+			const customizationActions = envelopes.filter(e => e.action.type === ActionType.SessionCustomizationsChanged);
+			assert.strictEqual(customizationActions.length, 0, 'should not dispatch customizationsChanged');
+		});
+
+		test('does not call setClientCustomizations when active client is null', async () => {
+			setupSession();
+			sideEffects.handleAction({
+				type: ActionType.SessionActiveClientChanged,
+				session: sessionUri.toString(),
+				activeClient: null,
+			});
+
+			await new Promise(r => setTimeout(r, 10));
+
+			assert.strictEqual(agent.setClientCustomizationsCalls.length, 0);
+		});
+	});
+
+	// ---- handleAction: session/customizationToggled ---------------------
+
+	suite('handleAction — session/customizationToggled', () => {
+
+		test('calls setCustomizationEnabled on the agent', () => {
+			setupSession();
+			sideEffects.handleAction({
+				type: ActionType.SessionCustomizationToggled,
+				session: sessionUri.toString(),
+				uri: 'https://plugins.example.com/toggle-me',
+				enabled: false,
+			});
+
+			assert.deepStrictEqual(agent.setCustomizationEnabledCalls, [{
+				uri: 'https://plugins.example.com/toggle-me',
+				enabled: false,
+			}]);
+		});
+	});
+
+	// ---- _publishAgentInfos (customizations in root state) --------------
+
+	suite('publishAgentInfos includes customizations', () => {
+
+		test('includes agent customizations in root/agentsChanged', async () => {
+			agent.customizations = [{
+				uri: 'https://plugins.example.com/root-plugin',
+				displayName: 'Root Plugin',
+			}];
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			agentList.set([agent], undefined);
+
+			// Wait for the async _publishAgentInfos to fire
+			await new Promise(r => setTimeout(r, 50));
+
+			const agentsChanged = envelopes.find(e => e.action.type === ActionType.RootAgentsChanged);
+			assert.ok(agentsChanged, 'should dispatch root/agentsChanged');
+			const agents = (agentsChanged!.action as { agents: { customizations?: unknown[] }[] }).agents;
+			assert.ok(agents[0].customizations);
+			assert.strictEqual(agents[0].customizations!.length, 1);
 		});
 	});
 });

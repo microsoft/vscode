@@ -31,6 +31,7 @@ import { FileService } from '../../files/common/fileService.js';
 import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
 import { Schemas } from '../../../base/common/network.js';
 import { SessionDataService } from './sessionDataService.js';
+import { AgentPluginManager } from './agentPluginManager.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
@@ -64,13 +65,17 @@ function startAgentHost(): void {
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
 
 	// Session data service
-	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
+	const userDataUri = URI.file(environmentService.userDataPath);
+	const sessionDataService = new SessionDataService(userDataUri, fileService, logService);
+
+	// Plugin manager
+	const pluginManager = new AgentPluginManager(userDataUri, fileService, logService);
 
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
 	try {
 		agentService = new AgentService(logService, fileService, sessionDataService);
-		agentService.registerProvider(new CopilotAgent(logService, fileService, sessionDataService));
+		agentService.registerProvider(new CopilotAgent(logService, fileService, sessionDataService, pluginManager));
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
 		throw err;

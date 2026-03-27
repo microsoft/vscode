@@ -17,7 +17,8 @@ import { ILogService } from '../../../log/common/log.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentDescriptor, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { ToolResultContentType, type IToolResultContent, type PolicyState } from '../../common/state/sessionState.js';
+import { IAgentPluginManager, type ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { ToolResultContentType, type ICustomizationRef, type IToolResultContent, type PolicyState } from '../../common/state/sessionState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool } from './copilotToolDisplay.js';
 import { FileEditTracker } from './fileEditTracker.js';
@@ -51,11 +52,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _sessionWorkingDirs = new Map<string, string>();
 	/** File edit trackers per session, keyed by raw session ID. */
 	private readonly _editTrackers = new Map<string, FileEditTracker>();
+	/** Local plugin directory paths currently passed to the CLI via --plugin-dir. */
+	private _pluginDirs: string[] = [];
+	/** Tracks the current set of client-provided customization refs. */
+	private _clientCustomizations: ICustomizationRef[] = [];
+	/** Session IDs with an in-progress turn. */
+	private readonly _activeTurns = new Set<string>();
+	/** When true, the CopilotClient should be restarted when all active turns finish. */
+	private _pendingPluginRestart = false;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
 	) {
 		super();
 	}
@@ -95,6 +105,79 @@ export class CopilotAgent extends Disposable implements IAgent {
 			await client.stop();
 		}
 		return true;
+	}
+
+	// ---- plugins / customizations -------------------------------------------
+
+	getCustomizations(): ICustomizationRef[] {
+		return [...this._clientCustomizations];
+	}
+
+	async setClientCustomizations(customizations: ICustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]> {
+		this._clientCustomizations = customizations;
+
+		const results = await this._pluginManager.syncCustomizations(customizations, status => {
+			// Relay progress, wrapping ISessionCustomization[] → ISyncedCustomization[]
+			progress?.(status.map(c => ({ customization: c })));
+		});
+
+		// Collect the new set of plugin dirs from successful syncs
+		const newDirs = results
+			.filter(r => r.pluginDir)
+			.map(r => r.pluginDir!.fsPath);
+
+		if (!arraysEqual(newDirs, this._pluginDirs)) {
+			this._pluginDirs = newDirs;
+			this._scheduleClientRestart();
+		}
+
+		return results;
+	}
+
+	setCustomizationEnabled(uri: string, enabled: boolean): void {
+		this._logService.info(`[Copilot] Customization toggled: ${uri} enabled=${enabled}`);
+		// A toggle requires a client restart with updated plugin dirs.
+		// Rebuild the effective plugin dirs from enabled customizations.
+		this._scheduleClientRestart();
+	}
+
+	/**
+	 * Schedules a CopilotClient restart. If there are no active turns,
+	 * the restart happens immediately. Otherwise it is deferred until
+	 * all turns complete.
+	 */
+	private _scheduleClientRestart(): void {
+		if (this._activeTurns.size === 0) {
+			this._restartClient();
+		} else {
+			this._logService.info('[Copilot] Deferring client restart until active turns finish');
+			this._pendingPluginRestart = true;
+		}
+	}
+
+	/**
+	 * Stops the current CopilotClient so the next operation triggers
+	 * {@link _ensureClient} with the updated plugin dirs.
+	 */
+	private _restartClient(): void {
+		this._pendingPluginRestart = false;
+		if (this._client) {
+			this._logService.info('[Copilot] Restarting CopilotClient with updated plugins');
+			const client = this._client;
+			this._client = undefined;
+			this._clientStarting = undefined;
+			client.stop().catch(() => { /* best-effort */ });
+		}
+	}
+
+	/**
+	 * Checks whether a deferred restart is pending and, if so, triggers it
+	 * once all active turns have finished.
+	 */
+	private _checkDeferredRestart(): void {
+		if (this._pendingPluginRestart && this._activeTurns.size === 0) {
+			this._restartClient();
+		}
 	}
 
 	// ---- client lifecycle ---------------------------------------------------
@@ -143,6 +226,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			env[pathKey] = currentPath ? `${currentPath}${delimiter}${rgDir}` : rgDir;
 			this._logService.info(`[Copilot] Resolved CLI path: ${cliPath}`);
 
+			const cliArgs: string[] = [];
+			for (const dir of this._pluginDirs) {
+				cliArgs.push('--plugin-dir', dir);
+			}
+			if (cliArgs.length) {
+				this._logService.info(`[Copilot] Passing ${cliArgs.length / 2} plugin dir(s) to CLI`);
+			}
+
 			const client = new CopilotClient({
 				githubToken: this._githubToken,
 				useLoggedInUser: !this._githubToken,
@@ -150,6 +241,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				autoStart: true,
 				env,
 				cliPath,
+				cliArgs: cliArgs.length > 0 ? cliArgs : undefined,
 			});
 			await client.start();
 			this._logService.info('[Copilot] CopilotClient started successfully');
@@ -220,6 +312,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void> {
 		const sessionId = AgentSession.id(session);
+		this._activeTurns.add(sessionId);
 		this._logService.info(`[Copilot:${sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 		const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId);
 		this._logService.info(`[Copilot:${sessionId}] Found session wrapper, calling session.send()...`);
@@ -252,9 +345,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async disposeSession(session: URI): Promise<void> {
 		const sessionId = AgentSession.id(session);
 		this._sessions.deleteAndDispose(sessionId);
+		this._activeTurns.delete(sessionId);
 		this._clearToolCallsForSession(sessionId);
 		this._sessionWorkingDirs.delete(sessionId);
 		this._denyPendingPermissionsForSession(sessionId);
+		this._checkDeferredRestart();
 	}
 
 	async abortSession(session: URI): Promise<void> {
@@ -279,6 +374,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async shutdown(): Promise<void> {
 		this._logService.info('[Copilot] Shutting down...');
 		this._sessions.clearAndDisposeAll();
+		this._activeTurns.clear();
 		this._activeToolCalls.clear();
 		this._sessionWorkingDirs.clear();
 		this._denyPendingPermissions();
@@ -567,7 +663,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		wrapper.onIdle(() => {
 			this._logService.info(`[Copilot:${rawId}] Session idle`);
+			this._activeTurns.delete(rawId);
 			this._onDidSessionProgress.fire({ session, type: 'idle' });
+			this._checkDeferredRestart();
 		});
 
 		wrapper.onSessionError(e => {
@@ -841,4 +939,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		}
 	}
+}
+
+function arraysEqual(a: string[], b: string[]): boolean {
+	if (a.length !== b.length) {
+		return false;
+	}
+	for (let i = 0; i < a.length; i++) {
+		if (a[i] !== b[i]) {
+			return false;
+		}
+	}
+	return true;
 }

@@ -7,7 +7,8 @@ import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentMessageEvent, type IAgentModelInfo, type IAgentProgressEvent, type IAgentSessionMetadata, type IAgentToolCompleteEvent, type IAgentToolStartEvent } from '../../common/agentService.js';
-import { ToolResultContentType, type IToolCallResult } from '../../common/state/sessionState.js';
+import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { CustomizationStatus, ToolResultContentType, type ICustomizationRef, type IToolCallResult } from '../../common/state/sessionState.js';
 
 /**
  * General-purpose mock agent for unit tests. Tracks all method calls
@@ -27,6 +28,11 @@ export class MockAgent implements IAgent {
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
 	readonly changeModelCalls: { session: URI; model: string }[] = [];
 	readonly authenticateCalls: { resource: string; token: string }[] = [];
+	readonly setClientCustomizationsCalls: ICustomizationRef[][] = [];
+	readonly setCustomizationEnabledCalls: { uri: string; enabled: boolean }[] = [];
+
+	/** Configurable return value for getCustomizations. */
+	customizations: ICustomizationRef[] = [];
 
 	/** Configurable return value for getSessionMessages. */
 	sessionMessages: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] = [];
@@ -90,6 +96,27 @@ export class MockAgent implements IAgent {
 	async authenticate(resource: string, token: string): Promise<boolean> {
 		this.authenticateCalls.push({ resource, token });
 		return true;
+	}
+
+	getCustomizations(): ICustomizationRef[] {
+		return this.customizations;
+	}
+
+	async setClientCustomizations(customizations: ICustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]> {
+		this.setClientCustomizationsCalls.push(customizations);
+		const results: ISyncedCustomization[] = customizations.map(c => ({
+			customization: {
+				customization: c,
+				enabled: true,
+				status: CustomizationStatus.Loaded,
+			},
+		}));
+		progress?.(results);
+		return results;
+	}
+
+	setCustomizationEnabled(uri: string, enabled: boolean): void {
+		this.setCustomizationEnabledCalls.push({ uri, enabled });
 	}
 
 	async shutdown(): Promise<void> { }
