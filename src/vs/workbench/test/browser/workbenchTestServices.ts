@@ -582,7 +582,7 @@ export class TestMenuService implements IMenuService {
 	}
 
 	getMenuActions(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][] {
-		throw new Error('Method not implemented.');
+		return [];
 	}
 
 	getMenuContexts(id: MenuId): ReadonlySet<string> {
