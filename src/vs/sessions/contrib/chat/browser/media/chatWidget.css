@@ -162,7 +162,9 @@
 	border: 1.5px solid var(--vscode-icon-foreground);
 	border-top-color: transparent;
 	border-radius: 50%;
-	animation: sessions-chat-spin 0.8s linear infinite;
+	animation: sessions-chat-spin 0.8s steps(16) infinite;
+	will-change: transform;
+	contain: paint layout;
 	opacity: 0.6;
 	flex-shrink: 0;
 }
@@ -174,6 +176,12 @@
 @keyframes sessions-chat-spin {
 	to {
 		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.sessions-chat-loading-spinner {
+		animation-duration: 0s;
 	}
 }
 
