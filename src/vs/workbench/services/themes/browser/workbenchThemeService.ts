@@ -322,8 +322,6 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		// Wait for settings sync so we don't overwrite values arriving from another device.
 		await this.userDataInitializationService.whenInitializationFinished();
 
-		this.storageService.store(WorkbenchThemeService.THEME_MIGRATION_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
-
 		const colorThemeInspection = this.configurationService.inspect<string>(ThemeSettings.COLOR_THEME);
 		if (!colorThemeInspection.userValue && !colorThemeInspection.userLocalValue && !colorThemeInspection.userRemoteValue && !colorThemeInspection.workspaceValue && !colorThemeInspection.workspaceFolderValue) {
 			// Existing user on the old default — figure out which theme they had.
@@ -338,7 +336,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			} else {
 				// No stored theme data but existing user — pin the old default
 				// based on the current color scheme so they keep their appearance.
-				// In high-contrast mode, avoid pinning a non–high-contrast theme and
+				// In high-contrast mode, avoid pinning a non-high-contrast theme and
 				// let the system's high-contrast behavior take precedence.
 				if (!this.hostColorService.highContrast) {
 					const prefersDark = this.hostColorService.dark;
@@ -363,6 +361,10 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 				}
 			}
 		}
+
+		// Mark migration complete only after all updates succeed, so a partial
+		// failure (or crash) will retry on the next startup.
+		this.storageService.store(WorkbenchThemeService.THEME_MIGRATION_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	/**
