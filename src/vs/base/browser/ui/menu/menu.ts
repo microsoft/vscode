@@ -1239,10 +1239,6 @@ ${formatRule(Codicon.menuSubmenu)}
 	justify-content: center;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-menu-item.checked .menu-item-icon {
-	visibility: hidden;
-}
-
 .monaco-menu .monaco-action-bar.vertical .action-menu-item.checked .menu-item-check {
 	visibility: visible;
 	display: flex;
