@@ -992,7 +992,7 @@ export class ChangesViewPane extends ViewPane {
 					identityProvider: {
 						getId: (element: ChangesTreeElement) => element.uri.toString()
 					},
-					indent: 0,
+					indent: this.viewModel.viewModeObs.get() === ChangesViewMode.List ? 0 : 8,
 					compressionEnabled: true,
 					twistieAdditionalCssClass: (e: unknown) => {
 						return this.viewModel.viewModeObs.get() === ChangesViewMode.List
