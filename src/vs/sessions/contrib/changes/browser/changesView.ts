@@ -461,13 +461,6 @@ export class ChangesViewPane extends ViewPane {
 
 		this.bodyContainer = dom.append(container, $('.changes-view-body'));
 
-		// Welcome message for empty state
-		this.welcomeContainer = dom.append(this.bodyContainer, $('.changes-welcome'));
-		const welcomeIcon = dom.append(this.welcomeContainer, $('.changes-welcome-icon'));
-		welcomeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
-		const welcomeMessage = dom.append(this.welcomeContainer, $('.changes-welcome-message'));
-		welcomeMessage.textContent = localize('changesView.noChanges', "No files have been changed.");
-
 		// Actions container - positioned outside and above the card
 		this.actionsContainer = dom.append(this.bodyContainer, $('.chat-editing-session-actions.outside-card'));
 
@@ -512,6 +505,13 @@ export class ChangesViewPane extends ViewPane {
 
 		// List container
 		this.listContainer = dom.append(this.contentContainer, $('.chat-editing-session-list'));
+
+		// Welcome message for empty state
+		this.welcomeContainer = dom.append(this.contentContainer, $('.changes-welcome'));
+		const welcomeIcon = dom.append(this.welcomeContainer, $('.changes-welcome-icon'));
+		welcomeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
+		const welcomeMessage = dom.append(this.welcomeContainer, $('.changes-welcome-message'));
+		welcomeMessage.textContent = localize('changesView.noChanges', "No files have been changed.");
 
 		// CI Status widget — bottom pane
 		this.ciStatusWidget = this._register(this.instantiationService.createInstance(CIStatusWidget, this.splitViewContainer));
@@ -959,9 +959,7 @@ export class ChangesViewPane extends ViewPane {
 			const { files } = topLevelStats.read(reader);
 			const hasEntries = files > 0;
 
-			dom.setVisibility(hasEntries, this.contentContainer!);
-			dom.setVisibility(hasEntries, this.actionsContainer!);
-			dom.setVisibility(hasEntries, this.splitViewContainer!);
+			dom.setVisibility(hasEntries, this.listContainer!);
 			dom.setVisibility(!hasEntries, this.welcomeContainer!);
 
 			if (this.filesCountBadge) {
