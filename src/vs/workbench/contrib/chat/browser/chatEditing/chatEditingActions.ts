@@ -28,6 +28,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IEditorPane } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
+import { IChatRequestVariableEntry, isImplicitVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isStringVariableEntry, isWorkspaceVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
@@ -414,6 +415,19 @@ export class ViewAllSessionChangesAction extends Action2 {
 }
 registerAction2(ViewAllSessionChangesAction);
 
+function filterToUserAttachedContext(attachedContext: readonly IChatRequestVariableEntry[] | undefined): IChatRequestVariableEntry[] {
+	if (!attachedContext?.length) {
+		return [];
+	}
+	return attachedContext.filter(a =>
+		!isImplicitVariableEntry(a) &&
+		!isWorkspaceVariableEntry(a) &&
+		!isStringVariableEntry(a) &&
+		!(isPromptFileVariableEntry(a) && a.automaticallyAdded) &&
+		!(isPromptTextVariableEntry(a) && a.automaticallyAdded)
+	);
+}
+
 async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAccessor, sessionResource: URI, requestId: string): Promise<void> {
 	const configurationService = accessor.get(IConfigurationService);
 	const dialogService = accessor.get(IDialogService);
@@ -540,6 +554,10 @@ registerAction2(class RemoveAction extends Action2 {
 		if (isRequestVM(item) && configurationService.getValue('chat.undoRequests.restoreInput')) {
 			widget?.focusInput();
 			widget?.input.setValue(item.messageText, false);
+			const userAttachments = filterToUserAttachedContext(item.attachedContext);
+			if (userAttachments.length) {
+				await widget?.input.restoreAttachments(userAttachments);
+			}
 		}
 	}
 });
@@ -583,6 +601,8 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 			return;
 		}
 
+		const userAttachments = isRequestVM(item) ? filterToUserAttachedContext(item.attachedContext) : [];
+
 		if (isRequestVM(item)) {
 			widget?.focusInput();
 			widget?.input.setValue(item.messageText, false);
@@ -590,6 +610,10 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 
 		widget?.viewModel?.model.setCheckpoint(item.id);
 		await restoreSnapshotWithConfirmation(accessor, item);
+
+		if (userAttachments.length) {
+			await widget?.input.restoreAttachments(userAttachments);
+		}
 	}
 });
 
