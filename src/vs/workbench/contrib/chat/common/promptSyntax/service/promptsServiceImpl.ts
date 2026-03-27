@@ -1748,7 +1748,14 @@ class CachedPromise<T> extends Disposable {
 		if (this.cachedPromise !== undefined) {
 			return this.cachedPromise;
 		}
-		return this.cachedPromise = this.computeFn(token);
+		const promise = this.computeFn(token).catch(err => {
+			if (this.cachedPromise === promise) {
+				this.cachedPromise = undefined;
+			}
+			throw err;
+		});
+		this.cachedPromise = promise;
+		return promise;
 	}
 
 	public refresh(): void {
