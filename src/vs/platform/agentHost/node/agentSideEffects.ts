@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
+import { match as globMatch } from '../../../base/common/glob.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
@@ -99,6 +100,37 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		this._stateManager.dispatchServerAction({ type: ActionType.RootAgentsChanged, agents: infos });
 	}
 
+	// ---- Edit auto-approve --------------------------------------------------
+
+	/**
+	 * Default edit auto-approve patterns applied by the agent host.
+	 * Matches the VS Code `chat.tools.edits.autoApprove` setting defaults.
+	 */
+	private static readonly _DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: Readonly<Record<string, boolean>> = {
+		'**/*': true,
+		'**/.vscode/*.json': false,
+		'**/.git/**': false,
+		'**/{package.json,server.xml,build.rs,web.config,.gitattributes,.env}': false,
+		'**/*.{code-workspace,csproj,fsproj,vbproj,vcxproj,proj,targets,props}': false,
+		'**/*.lock': false,
+		'**/*-lock.{yaml,json}': false,
+	};
+
+	/**
+	 * Returns whether a write to `filePath` should be auto-approved based on
+	 * the built-in default patterns.
+	 */
+	private _shouldAutoApproveEdit(filePath: string): boolean {
+		const patterns = AgentSideEffects._DEFAULT_EDIT_AUTO_APPROVE_PATTERNS;
+		let approved = true;
+		for (const [pattern, isApproved] of Object.entries(patterns)) {
+			if (isApproved !== approved && globMatch(pattern, filePath)) {
+				approved = isApproved;
+			}
+		}
+		return approved;
+	}
+
 	// ---- Agent registration -------------------------------------------------
 
 	/**
@@ -124,6 +156,16 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			const sessionKey = e.session.toString();
 			const turnId = this._stateManager.getActiveTurnId(sessionKey);
 			if (turnId) {
+				// Check if this is a write permission request that can be auto-approved
+				// based on the built-in default patterns.
+				if (e.type === 'tool_ready' && e.permissionKind === 'write' && e.permissionPath) {
+					if (this._shouldAutoApproveEdit(e.permissionPath)) {
+						this._logService.trace(`[AgentSideEffects] Auto-approving write to ${e.permissionPath}`);
+						agent.respondToPermissionRequest(e.toolCallId, true);
+						return;
+					}
+				}
+
 				const actions = agentMapper.mapProgressEventToActions(e, sessionKey, turnId);
 				if (actions) {
 					if (Array.isArray(actions)) {
