@@ -74,6 +74,7 @@ suite('AgentSideEffects', () => {
 				_serviceBrand: undefined,
 				getSessionDataDir: () => URI.from({ scheme: Schemas.inMemory, path: '/session-data' }),
 				getSessionDataDirById: () => URI.from({ scheme: Schemas.inMemory, path: '/session-data' }),
+				openDatabase: () => { throw new Error('not implemented'); },
 				deleteSessionData: async () => { },
 				cleanupOrphanedData: async () => { },
 			} satisfies ISessionDataService,

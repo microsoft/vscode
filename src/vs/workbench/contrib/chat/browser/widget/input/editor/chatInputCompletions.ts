@@ -256,10 +256,6 @@ class SlashCommandCompletions extends Disposable {
 				const userInvocableCommands = promptCommands
 					.filter(c => {
 						if (widget.lockedAgentId) {
-							// Exclude extension-provided prompt files for locked agents.
-							if (c.promptPath.extension) {
-								return false;
-							}
 							// Exclude hooks as those don't work in locked agent scenarios.
 							try {
 								const promptType = getPromptFileType(c.promptPath.uri);

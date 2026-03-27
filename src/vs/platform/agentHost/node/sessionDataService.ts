@@ -3,11 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IReference, ReferenceCollection } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agentService.js';
-import { ISessionDataService } from '../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
+import { SessionDatabase } from './sessionDatabase.js';
+
+class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
+	constructor(
+		private readonly _getDbPath: (key: string) => string,
+		private readonly _logService: ILogService,
+	) {
+		super();
+	}
+
+	protected createReferencedObject(key: string): ISessionDatabase {
+		const dbPath = this._getDbPath(key);
+		this._logService.trace(`[SessionDataService] Opening database: ${dbPath}`);
+		return new SessionDatabase(dbPath);
+	}
+
+	protected destroyReferencedObject(_key: string, object: ISessionDatabase): void {
+		object.dispose();
+	}
+}
 
 /**
  * Implementation of {@link ISessionDataService} that stores per-session data
@@ -17,6 +38,7 @@ export class SessionDataService implements ISessionDataService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _basePath: URI;
+	private readonly _databases: SessionDatabaseCollection;
 
 	constructor(
 		userDataPath: URI,
@@ -24,6 +46,10 @@ export class SessionDataService implements ISessionDataService {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		this._basePath = URI.joinPath(userDataPath, 'agentSessionData');
+		this._databases = new SessionDatabaseCollection(
+			key => URI.joinPath(this._basePath, key, 'session.db').fsPath,
+			this._logService,
+		);
 	}
 
 	getSessionDataDir(session: URI): URI {
@@ -33,6 +59,11 @@ export class SessionDataService implements ISessionDataService {
 	getSessionDataDirById(sessionId: string): URI {
 		const sanitized = sessionId.replace(/[^a-zA-Z0-9_.-]/g, '-');
 		return URI.joinPath(this._basePath, sanitized);
+	}
+
+	openDatabase(session: URI): IReference<ISessionDatabase> {
+		const sanitized = AgentSession.id(session).replace(/[^a-zA-Z0-9_.-]/g, '-');
+		return this._databases.acquire(sanitized);
 	}
 
 	async deleteSessionData(session: URI): Promise<void> {
