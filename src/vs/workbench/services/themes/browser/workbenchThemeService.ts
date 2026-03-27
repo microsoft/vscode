@@ -325,7 +325,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		this.storageService.store(WorkbenchThemeService.THEME_MIGRATION_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 
 		const colorThemeInspection = this.configurationService.inspect<string>(ThemeSettings.COLOR_THEME);
-		if (!colorThemeInspection.userValue && !colorThemeInspection.userRemoteValue && !colorThemeInspection.workspaceValue) {
+		if (!colorThemeInspection.userValue && !colorThemeInspection.userLocalValue && !colorThemeInspection.userRemoteValue && !colorThemeInspection.workspaceValue && !colorThemeInspection.workspaceFolderValue) {
 			// Existing user on the old default — figure out which theme they had.
 			// The stored theme data tells us what was actually applied last session.
 			const storedTheme = ColorThemeData.fromStorageData(this.storageService);
@@ -338,7 +338,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			} else {
 				// No stored theme data but existing user — pin the old default
 				// based on the current color scheme so they keep their appearance.
-				const prefersDark = this.hostColorSchemeService.dark;
+				const prefersDark = this.hostColorService.dark;
 				const oldDefault = prefersDark ? ThemeSettingDefaults.COLOR_THEME_DARK_OLD : ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD;
 				await this.configurationService.updateValue(ThemeSettings.COLOR_THEME, oldDefault, ConfigurationTarget.USER);
 			}
@@ -354,7 +354,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			];
 			for (const { key, oldDefault } of preferredSettings) {
 				const inspection = this.configurationService.inspect<string>(key);
-				if (!inspection.userValue && !inspection.userRemoteValue && !inspection.workspaceValue) {
+				if (!inspection.userValue && !inspection.userLocalValue && !inspection.userRemoteValue && !inspection.workspaceValue && !inspection.workspaceFolderValue) {
 					await this.configurationService.updateValue(key, oldDefault, ConfigurationTarget.USER);
 				}
 			}
