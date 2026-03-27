@@ -513,6 +513,7 @@ export default defineThemedFixtureGroup({
 			const approvalModel = createMockApprovalModel(resource, {
 				label: '{ "action": "deleteFile", "path": "/src/old-module.ts" }',
 				languageId: 'json',
+				since: new Date(),
 				confirm: () => { },
 			});
 			renderSessionItem(ctx, createMockSession({
@@ -535,6 +536,7 @@ export default defineThemedFixtureGroup({
 			const approvalModel = createMockApprovalModel(resource, {
 				label: 'npm install --save express@latest',
 				languageId: 'sh',
+				since: new Date(),
 				confirm: () => { },
 			});
 			renderSessionItem(ctx, createMockSession({
@@ -557,6 +559,7 @@ export default defineThemedFixtureGroup({
 			const approvalModel = createMockApprovalModel(resource, {
 				label: 'Start-Job -ScriptBlock { Set-Location \'c:\\some\\path\'; npm install } | Out-Null',
 				languageId: 'pwsh',
+				since: new Date(),
 				confirm: () => { },
 			});
 			renderSessionItem(ctx, createMockSession({
@@ -579,6 +582,7 @@ export default defineThemedFixtureGroup({
 			const approvalModel = createMockApprovalModel(resource, {
 				label: 'rm -rf node_modules && npm cache clean --force && npm install --legacy-peer-deps --ignore-scripts',
 				languageId: 'sh',
+				since: new Date(),
 				confirm: () => { },
 			});
 			renderSessionItem(ctx, createMockSession({
@@ -603,6 +607,7 @@ export default defineThemedFixtureGroup({
 			const approvalModel = createMockApprovalModel(resource, {
 				label: 'npm install --save express@latest',
 				languageId: 'sh',
+				since: new Date(),
 				confirm: () => { },
 			});
 			renderSessionItem(ctx, createMockSession({
@@ -625,6 +630,7 @@ export default defineThemedFixtureGroup({
 			const approvalModel = createMockApprovalModel(resource, {
 				label: 'cd /workspace/project\nnpm install',
 				languageId: 'sh',
+				since: new Date(),
 				confirm: () => { },
 			});
 			renderSessionItem(ctx, createMockSession({
@@ -647,6 +653,7 @@ export default defineThemedFixtureGroup({
 			const approvalModel = createMockApprovalModel(resource, {
 				label: 'cd /workspace/project\nnpm install\nnpm run build',
 				languageId: 'sh',
+				since: new Date(),
 				confirm: () => { },
 			});
 			renderSessionItem(ctx, createMockSession({
@@ -669,6 +676,7 @@ export default defineThemedFixtureGroup({
 			const approvalModel = createMockApprovalModel(resource, {
 				label: 'cd /workspace/project\nnpm install\nnpm run build\nnpm run test -- --coverage',
 				languageId: 'sh',
+				since: new Date(),
 				confirm: () => { },
 			});
 			renderSessionItem(ctx, createMockSession({
@@ -691,6 +699,7 @@ export default defineThemedFixtureGroup({
 			const approvalModel = createMockApprovalModel(resource, {
 				label: 'RUSTFLAGS="-C target-cpu=native -C opt-level=3" cargo build --release --target x86_64-unknown-linux-gnu\nfind ./target/release -name "*.so" -exec strip --strip-unneeded {} \\; && tar czf release-bundle.tar.gz -C target/release .\ncurl -X POST https://deploy.internal.example.com/api/v2/artifacts/upload --header "Authorization: Bearer $DEPLOY_TOKEN" --form "bundle=@release-bundle.tar.gz"',
 				languageId: 'sh',
+				since: new Date(),
 				confirm: () => { },
 			});
 			renderSessionItem(ctx, createMockSession({

@@ -13,7 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
-import { IChatModel, IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
+import { IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
 import { IChatProgress, IChatSessionTiming } from './chatService/chatService.js';
 import { Target } from './promptSyntax/promptTypes.js';
 
@@ -414,8 +414,6 @@ export interface IChatSessionsService {
 
 	getNewSessionOptionsForSessionType(chatSessionType: string): ReadonlyChatSessionOptionsMap | undefined;
 	setNewSessionOptionsForSessionType(chatSessionType: string, options: ReadonlyChatSessionOptionsMap): void;
-
-	getInProgressSessionDescription(chatModel: IChatModel): string | undefined;
 
 	/**
 	 * Creates a new chat session item using the controller's newChatSessionItemHandler.

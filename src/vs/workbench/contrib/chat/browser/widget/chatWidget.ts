@@ -27,6 +27,7 @@ import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ChatPerfMark, markChat } from '../../common/chatPerf.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
@@ -2205,6 +2206,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
+		if (this.viewModel) {
+			markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);
+		}
 		return this._acceptInput(query ? { query } : undefined, options);
 	}
 
@@ -2364,7 +2368,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// process the prompt command
 		await this._applyPromptFileIfSet(requestInputs);
+		markChat(this.viewModel.sessionResource, ChatPerfMark.WillCollectInstructions);
 		await this._autoAttachInstructions(requestInputs);
+		markChat(this.viewModel.sessionResource, ChatPerfMark.DidCollectInstructions);
 
 		if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit) {
 			const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set

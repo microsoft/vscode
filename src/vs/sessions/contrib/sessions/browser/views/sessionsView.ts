@@ -136,7 +136,7 @@ export class SessionsView extends ViewPane {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.currentGrouping,
 			sorting: () => this.currentSorting,
-			onSessionOpen: (resource) => this.sessionsManagementService.openSession(resource),
+			onSessionOpen: (resource, preserveFocus) => this.sessionsManagementService.openSession(resource, { preserveFocus }),
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 
@@ -187,7 +187,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	private restoreLastSelectedSession(): void {
-		const activeSession = this.sessionsManagementService.activeSession.get();
+		const activeSession = this.sessionsManagementService.activeSession.get()?.activeChat.get();
 		if (activeSession && this.sessionsControl) {
 			this.sessionsControl.reveal(activeSession.resource);
 		}

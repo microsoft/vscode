@@ -18,6 +18,11 @@
 	overflow: hidden;
 }
 
+/* Progress bar */
+.changes-view-body .chat-editing-session-container .changes-progress {
+	position: relative;
+}
+
 /* Welcome/Empty state */
 .changes-view-body .changes-welcome {
 	display: flex;
@@ -61,11 +66,20 @@
 	font-size: 12px;
 }
 
-.changes-view-body .changes-files-title {
+.changes-view-body .changes-files-header-toolbar {
 	flex: 1;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+}
+
+.changes-view-body .changes-files-header-toolbar .action-label {
+	font-size: 12px;
+	align-items: center;
+
+	> .codicon {
+		font-size: 10px !important;
+		padding-left: 4px;
+		width: 10px;
+		height: 10px;
+	}
 }
 
 .changes-view-body .changes-files-count {
@@ -168,6 +182,7 @@
 	padding: 4px 8px;
 	font-size: 16px !important;
 }
+
 .changes-view-body .chat-editing-session-actions .monaco-button {
 	width: fit-content;
 	overflow: hidden;
@@ -235,6 +250,13 @@
 	display: inherit;
 }
 
+/* Hide diff stats on hover/focus/select when toolbar is visible */
+.changes-view-body .monaco-list-row:hover .working-set-line-counts,
+.changes-view-body .monaco-list-row.focused .working-set-line-counts,
+.changes-view-body .monaco-list-row.selected .working-set-line-counts {
+	display: none;
+}
+
 /* Decoration badges (A/M/D) */
 .changes-view-body .chat-editing-session-list .changes-decoration-badge {
 	display: inline-flex;
@@ -260,6 +282,7 @@
 .changes-view-body .chat-editing-session-list .changes-decoration-badge.deleted {
 	color: var(--vscode-gitDecoration-deletedResourceForeground);
 }
+
 /* Line counts in list items */
 .changes-view-body .chat-editing-session-list .working-set-line-counts {
 	margin: 0 6px;
@@ -278,6 +301,19 @@
 }
 
 .changes-view-body .chat-editing-session-list .changes-review-comments-badge .codicon {
+	font-size: 12px;
+}
+
+.changes-view-body .chat-editing-session-list .changes-agent-feedback-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	margin-right: 6px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.changes-view-body .chat-editing-session-list .changes-agent-feedback-badge .codicon {
 	font-size: 12px;
 }
 

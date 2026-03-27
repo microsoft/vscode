@@ -36,7 +36,7 @@ export interface ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): Promise<boolean>;
 	getOS(): Promise<OperatingSystem>;
-	wrapCommand(command: string): string;
+	wrapCommand(command: string, requestUnsandboxedExecution?: boolean): string;
 	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
@@ -127,10 +127,15 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this._os;
 	}
 
-	public wrapCommand(command: string): string {
+	public wrapCommand(command: string, requestUnsandboxedExecution?: boolean): string {
 		if (!this._sandboxConfigPath || !this._tempDir) {
 			throw new Error('Sandbox config path or temp dir not initialized');
 		}
+		// If requestUnsandboxedExecution is true, need to ensure env variables set during sandbox still apply.
+		if (requestUnsandboxedExecution) {
+			return this._tempDir?.path ? `(TMPDIR="${this._tempDir.path}"; export TMPDIR; ${command})` : command;
+		}
+
 		if (!this._execPath) {
 			throw new Error('Executable path not set to run sandbox commands');
 		}

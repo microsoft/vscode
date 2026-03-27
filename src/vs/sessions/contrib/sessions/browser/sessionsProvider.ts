@@ -6,7 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ISessionData, ISessionWorkspace } from '../common/sessionData.js';
+import { IChatData, ISessionWorkspace } from '../common/sessionData.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
 /**
@@ -40,10 +40,10 @@ export interface ISessionsBrowseAction {
 /**
  * Event fired when sessions change within a provider.
  */
-export interface ISessionsChangeEvent {
-	readonly added: readonly ISessionData[];
-	readonly removed: readonly ISessionData[];
-	readonly changed: readonly ISessionData[];
+export interface IChatChangeEvent {
+	readonly added: readonly IChatData[];
+	readonly removed: readonly IChatData[];
+	readonly changed: readonly IChatData[];
 }
 
 /**
@@ -82,34 +82,36 @@ export interface ISessionsProvider {
 
 	// -- Sessions (existing) --
 
-	/** Returns all sessions owned by this provider. */
-	getSessions(): ISessionData[];
-	/** Fires when sessions are added, removed, or changed. */
-	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
+	/** Returns all chats owned by this provider. */
+	getSessions(): IChatData[];
+	/** Fires when chats are added, removed, or changed. */
+	readonly onDidChangeSessions: Event<IChatChangeEvent>;
 
 	// -- Session Management --
 
 	/** Create a new session for the given workspace. */
-	createNewSession(workspace: ISessionWorkspace): ISessionData;
+	createNewSession(workspace: ISessionWorkspace): IChatData;
+
+	createNewSessionFrom(chatId: string): IChatData;
 	/** Update the session type for a session. */
-	setSessionType(sessionId: string, type: ISessionType): ISessionData;
+	setSessionType(chatId: string, type: ISessionType): IChatData;
 	/** Returns session types available for the given session. */
-	getSessionTypes(session: ISessionData): ISessionType[];
+	getSessionTypes(chat: IChatData): ISessionType[];
 	/** Rename a session. */
-	renameSession(sessionId: string, title: string): Promise<void>;
+	renameSession(chatId: string, title: string): Promise<void>;
 	/** Set the model for a session. */
-	setModel(sessionId: string, modelId: string): void;
+	setModel(chatId: string, modelId: string): void;
 	/** Archive a session. */
-	archiveSession(sessionId: string): Promise<void>;
+	archiveSession(chatId: string): Promise<void>;
 	/** Unarchive a session. */
-	unarchiveSession(sessionId: string): Promise<void>;
+	unarchiveSession(chatId: string): Promise<void>;
 	/** Delete a session. */
-	deleteSession(sessionId: string): Promise<void>;
+	deleteSession(chatId: string): Promise<void>;
 	/** Mark a session as read or unread. */
-	setRead(sessionId: string, read: boolean): void;
+	setRead(chatId: string, read: boolean): void;
 
 	// -- Send --
 
-	/** Send the initial request for a new session. Returns the created session data. */
-	sendRequest(sessionId: string, options: ISendRequestOptions): Promise<ISessionData>;
+	/** Send the initial request for a new session. Returns the created chat data. */
+	sendRequest(chatId: string, options: ISendRequestOptions): Promise<IChatData>;
 }
