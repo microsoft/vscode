@@ -17,7 +17,7 @@ import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browse
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
-import { ISessionType, ISendRequestOptions, IChatChangeEvent } from './sessionsProvider.js';
+import { ISessionType, ISendRequestOptions, IChatChangeEvent, IChatReplaceSessionEvent } from './sessionsProvider.js';
 import { SessionsGroupModel } from './sessionsGroupModel.js';
 import { ISessionData, ISessionWorkspace, GITHUB_REMOTE_FILE_SCHEME, IChatData } from '../common/sessionData.js';
 import { IGitHubSessionContext } from '../../github/common/types.js';
@@ -264,6 +264,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// Forward session change events from providers and update active session
 		this._register(this.sessionsProvidersService.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
 
+		// Handle temp→committed session replacement from providers
+		this._register(this.sessionsProvidersService.onDidReplaceSession(e => this._onProviderDidReplaceSession(e)));
+
 		// Restore or auto-select active provider
 		this._initActiveProvider();
 		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
@@ -392,6 +395,27 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				this.setActiveSession(this._chatToSession(updated));
 				return;
 			}
+		}
+	}
+
+	private _onProviderDidReplaceSession(e: IChatReplaceSessionEvent): void {
+		const originalId = e.original.chatId;
+		const committedId = e.committed.chatId;
+
+		// Move the original chat's group membership to the committed chat.
+		// This keeps the session group stable (no remove+add) so the sessions
+		// list sees an in-place update and the active session is preserved.
+		const sessionId = this._groupModel.getSessionIdForChat(originalId);
+		if (sessionId) {
+			this._groupModel.removeChat(originalId);
+			this._sessionDataCache.delete(originalId);
+			this._groupModel.addChat(sessionId, committedId);
+		}
+
+		// Update the active session if it was the temp one
+		const active = this._activeSession.get();
+		if (active && active.chats.get().find(c => c.chatId === originalId)) {
+			this.setActiveSession(this._chatToSession(e.committed));
 		}
 	}
 
@@ -597,15 +621,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(`Sessions provider '${chat.providerId}' not found`);
 		}
 
-		// Delegate to the provider
+		// Delegate to the provider — returns the temp session immediately
 		const newChat = await provider.sendRequest(chat.chatId, options);
 
-		// Set the new agent session as active
-		if (newChat) {
-			// Add the new chat to the session's group
-			this._groupModel.addChat(newChat.chatId, newChat.chatId);
-			this.setActiveSession(this._chatToSession(newChat));
-		}
+		// Add the new chat to the session's group and set it as active.
+		// If the provider fires onDidReplaceSession later, _onProviderDidReplaceSession
+		// will update the group model and active session to the committed chat.
+		this._groupModel.addChat(newChat.chatId, newChat.chatId);
+		this.setActiveSession(this._chatToSession(newChat));
 	}
 
 	openNewSessionView(): void {

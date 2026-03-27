@@ -38,6 +38,16 @@ export interface ISessionsBrowseAction {
 }
 
 /**
+ * Event fired when a temporary (untitled) session is replaced by a committed session.
+ * The `original` chat is the temp session that was shown in the list;
+ * `committed` is the real session that replaces it.
+ */
+export interface IChatReplaceSessionEvent {
+	readonly original: IChatData;
+	readonly committed: IChatData;
+}
+
+/**
  * Event fired when sessions change within a provider.
  */
 export interface IChatChangeEvent {
@@ -86,6 +96,12 @@ export interface ISessionsProvider {
 	getSessions(): IChatData[];
 	/** Fires when chats are added, removed, or changed. */
 	readonly onDidChangeSessions: Event<IChatChangeEvent>;
+	/**
+	 * Optional. Fires when a temporary (untitled) session is atomically replaced
+	 * by a committed session after the first turn. Only providers that support
+	 * deferred session creation need to implement this.
+	 */
+	readonly onDidReplaceSession?: Event<IChatReplaceSessionEvent>;
 
 	// -- Session Management --
 

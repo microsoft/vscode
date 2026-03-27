@@ -21,7 +21,7 @@ import { ChatSessionStatus, IChatSessionFileChange, IChatSessionsService, IChatS
 import { IChatData, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, ISessionPullRequest } from '../../sessions/common/sessionData.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { basename } from '../../../../base/common/resources.js';
-import { ISendRequestOptions, ISessionsBrowseAction, IChatChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
+import { ISendRequestOptions, ISessionsBrowseAction, IChatChangeEvent, IChatReplaceSessionEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../chat/browser/newSession.js';
 import { IsolationMode } from './isolationPicker.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -834,6 +834,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	private readonly _onDidChangeSessions = this._register(new Emitter<IChatChangeEvent>());
 	readonly onDidChangeSessions: Event<IChatChangeEvent> = this._onDidChangeSessions.event;
 
+	private readonly _onDidReplaceSession = this._register(new Emitter<IChatReplaceSessionEvent>());
+	readonly onDidReplaceSession: Event<IChatReplaceSessionEvent> = this._onDidReplaceSession.event;
+
 	/** Cache of adapted sessions, keyed by resource URI string. */
 	private readonly _sessionCache = new Map<string, IChatData>();
 
@@ -1097,20 +1100,22 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._sessionCache.set(key, session);
 		this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
 
-		// Wait for the session to be committed (URI swapped from untitled to
-		// real). The agent host fires onDidCommitSession after the first turn.
-		const committedResource = await this._waitForCommittedSession(session.resource);
+		// Wait for the session to be committed (URI swapped from untitled to real).
+		// Do this asynchronously — sendRequest returns the temp session immediately
+		// so the management service can set it as active. Once committed, fire
+		// onDidReplaceSession so the management service can update its group model.
+		this._waitForCommittedSession(session.resource).then(committedResource => {
+			return this._waitForSessionInCache(committedResource).then(committedSession => {
+				// Remove the temp from the cache (the adapter now owns the committed key)
+				this._sessionCache.delete(key);
+				this._currentNewSession = undefined;
 
-		// Wait for the committed session to appear in the cache (populated by _refreshSessionCache)
-		const committedSession = await this._waitForSessionInCache(committedResource);
+				// Notify listeners that the temp session was replaced by the committed one
+				this._onDidReplaceSession.fire({ original: session, committed: committedSession });
+			});
+		});
 
-		// Replace the temporary session with the committed adapter in the cache.
-		// No event is fired here — the management service handles the transition
-		// via the return value of sendRequest.
-		this._sessionCache.delete(key);
-		this._currentNewSession = undefined;
-
-		return committedSession;
+		return session;
 	}
 
 	/**
