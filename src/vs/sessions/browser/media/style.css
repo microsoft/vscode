@@ -242,6 +242,11 @@
 
 /* ---- Widget Customizations ---- */
 
+/* Action Widget */
+.agent-sessions-workbench .action-widget .monaco-list .monaco-list-row {
+	padding-right: 0;
+}
+
 /* Badge */
 .agent-sessions-workbench .badge > .badge-content {
 	border-radius: 4px !important;
