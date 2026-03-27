@@ -12,6 +12,10 @@
 		padding: 0 6px;
 	}
 
+	.pane-body & .monaco-tree-sticky-container {
+		padding: 0 6px;
+	}
+
 	.monaco-list-row {
 		border-radius: 6px;
 	}
