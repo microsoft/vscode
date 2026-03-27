@@ -193,6 +193,110 @@ suite('CustomizationHarnessService', () => {
 			assert.deepStrictEqual(descriptor.hiddenSections, ['agents', 'prompts']);
 			assert.deepStrictEqual(descriptor.workspaceSubpaths, ['.test-ext']);
 		});
+
+		test('external harness with same id as static harness replaces it', () => {
+			const staticDescriptor: IHarnessDescriptor = {
+				id: 'cli',
+				label: 'Copilot CLI',
+				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+			};
+			const service = createService(
+				createVSCodeHarnessDescriptor([PromptsStorage.extension]),
+				staticDescriptor,
+			);
+			assert.strictEqual(service.availableHarnesses.get().length, 2);
+
+			const emitter = new Emitter<void>();
+			store.add(emitter);
+			const externalDescriptor: IHarnessDescriptor = {
+				id: 'cli',
+				label: 'Copilot CLI (from API)',
+				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				itemProvider: {
+					onDidChange: emitter.event,
+					provideChatSessionCustomizations: async () => [],
+				},
+			};
+
+			const reg = service.registerExternalHarness(externalDescriptor);
+			store.add(reg);
+
+			// Should still be 2, not 3 — the external replaces the static
+			assert.strictEqual(service.availableHarnesses.get().length, 2);
+			const cliHarness = service.availableHarnesses.get().find(h => h.id === 'cli')!;
+			assert.strictEqual(cliHarness.label, 'Copilot CLI (from API)');
+		});
+
+		test('static harness reappears when replacing external harness is disposed', () => {
+			const staticDescriptor: IHarnessDescriptor = {
+				id: 'cli',
+				label: 'Copilot CLI',
+				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+			};
+			const service = createService(
+				createVSCodeHarnessDescriptor([PromptsStorage.extension]),
+				staticDescriptor,
+			);
+
+			const emitter = new Emitter<void>();
+			store.add(emitter);
+			const externalDescriptor: IHarnessDescriptor = {
+				id: 'cli',
+				label: 'Copilot CLI (from API)',
+				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				itemProvider: {
+					onDidChange: emitter.event,
+					provideChatSessionCustomizations: async () => [],
+				},
+			};
+
+			const reg = service.registerExternalHarness(externalDescriptor);
+			reg.dispose();
+
+			// Static harness should be back
+			assert.strictEqual(service.availableHarnesses.get().length, 2);
+			const cliHarness = service.availableHarnesses.get().find(h => h.id === 'cli')!;
+			assert.strictEqual(cliHarness.label, 'Copilot CLI');
+		});
+
+		test('active harness stays when overriding external harness is disposed', () => {
+			const staticDescriptor: IHarnessDescriptor = {
+				id: 'cli',
+				label: 'Copilot CLI',
+				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+			};
+			const service = createService(
+				createVSCodeHarnessDescriptor([PromptsStorage.extension]),
+				staticDescriptor,
+			);
+
+			const emitter = new Emitter<void>();
+			store.add(emitter);
+			const externalDescriptor: IHarnessDescriptor = {
+				id: 'cli',
+				label: 'Copilot CLI (from API)',
+				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				itemProvider: {
+					onDidChange: emitter.event,
+					provideChatSessionCustomizations: async () => [],
+				},
+			};
+
+			const reg = service.registerExternalHarness(externalDescriptor);
+			service.setActiveHarness('cli');
+			assert.strictEqual(service.activeHarness.get(), 'cli');
+
+			reg.dispose();
+
+			// Active harness should stay on 'cli' — the static one is restored
+			assert.strictEqual(service.activeHarness.get(), 'cli');
+		});
 	});
 
 	suite('matchesWorkspaceSubpath', () => {
