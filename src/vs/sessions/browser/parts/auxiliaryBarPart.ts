@@ -61,7 +61,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	private readonly _runScriptMenu = this._register(new MutableDisposable<IMenu>());
 	private readonly _runScriptMenuListener = this._register(new MutableDisposable<IDisposable>());
 
-	// Use the side bar dimensions
+	// Sessions-specific auxiliary bar dimensions (intentionally not tied to the sessions SidebarPart values)
 	override readonly minimumWidth: number = 270;
 	override readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	override readonly minimumHeight: number = 0;
